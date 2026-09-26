@@ -7,6 +7,7 @@ import {
   pendingWorkspaceOf,
   pendingCodeOf,
   InviteCodeSchema,
+  partnerCodeFromCookie,
 } from "@chanlytics/contracts";
 import { z } from "zod";
 import { inviteCodeMatches, notifyPlatformSignup } from "@/server/signup";
@@ -43,7 +44,18 @@ import { giveFirstAlertAddress } from "@/server/first-alert";
  *
  * The body stays the route's own to read: the first issue's message is what
  * the create screen shows, without a field name in front of it.
+ *
+ * AND IT READS THE PARTNER'S COOKIE (decision 0012). A partner's link (/p/<code>) leaves one cookie; a workspace
+ * made while it is there is credited to that partner by the function, in the same transaction as the tenant, and
+ * only then. The route passes the code and nothing more: who is credited, and whether anyone is, is the function's
+ * to decide (an unknown, paused or self code is recorded as ignored). On a database 00202 has not reached the
+ * three-argument function does not exist; the call is made again without the code, and the drop is logged, so
+ * either deploy order makes the workspace.
  */
+
+/** The error Postgres or PostgREST answers a call with an argument the function does not take. */
+const noSuchSignature = (code: string | null | undefined, message: string): boolean =>
+  code === "42883" || code === "PGRST202" || /could not find the function/i.test(message);
 
 const Body = z
   .object({
@@ -92,9 +104,15 @@ export const POST = write({
     });
     if (!door.open) throw new AppError(door.code, door.message);
 
-    const { data, error } = await ctx.supabase
-      .rpc("create_workspace", { p_name: parsed.data.name, p_timezone: parsed.data.timezone ?? undefined })
+    const partnerCode = partnerCodeFromCookie(req.headers.get("cookie"));
+    const args = { p_name: parsed.data.name, p_timezone: parsed.data.timezone ?? undefined };
+    let { data, error } = await ctx.supabase
+      .rpc("create_workspace", partnerCode ? { ...args, p_partner_code: partnerCode } : args)
       .single();
+    if (error && partnerCode && noSuchSignature(error.code, error.message)) {
+      console.error("partner_code_dropped", JSON.stringify({ code: partnerCode, error: error.message }));
+      ({ data, error } = await ctx.supabase.rpc("create_workspace", args).single());
+    }
 
     if (error) {
       // The messages on these codes are written for an owner to read — the
@@ -104,6 +122,8 @@ export const POST = write({
       if (mapped) throw new AppError(mapped.code, error.message, mapped.status);
       throw new Error(error.message);
     }
+    // A call that raised nothing answers one row; none is the database's fault, not a workspace to hand over.
+    if (!data) throw new Error("create_workspace answered no row");
 
     // The platform mailbox hears about a new workspace from the one place
     // workspaces are made. Bounded and best-effort: the workspace exists whether

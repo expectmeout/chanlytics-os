@@ -64,11 +64,11 @@ const LISTED = {
 };
 const NINE_TO_FIVE = { open: "09:00", close: "17:00" };
 
-test("the policy: a write, the workspace's, the owner's, counted with the settings", () => {
+test("the policy: a write, the workspace's, the owner's or the partner's (0012), counted with the settings", () => {
   assert.deepEqual(receptionist.POST.policy, {
     kind: "write",
     scope: "workspace",
-    role: "owner",
+    role: "partner",
     rate: "settings",
     spend: false,
   });

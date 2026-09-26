@@ -288,7 +288,7 @@ var EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not sh
 
 // src/enums.ts
 var TENANT_STATUSES = ["active", "paused", "test"];
-var MEMBERSHIP_ROLES = ["owner", "operator", "viewer"];
+var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
 var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
 var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
 var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
@@ -463,7 +463,16 @@ var EVENT_KINDS = [
   "deal.proposed",
   "deal.won",
   "deal.lost",
-  "deal.ended"
+  "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -890,8 +899,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z13] = m;
-  if (z13) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z14] = m;
+  if (z14) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -2674,6 +2683,7 @@ function changedConfigFields(before, after) {
 // src/config.ts
 import { z as z3 } from "zod";
 var ROLES = MEMBERSHIP_ROLES;
+var TEAM_ROLES = ["owner", "operator", "viewer"];
 var ROLE_PERMS = {
   // `settings` is the business details and who is alerted: PUT /settings is
   // owner-only, and the form used to open on the autonomy gate, which let an
@@ -2682,8 +2692,14 @@ var ROLE_PERMS = {
   // people a screen at a time, the owner may take them all at once.
   // `find` is the lead finder: starting a search, keeping a lead from review,
   // putting one back. Each spends the month's allowance, so it is the
-  // owner's alone (PRD v3 §16.6, S9); has_permission() in 00140 says the
-  // same, and lead-engine.db.test.mjs holds the two together.
+  // owner's, and the partner's (PRD v3 §16.6, S9); has_permission() in 00140
+  // (widened in 00201) says the same, and lead-engine.db.test.mjs holds the
+  // two together.
+  // `partner` (decision 0012) is the member who brought the workspace and sets
+  // it up for its owner: everything setting up and running the receptionist
+  // takes, and nothing that touches the money, the team, or the customer list
+  // as a file. `disconnect` is the channel permission both ways: a partner
+  // gets the line and connects WhatsApp, and may disconnect them again.
   owner: {
     approve: true,
     autonomy: true,
@@ -2703,6 +2719,16 @@ var ROLE_PERMS = {
     settings: false,
     export: false,
     find: false
+  },
+  partner: {
+    approve: true,
+    autonomy: true,
+    disconnect: true,
+    billing: false,
+    team: false,
+    settings: true,
+    export: false,
+    find: true
   },
   viewer: {
     approve: false,
@@ -10157,6 +10183,7 @@ function emptyAudienceRefusal(purpose, label, pool) {
 var ROLE_WORDS = {
   owner: "Owner",
   operator: "Operator",
+  partner: "Partner",
   viewer: "Viewer"
 };
 function personInitials(name, email) {
@@ -12444,7 +12471,7 @@ var TONE_OF = /* @__PURE__ */ (() => ({
   template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
   // A role is a name, not a state: Team draws it as a chip. Blue on the owner said "in progress".
-  role: { owner: "plain", operator: "plain", viewer: "plain" },
+  role: { owner: "plain", operator: "plain", partner: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
   calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
   // Two sources are a claim somebody else stands behind; the rest are neutral, and a
@@ -15686,7 +15713,7 @@ function receptionistCardOf(i) {
   };
 }
 function shouldLandOnFirstRun(role, answering, route, landed) {
-  if (landed || role !== "owner" || answering) return false;
+  if (landed || answering || !ROLE_PERMS[role]?.settings) return false;
   return route === "" || route === "today";
 }
 var FIRST_RUN_HELPERS = {
@@ -19914,6 +19941,123 @@ function usableDeviceTimezone(resolve) {
   return tz && isTimezone(tz) ? tz : null;
 }
 
+// src/partner.ts
+import { z as z11 } from "zod";
+var PARTNER_STATUSES = ["active", "paused", "closed"];
+var PARTNER_SHARE_BP_DEFAULT = 2500;
+var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
+var PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"];
+var PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"];
+var PARTNER_HOLD_DAYS = 30;
+var PARTNER_CODE_MIN = 3;
+var PARTNER_CODE_MAX = 24;
+var CODE_SHAPE = /^[a-z0-9][a-z0-9-]{1,22}[a-z0-9]$/;
+var PARTNER_CODES_RESERVED = ["chanlytics", "admin", "support", "signup", "login", "partner", "partners"];
+function cleanPartnerCode(raw) {
+  const code2 = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!code2) return { ok: false, reason: "Choose a code for your link." };
+  if (code2.length < PARTNER_CODE_MIN || code2.length > PARTNER_CODE_MAX)
+    return { ok: false, reason: `A code is ${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} characters.` };
+  if (!CODE_SHAPE.test(code2))
+    return { ok: false, reason: "Letters, digits and dashes only, starting and ending with a letter or digit." };
+  if (PARTNER_CODES_RESERVED.includes(code2)) return { ok: false, reason: "That code is reserved. Try another." };
+  return { ok: true, code: code2 };
+}
+var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
+var PartnerBecomeSchema = z11.object({
+  code: z11.string().trim().min(1).max(64),
+  terms: z11.literal(true, { message: "The terms have to be accepted." })
+}).strict();
+var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
+var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
+var PARTNER_COOKIE = "chanlytics_partner";
+var PARTNER_COOKIE_DAYS = 30;
+function partnerCodeFromCookie(header) {
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() !== PARTNER_COOKIE) continue;
+    let value = part.slice(eq + 1).trim();
+    try {
+      value = decodeURIComponent(value);
+    } catch {
+      return null;
+    }
+    const cleaned = cleanPartnerCode(value);
+    return cleaned.ok ? cleaned.code : null;
+  }
+  return null;
+}
+var PARTNER_WORDS = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+};
+function shareWords(shareBp) {
+  const pct2 = shareBp / 100;
+  const shown = Number.isInteger(pct2) ? String(pct2) : pct2.toFixed(1).replace(/\.0$/, "");
+  return `${shown}% of what it pays for its plan`;
+}
+function broughtWords(count2) {
+  if (count2 <= 0) return "No workspace has come through your link yet.";
+  if (count2 === 1) return "1 workspace came through your link.";
+  return `${count2} workspaces came through your link.`;
+}
+var dayWords2 = (at2) => new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+function sumWords(rows, state) {
+  const of = rows.filter((r2) => r2.state === state && r2.earned_cents !== 0);
+  if (!of.length) return { words: moneyWords(0, rows[0]?.currency ?? "usd"), cents: 0 };
+  return {
+    words: of.map((r2) => moneyWords(r2.earned_cents, r2.currency)).join(" and "),
+    cents: of.reduce((n, r2) => n + r2.earned_cents, 0)
+  };
+}
+function partnerEarningsWords(rows) {
+  const list2 = rows ?? [];
+  const held = sumWords(list2, "held");
+  const payable = sumWords(list2, "payable");
+  const paid = sumWords(list2, "paid");
+  const next = list2.filter((r2) => r2.state === "held" && r2.next_payable_at).map((r2) => r2.next_payable_at).sort()[0];
+  return {
+    none: list2.every((r2) => r2.earned_cents === 0),
+    held: held.cents === 0 ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.` : `${held.words} held${next ? `, the first of it payable from ${dayWords2(next)}` : ""}.`,
+    payable: payable.cents < 0 ? `${payable.words} to come off your next payout, for refunds and disputes after you were paid.` : `${payable.words} payable.`,
+    paid: `${paid.words} paid to date.`
+  };
+}
+function partnerVM(dto, origin, workspacesAsPartner, balance = []) {
+  return {
+    code: dto.code,
+    link: partnerLinkFor(dto.code, origin),
+    status: dto.status,
+    share: shareWords(dto.share_bp),
+    since: PARTNER_WORDS.since(dto.created_at),
+    brought: broughtWords(workspacesAsPartner),
+    standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null,
+    earnings: partnerEarningsWords(balance)
+  };
+}
+
 // src/chrome.ts
 var THEME_OPTIONS = [
   { id: "light", label: "Light", icon: "sun" },
@@ -22519,7 +22663,7 @@ var SCHEMA_SETS = {
   "lines.voice_state": ["none", "provisioning", "answering", "failed"],
   "lines.whatsapp_state": ["none", "connecting", "connected", "coexistence", "failed"],
   "mailboxes.reply_mode": ["draft", "veto", "auto"],
-  "memberships.role": ["owner", "operator", "viewer"],
+  "memberships.role": ["owner", "operator", "partner", "viewer"],
   "messages.channel": ["whatsapp", "voice", "sms", "email", "system"],
   "messages.direction": ["inbound", "outbound"],
   "messages.sender": ["customer", "ai", "human", "system"],
@@ -22545,6 +22689,10 @@ var SCHEMA_SETS = {
     "leads_question",
     "note_for_you"
   ],
+  "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
+  "partner_earnings.state": ["held", "payable", "paid", "void"],
+  "partner_tenants.standing": ["qualified", "review", "disqualified"],
+  "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],
   "person_notes.source": ["page", "bulk", "moved", "call", "thread"],
   "person_notes.state": ["kept", "suggested"],
@@ -22660,7 +22808,7 @@ function dealPaceFrom(rows, nowMs) {
 }
 
 // src/lead-judge.ts
-import { z as z11 } from "zod";
+import { z as z12 } from "zod";
 var JUDGE_FACT_KEYS = [
   "name",
   "category",
@@ -22763,15 +22911,15 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z11.object({
-  places: z11.array(
-    z11.object({
-      ref: z11.number().int(),
-      criteria: z11.array(
-        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
+var AnswerSchema = z12.object({
+  places: z12.array(
+    z12.object({
+      ref: z12.number().int(),
+      criteria: z12.array(
+        z12.object({ key: z12.string(), answer: z12.enum(["pass", "fail", "unknown"]), facts: z12.array(z12.string()) })
       ),
-      email_index: z11.number().int().nullable(),
-      reason: z11.string()
+      email_index: z12.number().int().nullable(),
+      reason: z12.string()
     })
   )
 });
@@ -23542,7 +23690,7 @@ function timetable(input) {
 }
 
 // src/reach-out-words.ts
-import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 
 // src/email-subject.ts
 var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
@@ -23695,22 +23843,22 @@ function wordsIssueWords(i) {
       return "A line in capitals reads like spam.";
   }
 }
-var ReachOutStepSchema = z12.object({
+var ReachOutStepSchema = z13.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z12.string().uuid().nullable().optional(),
-  subject: z12.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z12.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z12.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  id: z13.string().uuid().nullable().optional(),
+  subject: z13.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z13.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z13.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
 });
-var ReachOutChainSchema = z12.object({
-  name: z12.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z12.string().uuid(),
-  include_unconfirmed: z12.boolean(),
-  gap_minutes: z12.number().int().min(5).max(120),
+var ReachOutChainSchema = z13.object({
+  name: z13.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z13.string().uuid(),
+  include_unconfirmed: z13.boolean(),
+  gap_minutes: z13.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z12.array(z12.string().uuid()).max(5),
-  signed_by: z12.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z12.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  domain_ids: z13.array(z13.string().uuid()).max(5),
+  signed_by: z13.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z13.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
 function validateReachOutChain(c, has3) {
   const out = [];
@@ -24624,6 +24772,18 @@ export {
   PARAM_SOURCES,
   PARAM_SOURCE_HINTS,
   PARAM_SOURCE_LABELS,
+  PARTNER_CODES_RESERVED,
+  PARTNER_CODE_MAX,
+  PARTNER_CODE_MIN,
+  PARTNER_COOKIE,
+  PARTNER_COOKIE_DAYS,
+  PARTNER_EARNING_KINDS,
+  PARTNER_EARNING_STATES,
+  PARTNER_HOLD_DAYS,
+  PARTNER_SHARE_BP_DEFAULT,
+  PARTNER_STANDINGS,
+  PARTNER_STATUSES,
+  PARTNER_WORDS,
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN,
   PASSWORD_WORDS,
@@ -24684,6 +24844,7 @@ export {
   PUSH_RECEIPTS_AFTER_MS,
   PUSH_TOKEN_MAX,
   PageContextSchema,
+  PartnerBecomeSchema,
   PendingWorkspaceSchema,
   PeopleExportQuerySchema,
   PolicyLimitsSchema,
@@ -24791,6 +24952,7 @@ export {
   STEP_SHEET_WORDS,
   ServiceSchema,
   SignupSchema,
+  TEAM_ROLES,
   TEMPLATE_BODY_MAX,
   TEMPLATE_BUTTON_TEXT_MAX,
   TEMPLATE_CATEGORIES,
@@ -24891,6 +25053,7 @@ export {
   broadcastFailureFix,
   broadcastFailureWords,
   broadcastName,
+  broughtWords,
   buildAskSuggestions,
   buildNotificationFeed,
   businessFieldsFor,
@@ -24940,6 +25103,7 @@ export {
   cleanDraft,
   cleanEmailCandidates,
   cleanParam,
+  cleanPartnerCode,
   cleanTimezone,
   clipAtWord,
   clockDate,
@@ -25175,6 +25339,7 @@ export {
   isOptedOut,
   isOptedOutContact,
   isOwned,
+  isPartnerCode,
   isPipelineView,
   isProductFallback,
   isPushKind,
@@ -25376,6 +25541,11 @@ export {
   parseTenantConfigResult,
   parseTodayWidgetSnapshot,
   partialSay,
+  partnerCodeFromCookie,
+  partnerEarningsWords,
+  partnerLinkFor,
+  partnerPathFor,
+  partnerVM,
   passwordProblem,
   pausedGreetingFor,
   pausedVoiceFacts,
@@ -25566,6 +25736,7 @@ export {
   setupRoute,
   setupSteps,
   sha256Hex,
+  shareWords,
   shellStatusLine,
   shiftKey,
   shiftMonth,

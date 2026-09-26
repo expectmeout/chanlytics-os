@@ -12,6 +12,12 @@
  * and the claim completed; a failure to write is a 500, and a Stripe that
  * could not be read, or a claim another delivery still holds, is a 503, so
  * Stripe tries again either way.
+ *
+ * A partner's ledger (0012) rides on the same deliveries: a paid plan
+ * invoice writes the share of the partner who brought the workspace, and a
+ * refund or a dispute of it writes what that does to the share
+ * (lib/partner-earnings.ts). A workspace nobody brought costs one read and
+ * no call to Stripe.
  */
 import type Stripe from "stripe";
 import { json } from "../lib/http.js";
@@ -31,6 +37,7 @@ import {
   subscriptionFacts,
   tenantOf,
 } from "../lib/billing.js";
+import { earnFromInvoice, invoiceOfPayment, isAttributed, reverseForInvoice } from "../lib/partner-earnings.js";
 import { receptionistOn } from "../lib/packages/contracts.js";
 import { env } from "../lib/env.js";
 
@@ -85,6 +92,22 @@ export async function POST(request: Request): Promise<Response> {
   };
   const giveBack = async (): Promise<void> => {
     if (lease) await forgetEvent(db, event.id, lease);
+  };
+  // The invoice a payment paid (0012): read as every Stripe read here is, under STRIPE_READ_OPTIONS; a read that does
+  // not answer gives the claim back, and the door's 503 has Stripe deliver the event again.
+  const UNREADABLE = Symbol("unreadable");
+  const invoiceOf = async (paymentIntent: string | null): Promise<string | null | typeof UNREADABLE> => {
+    try {
+      return await invoiceOfPayment(s, paymentIntent, STRIPE_READ_OPTIONS);
+    } catch (e) {
+      L.warn("stripe_read_failed", {
+        type: event.type,
+        payment_intent: paymentIntent,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      await giveBack();
+      return UNREADABLE;
+    }
   };
 
   try {
@@ -208,7 +231,35 @@ export async function POST(request: Request): Promise<Response> {
         const dup = await keep(row?.tenant_id ?? null);
         if (dup) return dup;
         if (row) await notePayment(db, row, event.type === "invoice.paid" ? "paid" : "failed");
-        return done(json(200, { ok: true }));
+        const earned =
+          row && event.type === "invoice.paid" ? await earnFromInvoice(db, row.tenant_id, inv, event.id, L) : null;
+        return done(json(200, { ok: true, ...(earned ? { partner_earned: earned.earned } : {}) }));
+      }
+      case "charge.refunded": {
+        // A partner's share gives back what the refund takes (0012). Stripe says the charge's refunded total so far;
+        // the door takes the difference from what earlier refunds took.
+        const charge = event.data.object;
+        const row = await tenantOf(db, charge.metadata, idOf(charge.customer));
+        const dup = await keep(row?.tenant_id ?? null);
+        if (dup) return dup;
+        if (!row || !(await isAttributed(db, row.tenant_id))) return done(json(200, { ok: true }));
+        const invoice = await invoiceOf(idOf(charge.payment_intent));
+        if (invoice === UNREADABLE) return json(503, { ok: false, error: "stripe_unreadable" });
+        const r = invoice ? await reverseForInvoice(db, invoice, event.id, "refund", charge.amount_refunded, L) : null;
+        return done(json(200, { ok: true, ...(r ? { partner_reversed: r.earned } : {}) }));
+      }
+      case "charge.dispute.created":
+      case "charge.dispute.closed": {
+        // A dispute takes the share while it is open; a dispute won gives it back, and one lost leaves it taken.
+        const dispute = event.data.object;
+        const dup = await keep(null);
+        if (dup) return dup;
+        if (event.type === "charge.dispute.closed" && dispute.status !== "won") return done(json(200, { ok: true }));
+        const invoice = await invoiceOf(idOf(dispute.payment_intent));
+        if (invoice === UNREADABLE) return json(503, { ok: false, error: "stripe_unreadable" });
+        const kind = event.type === "charge.dispute.created" ? "dispute" : "dispute_won";
+        const r = invoice ? await reverseForInvoice(db, invoice, event.id, kind, dispute.amount, L) : null;
+        return done(json(200, { ok: true, ...(r ? { partner_reversed: r.earned } : {}) }));
       }
       case "customer.deleted": {
         // The ids the row kept point at nothing now: forgotten, so the portal

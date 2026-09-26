@@ -6,7 +6,7 @@
 export const TENANT_STATUSES = ["active", "paused", "test"] as const;
 export type TenantStatus = (typeof TENANT_STATUSES)[number];
 
-export const MEMBERSHIP_ROLES = ["owner", "operator", "viewer"] as const;
+export const MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"] as const;
 export type MembershipRole = (typeof MEMBERSHIP_ROLES)[number];
 
 /* ---- Slice 1: Conversations ---- */
@@ -240,6 +240,15 @@ export const EVENT_KINDS = [
   "deal.won",
   "deal.lost",
   "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 

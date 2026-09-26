@@ -14,7 +14,7 @@ const Body = z.object({ from_name: z.string().max(200) }).strict();
  */
 export const PUT = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   input: Body,
   handle: async ({ ctx, member, input }) => ({

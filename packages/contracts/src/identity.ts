@@ -31,6 +31,7 @@ export interface IdentityWords {
 export const ROLE_WORDS: Record<string, string> = {
   owner: "Owner",
   operator: "Operator",
+  partner: "Partner",
   viewer: "Viewer",
 };
 

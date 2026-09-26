@@ -61,11 +61,15 @@ const PUBLIC_PATHS = new Set([
  *           takes input: its only write is a person's own "stop", under a key
  *           only we hold, and a GET changes nothing (src/server/unsubscribe.ts).
  *
+ *   /p/     a partner's link (decision 0012). It leaves one cookie naming the
+ *           partner's code and goes on to sign-up; it reads nothing and writes
+ *           nothing else (app/p/[code]/route.ts).
+ *
  * Adding one here is adding a page anybody on the internet may read. Each was
  * built for exactly that; nothing else goes on this list without the same
  * argument.
  */
-const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/"];
+const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/", "/p/"];
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a

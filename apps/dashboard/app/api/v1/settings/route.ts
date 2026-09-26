@@ -31,7 +31,7 @@ export const GET = read({
  */
 export const PUT = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => null)) as { config?: unknown; version?: number } | null;

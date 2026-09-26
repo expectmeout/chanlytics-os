@@ -168,6 +168,7 @@ import { z as z9 } from "zod";
 import { z as z10 } from "zod";
 import { z as z11 } from "zod";
 import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -286,7 +287,16 @@ var EVENT_KINDS = [
   "deal.proposed",
   "deal.won",
   "deal.lost",
-  "deal.ended"
+  "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -2475,6 +2485,36 @@ function isTimezone(raw) {
     return false;
   }
 }
+var PARTNER_CODE_MIN = 3;
+var PARTNER_CODE_MAX = 24;
+var PartnerBecomeSchema = z11.object({
+  code: z11.string().trim().min(1).max(64),
+  terms: z11.literal(true, { message: "The terms have to be accepted." })
+}).strict();
+var PARTNER_WORDS = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+};
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -2548,15 +2588,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z11.object({
-  places: z11.array(
-    z11.object({
-      ref: z11.number().int(),
-      criteria: z11.array(
-        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
+var AnswerSchema = z12.object({
+  places: z12.array(
+    z12.object({
+      ref: z12.number().int(),
+      criteria: z12.array(
+        z12.object({ key: z12.string(), answer: z12.enum(["pass", "fail", "unknown"]), facts: z12.array(z12.string()) })
       ),
-      email_index: z11.number().int().nullable(),
-      reason: z11.string()
+      email_index: z12.number().int().nullable(),
+      reason: z12.string()
     })
   )
 });
@@ -2642,22 +2682,22 @@ var REACH_OUT_STEPS_MAX = 5;
 var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
 var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema = z12.object({
+var ReachOutStepSchema = z13.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z12.string().uuid().nullable().optional(),
-  subject: z12.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z12.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z12.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  id: z13.string().uuid().nullable().optional(),
+  subject: z13.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z13.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z13.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
 });
-var ReachOutChainSchema = z12.object({
-  name: z12.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z12.string().uuid(),
-  include_unconfirmed: z12.boolean(),
-  gap_minutes: z12.number().int().min(5).max(120),
+var ReachOutChainSchema = z13.object({
+  name: z13.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z13.string().uuid(),
+  include_unconfirmed: z13.boolean(),
+  gap_minutes: z13.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z12.array(z12.string().uuid()).max(5),
-  signed_by: z12.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z12.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  domain_ids: z13.array(z13.string().uuid()).max(5),
+  signed_by: z13.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z13.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
 var OPENING_FACT_KEYS = [
   "category",
@@ -2683,7 +2723,7 @@ var OPENING_SCHEMA = {
 var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
 
 // ../channels/dist/index.js
-import { z as z13 } from "zod";
+import { z as z14 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
@@ -2695,6 +2735,7 @@ import { z as z92 } from "zod";
 import { z as z102 } from "zod";
 import { z as z112 } from "zod";
 import { z as z122 } from "zod";
+import { z as z132 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -7635,7 +7676,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
-z13.config({ jitless: true });
+z14.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
@@ -7753,7 +7794,16 @@ var EVENT_KINDS2 = [
   "deal.proposed",
   "deal.won",
   "deal.lost",
-  "deal.ended"
+  "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS2 = [
@@ -9901,6 +9951,36 @@ function isTimezone2(raw) {
     return false;
   }
 }
+var PARTNER_CODE_MIN2 = 3;
+var PARTNER_CODE_MAX2 = 24;
+var PartnerBecomeSchema2 = z112.object({
+  code: z112.string().trim().min(1).max(64),
+  terms: z112.literal(true, { message: "The terms have to be accepted." })
+}).strict();
+var PARTNER_WORDS2 = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN2} to ${PARTNER_CODE_MAX2} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+};
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
 var DAY_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -9974,15 +10054,15 @@ var JUDGE_OUTPUT_SCHEMA2 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema2 = z112.object({
-  places: z112.array(
-    z112.object({
-      ref: z112.number().int(),
-      criteria: z112.array(
-        z112.object({ key: z112.string(), answer: z112.enum(["pass", "fail", "unknown"]), facts: z112.array(z112.string()) })
+var AnswerSchema2 = z122.object({
+  places: z122.array(
+    z122.object({
+      ref: z122.number().int(),
+      criteria: z122.array(
+        z122.object({ key: z122.string(), answer: z122.enum(["pass", "fail", "unknown"]), facts: z122.array(z122.string()) })
       ),
-      email_index: z112.number().int().nullable(),
-      reason: z112.string()
+      email_index: z122.number().int().nullable(),
+      reason: z122.string()
     })
   )
 });
@@ -10063,22 +10143,22 @@ var REACH_OUT_STEPS_MAX2 = 5;
 var REACH_OUT_NAME_MAX2 = 80;
 var SIGNED_BY_MAX2 = 60;
 var REACH_OUT_AFTER_DAYS2 = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema2 = z122.object({
+var ReachOutStepSchema2 = z132.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z122.string().uuid().nullable().optional(),
-  subject: z122.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
-  body: z122.string().max(REACH_OUT_BODY_MAX2 * 2),
-  after_days: z122.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable()
+  id: z132.string().uuid().nullable().optional(),
+  subject: z132.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
+  body: z132.string().max(REACH_OUT_BODY_MAX2 * 2),
+  after_days: z132.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable()
 });
-var ReachOutChainSchema2 = z122.object({
-  name: z122.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
-  search_id: z122.string().uuid(),
-  include_unconfirmed: z122.boolean(),
-  gap_minutes: z122.number().int().min(5).max(120),
+var ReachOutChainSchema2 = z132.object({
+  name: z132.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
+  search_id: z132.string().uuid(),
+  include_unconfirmed: z132.boolean(),
+  gap_minutes: z132.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z122.array(z122.string().uuid()).max(5),
-  signed_by: z122.string().trim().max(SIGNED_BY_MAX2).nullable(),
-  steps: z122.array(ReachOutStepSchema2).min(1).max(REACH_OUT_STEPS_MAX2)
+  domain_ids: z132.array(z132.string().uuid()).max(5),
+  signed_by: z132.string().trim().max(SIGNED_BY_MAX2).nullable(),
+  steps: z132.array(ReachOutStepSchema2).min(1).max(REACH_OUT_STEPS_MAX2)
 });
 var OPENING_FACT_KEYS2 = [
   "category",
@@ -10209,7 +10289,7 @@ var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
 
 // ../core/dist/index.js
-import { z as z14 } from "zod";
+import { z as z15 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
@@ -10221,7 +10301,8 @@ import { z as z93 } from "zod";
 import { z as z103 } from "zod";
 import { z as z113 } from "zod";
 import { z as z123 } from "zod";
-import { z as z132 } from "zod";
+import { z as z133 } from "zod";
+import { z as z142 } from "zod";
 import { z as z222 } from "zod";
 import { z as z322 } from "zod";
 import { z as z422 } from "zod";
@@ -10233,7 +10314,8 @@ import { z as z922 } from "zod";
 import { z as z1022 } from "zod";
 import { z as z1122 } from "zod";
 import { z as z1222 } from "zod";
-import { z as z142 } from "zod";
+import { z as z1322 } from "zod";
+import { z as z152 } from "zod";
 import { z as z232 } from "zod";
 import { z as z332 } from "zod";
 import { z as z432 } from "zod";
@@ -10245,6 +10327,7 @@ import { z as z932 } from "zod";
 import { z as z1032 } from "zod";
 import { z as z1132 } from "zod";
 import { z as z1232 } from "zod";
+import { z as z1332 } from "zod";
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -11164,7 +11247,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
-z14.config({ jitless: true });
+z15.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -11282,7 +11365,16 @@ var EVENT_KINDS3 = [
   "deal.proposed",
   "deal.won",
   "deal.lost",
-  "deal.ended"
+  "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS3 = [
@@ -13430,6 +13522,36 @@ function isTimezone3(raw) {
     return false;
   }
 }
+var PARTNER_CODE_MIN3 = 3;
+var PARTNER_CODE_MAX3 = 24;
+var PartnerBecomeSchema3 = z113.object({
+  code: z113.string().trim().min(1).max(64),
+  terms: z113.literal(true, { message: "The terms have to be accepted." })
+}).strict();
+var PARTNER_WORDS3 = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN3} to ${PARTNER_CODE_MAX3} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+};
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
 var DAY_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -13503,15 +13625,15 @@ var JUDGE_OUTPUT_SCHEMA3 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema3 = z113.object({
-  places: z113.array(
-    z113.object({
-      ref: z113.number().int(),
-      criteria: z113.array(
-        z113.object({ key: z113.string(), answer: z113.enum(["pass", "fail", "unknown"]), facts: z113.array(z113.string()) })
+var AnswerSchema3 = z123.object({
+  places: z123.array(
+    z123.object({
+      ref: z123.number().int(),
+      criteria: z123.array(
+        z123.object({ key: z123.string(), answer: z123.enum(["pass", "fail", "unknown"]), facts: z123.array(z123.string()) })
       ),
-      email_index: z113.number().int().nullable(),
-      reason: z113.string()
+      email_index: z123.number().int().nullable(),
+      reason: z123.string()
     })
   )
 });
@@ -13592,22 +13714,22 @@ var REACH_OUT_STEPS_MAX3 = 5;
 var REACH_OUT_NAME_MAX3 = 80;
 var SIGNED_BY_MAX3 = 60;
 var REACH_OUT_AFTER_DAYS3 = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema3 = z123.object({
+var ReachOutStepSchema3 = z133.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z123.string().uuid().nullable().optional(),
-  subject: z123.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
-  body: z123.string().max(REACH_OUT_BODY_MAX3 * 2),
-  after_days: z123.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable()
+  id: z133.string().uuid().nullable().optional(),
+  subject: z133.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
+  body: z133.string().max(REACH_OUT_BODY_MAX3 * 2),
+  after_days: z133.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable()
 });
-var ReachOutChainSchema3 = z123.object({
-  name: z123.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
-  search_id: z123.string().uuid(),
-  include_unconfirmed: z123.boolean(),
-  gap_minutes: z123.number().int().min(5).max(120),
+var ReachOutChainSchema3 = z133.object({
+  name: z133.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
+  search_id: z133.string().uuid(),
+  include_unconfirmed: z133.boolean(),
+  gap_minutes: z133.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z123.array(z123.string().uuid()).max(5),
-  signed_by: z123.string().trim().max(SIGNED_BY_MAX3).nullable(),
-  steps: z123.array(ReachOutStepSchema3).min(1).max(REACH_OUT_STEPS_MAX3)
+  domain_ids: z133.array(z133.string().uuid()).max(5),
+  signed_by: z133.string().trim().max(SIGNED_BY_MAX3).nullable(),
+  steps: z133.array(ReachOutStepSchema3).min(1).max(REACH_OUT_STEPS_MAX3)
 });
 var OPENING_FACT_KEYS3 = [
   "category",
@@ -13724,7 +13846,7 @@ var STATE_TTL_MS2 = 10 * 6e4;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
-z132.config({ jitless: true });
+z142.config({ jitless: true });
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -13852,7 +13974,16 @@ var EVENT_KINDS22 = [
   "deal.proposed",
   "deal.won",
   "deal.lost",
-  "deal.ended"
+  "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES22 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS22 = [
@@ -16061,6 +16192,36 @@ function isTimezone22(raw) {
     return false;
   }
 }
+var PARTNER_CODE_MIN22 = 3;
+var PARTNER_CODE_MAX22 = 24;
+var PartnerBecomeSchema22 = z1122.object({
+  code: z1122.string().trim().min(1).max(64),
+  terms: z1122.literal(true, { message: "The terms have to be accepted." })
+}).strict();
+var PARTNER_WORDS22 = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN22} to ${PARTNER_CODE_MAX22} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+};
 var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
 var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
 var DAY_FMT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -16144,15 +16305,15 @@ var JUDGE_OUTPUT_SCHEMA22 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema22 = z1122.object({
-  places: z1122.array(
-    z1122.object({
-      ref: z1122.number().int(),
-      criteria: z1122.array(
-        z1122.object({ key: z1122.string(), answer: z1122.enum(["pass", "fail", "unknown"]), facts: z1122.array(z1122.string()) })
+var AnswerSchema22 = z1222.object({
+  places: z1222.array(
+    z1222.object({
+      ref: z1222.number().int(),
+      criteria: z1222.array(
+        z1222.object({ key: z1222.string(), answer: z1222.enum(["pass", "fail", "unknown"]), facts: z1222.array(z1222.string()) })
       ),
-      email_index: z1122.number().int().nullable(),
-      reason: z1122.string()
+      email_index: z1222.number().int().nullable(),
+      reason: z1222.string()
     })
   )
 });
@@ -16238,22 +16399,22 @@ var REACH_OUT_STEPS_MAX22 = 5;
 var REACH_OUT_NAME_MAX22 = 80;
 var SIGNED_BY_MAX22 = 60;
 var REACH_OUT_AFTER_DAYS22 = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema22 = z1222.object({
+var ReachOutStepSchema22 = z1322.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z1222.string().uuid().nullable().optional(),
-  subject: z1222.string().max(REACH_OUT_SUBJECT_MAX22 * 2).nullable(),
-  body: z1222.string().max(REACH_OUT_BODY_MAX22 * 2),
-  after_days: z1222.number().int().min(REACH_OUT_AFTER_DAYS22.min).max(REACH_OUT_AFTER_DAYS22.max).nullable()
+  id: z1322.string().uuid().nullable().optional(),
+  subject: z1322.string().max(REACH_OUT_SUBJECT_MAX22 * 2).nullable(),
+  body: z1322.string().max(REACH_OUT_BODY_MAX22 * 2),
+  after_days: z1322.number().int().min(REACH_OUT_AFTER_DAYS22.min).max(REACH_OUT_AFTER_DAYS22.max).nullable()
 });
-var ReachOutChainSchema22 = z1222.object({
-  name: z1222.string().trim().min(1).max(REACH_OUT_NAME_MAX22),
-  search_id: z1222.string().uuid(),
-  include_unconfirmed: z1222.boolean(),
-  gap_minutes: z1222.number().int().min(5).max(120),
+var ReachOutChainSchema22 = z1322.object({
+  name: z1322.string().trim().min(1).max(REACH_OUT_NAME_MAX22),
+  search_id: z1322.string().uuid(),
+  include_unconfirmed: z1322.boolean(),
+  gap_minutes: z1322.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z1222.array(z1222.string().uuid()).max(5),
-  signed_by: z1222.string().trim().max(SIGNED_BY_MAX22).nullable(),
-  steps: z1222.array(ReachOutStepSchema22).min(1).max(REACH_OUT_STEPS_MAX22)
+  domain_ids: z1322.array(z1322.string().uuid()).max(5),
+  signed_by: z1322.string().trim().max(SIGNED_BY_MAX22).nullable(),
+  steps: z1322.array(ReachOutStepSchema22).min(1).max(REACH_OUT_STEPS_MAX22)
 });
 var OPENING_FACT_KEYS22 = [
   "category",
@@ -16287,7 +16448,7 @@ var OPENING_SCHEMA22 = {
   additionalProperties: false
 };
 var CALL_ACTIVITY_STALE_MS22 = 15 * 6e4;
-z142.config({ jitless: true });
+z152.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
@@ -16405,7 +16566,16 @@ var EVENT_KINDS32 = [
   "deal.proposed",
   "deal.won",
   "deal.lost",
-  "deal.ended"
+  "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES32 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS32 = [
@@ -18546,6 +18716,36 @@ function isTimezone32(raw) {
     return false;
   }
 }
+var PARTNER_CODE_MIN32 = 3;
+var PARTNER_CODE_MAX32 = 24;
+var PartnerBecomeSchema32 = z1132.object({
+  code: z1132.string().trim().min(1).max(64),
+  terms: z1132.literal(true, { message: "The terms have to be accepted." })
+}).strict();
+var PARTNER_WORDS32 = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN32} to ${PARTNER_CODE_MAX32} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+};
 var CONSENT_PHRASE32 = OFFERS_OPT_IN_PHRASES32.en;
 var CONSENT_PHRASE_ES32 = OFFERS_OPT_IN_PHRASES32.es;
 var DAY_FMT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -18619,15 +18819,15 @@ var JUDGE_OUTPUT_SCHEMA32 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema32 = z1132.object({
-  places: z1132.array(
-    z1132.object({
-      ref: z1132.number().int(),
-      criteria: z1132.array(
-        z1132.object({ key: z1132.string(), answer: z1132.enum(["pass", "fail", "unknown"]), facts: z1132.array(z1132.string()) })
+var AnswerSchema32 = z1232.object({
+  places: z1232.array(
+    z1232.object({
+      ref: z1232.number().int(),
+      criteria: z1232.array(
+        z1232.object({ key: z1232.string(), answer: z1232.enum(["pass", "fail", "unknown"]), facts: z1232.array(z1232.string()) })
       ),
-      email_index: z1132.number().int().nullable(),
-      reason: z1132.string()
+      email_index: z1232.number().int().nullable(),
+      reason: z1232.string()
     })
   )
 });
@@ -18708,22 +18908,22 @@ var REACH_OUT_STEPS_MAX32 = 5;
 var REACH_OUT_NAME_MAX32 = 80;
 var SIGNED_BY_MAX32 = 60;
 var REACH_OUT_AFTER_DAYS32 = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema32 = z1232.object({
+var ReachOutStepSchema32 = z1332.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z1232.string().uuid().nullable().optional(),
-  subject: z1232.string().max(REACH_OUT_SUBJECT_MAX32 * 2).nullable(),
-  body: z1232.string().max(REACH_OUT_BODY_MAX32 * 2),
-  after_days: z1232.number().int().min(REACH_OUT_AFTER_DAYS32.min).max(REACH_OUT_AFTER_DAYS32.max).nullable()
+  id: z1332.string().uuid().nullable().optional(),
+  subject: z1332.string().max(REACH_OUT_SUBJECT_MAX32 * 2).nullable(),
+  body: z1332.string().max(REACH_OUT_BODY_MAX32 * 2),
+  after_days: z1332.number().int().min(REACH_OUT_AFTER_DAYS32.min).max(REACH_OUT_AFTER_DAYS32.max).nullable()
 });
-var ReachOutChainSchema32 = z1232.object({
-  name: z1232.string().trim().min(1).max(REACH_OUT_NAME_MAX32),
-  search_id: z1232.string().uuid(),
-  include_unconfirmed: z1232.boolean(),
-  gap_minutes: z1232.number().int().min(5).max(120),
+var ReachOutChainSchema32 = z1332.object({
+  name: z1332.string().trim().min(1).max(REACH_OUT_NAME_MAX32),
+  search_id: z1332.string().uuid(),
+  include_unconfirmed: z1332.boolean(),
+  gap_minutes: z1332.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z1232.array(z1232.string().uuid()).max(5),
-  signed_by: z1232.string().trim().max(SIGNED_BY_MAX32).nullable(),
-  steps: z1232.array(ReachOutStepSchema32).min(1).max(REACH_OUT_STEPS_MAX32)
+  domain_ids: z1332.array(z1332.string().uuid()).max(5),
+  signed_by: z1332.string().trim().max(SIGNED_BY_MAX32).nullable(),
+  steps: z1332.array(ReachOutStepSchema32).min(1).max(REACH_OUT_STEPS_MAX32)
 });
 var OPENING_FACT_KEYS32 = [
   "category",
@@ -19459,7 +19659,7 @@ var STALE_MS = 10 * 60 * 1e3;
 var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 
 // ../db/dist/index.js
-import { z as z15 } from "zod";
+import { z as z16 } from "zod";
 import { z as z24 } from "zod";
 import { z as z34 } from "zod";
 import { z as z44 } from "zod";
@@ -19471,7 +19671,8 @@ import { z as z94 } from "zod";
 import { z as z104 } from "zod";
 import { z as z114 } from "zod";
 import { z as z124 } from "zod";
-z15.config({ jitless: true });
+import { z as z134 } from "zod";
+z16.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
   const digits2 = String(raw).replace(/[^\d]/g, "");
@@ -19597,7 +19798,16 @@ var EVENT_KINDS4 = [
   "deal.proposed",
   "deal.won",
   "deal.lost",
-  "deal.ended"
+  "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES4 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS4 = [
@@ -21737,6 +21947,36 @@ function isTimezone4(raw) {
     return false;
   }
 }
+var PARTNER_CODE_MIN4 = 3;
+var PARTNER_CODE_MAX4 = 24;
+var PartnerBecomeSchema4 = z114.object({
+  code: z114.string().trim().min(1).max(64),
+  terms: z114.literal(true, { message: "The terms have to be accepted." })
+}).strict();
+var PARTNER_WORDS4 = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN4} to ${PARTNER_CODE_MAX4} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+};
 var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;
 var CONSENT_PHRASE_ES4 = OFFERS_OPT_IN_PHRASES4.es;
 var DAY_FMT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -21810,15 +22050,15 @@ var JUDGE_OUTPUT_SCHEMA4 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema4 = z114.object({
-  places: z114.array(
-    z114.object({
-      ref: z114.number().int(),
-      criteria: z114.array(
-        z114.object({ key: z114.string(), answer: z114.enum(["pass", "fail", "unknown"]), facts: z114.array(z114.string()) })
+var AnswerSchema4 = z124.object({
+  places: z124.array(
+    z124.object({
+      ref: z124.number().int(),
+      criteria: z124.array(
+        z124.object({ key: z124.string(), answer: z124.enum(["pass", "fail", "unknown"]), facts: z124.array(z124.string()) })
       ),
-      email_index: z114.number().int().nullable(),
-      reason: z114.string()
+      email_index: z124.number().int().nullable(),
+      reason: z124.string()
     })
   )
 });
@@ -21899,22 +22139,22 @@ var REACH_OUT_STEPS_MAX4 = 5;
 var REACH_OUT_NAME_MAX4 = 80;
 var SIGNED_BY_MAX4 = 60;
 var REACH_OUT_AFTER_DAYS4 = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema4 = z124.object({
+var ReachOutStepSchema4 = z134.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z124.string().uuid().nullable().optional(),
-  subject: z124.string().max(REACH_OUT_SUBJECT_MAX4 * 2).nullable(),
-  body: z124.string().max(REACH_OUT_BODY_MAX4 * 2),
-  after_days: z124.number().int().min(REACH_OUT_AFTER_DAYS4.min).max(REACH_OUT_AFTER_DAYS4.max).nullable()
+  id: z134.string().uuid().nullable().optional(),
+  subject: z134.string().max(REACH_OUT_SUBJECT_MAX4 * 2).nullable(),
+  body: z134.string().max(REACH_OUT_BODY_MAX4 * 2),
+  after_days: z134.number().int().min(REACH_OUT_AFTER_DAYS4.min).max(REACH_OUT_AFTER_DAYS4.max).nullable()
 });
-var ReachOutChainSchema4 = z124.object({
-  name: z124.string().trim().min(1).max(REACH_OUT_NAME_MAX4),
-  search_id: z124.string().uuid(),
-  include_unconfirmed: z124.boolean(),
-  gap_minutes: z124.number().int().min(5).max(120),
+var ReachOutChainSchema4 = z134.object({
+  name: z134.string().trim().min(1).max(REACH_OUT_NAME_MAX4),
+  search_id: z134.string().uuid(),
+  include_unconfirmed: z134.boolean(),
+  gap_minutes: z134.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z124.array(z124.string().uuid()).max(5),
-  signed_by: z124.string().trim().max(SIGNED_BY_MAX4).nullable(),
-  steps: z124.array(ReachOutStepSchema4).min(1).max(REACH_OUT_STEPS_MAX4)
+  domain_ids: z134.array(z134.string().uuid()).max(5),
+  signed_by: z134.string().trim().max(SIGNED_BY_MAX4).nullable(),
+  steps: z134.array(ReachOutStepSchema4).min(1).max(REACH_OUT_STEPS_MAX4)
 });
 var OPENING_FACT_KEYS4 = [
   "category",

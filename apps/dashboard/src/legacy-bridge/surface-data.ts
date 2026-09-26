@@ -28,7 +28,14 @@ import { knownZone, pageClock, workspaceZone } from "./zone";
 import { heldViews } from "./held-views";
 export { getActiveWorkspace } from "./workspace";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
-import type { DealDto, NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
+import type {
+  DealDto,
+  MembershipRole,
+  NotificationsDto,
+  PendingWorkspace,
+  ResolvedFacts,
+  FactConflict,
+} from "@chanlytics/contracts";
 import type { PoliciesSurface } from "./policy-store";
 
 export interface SurfaceOverride {
@@ -84,15 +91,19 @@ export interface Workspace {
   timezone: string;
   /** How its customers buy (0008): deals are on exactly when it is "proposal" (dealsAreOn); null is not asked yet. */
   sells_by?: string | null;
+  /** The caller's role in it (0012): said beside every workspace on the switcher. */
+  role?: string | null;
 }
 
 export interface Me {
   id: string;
   email: string | null;
-  role?: "owner" | "operator" | "viewer" | null;
+  role?: MembershipRole | null;
   display_name?: string | null;
   /** Whether the Chanlytics back office exists for this person. Never the authorization -- every platform route asks the database. */
   platform_admin?: boolean;
+  /** Whether this person is a partner (0012), and their code. */
+  partner?: { code: string; status: string } | null;
 }
 
 export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {

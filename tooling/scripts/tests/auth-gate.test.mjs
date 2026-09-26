@@ -110,7 +110,7 @@ test("one address: the deploy alias redirects, and a preview never does", () => 
   );
 });
 
-test("four public PREFIXES, and only a workspace's own pages and the unsubscribe link live under them", () => {
+test("five public PREFIXES, and only a workspace's own pages, the unsubscribe link and a partner's link live under them", () => {
   const block = /PUBLIC_PREFIXES\s*=\s*\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PREFIXES must be a literal array so this test can read it");
   const prefixes = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
@@ -137,7 +137,12 @@ test("four public PREFIXES, and only a workspace's own pages and the unsubscribe
   // authority, sealed under a key only we hold, so nothing is asked of the
   // database for a link we did not make; and a GET changes nothing, because
   // link scanners open every URL in an email (unsubscribe-door.test.mjs).
-  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/", "/u/"]);
+  //
+  // `/p/` joined with partners (decision 0012): a partner's link, which the
+  // reader opens before they have an account. It reads nothing and writes one
+  // cookie naming a code; who is credited is decided later, by create_workspace,
+  // so the link is not a door that can be probed (partner.test.mjs).
+  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/", "/u/", "/p/"]);
   assert.match(middleware, /PUBLIC_PREFIXES\.some\(\(p\) => path\.startsWith\(p\)\)/);
   //
   // `/yes/<slug>/form` joined the opt-in page when a yes to offers had to be

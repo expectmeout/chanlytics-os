@@ -121,7 +121,7 @@ async function refused(p, code, status) {
   });
 }
 
-test("release A's eleven declare their policy: the reads open to every member; a search, a top-up and what counts a lead the owner's, spending where money leaves; a stop the operator's", () => {
+test("release A's eleven declare their policy: the reads open to every member; a search, a top-up and what counts a lead the owner's or the partner's (0012), spending where money leaves; a stop the operator's", () => {
   const open = { kind: "read", role: null, rate: null, spend: false, scope: "workspace" };
   assert.deepEqual(searches.GET.policy, open);
   assert.deepEqual(search.GET.policy, open);
@@ -129,21 +129,21 @@ test("release A's eleven declare their policy: the reads open to every member; a
   assert.deepEqual(searches.POST.policy, {
     kind: "write",
     scope: "workspace",
-    role: "owner",
+    role: "partner",
     rate: "lead_search",
     spend: true,
   });
   assert.deepEqual(more.POST.policy, {
     kind: "write",
     scope: "workspace",
-    role: "owner",
+    role: "partner",
     rate: "lead_search",
     spend: true,
   });
   assert.deepEqual(answerRoute.POST.policy, {
     kind: "write",
     scope: "workspace",
-    role: "owner",
+    role: "partner",
     rate: "lead_answer",
     spend: false,
   });
@@ -158,22 +158,28 @@ test("release A's eleven declare their policy: the reads open to every member; a
     assert.deepEqual(r.POST.policy, {
       kind: "write",
       scope: "workspace",
-      role: "owner",
+      role: "partner",
       rate: "lead_member",
       spend: false,
     });
 });
 
-test("the permission `find` and the routes agree: the one role that may find is the one role the counting routes name", () => {
-  assert.deepEqual([ROLE_PERMS.owner.find, ROLE_PERMS.operator.find, ROLE_PERMS.viewer.find], [true, false, false]);
+test("the permission `find` and the routes agree: the roles that may find are the ones at or above the rung the counting routes name", () => {
+  assert.deepEqual(
+    [ROLE_PERMS.owner.find, ROLE_PERMS.partner.find, ROLE_PERMS.operator.find, ROLE_PERMS.viewer.find],
+    [true, true, false, false],
+  );
   const may = Object.entries(ROLE_PERMS)
     .filter(([, p]) => p.find)
-    .map(([r]) => r);
+    .map(([r]) => r)
+    .sort();
+  // The ladder requireRole climbs (with-route.ts ROLE_RANK): a route names its lowest rung.
+  const ladder = ["viewer", "operator", "partner", "owner"];
   for (const r of [searches.POST, more.POST, keep.POST, putBack.POST, undo.POST])
     assert.deepEqual(
+      ladder.slice(ladder.indexOf(r.policy.role)).sort(),
       may,
-      [r.policy.role],
-      "the door checks `find`; the route spells the role: they must be the same set",
+      "the door checks `find`; the route spells the rung: the roles at or above it must be the roles that may",
     );
 });
 
@@ -689,7 +695,7 @@ beforeEach(() => {
   });
 });
 
-test("release B's ten declare their policy: working a lead is the operator's, erasing, exporting, removing and giving leads back the owner's, and none of them spends", () => {
+test("release B's ten declare their policy: working a lead is the operator's, erasing and exporting the owner's, removing and giving leads back the owner's or the partner's (0012), and none of them spends", () => {
   assert.deepEqual(search.PATCH.policy, {
     kind: "write",
     scope: "row",
@@ -700,14 +706,14 @@ test("release B's ten declare their policy: working a lead is the operator's, er
   assert.deepEqual(search.DELETE.policy, {
     kind: "write",
     scope: "row",
-    role: "owner",
+    role: "partner",
     rate: "lead_member",
     spend: false,
   });
   assert.deepEqual(searchUndo.POST.policy, {
     kind: "write",
     scope: "row",
-    role: "owner",
+    role: "partner",
     rate: "lead_member",
     spend: false,
   });
@@ -736,7 +742,7 @@ test("release B's ten declare their policy: working a lead is the operator's, er
   assert.deepEqual(checkAgain.POST.policy, {
     kind: "write",
     scope: "workspace",
-    role: "owner",
+    role: "partner",
     rate: "lead_bulk",
     spend: true,
   });
@@ -757,7 +763,7 @@ test("release B's ten declare their policy: working a lead is the operator's, er
   assert.deepEqual(suggestions.PUT.policy, {
     kind: "write",
     scope: "workspace",
-    role: "owner",
+    role: "partner",
     rate: "lead_suggest",
     spend: false,
   });

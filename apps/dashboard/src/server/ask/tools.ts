@@ -56,6 +56,7 @@ import {
   type PersonRowVM,
   visitLine,
 } from "@chanlytics/contracts";
+import type { MembershipRole } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { poolList, type AudiencePool } from "../audience";
 import { waitingQuestionOf } from "../leads";
@@ -204,7 +205,7 @@ export interface ToolRun {
 export interface ToolContext {
   ctx: RouteContext;
   tenantId: string;
-  role: "owner" | "operator" | "viewer";
+  role: MembershipRole;
   /** The business's zone: "tomorrow at ten" is its ten, never the server's. */
   timezone: string;
   read: AskReadSet;

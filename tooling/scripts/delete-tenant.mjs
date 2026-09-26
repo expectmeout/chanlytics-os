@@ -71,6 +71,7 @@ const TABLES = [
   "ask_messages",
   "ask_threads",
   "billing_accounts",
+  "billing_card_marks",
   "billing_events",
   "broadcast_recipients",
   "broadcasts",
@@ -109,6 +110,8 @@ const TABLES = [
   "messages",
   "notification_reads",
   "notifications",
+  "partner_earnings",
+  "partner_tenants",
   "person_notes",
   "playbooks",
   "policies",
@@ -123,7 +126,8 @@ const TABLES = [
 ];
 
 /** Survives the delete with a null tenant_id, deliberately. */
-const KEPT = new Set(["billing_events"]);
+// A partner's earnings (0012) are money owed or paid, and outlive the workspace they came from, as its events do.
+const KEPT = new Set(["billing_events", "partner_earnings"]);
 
 const db = createClient(url, key, { auth: { persistSession: false } });
 

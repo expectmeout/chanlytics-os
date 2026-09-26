@@ -84,23 +84,23 @@ const policy = (tenant_id, cls, mode, limits = {}) => ({
   updated_at: "2026-09-01T00:00:00Z",
 });
 
-test("the fourteen declare their policy: the reads open to every member, the calendar counted with the aggregates, every change counted, the owner's where it is the business's identity or its lines", () => {
+test("the fourteen declare their policy: the reads open to every member, the calendar counted with the aggregates, every change counted, the owner's or the partner's (0012) where it is the business's identity or its lines", () => {
   const open = { kind: "read", scope: "workspace", role: null, rate: null, spend: false };
   const ws = (role, rate) => ({ kind: "write", scope: "workspace", role, rate, spend: false });
   assert.deepEqual(settings.GET.policy, open);
   assert.deepEqual(policies.GET.policy, open);
   assert.deepEqual(record.GET.policy, open);
   assert.deepEqual(calendar.GET.policy, { ...open, rate: "aggregate" });
-  assert.deepEqual(settings.PUT.policy, ws("owner", "settings"));
+  assert.deepEqual(settings.PUT.policy, ws("partner", "settings"));
   assert.deepEqual(policies.PUT.policy, ws("operator", "settings"));
-  assert.deepEqual(record.PUT.policy, ws("owner", "business_record"));
+  assert.deepEqual(record.PUT.policy, ws("partner", "business_record"));
   assert.deepEqual(preview.POST.policy, ws("operator", "settings"));
   assert.deepEqual(setupRequest.POST.policy, ws("operator", "setup_request"));
-  assert.deepEqual(search.POST.policy, ws("owner", "lines_search"));
-  assert.deepEqual(retry.POST.policy, ws("owner", "lines_retry"));
-  assert.deepEqual(forwarding.POST.policy, ws("owner", "lines_forwarding"));
-  assert.deepEqual(forwardingTest.POST.policy, ws("owner", "lines_forwarding"));
-  assert.deepEqual(connect.POST.policy, ws("owner", "settings"));
+  assert.deepEqual(search.POST.policy, ws("partner", "lines_search"));
+  assert.deepEqual(retry.POST.policy, ws("partner", "lines_retry"));
+  assert.deepEqual(forwarding.POST.policy, ws("partner", "lines_forwarding"));
+  assert.deepEqual(forwardingTest.POST.policy, ws("partner", "lines_forwarding"));
+  assert.deepEqual(connect.POST.policy, ws("partner", "settings"));
 });
 
 test("the settings read: the workspace the tab named, with its version and the reader's role; a viewer sees the calendar feed masked and an owner whole; a config the parser refuses is its own state", async () => {

@@ -27,7 +27,7 @@ export const PATCH = write({
  */
 export const DELETE = write({
   scope: leadSearchScope,
-  role: "owner",
+  role: "partner",
   rate: "lead_member",
   handle: ({ ctx, row }) => removeSearch(ctx, row),
 });

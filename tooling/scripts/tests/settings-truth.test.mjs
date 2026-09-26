@@ -217,7 +217,7 @@ test("the workspace timezone is visible and an owner can change it", () => {
   );
 
   const route = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
-  assert.ok(route.includes('role: "owner",'), "owner-only");
+  assert.ok(route.includes('role: "partner",'), "the owner's, or the partner's who set it up (0012)");
   assert.ok(
     route.includes("if (!data?.length) throw new AppError"),
     "a forbidden UPDATE returns success with zero rows here, so the count IS the check",

@@ -85,7 +85,11 @@ test("the two tables that do not cascade are handled, not discovered afterwards"
   // to outlive the workspace or a redelivered event is processed twice.
   const billing = readCode("supabase/migrations/00073_billing.sql");
   assert.ok(billing.includes("tenant_id    uuid references public.tenants (id) on delete set null"));
-  assert.ok(script.includes('const KEPT = new Set(["billing_events"]);'), "the script says which rows survive");
+  // A partner's earnings (0012) are money owed or paid, and outlive the workspace as the ledger does.
+  assert.ok(
+    script.includes('const KEPT = new Set(["billing_events", "partner_earnings"]);'),
+    "the script says which rows survive",
+  );
   assert.ok(
     script.includes("kept, tenant_id set to null"),
     "and says so in the tally rather than in a comment nobody reads",

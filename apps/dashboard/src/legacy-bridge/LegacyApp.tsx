@@ -84,6 +84,7 @@ import { installMailbox } from "./mailbox";
 import { installSendingDomains } from "./sending-domains";
 import { installBusinessRecord } from "./business-record";
 import { installPlatform } from "./platform";
+import { installPartner, partnerOverride } from "./partner";
 import { installActivity } from "./activity";
 import { installIdentity } from "./identity";
 import { installShell, publishShellStatus, shellStatusOf } from "./shell";
@@ -134,6 +135,7 @@ installMailbox();
 installSendingDomains();
 installBusinessRecord();
 installPlatform();
+installPartner();
 installActivity();
 installIdentity();
 installShell();
@@ -169,6 +171,8 @@ const SURFACES = [
   liveOverride,
   broadcastsOverride,
   playbooksOverride,
+  // The partner's account (0012): on the person, read once, beside the rest.
+  partnerOverride,
   calendarOverride,
   notificationsOverride,
   setupOverride,

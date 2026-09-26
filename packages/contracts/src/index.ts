@@ -58,6 +58,7 @@ export * from "./forwarding";
 export * from "./facts";
 export * from "./identity";
 export * from "./workspace";
+export * from "./partner";
 export * from "./chrome";
 export * from "./push";
 export * from "./google";

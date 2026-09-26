@@ -185,6 +185,32 @@ export type Database = {
           },
         ]
       }
+      billing_card_marks: {
+        Row: {
+          card_fingerprint: string
+          seen_at: string
+          tenant_id: string
+        }
+        Insert: {
+          card_fingerprint: string
+          seen_at?: string
+          tenant_id: string
+        }
+        Update: {
+          card_fingerprint?: string
+          seen_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_card_marks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_events: {
         Row: {
           id: string
@@ -3311,6 +3337,165 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_earnings: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          earned_cents: number
+          id: string
+          kind: string
+          paid_at: string
+          partner_id: string
+          payable_at: string
+          payout_id: string | null
+          share_bp: number
+          state: string
+          stripe_event_id: string
+          stripe_invoice_id: string
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          currency: string
+          earned_cents: number
+          id?: string
+          kind: string
+          paid_at: string
+          partner_id: string
+          payable_at: string
+          payout_id?: string | null
+          share_bp: number
+          state?: string
+          stripe_event_id: string
+          stripe_invoice_id: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          earned_cents?: number
+          id?: string
+          kind?: string
+          paid_at?: string
+          partner_id?: string
+          payable_at?: string
+          payout_id?: string | null
+          share_bp?: number
+          state?: string
+          stripe_event_id?: string
+          stripe_invoice_id?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_earnings_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_earnings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_tenants: {
+        Row: {
+          attributed_at: string
+          checks: Json
+          code_used: string
+          partner_id: string
+          standing: string | null
+          standing_at: string | null
+          standing_by: string | null
+          standing_why: string | null
+          tenant_id: string
+        }
+        Insert: {
+          attributed_at?: string
+          checks?: Json
+          code_used: string
+          partner_id: string
+          standing?: string | null
+          standing_at?: string | null
+          standing_by?: string | null
+          standing_why?: string | null
+          tenant_id: string
+        }
+        Update: {
+          attributed_at?: string
+          checks?: Json
+          code_used?: string
+          partner_id?: string
+          standing?: string | null
+          standing_at?: string | null
+          standing_by?: string | null
+          standing_why?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_tenants_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partners: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          payout_facts: Json
+          share_bp: number
+          status: string
+          terms_accepted_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          payout_facts?: Json
+          share_bp?: number
+          status?: string
+          terms_accepted_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          payout_facts?: Json
+          share_bp?: number
+          status?: string
+          terms_accepted_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       person_notes: {
         Row: {
           author_kind: string
@@ -4349,7 +4534,15 @@ export type Database = {
       }
     }
     Functions: {
+      billing_card_mark: {
+        Args: { p_fingerprint: string; p_tenant_id: string }
+        Returns: undefined
+      }
       call_status_rank: { Args: { p_status: string }; Returns: number }
+      caller_has_permission: {
+        Args: { p_permission: string; p_tenant_id: string }
+        Returns: boolean
+      }
       campaign_series: {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
@@ -4412,7 +4605,7 @@ export type Database = {
         Returns: Json
       }
       create_workspace: {
-        Args: { p_name: string; p_timezone?: string }
+        Args: { p_name: string; p_partner_code?: string; p_timezone?: string }
         Returns: {
           id: string
           locale: string
@@ -4423,7 +4616,12 @@ export type Database = {
         }[]
       }
       create_workspace_for: {
-        Args: { p_name: string; p_timezone?: string; p_user: string }
+        Args: {
+          p_name: string
+          p_partner_code?: string
+          p_timezone?: string
+          p_user: string
+        }
         Returns: {
           id: string
           locale: string
@@ -4964,6 +5162,37 @@ export type Database = {
           p_lead_id?: string
           p_tenant_id: string
           p_to: string
+        }
+        Returns: Json
+      }
+      partner_balance: {
+        Args: never
+        Returns: {
+          currency: string
+          earned_cents: number
+          next_payable_at: string
+          state: string
+        }[]
+      }
+      partner_become: { Args: { p_code: string }; Returns: Json }
+      partner_earn: {
+        Args: {
+          p_amount_cents: number
+          p_currency: string
+          p_event_id: string
+          p_invoice_id: string
+          p_paid_at: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      partner_earnings_sweep: { Args: { p_now?: string }; Returns: Json }
+      partner_reverse: {
+        Args: {
+          p_amount_cents: number
+          p_event_id: string
+          p_invoice_id: string
+          p_kind: string
         }
         Returns: Json
       }
@@ -5642,6 +5871,7 @@ export type Database = {
       trigger_leads_sweep: { Args: never; Returns: number }
       trigger_lines_sweep: { Args: never; Returns: number }
       trigger_notes_sweep: { Args: never; Returns: number }
+      trigger_partners_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }
       trigger_reach_out_check_sweep: { Args: never; Returns: number }
       trigger_reach_out_sweep: { Args: never; Returns: number }

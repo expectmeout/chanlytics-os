@@ -39,6 +39,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // monthly partition precreate and the five nightly purges. 00159 added
   // 'notes', the sweep that suggests a note from a finished conversation.
   // 00197 added 'reach_out_check', the check before each cold email.
+  // 00203 added 'partners', the sweep that makes a partner's held earnings payable.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -53,6 +54,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "lines",
       "notes",
       "partitions",
+      "partners",
       "pauses",
       "playbooks",
       "purge_ask",
@@ -120,6 +122,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "lines",
     "notes",
     "partitions",
+    "partners",
     "pauses",
     "playbooks",
     "purge_ask",

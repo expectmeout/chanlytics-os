@@ -14,7 +14,7 @@ import { formatPhoneDisplay } from "./phone";
 import { greetingFor } from "./greeting";
 import { initialsOf } from "./viewmodels";
 import { openWeekWords, servicesWords, type ServiceWordsInput } from "./business-tab";
-import { DAY_NAMES, type Hours } from "./config";
+import { DAY_NAMES, ROLE_PERMS, type Hours, type Role } from "./config";
 import { bookingLinkOptional } from "./deals";
 import { checkChipsOf } from "./check-chips";
 import { bookingPageOffered } from "./google";
@@ -597,7 +597,8 @@ export function shouldLandOnFirstRun(
   route: string,
   landed: boolean,
 ): boolean {
-  if (landed || role !== "owner" || answering) return false;
+  // Whoever may set the workspace up: its owner, and the partner who brought it (0012).
+  if (landed || answering || !ROLE_PERMS[role as Role]?.settings) return false;
   return route === "" || route === "today";
 }
 

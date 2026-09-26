@@ -12,7 +12,7 @@ import { leadSearchScope, undoSearch } from "@/server/leads";
  */
 export const POST = write({
   scope: leadSearchScope,
-  role: "owner",
+  role: "partner",
   rate: "lead_member",
   handle: ({ ctx, row }) => undoSearch(ctx, row),
 });

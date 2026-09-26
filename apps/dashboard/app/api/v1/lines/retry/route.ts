@@ -10,7 +10,7 @@ import { edgeLines } from "@/server/lines";
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lines_retry",
   handle: async ({ req, member }) => {
     const body = (await req.json().catch(() => ({}))) as { line_id?: unknown };

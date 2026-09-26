@@ -821,14 +821,14 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
 
   const route = readCode("apps/dashboard/app/api/v1/business-record/route.ts");
   assert.ok(
-    route.includes('role: "owner",') && route.includes("businessRecordProblems(record, path, { ourNumbers:"),
+    route.includes('role: "partner",') && route.includes("businessRecordProblems(record, path, { ourNumbers:"),
     "checked here, in the owner's words, before anything leaves for a provider",
   );
   assert.ok(!route.includes("service"), "it goes through the edge like every other provider write");
   const reg = readCode("apps/dashboard/app/api/v1/lines/register/route.ts");
   assert.ok(
-    reg.includes('role: "owner",') && reg.includes('rate: "lines_register",') && reg.includes("spend: true,"),
-    "filing costs money, so it is an owner's, it is rate-limited, and it declares the spend",
+    reg.includes('role: "partner",') && reg.includes('rate: "lines_register",') && reg.includes("spend: true,"),
+    "filing costs the workspace's money, so it is an owner's or the partner's (0012), it is rate-limited, and it declares the spend",
   );
   assert.ok(
     !/mock:\s*(true|body)/.test(reg),

@@ -19,6 +19,7 @@ import { z as z9 } from "zod";
 import { z as z10 } from "zod";
 import { z as z11 } from "zod";
 import { z as z12 } from "zod";
+import { z as z13 } from "zod";
 z.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
@@ -145,7 +146,16 @@ var EVENT_KINDS = [
   "deal.proposed",
   "deal.won",
   "deal.lost",
-  "deal.ended"
+  "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -2422,6 +2432,36 @@ function isTimezone(raw) {
     return false;
   }
 }
+var PARTNER_CODE_MIN = 3;
+var PARTNER_CODE_MAX = 24;
+var PartnerBecomeSchema = z11.object({
+  code: z11.string().trim().min(1).max(64),
+  terms: z11.literal(true, { message: "The terms have to be accepted." })
+}).strict();
+var PARTNER_WORDS = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner",
+  earnings: "Earnings",
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+};
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -2495,15 +2535,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z11.object({
-  places: z11.array(
-    z11.object({
-      ref: z11.number().int(),
-      criteria: z11.array(
-        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
+var AnswerSchema = z12.object({
+  places: z12.array(
+    z12.object({
+      ref: z12.number().int(),
+      criteria: z12.array(
+        z12.object({ key: z12.string(), answer: z12.enum(["pass", "fail", "unknown"]), facts: z12.array(z12.string()) })
       ),
-      email_index: z11.number().int().nullable(),
-      reason: z11.string()
+      email_index: z12.number().int().nullable(),
+      reason: z12.string()
     })
   )
 });
@@ -2584,22 +2624,22 @@ var REACH_OUT_STEPS_MAX = 5;
 var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
 var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema = z12.object({
+var ReachOutStepSchema = z13.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z12.string().uuid().nullable().optional(),
-  subject: z12.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z12.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z12.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  id: z13.string().uuid().nullable().optional(),
+  subject: z13.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z13.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z13.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
 });
-var ReachOutChainSchema = z12.object({
-  name: z12.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z12.string().uuid(),
-  include_unconfirmed: z12.boolean(),
-  gap_minutes: z12.number().int().min(5).max(120),
+var ReachOutChainSchema = z13.object({
+  name: z13.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z13.string().uuid(),
+  include_unconfirmed: z13.boolean(),
+  gap_minutes: z13.number().int().min(5).max(120),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z12.array(z12.string().uuid()).max(5),
-  signed_by: z12.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z12.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  domain_ids: z13.array(z13.string().uuid()).max(5),
+  signed_by: z13.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z13.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
 var OPENING_FACT_KEYS = [
   "category",
@@ -4166,6 +4206,37 @@ async function yesesSince(db, tenantId, since) {
   return rows.map((r2) => ({ stage: r2.stage, proposed_at: r2.proposed_at, decided_at: r2.decided_at }));
 }
 
+// src/repositories/partner.ts
+var PARTNER_COLUMNS = "id, code, status, share_bp, terms_accepted_at, created_at";
+var noTable = (message) => /\bpartners\b/.test(message) && /does not exist|could not find|schema cache/i.test(message);
+async function getOwnPartner(db) {
+  const { data, error } = await db.from("partners").select(PARTNER_COLUMNS).maybeSingle();
+  if (error) {
+    if (noTable(error.message)) return null;
+    throw new Error(`getOwnPartner: ${error.message}`);
+  }
+  return data;
+}
+async function getPartnerBalance(db) {
+  const { data, error } = await db.rpc("partner_balance");
+  if (error) {
+    if (error.code === "PGRST202" || error.code === "42883" || /could not find the function/i.test(error.message))
+      return [];
+    throw new Error(`getPartnerBalance: ${error.message}`);
+  }
+  return (data ?? []).map((r2) => ({
+    currency: r2.currency,
+    state: r2.state,
+    earned_cents: Number(r2.earned_cents),
+    next_payable_at: r2.next_payable_at ?? null
+  }));
+}
+async function becomePartner(db, code) {
+  const { data, error } = await db.rpc("partner_become", { p_code: code });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, row: data };
+}
+
 // src/realtime.ts
 var WATCHED = [
   { table: "messages", event: "INSERT" },
@@ -4259,6 +4330,7 @@ export {
   applyDomainCheck,
   archiveList,
   assembleHistory,
+  becomePartner,
   checkResetPatch,
   claimCallNotification,
   claimControl,
@@ -4285,6 +4357,8 @@ export {
   everyoneIn,
   finishableRuns,
   followUpTouchesSince,
+  getOwnPartner,
+  getPartnerBalance,
   getTenantConfig,
   heldStale,
   ingestCall,

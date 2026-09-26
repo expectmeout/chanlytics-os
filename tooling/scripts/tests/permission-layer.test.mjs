@@ -103,11 +103,44 @@ test("a failed membership read throws rather than resolving to nothing", async (
 
 const member = (role) => ({ tenantId: "t1", role });
 
-test("the role ladder is owner > operator > viewer", () => {
+test("the role ladder is owner > partner > operator > viewer", () => {
   assert.doesNotThrow(() => requireRole(member("owner"), "owner"));
+  assert.doesNotThrow(() => requireRole(member("owner"), "partner"));
   assert.doesNotThrow(() => requireRole(member("owner"), "operator"));
+  assert.doesNotThrow(() => requireRole(member("partner"), "partner"));
+  assert.doesNotThrow(() => requireRole(member("partner"), "operator"));
   assert.doesNotThrow(() => requireRole(member("operator"), "operator"));
   assert.doesNotThrow(() => requireRole(member("viewer"), "viewer"));
+});
+
+test("a partner sets the workspace up and is not its owner: a partner's door refuses an operator in the owner's words", () => {
+  // Decision 0012: settings, the channels and the finder are the partner's; billing and the team are not.
+  assert.throws(
+    () => requireRole(member("partner"), "owner"),
+    (e) => e.status === 403 && e.details?.needs === "owner",
+  );
+  assert.throws(
+    () => requireRole(member("operator"), "partner"),
+    (e) => e.status === 403 && e.details?.needs === "owner" && /Only an owner/.test(e.message),
+    "the least role that may, in the words a member reads: until a workspace can say whether it has a partner, owner",
+  );
+});
+
+test("a role the ladder does not know is refused at every door, not passed", () => {
+  // `ROLE_RANK[unknown] < n` is `undefined < n`, which is false: a row carrying a role this build had never heard of
+  // used to walk through every door in the app.
+  for (const atLeast of ["viewer", "operator", "partner", "owner"]) {
+    assert.throws(
+      () => requireRole(member("manager"), atLeast),
+      (e) => e.status === 403,
+      `unknown role, door ${atLeast}`,
+    );
+    assert.throws(
+      () => requireRole(member(undefined), atLeast),
+      (e) => e.status === 403,
+      `no role, door ${atLeast}`,
+    );
+  }
 });
 
 test("a viewer may change nothing, and an operator is not an owner", () => {

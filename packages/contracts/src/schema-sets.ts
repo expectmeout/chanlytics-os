@@ -38,6 +38,7 @@ import type {
 import type { CAPABILITY_KINDS } from "./capabilities";
 import type { BUSINESS_TYPES, COMPANY_TYPES } from "./a2p-enums";
 import type { BILLING_MODES, BILLING_STATUSES } from "./billing";
+import type { PARTNER_EARNING_KINDS, PARTNER_EARNING_STATES, PARTNER_STANDINGS, PARTNER_STATUSES } from "./partner";
 import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "./broadcasts";
 import type { CALL_OUTCOMES } from "./call-words";
 import type { POLICY_CLASSES, POLICY_MODES } from "./config";
@@ -85,6 +86,12 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof TENANT_STATUSES>, SchemaSet<"tenants.status">>>,
   Holds<Exactly<Of<typeof MEMBERSHIP_ROLES>, SchemaSet<"memberships.role">>>,
   Holds<Within<SchemaSet<"invitations.role">, Of<typeof MEMBERSHIP_ROLES>>>,
+
+  // Partners (0012): the account, the standing of a workspace brought, the ledger.
+  Holds<Exactly<Of<typeof PARTNER_STATUSES>, SchemaSet<"partners.status">>>,
+  Holds<Exactly<Of<typeof PARTNER_STANDINGS>, SchemaSet<"partner_tenants.standing">>>,
+  Holds<Exactly<Of<typeof PARTNER_EARNING_KINDS>, SchemaSet<"partner_earnings.kind">>>,
+  Holds<Exactly<Of<typeof PARTNER_EARNING_STATES>, SchemaSet<"partner_earnings.state">>>,
 
   // Channels and the people on them.
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"tenant_channels.kind">>>,
