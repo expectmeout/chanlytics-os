@@ -70,8 +70,9 @@ export const PUT = write({
     // draft and a scheduled job sends it, so the option is real and the refusal
     // has become the thing standing in the way.
     //
-    // Only the REPLY class can be vetoed. The others have no draft to hold.
-    if (mode === "veto" && cls !== "reply") {
+    // Only the REPLY class can be vetoed, and a reach-out's (its later runs give thirty minutes to be stopped, and veto
+    // is the class's own default: Reach out, Part 3). The others have no draft to hold.
+    if (mode === "veto" && cls !== "reply" && cls !== "outreach") {
       throw new AppError(
         "validation",
         "Only replies can be held for review — the other classes have no draft to hold.",

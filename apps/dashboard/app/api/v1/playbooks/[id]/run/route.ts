@@ -1,4 +1,4 @@
-import { AppError, FOLLOW_UP_NEEDS_DEALS } from "@chanlytics/contracts";
+import { AppError, FOLLOW_UP_NEEDS_DEALS, REACH_OUT_IS_NOT_A_MOMENT, triggerOf } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { playbookScope } from "@/server/verbs";
 import { runPlaybookNow } from "@/server/service";
@@ -30,6 +30,8 @@ export const POST = write({
   rate: "playbook",
   handle: async ({ ctx, row: p }) => {
     const id = p.id;
+    // A reach-out step runs on its day through its own verb (Reach out, Part 3): Run now is a moment's.
+    if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
     // Nor is one on an archived list run now (00169): it is paused until its list is restored or it is moved.
     await refuseOnArchivedList(ctx, p);
     const r = await runPlaybookNow(p.tenant_id, id, ctx.userId);

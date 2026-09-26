@@ -174,7 +174,8 @@ export const ACT_TOOLS: ToolDef[] = [
       "Propose a change to what the receptionist may do alone: a class (reply, booking, faq, reengage, campaign, reviews, and follow_up where deals are on) and a mode (auto, veto, ask, never), or the reply confidence dial (0 to 1). Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed.",
     input_schema: obj(
       {
-        class: { type: "string", enum: [...POLICY_CLASSES] },
+        // The classes the Autonomy pane draws: a reach-out's is set where reach-outs are made (Part 4).
+        class: { type: "string", enum: POLICY_CLASSES.filter((c) => c !== "outreach") },
         mode: { type: "string", enum: ["", ...POLICY_MODES] },
         min_confidence: { type: "number" },
       },
@@ -652,6 +653,7 @@ async function proposePolicy(t: ToolContext, input: Record<string, unknown>): Pr
   if (!(POLICY_CLASSES as readonly string[]).includes(cls))
     return refuse("class must be reply, booking, faq, reengage, campaign, reviews, follow_up or money");
   if (cls === "money") return refuse("money stays owner-only by charter; that row is locked");
+  if (cls === "outreach") return refuse("a reach-out's runs are set where reach-outs are made, not here");
   // A class only a proposal's moment runs under is offered only where deals are on (0006); only it asks.
   if (!policyClassOffered(cls, false) && !policyClassOffered(cls, dealsAreOn(await sellsByOf(t.ctx, t.tenantId))))
     return refuse(FOLLOW_UP_NEEDS_DEALS);

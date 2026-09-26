@@ -230,13 +230,16 @@ row, and it teaches every reader of playbooks that a reach-out is not a moment.
 --   policies             gains the class outreach, veto for every workspace and in the provisioner: a chain's first
 --                        run always waits for its owner, and a later one gives thirty minutes to be stopped.
 --   reach_out_sends      one row per lead in a step's run: when it goes, from which domain, and how it went.
+--   sessions             write none of the new columns, and insert no reach-out: until the reach-out sheet's door
+--                        exists (Part 4), only the service role makes a chain. A step's parent and a root's search are
+--                        its own workspace's (composite keys).
 
 set local lock_timeout = '3s';
 
 alter table public.playbooks
   add column if not exists kind text not null default 'moment',
-  add column if not exists lead_search_id uuid references public.lead_searches (id) on delete restrict,
-  add column if not exists after_playbook_id uuid references public.playbooks (id) on delete cascade,
+  add column if not exists lead_search_id uuid,
+  add column if not exists after_playbook_id uuid,
   add column if not exists after_days int,
   add column if not exists gap_minutes int,
   add column if not exists domain_ids uuid[] not null default '{}';
@@ -274,17 +277,30 @@ alter table public.playbooks add constraint playbooks_reach_out_shape check (
       and domain_ids = '{}', false)
   end);
 
+-- A step's parent and a root's search are its own workspace's: keyed by (tenant_id, id), so no row can point across.
+alter table public.playbooks drop constraint if exists playbooks_tenant_id_id_key;
+alter table public.playbooks add constraint playbooks_tenant_id_id_key unique (tenant_id, id);
+alter table public.lead_searches drop constraint if exists lead_searches_tenant_id_id_key;
+alter table public.lead_searches add constraint lead_searches_tenant_id_id_key unique (tenant_id, id);
+alter table public.playbooks drop constraint if exists playbooks_after_same_workspace;
+alter table public.playbooks add constraint playbooks_after_same_workspace
+  foreign key (tenant_id, after_playbook_id) references public.playbooks (tenant_id, id) on delete cascade;
+alter table public.playbooks drop constraint if exists playbooks_search_same_workspace;
+alter table public.playbooks add constraint playbooks_search_same_workspace
+  foreign key (tenant_id, lead_search_id) references public.lead_searches (tenant_id, id) on delete restrict;
+
 -- A chain, not a tree: one next step per step.
 create unique index if not exists playbooks_one_next on public.playbooks (after_playbook_id)
   where after_playbook_id is not null;
 create index if not exists playbooks_lead_search on public.playbooks (lead_search_id) where lead_search_id is not null;
 
--- Sessions may write what the owner edits on the sheet (Part 4); last_run_* stay the service role's. 00168's list,
--- re-issued whole with the new columns (a column grant is a fence: 00121).
-revoke update on public.playbooks from authenticated;
-grant update (name, trigger, state, template_id, template_name, template_language, params, policy_class, run_hour,
-  cap_per_run, gap_days, cadence_days, list_id, list_key, kind, lead_search_id, after_playbook_id, after_days,
-  gap_minutes, domain_ids) on public.playbooks to authenticated;
+-- Sessions: 00168's column grant stands as it is, so none of the new columns is a session's to write (a column grant
+-- names its columns: 00121). And a session inserts moments only: a reach-out is the service role's to make until the
+-- reach-out sheet's own door exists (Part 4), so no chain runs without the checks that door makes.
+drop policy if exists playbooks_acting_insert on public.playbooks;
+create policy playbooks_acting_insert on public.playbooks
+  for insert to authenticated
+  with check (public.is_acting_member(tenant_id) and created_by = (select auth.uid()) and kind = 'moment');
 
 /* ------------------------------------------------------------------- the class -- */
 
@@ -346,10 +362,11 @@ create table if not exists public.reach_out_sends (
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
   unique (broadcast_id, lead_id),
-  -- A planned send knows when and from where; a claimed or queued one has its time; a sent one when it left.
-  constraint reach_out_sends_planned_is_placed check (state <> 'planned' or (send_at is not null and domain_id is not null)),
-  constraint reach_out_sends_queued_has_row check (state <> 'queued' or message_id is not null),
-  constraint reach_out_sends_sent_is_dated check (state <> 'sent' or (sent_at is not null and message_id is not null))
+    -- A planned send has its time; its domain may be gone (a removed domain), and the clock plans it on another. A queued
+  -- or sent send's email row may be gone too (an erasure deletes it): the clock skips a queued one, and a sent one
+  -- keeps when it left. Nothing an erasure or a removal takes away is required here.
+  constraint reach_out_sends_planned_is_timed check (state <> 'planned' or send_at is not null),
+  constraint reach_out_sends_sent_is_dated check (state <> 'sent' or sent_at is not null)
 );
 
 create index if not exists reach_out_sends_due on public.reach_out_sends (domain_id, send_at) where state = 'planned';
@@ -517,7 +534,10 @@ It proves:
 - A step with `after_days: 1` is refused.
 - A second step after the same parent is refused (`playbooks_one_next`).
 - A send moves `planned → claimed → queued → sent` and refuses `sent → planned`, `planned → queued` and `skipped → planned`.
-- A planned send without a domain is refused.
+- A planned send without a time is refused. One whose domain was removed stays planned with no domain, and an erased
+  email row leaves its sent send standing (the CHECKs never require what a deletion takes away: PR 1's review).
+- A session inserts no reach-out, and writes none of the new columns. A step under another workspace's root is refused
+  (`playbooks_after_same_workspace`).
 - A member session can read its own workspace's sends and not another's.
 - An `authenticated` session cannot insert or update a send.
 - Every tenant has an `outreach` policy row with mode `veto`.
@@ -2140,6 +2160,9 @@ select cron.schedule('reach-out-sweep', '* * * * *', $$select public.trigger_rea
      | `canceled` with `outreach_needs_own_domain` (a removed domain) | `planned` on another verified domain |
 
   3. **Closed runs:** a canceled run's planned sends are `skipped`, reason `run_canceled`.
+  3a. **What a deletion took:**
+     - a queued send whose email row is gone (an erasure) is `skipped`, reason `erased`;
+     - a planned send whose domain was removed (`domain_id` null) is re-planned on another verified domain, or `skipped` `no_domain` when none is left.
   4. **Stale sends:** a planned send whose `send_at` is 20 minutes past (a run approved late, a chain resumed) is re-planned from now. One 5 minutes past is left for the claim.
   5. **Finishing:** a run whose sends are all final becomes `sent` with `finished_at`; one with a send still `queued` does not.
   6. **The answer:** `{ ok, reconciled, sent, deferred, skipped, finished, replanned }`; 200.
@@ -2197,7 +2220,8 @@ export async function reconcile(
       if (isWaitRefusal(reason) || reason === "outreach_needs_own_domain") again.push(send);
       else if (await moveSend(db, { tenantId: send.tenant_id, id: send.id, from: "queued", patch: { state: "skipped", reason } })) out.skipped += 1;
     } else if (status === null) {
-      log.error("reach_out_send_row_missing", { send: send.id });
+      // Its email row is gone: an erasure deletes the person's messages (erase_contact), and the send never goes.
+      if (await moveSend(db, { tenantId: send.tenant_id, id: send.id, from: "queued", patch: { state: "skipped", reason: "erased" } })) out.skipped += 1;
     } else continue; // still queued: its job has not run yet
     out.reconciled += 1;
   }

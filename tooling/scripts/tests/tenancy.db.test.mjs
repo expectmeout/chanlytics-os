@@ -257,15 +257,27 @@ before(async () => {
     null,
   );
   ctx.lead = await seed("leads", { tenant_id: A, place_id: "ChIJtenancy0001", business_name: "Tenancy Salon" });
-  // A reach-out's send (00183): the service role writes them, members read them. Its run and its root are rows made above.
+  // A reach-out's root (00183) and a send of it: the service role writes both, members read them.
+  ctx.reachRoot = await seed("playbooks", {
+    tenant_id: A,
+    kind: "reach_out",
+    name: "tenancy reach-out",
+    trigger: "lead_first",
+    policy_class: "outreach",
+    lead_search_id: ctx.leadSearch,
+    gap_minutes: 12,
+    template_id: ctx.template,
+    template_language: "en_US",
+    template_name: "tenancy_tpl_1",
+  });
   await seed(
     "reach_out_sends",
     {
       id: crypto.randomUUID(),
       tenant_id: A,
       broadcast_id: ctx.broadcast,
-      playbook_id: ctx.playbook,
-      root_id: ctx.playbook,
+      playbook_id: ctx.reachRoot,
+      root_id: ctx.reachRoot,
       lead_id: ctx.lead,
       domain_id: ctx.domain,
       send_at: new Date().toISOString(),
@@ -407,8 +419,8 @@ const TENANT_TABLES = {
       id: crypto.randomUUID(),
       tenant_id: A,
       broadcast_id: ctx.broadcast,
-      playbook_id: ctx.playbook,
-      root_id: ctx.playbook,
+      playbook_id: ctx.reachRoot,
+      root_id: ctx.reachRoot,
       lead_id: ctx.lead,
       domain_id: ctx.domain,
       send_at: new Date().toISOString(),
