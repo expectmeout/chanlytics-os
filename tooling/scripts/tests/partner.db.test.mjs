@@ -235,11 +235,16 @@ test(
   "a refund takes what its running total says, less what came before; a dispute on top is capped at the share; a won dispute gives back only what it took",
   { skip },
   async () => {
-    const rev = (event, kind, amount) =>
-      db.rpc("partner_reverse", { p_invoice_id: "in_led_1", p_event_id: event, p_kind: kind, p_amount_cents: amount });
+    const rev = (event, kind, amount, invoice = "in_led_1") =>
+      db.rpc("partner_reverse", { p_invoice_id: invoice, p_event_id: event, p_kind: kind, p_amount_cents: amount });
     assert.equal(ok(await rev("evt_led_r1", "refund", 10000)).earned_cents, -2500, "$100 of $400 refunded");
     assert.equal(ok(await rev("evt_led_r1", "refund", 10000)), null, "the same delivery again");
     assert.equal(ok(await rev("evt_led_r2", "refund", 30000)).earned_cents, -5000, "$300 refunded in all: $50 more");
+    assert.equal(
+      ok(await rev("evt_led_r_late", "refund", 10000)),
+      null,
+      "an earlier refund's word delivered late, with its smaller total, gives nothing back",
+    );
     // $75 of the $100 share is gone; a dispute of all $400 may take only the $25 left.
     assert.equal(ok(await rev("evt_led_d1", "dispute", 40000)).earned_cents, -2500, "capped at what is left");
     assert.equal(
@@ -259,7 +264,11 @@ test(
       all.every((r) => r.state === "held" && r.payable_at === all[0].payable_at),
       "a reversal of a held share matures with it",
     );
-    assert.equal(ok(await rev("evt_led_none", "refund", 100)), null, "no share for the invoice named: nothing");
+    assert.equal(
+      ok(await rev("evt_led_none", "refund", 100, "in_led_nobody")),
+      null,
+      "no share for the invoice named: nothing",
+    );
     const bad = await rev("evt_led_bad", "chargeback", 100);
     assert.equal(bad.error?.code, "22023");
   },

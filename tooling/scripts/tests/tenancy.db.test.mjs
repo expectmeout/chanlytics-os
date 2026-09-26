@@ -45,6 +45,7 @@ const ctx = {}; // ids the fixtures need
 let viewer; // a member of A who may only read
 let owner; // another member of A: for the own-rows tables, someone else
 let stranger; // an owner of B
+let partner; // the partner who brought A (0012): a member of A, and the one reader of its earnings
 const probes = []; // service-only rows to remove after
 
 /** A real session for a fresh user with this role in this workspace. */
@@ -326,7 +327,38 @@ before(async () => {
   const prior = `tenancy_${Date.now()}`;
   await seed("lead_niche_priors", { category_key: prior }, null);
   probes.push(["lead_niche_priors", "category_key", prior]);
+
+  // A partner brought A (0012): their row, the workspace's attribution, one earning, and the card the workspace
+  // pays with. The earning outlives the workspace and holds the partner row, so both are removed by hand, in order.
+  partner = await memberClient("partner", A);
+  ctx.partnerUserId = partner.userId;
+  const code = `tenancy-${Date.now().toString(36)}`;
+  ctx.partner = await seed("partners", { user_id: ctx.partnerUserId, code });
+  await seed("partner_tenants", { tenant_id: A, partner_id: ctx.partner, code_used: code }, null);
+  await seed("partner_earnings", earning(`evt_tenancy_${key}`), null);
+  await seed("billing_card_marks", { tenant_id: A, card_fingerprint: "fp_tenancy" }, null);
+  probes.push(["partner_earnings", "partner_id", ctx.partner]);
+  probes.push(["partner_tenants", "partner_id", ctx.partner]);
+  probes.push(["partners", "id", ctx.partner]);
 });
+
+/** A partner's earning on A: one invoice's share, held. */
+function earning(eventId) {
+  const now = new Date();
+  return {
+    partner_id: ctx.partner,
+    tenant_id: A,
+    stripe_invoice_id: `in_${eventId}`,
+    stripe_event_id: eventId,
+    kind: "share",
+    amount_cents: 40000,
+    currency: "usd",
+    share_bp: 2500,
+    earned_cents: 10000,
+    paid_at: now.toISOString(),
+    payable_at: new Date(now.getTime() + 30 * 86400000).toISOString(),
+  };
+}
 
 after(async () => {
   if (skip) return;
@@ -341,6 +373,8 @@ after(async () => {
  *   member  the workspace's rows
  *   acting  the workspace's rows, for an operator or an owner; a viewer reads nothing
  *   own     their own rows only (user_id = auth.uid()); another member of the same workspace sees none of theirs
+ *   partner the partner who brought the workspace; no member else, its owner included
+ *   brought the partner who brought the workspace, and its owner; a viewer reads nothing
  *   none    nothing: the service role's table
  * And a second insert each, for the stranger's attempt: unique on the first row must not be what refuses it.
  * The partitions of events (events_default, a month's events_YYYY_MM) are events: PostgREST does not
@@ -553,6 +587,11 @@ const TENANT_TABLES = {
   lead_preferences: ["member", () => ({ tenant_id: A, kind: "too_far" })],
   lead_suppressions: ["member", () => ({ tenant_id: A, kind: "email", hash: "stranger", what: "email_opt_out" })],
   lead_suggestions: ["member", () => ({ tenant_id: A, business_line: "a stranger line" })],
+  // A partner (0012): who brought the workspace, what they earned from it, and the card it pays with. Only the
+  // service role writes any of them; the partner themselves included.
+  partner_tenants: ["brought", () => ({ tenant_id: A, partner_id: ctx.partner, code_used: "stranger" })],
+  partner_earnings: ["partner", () => earning(`evt_stranger_${Date.now()}`)],
+  billing_card_marks: ["none", () => ({ tenant_id: A, card_fingerprint: "fp_stranger" })],
   lead_searches_view: [
     "member",
     () => ({ tenant_id: A, via: "people", card: "local_businesses", name: "stranger", asked: "stranger", plan: {} }),
@@ -572,6 +611,7 @@ const OTHER_TABLES = {
   waitlist: "none",
   lead_platform: "none", // the switch, one row; read through lead_searches_on()
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()
+  partners: "own", // a partner's own row (0012): read by user_id; written only through partner_become
 };
 
 const seen = async (client, table, filter) => {
@@ -660,6 +700,17 @@ test(
         if (!(asOwner >= 1)) note(table, `an acting member (owner) should read the workspace's rows, read ${asOwner}`);
         if (!nothing(asViewer)) note(table, `a viewer read an acting members' table (${asViewer})`);
       }
+      if (mode === "partner" || mode === "brought") {
+        const asPartner = await seen(partner.client, table, [["tenant_id", A]]);
+        const asOwner = await seen(owner.client, table, [["tenant_id", A]]);
+        if (!(asPartner >= 1))
+          note(table, `the partner who brought the workspace should read its rows, read ${asPartner}`);
+        if (mode === "brought" && !(asOwner >= 1))
+          note(table, `the workspace's owner should read who brought it, read ${asOwner}`);
+        if (mode === "partner" && !nothing(asOwner))
+          note(table, `the workspace's owner read the partner's rows (${asOwner})`);
+        if (!nothing(asViewer)) note(table, `a viewer read a partner's table (${asViewer})`);
+      }
       if (mode === "own") {
         const mine = await seen(viewer.client, table, [
           ["tenant_id", A],
@@ -705,6 +756,7 @@ test(
       for (const [who, c, tag] of [
         ["stranger", stranger.client, "a member of another workspace"],
         ["viewer", viewer.client, "a viewer"],
+        ...(mode === "partner" || mode === "brought" ? [["partner", partner.client, "the partner"]] : []),
       ]) {
         if (who === "viewer" && mode === "own") continue; // a person writes their own ask threads and marks; the own policies say so
         const upd = await c.from(table).update({ tenant_id: B }).eq("tenant_id", A).select("tenant_id");
@@ -749,6 +801,21 @@ test(
     if (marks !== 1) note("notification_marks", `a person should read their own mark, read ${marks}`);
     if (!nothing(theirMarks)) note("notification_marks", `another member read a person's mark (${theirMarks})`);
     if (!nothing(strangerMarks)) note("notification_marks", `a stranger read a person's mark (${strangerMarks})`);
+
+    // A partner's row is theirs: the partner reads it, a member of the workspace they brought does not, and nobody
+    // signed in changes it.
+    const own = await seen(partner.client, "partners", [["id", ctx.partner]]);
+    if (own !== 1) note("partners", `a partner should read their own row, read ${own}`);
+    for (const [who, c] of [
+      ["the workspace's owner", owner.client],
+      ["a viewer", viewer.client],
+      ["a stranger", stranger.client],
+    ]) {
+      const theirs = await seen(c, "partners", [["id", ctx.partner]]);
+      if (!nothing(theirs)) note("partners", `${who} read a partner's row (${theirs})`);
+    }
+    const raised = await partner.client.from("partners").update({ share_bp: 10000 }).eq("id", ctx.partner).select("id");
+    if (!raised.error && raised.data.length > 0) note("partners", "a partner raised their own share");
 
     for (const table of Object.keys(OTHER_TABLES).filter((t) => OTHER_TABLES[t] === "none")) {
       const counted = await db.from(table).select("*", { count: "exact", head: true });

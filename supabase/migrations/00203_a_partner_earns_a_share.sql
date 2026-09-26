@@ -192,6 +192,11 @@ begin
     v_delta := -v_same;
   end if;
 
+  -- A refund or a dispute only ever takes. Stripe does not promise order: an earlier charge.refunded delivered after
+  -- a later one carries a smaller running total, and its difference would give back what the later one took.
+  if p_kind in ('refund', 'dispute') and v_delta >= 0 then
+    return null;
+  end if;
   -- Never more than the share: a refund and a dispute of the same charge take it once.
   if v_share.earned_cents + v_all + v_delta < 0 then
     v_delta := -(v_share.earned_cents + v_all);

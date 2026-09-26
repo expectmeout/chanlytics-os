@@ -90,6 +90,8 @@ const EVERY_CLOCK = {
   // The reach-out check (00197): its own clock, every minute, asking the edge only when a send waits to be checked or a
   // check_unavailable hold is an hour old, and recording that it looked otherwise.
   reach_out_check: "reach-out-check-sweep",
+  // A partner's earnings (00203): a daily clock that makes a held share payable once its thirty days are up.
+  partners: "partners-sweep",
 };
 const RUN_JUDGED = [
   "partitions",
