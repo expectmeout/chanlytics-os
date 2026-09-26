@@ -13,7 +13,13 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { consentChangeOf, consentChangeWords, toPersonVM, CONSENT_RESET_SOURCE } from "@chanlytics/contracts";
+import {
+  consentChangeOf,
+  consentChangeWords,
+  toPersonVM,
+  CARRIER_CONSENT_SOURCE,
+  CONSENT_RESET_SOURCE,
+} from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -111,6 +117,24 @@ test("the words say what was answered and how we know, for every kind of change"
   assert.deepEqual(
     consentChangeWords(change({ consent: "unknown", source: CONSENT_RESET_SOURCE, channel: null, words: null })),
     { who: "Consent", text: "Back to not asked", sub: "Reset by staff" },
+  );
+  // The carrier's report (Twilio 21610 on a text we sent): the person's own STOP, which never reached us as a
+  // message. Neither their words nor a member's record: said as the carrier's, never as "recorded by staff".
+  assert.deepEqual(
+    consentChangeWords(
+      change({
+        consent: "opted_out",
+        previous: "opted_in",
+        source: CARRIER_CONSENT_SOURCE,
+        message_external_id: null,
+        words: null,
+      }),
+    ),
+    {
+      who: "Consent",
+      text: "Said stop — nothing goes out to them",
+      sub: "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent",
+    },
   );
   assert.equal(
     consentChangeWords(change({ purpose: "marketing", consent: "unknown", source: CONSENT_RESET_SOURCE })).text,

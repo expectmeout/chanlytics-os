@@ -3516,6 +3516,10 @@ var twilioUrls = {
   serviceNumbers: (serviceSid) => `${MESSAGING}/Services/${serviceSid}/PhoneNumbers`,
   messages: (sid2) => `${API2}/Accounts/${sid2}/Messages.json`
 };
+var SMS_OPTED_OUT_CODE = 21610;
+function smsRefusalOf(r22) {
+  return !r22.ok && r22.code === SMS_OPTED_OUT_CODE ? "opted_out" : null;
+}
 var enc = new TextEncoder();
 var oneLine = (s) => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
 function addressOf(header) {
@@ -5919,6 +5923,7 @@ function waitingOnProposal(r22, nowMs, pace) {
   if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
   return !heardSinceProposal(r22);
 }
+var CARRIER_CONSENT_SOURCE = "carrier";
 function mayReceive(r22, purpose) {
   return whyNotReceive(r22, purpose) === null;
 }
@@ -9337,6 +9342,7 @@ var SELLS_BY_WORDS3 = {
     sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
   }
 };
+var CARRIER_CONSENT_SOURCE2 = "carrier";
 var DAY_MS43 = 864e5;
 var WEEK_MS23 = 7 * DAY_MS43;
 var MONTH_MS3 = 30 * DAY_MS43;
@@ -10734,6 +10740,19 @@ var OPENING_SCHEMA3 = {
   additionalProperties: false
 };
 var CALL_ACTIVITY_STALE_MS3 = 15 * 6e4;
+async function recordCarrierOptOut(db, p) {
+  const { data, error } = await db.from("contacts").update({
+    consent: "opted_out",
+    dnc: true,
+    consent_source: CARRIER_CONSENT_SOURCE2,
+    consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", p.contactId).eq("tenant_id", p.tenantId).neq("consent", "opted_out").select("id");
+  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
+  if (!data || data.length === 0) return false;
+  const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE2, channel: p.channel };
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", "contact", p.contactId, change);
+  return true;
+}
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -10970,27 +10989,40 @@ async function deliver(ports, d) {
   const refusal = refusalFor(d, facts, nowMs, outreach);
   const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
-  if (reason) {
+  const refuse = async (why, now = {}, said2 = {}) => {
     if (d.messageId) {
-      await finalizeQueued(ports.db, d, { status: "canceled", error: { reason } });
+      const contact = { ...facts.contact, ...now };
+      await finalizeQueued(ports.db, d, { status: "canceled", error: { reason: why } });
       await event(ports.db, d, "message.send_blocked", d.messageId, {
-        reason,
+        reason: why,
         purpose: d.purpose,
-        consent: facts.contact.consent,
-        dnc: facts.contact.dnc,
-        marketing_consent: facts.contact.marketing_consent,
-        ...d.purpose === "outreach" ? { email_marketing: facts.contact.email_marketing } : {},
-        ...overtakenBy ? { after: overtakenBy } : {}
+        consent: contact.consent,
+        dnc: contact.dnc,
+        marketing_consent: contact.marketing_consent,
+        ...d.purpose === "outreach" ? { email_marketing: contact.email_marketing } : {},
+        ...overtakenBy ? { after: overtakenBy } : {},
+        ...said2
       });
     }
-    return { outcome: "refused", reason, messageId: d.messageId ?? null };
-  }
+    return { outcome: "refused", reason: why, messageId: d.messageId ?? null };
+  };
+  if (reason) return refuse(reason);
   const send = ports.wire[d.channel];
   const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, {
     body: d.body,
     template: d.template,
     ...d.email ? { email: d.email, purpose: d.purpose } : {}
   });
+  if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
+    if (facts.contactId)
+      await recordCarrierOptOut(ports.db, {
+        tenantId: d.tenantId,
+        contactId: facts.contactId,
+        channel: d.channel,
+        previous: facts.contact.consent
+      });
+    return refuse("opted_out", { consent: "opted_out", dnc: true }, { source: CARRIER_CONSENT_SOURCE });
+  }
   if (sent.ok) {
     if (d.messageId) {
       const marked = await finalizeQueued(ports.db, d, {
@@ -11189,6 +11221,8 @@ async function cancelSend(ports, cmd) {
 // src/conversations/reply.ts
 var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
+var HOLD_EXPIRY_MS = 120 * 1e3;
+var REPLY_IN_PROGRESS_REFUSAL = "This reply is already being sent. Give it a moment, then check the thread before sending it again.";
 async function shapeEmailReply(ports, conv, to, text, agreedTo) {
   if (conv.email_suppressed_at) {
     throw new AppError(
@@ -11241,11 +11275,39 @@ async function replyToConversation(ports, cmd) {
   const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));
   const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;
   const intentHash = ports.hash(JSON.stringify(body));
+  const nowIso = new Date(now).toISOString();
   if (idemKey) {
-    const prior = await ports.priorReceipt(conv.tenant_id, idemKey);
-    const sameIntent = prior?.request_hash === intentHash;
-    if (prior && sameIntent && now - Date.parse(prior.created_at) < IDEMPOTENCY_WINDOW_MS) return prior.response;
+    const claim = await ports.claimKey(conv.tenant_id, idemKey, intentHash, nowIso);
+    if (!claim.won) {
+      const prior = claim.held;
+      const sameIntent = prior?.request_hash === intentHash;
+      const age = prior ? now - Date.parse(prior.created_at) : 0;
+      if (prior?.response && sameIntent && age < IDEMPOTENCY_WINDOW_MS) return prior.response;
+      if (!prior || !prior.response && age < HOLD_EXPIRY_MS)
+        throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
+      if (!await ports.takeKey(conv.tenant_id, idemKey, intentHash, nowIso, prior.created_at))
+        throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
+    }
   }
+  const key = idemKey ? { idemKey, intentHash, stamp: nowIso } : null;
+  const sent = await queueReply(ports, cmd, { now, channel, to, window, key }).catch(async (e) => {
+    if (idemKey) await ports.releaseKey(conv.tenant_id, idemKey, nowIso);
+    throw e;
+  });
+  const queued = sent.receipt;
+  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
+    message_id: queued.message_id,
+    window_open: window.open,
+    template: sent.templateName
+  });
+  await ports.resolveEscalation(conv.id, decision_id);
+  const receipt = { ...queued, decision_id };
+  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt, nowIso).catch(() => false);
+  return receipt;
+}
+async function queueReply(ports, cmd, facts) {
+  const { conv, body } = cmd;
+  const { now, channel, to, window, key } = facts;
   let messageBody;
   let templateVars = null;
   let templateName = null;
@@ -11277,22 +11339,22 @@ async function replyToConversation(ports, cmd) {
         `This template needs words for \u201C${toWrite}\u201D, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`
       );
     }
-    const facts = await ports.templateFacts(conv.tenant_id);
-    if (!facts)
+    const facts2 = await ports.templateFacts(conv.tenant_id);
+    if (!facts2)
       throw new AppError(
         "validation",
         "This workspace has no template facts configured yet. Add the business name in Settings \u203A Business first."
       );
     const slots = inboxSlots(tpl);
-    if (!facts.booking_link && slots.some((s) => s.kind === "booking_link"))
+    if (!facts2.booking_link && slots.some((s) => s.kind === "booking_link"))
       throw new AppError(
         "validation",
         "This template takes the booking link, and none is on file. Pick another template, or add the link in Settings \u203A Business first."
       );
     const params = resolveParams(slots, {
       firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
-      businessName: facts.business_name,
-      bookingLink: facts.booking_link?.replace(/^https?:[/][/]/, "") ?? null
+      businessName: facts2.business_name,
+      bookingLink: facts2.booking_link?.replace(/^https?:[/][/]/, "") ?? null
     });
     templateName = tpl.name;
     templateVars = { language: tpl.language, params };
@@ -11324,7 +11386,16 @@ async function replyToConversation(ports, cmd) {
     ...email ?? {}
   });
   const dueAt = new Date(now + SEND_GRACE_MS);
+  const receipt = {
+    message_id,
+    status: "queued",
+    cancelable_until: dueAt.toISOString(),
+    window_open: window.open,
+    withdrawn_drafts
+  };
   try {
+    if (key && !await ports.storeReceipt(conv.tenant_id, key.idemKey, key.intentHash, receipt, key.stamp))
+      throw new AppError("conflict", REPLY_IN_PROGRESS_REFUSAL, 409);
     await ports.schedule(conv.tenant_id, dueAt, {
       message_id,
       conversation_id: conv.id,
@@ -11335,23 +11406,7 @@ async function replyToConversation(ports, cmd) {
     await ports.cancelOrphan(message_id);
     throw e;
   }
-  const queued = {
-    message_id,
-    status: "queued",
-    cancelable_until: dueAt.toISOString(),
-    window_open: window.open,
-    withdrawn_drafts
-  };
-  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, queued);
-  const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", {
-    message_id,
-    window_open: window.open,
-    template: templateName
-  });
-  await ports.resolveEscalation(conv.id, decision_id);
-  const receipt = { ...queued, decision_id };
-  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
-  return receipt;
+  return { receipt, templateName };
 }
 
 // src/messages/send.ts
@@ -47650,6 +47705,7 @@ export {
   FACT_MAX,
   FINAL_RUN_STATES,
   FIRST_COLLECT_SECONDS,
+  HOLD_EXPIRY_MS,
   IDEMPOTENCY_WINDOW_MS,
   INPUT_MARKER,
   IngestFailed,
@@ -47681,6 +47737,7 @@ export {
   PROVIDER_RUN_PAGE,
   RADIUS_MAX_M,
   RADIUS_MIN_M,
+  REPLY_IN_PROGRESS_REFUSAL,
   SEND_GRACE_MS,
   STALE_MS,
   STALE_REPLY_MS,

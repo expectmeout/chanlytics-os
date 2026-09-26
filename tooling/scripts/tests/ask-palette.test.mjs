@@ -429,6 +429,69 @@ test("a question carries how long the Line was open before it was asked (AskTurn
   await closes();
 });
 
+test("the page is warmed as the Line opens, once, and again when the page under it changes while it is open (D6); closed, nothing is warmed; a bridge without the warm draws as before", async () => {
+  const hash = globalThis.window.location.hash;
+  const warmed = [];
+  // The warm goes a tick after the page is drawn, so a page just under the Line has said what it drew.
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+  const calls = ask([]);
+  // The bridge's two calls the warm needs (legacy-bridge/ask.ts): the page's context and the warm itself.
+  globalThis.window.__ask.context = (route) => ({
+    v: 1,
+    surface: "today",
+    route: route.param ? `${route.page}/${route.param}` : route.page,
+    rows: [],
+    askedAt: 1,
+  });
+  globalThis.window.__ask.warm = async (context) => {
+    warmed.push(context.route);
+  };
+  try {
+    globalThis.window.location.hash = "#/today";
+    render(Palette, CLOSED);
+    await later(Palette, CLOSED);
+    await tick();
+    assert.deepEqual(warmed, [], "closed, nothing is warmed");
+    await opens();
+    await tick();
+    assert.deepEqual(warmed, ["today"], "opening warms the page once");
+    await later(Palette, OPEN);
+    await tick();
+    assert.deepEqual(warmed, ["today"], "and a draw that changes nothing warms nothing more");
+    globalThis.window.location.hash = "#/inbox/th-aaaaaaaa-aaaa-4aaa-8aaa-000000000001";
+    await opens();
+    await tick();
+    assert.deepEqual(
+      warmed,
+      ["today", "inbox/th-aaaaaaaa-aaaa-4aaa-8aaa-000000000001"],
+      "the page under the Line changed: warmed again",
+    );
+    await closes();
+    await tick();
+    assert.equal(warmed.length, 2, "closing warms nothing");
+    // A warm that fails costs nothing: the Line still opens and asks.
+    globalThis.window.__ask.warm = async () => {
+      throw new Error("offline");
+    };
+    globalThis.window.location.hash = "#/today";
+    const tree = await opens();
+    assert.ok(inputOf(tree), "the Line is drawn");
+    await closes();
+    // The palette suite's own bridge has neither call: the Line draws, and asks, as it did.
+    delete globalThis.window.__ask.warm;
+    delete globalThis.window.__ask.context;
+    let t = await opens();
+    typed(t, "how was the week?");
+    t = await later(Palette, OPEN);
+    keyed(t, "Enter");
+    await later(Palette, OPEN);
+    assert.equal(calls.inputs.length, 1, "asked once, with no warm to call");
+    await closes();
+  } finally {
+    globalThis.window.location.hash = hash;
+  }
+});
+
 test("a seed that names a thread opens that thread, its last answer under the line", async () => {
   const calls = ask([TH(1), TH(2)]);
   render(Palette, CLOSED);

@@ -22,8 +22,10 @@ const META_APP_ID = metaAppId();
 export async function GET(request: Request): Promise<Response> {
   // Header only. The WhatsApp verify token used to open this door from the
   // query string — a value Meta also carries in its own verification URL,
-  // and one that lands in access logs.
-  const auth = authorizeAdmin(request, "/api/diag");
+  // and one that lands in access logs. The platform's door: nothing mints a
+  // token for it (the runbook and the golden probe knock with the key), so
+  // the key stays its credential on an edge that holds the secret too.
+  const auth = authorizeAdmin(request, "/api/diag", { platformKey: true });
   if (!auth.ok) return auth.response;
 
   const out: Record<string, unknown> = {

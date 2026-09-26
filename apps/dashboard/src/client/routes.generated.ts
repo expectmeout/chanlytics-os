@@ -70,6 +70,7 @@ export const ROUTES = {
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
   "POST ask/messages/[id]/proposals/[pid]": { method: "POST", path: "/api/v1/ask/messages/[id]/proposals/[pid]" },
+  "POST ask/warm": { method: "POST", path: "/api/v1/ask/warm" },
   "POST billing/checkout": { method: "POST", path: "/api/v1/billing/checkout" },
   "POST billing/portal": { method: "POST", path: "/api/v1/billing/portal" },
   "POST billing/resume": { method: "POST", path: "/api/v1/billing/resume" },
@@ -238,6 +239,7 @@ export type Routes = {
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
   "POST ask/messages/[id]/proposals/[pid]": typeof import("../../app/api/v1/ask/messages/[id]/proposals/[pid]/route").POST;
+  "POST ask/warm": typeof import("../../app/api/v1/ask/warm/route").POST;
   "POST billing/checkout": typeof import("../../app/api/v1/billing/checkout/route").POST;
   "POST billing/portal": typeof import("../../app/api/v1/billing/portal/route").POST;
   "POST billing/resume": typeof import("../../app/api/v1/billing/resume/route").POST;
