@@ -84,6 +84,38 @@ test("a GET asks, with one button, and changes nothing: link scanners open every
 
 test("a link this secret did not make is refused before the database is asked", async () => {
   const w = world();
+  const said = [];
+  const was = console.warn;
+  console.warn = (...a) => said.push(a.map(String).join(" "));
+  try {
+    await refusedLinks(w);
+  } finally {
+    console.warn = was;
+  }
+  // Said to the platform once a minute at most, never the link: a scanner's burst is one line.
+  const lines = said.filter((l) => l.startsWith("unsubscribe_bad_link"));
+  assert.deepEqual(lines, ['unsubscribe_bad_link {"refused":1}']);
+});
+
+test("the next line counts every link refused since the last: a stream of them is a key set wrong, not a guess", async () => {
+  const w = world();
+  const said = [];
+  const was = console.warn;
+  const clock = Date.now;
+  console.warn = (...a) => said.push(a.map(String).join(" "));
+  try {
+    // A minute after the file's first refusal (the test above, which this one follows), with nine more since.
+    Date.now = () => clock() + 61_000;
+    assert.equal((await get("short")).status, 404);
+  } finally {
+    Date.now = clock;
+    console.warn = was;
+  }
+  assert.deepEqual(said, ['unsubscribe_bad_link {"refused":10}']);
+  assert.equal(w.db.seen.length, 0);
+});
+
+async function refusedLinks(w) {
   const bent = `${TOKEN.slice(0, 10)}${TOKEN[10] === "A" ? "B" : "A"}${TOKEN.slice(11)}`;
   for (const t of [bent, "short", `${TOKEN}x`]) {
     const g = await get(t);
@@ -108,7 +140,7 @@ test("a link this secret did not make is refused before the database is asked", 
   assert.equal(forged.status, 400);
   assert.ok(pulled <= 1, `the body of a forged link is not read (${pulled} pulls)`);
   assert.equal(w.db.seen.length, 0);
-});
+}
 
 test("the one click records the stop in the same response: 200, plain, no page, no redirect", async () => {
   const w = world();

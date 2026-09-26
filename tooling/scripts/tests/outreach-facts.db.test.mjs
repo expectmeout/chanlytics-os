@@ -257,3 +257,58 @@ test(
     assert.equal((await facts()).sent_since - base, 3);
   },
 );
+
+/** One message the person sent, on their thread (one per person in a workspace): as the intake keeps it. */
+async function wrote({ channel = "email", claim = "person", tenant = A, contact = person } = {}) {
+  const conv =
+    ok(await db.from("conversations").select("id").eq("tenant_id", tenant).eq("contact_id", contact).maybeSingle())
+      ?.id ??
+    ok(await db.from("conversations").insert({ tenant_id: tenant, contact_id: contact }).select("id").single()).id;
+  ok(
+    await db.from("messages").insert({
+      tenant_id: tenant,
+      conversation_id: conv,
+      channel,
+      direction: "inbound",
+      sender: "customer",
+      type: "text",
+      body: "Thanks, not for us.",
+      status: "received",
+      meta: channel === "email" ? { email: { subject: "Re: Your moving quotes", from: TO, claim } } : {},
+    }),
+  );
+}
+
+test(
+  "a person who wrote back, on any channel, has written back; an out-of-office, a program's mail or another workspace's thread has not (00181)",
+  { skip },
+  async () => {
+    // Only what the business sent so far: nobody has written.
+    assert.equal((await facts()).wrote_back, false);
+    await wrote({ claim: "auto_reply" });
+    await wrote({ claim: "automated" });
+    const other = ok(await db.from("contacts").insert({ tenant_id: B, email: TO }).select("id").single()).id;
+    await wrote({ tenant: B, contact: other });
+    assert.equal((await facts()).wrote_back, false, "a responder and a list are not a person writing");
+    await wrote({ channel: "whatsapp" });
+    assert.equal((await facts()).wrote_back, true, "a WhatsApp message is a person writing back");
+  },
+);
+
+test(
+  "an email a person wrote reads wrote_back, and one with no claim recorded counts as a person's",
+  { skip },
+  async () => {
+    const someone = ok(
+      await db
+        .from("contacts")
+        .insert({ tenant_id: A, email: `someone-${stamp}@fixture-facts.example` })
+        .select("id")
+        .single(),
+    ).id;
+    const asked = () => facts({ p_contact_id: someone });
+    assert.equal((await asked()).wrote_back, false);
+    await wrote({ contact: someone, claim: undefined });
+    assert.equal((await asked()).wrote_back, true, "an email kept before claims were recorded is a person's");
+  },
+);

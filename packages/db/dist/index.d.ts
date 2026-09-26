@@ -5923,6 +5923,8 @@ interface OutreachFactsRow {
     lead_stage: string | null;
     /** The address is on the workspace's never-again list (lead_suppressions, email). */
     suppressed: boolean;
+    /** The person sent a message of their own, on any channel; an email's automatic reply or a program's mail aside (00181). */
+    wrote_back: boolean;
     /** The From host's row as Connections set it up; null when the workspace owns no such domain. */
     domain: {
         state: string;

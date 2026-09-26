@@ -622,3 +622,167 @@ test("the sweep reads a bounce hold too: a complaint since makes it a complaint 
     net.restore();
   }
 });
+
+/* --------------------------------------------- the probe of the unsubscribe links (Part 2.6) */
+
+const { verifyUnsubscribeToken } = await import("@chanlytics/channels");
+const dashboard = await import(at("apps/dashboard/src/server/unsubscribe.ts"));
+after(() => dashboard.setServiceClient(null));
+const EDGE_KEY = "the-edge-unsubscribe-key";
+
+/**
+ * The sweep's fetches, with the dashboard's real page answering the unsubscribe link under the dashboard's own keys
+ * (`current`, `previous`; undefined for unset), as the other project would: the edge and the dashboard read the same
+ * variable name, so the page's keys are swapped in only while it answers.
+ */
+function dashboardAt({ current, previous, answer } = {}) {
+  dashboard.setServiceClient(fakeDb({ tenants: [], messages: [] }));
+  const opened = [];
+  const net = wire(async (url, init) => {
+    if (url.includes("/u/")) {
+      opened.push({ url, init });
+      if (answer) return answer();
+      const token = url.slice(url.lastIndexOf("/u/") + 3);
+      // The dashboard project's own variables, its database among them (the page answers over the one set above).
+      const page = {
+        UNSUBSCRIBE_SECRET: current,
+        UNSUBSCRIBE_SECRET_PREVIOUS: previous,
+        NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:1",
+        SUPABASE_SERVICE_ROLE_KEY: "the-dashboard-service-key",
+      };
+      return withEnv(page, () => dashboard.unsubscribeGet(token));
+    }
+    const m = /\/domains\/([^/]+)$/.exec(url);
+    if (m && (init?.method ?? "GET") === "GET")
+      return new Response(JSON.stringify({ id: m[1], name: "x.example", status: "verified", records: [] }), {
+        status: 200,
+      });
+    return new Response("{}", { status: 200 });
+  });
+  return { net, opened };
+}
+
+test("the sweep seals a link naming nobody and opens it on the dashboard's page: the same key opens, and nothing is paged (Part 2.6)", async () => {
+  const w = world([domain("d1")]);
+  dns["d1.example"] = "found";
+  const { net, opened } = dashboardAt({ current: EDGE_KEY });
+  try {
+    const [status, body] = await withEnv({ UNSUBSCRIBE_SECRET: EDGE_KEY }, async () =>
+      answer(await knock(POST, "domains")),
+    );
+    assert.equal(status, 200);
+    assert.equal(body.unsubscribe, "opens");
+    assert.equal(opened.length, 1, "one probe a tick");
+    assert.match(opened[0].url, /^https:\/\/app\.chanlytics\.com\/u\/[A-Za-z0-9_-]{87}$/, "where the links go");
+    assert.equal(opened[0].init.redirect, "manual", "a redirect is seen, never followed");
+    const nobody = "00000000-0000-0000-0000-000000000000";
+    assert.deepEqual(verifyUnsubscribeToken([EDGE_KEY], opened[0].url.split("/u/")[1]), {
+      tenantId: nobody,
+      contactId: nobody,
+      messageId: nobody,
+    });
+    assert.deepEqual(w.tables.operator_pages, []);
+  } finally {
+    net.restore();
+  }
+});
+
+test("a rotation done dashboard first breaks nothing: the edge's old key is the page's previous one (Part 2.6)", async () => {
+  world([domain("d1")]);
+  dns["d1.example"] = "found";
+  const { net } = dashboardAt({ current: "the-new-key", previous: EDGE_KEY });
+  try {
+    const body = await withEnv(
+      { UNSUBSCRIBE_SECRET: EDGE_KEY },
+      async () => (await answer(await knock(POST, "domains")))[1],
+    );
+    assert.equal(body.unsubscribe, "opens");
+  } finally {
+    net.restore();
+  }
+});
+
+test("a page that refuses the edge's link pages the platform, by what it answered: another key, no key, a redirect (Part 2.6)", async () => {
+  const cases = [
+    [
+      "key_differs",
+      { current: "a-key-the-edge-never-had" },
+      /UNSUBSCRIBE_SECRET is not the same on the edge and the dashboard/,
+    ],
+    ["page_cannot_open", { current: undefined }, /answered 503: it cannot open any link/],
+    [
+      "redirects",
+      { answer: () => new Response(null, { status: 308, headers: { location: "https://elsewhere.example/" } }) },
+      /answered 308, a redirect/,
+    ],
+  ];
+  for (const [outcome, page, words] of cases) {
+    const w = world([domain("d1")]);
+    dns["d1.example"] = "found";
+    const { net, opened } = dashboardAt(page);
+    try {
+      const [status, body] = await withEnv({ UNSUBSCRIBE_SECRET: EDGE_KEY }, async () =>
+        answer(await knock(POST, "domains")),
+      );
+      assert.equal(status, 200, "the domains were read: the sweep is green, the page is the signal");
+      assert.equal(body.unsubscribe, outcome);
+      assert.equal(body.checked, 1);
+      assert.deepEqual(
+        w.tables.operator_pages.map((p) => p.key),
+        ["email_unsubscribe_links_broken"],
+        outcome,
+      );
+      const [sent] = pagesSent(net);
+      assert.equal(sent.subject, "[Chanlytics] Cold email: unsubscribe links don't open");
+      assert.match(sent.text, words);
+      assert.match(sent.text, /https:\/\/app\.chanlytics\.com\/u\//, "where the links go");
+      assert.ok(!sent.text.includes(opened[0].url.split("/u/")[1]), "never the probe's own link");
+      assert.equal(w.tables.notifications.length, 0, "no owner is told: the keys are the platform's");
+    } finally {
+      net.restore();
+    }
+  }
+});
+
+test("a page that did not answer, or answered anything else, is asked again next tick: one slow second pages nobody (Part 2.6)", async () => {
+  for (const [answer_, outcome] of [
+    [
+      () => {
+        throw Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+      },
+      "unreadable",
+    ],
+    [() => new Response("upstream", { status: 502 }), "unreadable"],
+  ]) {
+    const w = world([domain("d1")]);
+    dns["d1.example"] = "found";
+    const { net } = dashboardAt({ answer: answer_ });
+    try {
+      const body = await withEnv(
+        { UNSUBSCRIBE_SECRET: EDGE_KEY },
+        async () => (await answer(await knock(POST, "domains")))[1],
+      );
+      assert.equal(body.unsubscribe, outcome);
+      assert.deepEqual(w.tables.operator_pages, []);
+    } finally {
+      net.restore();
+    }
+  }
+});
+
+test("without the edge's key nothing is sealed, so nothing is probed (Part 2.6)", async () => {
+  const w = world([domain("d1")]);
+  dns["d1.example"] = "found";
+  const { net, opened } = dashboardAt({ current: EDGE_KEY });
+  try {
+    const body = await withEnv(
+      { UNSUBSCRIBE_SECRET: undefined },
+      async () => (await answer(await knock(POST, "domains")))[1],
+    );
+    assert.equal(body.unsubscribe, "no_secret");
+    assert.equal(opened.length, 0);
+    assert.deepEqual(w.tables.operator_pages, []);
+  } finally {
+    net.restore();
+  }
+});

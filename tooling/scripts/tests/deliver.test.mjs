@@ -54,10 +54,23 @@ function wireOf(result = { ok: true, wamid: "wamid.1", status: 200 }) {
 /**
  * The send door's one question for a cold email (00177 outreach_facts), answered from the world's tables the way the
  * SQL answers it; the SQL itself is proved on a database (outreach-facts.db.test.mjs). `t.suppressed` lists the
- * addresses on the never-again list; `t.sent_since` is what the domain sent in the window.
+ * addresses on the never-again list; `t.sent_since` is what the domain sent in the window; a person wrote back when an
+ * inbound message of theirs is on one of their threads, an email's automatic reply or a program's mail aside (00181).
  */
 const outreachRpc = (t) => ({
   outreach_facts: (a) => {
+    const theirs = new Set(
+      (t.conversations ?? [])
+        .filter((c) => c.tenant_id === a.p_tenant_id && c.contact_id === a.p_contact_id)
+        .map((c) => c.id),
+    );
+    const wroteBack = (t.messages ?? []).some(
+      (m) =>
+        theirs.has(m.conversation_id) &&
+        m.direction === "inbound" &&
+        m.sender === "customer" &&
+        !(m.channel === "email" && ["auto_reply", "automated"].includes(m.meta?.email?.claim ?? "person")),
+    );
     const live = (t.leads ?? [])
       .filter((l) => l.tenant_id === a.p_tenant_id && l.contact_id === a.p_contact_id && !l.erased_at && !l.blanked_at)
       .map((l) => ({ ...l, stage: l.stage ?? "ready" }))
@@ -68,6 +81,7 @@ const outreachRpc = (t) => ({
     return {
       lead_stage: live[0]?.stage ?? null,
       suppressed: (t.suppressed ?? []).includes(String(a.p_to).trim().toLowerCase()),
+      wrote_back: wroteBack,
       domain: d ? { state: d.state, from_local: d.from_local, clean_since: d.clean_since ?? null } : null,
       sent_since: t.sent_since ?? 0,
     };
@@ -713,6 +727,13 @@ test("an email leaves as the request that was frozen for it, from the row it was
 test("email's three refusals, each a fact about the person or the product, asked before consent and before the wire", async () => {
   const cases = [
     [{ purpose: "marketing" }, onEmail({ marketing_consent: "opted_in" }), "email_marketing_disabled"],
+    // An email unsubscribe holds an offer by email too. Today every offer by email is refused before it is asked; the
+    // release that lets offers go by email makes this one `unsubscribed` (the campaigns spec's Email row), never sent.
+    [
+      { purpose: "marketing" },
+      onEmail({ marketing_consent: "opted_in", email_marketing: "opted_out" }),
+      "email_marketing_disabled",
+    ],
     [{}, onEmail({ email_suppressed_at: "2026-09-01T00:00:00Z" }), "email_suppressed"],
     [{}, onEmail({ email: "ana.new@example.com" }), "recipient_changed"],
     [{}, onEmail({ email: null }), "recipient_changed"],
@@ -1164,4 +1185,57 @@ test("a cold email whose From cannot be read is refused for its domain, not as a
   unreadable.email = { ...unreadable.email, from: "not an address" };
   const out = await deliver(ports(t, emailWire()), unreadable);
   assert.deepEqual([out.outcome, out.reason], ["refused", "outreach_needs_own_domain"]);
+});
+
+/* ------------------------------------------------ Part 2.6: a business that wrote back is in a conversation (00181) */
+
+test("a business that wrote back, in any words on any channel, is never written to cold again; an out-of-office is not writing back", async () => {
+  const inbound = (over) => ({
+    id: `in-${over.channel}-${over.meta?.email?.claim ?? "none"}`,
+    tenant_id: T,
+    conversation_id: "c1",
+    direction: "inbound",
+    sender: "customer",
+    status: "received",
+    ...over,
+  });
+  const cases = [
+    // "No thanks", "who is this?", "call me": a person wrote, and the foot's promise ("reply and I won't write again") is kept.
+    ["outreach_wrote_back", [inbound({ channel: "email", meta: { email: { claim: "person" } } })]],
+    ["outreach_wrote_back", [inbound({ channel: "whatsapp", meta: {} })]],
+    ["outreach_wrote_back", [inbound({ channel: "sms", meta: {} })]],
+    // A responder and a program's mail are no person's words: the sequence goes on.
+    [null, [inbound({ channel: "email", meta: { email: { claim: "auto_reply" } } })]],
+    [null, [inbound({ channel: "email", meta: { email: { claim: "automated" } } })]],
+    // Another person's thread is not theirs.
+    [null, [inbound({ channel: "email", conversation_id: "c2", meta: {} })]],
+  ];
+  for (const [reason, messages] of cases) {
+    const t = coldWorld();
+    t.conversations.push(thread({ id: "c2", contact_id: "k2" }));
+    t.messages.push(...messages);
+    const w = emailWire();
+    const out = await deliver(ports(t, w), cold());
+    assert.equal(out.outcome === "refused" ? out.reason : null, reason, JSON.stringify(messages));
+    assert.equal(w.calls.length, reason ? 0 : 1);
+  }
+});
+
+test("a database that cannot say whether the business wrote back is not a no: the door throws, and the row is left for the retry", async () => {
+  // An edge deployed before 00181 is applied reads an answer without the fact. Reading it as "never wrote" would write
+  // cold to someone who asked to be left alone.
+  const t = coldWorld();
+  const w = emailWire();
+  const older = {
+    outreach_facts: (a) => {
+      const { wrote_back: _gone, ...rest } = outreachRpc(t).outreach_facts(a);
+      return rest;
+    },
+  };
+  await assert.rejects(
+    deliver({ db: fakeDb(t, {}, older), wire: w.wire, now: () => NOW }, cold()),
+    /whether this person wrote back/,
+  );
+  assert.equal(w.calls.length, 0);
+  assert.equal(t.messages[0].status, "queued", "left for the retry");
 });

@@ -9940,9 +9940,12 @@ async function outreachFactsOf(db, p) {
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
   const f = data ?? {};
+  if (typeof f.wrote_back !== "boolean")
+    throw new Error("cannot read the outreach facts: the database did not say whether this person wrote back");
   return {
     lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
     suppressed: f.suppressed === true,
+    wrote_back: f.wrote_back,
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,
       from_local: String(f.domain.from_local ?? ""),
@@ -10014,7 +10017,15 @@ async function outreachFacts(db, d, f, nowMs) {
   const from = addressOf(d.email?.from)?.address ?? null;
   const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
   if (!f.contactId)
-    return { leadStage: null, suppressed: false, unsubscribable, domainState: null, cleanSince: null, sentSince: 0 };
+    return {
+      leadStage: null,
+      suppressed: false,
+      wroteBack: false,
+      unsubscribable,
+      domainState: null,
+      cleanSince: null,
+      sentSince: 0
+    };
   let facts;
   try {
     facts = await outreachFactsOf(db, {
@@ -10034,6 +10045,7 @@ async function outreachFacts(db, d, f, nowMs) {
   return {
     leadStage: facts.lead_stage,
     suppressed: facts.suppressed,
+    wroteBack: facts.wrote_back,
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
@@ -10056,6 +10068,7 @@ function refusalFor(d, f, nowMs, o) {
     if (!o.leadStage) return "outreach_not_a_lead";
     if (o.leadStage !== "ready" && o.leadStage !== "nurture") return "outreach_lead_closed";
     if (o.suppressed) return "outreach_suppressed";
+    if (o.wroteBack) return "outreach_wrote_back";
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
     if (o.domainState !== "verified") return "sending_domain_not_ready";

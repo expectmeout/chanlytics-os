@@ -36,12 +36,14 @@ export async function GET(request: Request): Promise<Response> {
       metaSecret: !!env.META_APP_SECRET,
       retellKey: !!env.RETELL_API_KEY,
       diagKey: !!env.DIAG_KEY,
-      // Email's switches: the mail domain, the platform account's receipts, and cold email's account and receipts.
-      // Cold routes open only with both of the last two (email.ts), so a pair that disagrees is the thing to see.
+      // Email's switches: the mail domain, the platform account's receipts, cold email's account and receipts, and
+      // the key its unsubscribe links are sealed under. Cold routes open only with both of the account and its
+      // receipts (email.ts), so a pair that disagrees is the thing to see.
       emailDomain: !!env.EMAIL_DOMAIN,
       resendWebhook: !!env.RESEND_WEBHOOK_SECRET,
       resendCold: !!env.RESEND_COLD_API_KEY,
       resendColdWebhook: !!env.RESEND_COLD_WEBHOOK_SECRET,
+      unsubscribe: !!env.UNSUBSCRIBE_SECRET,
     },
   };
 

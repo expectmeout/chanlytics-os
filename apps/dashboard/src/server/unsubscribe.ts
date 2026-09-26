@@ -47,16 +47,39 @@ function secrets(): string[] | null {
   return previous ? [current, previous] : [current];
 }
 
-/** How often at most the door says it cannot answer: a scanner fetching every link must not flood the log. */
-const UNAVAILABLE_SAID_EVERY_MS = 60_000;
-let unavailableSaidAt = 0;
+/** How often at most the door says each thing: a scanner fetching every link must not flood the log. */
+const SAID_EVERY_MS = 60_000;
+const saidAt = new Map<string, number>();
+
+/** One line to the platform, once a minute at most for each event; whether it was said. Never the link. */
+function sayOnceAMinute(
+  level: "error" | "warn",
+  event: "unsubscribe_unavailable" | "unsubscribe_bad_link",
+  fields: Record<string, unknown>,
+): boolean {
+  const now = Date.now();
+  if (now - (saidAt.get(event) ?? 0) < SAID_EVERY_MS) return false;
+  saidAt.set(event, now);
+  console[level](event, JSON.stringify(fields));
+  return true;
+}
 
 /** A door that cannot answer, said to the platform (never the link, which is the authority to stop). */
 function sayUnavailable(why: "no_secret" | "no_database"): void {
-  const now = Date.now();
-  if (now - unavailableSaidAt < UNAVAILABLE_SAID_EVERY_MS) return;
-  unavailableSaidAt = now;
-  console.error("unsubscribe_unavailable", JSON.stringify({ why }));
+  sayOnceAMinute("error", "unsubscribe_unavailable", { why });
+}
+
+/** Links refused since the last line said so. */
+let refusedSinceSaid = 0;
+
+/**
+ * A link no key here made: a guess, a link a mail client broke, or one sealed under a key this page does not hold. One
+ * is nothing; a stream of them after a key changed is every link in every inbox refused, which the edge's probe pages
+ * about (apps/edge lib/email/unsubscribe-probe.ts). The line counts them, so a person reading it can tell the two.
+ */
+function sayBadLink(): void {
+  refusedSinceSaid += 1;
+  if (sayOnceAMinute("warn", "unsubscribe_bad_link", { refused: refusedSinceSaid })) refusedSinceSaid = 0;
 }
 
 /** The secrets and the database, or null once the platform has been told which is missing. */
@@ -153,7 +176,10 @@ export async function unsubscribeGet(token: string): Promise<Response> {
   if (!open) return page(503, { kind: "unavailable" });
   const { db } = open;
   const claims = verifyUnsubscribeToken(open.keys, token);
-  if (!claims) return page(404, { kind: "bad_link" });
+  if (!claims) {
+    sayBadLink();
+    return page(404, { kind: "bad_link" });
+  }
   const [business, sender] = await Promise.all([
     businessName(db, claims.tenantId),
     senderOf(db, claims.tenantId, claims.messageId),
@@ -210,7 +236,10 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
   // The link first: one we did not make is refused before its body is read or the database asked. Our own page
   // never draws the button under a bad link, so no person pressing lands here.
   const claims = verifyUnsubscribeToken(open.keys, token);
-  if (!claims) return text(400, "This link doesn't work.");
+  if (!claims) {
+    sayBadLink();
+    return text(400, "This link doesn't work.");
+  }
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return text(413, "Too large.");
   const fields = await readFields(req);
   if (fields === "too_large") return text(413, "Too large.");

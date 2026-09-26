@@ -785,8 +785,9 @@ the batch writer that sends a reach-out is Part 3's, so no cold email has left y
   by clean days.
 - **The `outreach` purpose at the door** (core `deliver.ts`, 00177's `outreach_facts` in one call; spec §4.8). A cold
   email is always a broadcast. It is refused, in words, unless it goes to a lead still `ready` or `nurture`, off the
-  never-again list, with its unsubscribe link, from the workspace's own verified domain by its whole From, and inside
-  that domain's rolling 24 hours. It never moves its thread, and a failure is recorded on its row, not flagged. Email
+  never-again list, who has never written back (00181: a message of their own on any channel; an out-of-office or a
+  program's mail is not one), with its unsubscribe link, from the workspace's own verified domain by its whole From,
+  and inside that domain's rolling 24 hours. It never moves its thread, and a failure is recorded on its row, not flagged. Email
   leaves by one of two lanes (`emailSender`): hosted (the mailbox, on the platform's account) for every other purpose,
   own (a sending domain, on the cold account) for outreach only.
 - **Two accounts, one webhook.** `/api/resend-webhook` verifies either account's signature (`RESEND_WEBHOOK_SECRET`,
@@ -795,8 +796,13 @@ the batch writer that sends a reach-out is Part 3's, so no cold email has left y
   once. A send that timed out stays `failed` with outcome `unknown` until its receipt settles it.
 - **The watch on cold receipts.** The `domains` sweep asks `cold_receipts_owed` (00179) and pages the platform
   (`email_cold_receipts_missing`) when a verified domain's three or more emails sent 26 to 2 hours ago have heard
-  nothing back: the cold webhook's secret set wrong. `/api/diag` reports the four email switches (`emailDomain`,
-  `resendWebhook`, `resendCold`, `resendColdWebhook`) as booleans.
+  nothing back: the cold webhook's secret set wrong. `/api/diag` reports the five email switches (`emailDomain`,
+  `resendWebhook`, `resendCold`, `resendColdWebhook`, `unsubscribe`) as booleans.
+- **The probe of the unsubscribe links.** With `UNSUBSCRIBE_SECRET` on the edge, the `domains` sweep seals a link that
+  names nobody and opens it on the dashboard's `/u/` page (edge `lib/email/unsubscribe-probe.ts`). A 404 (the two
+  projects hold different keys), a 503 (the page holds none) or a redirect pages the platform
+  (`email_unsubscribe_links_broken`); no answer is asked again next tick. The page logs a link no key of its own made
+  as `unsubscribe_bad_link`, once a minute at most, with how many since.
 
 ## S-15 · Calendar and availability
 
@@ -949,7 +955,7 @@ Beside the tables: the private `media` bucket (inbound attachments and call reco
 | Close the front door, or queue it             | `SIGNUP_CODE` (invite code), or the waitlist posture                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Switch on Google, Stripe or Embedded Signup   | Their variables on the edge; absent means nothing is drawn                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Switch on email                               | `EMAIL_DOMAIN` on the edge AND the dashboard, the same value (the subdomain that sends and receives: the edge binds the wire and opens the webhook door; the dashboard freezes the request a reply is queued with, and draws Setup's and Connections' rows), and `RESEND_WEBHOOK_SECRET` on the edge. Absent, the door is a 404, the wire is not bound, nothing is drawn, and a reply by email is refused in words. A workspace's own switch is its `mailboxes` row, which its owner makes from Connections (00129); the wire sends only as that mailbox |
-| Switch on cold email                          | `RESEND_COLD_API_KEY` and `RESEND_COLD_WEBHOOK_SECRET` on the edge (the second Resend account's key, and its webhook's signing secret: the cold routes bind only with both, so no cold email leaves while its receipts would be refused), and `UNSUBSCRIBE_SECRET` on the dashboard (the edge too, from Reach out Part 3), the same value; `UNSUBSCRIBE_SECRET_PREVIOUS` on the dashboard while a rotation settles. `/api/diag` says which are set. `docs/runbook.md`, "Turn on cold email", has the steps                                               |
+| Switch on cold email                          | `RESEND_COLD_API_KEY` and `RESEND_COLD_WEBHOOK_SECRET` on the edge (the second Resend account's key, and its webhook's signing secret: the cold routes bind only with both, so no cold email leaves while its receipts would be refused), and `UNSUBSCRIBE_SECRET` on both projects, the same value (the `domains` sweep pages when they differ); `UNSUBSCRIBE_SECRET_PREVIOUS` on the dashboard while a rotation settles. `/api/diag` says which are set. `docs/runbook.md`, "Turn on cold email", has the steps                                        |
 
 A Vercel variable reaches a running deployment only after a redeploy.
 
@@ -1022,7 +1028,7 @@ Names only; values live in each Vercel project.
 | ---------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Edge       | WhatsApp        | `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_ID`, `META_APP_SECRET`, `META_APP_ID`, `META_ES_CONFIG_ID`, `WHATSAPP_TEST_ALLOWLIST`                                                                                                                                                                                           |
 |            | Voice and lines | `RETELL_API_KEY`, `RETELL_WEBHOOK_KEY`, `RETELL_FN_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PRIMARY_PROFILE_SID`, `LINES_DRY_RUN`                                                                                                                                                                                              |
-|            | Model and email | `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `LEAD_TO`, `LEAD_FROM`, `EMAIL_DOMAIN`, `RESEND_WEBHOOK_SECRET`, `RESEND_COLD_API_KEY`, `RESEND_COLD_WEBHOOK_SECRET`                                                                                                                                                                                       |
+|            | Model and email | `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `LEAD_TO`, `LEAD_FROM`, `EMAIL_DOMAIN`, `RESEND_WEBHOOK_SECRET`, `RESEND_COLD_API_KEY`, `RESEND_COLD_WEBHOOK_SECRET`, `UNSUBSCRIBE_SECRET`                                                                                                                                                                 |
 |            | Memory          | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`                                                                                                                                                                                                                                                                                                       |
 |            | Google          | `GOOGLE_PLACES_API_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `GOOGLE_OAUTH_AUDIENCE`                                                                                                                                                                                                             |
 |            | Billing         | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `BILLING_TRIAL_DAYS`, `DASHBOARD_ORIGIN`                                                                                                                                                                                                                                         |

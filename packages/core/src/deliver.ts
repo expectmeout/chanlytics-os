@@ -294,6 +294,8 @@ interface OutreachFacts {
   leadStage: string | null;
   /** The address is on the workspace's never-again list: unsubscribed, complained, or erased. */
   suppressed: boolean;
+  /** The person wrote to the business, on any channel, in words of their own: a conversation now, never cold again. */
+  wroteBack: boolean;
   /** The request carries RFC 8058's one-click unsubscribe, both headers. */
   unsubscribable: boolean;
   /**
@@ -322,7 +324,15 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
   const from = addressOf(d.email?.from)?.address ?? null;
   const host = from ? from.slice(from.lastIndexOf("@") + 1) : null;
   if (!f.contactId)
-    return { leadStage: null, suppressed: false, unsubscribable, domainState: null, cleanSince: null, sentSince: 0 };
+    return {
+      leadStage: null,
+      suppressed: false,
+      wroteBack: false,
+      unsubscribable,
+      domainState: null,
+      cleanSince: null,
+      sentSince: 0,
+    };
   let facts;
   try {
     facts = await outreachFactsOf(db, {
@@ -344,6 +354,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
   return {
     leadStage: facts.lead_stage,
     suppressed: facts.suppressed,
+    wroteBack: facts.wrote_back,
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
@@ -391,6 +402,11 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
     // Only a business still being written to: a lead that said no, became a customer or was set aside is not.
     if (o.leadStage !== "ready" && o.leadStage !== "nurture") return "outreach_lead_closed";
     if (o.suppressed) return "outreach_suppressed";
+    // Every cold email's foot promises "reply 'no thanks' and I won't write again", and a reply asking to stop, in any
+    // words, is an opt-out the law says to honour. Nothing reads a reply to tell a no from a yes, so the promise is
+    // kept the plain way: a person who wrote back is in a conversation, answered from the Inbox, and a reach-out's
+    // next email (a nudge, a later run) is never sent to them. An out-of-office is not a person writing (00181).
+    if (o.wroteBack) return "outreach_wrote_back";
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
     if (o.domainState !== "verified") return "sending_domain_not_ready";

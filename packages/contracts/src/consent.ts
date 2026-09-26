@@ -123,6 +123,7 @@ export const DELIVERY_REFUSALS = [
   "outreach_not_a_lead",
   "outreach_lead_closed",
   "outreach_suppressed",
+  "outreach_wrote_back",
   "outreach_without_unsubscribe",
   "outreach_needs_own_domain",
   "sending_domain_not_ready",
@@ -160,6 +161,8 @@ export const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, 
   outreach_not_a_lead: "Cold email goes only to a business your searches found.",
   outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",
   outreach_suppressed: "This address is on the never-again list: it unsubscribed, complained, or was erased.",
+  outreach_wrote_back:
+    "This business wrote back, so it is a conversation now: answer it from the Inbox. No cold email goes to it again.",
   outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
   outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
   sending_domain_not_ready:
