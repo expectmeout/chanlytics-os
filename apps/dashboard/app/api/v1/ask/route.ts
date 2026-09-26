@@ -14,10 +14,9 @@ import {
 } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { tenantFacts } from "@/server/tenant";
-import { sellsByOf } from "@/server/deals";
+import { load, readerContext } from "@/server/readers";
+import * as readers from "@/server/readers/facts";
 import { runAskTurn, type TurnEvent } from "@/server/ask/loop";
-import { listPolicies } from "@chanlytics/db";
 import {
   askTurnText,
   titleFromQuestion,
@@ -159,17 +158,20 @@ export const POST = write({
     const turn = thread;
     await appendMessage(ctx, turn.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
 
+    const rc = readerContext(ctx, member);
     const [{ name, timezone }, cfg, policies, sellsBy] = await Promise.all([
-      tenantFacts(ctx.supabase, tenantId),
-      ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+      load(rc, readers.facts, undefined).then((r) => r.data),
+      load(rc, readers.config, undefined).then((r) => r.data),
       // The autonomy modes ride in the stable block, so "what can the receptionist do alone" needs no read.
-      listPolicies(ctx.supabase, tenantId).catch(() => []),
-      sellsByOf(ctx, tenantId),
+      load(rc, readers.policies, undefined).then(
+        (r) => r.data,
+        () => [],
+      ),
+      load(rc, readers.sellsBy, undefined).then((r) => r.data),
     ]);
-    if (cfg.error) throw new Error(cfg.error.message);
     // The rows the pane draws: the follow-ups' only where deals are on (0006).
     const offered = policies.filter((p) => policyClassOffered(p.class, dealsAreOn(sellsBy)));
-    const facts = workspaceFacts(name, timezone, cfg.data?.config ?? null, offered);
+    const facts = workspaceFacts(name, timezone, cfg?.config ?? null, offered);
     const language = detectLanguage(text);
     const personLabel = ctx.email ? `${ctx.email} (${member.role})` : member.role;
 
@@ -200,6 +202,9 @@ export const POST = write({
           openedMs,
           sinceLastMs,
           emit: (ev) => send(line(ev)),
+          // One clock for the turn: the tools' today is the readers' today.
+          now: rc.now,
+          rc,
         });
         // The answer as the Line draws it, beside the v1 fields it gives (spec 5.8): the history, copy and search
         // read `text`, and the erase hook finds a person by the ids the sources carry.

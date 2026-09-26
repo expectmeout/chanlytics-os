@@ -23,6 +23,7 @@ import {
   type AskTurnShape,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
+import type { ReaderContext } from "../readers";
 import { GatewayRefused, featureRejected } from "./gateway";
 import { READ_TOOLS, newToolContext, runTool, toolLabel, type ToolContext } from "./tools";
 import { ACT_TOOLS, ACT_TOOL_NAMES, buildProposal, proposalLabel } from "./proposals";
@@ -90,6 +91,8 @@ export interface TurnInput {
   sinceLastMs?: number | null;
   emit: (ev: TurnEvent) => void;
   now?: Date;
+  /** The route's reader context, so the turn's reads share its cache; a test may omit it. */
+  rc?: ReaderContext;
 }
 
 export interface TurnResult {
@@ -182,7 +185,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const model = askModel();
   const now = input.now ?? new Date();
   const es = input.language === "es";
-  const tc: ToolContext = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now);
+  const tc: ToolContext = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now, input.rc);
   const toolsUsed: string[] = [];
   const proposals: AskProposal[] = [];
   let reads = 0;

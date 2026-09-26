@@ -1190,8 +1190,10 @@ test("the speed pass: a fast model for a short answer, the day's rows never re-r
     "the saved turn names the model that ran",
   );
   assert.ok(
-    route.includes("listPolicies(ctx.supabase, tenantId).catch(() => [])") &&
-      route.includes("cfg.data?.config ?? null, offered)"),
+    // Prettier breaks a call with two function arguments over lines: the shape, whatever its whitespace.
+    /load\(rc, readers\.policies, undefined\)\.then\(\s*\(r\) => r\.data,\s*\(\) => \[\],?\s*\)/.test(route) &&
+      route.includes("cfg?.config ?? null, offered)"),
+    "the policies still ride in the stable block, read through the turn's cache and tolerated when they fail",
   );
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(

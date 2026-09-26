@@ -242,7 +242,11 @@ test("a turn answered without a Say has none; a scripted round without timing or
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const askRoute = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { runTool } = await import(at("apps/dashboard/src/server/ask/tools.ts"));
 beforeEach(() => setRateStore(memoryStore()));
+// The workspace's facts are kept across turns in the module: each test starts with none kept.
+beforeEach(() => readerCache.clear());
 
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const membership = (tenant_id, role, slug, created_at) => ({
@@ -398,4 +402,47 @@ test("the client sends opened_ms with the question when the palette measured one
   await api.send({ text: "q", threadId: null, scope: null, surface: "today" }, () => {});
   assert.equal(bodies[0].opened_ms, 4200);
   assert.ok(!("opened_ms" in bodies[1]));
+});
+
+test("one turn reads the workspace's facts once, on one clock: the route's own read and the tools' reads share the turn cache and its now (tenants, tenant_config, policies each once)", async () => {
+  const tables = routeTables();
+  const written = answerJson("Hours are nine to five.");
+  // The model calls get_settings and list_calls in one round, then answers.
+  let rounds = 0;
+  // Each read's clock against its readers' clock: a turn keeps one.
+  const clocks = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      rounds++;
+      if (rounds === 1)
+        return ROUND([
+          { type: "tool_use", id: "t-get_settings", name: "get_settings", text: "", json: "{}" },
+          { type: "tool_use", id: "t-list_calls", name: "list_calls", text: "", json: "{}" },
+        ]);
+      onText(written);
+      return ROUND([text(written)], { stopReason: "end_turn" });
+    },
+    snapshot: async () => "",
+    tool: async (tc, run) => {
+      clocks.push(tc.now === tc.rc.now);
+      return runTool(tc, run);
+    },
+  });
+  const ctx = ctxFor(tables);
+  try {
+    const res = await askRoute.POST.run(post({ text: "what are our hours?", surface: "settings" }), ctx);
+    await res.text();
+    const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
+    assert.deepEqual([selects("tenant_channels"), selects("calls")], [1, 1], "both tools ran and read their own rows");
+    assert.equal(
+      selects("tenants"),
+      2,
+      "name and zone once (facts), sells_by once (sellsBy): the tools re-read neither",
+    );
+    assert.equal(selects("tenant_config"), 1, "the config once, for the prompt and for get_settings");
+    assert.equal(selects("policies"), 1, "the policies once");
+    assert.deepEqual(clocks, [true, true], "one clock per turn: each tool's now is its readers' now");
+  } finally {
+    setAskPorts(null);
+  }
 });

@@ -9,7 +9,7 @@
  * the proposal builders run for real against the database in memory, and
  * the round's own gathering runs on a fake event stream.
  */
-import { test } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -43,6 +43,9 @@ const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
+const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+// The workspace's facts are kept across turns in the module: each test starts with none kept.
+beforeEach(() => readerCache.clear());
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const C1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";

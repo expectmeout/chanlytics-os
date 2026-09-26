@@ -1998,37 +1998,23 @@ test("on a phone the field in use composes: the rows go, their fold kept closed,
 
 /* ------------------------------ the phone's ✦: the disc and its dot ------------------------------ */
 
-test("the disc's dot says what needs you (Ask's own standing) and the usage from 80%: nothing with nothing waiting and no usage surface, amber for someone waiting or from 80%, red at 100%", () => {
+test("the disc's dot is the usage's standing alone: nothing with no usage surface or under 80%, amber from 80%, red at 100%", () => {
   const Disc = (props) => globalThis.window.AskDisc(props);
   const drawn = () => byTestId(render(Disc, { testId: "b" }), "b");
-  const hadAsk = globalThis.window.__ask;
-  let parts = { people: 0, runs: 0, searches: 0 };
-  globalThis.window.__ask = { rightNowParts: () => ({ sentence: "", ...parts }) };
   try {
     delete globalThis.window.__USAGE;
-    let disc = drawn();
+    const disc = drawn();
     assert.equal(disc.props.className, "ask-disc");
-    assert.equal(disc.props["data-needs"], "0", "nobody waiting: no dot");
-    assert.equal(disc.props["data-usage"], "ok", "no usage surface yet: no dot for the usage");
-    parts = { people: 1, runs: 0, searches: 0 };
-    assert.equal(drawn().props["data-needs"], "1", "someone waiting: the dot");
-    parts = { people: 0, runs: 0, searches: 2 };
-    assert.equal(drawn().props["data-needs"], "1", "a search waiting: the dot");
-    parts = { people: 0, runs: 0, searches: 0 };
+    assert.equal(disc.props["data-usage"], "ok", "no usage surface yet: no dot");
+    assert.equal(disc.props["data-needs"], undefined, "what needs you is the three's colour, not the disc's dot");
     globalThis.window.__USAGE = { standing: "ok", share: 27 };
-    disc = drawn();
-    assert.equal(disc.props["data-usage"], "ok");
-    assert.equal(disc.props["data-needs"], "0");
+    assert.equal(drawn().props["data-usage"], "ok", "under 80%: no dot");
     globalThis.window.__USAGE = { standing: "warned", share: 89 };
     assert.equal(drawn().props["data-usage"], "warned");
     globalThis.window.__USAGE = { standing: "over", share: 100 };
     assert.equal(drawn().props["data-usage"], "over");
-    delete globalThis.window.__ask;
-    assert.equal(drawn().props["data-needs"], "0", "no Ask at all: nothing waiting");
   } finally {
     delete globalThis.window.__USAGE;
-    if (hadAsk === undefined) delete globalThis.window.__ask;
-    else globalThis.window.__ask = hadAsk;
   }
 });
 
