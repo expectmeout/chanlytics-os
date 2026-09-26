@@ -1,6 +1,6 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
-import { edgeGoogle, readOutcome } from "@/server/google";
+import { edgeGoogle, readOutcome } from "@/server/connections/google";
 
 /**
  * POST /api/v1/google/link — {place_id}: this is the business on Google.

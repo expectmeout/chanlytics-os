@@ -17,7 +17,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
-const { forgetBillingReadiness } = await import(at("apps/dashboard/src/server/billing.ts"));
+const { forgetBillingReadiness } = await import(at("apps/dashboard/src/server/workspace/billing.ts"));
 const billing = await import(at("apps/dashboard/app/api/v1/billing/route.ts"));
 const checkout = await import(at("apps/dashboard/app/api/v1/billing/checkout/route.ts"));
 const portal = await import(at("apps/dashboard/app/api/v1/billing/portal/route.ts"));

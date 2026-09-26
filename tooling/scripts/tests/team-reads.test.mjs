@@ -23,7 +23,7 @@ import assert from "node:assert/strict";
 import { readRaw, readCode } from "./_source.mjs";
 
 const sql = readRaw("supabase/migrations/00022_team_reads.sql");
-const service = readCode("apps/dashboard/src/server/service.ts");
+const service = readCode("apps/dashboard/src/server/workspace/team.ts");
 const teamRoute = readCode("apps/dashboard/app/api/v1/team/route.ts");
 
 /* ------------------------- the functions guard themselves ----------------- */

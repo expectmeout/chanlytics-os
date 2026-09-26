@@ -1,5 +1,5 @@
 /**
- * The unsubscribe link's door (apps/dashboard app/u/[token]/route.ts over src/server/unsubscribe.ts), run: the
+ * The unsubscribe link's door (apps/dashboard app/u/[token]/route.ts over src/server/public/unsubscribe.ts), run: the
  * real route module, over a database in memory. RFC 8058's rules are what is proved: a GET changes nothing, the
  * one click and the page's button each record the stop in the same response, nothing ever redirects, and a link
  * this secret did not make is refused before anything is asked of the database.
@@ -22,7 +22,7 @@ after(() => {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const route = await import(at("apps/dashboard/app/u/[token]/route.ts"));
-const { setServiceClient } = await import(at("apps/dashboard/src/server/unsubscribe.ts"));
+const { setServiceClient } = await import(at("apps/dashboard/src/server/public/unsubscribe.ts"));
 after(() => setServiceClient(null));
 
 const A = "22222222-2222-4222-8222-222222222222";

@@ -48,7 +48,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const { composePromptPreview, openingsBlock } = await import(
-  pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/prompt-preview.ts")).href
+  pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/receptionist/prompt-preview.ts")).href
 );
 
 const css = readCode("apps/dashboard/src/legacy/styles/settings.css");

@@ -241,7 +241,7 @@ export async function setPersonMarketingConsent(id: string, body: ConsentBody): 
 /**
  * The same answer for many at once — a yes given at the desk by a whole
  * class, say: `window.__setPersonConsentMany(ids, body)`. ONE request, fifty
- * at most, through the batch door (server/consent.ts), which walks the same
+ * at most, through the batch door (server/people/consent.ts), which walks the same
  * per-person door each would go through alone and records a decision per
  * person. It used to be one request per person -- fifty round trips and
  * fifty takes of the consent bucket for one act at the desk.

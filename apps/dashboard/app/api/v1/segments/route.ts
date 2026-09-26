@@ -2,7 +2,7 @@ import { AppError } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createList, savedListsFor, type Json } from "@chanlytics/db";
-import { cleanListName, cleanListRule, type SavedListDto } from "@/server/lists";
+import { cleanListName, cleanListRule, type SavedListDto } from "@/server/people/lists";
 import { recordDecision } from "@/server/verbs";
 import { load, readerContext } from "@/server/readers";
 import { lists } from "@/server/readers/lists";

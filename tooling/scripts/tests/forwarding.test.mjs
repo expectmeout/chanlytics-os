@@ -311,7 +311,7 @@ test("the wiring: the migration, the forwarding event kind, and the bridge and t
   // owner policy and their database calls run in settings-routes.test.mjs.
   assert.ok(EVENT_KINDS.includes("line.forwarding_verified"));
   assert.ok(
-    readCode("apps/dashboard/src/server/lines.ts").includes('forwarding: r.kind === "forwarded"'),
+    readCode("apps/dashboard/src/server/connections/lines.ts").includes('forwarding: r.kind === "forwarded"'),
     "only a forwarded row shows its facts, and only the words",
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");

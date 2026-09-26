@@ -41,7 +41,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { loadFeed, forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
 const { calendarWeek, previewFeed, itemsToDays, MAX_ITEMS_PER_DAY } = await import(
-  at("apps/dashboard/src/server/calendar.ts")
+  at("apps/dashboard/src/server/calendar/calendar.ts")
 );
 const route = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
 

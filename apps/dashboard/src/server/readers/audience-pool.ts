@@ -1,11 +1,11 @@
 import "server-only";
-import { audiencePool as audiencePoolFrom, type AudiencePool } from "../audience";
+import { audiencePool as audiencePoolFrom, type AudiencePool } from "../people/audience";
 import { load, stamp, type Reader } from "./index";
 import * as facts from "./facts";
 import { everyone } from "./everyone";
 
 /**
- * Everyone in People with their appointments, for the member asking (server/audience.ts): the pool a broadcast's
+ * Everyone in People with their appointments, for the member asking (server/people/audience.ts): the pool a broadcast's
  * audience, a People list and a playbook's moment are counted over, as the send counts them. Read once a turn by its
  * arguments, so a turn that lists the audiences and then proposes a send reads it once -- the memo it replaces kept
  * one pool whatever the zone and the clock. Everyone is the turn's own read (readers/everyone.ts), which the Playbooks

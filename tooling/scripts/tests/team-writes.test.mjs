@@ -21,7 +21,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { inviteMember, setMemberRole, removeMember } = await import(at("apps/dashboard/src/server/service.ts"));
+const { inviteMember, setMemberRole, removeMember } = await import(at("apps/dashboard/src/server/workspace/team.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";

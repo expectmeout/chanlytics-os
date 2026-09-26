@@ -3,7 +3,7 @@ import { LeadSearchPlanSchema, SPEND_LEADS, type LeadSearchPlan } from "@chanlyt
 import type { Json } from "@chanlytics/db";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { answerOf, estimateForRound, refusalOf, searchRow } from "@/server/leads";
+import { answerOf, estimateForRound, refusalOf, searchRow } from "@/server/leads/leads";
 
 const Body = z.object({
   purpose: z.enum(["topup", "renew"]),

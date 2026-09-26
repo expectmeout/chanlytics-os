@@ -830,10 +830,10 @@ test("the dashboard: owners link and search, operators read, members look; the p
   assert.ok(refresh.includes('role: "operator",') && refresh.includes('rate: "google_refresh",'));
   const get = readCode("apps/dashboard/app/api/v1/google/route.ts");
   assert.ok(/googleFor\(ctx\.supabase, member\.tenantId\),\s*googleReadiness\(\)/.test(get));
-  const server = readCode("apps/dashboard/src/server/google.ts");
+  const server = readCode("apps/dashboard/src/server/connections/google.ts");
   assert.ok(server.includes('edgeHeaders("/api/admin/google"') && server.includes("const READY_TTL_MS = 5 * 60_000;"));
   assert.ok(!server.includes("GOOGLE_PLACES_API_KEY"), "the dashboard never holds the key");
-  const setup = readCode("apps/dashboard/src/server/setup.ts");
+  const setup = readCode("apps/dashboard/src/server/workspace/setup.ts");
   // What Setup reads of the listing, and of Google's facts, setup.test.mjs runs (setupDtoFor over a database in memory).
   assert.ok(setup.includes("ready: google.places || google.profile,"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/google.ts");

@@ -14,9 +14,9 @@ import {
 } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
-import { promptPreview } from "@/server/prompt-preview";
-import { linesFor } from "@/server/lines";
-import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/settings-write";
+import { promptPreview } from "@/server/receptionist/prompt-preview";
+import { linesFor } from "@/server/connections/lines";
+import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/workspace/settings-write";
 
 function maskFeedUrl(u: string): string {
   return u.length <= 30 ? "…" : `${u.slice(0, 24)}…${u.slice(-6)}`;

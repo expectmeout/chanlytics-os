@@ -75,7 +75,7 @@ test("the route proves visibility, then the role door, then the provider — and
     route.includes("There is nobody on the line to whisper to") ||
       route.includes("there is nobody on the line to whisper to"),
   );
-  const service = readCode("apps/dashboard/src/server/service.ts");
+  const service = readCode("apps/dashboard/src/server/conversations/live-call.ts");
   const fn = service.slice(service.indexOf("export async function whisperLiveCall"));
   assert.ok(fn.includes("!deployment.providersLive"), "a preview must not speak into a real customer's call");
   assert.ok(fn.includes('edgeHeaders("/api/admin/whisper")'));

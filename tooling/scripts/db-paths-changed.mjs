@@ -38,7 +38,7 @@ export const DB_PATHS = [
   "packages/core/src/campaigns/**",
   "packages/core/src/deliver.ts",
   "packages/jobs/src/handlers.ts",
-  "apps/dashboard/src/server/campaign-ports.ts",
+  "apps/dashboard/src/server/ports/campaign-ports.ts",
   // what the two --check steps compare with the database
   "tooling/scripts/gen-schema-sets.mjs",
   "packages/contracts/src/schema-sets.generated.ts",

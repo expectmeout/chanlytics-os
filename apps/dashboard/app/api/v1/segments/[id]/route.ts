@@ -15,7 +15,7 @@ import { asListRule, ruleLists } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { listScope, recordDecision } from "@/server/verbs";
 import { jsonBody } from "@/server/request-guards";
-import { cleanIdList, cleanListName, cleanListRule, type SavedListDto } from "@/server/lists";
+import { cleanIdList, cleanListName, cleanListRule, type SavedListDto } from "@/server/people/lists";
 
 /**
  * One saved list.

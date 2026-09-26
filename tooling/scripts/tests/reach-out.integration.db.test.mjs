@@ -156,7 +156,7 @@ before(async () => {
     ...(await import(at("apps/edge/lib/reach-out/request.ts"))),
     ...(await import(at("apps/edge/lib/email/email.ts"))),
     ...(await import(at("apps/edge/lib/email/email-receipts.ts"))),
-    ...(await import(at("apps/dashboard/src/server/campaign-ports.ts"))),
+    ...(await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"))),
     ...(await import(at("packages/core/dist/index.js"))),
     ...(await import(at("packages/jobs/dist/index.js"))),
     ...(await import(at("packages/db/dist/index.js"))),

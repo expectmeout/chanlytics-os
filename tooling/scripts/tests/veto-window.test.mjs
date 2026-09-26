@@ -67,7 +67,7 @@ const edge = read("packages/core/src/inbound/answer.ts");
 const sink = read("apps/edge/lib/whatsapp/persist.ts");
 const verbs = read("apps/dashboard/src/server/verbs.ts");
 const reply = read("packages/core/src/conversations/reply.ts");
-const takeOver = read("apps/dashboard/src/server/core-ports.ts");
+const takeOver = read("apps/dashboard/src/server/ports/core-ports.ts");
 
 test("'veto' reaches the brain instead of being held as a policy block", () => {
   // Before this, veto fell into the "hold everything for a human" branch — safe,

@@ -1,6 +1,6 @@
 import { BusinessLineSchema } from "@chanlytics/contracts";
 import { read, workspace, write } from "@/server/route";
-import { setBusinessLine, suggestionsFor } from "@/server/leads";
+import { setBusinessLine, suggestionsFor } from "@/server/leads/leads";
 
 /**
  * GET /api/v1/lead-suggestions — the three or four kinds of business worth

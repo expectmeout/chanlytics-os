@@ -17,7 +17,7 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { tenantFacts } from "../tenant";
-import { fillerFeedFor } from "../filler-calendar";
+import { fillerFeedFor } from "../calendar/filler-calendar";
 
 /**
  * Openings for the assistant and the palette's fast path, computed the way

@@ -1,6 +1,6 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
-import { edgeGoogle } from "@/server/google";
+import { edgeGoogle } from "@/server/connections/google";
 
 /**
  * POST /api/v1/google/refresh — read the listing now rather than at the

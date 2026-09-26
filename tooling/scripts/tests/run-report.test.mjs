@@ -23,7 +23,7 @@ import * as C from "@chanlytics/contracts";
 
 const TID = "t-salon";
 const B = "b1";
-const { getBroadcast } = await import("../../../apps/dashboard/src/server/broadcasts.ts");
+const { getBroadcast } = await import("../../../apps/dashboard/src/server/campaigns/broadcasts.ts");
 const H = 3_600_000;
 const T0 = Date.parse("2026-09-20T15:00:00Z");
 const at = (ms) => new Date(T0 + ms).toISOString();

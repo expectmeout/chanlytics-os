@@ -59,7 +59,7 @@ const PUBLIC_PATHS = new Set([
  *   /u/     the unsubscribe link every campaign email carries (RFC 8058). It
  *           carries a token, not a slug, and it is the one public route that
  *           takes input: its only write is a person's own "stop", under a key
- *           only we hold, and a GET changes nothing (src/server/unsubscribe.ts).
+ *           only we hold, and a GET changes nothing (src/server/public/unsubscribe.ts).
  *
  * Adding one here is adding a page anybody on the internet may read. Each was
  * built for exactly that; nothing else goes on this list without the same

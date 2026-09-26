@@ -1,8 +1,8 @@
 import "server-only";
 import { AppError, dealsAreOn, type BookingReportDto, type DealReportDto, type ReportDto } from "@chanlytics/contracts";
-import { everyone } from "../people";
-import { bookingReport } from "../calendar";
-import { dealReport } from "../deals";
+import { everyone } from "../people/people";
+import { bookingReport } from "../calendar/calendar";
+import { dealReport } from "../people/deals";
 import { load, stamp, type Reader } from "./index";
 import * as facts from "./facts";
 

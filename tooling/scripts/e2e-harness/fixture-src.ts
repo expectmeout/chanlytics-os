@@ -9,7 +9,7 @@
  * only what is missing. The server answers the spec's reads from that same object, so the page and the spec see one
  * record.
  *
- * The preview beside the config is composed here rather than imported: apps/dashboard/src/server/prompt-preview.ts
+ * The preview beside the config is composed here rather than imported: apps/dashboard/src/server/receptionist/prompt-preview.ts
  * opens with `import "server-only"` and pulls in @chanlytics/db, neither of which belongs in a browser bundle. The
  * three lines it is are written out below, from the same contracts functions the server calls.
  *
@@ -133,7 +133,7 @@ w.__workspace = { setTimezone: async () => ({ ok: false, tz: "", message: "The h
 w.__saveSettings = () => Promise.resolve({ ok: false, code: "refused", message: "The harness never saves." });
 
 /* ---- the settings read (legacy-bridge/surface-data.ts) ---- */
-// composePromptPreview's own three lines (apps/dashboard/src/server/prompt-preview.ts), which cannot be imported here.
+// composePromptPreview's own three lines (apps/dashboard/src/server/receptionist/prompt-preview.ts), which cannot be imported here.
 const preview = (brain: C.BrainConfig) => ({
   whatsapp: C.resolveSystemPrompt(brain, "whatsapp", zone, new Date(), {}, S.known),
   voice: C.resolveSystemPrompt(brain, "voice", zone, new Date(), {}, S.known),

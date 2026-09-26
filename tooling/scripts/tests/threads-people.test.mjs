@@ -356,7 +356,7 @@ test("the profile's Right now agrees with the mode two inches away", () => {
 
 test("the API attaches the mode in force, and an erasure scrubs the jobs that carried the number", async () => {
   // The reading moved into one helper the list route and the CSV export share.
-  const list = readCode("apps/dashboard/src/server/people.ts");
+  const list = readCode("apps/dashboard/src/server/people/people.ts");
   assert.ok(list.includes("effective_reply_mode: personMode.get(r.id) ?? workspaceMode"));
   // One person's page attaches it the same way, run over a database in memory: their own mode, else the workspace's,
   // else none. Another person's own mode is not theirs.
@@ -400,7 +400,7 @@ test("the API attaches the mode in force, and an erasure scrubs the jobs that ca
   assert.deepEqual(await inForce([]), [null, null, null], "else none");
   const erase = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(erase.includes("scrubErasedJobs(contact.tenant_id, id, threadIds)"));
-  const service = readCode("apps/dashboard/src/server/service.ts");
+  const service = readCode("apps/dashboard/src/server/people/erasure.ts");
   // No kind is spared any more. One was -- the blob_thread_erase job that
   // removed the second copy of the conversation, which the scrub would
   // otherwise have wiped the digits off before it could run. That store and

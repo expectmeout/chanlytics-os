@@ -1,6 +1,6 @@
 import { read, write, workspace } from "@/server/route";
 import { AppError, type GoogleLocationDto } from "@chanlytics/contracts";
-import { edgeGoogle, readOutcome } from "@/server/google";
+import { edgeGoogle, readOutcome } from "@/server/connections/google";
 
 /**
  * GET /api/v1/google/locations — the locations the connected Google account

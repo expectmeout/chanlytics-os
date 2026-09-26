@@ -186,7 +186,7 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   );
   const dr = readCode("apps/dashboard/app/api/v1/templates/draft/route.ts");
   assert.ok(dr.includes('rate: "ask",'), "a draft costs an assistant turn");
-  const svc = readCode("apps/dashboard/src/server/templates.ts");
+  const svc = readCode("apps/dashboard/src/server/campaigns/templates.ts");
   assert.ok(svc.includes('export const DRAFT_MODEL = "claude-sonnet-5";'));
   assert.ok(svc.includes("Answer with one JSON object and nothing else"));
   assert.ok(svc.includes("The footer must say how to opt out"), "a marketing draft carries the opt-out line");
@@ -196,8 +196,12 @@ test("the routes: what Meta refuses is refused first; a duplicate name is a conf
   );
   assert.ok(svc.includes("do not use a booking_link slot"), "no slot the workspace cannot fill");
   assert.ok(
-    readCode("apps/dashboard/src/server/service.ts").includes("`${edgeUrl()}/api/admin/whatsapp/templates-create`") &&
-      readCode("apps/dashboard/src/server/service.ts").includes("`${edgeUrl()}/api/admin/whatsapp/templates-delete`"),
+    readCode("apps/dashboard/src/server/campaigns/meta-templates.ts").includes(
+      "`${edgeUrl()}/api/admin/whatsapp/templates-create`",
+    ) &&
+      readCode("apps/dashboard/src/server/campaigns/meta-templates.ts").includes(
+        "`${edgeUrl()}/api/admin/whatsapp/templates-delete`",
+      ),
   );
 });
 

@@ -66,7 +66,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { composePromptPreview } = await import(at("apps/dashboard/src/server/prompt-preview.ts"));
+const { composePromptPreview } = await import(at("apps/dashboard/src/server/receptionist/prompt-preview.ts"));
 
 globalThis.window = {};
 const W = globalThis.window;

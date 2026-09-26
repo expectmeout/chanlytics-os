@@ -3,7 +3,7 @@ import { AppError } from "@chanlytics/contracts";
 import { requireUuid } from "@/server/request-guards";
 import { cleanReply } from "@chanlytics/channels";
 import { recordDecision } from "@/server/verbs";
-import { edgeGoogle } from "@/server/google";
+import { edgeGoogle } from "@/server/connections/google";
 
 /**
  * POST /api/v1/google/reviews/:id/reply — {comment}: the business answers a

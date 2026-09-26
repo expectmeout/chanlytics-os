@@ -72,7 +72,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     /dedupeFeed\(\[\s*\.\.\.applyReadState\(/.test(readCode("apps/dashboard/src/legacy-bridge/notifications.ts")),
     "the bridge shows the feed once",
   );
-  const server = readCode("apps/dashboard/src/server/broadcasts.ts");
+  const server = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
   assert.ok(
     server.includes("REPLY_WINDOW_MS,") &&
       server.includes("isReplyTo(sentAt, m.created_at)") &&

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
-import { createMailbox } from "@/server/email";
+import { createMailbox } from "@/server/connections/email";
 
 const Body = z
   .object({

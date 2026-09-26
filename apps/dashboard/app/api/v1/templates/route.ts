@@ -12,7 +12,7 @@ import {
 } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
-import { createTemplate } from "@/server/service";
+import { createTemplate } from "@/server/campaigns/meta-templates";
 
 /**
  * GET /api/v1/templates — ONE workspace's approved templates.

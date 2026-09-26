@@ -11,7 +11,7 @@ import { firstWorkspaceDoor, googleCallbackUrl, providerNameOf, SIGNUP_WORDS } f
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { callbackPlan, safeNext, OAUTH_FAILED } = await import(at("apps/dashboard/src/server/oauth-callback.ts"));
+const { callbackPlan, safeNext, OAUTH_FAILED } = await import(at("apps/dashboard/src/server/auth/oauth-callback.ts"));
 
 test("the callback exchanges a code and lands on this site only", () => {
   assert.deepEqual(callbackPlan({ code: "abc", next: "/#/inbox", error: null }), {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
-import { inviteMember } from "@/server/service";
+import { inviteMember } from "@/server/workspace/team";
 
 const Body = z.object({
   /** Stored lowercased at the door, so the same address invited twice is the same address. */

@@ -21,7 +21,7 @@ import { DECISION_SUBJECTS, DECISION_VERBS } from "@chanlytics/contracts";
 import { readRaw, readCode } from "./_source.mjs";
 
 const sql = readRaw("supabase/migrations/00023_team_audit_and_invite_lookup.sql");
-const service = readCode("apps/dashboard/src/server/service.ts");
+const service = readCode("apps/dashboard/src/server/workspace/team.ts");
 const workspaces = readCode("apps/dashboard/app/api/v1/workspaces/route.ts");
 const teamIdRoute = readCode("apps/dashboard/app/api/v1/team/[id]/route.ts");
 
@@ -189,7 +189,7 @@ test("the index matches how the reader actually filters", () => {
     // withRoute turns into a generic 500 "Something went wrong" — so the one
     // guard that protects a workspace from losing its last owner read as a
     // crash.
-    const service = readCode("apps/dashboard/src/server/service.ts");
+    const service = readCode("apps/dashboard/src/server/workspace/team.ts");
     assert.ok(!/throw new Error\("(last_owner|self_remove|not_found)"\)/.test(service));
     assert.ok(service.includes("AppError"), "team rules must throw AppError");
   });

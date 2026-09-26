@@ -1,6 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { BILLING_SAID, edgeBilling } from "@/server/billing";
+import { BILLING_SAID, edgeBilling } from "@/server/workspace/billing";
 
 /**
  * POST /api/v1/billing/portal — the way to Stripe's customer portal: the

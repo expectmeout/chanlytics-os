@@ -545,7 +545,7 @@ const lists = await import(at("apps/dashboard/app/api/v1/segments/route.ts"));
 const list = await import(at("apps/dashboard/app/api/v1/segments/[id]/route.ts"));
 const draft = await import(at("apps/dashboard/app/api/v1/segments/draft/route.ts"));
 const { setModelStream, JSON_MODEL } = await import(at("apps/dashboard/src/server/model-json.ts"));
-const { cleanListRule } = await import(at("apps/dashboard/src/server/lists.ts"));
+const { cleanListRule } = await import(at("apps/dashboard/src/server/people/lists.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -656,7 +656,7 @@ test("a smart list drafted from the owner's words: a name, a rule, and what it c
 });
 
 test("a send to a smart list enrols who its rule holds for, over the same pool it counts from", async () => {
-  const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/campaign-ports.ts"));
+  const { createBroadcastPorts } = await import(at("apps/dashboard/src/server/ports/campaign-ports.ts"));
   const person = (id, channels) => ({
     id,
     display_name: id,

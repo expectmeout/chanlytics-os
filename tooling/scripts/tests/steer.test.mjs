@@ -82,7 +82,7 @@ test("the dashboard route keeps its doors and records the decision only after th
     r.includes('"That reply went out while it was being rewritten, so nothing was changed."'),
     "and the race has its own sentence, not a token",
   );
-  const svc = readCode("apps/dashboard/src/server/service.ts");
+  const svc = readCode("apps/dashboard/src/server/conversations/thread-control.ts");
   assert.ok(svc.includes("`${edgeUrl()}/api/admin/steer`"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   assert.ok(bridge.includes("window.__steerDraft = steerDraft;"));

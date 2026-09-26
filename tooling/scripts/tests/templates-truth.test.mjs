@@ -90,7 +90,7 @@ test("the dashboard: the route proves the operator, the service reaches the edge
   const r = readCode("apps/dashboard/app/api/v1/templates/sync/route.ts");
   assert.ok(r.includes('role: "operator",') && r.includes('rate: "settings",'));
   assert.ok(r.includes("no_waba:") && r.includes("meta_failed:"));
-  const svc = readCode("apps/dashboard/src/server/service.ts");
+  const svc = readCode("apps/dashboard/src/server/campaigns/meta-templates.ts");
   assert.ok(svc.includes("`${edgeUrl()}/api/admin/whatsapp/templates-sync`"));
   const g = readCode("apps/dashboard/app/api/v1/templates/route.ts");
   assert.ok(

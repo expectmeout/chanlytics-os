@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
-import { activityLog } from "@/server/activity";
+import { activityLog } from "@/server/metrics/activity";
 
 const Query = z.object({
   person: z.string().uuid().optional(),
@@ -35,7 +35,7 @@ const Query = z.object({
  * a hundred at a time with ?cursor= (the page before hands one back). Owners:
  * it is the whole record of the workspace, including what every member did.
  * The evidence families are left out unless asked for by name
- * (server/activity.ts).
+ * (server/metrics/activity.ts).
  */
 export const GET = read({
   scope: workspace,

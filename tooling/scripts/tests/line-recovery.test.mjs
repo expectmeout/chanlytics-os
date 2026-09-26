@@ -505,11 +505,11 @@ test("a released line leaves a disabled route beside the active one, and the pic
 
   // Both page readers use it, rather than one of them getting it right.
   assert.match(
-    readCode("apps/dashboard/src/server/setup.ts"),
+    readCode("apps/dashboard/src/server/workspace/setup.ts"),
     /const byKind = \(kind: string\) => channelFor\(channels\.data \?\? \[\], kind\);/,
   );
   assert.match(
-    readCode("apps/dashboard/src/server/setup.ts"),
+    readCode("apps/dashboard/src/server/workspace/setup.ts"),
     /select\("kind, status, number_e164, config, created_at"\)/,
     "or the tie-break has nothing to read",
   );

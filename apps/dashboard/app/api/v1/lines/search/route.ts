@@ -1,6 +1,6 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
-import { edgeLines } from "@/server/lines";
+import { edgeLines } from "@/server/connections/lines";
 
 /**
  * POST /api/v1/lines/search — {area_code}: local numbers to choose from,

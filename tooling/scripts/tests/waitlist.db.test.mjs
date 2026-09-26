@@ -33,10 +33,12 @@ const skip =
 // builds it on first call.
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= URL_;
 
-const { joinWaitlist } = skip ? { joinWaitlist: null } : await import("../../../apps/dashboard/src/server/signup.ts");
+const { joinWaitlist } = skip
+  ? { joinWaitlist: null }
+  : await import("../../../apps/dashboard/src/server/platform/signup.ts");
 const { platformWaitlist } = skip
   ? { platformWaitlist: null }
-  : await import("../../../apps/dashboard/src/server/platform.ts");
+  : await import("../../../apps/dashboard/src/server/platform/platform.ts");
 
 let db;
 const stamp = Date.now().toString(36);

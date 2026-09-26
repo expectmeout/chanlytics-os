@@ -20,7 +20,7 @@ const TID = "t-salon";
 
 /* ----------------------------- the route's fifty ----------------------------- */
 
-const { listBroadcasts } = await import("../../../apps/dashboard/src/server/broadcasts.ts");
+const { listBroadcasts } = await import("../../../apps/dashboard/src/server/campaigns/broadcasts.ts");
 
 const bRow = (i) => ({
   id: `b${String(i).padStart(3, "0")}`,
@@ -303,7 +303,7 @@ test("the verbs publish how many on an audience said yes, as the line under it s
 test("REGRESSION: a send to a list past a thousand people enrols every one of them -- its members were one select, which answers at most 1000 rows", async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
   process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
-  const { createBroadcastPorts } = await import("../../../apps/dashboard/src/server/campaign-ports.ts");
+  const { createBroadcastPorts } = await import("../../../apps/dashboard/src/server/ports/campaign-ports.ts");
   const S = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
   const ids = Array.from({ length: 1500 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
   // Everyone, as people_list pages them (a thousand at a time): a list kept by hand is its people who are people here.

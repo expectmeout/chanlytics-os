@@ -634,7 +634,7 @@ test("the sweep reads a bounce hold too: a complaint since makes it a complaint 
 /* --------------------------------------------- the probe of the unsubscribe links (Part 2.6) */
 
 const { verifyUnsubscribeToken } = await import("@chanlytics/channels");
-const dashboard = await import(at("apps/dashboard/src/server/unsubscribe.ts"));
+const dashboard = await import(at("apps/dashboard/src/server/public/unsubscribe.ts"));
 after(() => dashboard.setServiceClient(null));
 const EDGE_KEY = "the-edge-unsubscribe-key";
 

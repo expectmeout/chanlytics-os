@@ -24,8 +24,8 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const mailboxes = await import(at("apps/dashboard/app/api/v1/mailboxes/route.ts"));
 const mailbox = await import(at("apps/dashboard/app/api/v1/mailboxes/[id]/route.ts"));
-const { emailSetupFor, freezeReply } = await import(at("apps/dashboard/src/server/email.ts"));
-const { metricsSummaryFor } = await import(at("apps/dashboard/src/server/metrics.ts"));
+const { emailSetupFor, freezeReply } = await import(at("apps/dashboard/src/server/connections/email.ts"));
+const { metricsSummaryFor } = await import(at("apps/dashboard/src/server/metrics/metrics.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 

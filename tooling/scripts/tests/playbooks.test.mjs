@@ -383,7 +383,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
     run.includes("runPlaybookNow(p.tenant_id, id, ctx.userId)") && run.includes("never: "),
     "run now says why nothing ran",
   );
-  const svc = readCode("apps/dashboard/src/server/service.ts");
+  const svc = readCode("apps/dashboard/src/server/campaigns/playbook-run.ts");
   assert.ok(
     svc.includes("/api/admin/playbooks-run") && svc.includes("export async function runPlaybookNow("),
     "through the edge, production only",
@@ -408,7 +408,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
       ["playbooks", "broadcasts"],
       `${k}: every write re-fetches both surfaces`,
     );
-  const pools = readCode("apps/dashboard/src/server/playbooks.ts");
+  const pools = readCode("apps/dashboard/src/server/campaigns/playbooks.ts");
   assert.ok(
     /cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 \},\s*breath,\s*now\.getTime\(\),\s*deals\.pace,\s*listIds,?\s*\);/.test(
       pools,

@@ -72,11 +72,11 @@ import {
 } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
-import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../leads";
+import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../leads/leads";
 import { requireUuid } from "../request-guards";
-import { archivedListWords, poolList } from "../audience";
-import { dealPaceRead, sellsByOf } from "../deals";
-import { checkPlaybookInput, proposalFollowUps } from "../playbooks";
+import { archivedListWords, poolList } from "../people/audience";
+import { dealPaceRead, sellsByOf } from "../people/deals";
+import { checkPlaybookInput, proposalFollowUps } from "../campaigns/playbooks";
 import { replyChannelOf } from "../verbs";
 import { load } from "../readers";
 import { audiencePool } from "../readers/audience-pool";
@@ -1121,7 +1121,7 @@ async function proposeLeadSearch(t: ToolContext, input: Record<string, unknown>)
   const answer = row && question ? { search_id: row.id, name: row.name, question } : null;
   // The facts under the sentence -- the month's leads left, the duplicates
   // already theirs, what past searches for this kind of business found -- are
-  // one read, `planFacts` in server/leads.ts. It lives there and not here
+  // one read, `planFacts` in server/leads/leads.ts. It lives there and not here
   // because this module reads and never writes a door of its own (a test holds
   // it to that), and the plan card is drawn from exactly what it answers.
   return propose({

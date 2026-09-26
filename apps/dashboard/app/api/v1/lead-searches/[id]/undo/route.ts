@@ -1,5 +1,5 @@
 import { write } from "@/server/route";
-import { leadSearchScope, undoSearch } from "@/server/leads";
+import { leadSearchScope, undoSearch } from "@/server/leads/leads";
 
 /**
  * POST /api/v1/lead-searches/:id/undo — the Done strip's Undo (PRD §8.6).

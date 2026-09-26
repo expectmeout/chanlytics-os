@@ -1,7 +1,7 @@
 import { AppError, parseTenantConfigResult } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { callScope, recordDecision } from "@/server/verbs";
-import { handOverLiveCall } from "@/server/service";
+import { handOverLiveCall } from "@/server/conversations/live-call";
 
 /**
  * POST /api/v1/calls/:id/hand-over — pass a call in progress to the

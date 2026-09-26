@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
 import { AppError, SETUP_REQUEST_KINDS } from "@chanlytics/contracts";
-import { tellPlatformOfSetupRequest } from "@/server/service";
+import { tellPlatformOfSetupRequest } from "@/server/workspace/tell";
 
 const ASK = "Say what you are asking for.";
 const Body = z.object({

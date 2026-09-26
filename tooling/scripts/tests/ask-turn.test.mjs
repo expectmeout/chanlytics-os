@@ -187,7 +187,7 @@ const RPCS = {
   people_list: () => [],
   metrics_summary: () => ({ error: "not modelled here" }),
   report_series: () => ({ error: "not modelled here" }),
-  // The rail's counts (server/lead-searches.ts listCounts), so Today's searches read as none inside a turn rather
+  // The rail's counts (server/leads/lead-searches.ts listCounts), so Today's searches read as none inside a turn rather
   // than as a read that failed: the fake's refusal of an unmodelled door must never be caught into a quiet null.
   lead_list_counts: () => ({ all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }),
 };

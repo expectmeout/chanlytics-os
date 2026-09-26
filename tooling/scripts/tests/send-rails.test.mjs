@@ -22,8 +22,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const B = await import(at("apps/dashboard/src/server/broadcasts.ts"));
-const P = await import(at("apps/dashboard/src/server/playbooks.ts"));
+const B = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
+const P = await import(at("apps/dashboard/src/server/campaigns/playbooks.ts"));
 
 const NY = "America/New_York";
 const iso = (s) => new Date(s).toISOString();

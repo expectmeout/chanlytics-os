@@ -56,8 +56,8 @@ import {
   visitLine,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
-import { poolList, type AudiencePool } from "../audience";
-import { listSearches, waitingQuestionOf } from "../leads";
+import { poolList, type AudiencePool } from "../people/audience";
+import { listSearches, waitingQuestionOf } from "../leads/leads";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
 import { calls as callsReader } from "../readers/calls";

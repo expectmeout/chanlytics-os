@@ -17,7 +17,7 @@ import { parseIcs, dayInZone } from "@chanlytics/contracts";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { fillerCalendar, fillerFeedFor, FILLER_FEED_PATH } = await import(
-  at("apps/dashboard/src/server/filler-calendar.ts")
+  at("apps/dashboard/src/server/calendar/filler-calendar.ts")
 );
 const { GET } = await import(at("apps/dashboard/app/api/v1/calendar/filler.ics/route.ts"));
 const { loadFeed, forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));

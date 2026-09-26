@@ -26,7 +26,7 @@ test("a migration, a SQL suite, the checks' inputs or the lockfile could change 
     "packages/core/src/campaigns/run-reach-out.ts",
     "packages/core/src/deliver.ts",
     "packages/jobs/src/handlers.ts",
-    "apps/dashboard/src/server/campaign-ports.ts",
+    "apps/dashboard/src/server/ports/campaign-ports.ts",
     "packages/contracts/src/schema-sets.generated.ts",
     "tooling/scripts/gen-schema-sets.mjs",
     "tooling/scripts/check-db-types.mjs",

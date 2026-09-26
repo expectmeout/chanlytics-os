@@ -404,12 +404,12 @@ test("the routes: an approved template, values Meta accepts, an audience crossed
   const r = readCode("apps/dashboard/app/api/v1/broadcasts/route.ts");
   assert.ok(r.includes('role: "operator",') && r.includes('rate: "broadcast",'));
   // The template, the values, the audience, the number, the assembly and the ledger are run: core-campaigns.test.mjs.
-  const a = readCode("apps/dashboard/src/server/campaign-ports.ts");
+  const a = readCode("apps/dashboard/src/server/ports/campaign-ports.ts");
   assert.ok(
     a.includes('.select("id, name, language, meta_status, category, variables, body_preview, title")'),
     "category is selected, or the purpose is always marketing",
   );
-  const l = readCode("apps/dashboard/src/server/broadcasts.ts");
+  const l = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
   assert.ok(
     l.includes('if (status === "delivered" || status === "read") c.delivered += 1;'),
     "delivered comes from the receipts, never from the send",
@@ -515,7 +515,7 @@ test("the number's health: what WhatsApp said decides what may be sent; nothing 
 
 test("the detail: every person on a broadcast, with what happened to them; the send route refuses what the number cannot carry; the thread says which broadcast", () => {
   // The detail route answers getBroadcast's own answer: run through its reader in readers.test.mjs.
-  const s = readCode("apps/dashboard/src/server/broadcasts.ts");
+  const s = readCode("apps/dashboard/src/server/campaigns/broadcasts.ts");
   assert.ok(s.includes("contacts(display_name, wa_profile_name, phone_e164, email)"), "names come with the rows");
   assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));
   // The number's refusals are run: core-campaigns.test.mjs.

@@ -1,7 +1,7 @@
 import "server-only";
 import type { BroadcastDetailDto, BroadcastDto } from "@chanlytics/contracts";
-import { getBroadcast, listBroadcasts } from "../broadcasts";
-import { recentTouches } from "../playbooks";
+import { getBroadcast, listBroadcasts } from "../campaigns/broadcasts";
+import { recentTouches } from "../campaigns/playbooks";
 import { stamp, type Reader } from "./index";
 
 /**
@@ -30,7 +30,7 @@ export const broadcasts: Reader<undefined, { broadcasts: BroadcastDto[]; more: b
 
 /**
  * GET broadcasts/:id, as the route answers it: one broadcast of the workspace read and every person on it, in the
- * words of what happened to them and what came back from each (server/broadcasts.ts getBroadcast); one not here is its
+ * words of what happened to them and what came back from each (server/campaigns/broadcasts.ts getBroadcast); one not here is its
  * 404. The route checks the id is one. No row of its own until Phase 4.
  */
 export const broadcast: Reader<{ id: string }, BroadcastDetailDto> = {

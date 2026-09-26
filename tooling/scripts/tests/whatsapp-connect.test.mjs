@@ -54,7 +54,7 @@ test("the graph module: one version, the app secret spent on the edge and nowher
   assert.ok(g.includes('export const GRAPH_VERSION = "v25.0";'));
   assert.ok(
     g.includes("client_secret: appSecret") &&
-      !readCode("apps/dashboard/src/server/service.ts").includes("META_APP_SECRET"),
+      !readCode("apps/dashboard/src/server/connections/whatsapp.ts").includes("META_APP_SECRET"),
     "the app secret is spent on the edge and nowhere else",
   );
   // One place knows which Meta app this deployment speaks for: the sign-up
@@ -96,7 +96,7 @@ test("the dashboard route: owner only, the settings rate bucket, the sign-up ids
   assert.ok(r.includes('"upstream_meta"'), "Meta is the upstream that failed, not the model");
   assert.ok(r.includes('number_taken: "That number is already connected to another workspace."'));
   assert.ok(r.includes("pin_required:"), "the PIN wall has its own words");
-  const svc = readCode("apps/dashboard/src/server/service.ts");
+  const svc = readCode("apps/dashboard/src/server/connections/whatsapp.ts");
   assert.ok(
     svc.includes('if (!deployment.providersLive) return { ok: false, reason: "preview" };'),
     "a preview never connects a real number",

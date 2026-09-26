@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { businessPageMetadata, businessPageVM } from "@chanlytics/contracts";
-import { businessPageFor } from "@/server/business-page";
+import { businessPageFor } from "@/server/public/business-page";
 
 /**
  * A workspace's own public page: who they are, what they do, and their text

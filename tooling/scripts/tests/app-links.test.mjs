@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { appLinksFor, BROWSER_ONLY } = await import(at("apps/dashboard/src/server/app-links.ts"));
+const { appLinksFor, BROWSER_ONLY } = await import(at("apps/dashboard/src/server/public/app-links.ts"));
 const { GET } = await import(at("apps/dashboard/app/api/app-links/[store]/route.ts"));
 
 test("Apple: every app id opens every path but the ones meant for a browser", () => {

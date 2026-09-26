@@ -9,8 +9,8 @@ import {
 } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
-import { createTemplate, syncTemplates } from "@/server/service";
-import { sellsByOf } from "@/server/deals";
+import { createTemplate, syncTemplates } from "@/server/campaigns/meta-templates";
+import { sellsByOf } from "@/server/people/deals";
 
 /**
  * POST /api/v1/templates/starter — the starter set, added to this workspace.

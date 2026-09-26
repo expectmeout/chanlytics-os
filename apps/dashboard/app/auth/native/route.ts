@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { nativeSignInPlan, NATIVE_FAILED } from "@/server/native-sign-in";
+import { nativeSignInPlan, NATIVE_FAILED } from "@/server/auth/native-sign-in";
 import { takeRate } from "@/server/rate-limit";
 import { ipOf, hashKey } from "@/server/request-ip";
 

@@ -7,7 +7,7 @@ import {
   type BusinessRecordDto,
   type RegistrationPath,
 } from "@chanlytics/contracts";
-import { edgeLines } from "@/server/lines";
+import { edgeLines } from "@/server/connections/lines";
 import type { RouteContext } from "@/server/with-route";
 
 /**

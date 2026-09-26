@@ -25,8 +25,8 @@ process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
-const { forgetBillingReadiness } = await import(at("apps/dashboard/src/server/billing.ts"));
-const { setupDtoFor } = await import(at("apps/dashboard/src/server/setup.ts"));
+const { forgetBillingReadiness } = await import(at("apps/dashboard/src/server/workspace/billing.ts"));
+const { setupDtoFor } = await import(at("apps/dashboard/src/server/workspace/setup.ts"));
 const billing = await import(at("apps/dashboard/app/api/v1/billing/route.ts"));
 beforeEach(() => {
   setRateStore(memoryStore());

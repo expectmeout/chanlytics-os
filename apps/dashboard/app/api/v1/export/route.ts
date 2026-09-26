@@ -1,10 +1,10 @@
 import type { MessageDto } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
-import { listPeople } from "@/server/people";
+import { listPeople } from "@/server/people/people";
 import { tenantFacts } from "@/server/tenant";
 import { CALL_COLUMNS, MESSAGE_COLUMNS, mediaPublic, toCallDto } from "@/server/dto";
-import { attachmentStream, dateTag, safeName } from "@/server/export";
-import { BUNDLE_PAGE, consentChangeOf, workspaceBundle, type BundleReaders } from "@/server/export-bundle";
+import { attachmentStream, dateTag, safeName } from "@/server/export/export";
+import { BUNDLE_PAGE, consentChangeOf, workspaceBundle, type BundleReaders } from "@/server/export/export-bundle";
 import { recordDecision } from "@/server/verbs";
 
 /**

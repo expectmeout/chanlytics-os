@@ -324,7 +324,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     page.includes("return consentPageMetadata(await consentPageFor(slug));"),
     "for the people given the link, not for a search result: contracts' rule, run in public-page-titles.test.mjs",
   );
-  const server = readCode("apps/dashboard/src/server/consent-page.ts");
+  const server = readCode("apps/dashboard/src/server/public/consent-page.ts");
   assert.ok(server.includes('import "server-only";') && server.includes("createServiceClient({"));
   assert.ok(
     server.includes('if (!tenant || tenant.status === "test") return null;'),

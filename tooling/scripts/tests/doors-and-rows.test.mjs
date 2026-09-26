@@ -28,7 +28,7 @@ test("every conversation verb counts the rows its UPDATE hit, in the one adapter
   // The verbs live in packages/core and core-thread-verbs.test.mjs runs each
   // 409; what is pinned here is that every port the adapter hands them is
   // row-counted through the one helper.
-  const ports = readCode("apps/dashboard/src/server/core-ports.ts");
+  const ports = readCode("apps/dashboard/src/server/ports/core-ports.ts");
   for (const port of ["claim", "release", "snooze", "wake", "archive", "resolve", "cancelQueued"]) {
     assert.ok(
       ports.includes(`${port}: (`) &&

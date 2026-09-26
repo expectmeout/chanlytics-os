@@ -50,7 +50,7 @@ const exportRoute = await import(at("apps/dashboard/app/api/v1/leads/export/rout
 const suggestions = await import(at("apps/dashboard/app/api/v1/lead-suggestions/route.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/model-json.ts"));
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
-const { leadMailto, planFacts, setSuggestionsWriter } = await import(at("apps/dashboard/src/server/leads.ts"));
+const { leadMailto, planFacts, setSuggestionsWriter } = await import(at("apps/dashboard/src/server/leads/leads.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 

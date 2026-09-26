@@ -36,7 +36,7 @@ import {
   PERSON_CHANNEL_WORDS,
 } from "@chanlytics/contracts";
 import { toConversationDto } from "../../../apps/dashboard/src/server/dto.ts";
-import { personLabel } from "../../../apps/dashboard/src/server/export.ts";
+import { personLabel } from "../../../apps/dashboard/src/server/export/export.ts";
 
 const TZ = "America/New_York";
 const NOW = new Date("2026-09-18T02:45:00Z");

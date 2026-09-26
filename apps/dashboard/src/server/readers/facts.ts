@@ -1,7 +1,7 @@
 import "server-only";
 import { getTenantConfig, listPolicies } from "@chanlytics/db";
 import { tenantFacts } from "../tenant";
-import { sellsByOf } from "../deals";
+import { sellsByOf } from "../people/deals";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
 
 /**
@@ -46,7 +46,7 @@ export const config: Reader<undefined, { config: unknown; version: number } | nu
 };
 
 /**
- * How to read the calendar's zone and settings from the turn (server/calendar.ts ZoneAndSettings), for a function that
+ * How to read the calendar's zone and settings from the turn (server/calendar/calendar.ts ZoneAndSettings), for a function that
  * reads them only where its calendar lookup would: through the facts and config readers above, so a turn reads each
  * once, and a read of either that fails fails where the lookup's own did.
  */

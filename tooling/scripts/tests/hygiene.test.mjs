@@ -49,8 +49,8 @@ test("F44: the session role updates exactly the columns the verbs set, and nothi
     escalations: ["state", "resolved_by_user_id", "decision_id"],
   };
   const files = [
-    "apps/dashboard/src/server/core-ports.ts",
-    "apps/dashboard/src/server/campaign-ports.ts",
+    "apps/dashboard/src/server/ports/core-ports.ts",
+    "apps/dashboard/src/server/ports/campaign-ports.ts",
     "apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts",
     "apps/dashboard/src/server/verbs.ts",
   ];
@@ -203,7 +203,7 @@ test("every bridge request goes through the typed client", () => {
 
 test("a core verb knows no database, framework, provider or environment", () => {
   // A verb takes the world through its ports; the adapter in
-  // apps/dashboard/src/server/core-ports.ts is where the tables are. Its
+  // apps/dashboard/src/server/ports/core-ports.ts is where the tables are. Its
   // imports are contracts, db types, and each other.
   const offenders = [];
   for (const group of ["conversations", "messages", "campaigns", "inbound"]) {

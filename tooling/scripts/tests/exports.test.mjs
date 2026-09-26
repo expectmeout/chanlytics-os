@@ -21,7 +21,7 @@ process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const X = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/export.ts")).href);
+const X = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/export/export.ts")).href);
 
 const TZ = "America/New_York";
 const OPTS = { business: "Marisa's Beauty Salon", tz: TZ, exportedAt: new Date("2026-09-05T15:04:00Z") };
@@ -352,7 +352,9 @@ test("the pages link to the routes, and only where the bridge can name the works
  * the door (owners, the workspace named, the export bucket) and that the file
  * parses.
  * ------------------------------------------------------------------------- */
-const B = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/export-bundle.ts")).href);
+const B = await import(
+  pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/export/export-bundle.ts")).href
+);
 
 test("the bundle is one JSON document: every section, every page, in order, never held whole", async () => {
   const asked = [];

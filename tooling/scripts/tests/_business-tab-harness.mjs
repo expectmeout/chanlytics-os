@@ -115,7 +115,7 @@ installBusinessTab();
 const { composedPrompt } = await import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
 W.__composedPrompt = composedPrompt;
 // The settings read's own preview, built as the server builds it: a row's draft is resolved with its inputs (Task 3.1).
-const { composePromptPreview } = await import("../../../apps/dashboard/src/server/prompt-preview.ts");
+const { composePromptPreview } = await import("../../../apps/dashboard/src/server/receptionist/prompt-preview.ts");
 
 /* ------------------------------------ the record ------------------------------------ */
 

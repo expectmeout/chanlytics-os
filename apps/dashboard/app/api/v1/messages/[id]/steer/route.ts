@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { messageScope, recordDecision } from "@/server/verbs";
-import { steerDraft } from "@/server/service";
+import { steerDraft } from "@/server/conversations/thread-control";
 
 const MAX_CHARS = 500;
 

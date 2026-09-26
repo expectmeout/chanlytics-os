@@ -1,5 +1,5 @@
 import { write, workspace } from "@/server/route";
-import { resumeSendingDomain } from "@/server/sending-domains";
+import { resumeSendingDomain } from "@/server/connections/sending-domains";
 
 /**
  * POST /api/v1/sending-domains/:id/resume

@@ -113,7 +113,7 @@ test("the wiring: one profile row per account, written by its owner only, read b
     "on both answers: nowhere yet, and a workspace",
   );
 
-  const service = readCode("apps/dashboard/src/server/service.ts");
+  const service = readCode("apps/dashboard/src/server/workspace/team.ts");
   assert.ok(
     service.includes("displayName: m.display_name,") && service.includes("displayName: string;"),
     "the roster carries the name",

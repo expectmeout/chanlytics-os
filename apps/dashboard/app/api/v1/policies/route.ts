@@ -11,7 +11,7 @@ import {
   type PolicyMode,
 } from "@chanlytics/contracts";
 import { listPolicies, setPolicyMode } from "@chanlytics/db";
-import { sellsByOf } from "@/server/deals";
+import { sellsByOf } from "@/server/people/deals";
 
 /**
  * GET /api/v1/policies — the workspace autonomy matrix (E3), and whether deals are on here (0008): the pane draws the

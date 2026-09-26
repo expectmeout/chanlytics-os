@@ -199,7 +199,16 @@ test("every route that sends, spends or aggregates counts against its bucket", (
 });
 
 test("F42: only the production dashboard reaches the live store or a live call — an unset VERCEL_ENV is not production", () => {
-  const service = readCode("apps/dashboard/src/server/service.ts");
+  // The doors that were service.ts, now by domain; the count is theirs together.
+  const service = [
+    "apps/dashboard/src/server/conversations/live-call.ts",
+    "apps/dashboard/src/server/conversations/thread-control.ts",
+    "apps/dashboard/src/server/connections/whatsapp.ts",
+    "apps/dashboard/src/server/campaigns/meta-templates.ts",
+    "apps/dashboard/src/server/campaigns/playbook-run.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.equal(
     (service.match(/if \(!deployment\.providersLive\)/g) ?? []).length,
     10,

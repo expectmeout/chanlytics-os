@@ -1,6 +1,6 @@
 import { LeadsQuerySchema } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
-import { leadsPage } from "@/server/leads";
+import { leadsPage } from "@/server/leads/leads";
 
 /**
  * GET /api/v1/leads: the Leads scope's rows, as the database ordered them.

@@ -2,7 +2,7 @@ import { AppError } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
 import { erasureScope, recordDecision } from "@/server/verbs";
-import { removeMediaObjects, scrubErasedJobs, beginErasure, FINISHED_JOB_STATES } from "@/server/service";
+import { removeMediaObjects, scrubErasedJobs, beginErasure, FINISHED_JOB_STATES } from "@/server/people/erasure";
 import { requireUuid } from "@/server/request-guards";
 import { load, readerContext } from "@/server/readers";
 import { person } from "@/server/readers/person";

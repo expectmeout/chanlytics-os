@@ -659,7 +659,7 @@ test("a business with no booking link (one that quotes each job) replies with an
 });
 
 test("the facts port answers with the business name alone: no link is null, and no name is no facts", async () => {
-  const { replyPorts } = await import("../../../apps/dashboard/src/server/core-ports.ts");
+  const { replyPorts } = await import("../../../apps/dashboard/src/server/ports/core-ports.ts");
   const { fakeDb } = await import("./_fake-db.mjs");
   const at = (config) =>
     replyPorts({ supabase: fakeDb({ tenant_config: [{ tenant_id: "t1", config }] }), userId: "u1" }).templateFacts(

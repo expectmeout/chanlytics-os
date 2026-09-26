@@ -131,7 +131,7 @@ test("what they do, from what they already told the receptionist", () => {
 });
 
 test("the page is on the same domain as the opt-in page, which is what 30907 wanted", () => {
-  const server = readCode("apps/dashboard/src/server/business-page.ts");
+  const server = readCode("apps/dashboard/src/server/public/business-page.ts");
   // Relative, so it is the same site by construction rather than by a constant
   // somebody has to keep correct.
   assert.match(server, /optInUrl: `\/yes\/\$\{clean\}`/);
@@ -188,7 +188,7 @@ test("the wiring: public, indexed, reads by slug, writes nothing", () => {
     "and the opt-in page still is not",
   );
 
-  const server = readCode("apps/dashboard/src/server/business-page.ts");
+  const server = readCode("apps/dashboard/src/server/public/business-page.ts");
   assert.ok(server.includes('import "server-only";') && server.includes("createServiceClient({"));
   assert.ok(
     server.includes('if (!tenant || tenant.status === "test") return null;'),

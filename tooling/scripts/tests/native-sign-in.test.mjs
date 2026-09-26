@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { nativeSignInPlan, NATIVE_FAILED, NATIVE_PROVIDERS } = await import(
-  at("apps/dashboard/src/server/native-sign-in.ts")
+  at("apps/dashboard/src/server/auth/native-sign-in.ts")
 );
 const { ipOf, hashKey } = await import(at("apps/dashboard/src/server/request-ip.ts"));
 

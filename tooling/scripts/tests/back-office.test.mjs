@@ -106,8 +106,8 @@ test("a backlog that could not be READ is never mistaken for a backlog of zero",
 });
 import { readCode, readRaw } from "./_source.mjs";
 import { fakeDb } from "./_fake-db.mjs";
-import { setupDtoFor } from "../../../apps/dashboard/src/server/setup.ts";
-import { platformWaitlist, platformWaitlistInvited } from "../../../apps/dashboard/src/server/platform.ts";
+import { setupDtoFor } from "../../../apps/dashboard/src/server/workspace/setup.ts";
+import { platformWaitlist, platformWaitlistInvited } from "../../../apps/dashboard/src/server/platform/platform.ts";
 
 const NOW = Date.parse("2026-09-09T18:00:00Z");
 const DAY = 86_400_000;
@@ -463,8 +463,8 @@ test("every route under /api/v1/platform asks the database who is calling", () =
     // passed, which is the opposite of what this test's own header promises.
     // Every helper the route imports from the platform module has to come after
     // the handle it needs.
-    const imported = /import\s*\{([^}]+)\}\s*from\s*"@\/server\/platform"/.exec(src);
-    assert.ok(imported, `${path.basename(path.dirname(file))}: nothing imported from @/server/platform`);
+    const imported = /import\s*\{([^}]+)\}\s*from\s*"@\/server\/platform\/platform"/.exec(src);
+    assert.ok(imported, `${path.basename(path.dirname(file))}: nothing imported from @/server/platform/platform`);
     const helpers = imported[1]
       .split(",")
       .map((x) => x.trim())
@@ -484,7 +484,7 @@ test("every route under /api/v1/platform asks the database who is calling", () =
 });
 
 test("the guard asks the database, and answers 404 rather than 403", () => {
-  const src = readCode("apps/dashboard/src/server/platform.ts");
+  const src = readCode("apps/dashboard/src/server/platform/platform.ts");
   assert.match(src, /ctx\.supabase\.rpc\("is_platform_admin"\)/, "the answer comes from Postgres, not from an env var");
   assert.ok(
     !/process\.env\.[A-Z_]*ADMIN|PLATFORM_ADMIN|ALLOWLIST/.test(src),
@@ -505,7 +505,7 @@ test("support sees the customer's own Setup, from the customer's own function", 
   // The claim this surface makes is that support and the customer are looking
   // at the same rows. That is only true while it is literally one function, so
   // the assembly was lifted out of the route rather than copied.
-  const assembly = readCode("apps/dashboard/src/server/setup.ts");
+  const assembly = readCode("apps/dashboard/src/server/workspace/setup.ts");
   assert.match(assembly, /export async function setupDtoFor\(/);
   assert.match(
     assembly,
@@ -744,7 +744,7 @@ test("the service-role client cannot be obtained without passing the check", () 
   // The first version exported `platformDb()` — no arguments, no relationship to
   // the guard — and relied on a test walking ONE directory to prove nothing else
   // imported it. A grep cannot see the route that has not been written yet.
-  const src = readCode("apps/dashboard/src/server/platform.ts");
+  const src = readCode("apps/dashboard/src/server/platform/platform.ts");
   assert.ok(
     !/export function platformDb|export async function platformDb/.test(src),
     "REGRESSION: a service-role client handed to any importer",
@@ -919,7 +919,7 @@ test("three named operations, and no way to send a fourth", () => {
 
   // And the edge operation each one maps to is a written-out list rather than a
   // parameter somebody can widen by accident.
-  const server = readCode("apps/dashboard/src/server/platform.ts");
+  const server = readCode("apps/dashboard/src/server/platform/platform.ts");
   assert.match(
     server,
     /const EDGE_OP: Record<PlatformLineAction, \(tenantId: string, lineId: string\) => Record<string, unknown>>/,
@@ -936,7 +936,7 @@ test("no cross-tenant action happens that nobody can be held to", () => {
   // The attribution is written BEFORE the action and the action is refused if it
   // cannot be written. An action taken on somebody else's business that nobody
   // can be held to is worse than an action that did not happen.
-  const server = readCode("apps/dashboard/src/server/platform.ts");
+  const server = readCode("apps/dashboard/src/server/platform/platform.ts");
   const fn = server.slice(server.indexOf("export async function platformLineAct"));
   const audit = fn.indexOf('kind: "platform.acted"');
   const act = fn.indexOf("await edgeLines(");
@@ -1529,7 +1529,7 @@ test("the ops routes have their own ceilings, sized for a support shift and name
   //   * correcting a REJECTED campaign is free and reversible -- Twilio charges the
   //     vetting fee once per campaign -- yet it was capped by a ceiling sized for an
   //     irreversible $19.50 spend, so a shift clearing four rejections failed on the
-  //     fourth. It is described in server/platform.ts as the most common A2P
+  //     fourth. It is described in server/platform/platform.ts as the most common A2P
   //     support action there is.
   //   * the refusal reads from `noun`, so handing a number BACK was refused with
   //     "Too many lines in a short time".
@@ -1570,7 +1570,7 @@ test("the back office does not tell the reader it changes nothing, in the file t
   // And those two claims are true: arm-then-confirm, and the ledger row goes in
   // before the action runs.
   assert.match(page, /const \[arm, setArm\] = React\.useState\(null\);/);
-  const server = readCode("apps/dashboard/src/server/platform.ts");
+  const server = readCode("apps/dashboard/src/server/platform/platform.ts");
   const audit = server.indexOf('kind: "platform.acted"');
   const edge = server.indexOf("await edgeLines(EDGE_OP[action]");
   assert.ok(audit !== -1 && edge !== -1 && audit < edge, "attribution is written before the action, not after it");

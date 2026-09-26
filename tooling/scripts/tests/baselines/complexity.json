@@ -989,7 +989,7 @@
     "branches": 37,
     "depth": 2
   },
-  "apps/dashboard/src/server/playbooks.ts::triggerPools#1": {
+  "apps/dashboard/src/server/campaigns/playbooks.ts::triggerPools#1": {
     "lines": 155,
     "branches": 27,
     "depth": 2
@@ -999,7 +999,7 @@
     "branches": 51,
     "depth": 2
   },
-  "apps/dashboard/src/server/setup.ts::setupDtoFor#1": {
+  "apps/dashboard/src/server/workspace/setup.ts::setupDtoFor#1": {
     "lines": 262,
     "branches": 54,
     "depth": 1

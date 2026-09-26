@@ -1,5 +1,5 @@
 import { read, workspace } from "@/server/route";
-import { whatsappSignupConfig } from "@/server/service";
+import { whatsappSignupConfig } from "@/server/connections/whatsapp";
 
 /**
  * GET /api/v1/channels/whatsapp/signup — what Meta's Embedded Signup needs

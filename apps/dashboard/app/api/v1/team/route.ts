@@ -1,5 +1,5 @@
 import { read, workspace } from "@/server/route";
-import { teamRoster } from "@/server/service";
+import { teamRoster } from "@/server/workspace/team";
 
 /**
  * GET /api/v1/team — roster + open invites (E1). Membership rows are

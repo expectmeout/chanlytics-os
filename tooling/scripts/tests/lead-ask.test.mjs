@@ -102,7 +102,7 @@ const viewRow = (over = {}) => ({
 /**
  * The workspace as the tools read it: two searches, one ended and one still
  * running, and the month's two counters the plan card's facts are read from
- * (`planFacts`, server/leads.ts).
+ * (`planFacts`, server/leads/leads.ts).
  */
 const world = () => ({
   lead_searches_view: [

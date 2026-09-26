@@ -459,7 +459,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     const performed = r.includes(`requireRole(member, "${role}")`) && r.includes('takeRate(ctx.userId, "billing")');
     assert.ok(declared || performed, file);
   }
-  const server = readCode("apps/dashboard/src/server/billing.ts");
+  const server = readCode("apps/dashboard/src/server/workspace/billing.ts");
   assert.ok(
     /export const BILLING_COLUMNS =\s*"mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";/.test(
       server,
@@ -468,9 +468,9 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   );
   assert.ok(!server.includes("STRIPE_SECRET_KEY"), "the dashboard never holds the key");
   assert.ok(readCode("apps/dashboard/src/server/rate-limit.ts").includes("billing: {"));
-  // The assembly lives in src/server/setup.ts: the back office reads another
+  // The assembly lives in src/server/workspace/setup.ts: the back office reads another
   // workspace's through the same function, so support sees what the customer sees.
-  const setup = readCode("apps/dashboard/src/server/setup.ts");
+  const setup = readCode("apps/dashboard/src/server/workspace/setup.ts");
   assert.ok(
     setup.includes("billingFor(supabase, tenantId),") &&
       setup.includes("billingReadiness(),") &&

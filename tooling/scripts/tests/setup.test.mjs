@@ -23,7 +23,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "./_source.mjs";
 import { fakeDb } from "./_fake-db.mjs";
-import { setupDtoFor } from "../../../apps/dashboard/src/server/setup.ts";
+import { setupDtoFor } from "../../../apps/dashboard/src/server/workspace/setup.ts";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const VOICE = "+13055550124";
@@ -739,7 +739,7 @@ test("a first ask reaches the platform mailbox through the edge; a repeat does n
     ),
   );
   assert.ok(route.includes("return { request: data, told };"));
-  const service = readCode("apps/dashboard/src/server/service.ts");
+  const service = readCode("apps/dashboard/src/server/workspace/tell.ts");
   assert.ok(service.includes("if (!deployment.providersLive || !edgeConfigured()) return false;"), "production only");
   assert.ok(service.includes("${edgeUrl()}/api/admin/setup-request"));
   assert.ok(service.includes('console.error("setup_request_tell_failed"'), "logged, not thrown");
@@ -891,7 +891,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
     );
     assert.ok(src.includes('op: "' + file + '"'), `${file}: the edge op`);
   }
-  const server = readCode("apps/dashboard/src/server/lines.ts");
+  const server = readCode("apps/dashboard/src/server/connections/lines.ts");
   assert.ok(server.includes('edgeHeaders("/api/admin/lines"') && server.includes("${edgeUrl()}/api/admin/lines"));
   assert.ok(
     !/_sid/.test(server.slice(server.indexOf("LINE_COLUMNS"), server.indexOf("export async function linesFor"))),
@@ -907,7 +907,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   }
   assert.ok(
     /lines: \{\s*rows: lineRows,\s*ready: lineStatus\.ready,\s*provider: lineStatus\.provider,\s*costs: \{ local_number_month_usd: lineStatus\.costs\.local_number_month_usd \},?\s*\},/.test(
-      readCode("apps/dashboard/src/server/setup.ts"),
+      readCode("apps/dashboard/src/server/workspace/setup.ts"),
     ),
   );
   const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
@@ -986,7 +986,7 @@ test("wiring: manifest, bridge, routes, rate bucket, event kind, migration", () 
   // One assembly, two callers: the workspace reads its own on the session
   // client, the back office reads another's on the service client. The route
   // is now four lines and the pins live where the work does.
-  const get = readCode("apps/dashboard/src/server/setup.ts");
+  const get = readCode("apps/dashboard/src/server/workspace/setup.ts");
   for (const pin of [
     "parseTenantConfigResult(cfgRow.config)",
     "starterByName(t.name)",

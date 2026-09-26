@@ -1645,7 +1645,7 @@ test("saveProblems is the one question a fold asks before it saves: the page's o
 /* ------------------------------------ what a save will say ------------------------------------ */
 
 // The settings read's own preview, built as the server builds it: willSay resolves a draft with its inputs.
-const { composePromptPreview } = await import("../../../apps/dashboard/src/server/prompt-preview.ts");
+const { composePromptPreview } = await import("../../../apps/dashboard/src/server/receptionist/prompt-preview.ts");
 const previewed = (config) => {
   W.__SETTINGS = {
     version: 7,

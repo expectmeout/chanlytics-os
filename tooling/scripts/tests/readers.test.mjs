@@ -40,7 +40,7 @@ const { campaignReport } = await import(at("apps/dashboard/src/server/readers/ca
 const reportsRoute = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
 const campaignsRoute = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
-const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar.ts"));
+const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar/calendar.ts"));
 const { forgetFeeds, openingsFor } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
 const { openings: openingsReader } = await import(at("apps/dashboard/src/server/readers/openings.ts"));
 const openingsRoute = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
@@ -57,13 +57,13 @@ const contactsRoute = await import(at("apps/dashboard/app/api/v1/contacts/route.
 const segmentsRoute = await import(at("apps/dashboard/app/api/v1/segments/route.ts"));
 const broadcastsRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/route.ts"));
 const broadcastRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/route.ts"));
-const { everyone } = await import(at("apps/dashboard/src/server/people.ts"));
+const { everyone } = await import(at("apps/dashboard/src/server/people/people.ts"));
 const { audiencePool: audiencePoolReader } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
-const { audiencePool: audiencePoolOf } = await import(at("apps/dashboard/src/server/audience.ts"));
+const { audiencePool: audiencePoolOf } = await import(at("apps/dashboard/src/server/people/audience.ts"));
 const { everyone: everyoneReader } = await import(at("apps/dashboard/src/server/readers/everyone.ts"));
 const { playbooks: playbooksReader } = await import(at("apps/dashboard/src/server/readers/playbooks.ts"));
 const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
-const { getBroadcast } = await import(at("apps/dashboard/src/server/broadcasts.ts"));
+const { getBroadcast } = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
 beforeEach(() => kernel.readerCache.clear());
@@ -1979,7 +1979,7 @@ test("the people list, for Ask and for the page: GET contacts answers its reader
     [[P2], { q: "bo", offset: 0, limit: 1000, total: 1, has_more: false }],
     "the door matched, and the count counted the same match",
   );
-  // The same reading of who exists as the CSV export (everyone(), server/people.ts): the door's rows under the member's
+  // The same reading of who exists as the CSV export (everyone(), server/people/people.ts): the door's rows under the member's
   // RLS, each with the reply mode in force, a page at a time.
   const all = await everyone(worldCtx(listWorld()), A);
   assert.deepEqual(
@@ -2423,12 +2423,12 @@ test("one broadcast, for Ask and for the page: GET broadcasts/:id answers its re
 
 /* --------------------------------------------------------------------------- the audience pool (PR 1.6) */
 
-test("the audience pool, for Ask: everyone with their appointments for the member asking, exactly as server/audience.ts reads it for the same zone and clock -- over a calendar that names one of them -- read once a turn; the zone, the settings and sells_by are the turn's, so the pool's calendar lookup reads neither and sells_by is not read again; settings that cannot be read cost the visits, never the pool; a workspace-wide read, with no row of its own", async () => {
+test("the audience pool, for Ask: everyone with their appointments for the member asking, exactly as server/people/audience.ts reads it for the same zone and clock -- over a calendar that names one of them -- read once a turn; the zone, the settings and sells_by are the turn's, so the pool's calendar lookup reads neither and sells_by is not read again; settings that cannot be read cost the visits, never the pool; a workspace-wide read, with no row of its own", async () => {
   await withFeed({ body: ONE_ICS }, async () => {
     const w = peopleWorld();
     const want = await audiencePoolOf(worldCtx(w), A, "America/New_York", CAL_NOW);
     const r = await kernel.load(calIn(worldCtx(w)), audiencePoolReader, undefined);
-    assert.deepEqual(r.data, want, "the pool server/audience.ts reads");
+    assert.deepEqual(r.data, want, "the pool server/people/audience.ts reads");
     assert.deepEqual(r.rows, []);
     // Ana's appointment is on the turn's own day, ahead of its clock; deals are on here, so Luis's proposal is his.
     const [ana, luis] = r.data.rows;
@@ -2442,7 +2442,7 @@ test("the audience pool, for Ask: everyone with their appointments for the membe
     await kernel.load(turn, audiencePoolReader, undefined);
     assert.deepEqual(asked(turn.ctx).slice(held), ["rpc:people_list", "policies.select"]);
     // The settings are read only where the pool's calendar lookup would read them: one that fails costs the visits,
-    // said once in the log, as server/audience.ts's own lookup costs them -- never the pool.
+    // said once in the log, as server/people/audience.ts's own lookup costs them -- never the pool.
     const down = { "tenant_config.select": { message: "config down" } };
     const { result: blind, lines } = await logged("people_visits_failed", () =>
       kernel.load(calIn(worldCtx(w, down)), audiencePoolReader, undefined),
@@ -2464,7 +2464,7 @@ const PB1 = "99999999-9999-4999-8999-999999999991";
 const PB2 = "99999999-9999-4999-8999-999999999992";
 /** GET playbooks' payload keys at origin/main (e3184cff), in its order. */
 const PLAYBOOKS_KEYS = ["playbooks", "timezone", "touched", "pools", "calendar", "lists", "people_lists", "deals_on"];
-/** A playbook row as the page's read selects it (server/playbooks.ts COLUMNS), a moment. */
+/** A playbook row as the page's read selects it (server/campaigns/playbooks.ts COLUMNS), a moment. */
 const pbRow = (id, over = {}) => ({
   id,
   tenant_id: A,
@@ -2726,11 +2726,11 @@ test("GET playbooks through its reader asks what it asked at origin/main, in its
 
 /* ------------------------------------------------------------------ everyone, once a turn (PR 1.6) */
 
-test("everyone, for Ask: every page of People with the reply mode in force for each, exactly as server/people.ts reads it, and no row of its own; the audience pool and the Playbooks page's pools count from the one read, so a turn that reads both reads every page once and the reply modes once", async () => {
+test("everyone, for Ask: every page of People with the reply mode in force for each, exactly as server/people/people.ts reads it, and no row of its own; the audience pool and the Playbooks page's pools count from the one read, so a turn that reads both reads every page once and the reply modes once", async () => {
   const all = Array.from({ length: 1003 }, (_, i) => poolPerson(i + 1));
   const w = countsWorld(pagedPeople(all));
   const r = await kernel.load(turnIn(worldCtx(w)), everyoneReader, undefined);
-  assert.deepEqual(r.data, await everyone(worldCtx(w), A), "server/people.ts everyone()");
+  assert.deepEqual(r.data, await everyone(worldCtx(w), A), "server/people/people.ts everyone()");
   assert.deepEqual([r.data.length, r.rows], [1003, []]);
   const ctx = worldCtx(w);
   const turn = turnIn(ctx);

@@ -458,7 +458,7 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
     "an unknown value says nothing rather than something wrong",
   );
   assert.ok(edge.includes("audience: googleAudience()"));
-  const server = readCode("apps/dashboard/src/server/google.ts");
+  const server = readCode("apps/dashboard/src/server/connections/google.ts");
   assert.ok(
     /audience:\s*ready\.audience === "testing" \|\| ready\.audience === "unverified" \|\| ready\.audience === "verified"\s*\? ready\.audience\s*: null,/.test(
       server,

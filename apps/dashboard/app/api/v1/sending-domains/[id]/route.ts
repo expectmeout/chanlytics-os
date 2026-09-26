@@ -1,5 +1,5 @@
 import { write, workspace } from "@/server/route";
-import { removeSendingDomain } from "@/server/sending-domains";
+import { removeSendingDomain } from "@/server/connections/sending-domains";
 
 /**
  * DELETE /api/v1/sending-domains/:id

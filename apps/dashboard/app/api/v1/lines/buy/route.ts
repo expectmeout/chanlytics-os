@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { edgeLines } from "@/server/lines";
+import { edgeLines } from "@/server/connections/lines";
 
 const Body = z.object({
   number: z

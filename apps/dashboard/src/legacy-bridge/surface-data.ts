@@ -7,7 +7,7 @@ import {
   type PersonRowDto,
   type TemplateSentWords,
 } from "@chanlytics/contracts";
-import type { PromptPreviewDto } from "../server/prompt-preview";
+import type { PromptPreviewDto } from "../server/receptionist/prompt-preview";
 /**
  * The SurfaceData seam (Blueprint v3.0, Slice 0 exit criterion).
  *
@@ -1038,7 +1038,7 @@ async function peopleMore(): Promise<void> {
 
 /**
  * A person's current deal, laid on their People row as the door answers (0008): the deal door answers the deal their
- * row shows after the write (server/deals.ts currentDealOf, people_list's own rule), so the Pipeline moves the row as
+ * row shows after the write (server/people/deals.ts currentDealOf, people_list's own rule), so the Pipeline moves the row as
  * the sheet closes, instead of once all of People has been read again; the re-read the refresh map asks for behind
  * it says the rest. It was the deal the door recorded, which is not the row's when the move was on someone's older
  * deal: their row jumped to it until the re-read. True when a row took it.

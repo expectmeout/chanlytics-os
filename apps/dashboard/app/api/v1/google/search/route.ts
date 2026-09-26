@@ -7,7 +7,7 @@ import {
   type GoogleCandidateDto,
 } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db";
-import { edgeGoogle } from "@/server/google";
+import { edgeGoogle } from "@/server/connections/google";
 import { tenantFacts } from "@/server/tenant";
 
 /**

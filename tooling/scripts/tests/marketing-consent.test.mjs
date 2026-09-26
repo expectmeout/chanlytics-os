@@ -548,7 +548,7 @@ test('every read of "said yes to offers" points at the offers column', () => {
 
   const setup = readCode("packages/contracts/src/setup/setup.ts");
   assert.match(setup, /const offers = i\.consent\.offers;/, "the Setup row reads the offers count");
-  const server = readCode("apps/dashboard/src/server/setup.ts");
+  const server = readCode("apps/dashboard/src/server/workspace/setup.ts");
   assert.match(
     server,
     /\.eq\("marketing_consent", "opted_in"\)\s*\.eq\("dnc", false\)/,
@@ -559,7 +559,7 @@ test('every read of "said yes to offers" points at the offers column', () => {
   assert.match(clients, /PL_OFFERS\[p\.consent\.marketing\]/, "the column titled Offers");
   assert.match(clients, /rank\[a\.consent\.marketing\]/, "and sorting by it sorts by it");
 
-  const exp = readCode("apps/dashboard/src/server/export.ts");
+  const exp = readCode("apps/dashboard/src/server/export/export.ts");
   assert.match(exp, /\["offers_consent", \(r\) => r\.marketing_consent \?\? "unknown"\]/);
 });
 

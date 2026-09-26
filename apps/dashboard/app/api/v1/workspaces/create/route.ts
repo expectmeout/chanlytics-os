@@ -9,8 +9,8 @@ import {
   InviteCodeSchema,
 } from "@chanlytics/contracts";
 import { z } from "zod";
-import { inviteCodeMatches, notifyPlatformSignup } from "@/server/signup";
-import { giveFirstAlertAddress } from "@/server/first-alert";
+import { inviteCodeMatches, notifyPlatformSignup } from "@/server/platform/signup";
+import { giveFirstAlertAddress } from "@/server/workspace/first-alert";
 
 /**
  * POST /api/v1/workspaces/create — bring a new workspace into existence.

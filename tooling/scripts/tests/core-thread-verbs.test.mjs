@@ -222,7 +222,7 @@ test("archive: the thread closed and the escalation resolved, held or not", asyn
  * -------------------------------------------------------------------------- */
 
 test("every state a verb writes clears what that state cannot coexist with", async () => {
-  const { threadPorts } = await import("../../../apps/dashboard/src/server/core-ports.ts");
+  const { threadPorts } = await import("../../../apps/dashboard/src/server/ports/core-ports.ts");
   const held = () => ({
     id: "c1",
     tenant_id: "t1",

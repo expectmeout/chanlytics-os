@@ -22,7 +22,7 @@ const { settingsOverride } = await import(`${SRC}/legacy-bridge/surface-data.ts`
 const { AFTER } = await import(`${SRC}/legacy-bridge/refresh-map.ts`);
 const { installIdentity } = await import(`${SRC}/legacy-bridge/identity.ts`);
 const { installBusinessTab } = await import(`${SRC}/legacy-bridge/business-tab.ts`);
-const { composePromptPreview } = await import(`${SRC}/server/prompt-preview.ts`);
+const { composePromptPreview } = await import(`${SRC}/server/receptionist/prompt-preview.ts`);
 
 const brain = {
   business_name: "Marisa's Beauty Salon",

@@ -735,7 +735,7 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   );
   assert.ok(cb.includes('if (member.role !== "owner") return back("error", "not_owner");'));
   assert.ok(!cb.includes("client_secret"), "the dashboard never sees the secret");
-  const server = readCode("apps/dashboard/src/server/google.ts");
+  const server = readCode("apps/dashboard/src/server/connections/google.ts");
   assert.ok(
     server.includes("return process.env.GOOGLE_OAUTH_STATE_SECRET || process.env.DIAG_KEY || null;"),
     "the state's key is the one the dashboard already shares with the edge",

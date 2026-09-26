@@ -70,7 +70,7 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
     one.includes('if (!count) throw new AppError("not_found", "List not found.", 404);'),
     "a delete that removed nothing is not a success",
   );
-  const helper = readCode("apps/dashboard/src/server/lists.ts");
+  const helper = readCode("apps/dashboard/src/server/people/lists.ts");
   assert.ok(
     helper.includes("export const LIST_NAME_MAX = 60;") && helper.includes("export const LIST_BATCH_MAX = 500;"),
   );

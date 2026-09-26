@@ -29,7 +29,7 @@ const one = await import(at("apps/dashboard/app/api/v1/sending-domains/[id]/rout
 const check = await import(at("apps/dashboard/app/api/v1/sending-domains/[id]/check/route.ts"));
 const resume = await import(at("apps/dashboard/app/api/v1/sending-domains/[id]/resume/route.ts"));
 const { sendingDomainsFor, forgetDomainsReadiness, domainsReadiness } = await import(
-  at("apps/dashboard/src/server/sending-domains.ts")
+  at("apps/dashboard/src/server/connections/sending-domains.ts")
 );
 
 beforeEach(() => {
@@ -227,7 +227,7 @@ test("the page's read of the domains names no provider id, and readiness is the 
 });
 
 test("Setup never waits on the edge before the mailbox exists, and a domains read that fails draws no block rather than failing Setup", async () => {
-  const { emailSetupFor } = await import(at("apps/dashboard/src/server/email.ts"));
+  const { emailSetupFor } = await import(at("apps/dashboard/src/server/connections/email.ts"));
   const net = edge(() => [200, { ok: true, ready: true }]);
   try {
     const none = await emailSetupFor(fakeDb({ mailboxes: [] }), A);

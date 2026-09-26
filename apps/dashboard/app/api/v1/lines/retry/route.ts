@@ -1,7 +1,7 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
 import { isUuid } from "@/server/request-guards";
-import { edgeLines } from "@/server/lines";
+import { edgeLines } from "@/server/connections/lines";
 
 /**
  * POST /api/v1/lines/retry — {line_id}: resume a line that stopped at a

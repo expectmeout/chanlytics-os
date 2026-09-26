@@ -74,7 +74,7 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   const verbs = readCode("apps/dashboard/src/server/verbs.ts");
   assert.ok(verbs.includes("export async function pauseMsFor(ctx: RouteContext, tenantId: string): Promise<number>"));
   assert.ok(verbs.includes('.eq("class", "reply")'));
-  for (const rel of ["apps/dashboard/src/server/core-ports.ts"]) {
+  for (const rel of ["apps/dashboard/src/server/ports/core-ports.ts"]) {
     const src = readCode(rel);
     assert.ok(src.includes("pauseMsFor(ctx,"), `${rel} reads the limit`);
     assert.ok(!src.includes("PAUSE_MS"), `${rel}: REGRESSION — Settings said N hours, the verb paused for 24`);

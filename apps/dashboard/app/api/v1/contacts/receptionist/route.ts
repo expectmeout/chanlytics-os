@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { workspace, write } from "@/server/route";
-import { RECEPTIONIST_MODES, setReceptionistMany } from "@/server/people-many";
+import { RECEPTIONIST_MODES, setReceptionistMany } from "@/server/people/people-many";
 
 const Body = z.object({
   ids: z.array(z.string().uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time."),

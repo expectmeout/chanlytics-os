@@ -139,7 +139,7 @@ test("the wiring: two public paths, the guards on the route, a service role that
     !route.includes("@chanlytics/db") && !route.includes("SUPABASE_SERVICE_ROLE_KEY"),
     "the route holds no key",
   );
-  const server = readCode("apps/dashboard/src/server/signup.ts");
+  const server = readCode("apps/dashboard/src/server/platform/signup.ts");
   assert.ok(server.includes('import "server-only";'));
   // THE SERVICE ROLE HAS LEFT THIS PATH. It used to create the user with the
   // admin API and mark the address confirmed with no proof at all, because

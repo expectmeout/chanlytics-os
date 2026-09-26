@@ -741,7 +741,7 @@ test("which registration was filed is remembered, not re-derived", () => {
   // And it survives BOTH mappers. Selecting it in one and not the other is
   // exactly how the campaign-status defect shipped inert.
   assert.ok(readCode("apps/edge/lib/lines/lines.ts").includes("reg_sole_prop: r.reg_sole_prop,"));
-  const dash = readCode("apps/dashboard/src/server/lines.ts");
+  const dash = readCode("apps/dashboard/src/server/connections/lines.ts");
   assert.ok(
     dash.includes("reg_sole_prop, whatsapp_state"),
     "REGRESSION: a column the page needs must be in LINE_COLUMNS or it is always undefined",

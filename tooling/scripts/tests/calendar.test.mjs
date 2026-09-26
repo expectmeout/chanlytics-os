@@ -237,7 +237,7 @@ test("day keys, the words, and the zone", () => {
 });
 
 test("the doors and the page: read-only, the feed's address never in the browser, the registry flipped", async () => {
-  const svc = readCode("apps/dashboard/src/server/calendar.ts");
+  const svc = readCode("apps/dashboard/src/server/calendar/calendar.ts");
   assert.ok(
     svc.includes("const feed = await loadFeed(tenantId, url, opts);"),
     "the same cache the assistant's openings use",
@@ -385,7 +385,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
     page.includes("value={anchor}") && page.includes("CR_REFRESH_MS"),
     "the date picker follows the anchor; the board reads itself again while open",
   );
-  const svc = readCode("apps/dashboard/src/server/calendar.ts");
+  const svc = readCode("apps/dashboard/src/server/calendar/calendar.ts");
   assert.ok(
     svc.includes("const MAX_DAYS = 63;") &&
       svc.includes("consult_first: needsConsultation(s.name, profile?.booking_rules),"),
@@ -501,7 +501,7 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
     sd.includes("const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));"),
     "the first read is the window around the business's today",
   );
-  assert.ok(readCode("apps/dashboard/src/server/calendar.ts").includes("const MAX_DAYS = 63;"));
+  assert.ok(readCode("apps/dashboard/src/server/calendar/calendar.ts").includes("const MAX_DAYS = 63;"));
   const css = readCode("apps/dashboard/src/legacy/styles/calendar.css");
   assert.ok(
     css.includes("@keyframes cal-in") && css.includes("prefers-reduced-motion"),

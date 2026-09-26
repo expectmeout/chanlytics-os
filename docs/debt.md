@@ -52,8 +52,8 @@ fails when this block and the baselines disagree.
 
 ```text
 functions over the limit            293   of which over 200 lines: 79
-files over 800 lines                 43
-directories over 20 modules           9
+files over 800 lines                 42
+directories over 20 modules           8
 window globals                      191   names
 window publishers                   373   sites in 138 files
 copies                              133   of 29 names
