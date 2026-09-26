@@ -20,14 +20,14 @@ The claim takes checked sends only. The sheet, the approval sheet, Playbooks and
 | PR | Branch | What | Migration |
 | --- | --- | --- | --- |
 | 1 | `reach-out-4a-the-words` | The words, pure: the six slots, the words' validator, the chain's input, the check's code rules and holds, the model's prompts and answers; this plan | — |
-| 2 | `reach-out-4b-checked` | A send is checked before it goes: the opening's columns and `held`; the claim takes checked sends only; a held send keeps its run open; the chain's `signed_by` and `include_unconfirmed`; one chain per lead and per search | 00189 |
+| 2 | `reach-out-4b-checked` | A send is checked before it goes: the opening's columns and `held`; the claim takes checked sends only; a held send keeps its run open; the chain's `signed_by` and `include_unconfirmed`; one chain per lead and per search | 00197 (with PR 3) |
 | 3 | `reach-out-4c-the-check` | The check on the edge: the writer and the reader, the clock's check phase, the sender's three new slots, the preview door | — |
-| 4 | `reach-out-4d-doors` | The member doors: save a chain with its words, a search's reach, a send's decision, a chain's report; the edge's run-now door | 00190 |
+| 4 | `reach-out-4d-doors` | The member doors: save a chain with its words, a search's reach, a send's decision, a chain's report; the edge's run-now door | 00198 |
 | 5 | `reach-out-4e-routes` | The dashboard's routes and view models: reach-outs (list, save, edit, delete, preview, reach), a send's decision, a reach-out run on Broadcasts | — |
 | 6 | `reach-out-4f-the-sheet` | The sheet; the Leads door (desk and phone); Autonomy's outreach row | — |
 | 7 | `reach-out-4g-approval` | The approval sheet's words for a reach-out run, and its held list with their doors | — |
 | 8 | `reach-out-4h-rows` | Playbooks' chain row and its open row; Templates' email rows and the version switch | — |
-| 9 | `reach-out-4i-leads-doors` | Leads' five dead doors, carried from Part 1 | 00191 |
+| 9 | `reach-out-4i-leads-doors` | Leads' five dead doors, carried from Part 1 | 00199 |
 | 10 | `reach-out-4j-proof` | The proof end to end on a stack, and the docs | — |
 
 **Order, after the review round (R19):** 1, 2, 3, 4, 5, 8, 6, 7, 9, 10. Playbooks' row ships before the door that makes a chain. §0.5 overrides the task code below wherever they disagree.
@@ -200,9 +200,9 @@ Three reviews ran against the plan at `dd859526`, each checked against the code:
   - **Every new edge door** uses the full path as its token's audience: `"/api/admin/reach-out-preview"`. The short names in Tasks 3.5 and 4.3 would never authorise.
 - **R14. Start says what really happened.** The run-now answer carries `runReachOutStep`'s reason (`billing`, `never`, `no_domain`, `no_room`, `nobody`), and each reason has its own words in contracts. "Planned within the hour" is said only when the edge could not be reached.
 - **R15. `reach_out_save` is the service role's** (supersedes F7's grant). It is granted to `service_role` only and called by the route after its role check, with the member's id. The route runs `validateReachOutChain`.
-  - **The database keeps only its CHECKs,** not a third copy of the length rules. The gap is one of `REACH_OUT_GAP_MINUTES`, a CHECK in 00190.
+  - **The database keeps only its CHECKs,** not a third copy of the length rules. The gap is one of `REACH_OUT_GAP_MINUTES`, a CHECK in 00198.
 - **R16. A chain's history is never deleted.**
-  - 00190 narrows `playbooks_acting_delete` to `kind = 'moment'`. `DELETE playbooks/[id]` refuses a reach-out, since `reach_out_sends.root_id` cascades.
+  - 00198 narrows `playbooks_acting_delete` to `kind = 'moment'`. `DELETE playbooks/[id]` refuses a reach-out, since `reach_out_sends.root_id` cascades.
   - A chain is removed only through `reach_out_remove`, and only before its first email leaves. After that it is Paused.
   - The report exposes one `can_remove`, which the page reads.
 - **R17. A step dropped in an edit takes its work with it.** Before the delete, the save cancels the dropped steps' live runs and skips their planned and held sends (`step_removed`). Their FKs are `on delete set null`.
@@ -332,7 +332,7 @@ Three reviews ran against the plan at `dd859526`, each checked against the code:
 | `apps/edge/lib/reach-out/sender.ts`, `request.ts` | The three new slots | 3 |
 | `apps/edge/api/cron/reach-out.ts` | Clock → check → claim | 3 |
 | `apps/edge/api/admin/reach-out-preview.ts` (new) | One business's email as it would read, for the sheet | 3 |
-| `supabase/migrations/00190_the_reach_out_sheet_s_doors.sql` (new) | `reach_out_save`, `reach_out_reach`, `reach_out_send_decide`, `reach_out_chain_report` | 4 |
+| `supabase/migrations/00198_the_reach_out_sheet_s_doors.sql` (new) | `reach_out_save`, `reach_out_reach`, `reach_out_send_decide`, `reach_out_chain_report` | 4 |
 | `apps/edge/api/admin/reach-out-run.ts` (new) | Run a chain's root now | 4 |
 | `packages/contracts/src/reach-out-dtos.ts` (new) | `ReachOutChainDto`, `ReachOutRunDto`, `ReachOutPreviewDto`, `ReachOutReachDto` | 5 |
 | `packages/contracts/src/reach-out-sheet.ts` (new) | Every sentence the sheet, the approval sheet, Playbooks and Templates say about a reach-out | 5 |
@@ -346,7 +346,7 @@ Three reviews ran against the plan at `dd859526`, each checked against the code:
 | `apps/dashboard/src/legacy/pages/broadcasts-run.jsx`, `broadcasts-real.jsx` | A reach-out run's approval | 7 |
 | `apps/dashboard/src/legacy/pages/reach-out-row.jsx` (new) | The chain's row and open row on Playbooks | 8 |
 | `apps/dashboard/src/legacy/pages/messages.jsx` | The email rows and the switch | 8 |
-| `supabase/migrations/00191_lead_searches_are_live.sql` (new) | `lead_searches` into the realtime publication | 9 |
+| `supabase/migrations/00199_lead_searches_are_live.sql` (new) | `lead_searches` into the realtime publication | 9 |
 | `apps/dashboard/app/api/v1/leads/[id]/route.ts` | `GET`, one lead, for a peek past the page | 9 |
 | `tooling/scripts/tests/reach-out.integration.db.test.mjs` | The proof gains the sheet's door, the check and the approval's data | 10 |
 
@@ -1635,6 +1635,97 @@ Expected: lint at its baseline (0 errors), every suite green, `dist in sync with
 
 ## PR 2 — A send is checked before it goes (`reach-out-4b-checked`, 00189)
 
+> **As built (PRs 2 and 3 shipped together, as one PR, with migration 00197).** 00189–00196 were taken on `main` (the phone app, Stripe,
+> lines and the sweeps), and production applies migrations in order, so the migration is `00197_a_send_is_checked_before_it_goes.sql`; PR 4's migration takes the next free number.
+> One migration carries the database and the edge together, so the claim never refuses unchecked sends before a clock
+> exists to check them. What departs from the task code below, and why:
+>
+> - **R1: the check is its own clock.** `apps/edge/api/cron/reach-out-check.ts` (the shape of `deadman.ts`), its own
+>   `sweep_status` row `reach_out_check` and cron job `reach-out-check-sweep` (every minute, 00197
+>   `trigger_reach_out_check_sweep`, scheduled as 00186 schedules the reach-out clock), `maxDuration` 60 in
+>   `vercel.json`, and every registry (`sweep-registry.db.test.mjs`, `sweep-health.integration.test.mjs`, S-09 in
+>   `system-prd.md`, the runbook). The reach-out clock keeps Part 3's shape; `checkPlanned`, `CHECK_YIELD_AT_MS` and
+>   `setReachOutModel` are gone. The work is `lib/reach-out/check.ts`'s `checkSends`. Each call has an `AbortSignal` of
+>   min(8 s, what is left before 50 s), `maxRetries: 0`, and the budget is asked before every call; none starts past
+>   40 s (`ops-hygiene.test.mjs` holds the numbers to the limit).
+> - **R2, R12: the gates, before any call.** `reach_out_unchecked(p_limit, p_per_workspace, p_ahead_minutes,
+>   p_tenant_id)` takes 40 a tick, 20 of a workspace, round-robin (`row_number()` over the workspace, by
+>   `coalesce(check_after, created_at)`), within two hours or in a run waiting for its owner. Then per workspace, in the
+>   edge: `workspaceMaySpend` (contracts `maySpend` over `billing_accounts`, and a paused workspace may not; the one
+>   reading, which the step's run in `run-context.ts` asks too) and room in the month (`reach_out_month_sent` under
+>   `REACH_OUT_MONTH_EMAILS`). The day's ceiling, `REACH_OUT_CHECKS_PER_DAY` (400 attempts per workspace per UTC day,
+>   contracts), is counted where no reset clears it: a table of its own, `reach_out_check_spend(tenant_id, day,
+>   attempts)` (RLS on, no member policy, service role only; in `delete-tenant.mjs` and the tenancy suite), and
+>   `reach_out_check_take(p_tenant_id, p_cap, p_at)`, which takes one attempt atomically while the day is under the
+>   cap (`insert … on conflict do update … where attempts < p_cap returning true`). One attempt is taken before each
+>   send's check that asks the model, a rewrite in the same attempt and a failure counted; words that name no opening
+>   ask no model and take none. A gated send is handed back with `check_after` an hour on (`reach_out_check_gated`). With the cold lane unset nothing is checked, and a
+>   waiting send answers 503 `cold_lane_unset`, so the page the reach-out clock used to give still comes (its own
+>   due test now counts only checked sends).
+> - **R3: the lease.** `reach_out_unchecked` is plpgsql, volatile: it locks the picked rows `for update skip locked`,
+>   stamps `check_started_at`, passes over a lease younger than two minutes, and returns each row with its record
+>   (`reach_out_record`, which holds the listing counts and the domain test once) and its `check_gen`. Every write
+>   of the check (`recordCheck`) ends the lease.
+> - **R4: failures.** A thrown call, a deadline, no answer or no shape each fail the try: `check_tries` + 1,
+>   `check_first_at` kept, `check_after` 1, 2, 4, 8, then 15 minutes on. After `CHECK_GIVE_UP_MS` (60 min from
+>   `check_first_at`, a new column) the send is held `check_unavailable` with no detail (warn
+>   `reach_out_check_held`). Each tick first puts such holds left an hour back to planned at the next `check_gen`, in
+>   one statement (`reach_out_release_unavailable(p_before, p_tenant_id)`, service role, returning the count); a hold
+>   for a rule an opening broke keeps. `check_tries` allows 0–100. No
+>   `ANTHROPIC_API_KEY`: nothing is touched (not even leased), `reach_out_check_unset`, and 503 `check_unset` while a
+>   send waits. A tick in which every call failed answers 503 `model_unavailable`. The notice R20 asks for on a first
+>   hold is PR 7's.
+> - **R5: the words' version.** Columns `check_gen int` and `checked_words text` (≤ 64: a SHA-256 of the step's
+>   subject and body, the root's `signed_by` and whether the workspace has a booking link, `request.ts`
+>   `checkedWordsOf`). `recordCheck` writes only where `state = 'planned'`, `checked_at is null` and `check_gen` is
+>   what was read. The sender compares the stamp with the words as they stand; changed, or `{{opening}}` named with
+>   no opening (`reachOutWords`' new `no_opening`), sends the claimed send back to planned and unchecked at
+>   `check_gen + 1` (`checkResetPatch`, counted `rechecked`), never to `missing_value`.
+> - **R6.** `no_signed_by` and `no_booking_link` are `reachOutWords`' own refusals and join the sender's `HOLDS`.
+>   `EVERY_SLOT`'s `"x"` stubs are gone: the step's own fault is contracts' one slot rule (`slotsNamed`,
+>   `isReachOutSlot`), then the workspace's, the send's opening, and the lead's values last, all filled by
+>   `reachOutSlots` with the real values (the root's `signed_by` through `sendStanding`, `brain.booking_link`, the
+>   send's `opening`).
+> - **R7.** `included_for text[]` (a subset of `REACH_OUT_HOLDS`, a CHECK). `reach_out_unchecked` returns the union of
+>   `included_for` over the chain's sends to the same lead, so a later step's send inherits it; `checkOne` never makes
+>   a hold that is in it (the code holds and the opening's verdict alike). A reset keeps it.
+> - **R8.** 00197 re-creates 00187's `reach_out_due_domains` with `s.checked_at is not null`, so the cold-lane due
+>   test in `api/cron/reach-out.ts` counts only checked sends, and `trigger_reach_out_sweep`'s due test does too.
+> - **R9.** The four-argument `reach_out_audience` stays as a wrapper over the new one (confirmed addresses); the edge
+>   calls the new signature. `database.types.ts` carries the two as an overload.
+> - **R10.** `reach_out_held_stale` reads `created_at`, and the reach-out clock gives a hold up `kept_waiting` at
+>   `replan.ts`'s `REPLAN_GIVE_UP_MS` (the same fourteen days). The hold's index is on `created_at`.
+> - **R11.** The JSON-model transport is `apps/edge/lib/model.ts` (`askJson`, with a signal, a timeout and the
+>   retries a caller allows); the notes sweep keeps its 20 s and one retry through it. The preview
+>   (`lib/reach-out/preview.ts`, door `api/admin/reach-out-preview.ts`, audience `"/api/admin/reach-out-preview"`)
+>   assembles its email through `reachOutRequest` over stand-in identities (`preview.invalid`, a one-off seal),
+>   refuses an `index` past 199 with a 400 (never a silent clamp), takes the step's `language` (`template_language`) in its body, returns `refused` (the
+>   sender's reason) and `unavailable` (the model could not answer), and has 30 s (calls stop at 20 s). It previews
+>   a first step only. `check.ts` imports `WrittenOpening`.
+> - **The opening's bounds.** `checkOpening` refuses an opening past `OPENING_CHARS_MAX` (400 characters, the column's
+>   bound) as `too_long`, so it is rewritten once, then held. `OPENING_SCHEMA` says the bound in the opening's
+>   `description`, not as `maxLength`: structured outputs refuse string-length constraints, and a refused schema would
+>   send every writer call through the plain-JSON retry. An answer the send cannot store is a failed try, never a pass.
+>   A code hold (`customer_domain`, `chain`) that wins over an opening the reader or code refused stores no opening, so
+>   an Include past the code hold finds none and the send is checked again, where the opening's own hold is said.
+>   Whether words need an opening is one contracts predicate, `wordsNeedOpening({ subject, body })`, which the check
+>   and `reachOutWords` both ask.
+> - **Held give-up in the reach-out clock** (Task 3.3 Step 4), after its restale; the trigger wakes the clock for a
+>   hold two weeks old, and counts a held send as open in a canceled run and in a run to finish.
+> - **The lead's own person is not a customer's domain** (departs from the task code's record): the domain test in
+>   `reach_out_record` leaves out the lead's own contact (`leads.contact_id`, made by its first send) and any person
+>   with the lead's exact address. Without it every later step's send held `customer_domain`, since the person Part 3
+>   made for the lead writes from the lead's own domain. The end-to-end suite found it.
+> - **Generated files by hand, then proved against a replay.** The Supabase stack cannot start in the container that
+>   built this PR (image pulls blocked). The migrations were replayed instead on a stock Postgres 16 with stubs for
+>   what the stack provides (roles, `auth`, `vault`, `cron`, `net`, storage), under PostgREST 12.2.3 and a small
+>   gateway for the three auth calls the suites make. On it: every migration applies, 00197 applies twice;
+>   `gen-schema-sets --check` passes; `@supabase/postgrest-typegen` 0.2.0 generates exactly the committed
+>   `database.types.ts` for both schemas (it differs from the CI's generator only in the helper types' parentheses,
+>   on `main` as here), including the `reach_out_audience` overload; `reach-out-checked.db.test.mjs`, every Part 3
+>   reach-out suite, the end-to-end suite, `tenancy` and `privileges` pass. The overload's order and shape under the
+>   CI's own generator version are the one thing only the Database workflow can confirm.
+
 The database side of F1, F3, F8, F9 and F10. Nothing checks yet: PR 3's clock phase does. The claim already refuses what is unchecked, and no chain exists on production, so no send waits on it (read back with the migration).
 
 ### Task 2.1: The migration
@@ -2197,6 +2288,10 @@ Expected: before the fixes, the claims fail with "claimed only once it is checke
 ---
 
 ## PR 3 — The check on the edge (`reach-out-4c-the-check`)
+
+> **As built:** shipped together with PR 2, as one PR with migration 00197. Its departures from the task code below
+> (the check as its own clock, the lease, the failures' backoff, the words' version, the gates, the transport, the
+> preview's assembly) are listed under PR 2's heading.
 
 The clock checks every planned send before it claims one (F1, F2). The sender fills the three new slots. The sheet's preview asks the same check for one business (F12). No migration.
 
@@ -3042,18 +3137,18 @@ Expected: PASS. In the integration test, the explicit "mark checked" from PR 2 i
 
 ---
 
-## PR 4 — The member doors (`reach-out-4d-doors`, 00190)
+## PR 4 — The member doors (`reach-out-4d-doors`, 00198)
 
 A member saves a chain, counts a search's reach, answers a held send and reads a chain's report, each through a door that checks who is asking (F7). Starting a chain plans its first run now (F11).
 
 ### Task 4.1: The migration
 
-**Files:** Create `supabase/migrations/00190_the_reach_out_sheet_s_doors.sql`; Regenerate `database.types.ts`
+**Files:** Create `supabase/migrations/00198_the_reach_out_sheet_s_doors.sql`; Regenerate `database.types.ts`
 
 - [ ] **Step 1: Write it**
 
 ```sql
--- 00190 · The reach-out sheet's doors.
+-- 00198 · The reach-out sheet's doors.
 --
 -- Reach out, Part 4 (docs/superpowers/plans/2026-09-26-reach-out-part-4-the-words-and-pages.md, PR 4). A member makes
 -- and edits a reach-out, counts who a search's chain would write to, and answers a held send, each through a door that
@@ -3496,7 +3591,7 @@ The sweep's loop keeps its `runDueNow` gate and its zone read, and calls this. I
   - a step's id is a 404;
   - another workspace's token is refused.
 
-- [ ] **Step 3: The gate. Review once and fix. Push 00190 to production (dry run, push, read back the four functions' grants with `select proname, proacl from pg_proc where proname like 'reach_out_%'`). Open the PR (either deploy order), wait for green CI, squash-merge.**
+- [ ] **Step 3: The gate. Review once and fix. Push 00198 to production (dry run, push, read back the four functions' grants with `select proname, proacl from pg_proc where proname like 'reach_out_%'`). Open the PR (either deploy order), wait for green CI, squash-merge.**
 
 ---
 
@@ -4247,7 +4342,7 @@ It has no Rename, Hide or Delete (F15).
 
 - [ ] **The PR:** gate, review, fixes, PR (dashboard only), merge on green.
 
-## PR 9 — Leads' five dead doors (`reach-out-4i-leads-doors`, 00191)
+## PR 9 — Leads' five dead doors (`reach-out-4i-leads-doors`, 00199)
 
 Carried from Part 1 (§1's list), one task each.
 
@@ -4260,10 +4355,10 @@ Carried from Part 1 (§1's list), one task each.
   - Yes calls `__leadErase(id)`, and a toast says it is gone.
   - Harness test: the menu item, the confirm, and the call.
 - [ ] **9.3 A search's changes arrive live.**
-  - `supabase/migrations/00191_lead_searches_are_live.sql`:
+  - `supabase/migrations/00199_lead_searches_are_live.sql`:
 
 ```sql
--- 00191 · A search's changes arrive live.
+-- 00199 · A search's changes arrive live.
 --
 -- Reach out, Part 4 (PR 9; carried from Part 1). The Leads page subscribes to lead_searches (legacy-bridge/leads.ts:331),
 -- but 00140 put only its rounds, members and leads in the publication, so a search's own row (its name, its state, its
@@ -4287,7 +4382,7 @@ end $$;
   - `checksOf` (`server/lead-page.ts:127-163`) reports each criterion the judge answered, under the plan's key and its label (the search's `plan.criteria`). The `LEAD_CHECK_KEYS`-only loop goes.
   - A key the plan no longer names is shown by its words, never dropped.
   - Test with a plan whose keys are `kind` and `open_weekends`.
-- [ ] **The PR:** gate, review, fixes, 00191 to production, PR, merge on green.
+- [ ] **The PR:** gate, review, fixes, 00199 to production, PR, merge on green.
 
 ## PR 10 — The proof, and the docs (`reach-out-4j-proof`)
 

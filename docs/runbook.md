@@ -335,8 +335,10 @@ order, and a reach-out exists (step 8).
    search, its words and its domains. Until the sheet ships there is no door
    that makes one; `tooling/scripts/tests/reach-out.integration.db.test.mjs`
    seeds one on a local stack and runs it end to end. Its first run waits for
-   its owner on Broadcasts; the `reach-out-sweep` clock (every minute) sends
-   what is due from then on, each email through the jobs tick and the door.
+   its owner on Broadcasts; the `reach-out-check-sweep` clock (every minute)
+   checks each email before it may go, and the `reach-out-sweep` clock (every
+   minute) sends what is due and checked from then on, each email through the
+   jobs tick and the door.
 
 **What the reach-out clock's 503 means.** `POST /api/cron/reach-out` answers
 `503 cold_lane_unset` with the variables it lacks (`RESEND_API_KEY`,
@@ -347,6 +349,18 @@ and the sends keep. With nothing due it answers 200 and names them under
 until the month turns in its zone (`reach_out_month_spent` in the logs); one
 without a mailbox or a business address claims nothing either
 (`reach_out_workspace_held`).
+
+**What the reach-out check's 503 means.** `POST /api/cron/reach-out-check`
+answers `503 check_unset` while a send waits to be checked and the edge has no
+`ANTHROPIC_API_KEY` (it touches nothing: `reach_out_check_unset`), `503
+cold_lane_unset` while one waits and the cold lane lacks a secret (nothing
+checked could leave), and `503 model_unavailable` for a tick in which every
+model call failed (`reach_out_check_unanswered`). A send whose tries fail for an
+hour is held `check_unavailable` for its owner (`reach_out_check_held`, warn),
+and the clock puts it back to be checked an hour on. A workspace that may not
+spend, is at its month's allowance, or has spent its 400 model attempts of
+the UTC day (`reach_out_check_spend`) is asked again an hour on
+(`reach_out_check_gated`).
 
 **A domain held twice in 30 days.** Its owner cannot resume it: the platform
 is paged (`sending_domain_held_twice:<host>`, naming the workspace and the

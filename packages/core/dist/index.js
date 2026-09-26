@@ -3381,6 +3381,8 @@ var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_SUBJECT_MAX = 80;
 var REACH_OUT_BODY_MAX = 1200;
+var OPENING_WORDS_MAX = 40;
+var OPENING_CHARS_MAX = 400;
 var REACH_OUT_STEPS_MAX = 5;
 var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
@@ -3415,7 +3417,8 @@ var OPENING_FACT_KEYS = [
 var OPENING_SCHEMA = {
   type: "object",
   properties: {
-    opening: { type: "string" },
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX} words and ${OPENING_CHARS_MAX} characters.` },
     angle: { type: "string" },
     facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
   },
@@ -8217,6 +8220,8 @@ function timetable(input) {
 }
 var REACH_OUT_SUBJECT_MAX2 = 80;
 var REACH_OUT_BODY_MAX2 = 1200;
+var OPENING_WORDS_MAX2 = 40;
+var OPENING_CHARS_MAX2 = 400;
 var REACH_OUT_STEPS_MAX2 = 5;
 var REACH_OUT_NAME_MAX2 = 80;
 var SIGNED_BY_MAX2 = 60;
@@ -8261,7 +8266,8 @@ function isReachOutRun(audience) {
 var OPENING_SCHEMA2 = {
   type: "object",
   properties: {
-    opening: { type: "string" },
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX2} words and ${OPENING_CHARS_MAX2} characters.` },
     angle: { type: "string" },
     facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS2] } }
   },
@@ -10698,6 +10704,8 @@ var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_SUBJECT_MAX3 = 80;
 var REACH_OUT_BODY_MAX3 = 1200;
+var OPENING_WORDS_MAX3 = 40;
+var OPENING_CHARS_MAX3 = 400;
 var REACH_OUT_STEPS_MAX3 = 5;
 var REACH_OUT_NAME_MAX3 = 80;
 var SIGNED_BY_MAX3 = 60;
@@ -10732,7 +10740,8 @@ var OPENING_FACT_KEYS3 = [
 var OPENING_SCHEMA3 = {
   type: "object",
   properties: {
-    opening: { type: "string" },
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX3} words and ${OPENING_CHARS_MAX3} characters.` },
     angle: { type: "string" },
     facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS3] } }
   },

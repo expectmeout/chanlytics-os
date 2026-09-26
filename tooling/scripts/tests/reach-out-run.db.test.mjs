@@ -276,6 +276,8 @@ test(
           contact_id: p.contact_id,
           domain_id: domain,
           send_at: iso(Date.now() - daysAgo * DAY),
+          // Checked before it went (00197): a claim takes a checked send only.
+          checked_at: iso(Date.now() - daysAgo * DAY),
         }),
       );
       for (const patch of [

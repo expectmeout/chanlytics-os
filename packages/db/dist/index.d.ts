@@ -3427,6 +3427,7 @@ type Database = {
                     gap_days: number;
                     gap_minutes: number | null;
                     id: string;
+                    include_unconfirmed: boolean;
                     kind: string;
                     last_run_at: string | null;
                     last_run_for: string | null;
@@ -3437,6 +3438,7 @@ type Database = {
                     params: Json;
                     policy_class: string;
                     run_hour: number;
+                    signed_by: string | null;
                     state: string;
                     template_id: string;
                     template_language: string;
@@ -3456,6 +3458,7 @@ type Database = {
                     gap_days?: number;
                     gap_minutes?: number | null;
                     id?: string;
+                    include_unconfirmed?: boolean;
                     kind?: string;
                     last_run_at?: string | null;
                     last_run_for?: string | null;
@@ -3466,6 +3469,7 @@ type Database = {
                     params?: Json;
                     policy_class: string;
                     run_hour?: number;
+                    signed_by?: string | null;
                     state?: string;
                     template_id: string;
                     template_language: string;
@@ -3485,6 +3489,7 @@ type Database = {
                     gap_days?: number;
                     gap_minutes?: number | null;
                     id?: string;
+                    include_unconfirmed?: boolean;
                     kind?: string;
                     last_run_at?: string | null;
                     last_run_for?: string | null;
@@ -3495,6 +3500,7 @@ type Database = {
                     params?: Json;
                     policy_class?: string;
                     run_hour?: number;
+                    signed_by?: string | null;
                     state?: string;
                     template_id?: string;
                     template_language?: string;
@@ -3658,17 +3664,55 @@ type Database = {
                 };
                 Relationships: [];
             };
-            reach_out_sends: {
+            reach_out_check_spend: {
                 Row: {
                     attempts: number;
+                    day: string;
+                    tenant_id: string;
+                };
+                Insert: {
+                    attempts?: number;
+                    day: string;
+                    tenant_id: string;
+                };
+                Update: {
+                    attempts?: number;
+                    day?: string;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "reach_out_check_spend_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            reach_out_sends: {
+                Row: {
+                    angle: string | null;
+                    attempts: number;
                     broadcast_id: string;
+                    check_after: string | null;
+                    check_first_at: string | null;
+                    check_gen: number;
+                    check_started_at: string | null;
+                    check_tries: number;
+                    checked_at: string | null;
+                    checked_words: string | null;
                     claimed_at: string | null;
                     contact_id: string | null;
                     created_at: string;
                     domain_id: string | null;
+                    facts_used: string[];
+                    hold_detail: string | null;
                     id: string;
+                    included_for: string[];
                     lead_id: string;
                     message_id: string | null;
+                    opening: string | null;
                     playbook_id: string | null;
                     reason: string | null;
                     root_id: string;
@@ -3679,15 +3723,27 @@ type Database = {
                     updated_at: string;
                 };
                 Insert: {
+                    angle?: string | null;
                     attempts?: number;
                     broadcast_id: string;
+                    check_after?: string | null;
+                    check_first_at?: string | null;
+                    check_gen?: number;
+                    check_started_at?: string | null;
+                    check_tries?: number;
+                    checked_at?: string | null;
+                    checked_words?: string | null;
                     claimed_at?: string | null;
                     contact_id?: string | null;
                     created_at?: string;
                     domain_id?: string | null;
+                    facts_used?: string[];
+                    hold_detail?: string | null;
                     id: string;
+                    included_for?: string[];
                     lead_id: string;
                     message_id?: string | null;
+                    opening?: string | null;
                     playbook_id?: string | null;
                     reason?: string | null;
                     root_id: string;
@@ -3698,15 +3754,27 @@ type Database = {
                     updated_at?: string;
                 };
                 Update: {
+                    angle?: string | null;
                     attempts?: number;
                     broadcast_id?: string;
+                    check_after?: string | null;
+                    check_first_at?: string | null;
+                    check_gen?: number;
+                    check_started_at?: string | null;
+                    check_tries?: number;
+                    checked_at?: string | null;
+                    checked_words?: string | null;
                     claimed_at?: string | null;
                     contact_id?: string | null;
                     created_at?: string;
                     domain_id?: string | null;
+                    facts_used?: string[];
+                    hold_detail?: string | null;
                     id?: string;
+                    included_for?: string[];
                     lead_id?: string;
                     message_id?: string | null;
+                    opening?: string | null;
                     playbook_id?: string | null;
                     reason?: string | null;
                     root_id?: string;
@@ -4749,6 +4817,12 @@ type Database = {
                 };
                 Returns: Json;
             };
+            lead_name_key: {
+                Args: {
+                    p_name: string;
+                };
+                Returns: string;
+            };
             lead_niche_prior: {
                 Args: {
                     p_category_key: string;
@@ -4933,6 +5007,12 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: undefined;
+            };
+            lead_site_key: {
+                Args: {
+                    p_host: string;
+                };
+                Returns: string;
             };
             lead_suppression_hash: {
                 Args: {
@@ -5418,6 +5498,21 @@ type Database = {
             };
             reach_out_audience: {
                 Args: {
+                    p_include_unconfirmed?: boolean;
+                    p_limit: number;
+                    p_search_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    business_name: string;
+                    city: string;
+                    email: string;
+                    hours: Json;
+                    lead_id: string;
+                    region: string;
+                }[];
+            } | {
+                Args: {
                     p_limit: number;
                     p_root_id: string;
                     p_search_id: string;
@@ -5432,6 +5527,14 @@ type Database = {
                     region: string;
                 }[];
             };
+            reach_out_check_take: {
+                Args: {
+                    p_at?: string;
+                    p_cap: number;
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
+            };
             reach_out_claim: {
                 Args: {
                     p_at: string;
@@ -5440,15 +5543,27 @@ type Database = {
                     p_limit: number;
                 };
                 Returns: {
+                    angle: string | null;
                     attempts: number;
                     broadcast_id: string;
+                    check_after: string | null;
+                    check_first_at: string | null;
+                    check_gen: number;
+                    check_started_at: string | null;
+                    check_tries: number;
+                    checked_at: string | null;
+                    checked_words: string | null;
                     claimed_at: string | null;
                     contact_id: string | null;
                     created_at: string;
                     domain_id: string | null;
+                    facts_used: string[];
+                    hold_detail: string | null;
                     id: string;
+                    included_for: string[];
                     lead_id: string;
                     message_id: string | null;
+                    opening: string | null;
                     playbook_id: string | null;
                     reason: string | null;
                     root_id: string;
@@ -5515,6 +5630,50 @@ type Database = {
                     region: string;
                 }[];
             };
+            reach_out_held_stale: {
+                Args: {
+                    p_before: string;
+                    p_limit: number;
+                    p_tenant_id?: string;
+                };
+                Returns: {
+                    angle: string | null;
+                    attempts: number;
+                    broadcast_id: string;
+                    check_after: string | null;
+                    check_first_at: string | null;
+                    check_gen: number;
+                    check_started_at: string | null;
+                    check_tries: number;
+                    checked_at: string | null;
+                    checked_words: string | null;
+                    claimed_at: string | null;
+                    contact_id: string | null;
+                    created_at: string;
+                    domain_id: string | null;
+                    facts_used: string[];
+                    hold_detail: string | null;
+                    id: string;
+                    included_for: string[];
+                    lead_id: string;
+                    message_id: string | null;
+                    opening: string | null;
+                    playbook_id: string | null;
+                    reason: string | null;
+                    root_id: string;
+                    send_at: string | null;
+                    sent_at: string | null;
+                    state: string;
+                    tenant_id: string;
+                    updated_at: string;
+                }[];
+                SetofOptions: {
+                    from: "*";
+                    to: "reach_out_sends";
+                    isOneToOne: false;
+                    isSetofReturn: true;
+                };
+            };
             reach_out_month_sent: {
                 Args: {
                     p_at: string;
@@ -5549,6 +5708,37 @@ type Database = {
                     written_at: string;
                 }[];
             };
+            reach_out_record: {
+                Args: {
+                    p_lead_id: string;
+                    p_search_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    about: string;
+                    business_name: string;
+                    category: string;
+                    city: string;
+                    email: string;
+                    email_domain_shared: boolean;
+                    hours: Json;
+                    name_listings: number;
+                    rating: number;
+                    region: string;
+                    reviews: number;
+                    site_listings: number;
+                    website_host: string;
+                    what_you_asked: string;
+                    why_it_fits: string;
+                }[];
+            };
+            reach_out_release_unavailable: {
+                Args: {
+                    p_before: string;
+                    p_tenant_id?: string;
+                };
+                Returns: number;
+            };
             reach_out_stale_sends: {
                 Args: {
                     p_before: string;
@@ -5556,15 +5746,27 @@ type Database = {
                     p_tenant_id?: string;
                 };
                 Returns: {
+                    angle: string | null;
                     attempts: number;
                     broadcast_id: string;
+                    check_after: string | null;
+                    check_first_at: string | null;
+                    check_gen: number;
+                    check_started_at: string | null;
+                    check_tries: number;
+                    checked_at: string | null;
+                    checked_words: string | null;
                     claimed_at: string | null;
                     contact_id: string | null;
                     created_at: string;
                     domain_id: string | null;
+                    facts_used: string[];
+                    hold_detail: string | null;
                     id: string;
+                    included_for: string[];
                     lead_id: string;
                     message_id: string | null;
+                    opening: string | null;
                     playbook_id: string | null;
                     reason: string | null;
                     root_id: string;
@@ -5580,6 +5782,37 @@ type Database = {
                     isOneToOne: false;
                     isSetofReturn: true;
                 };
+            };
+            reach_out_unchecked: {
+                Args: {
+                    p_ahead_minutes: number;
+                    p_limit: number;
+                    p_per_workspace: number;
+                    p_tenant_id?: string;
+                };
+                Returns: {
+                    about: string;
+                    business_name: string;
+                    category: string;
+                    check_gen: number;
+                    city: string;
+                    email: string;
+                    email_domain_shared: boolean;
+                    hours: Json;
+                    included_for: string[];
+                    name_listings: number;
+                    rating: number;
+                    region: string;
+                    reviews: number;
+                    send: Json;
+                    signed_by: string;
+                    site_listings: number;
+                    template_id: string;
+                    template_language: string;
+                    website_host: string;
+                    what_you_asked: string;
+                    why_it_fits: string;
+                }[];
             };
             release_conversation_control: {
                 Args: {
@@ -5856,6 +6089,10 @@ type Database = {
                 Returns: number;
             };
             trigger_playbooks_sweep: {
+                Args: never;
+                Returns: number;
+            };
+            trigger_reach_out_check_sweep: {
                 Args: never;
                 Returns: number;
             };
@@ -6401,12 +6638,15 @@ interface AudienceLead {
     region: string | null;
     hours: unknown;
 }
-/** The leads a chain's first step may write to (00184 reach_out_audience), strongest fit first. */
+/**
+ * The leads a chain's first step may write to (00197 reach_out_audience), strongest fit first: never one any chain of
+ * the workspace planned, held or wrote to, and a catch-all address only when the chain includes them.
+ */
 declare function reachOutAudience(db: Db$a, p: {
     tenantId: string;
     searchId: string;
-    rootId: string;
     limit: number;
+    includeUnconfirmed: boolean;
 }): Promise<AudienceLead[]>;
 type PersonForSend = {
     ok: true;
@@ -6536,6 +6776,8 @@ interface SendStanding {
         after_playbook_id: string | null;
     } | null;
     root: string | null;
+    /** The name the chain signs with ({{your name}}): the root's. */
+    signedBy: string | null;
 }
 declare function sendStanding(db: Db$a, s: ReachOutSendRow): Promise<SendStanding>;
 /** A step's words as an email template holds them: its HEADER is the subject, its BODY the words. */
@@ -6607,6 +6849,97 @@ declare function leadWritten(db: Db$a, p: {
     sendId: string;
     retried?: boolean;
 }): Promise<boolean>;
+/** A business's record, as 00197's reach_out_record reads it: what the check writes and reads an opening from. */
+interface ReachOutRecordRow {
+    business_name: string | null;
+    category: string | null;
+    city: string | null;
+    region: string | null;
+    rating: number | null;
+    reviews: number | null;
+    website_host: string | null;
+    hours: unknown;
+    about: string | null;
+    email: string | null;
+    why_it_fits: string | null;
+    what_you_asked: string | null;
+    site_listings: number;
+    name_listings: number;
+    email_domain_shared: boolean;
+}
+/** A send to check (00197 reach_out_unchecked), leased to this tick: the send, its step, its chain and its record. */
+interface UncheckedSend {
+    send: ReachOutSendRow;
+    /** The words' version the send was read at: the check writes only while it is still this (R5). */
+    check_gen: number;
+    template_id: string;
+    template_language: string;
+    signed_by: string | null;
+    /** The holds its owner included it, or its lead in this chain, past (R7): never held for them again. */
+    included_for: string[];
+    record: ReachOutRecordRow;
+}
+/**
+ * The sends this tick checks, leased under their row locks (00197): at most `perWorkspace` of each workspace, round
+ * robin, waiting for their owner or due within `aheadMinutes`, none another tick started in the last two minutes.
+ */
+declare function uncheckedSends(db: Db$a, p: {
+    limit: number;
+    perWorkspace: number;
+    aheadMinutes: number;
+    tenantId?: string;
+}): Promise<UncheckedSend[]>;
+/** Whether any send waits to be checked: what the check's clock answers for when it cannot check (R4). */
+declare function uncheckedWaiting(db: Db$a, tenantId?: string): Promise<boolean>;
+/** One business's record for a search, whether or not a send exists for it yet (the sheet's preview). */
+declare function reachOutRecord(db: Db$a, p: {
+    tenantId: string;
+    searchId: string;
+    leadId: string;
+}): Promise<ReachOutRecordRow | null>;
+/**
+ * What the check found, written only onto a send still planned, not yet checked, and at the words' version it was read
+ * at (R3, R5): a check never undoes an owner's answer, and never stamps words that changed under it. Its lease ends.
+ */
+declare function recordCheck(db: Db$a, p: {
+    tenantId: string;
+    id: string;
+    gen: number;
+    patch: Partial<ReachOutSendRow>;
+}): Promise<boolean>;
+/**
+ * A send back to unchecked (R5): its words changed since its check, or it names an opening it has none of. Its words'
+ * version moves on, so a check still under way for the old words writes nothing; what its owner included it past stays.
+ */
+declare function checkResetPatch(gen: number): Partial<ReachOutSendRow>;
+/** Holds left past `before`, oldest planned first (00197: fourteen days from when a send was planned, R10). */
+declare function heldStale(db: Db$a, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]>;
+/**
+ * Holds the check could not answer (check_unavailable, no rule broken) left since `before`: put back to be checked
+ * again at their words' next version, in one statement (00197 reach_out_release_unavailable, R4). A hold for a rule an
+ * opening broke keeps: it is its owner's to answer. How many went back.
+ */
+declare function releaseUnavailableHolds(db: Db$a, p: {
+    before: Date;
+    tenantId?: string;
+}): Promise<number>;
+/**
+ * One attempt of the check's model spend for a workspace's UTC day, taken only while the day is under `cap` (00197
+ * reach_out_check_take, R12): true when taken. A reset of a send's check never gives it back.
+ */
+declare function takeCheckAttempt(db: Db$a, p: {
+    tenantId: string;
+    cap: number;
+    at: Date;
+}): Promise<boolean>;
+/**
+ * Whether a workspace may spend on reach-out now (contracts maySpend): a paused workspace, or one with no billing row,
+ * may not. The one reading of it: the step's run (run-context.ts) and the check both ask it. A read that fails throws:
+ * "we could not check" is not "yes".
+ */
+declare function workspaceMaySpend(db: Db$a, tenantId: string): Promise<boolean>;
+/** The workspace's own words about what it does (business_records.about, 00152), for the writer. */
+declare function workspaceAbout(db: Db$a, tenantId: string): Promise<string | null>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */
 
@@ -7380,4 +7713,4 @@ interface Page<T> {
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type MessageInsert, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, PEOPLE_PAGE, type Page, type ParentEmail, type PersonForSend, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutSendInsert, type ReachOutSendRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type WriteError, type WrittenEmail, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, claimCallNotification, claimControl, claimIdempotencyKey, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, monthSent, moveSend, notesForReceptionist, outreachFactsOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordCarrierOptOut, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, renameList, reputationHoldsSince, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, savedListFor, savedListsFor, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeIdempotencyKey, templatesFor, touchIndex, touchSendingDomain, touchesSince, watchedTables, withdrawEmail, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };
+export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type ListRow, MAX_ROWS, type MailboxRow, type MessageInsert, type NormalizedCallInput, type OutboundTarget, type OutreachFactsRow, PEOPLE_PAGE, type Page, type ParentEmail, type PersonForSend, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutSendInsert, type ReachOutSendRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WriteError, type WrittenEmail, type YesRow, addToList, applyDomainCheck, archiveList, assembleHistory, checkResetPatch, claimCallNotification, claimControl, claimIdempotencyKey, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, getTenantConfig, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, monthSent, moveSend, notesForReceptionist, outreachFactsOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, readAllRows, readDealForPhone, readLeadContext, readThreadState, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, reputationHoldsSince, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, savedListFor, savedListsFor, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, templatesFor, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, watchedTables, withdrawEmail, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

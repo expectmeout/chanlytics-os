@@ -11,6 +11,8 @@ import { execFileSync } from "node:child_process";
 import { ROOT, readRaw } from "./_source.mjs";
 import { LEASE_SECONDS, YIELD_AT_MS } from "../../../packages/jobs/src/ledger.ts";
 import { YIELD_AT_MS as DOMAINS_YIELD_AT_MS } from "../../../apps/edge/api/cron/domains.ts";
+import { CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_DONE_BY_MS } from "../../../apps/edge/lib/reach-out/check.ts";
+import { PREVIEW_LIMITS } from "../../../apps/edge/lib/reach-out/preview.ts";
 import { SEND_TIMEOUT_MS } from "../../../packages/channels/src/email-resend.ts";
 import { NOTIFY_TIMEOUT_MS } from "../../../apps/edge/lib/ops/notify.ts";
 import { EVENT_EVIDENCE_KINDS, RETENTION_DAYS } from "@chanlytics/contracts";
@@ -117,6 +119,21 @@ test("the domains sweep yields before its limit, with a row's whole check still 
     worst <= ceiling,
     `${DOMAINS_YIELD_AT_MS} + ${SEND_TIMEOUT_MS} + ${NOTIFY_TIMEOUT_MS} + ${WRITES_MS} = ${worst} ms must fit in ${ceiling} ms`,
   );
+});
+
+test("the reach-out check starts no call it cannot finish before its limit, nor does the sheet's preview (R1)", () => {
+  // Its last call may start just before CHECK_CALLS_UNTIL_MS and run its whole deadline (CHECK_CALL_MS, never past
+  // CHECK_DONE_BY_MS), then write what it found. Past the limit the platform kills the function mid-write.
+  const WRITES_MS = 3_000;
+  const ceiling = FUNCTIONS["api/cron/reach-out-check.ts"].maxDuration * 1000;
+  assert.ok(
+    CHECK_CALLS_UNTIL_MS + CHECK_CALL_MS <= CHECK_DONE_BY_MS,
+    "a call started last still ends by the tick's end",
+  );
+  assert.ok(CHECK_DONE_BY_MS + WRITES_MS <= ceiling, `${CHECK_DONE_BY_MS} + ${WRITES_MS} must fit in ${ceiling} ms`);
+  const preview = FUNCTIONS["api/admin/reach-out-preview.ts"].maxDuration * 1000;
+  assert.ok(PREVIEW_LIMITS.callsUntilMs + CHECK_CALL_MS <= PREVIEW_LIMITS.doneByMs);
+  assert.ok(PREVIEW_LIMITS.doneByMs + WRITES_MS / 3 <= preview, "the preview writes nothing, and reads little after");
 });
 
 test("a log line on the message path carries a phone tail, never the number or the words", () => {

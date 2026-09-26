@@ -23,6 +23,8 @@ import {
   openingVerdict,
   languageBase,
   readingSystemPrompt,
+  OPENING_CHARS_MAX,
+  wordsNeedOpening,
 } from "@chanlytics/contracts";
 
 const RECORD = {
@@ -255,4 +257,16 @@ test("an opening's words are counted as a reader counts them", () => {
   const forty = Array(40).fill("word").join(" ");
   assert.equal(checkOpening(opening(`${forty} —`, { facts_used: [] }), RECORD), null);
   assert.equal(checkOpening(opening(`${forty} more`, { facts_used: [] }), RECORD), "too_long");
+});
+
+test("an opening past the characters a send stores is too long, whatever its words; the schema says the bound", () => {
+  assert.equal(checkOpening(opening("Hi " + "x".repeat(OPENING_CHARS_MAX), { facts_used: [] }), RECORD), "too_long");
+  assert.match(OPENING_SCHEMA.properties.opening.description, /400 characters/);
+  assert.equal(OPENING_SCHEMA.properties.opening.maxLength, undefined, "structured outputs refuse maxLength");
+});
+
+test("words need an opening when their subject or their body names it", () => {
+  assert.equal(wordsNeedOpening({ subject: "Hi", body: "{{ Opening }} and more" }), true);
+  assert.equal(wordsNeedOpening({ subject: "{{opening}}", body: "Hi" }), true);
+  assert.equal(wordsNeedOpening({ subject: null, body: "Hi {{business}}" }), false);
 });

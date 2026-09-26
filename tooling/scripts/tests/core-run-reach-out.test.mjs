@@ -29,6 +29,7 @@ const root = (over = {}) => ({
   trigger: "lead_first",
   state: "running",
   lead_search_id: "s1",
+  include_unconfirmed: false,
   after_playbook_id: null,
   after_days: null,
   gap_minutes: 12,

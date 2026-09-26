@@ -14,6 +14,9 @@ import { at, knock, answer, refusedAtTheDoor, vault, withEnv } from "./_cron-doo
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { POST } = await import(at("apps/edge/api/cron/reach-out.ts"));
 const { sendMessageId } = await import(at("packages/core/src/campaigns/reach-out-ids.ts"));
+const { checkedWordsOf } = await import(at("apps/edge/lib/reach-out/request.ts"));
+const { emailWordsOf } = await import("@chanlytics/db");
+const { parseTenantConfig } = await import("@chanlytics/contracts");
 after(() => setPg(null));
 
 const MIN = 60_000;
@@ -46,7 +49,11 @@ const ago = (ms) => new Date(Date.now() - ms).toISOString();
 const ahead = (ms) => new Date(Date.now() + ms).toISOString();
 
 let n = 0;
-/** A send as reach_out_sends holds one, in a run that goes ahead on a running chain. */
+/**
+ * A send as reach_out_sends holds one, in a run that goes ahead on a running chain, checked (Part 4: the claim takes a
+ * checked send only). Its checked_words are stamped from its step's words as the world holds them, before each tick,
+ * unless a case names its own.
+ */
 const send = (over = {}) => {
   n += 1;
   return {
@@ -67,6 +74,10 @@ const send = (over = {}) => {
     sent_at: null,
     created_at: ago(DAY),
     updated_at: ago(DAY),
+    checked_at: ago(2 * MIN),
+    check_gen: 0,
+    opening: null,
+    included_for: [],
     ...over,
   };
 };
@@ -117,7 +128,8 @@ function clockReads(t) {
         .filter(
           (s) =>
             ["canceled", "failed"].includes(runOf(s)?.state) &&
-            (["planned", "queued"].includes(s.state) || (s.state === "claimed" && s.claimed_at < a.p_stuck_before)),
+            (["planned", "held", "queued"].includes(s.state) ||
+              (s.state === "claimed" && s.claimed_at < a.p_stuck_before)),
         )
         .map((s) => ({ send: { ...s }, email_status: emailOf(s)?.status ?? null })),
     reach_out_finishable: () =>
@@ -127,10 +139,16 @@ function clockReads(t) {
             b.audience?.kind === "reach_out" &&
             ["scheduled", "sending"].includes(b.state) &&
             !t.reach_out_sends.some(
-              (s) => s.broadcast_id === b.id && ["planned", "claimed", "queued"].includes(s.state),
+              (s) => s.broadcast_id === b.id && ["planned", "held", "claimed", "queued"].includes(s.state),
             ),
         )
         .map((b) => b.id),
+    // 00197: a hold, fourteen days from when its send was planned.
+    reach_out_held_stale: (a) =>
+      t.reach_out_sends
+        .filter((s) => s.state === "held" && s.created_at < a.p_before)
+        .sort((x, y) => (x.created_at < y.created_at ? -1 : 1))
+        .map((s) => ({ ...s })),
   };
 }
 
@@ -143,8 +161,10 @@ function clockReads(t) {
 function senderReads(t, { monthSent = 0, failClaim = [] } = {}) {
   const runOf = (s) => t.broadcasts.find((b) => b.id === s.broadcast_id);
   const running = (id) => t.playbooks.some((p) => p.id === id && p.state === "running");
+  // 00197: a checked send only.
   const due = (s, at) =>
     s.state === "planned" &&
+    s.checked_at != null &&
     s.send_at <= at &&
     ["scheduled", "sending"].includes(runOf(s)?.state) &&
     running(s.playbook_id) &&
@@ -315,13 +335,30 @@ function world({
   );
   setPg(db);
   const row = (id) => tables.reach_out_sends.find((s) => s.id === id);
+  /** Each send's checked_words, as the check stamps them: its step's words, its chain's name, whether a link exists. */
+  const stamp = async () => {
+    const link = !!parseTenantConfig(config)?.brain?.booking_link;
+    for (const s of tables.reach_out_sends) {
+      if (s.checked_words !== undefined) continue;
+      const step = tables.playbooks.find((p) => p.id === s.playbook_id);
+      const root = tables.playbooks.find((p) => p.id === s.root_id);
+      const words = step ? await emailWordsOf(db, s.tenant_id, step.template_id) : null;
+      s.checked_words = words ? checkedWordsOf(words, root?.signed_by ?? null, link) : null;
+    }
+  };
   return {
     tables,
     row,
     /** One tick with the lane unset, as the clock's own steps are proved. */
-    tick: () => withEnv(NO_LANE, async () => answer(await knock(POST, "reach-out"))),
+    tick: async () => {
+      await stamp();
+      return withEnv(NO_LANE, async () => answer(await knock(POST, "reach-out")));
+    },
     /** One tick with the lane set: the clock's steps, then the claim. */
-    send: (env = {}) => withEnv({ ...LANE, ...env }, async () => answer(await knock(POST, "reach-out"))),
+    send: async (env = {}) => {
+      await stamp();
+      return withEnv({ ...LANE, ...env }, async () => answer(await knock(POST, "reach-out")));
+    },
   };
 }
 
@@ -621,6 +658,7 @@ test("the claim: a due send becomes one person, one queued email under its own i
     skipped: 0,
     waited: 0,
     held: 0,
+    rechecked: 0,
     gave_up: 0,
     errors: 0,
     month_spent: 0,
@@ -1171,4 +1209,120 @@ test("the switches (D17): set, a cold email's links point at the cold origin and
   const q = emailOf(today, await sendMessageId(t.id, 0)).meta.email.request;
   assert.deepEqual(q.reply_to, ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com"]);
   assert.match(q.headers["List-Unsubscribe"], /^<https:\/\/app\.chanlytics\.com\/u\//);
+});
+
+/* ------------------------------------------------------------ Part 4: the check -- */
+
+/** The root's words, as a case gives them: the six slots a step may name. */
+const wordsTemplate = (body, subject = "A quote for {{business}}") => [
+  {
+    id: TPL,
+    tenant_id: T,
+    channel: "email",
+    body_preview: null,
+    components: [
+      { type: "HEADER", text: subject },
+      { type: "BODY", text: body },
+    ],
+  },
+];
+const rootWith = (over = {}) => [
+  {
+    id: ROOT,
+    tenant_id: T,
+    kind: "reach_out",
+    state: "running",
+    gap_minutes: 12,
+    domain_ids: [],
+    template_id: TPL,
+    after_playbook_id: null,
+    signed_by: null,
+    ...over,
+  },
+];
+
+test("a send not yet checked is never claimed, and the lane's 503 counts only what could leave (R8)", async () => {
+  const s = send({ checked_at: null });
+  const w = world({ sends: [s] });
+  const [status, body] = await w.send();
+  assert.equal(status, 200);
+  assert.deepEqual([w.row(s.id).state, body.claim.claimed], ["planned", 0]);
+  const [quiet] = await w.send({ UNSUBSCRIBE_SECRET: undefined });
+  assert.equal(quiet, 200, "nothing checked is due: nothing that could leave waits on the lane");
+});
+
+test("the opening the check wrote, the name the chain signs with and the booking link are the email's (R6)", async () => {
+  const s = send({ opening: "A 4.9 from 16 reviews says people find you." });
+  const w = world({
+    sends: [s],
+    templates: wordsTemplate("{{opening}}\n\nFifteen minutes: {{booking link}}\n\n{{your name}}"),
+    playbooks: rootWith({ signed_by: "Sam" }),
+    config: { ...CONFIG(), brain: { ...CONFIG().brain, booking_link: "https://example.com/book" } },
+  });
+  const [, body] = await w.send();
+  assert.equal(body.claim.written, 1);
+  const m = emailOf(w, await sendMessageId(s.id, 0));
+  assert.equal(
+    m.body,
+    "A 4.9 from 16 reviews says people find you.\n\nFifteen minutes: https://example.com/book\n\nSam",
+  );
+});
+
+test("a workspace's fault holds the send and keeps the lead: no name to sign with, no booking link (R6)", async () => {
+  for (const [body, root] of [
+    ["Hi {{business}}.\n\n{{your name}}", rootWith({ signed_by: null })],
+    ["Hi {{business}}. Book: {{booking link}}", rootWith({ signed_by: "Sam" })],
+  ]) {
+    const s = send();
+    const w = world({ sends: [s], templates: wordsTemplate(body), playbooks: root });
+    const [, out] = await w.send();
+    const r = w.row(s.id);
+    assert.deepEqual([r.state, r.reason, out.claim.held, out.claim.skipped], ["planned", null, 1, 0], body);
+    assert.ok(Date.parse(r.send_at) >= Date.now() + 59 * MIN, "an hour on at the soonest");
+    assert.equal(w.tables.messages.length, 0);
+  }
+});
+
+test("words changed since the check, or an opening named and none written, send it back to be checked (R5)", async () => {
+  // Checked against other words: the owner edited the step since.
+  const edited = send({ checked_words: "0".repeat(64), check_gen: 2, included_for: ["chain"] });
+  // The words name {{opening}}, and this send has none.
+  const bare = send({ opening: null });
+  const w = world({
+    sends: [edited, bare],
+    templates: wordsTemplate("{{opening}}\n\nHi {{business}}."),
+  });
+  const [, body] = await w.send();
+  assert.equal(body.claim.rechecked, 2);
+  const e = w.row(edited.id);
+  assert.deepEqual(
+    [e.state, e.checked_at, e.check_gen, e.checked_words, e.claimed_at, e.reason, e.included_for],
+    ["planned", null, 3, null, null, null, ["chain"]],
+    "unchecked at the next version, its owner's inclusion kept (R7)",
+  );
+  assert.deepEqual([w.row(bare.id).state, w.row(bare.id).checked_at, w.row(bare.id).reason], ["planned", null, null]);
+  assert.equal(w.tables.messages.length, 0, "never a missing_value skip, and nothing written");
+});
+
+test("a held send keeps its run open, closes with its canceled run, and gives up fourteen days from its planning (R10)", async () => {
+  const OPEN = "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1";
+  const CLOSED = "b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2";
+  const young = send({ broadcast_id: OPEN, state: "held", reason: "chain", created_at: ago(DAY) });
+  const old = send({ broadcast_id: OPEN, state: "held", reason: "language", created_at: ago(15 * DAY) });
+  const shut = send({ broadcast_id: CLOSED, state: "held", reason: "chain", created_at: ago(DAY) });
+  const run = (id, state) => ({
+    id,
+    tenant_id: T,
+    state,
+    playbook_id: ROOT,
+    audience: { kind: "reach_out" },
+    updated_at: ago(DAY),
+  });
+  const w = world({ sends: [young, old, shut], runs: [run(OPEN, "sending"), run(CLOSED, "canceled")] });
+  const [, body] = await w.tick();
+  assert.deepEqual([w.row(old.id).state, w.row(old.id).reason], ["skipped", "kept_waiting"]);
+  assert.deepEqual([w.row(young.id).state, w.row(young.id).reason], ["held", "chain"], "its owner's to answer");
+  assert.deepEqual([w.row(shut.id).state, w.row(shut.id).reason], ["skipped", "run_canceled"]);
+  assert.equal(w.tables.broadcasts.find((b) => b.id === OPEN).state, "sending", "a held send keeps its run open");
+  assert.equal(body.gave_up, 1);
 });
