@@ -60,6 +60,8 @@ const broadcastRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id
 const { everyone } = await import(at("apps/dashboard/src/server/people.ts"));
 const { audiencePool: audiencePoolReader } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
 const { audiencePool: audiencePoolOf } = await import(at("apps/dashboard/src/server/audience.ts"));
+const { playbooks: playbooksReader } = await import(at("apps/dashboard/src/server/readers/playbooks.ts"));
+const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 const { getBroadcast } = await import(at("apps/dashboard/src/server/broadcasts.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
@@ -2438,5 +2440,271 @@ test("the audience pool, for Ask: everyone with their appointments for the membe
     assert.equal(kernel.load(turn, audiencePoolReader, undefined), kernel.load(turn, audiencePoolReader, undefined));
     await kernel.load(turn, audiencePoolReader, undefined);
     assert.deepEqual(asked(turn.ctx).slice(held), ["rpc:people_list", "policies.select"]);
+  });
+});
+
+/* -------------------------------------------------------------------------------- the playbooks (PR 1.6) */
+
+const PB1 = "99999999-9999-4999-8999-999999999991";
+const PB2 = "99999999-9999-4999-8999-999999999992";
+/** GET playbooks' payload keys at origin/main (e3184cff), in its order. */
+const PLAYBOOKS_KEYS = ["playbooks", "timezone", "touched", "pools", "calendar", "lists", "people_lists", "deals_on"];
+/** A playbook row as the page's read selects it (server/playbooks.ts COLUMNS), a moment. */
+const pbRow = (id, over = {}) => ({
+  id,
+  tenant_id: A,
+  kind: "moment",
+  name: "Win-back",
+  trigger: "quiet_30",
+  list_id: null,
+  list_key: null,
+  template_id: "77777777-7777-4777-8777-777777777771",
+  template_name: "winback_offer",
+  template_language: "en_US",
+  params: [],
+  policy_class: "reengage",
+  state: "running",
+  run_hour: 10,
+  cap_per_run: 50,
+  gap_days: 30,
+  cadence_days: 0,
+  last_run_for: null,
+  last_run_at: null,
+  created_at: "2026-09-01T00:00:00Z",
+  ...over,
+});
+/** peopleWorld's workspace with its playbooks: the proposal follow-up, and a win-back on a list of its own kept by hand. */
+const playbooksWorld = () => {
+  const w = peopleWorld();
+  return {
+    tables: {
+      ...w.tables,
+      playbooks: [
+        pbRow("pb-follow", {
+          name: "Follow-up",
+          trigger: "proposal_waiting",
+          template_name: "proposal_follow_up",
+          policy_class: "follow_up",
+          gap_days: 0,
+        }),
+        pbRow("pb-win", { trigger: "saved_list", list_id: SEG1, created_at: "2026-09-02T00:00:00Z" }),
+      ],
+      segments: [{ id: SEG1, tenant_id: A, name: "Regulars", rule: null, archived_at: null }],
+      segment_members: [{ tenant_id: A, segment_id: SEG1, contact_id: P1 }],
+    },
+    rpcs: w.rpcs,
+  };
+};
+/** calendar-counts.test.mjs's person: a yes to offers and a number, heard from forty days ago. */
+const poolPerson = (n, over = {}) => ({
+  id: `p${n}`,
+  display_name: `Person ${n}`,
+  wa_profile_name: null,
+  phone_e164: `+1917555${String(n).padStart(4, "0")}`,
+  consent: "opted_in",
+  consent_source: "customer_message",
+  marketing_consent: "opted_in",
+  dnc: false,
+  has_chat: true,
+  first_seen_at: ago(60 * 24 * HOUR),
+  last_inbound_at: ago(40 * 24 * HOUR),
+  latest_wa_inbound_at: ago(40 * 24 * HOUR),
+  latest_conversation_id: `c${n}`,
+  conversation_count: 1,
+  ...over,
+});
+/** people_list as the database answers it: a page of at most a thousand, from an offset. */
+const pagedPeople = (all) => (a) => all.slice(a.p_offset ?? 0, (a.p_offset ?? 0) + (a.p_limit ?? 1000));
+/** calendar-counts.test.mjs's workspace: an owner, no calendar, and whatever `extra` adds. */
+const countsWorld = (people, extra = {}) => ({
+  tables: { ...calTables(null, "owner"), playbooks: [], templates: [], ...extra },
+  rpcs: { people_list: people },
+});
+/** outbound-routes.test.mjs, "playbooks: the workspace's with their runs' numbers": one of harbor's, one of bayside's. */
+const outboundWorld = () => ({
+  tables: {
+    memberships: reportMembers(),
+    playbooks: [pbRow(PB1), pbRow(PB2, { tenant_id: B, name: "Welcome", trigger: "new_week" })],
+    broadcasts: [bcRow(BC1, B, { playbook_id: PB2, state: "sent", run_for: "2026-09-10" })],
+    broadcast_recipients: [],
+    tenants: [{ id: B, name: "Bayside", timezone: "America/Chicago" }],
+    templates: [],
+  },
+  // No People door: the pools' read of everyone fails, and no moment is counted.
+  rpcs: {},
+});
+
+test("the playbooks, for Ask and for the page: GET playbooks answers its reader's payload, key for key and byte for byte -- over outbound-routes' fixture in both workspaces, whose People read fails and counts no moment; calendar-counts' thousand and three people with one reached this week, its People read refused, and its proposals out where deals are on and where they are off; and a workspace with a calendar, deals on and a list of its own -- and a playbook is not a row a citation names yet", async () => {
+  const thousand = Array.from({ length: 1003 }, (_, i) => poolPerson(i + 1));
+  thousand[0].marketing_consent = "unknown";
+  thousand[1].dnc = true;
+  const sent = ago(48 * HOUR);
+  const touchedOnce = countsWorld(pagedPeople(thousand), {
+    broadcasts: [{ id: "b1", tenant_id: A, state: "sent", playbook_id: null, scheduled_for: sent, created_at: sent }],
+    broadcast_recipients: [{ tenant_id: A, broadcast_id: "b1", contact_id: "p3", state: "sent", sent_at: sent }],
+  });
+  const refused = countsWorld(() => {
+    throw new Error("canceling statement due to statement timeout");
+  });
+  const out = (n, days, over = {}) =>
+    poolPerson(n, {
+      deal_id: `d${n}`,
+      deal_stage: "proposed",
+      deal_proposed_at: ago(days * 24 * HOUR),
+      deal_proposal_url: `https://docs.example.com/proposal/${n}`,
+      ...over,
+    });
+  const proposals = pagedPeople([out(1, 10), out(2, 20), out(3, 20, { deal_proposal_url: null }), poolPerson(4)]);
+  const dealsOn = countsWorld(proposals, {
+    tenants: [
+      { id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York", sells_by: "proposal" },
+    ],
+    deals: [],
+  });
+  const booked = countsWorld(proposals);
+  const cases = [
+    ["outbound, harbor", outboundWorld(), A],
+    ["outbound, bayside", outboundWorld(), B],
+    ["a thousand and three", touchedOnce, A],
+    ["People refused", refused, A],
+    ["deals on", dealsOn, A],
+    ["deals off", booked, A],
+    ["calendar, deals and a list", playbooksWorld(), A],
+  ];
+  const pages = {};
+  await withFeed({ body: ONE_ICS }, async () => {
+    for (const [label, w, tenant] of cases) {
+      const { result: page } = await logged("playbook_pools_people_failed", () =>
+        playbooksRoute.GET.run(req(`?workspace=${tenant}`), worldCtx(w)),
+      );
+      const { result: r } = await logged("playbook_pools_people_failed", () =>
+        kernel.load(turnIn(worldCtx(w), tenant), playbooksReader, undefined),
+      );
+      assert.deepEqual(r.data, page, `${label}: the route's payload`);
+      assert.equal(JSON.stringify(r.data), JSON.stringify(page), `${label}: byte for byte`);
+      assert.deepEqual(Object.keys(r.data), PLAYBOOKS_KEYS, `${label}: the keys in the order the route answered them`);
+      assert.deepEqual(r.rows, []);
+      pages[label] = r.data;
+    }
+  });
+  // What outbound-routes and calendar-counts assert of the route, of the reader.
+  assert.deepEqual(
+    pages["outbound, bayside"].playbooks.map((p) => [p.id, p.totals.runs]),
+    [[PB2, 1]],
+  );
+  assert.equal(pages["outbound, bayside"].timezone, "America/Chicago");
+  assert.deepEqual(
+    [pages["outbound, harbor"].playbooks.map((p) => p.id), pages["outbound, harbor"].pools.everyone_monthly],
+    [[PB1], null],
+    "a People read that fails counts no moment, and the playbooks stand",
+  );
+  const e = pages["a thousand and three"].pools.everyone_monthly;
+  assert.deepEqual(
+    [e.candidates, e.held, e.pool],
+    [1003 - 2 - 1, 1, 1003],
+    "past the first page, less the one reached",
+  );
+  assert.equal(pages["People refused"].pools.everyone_monthly, null);
+  assert.deepEqual([pages["deals on"].deals_on, pages["deals on"].pools.proposal_waiting.pool], [true, 2]);
+  assert.deepEqual([pages["deals off"].deals_on, pages["deals off"].pools.proposal_waiting], [false, null]);
+  const rich = pages["calendar, deals and a list"];
+  assert.deepEqual(
+    [
+      rich.calendar,
+      rich.deals_on,
+      Object.keys(rich.touched),
+      rich.lists.map((l) => l.id),
+      rich.pools[`list:${SEG1}`].pool,
+    ],
+    ["ok", true, [P2], [SEG1], 1],
+  );
+});
+
+/**
+ * Every query GET playbooks asked at origin/main (e3184cff) for playbooksWorld, in order, with the columns it selected.
+ * The workspace's door. The first stage at once: the zone, who a run reached this week (with the zone its touches
+ * keep), how the customers buy, the playbooks' runs and rows, the pace, then the runs' recipients. The second: everyone
+ * with their reply modes; the calendar's own lookup of the zone and the settings; then, deals being on, who had a
+ * proposal's follow-up; and the lists.
+ */
+const PLAYBOOKS_ASKED_AT_MAIN = [
+  ["memberships.select", "tenant_id, role, tenants (slug)"],
+  ["tenants.select", "name, timezone"],
+  ["tenants.select", "timezone"],
+  ["tenants.select", "sells_by"],
+  [
+    "broadcasts.select",
+    "id, name, template_id, template_name, template_language, params, audience, state, scheduled_for, started_at, finished_at, recipient_count, failure, created_at, playbook_id, run_for",
+  ],
+  [
+    "playbooks.select",
+    "id, name, trigger, list_id, list_key, template_id, template_name, template_language, params, policy_class, state, run_hour, cap_per_run, gap_days, cadence_days, last_run_for, last_run_at, created_at",
+  ],
+  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["deals.select", "id, stage, proposed_at, decided_at"],
+  [
+    "broadcast_recipients.select",
+    "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta)",
+  ],
+  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  ["rpc:people_list", null],
+  ["policies.select", "subject_type, subject_id, mode"],
+  ["tenants.select", "name, timezone"],
+  ["tenant_config.select", "config"],
+  ["deals.select", "id, contact_id, proposed_at"],
+  ["tenants.select", "timezone"],
+  ["broadcasts.select", "id, playbook_id, state, scheduled_for, created_at, run_for, params"],
+  ["broadcast_recipients.select", "broadcast_id, contact_id, sent_at, state"],
+  ["segments.select", "id, name, rule, archived_at"],
+  ["segment_members.select", "segment_id, contact_id"],
+];
+
+test("GET playbooks through its reader asks what it asked at origin/main, in its order, less one read: the pools' calendar lookup no longer reads the zone the page's first read just read, and the settings come through the config reader's columns; a turn that holds the zone, the settings and sells_by reads none of them; settings that cannot be read cost the visit moments, said once in the log, never the page", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    // At origin/main the pools' calendar lookup read the zone a second time, just before the settings.
+    const lookup = PLAYBOOKS_ASKED_AT_MAIN.findIndex(
+      ([k, cols], i) => i > 1 && k === "tenants.select" && cols === "name, timezone",
+    );
+    const want = PLAYBOOKS_ASKED_AT_MAIN.filter((_, i) => i !== lookup).map(([k, cols]) => [
+      k,
+      k === "tenant_config.select" ? CONFIG_READER_COLUMNS : cols,
+    ]);
+    const w = playbooksWorld();
+    const routed = worldCtx(w);
+    const page = await playbooksRoute.GET.run(req(`?workspace=${A}`), routed);
+    assert.deepEqual(askedWith(routed), want, "the workspace's door, then the reads");
+    const ctx = worldCtx(w);
+    const r = await kernel.load(turnIn(ctx), playbooksReader, undefined);
+    assert.deepEqual(r.data, page);
+    assert.deepEqual(askedWith(ctx), want.slice(1));
+    const turn = turnIn(worldCtx(w));
+    await Promise.all([facts, config, sellsBy].map((x) => kernel.load(turn, x, undefined)));
+    const held = turn.ctx.supabase.seen.length;
+    await kernel.load(turn, playbooksReader, undefined);
+    assert.deepEqual(
+      askedWith(turn.ctx).slice(held),
+      want
+        .slice(1)
+        .filter(([k, cols]) => k !== "tenant_config.select" && !(k === "tenants.select" && /sells_by|name/.test(cols))),
+      "the zone, the settings and sells_by were the turn's",
+    );
+    const down = { "tenant_config.select": { message: "config down" } };
+    const { result: blind, lines } = await logged("playbook_pools_visits_failed", () =>
+      playbooksRoute.GET.run(req(`?workspace=${A}`), worldCtx(w, down)),
+    );
+    assert.deepEqual(
+      [blind.calendar, blind.pools.visit_tomorrow, blind.pools.visited, blind.pools.lapsed],
+      ["none", null, null, null],
+      "no calendar read: the moments it names are not counted",
+    );
+    assert.ok(blind.pools.everyone_monthly && blind.playbooks.length === 2, "and everything else stands");
+    assert.deepEqual(
+      lines.map(([json]) => JSON.parse(json)),
+      [{ tenant: A, error: "getTenantConfig: config down" }],
+    );
+    const { result: r2 } = await logged("playbook_pools_visits_failed", () =>
+      kernel.load(turnIn(worldCtx(w, down)), playbooksReader, undefined),
+    );
+    assert.deepEqual(r2.data, blind);
   });
 });

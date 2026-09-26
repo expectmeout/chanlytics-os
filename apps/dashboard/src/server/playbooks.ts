@@ -39,7 +39,7 @@ import {
 } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
-import { peopleVisits } from "@/server/calendar";
+import { peopleVisits, type KnownFacts } from "@/server/calendar";
 import { archivedListWords } from "@/server/audience";
 import { createBroadcastPorts, templateValuePorts } from "@/server/campaign-ports";
 import { everyone } from "@/server/people";
@@ -258,6 +258,11 @@ export async function triggerPools(
    * pace where they are on, and reaches nobody where they are off, as its run does (0006).
    */
   deals: { on: boolean; pace: Pick<DealPaceVM, "waitDays"> | null },
+  /**
+   * The calendar's zone and settings the turn holds, or how to read them from it (KnownFacts, readers/playbooks.ts):
+   * the visits' lookup then reads neither again. Without them, it reads its own.
+   */
+  known?: KnownFacts,
 ): Promise<{
   pools: Record<string, TriggerPool | null>;
   calendar: "ok" | "unavailable" | "none";
@@ -288,7 +293,7 @@ export async function triggerPools(
       people: [],
     };
   }
-  const pv = await peopleVisits(ctx, tenantId, rows, now).catch((e: unknown) => {
+  const pv = await peopleVisits(ctx, tenantId, rows, now, known).catch((e: unknown) => {
     console.error(
       "playbook_pools_visits_failed",
       JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }),
