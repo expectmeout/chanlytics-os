@@ -11,14 +11,18 @@
  * THE SIGNATURE, CHECKED ONE WAY. `retellSigned` is the webhook's check, moved here so the four doors cannot come to
  * disagree: the badged key (RETELL_WEBHOOK_KEY, the API key when it is unset) over the raw body, then over the body
  * re-serialised, because Retell's own example signs `JSON.stringify(req.body)` and the two differ whenever an encoder
- * escapes non-ASCII.
+ * escapes non-ASCII. A knock that carries it comes in on any door: the caller signed, so that is the credential.
  *
- * REPORTED BEFORE IT IS REQUIRED. Whether Retell signs the inbound webhook and custom-function calls as it signs the
- * call webhook is a question a delivery answers, not a guess -- retell-fn.ts said it did not, and the webhook's own
- * history is 127 real deliveries turned away by a key that was not the badged one. So every knock logs
- * `voice_door_auth` with what it carried (sig, secret), and the secret still opens the door, compared in constant
- * time. With RETELL_DOORS_SIGNED=1 the signature alone opens it, as it does the webhook: set it once the log shows
- * sig: true on each door.
+ * THE SECRET, WHERE A DOOR SAYS SO. Retell's docs (Sep 2026) sign the inbound-call webhook and custom-function calls
+ * as they sign the call webhook: `x-retell-signature`, the badged key over the raw body and a timestamp. Whether
+ * production's deliveries bear that out is a question a delivery answers, not a guess -- retell-fn.ts once said they
+ * did not, and the webhook's own history is 127 real deliveries turned away by a key that was not the badged one. So
+ * every knock that comes in logs `voice_door_auth` with what it carried (sig, secret), and the secret still opens a
+ * door that lists itself in KEY_READ_FROM below, compared in constant time: a door absent there opens for the
+ * signature alone. Take a door out once its log shows sig: true; RETELL_DOORS_SIGNED=1 takes all three out at once,
+ * and then a refusal is logged too, since it may be Retell's. Read that log knowing the verifier tries ONE key, the
+ * badged one: sig: false on the fn and availability doors while the webhook shows true can mean the wrong key, not
+ * an unsigned delivery (voice-door-auth.test.mjs pins that a signature under the API key is refused).
  */
 import crypto from "node:crypto";
 import { verifyRetellSignature } from "../packages/channels.js";
@@ -59,23 +63,46 @@ function sameSecret(given: string | null, secret: string | undefined): boolean {
 export type VoiceDoor = "inbound" | "fn" | "availability";
 
 /**
- * May this knock come in: the signature when RETELL_DOORS_SIGNED=1, the shared secret until then.
+ * Which doors still read the shared secret beside the signature, and where -- each with its reason. A door absent
+ * here reads none.
  *
- * What a knock carried is logged when it comes in -- which is how the switch gets set on evidence -- and, once the
- * signature is required, when it is turned away too: that refusal may be Retell's, and a door that turned Retell away
- * without a word is how the webhook lost 127 deliveries. Until then a refusal is somebody without the secret, and a
- * public URL does not write a line for each of those.
+ *   - inbound: `?key=` on the URL. The inbound-webhook URL Retell was given at provisioning carries it (voice-provision),
+ *     and the log has not yet shown sig: true on this door.
+ *   - fn, availability: the `x-fn-secret` header the two tools carry (packages/channels voice-shell), for the same
+ *     reason; the converger reports a tool without the header as drift.
+ */
+const KEY_READ_FROM: Partial<Record<VoiceDoor, "query" | "header">> = {
+  inbound: "query",
+  fn: "header",
+  availability: "header",
+};
+
+/** The secret this knock carried, read only from where this door says it reads one. */
+function presentedSecret(door: VoiceDoor, request: Request): string | null {
+  const where = KEY_READ_FROM[door];
+  if (where === "query") return new URL(request.url).searchParams.get("key");
+  if (where === "header") return request.headers.get("x-fn-secret");
+  return null;
+}
+
+/**
+ * May this knock come in: Retell's signature, always; the shared secret where this door still reads one, until
+ * RETELL_DOORS_SIGNED=1.
+ *
+ * What a knock carried is logged when it comes in -- which is how a door leaves KEY_READ_FROM on evidence -- and, once
+ * the signature is required, when it is turned away too: that refusal may be Retell's, and a door that turned Retell
+ * away without a word is how the webhook lost 127 deliveries. Until then a refusal is somebody without the secret,
+ * and a public URL does not write a line for each of those.
  */
 export function voiceDoorAuth(
   door: VoiceDoor,
   request: Request,
   raw: string,
-  presented: string | null,
 ): { ok: boolean; sig: boolean; secret: boolean } {
   const sig = retellSigned(raw, request.headers.get("x-retell-signature")).ok;
-  const secret = sameSecret(presented, env.RETELL_FN_SECRET);
+  const secret = sameSecret(presentedSecret(door, request), env.RETELL_FN_SECRET);
   const signedOnly = env.RETELL_DOORS_SIGNED === "1";
-  const ok = signedOnly ? sig : secret;
+  const ok = sig || (!signedOnly && secret);
   if (ok || signedOnly) logger().info("voice_door_auth", { door, sig, secret, signed_only: signedOnly, ok });
   return { ok, sig, secret };
 }

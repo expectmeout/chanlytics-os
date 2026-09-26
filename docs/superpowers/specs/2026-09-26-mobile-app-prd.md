@@ -33,7 +33,7 @@ stop being web pages one at a time. Nothing a customer of a business sees change
 
 PR 1 (#1122, merged 26 Sep) put the shell in the tree: `apps/mobile` on SDK 57, five native tabs over the live site,
 the bridge in contracts, the first cloud builds. PR 2 (#1128, merged 26 Sep) is push: the receipts job (00189), the badge, the page registering the phone, taps into
-their tab. PR 3 (#1130) is native sign-in and the lock. PR 4 is Today on the home screen. PR 5 is account deletion and the version gate.
+their tab. PR 3 (#1130) is native sign-in and the lock. PR 4 is Today on the home screen. PR 5 is account deletion and the version gate. PR 6 is the store pack (`docs/store/`).
 
 Two facts about the web that shape the app: every page is a hash route under the workspace,
 `/w/<slug>#/today|inbox|calendar|clients|...`, and the page already raises the events a shell needs

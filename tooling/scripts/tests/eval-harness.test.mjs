@@ -112,12 +112,13 @@ test("the report reads at a glance and counts what passed", () => {
   assert.ok(r.text.includes("1/2 passed · 2,560 tokens"));
 });
 
-test("the runner knocks with the key and saves the exchange where git ignores it", () => {
+test("the runner knocks with a token for the door and the workspace, as the dashboard does, and saves the exchange where git ignores it", () => {
   // The endpoint itself -- the door, the case set's limits, the real composed
   // prompt handed to the model per case, nothing sent and nothing written --
-  // is run in eval-door.test.mjs.
+  // is run in eval-door.test.mjs; the key alone is refused there on an edge
+  // that holds the secret.
   const runner = readRaw("tooling/scripts/eval-brain.mjs");
-  assert.ok(runner.includes('"x-diag-key": KEY'));
+  assert.ok(runner.includes('signEdgeToken(SECRET, "/api/admin/eval", { workspace: TENANT })'));
   assert.ok(runner.includes("tooling/backups/eval-"), "the exchange is saved where git ignores it");
 });
 
