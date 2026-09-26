@@ -17397,7 +17397,6 @@ function checkNoteSuggestion(answer, turns, known) {
 // src/ask.ts
 import { z as z8 } from "zod";
 var ASK_MAX_CHARS = 1e3;
-var ASK_MODEL = "claude-sonnet-5";
 var ASK_MAX_ROUNDS = 4;
 var ASK_TURN_BUDGET_MS = 45e3;
 var ASK_MAX_TOKENS = 2e3;
@@ -17902,6 +17901,18 @@ var FOLLOWUP_ECHO = [
 function cacheHitOf(t) {
   const fed = t.input + t.cache_read + t.cache_creation;
   return fed > 0 ? t.cache_read / fed : null;
+}
+
+// src/ask-model.ts
+var ASK_MODELS = ["claude-opus-5-5", "claude-sonnet-5"];
+var ASK_MODEL_PROFILES = {
+  "claude-opus-5-5": { id: "claude-opus-5-5", effort: "low", forcedToolChoice: false, thinking: "always" },
+  "claude-sonnet-5": { id: "claude-sonnet-5", effort: "low", forcedToolChoice: true, thinking: "adaptive" }
+};
+var ASK_MODEL = "claude-opus-5-5";
+function askModelProfile(name) {
+  const id = ASK_MODELS.includes(name ?? "") ? name : ASK_MODEL;
+  return ASK_MODEL_PROFILES[id];
 }
 
 // src/ask-answer.ts
@@ -23138,6 +23149,8 @@ export {
   ASK_MAX_ROUNDS,
   ASK_MAX_TOKENS,
   ASK_MODEL,
+  ASK_MODELS,
+  ASK_MODEL_PROFILES,
   ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_RETENTION_DAYS,
@@ -23690,6 +23703,7 @@ export {
   asPersonMode,
   askIntent,
   askJump,
+  askModelProfile,
   askUndoOpen,
   attentionOf,
   attentionRow,

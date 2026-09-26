@@ -3,7 +3,6 @@ import {
   ASK_ANSWER_FORMAT,
   ASK_MAX_ROUNDS,
   ASK_MAX_TOKENS,
-  ASK_MODEL,
   ASK_TURN_BUDGET_MS,
   answerForCards,
   answerText,
@@ -18,6 +17,7 @@ import {
   type AskAnswer,
   type AskLanguage,
   type AskMessageVM,
+  type AskModelId,
   type AskProposal,
   type AskScope,
   type AskTurnShape,
@@ -30,8 +30,7 @@ import { stableSystem, turnSystem, type WorkspaceFacts } from "./prompt";
 import { snapshotFor } from "./snapshot";
 import { prefetchBlock, prefetchPlan } from "./prefetch";
 import { replayBlocks, runRound, type RoundBlock } from "./round";
-
-export { ASK_MODEL } from "@chanlytics/contracts";
+import { askModel } from "./model";
 
 /**
  * One turn of the assistant.
@@ -59,13 +58,6 @@ export { ASK_MODEL } from "@chanlytics/contracts";
 // spend, only a ceiling on what may be generated.
 const MAX_HISTORY = 12;
 const HISTORY_CHARS = 1200;
-/**
- * Choosing a tool is not writing an answer. The rounds run at low effort:
- * the receptionist's replies run there too and hold on the eval set, and a
- * round is three and a half seconds of a turn. The eval set decides if this
- * stays.
- */
-const EFFORT: "low" | "medium" = "low";
 /** Say is sent at most this often while it is written (spec 7.4). */
 const SAY_EVERY_MS = 50;
 
@@ -117,6 +109,8 @@ export interface TurnResult {
   /** Why it failed, for the log; the answer's headline already says it to the person. */
   failure: string | null;
   rounds: number;
+  /** The model the rounds ran on (the deployment's profile). */
+  model: AskModelId;
   /** Where the time went and what the model was fed (ask-shape.ts): logged, and stored on the turn's row. */
   shape: AskTurnShape;
 }
@@ -185,6 +179,7 @@ export function foldHistory(history: TurnInput["history"], text: string): Msg[] 
 
 export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
   const t0 = Date.now();
+  const model = askModel();
   const now = input.now ?? new Date();
   const es = input.language === "es";
   const tc: ToolContext = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now);
@@ -291,8 +286,8 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     clearTimeout(timer);
     const shape: AskTurnShape = {
       v: 1,
-      model: ASK_MODEL,
-      effort: EFFORT,
+      model: model.id,
+      effort: model.effort,
       surface: input.surface,
       scope_kind: input.scope?.kind ?? null,
       follow_up: input.history.length > 0,
@@ -331,6 +326,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       latencyMs: Date.now() - t0,
       ...r,
       text: answerText(r.answer),
+      model: model.id,
       shape,
     };
   };
@@ -446,7 +442,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     for (let round = 1; round <= ASK_MAX_ROUNDS; round++) {
       const last = round === ASK_MAX_ROUNDS;
       const request = {
-        model: ASK_MODEL,
+        model: model.id,
         max_tokens: ASK_MAX_TOKENS,
         system,
         messages,
@@ -455,10 +451,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         tool_choice: last ? { type: "none" } : { type: "auto" },
         output_config: format
           ? {
-              effort: EFFORT,
+              effort: model.effort,
               format: { type: "json_schema" as const, schema: ASK_ANSWER_FORMAT as unknown as Record<string, unknown> },
             }
-          : { effort: EFFORT },
+          : { effort: model.effort },
       };
 
       const roundAt = Date.now();
