@@ -2629,8 +2629,7 @@ var OPENING_FACT_KEYS = [
   "website",
   "hours",
   "about",
-  "why_it_fits",
-  "what_you_asked"
+  "why_it_fits"
 ];
 var OPENING_SCHEMA = {
   type: "object",

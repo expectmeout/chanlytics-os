@@ -9,6 +9,7 @@
  *   REACH_OUT_MONTH_EMAILS   the month's allowance per workspace (§4.8's number; the price is Ruben's to set).
  */
 import type { DeliveryRefusal } from "./consent";
+import { isReachOutSlot, replaceSlots, slotsNamed, type ReachOutSlot } from "./reach-out-words";
 
 export interface OutreachLeadFacts {
   leadStage: string | null;
@@ -71,23 +72,19 @@ export function reachOutSlots(
   workspace: SlotWorkspace,
   opening: string | null = null,
 ): { ok: true; text: string } | { ok: false; reason: "missing_value" } {
-  const values = new Map<string, string | null>([
-    ["business", lead.business_name?.trim() || null],
-    ["city", lead.city?.trim() || null],
-    ["your business", workspace.businessName?.trim() || null],
-    ["your name", workspace.yourName?.trim() || null],
-    ["booking link", workspace.bookingLink?.trim() || null],
-    ["opening", opening?.trim() || null],
-  ]);
-  // Any {{…}} is a slot, named in any case and spacing. One this does not fill, whether it has no value here or is no
-  // slot at all ({{first name}}, {{business_name}}), holds the email: braces never reach a business.
-  const SLOT = /\{\{([^{}]*)\}\}/g;
-  // A brace pair left over once the slots are out ("{{business" with no end) is a slot nobody can fill.
-  let missing = /\{\{|\}\}/.test(words.replace(SLOT, ""));
-  const text = words.replace(SLOT, (whole, name: string) => {
-    const v = values.get(name.trim().replace(/\s+/g, " ").toLowerCase());
-    if (v == null) missing = true;
-    return v ?? whole;
-  });
+  const values: Record<ReachOutSlot, string | null> = {
+    business: lead.business_name?.trim() || null,
+    city: lead.city?.trim() || null,
+    "your business": workspace.businessName?.trim() || null,
+    "your name": workspace.yourName?.trim() || null,
+    "booking link": workspace.bookingLink?.trim() || null,
+    opening: opening?.trim() || null,
+  };
+  // Any {{…}} is a slot, named in any case and spacing (reach-out-words: the one slot rule, the sheet's too). One this
+  // does not fill, whether it has no value here or is no slot at all ({{first name}}, {{business_name}}), holds the
+  // email, and so does a brace left once the slots are out: braces never reach a business.
+  const named = slotsNamed(words);
+  const missing = named.stray || named.names.some((k) => !isReachOutSlot(k) || values[k] === null);
+  const text = replaceSlots(words, (k) => (isReachOutSlot(k) ? values[k] : null));
   return missing ? { ok: false, reason: "missing_value" } : { ok: true, text };
 }

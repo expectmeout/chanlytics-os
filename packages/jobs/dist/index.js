@@ -2617,8 +2617,7 @@ var OPENING_FACT_KEYS = [
   "website",
   "hours",
   "about",
-  "why_it_fits",
-  "what_you_asked"
+  "why_it_fits"
 ];
 var OPENING_SCHEMA = {
   type: "object",
@@ -9995,8 +9994,7 @@ var OPENING_FACT_KEYS2 = [
   "website",
   "hours",
   "about",
-  "why_it_fits",
-  "what_you_asked"
+  "why_it_fits"
 ];
 var OPENING_SCHEMA2 = {
   type: "object",
@@ -13479,8 +13477,7 @@ var OPENING_FACT_KEYS3 = [
   "website",
   "hours",
   "about",
-  "why_it_fits",
-  "what_you_asked"
+  "why_it_fits"
 ];
 var OPENING_SCHEMA3 = {
   type: "object",
@@ -16047,16 +16044,6 @@ function isCampaignEmail2(request) {
 }
 var NINE_TO_FIVE22 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME22 = { from: 8 * 60, to: 20 * 60 };
-function outreachRefusalOf(f) {
-  if (!f.leadStage) return "outreach_not_a_lead";
-  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
-  if (f.suppressed) return "outreach_suppressed";
-  if (f.wroteBack) return "outreach_wrote_back";
-  return null;
-}
-function isReachOutRun(audience) {
-  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
-}
 var REACH_OUT_SUBJECT_MAX22 = 80;
 var REACH_OUT_BODY_MAX22 = 1200;
 var REACH_OUT_STEPS_MAX22 = 5;
@@ -16088,9 +16075,18 @@ var OPENING_FACT_KEYS22 = [
   "website",
   "hours",
   "about",
-  "why_it_fits",
-  "what_you_asked"
+  "why_it_fits"
 ];
+function outreachRefusalOf(f) {
+  if (!f.leadStage) return "outreach_not_a_lead";
+  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
+  if (f.suppressed) return "outreach_suppressed";
+  if (f.wroteBack) return "outreach_wrote_back";
+  return null;
+}
+function isReachOutRun(audience) {
+  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
+}
 var OPENING_SCHEMA22 = {
   type: "object",
   properties: {
@@ -18505,8 +18501,7 @@ var OPENING_FACT_KEYS32 = [
   "website",
   "hours",
   "about",
-  "why_it_fits",
-  "what_you_asked"
+  "why_it_fits"
 ];
 var OPENING_SCHEMA32 = {
   type: "object",
@@ -21626,8 +21621,7 @@ var OPENING_FACT_KEYS4 = [
   "website",
   "hours",
   "about",
-  "why_it_fits",
-  "what_you_asked"
+  "why_it_fits"
 ];
 var OPENING_SCHEMA4 = {
   type: "object",

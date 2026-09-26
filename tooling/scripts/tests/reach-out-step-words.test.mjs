@@ -16,6 +16,10 @@ import {
   ReachOutChainSchema,
   validateReachOutChain,
   chainIssueWords,
+  linksIn,
+  wordCount,
+  reachOutSlots,
+  customerDomainOf,
 } from "@chanlytics/contracts";
 
 test("a first email a program sends never poses as a reply or a forward, in any of the languages' prefixes", () => {
@@ -141,4 +145,46 @@ test("the first step goes on day one, each after it waits its days; a name to si
     chainIssueWords({ step: null, field: "body", problem: "no_booking_link" }),
     "Your words name {{booking link}}. Add your booking link in Settings › Business first.",
   );
+});
+
+test("one link rule: a bare web address is a link in the words and the subject, an email address is not", () => {
+  assert.deepEqual(linksIn("see example.com and harbor.example/book"), ["example.com", "harbor.example/book"]);
+  assert.deepEqual(linksIn("write to me@harbor.example, St.Louis, a 4.9"), []);
+  assert.deepEqual(linksIn("HTTPS://Harbor.example/x and www.harbor.example"), [
+    "HTTPS://Harbor.example/x",
+    "www.harbor.example",
+  ]);
+  assert.equal(linkCount("see example.com, or {{booking link}}"), 2);
+  const words = (subject, body) => validateReachOutWords({ subject, body }, true).map((i) => i.problem);
+  assert.ok(words("Your calls", "see example.com, or {{booking link}}").includes("too_many_links"));
+  assert.ok(words("see https://a.example", "Hello {{business}}.").includes("link_in_subject"));
+});
+
+test("a brace a business would read is refused at the save, and holds the send", () => {
+  for (const body of ["Hi {business}.", "Hi {{{business}}}.", "Hi {{business}.", "Hi business}}."])
+    assert.ok(
+      validateReachOutWords({ subject: "x", body }, true).some((i) => i.problem === "stray_brace"),
+      body,
+    );
+  const lead = { business_name: "Austin Movers", city: "Austin" };
+  assert.deepEqual(reachOutSlots("Hi {{{business}}}.", lead, { businessName: "Harbor" }), {
+    ok: false,
+    reason: "missing_value",
+  });
+  assert.deepEqual(reachOutSlots("Hi {{ Business }} in {{city}}.", lead, { businessName: "Harbor" }), {
+    ok: true,
+    text: "Hi Austin Movers in Austin.",
+  });
+});
+
+test("capitals shout across lines, and a line ending of any kind splits them", () => {
+  assert.equal(shoutingLine("FREE\nTRIAL\nTODAY"), true);
+  assert.equal(shoutingLine("FREE\n\nTRIAL"), false);
+  assert.equal(shoutingLine("Hello\rCALL US RIGHT NOW"), true);
+  assert.equal(wordCount("a — b , c"), 3);
+});
+
+test("a customer's domain is read from a real address", () => {
+  assert.equal(customerDomainOf("Owner@HydePark.Example", true), "hydepark.example");
+  assert.equal(customerDomainOf("a@b@c.example", true), null);
 });

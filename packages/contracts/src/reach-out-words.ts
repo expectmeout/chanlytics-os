@@ -18,6 +18,7 @@ import { posesAsReply } from "./email-subject";
 import { languageName } from "./template-languages";
 import { siteHost } from "./lead-search";
 import { violatesNoPrices } from "./policy";
+import { normalizeEmail } from "./email-address";
 
 export const REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"] as const;
 export type ReachOutSlot = (typeof REACH_OUT_SLOTS)[number];
@@ -56,14 +57,22 @@ export function isReachOutSlot(name: string): name is ReachOutSlot {
   return (REACH_OUT_SLOTS as readonly string[]).includes(name);
 }
 
-/** Every slot the words name, in order, once each, and whether a brace is left without its pair. */
+/**
+ * Every slot the words name, in order, once each, and whether a brace is left once the slots are out: "{{business"
+ * with no end, "{business}" with one brace a side, "{{{business}}}" with one too many. A business never reads a brace.
+ */
 export function slotsNamed(text: string): { names: string[]; stray: boolean } {
   const names: string[] = [];
   for (const m of text.matchAll(SLOT)) {
     const key = slotKey(m[1] ?? "");
     if (!names.includes(key)) names.push(key);
   }
-  return { names, stray: /\{\{|\}\}/.test(text.replace(SLOT, "")) };
+  return { names, stray: /[{}]/.test(text.replace(SLOT, "")) };
+}
+
+/** The words with each slot replaced by what `fill` gives for its key; a slot it has nothing for stays as written. */
+export function replaceSlots(text: string, fill: (key: string) => string | null): string {
+  return text.replace(SLOT, (whole, name: string) => fill(slotKey(name)) ?? whole);
 }
 
 /** How many times the words name one slot. */
@@ -73,6 +82,11 @@ export function slotCount(text: string, slot: ReachOutSlot): number {
   return n;
 }
 
+/** Words as a reader counts them: a mark standing alone (a dash, the comma a slot left behind) is no word. */
+export function wordCount(text: string): number {
+  return text.split(/\s+/).filter((t) => /[\p{L}\p{N}]/u.test(t)).length;
+}
+
 /** The words a business reads, counted as a reader counts them: a slot is one word, the opening its most. */
 export function emailWordCount(text: string): number {
   let slots = 0;
@@ -80,26 +94,50 @@ export function emailWordCount(text: string): number {
     slots += slotKey(name) === "opening" ? OPENING_WORDS_MAX : 1;
     return " ";
   });
-  // A mark left alone once its slot is out (the comma in "{{business}}, see") is no word.
-  return slots + rest.split(/\s+/).filter((t) => /[\p{L}\p{N}]/u.test(t)).length;
+  return slots + wordCount(rest);
 }
 
-const LINK = /\bhttps?:\/\/[^\s<>]+|\bwww\.[^\s<>]+/gi;
+const ADDRESS = /[^\s@<>]+@[^\s@<>]+/g;
+const SCHEME_OR_WWW = /\bhttps?:\/\/[^\s<>]+|\bwww\.[^\s<>]+/gi;
+// A bare name.tld as an address is written, in lower case: "example.com", "harbor.example/book". "St.Louis",
+// "Dr.Smith" and a rating's "4.9" are not: a capital after the dot, or no letters.
+const BARE_HOST = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,24}\b(?:\/[^\s<>]*)?/g;
+
+/**
+ * The web addresses a reader sees in the words: each with a scheme or a www., and each bare name.tld. An email
+ * address is not one. The one link rule: the words' "one link at most" and the opening's "no link" both ask it.
+ */
+export function linksIn(text: string): string[] {
+  const out: string[] = [];
+  const rest = text
+    .replace(SLOT, " ")
+    .replace(ADDRESS, " ")
+    .replace(SCHEME_OR_WWW, (m) => {
+      out.push(m);
+      return " ";
+    });
+  for (const m of rest.matchAll(BARE_HOST)) out.push(m[0]);
+  return out;
+}
 
 /** The links a business sees: each one written out, and each {{booking link}}. */
 export function linkCount(text: string): number {
-  return (text.replace(SLOT, " ").match(LINK) ?? []).length + slotCount(text, "booking link");
+  return linksIn(text).length + slotCount(text, "booking link");
 }
 
-/** A line in capitals: eight letters or more and none of them lower case. */
+/**
+ * Words in capitals: a line, or lines one under another, of eight letters or more and none of them lower case.
+ * "FREE / TRIAL / TODAY" on three lines shouts as one.
+ */
 export function shoutingLine(text: string): boolean {
-  return text
-    .replace(SLOT, " ")
-    .split(/\r?\n/)
-    .some((line) => {
-      const letters = line.replace(/[^\p{L}]/gu, "");
-      return letters.length >= 8 && letters === letters.toUpperCase() && letters !== letters.toLowerCase();
-    });
+  let run = 0;
+  for (const line of text.replace(SLOT, " ").split(/\r\n|\r|\n/)) {
+    const letters = line.replace(/[^\p{L}]/gu, "");
+    const capitals = letters !== "" && letters === letters.toUpperCase() && letters !== letters.toLowerCase();
+    run = capitals ? run + letters.length : 0;
+    if (run >= 8) return true;
+  }
+  return false;
 }
 
 export type WordsProblem =
@@ -107,6 +145,7 @@ export type WordsProblem =
   | "subject_too_long"
   | "subject_poses_as_reply"
   | "opening_in_subject"
+  | "link_in_subject"
   | "body_missing"
   | "body_too_long"
   | "unknown_slot"
@@ -137,6 +176,7 @@ export function validateReachOutWords(w: { subject: string | null; body: string 
     else if (subject.length > REACH_OUT_SUBJECT_MAX) out.push({ field: "subject", problem: "subject_too_long" });
     if (subject && posesAsReply(subject)) out.push({ field: "subject", problem: "subject_poses_as_reply" });
     if (slotCount(subject, "opening") > 0) out.push({ field: "subject", problem: "opening_in_subject" });
+    if (linkCount(subject) > 0) out.push({ field: "subject", problem: "link_in_subject" });
     if (shoutingLine(subject)) out.push({ field: "subject", problem: "shouting" });
   }
   if (!body) out.push({ field: "body", problem: "body_missing" });
@@ -169,6 +209,8 @@ export function wordsIssueWords(i: WordsIssue): string {
       return "A first email can't start with Re: or Fwd:.";
     case "opening_in_subject":
       return "The opening goes in the email, not the subject.";
+    case "link_in_subject":
+      return "Keep links out of the subject.";
     case "body_missing":
       return "Write what you'd say.";
     case "body_too_long":
@@ -176,7 +218,7 @@ export function wordsIssueWords(i: WordsIssue): string {
     case "unknown_slot":
       return `{{${i.slot ?? ""}}} isn't one of the slots. Use the chips below.`;
     case "stray_brace":
-      return "A slot is missing one of its braces.";
+      return "Braces are for slots only, two on each side: {{business}}.";
     case "opening_twice":
       return "The opening goes in once.";
     case "too_many_words":
@@ -267,9 +309,11 @@ export const OPENING_FACT_KEYS = [
   "hours",
   "about",
   "why_it_fits",
-  "what_you_asked",
 ] as const;
 export type OpeningFactKey = (typeof OPENING_FACT_KEYS)[number];
+export function isOpeningFactKey(k: string): k is OpeningFactKey {
+  return (OPENING_FACT_KEYS as readonly string[]).includes(k);
+}
 
 /** A business's record: what the writer and the reader are given, and what code checks their answers against. */
 export interface OpeningRecord {
@@ -286,14 +330,18 @@ export interface OpeningRecord {
   about: string | null;
   /** The finder's reason it fits (lead_search_members.reason). */
   why_it_fits: string | null;
-  /** What the owner asked the finder for (lead_searches.asked). */
+  /**
+   * What the owner asked the finder for (lead_searches.asked): the sender's words about their search, never a fact
+   * about this business. The writer is told it; no opening leans on it, and its numbers back nothing.
+   */
   what_you_asked: string | null;
 }
 
 export interface WrittenOpening {
   opening: string;
   angle: string;
-  facts_used: OpeningFactKey[];
+  /** As the writer named them: a name that is no field of the record is kept, and code refuses it. */
+  facts_used: string[];
 }
 
 export function factValue(r: OpeningRecord, k: OpeningFactKey): string | null {
@@ -305,7 +353,10 @@ export function factValue(r: OpeningRecord, k: OpeningFactKey): string | null {
 
 const NUMBER = /\d[\d,]*(?:\.\d+)?/g;
 
-/** Every way the record's numbers may be written: a rating 4.9 or 5.0, a count 1,204 or 1204, a year in the about. */
+/**
+ * Every way the record's numbers may be written: a rating 4.9 or 5.0 and its scale ("4.9 out of 5"), a count 1,204
+ * or 1204, a year in the about. What the owner searched for is not the business's, so its numbers back nothing.
+ */
 function recordNumbers(r: OpeningRecord): Set<string> {
   const out = new Set<string>();
   const add = (n: number) => {
@@ -313,19 +364,31 @@ function recordNumbers(r: OpeningRecord): Set<string> {
     out.add(n.toLocaleString("en-US"));
     out.add(n.toFixed(1));
   };
-  if (r.rating !== null) add(r.rating);
+  if (r.rating !== null) {
+    add(r.rating);
+    add(5);
+  }
   if (r.reviews !== null) add(r.reviews);
-  for (const text of [r.business_name, r.category, r.city, r.hours, r.about, r.why_it_fits, r.what_you_asked])
+  for (const text of [r.business_name, r.category, r.city, r.hours, r.about, r.why_it_fits])
     for (const m of (text ?? "").matchAll(NUMBER)) out.add(m[0].replace(/,$/, ""));
   return out;
 }
 
-export type OpeningProblem =
-  "empty" | "too_long" | "link" | "brace" | "shouting" | "price" | "angle" | "unnamed_fact" | "unbacked_number";
-
-// A scheme, a www., or any name.tld (a business's own host is a link to a spam filter too). Numbers never match: a
-// rating's "4.9" has no letters after its dot.
-const LINKISH = /https?:\/\/|\bwww\.|\b[a-z0-9-]+\.[a-z]{2,}\b/i;
+export const OPENING_PROBLEMS = [
+  "empty",
+  "too_long",
+  "link",
+  "brace",
+  "shouting",
+  "price",
+  "angle",
+  "unnamed_fact",
+  "unbacked_number",
+] as const;
+export type OpeningProblem = (typeof OPENING_PROBLEMS)[number];
+export function isOpeningProblem(p: string | null | undefined): p is OpeningProblem {
+  return (OPENING_PROBLEMS as readonly string[]).includes(p ?? "");
+}
 
 /**
  * An opening as the writer wrote it, read by code before the reader reads it (§4.4, F2): something to say, forty
@@ -335,15 +398,19 @@ const LINKISH = /https?:\/\/|\bwww\.|\b[a-z0-9-]+\.[a-z]{2,}\b/i;
 export function checkOpening(o: WrittenOpening, r: OpeningRecord): OpeningProblem | null {
   const text = o.opening.trim();
   if (!text) return "empty";
-  if (text.split(/\s+/).length > OPENING_WORDS_MAX) return "too_long";
-  if (LINKISH.test(text)) return "link";
+  if (wordCount(text) > OPENING_WORDS_MAX) return "too_long";
+  // The business's own name and city are theirs to be called by, dots and all ("fixit.co Repairs"); anything else
+  // shaped like an address, or an email address, is a link (a business's own host is one to a spam filter too).
+  let unnamed = text;
+  for (const own of [r.business_name, r.city]) if (own?.trim()) unnamed = unnamed.split(own.trim()).join(" ");
+  if (linksIn(unnamed).length > 0 || /@/.test(unnamed)) return "link";
   if (/\{\{|\}\}/.test(text)) return "brace";
   if (shoutingLine(text)) return "shouting";
   // The platform's one price rule (policy.ts), the one every reply the receptionist writes is read by.
   if (violatesNoPrices(text)) return "price";
   const angle = o.angle.trim().split(/\s+/).filter(Boolean);
   if (angle.length === 0 || angle.length > ANGLE_WORDS_MAX) return "angle";
-  for (const k of o.facts_used) if (!factValue(r, k)) return "unnamed_fact";
+  for (const k of o.facts_used) if (!isOpeningFactKey(k) || !factValue(r, k)) return "unnamed_fact";
   const known = recordNumbers(r);
   for (const m of text.matchAll(NUMBER)) if (!known.has(m[0].replace(/,$/, ""))) return "unbacked_number";
   return null;
@@ -392,7 +459,8 @@ export function chainOf(l: {
 
 /** The lead's address's domain when a person in People writes from it and it is nobody's free mail (F6); else null. */
 export function customerDomainOf(email: string | null, sharedWithPerson: boolean): string | null {
-  const domain = (email ?? "").split("@")[1]?.trim().toLowerCase() ?? "";
+  const address = normalizeEmail(email);
+  const domain = address ? address.slice(address.lastIndexOf("@") + 1) : "";
   return sharedWithPerson && domain && !isFreeMail(domain) ? domain : null;
 }
 
@@ -413,7 +481,8 @@ export type HoldDoor = "include" | "rewrite" | "skip" | "not_a_fit";
 
 /**
  * A held send, said in a line (F3). The detail is what the check stored beside the reason: "site:3" or "name:4" for a
- * chain, the language's code, a customer's domain, the reader's words for an unbacked claim.
+ * chain, the language's code, a customer's domain, the reader's words for an unbacked claim, the code rule an
+ * opening broke (an OpeningProblem) for a pitch or an opening that could not be written.
  */
 export function holdWords(h: ReachOutHold, detail: string | null, stepLanguage = "en"): string {
   switch (h) {
@@ -432,9 +501,13 @@ export function holdWords(h: ReachOutHold, detail: string | null, stepLanguage =
         ? `the opening said “${detail}”, which their record doesn't hold`
         : "the opening said something their record doesn't hold";
     case "reads_like_spam":
-      return "the opening read like a pitch";
+      return isOpeningProblem(detail)
+        ? `the opening read like a pitch: ${openingProblemWords(detail)}`
+        : "the opening read like a pitch";
     case "check_unavailable":
-      return "the check couldn't run";
+      return isOpeningProblem(detail)
+        ? `the opening couldn't be written to the rules: ${openingProblemWords(detail)}`
+        : "the check couldn't run";
   }
 }
 

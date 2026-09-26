@@ -3370,8 +3370,7 @@ var OPENING_FACT_KEYS = [
   "website",
   "hours",
   "about",
-  "why_it_fits",
-  "what_you_asked"
+  "why_it_fits"
 ];
 var OPENING_SCHEMA = {
   type: "object",
@@ -8130,16 +8129,6 @@ function timetable(input) {
   }
   return { placed, unplaced };
 }
-function outreachRefusalOf(f) {
-  if (!f.leadStage) return "outreach_not_a_lead";
-  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
-  if (f.suppressed) return "outreach_suppressed";
-  if (f.wroteBack) return "outreach_wrote_back";
-  return null;
-}
-function isReachOutRun(audience) {
-  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
-}
 var REACH_OUT_SUBJECT_MAX2 = 80;
 var REACH_OUT_BODY_MAX2 = 1200;
 var REACH_OUT_STEPS_MAX2 = 5;
@@ -8171,9 +8160,18 @@ var OPENING_FACT_KEYS2 = [
   "website",
   "hours",
   "about",
-  "why_it_fits",
-  "what_you_asked"
+  "why_it_fits"
 ];
+function outreachRefusalOf(f) {
+  if (!f.leadStage) return "outreach_not_a_lead";
+  if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
+  if (f.suppressed) return "outreach_suppressed";
+  if (f.wroteBack) return "outreach_wrote_back";
+  return null;
+}
+function isReachOutRun(audience) {
+  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
+}
 var OPENING_SCHEMA2 = {
   type: "object",
   properties: {
@@ -10601,8 +10599,7 @@ var OPENING_FACT_KEYS3 = [
   "website",
   "hours",
   "about",
-  "why_it_fits",
-  "what_you_asked"
+  "why_it_fits"
 ];
 var OPENING_SCHEMA3 = {
   type: "object",
