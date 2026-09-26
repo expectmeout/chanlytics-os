@@ -686,7 +686,7 @@ var PURPOSE_REFUSALS = {
   outreach_not_a_lead: "Cold email goes only to a business your searches found.",
   outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",
   outreach_suppressed: "This address is on the never-again list: it unsubscribed, complained, or was erased.",
-  outreach_wrote_back: "This business wrote back, so it is a conversation now: answer it from the Inbox. No cold email goes to it again.",
+  outreach_wrote_back: "This business wrote back or called, so it is a conversation now: answer it from the Inbox. No cold email goes to it again.",
   outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
   outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
   sending_domain_not_ready: "The domain this email was to leave from isn't sending right now. Connections, under Email, says why.",
@@ -9864,7 +9864,7 @@ var HELD_REASONS = {
   outreach_not_a_lead: "not a business your searches found",
   outreach_lead_closed: "no longer being written to",
   outreach_suppressed: "on the never-again list",
-  outreach_wrote_back: "wrote back",
+  outreach_wrote_back: "wrote back or called",
   outreach_without_unsubscribe: "no unsubscribe link",
   outreach_needs_own_domain: "not from your own domain",
   sending_domain_not_ready: "the domain isn't sending",
@@ -23098,6 +23098,7 @@ function isCampaignEmail(request) {
   const v = headers?.["List-Unsubscribe"];
   return typeof v === "string" && v.trim() !== "";
 }
+var UNSUBSCRIBE_PAGE_HEADER = "x-unsubscribe-page";
 function unsubscribePageWords(v) {
   switch (v.kind) {
     case "ask": {
@@ -23680,6 +23681,7 @@ export {
   TRY_SKIPPED,
   TenantConfigSchema,
   TenantConfigWriteSchema,
+  UNSUBSCRIBE_PAGE_HEADER,
   VISION_STRENGTH,
   WABA_FIELDS,
   WAITING_AFTER_DAYS,

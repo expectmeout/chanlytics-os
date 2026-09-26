@@ -55,7 +55,8 @@ function wireOf(result = { ok: true, wamid: "wamid.1", status: 200 }) {
  * The send door's one question for a cold email (00177 outreach_facts), answered from the world's tables the way the
  * SQL answers it; the SQL itself is proved on a database (outreach-facts.db.test.mjs). `t.suppressed` lists the
  * addresses on the never-again list; `t.sent_since` is what the domain sent in the window; a person wrote back when an
- * inbound message of theirs is on one of their threads, an email's automatic reply or a program's mail aside (00181).
+ * inbound message of theirs is on one of their threads, an email's automatic reply aside (00181; a reply from another
+ * address, and a call, are the SQL's, proved there).
  */
 const outreachRpc = (t) => ({
   outreach_facts: (a) => {
@@ -69,7 +70,7 @@ const outreachRpc = (t) => ({
         theirs.has(m.conversation_id) &&
         m.direction === "inbound" &&
         m.sender === "customer" &&
-        !(m.channel === "email" && ["auto_reply", "automated"].includes(m.meta?.email?.claim ?? "person")),
+        !(m.channel === "email" && m.meta?.email?.claim === "auto_reply"),
     );
     const live = (t.leads ?? [])
       .filter((l) => l.tenant_id === a.p_tenant_id && l.contact_id === a.p_contact_id && !l.erased_at && !l.blanked_at)
@@ -1204,9 +1205,10 @@ test("a business that wrote back, in any words on any channel, is never written 
     ["outreach_wrote_back", [inbound({ channel: "email", meta: { email: { claim: "person" } } })]],
     ["outreach_wrote_back", [inbound({ channel: "whatsapp", meta: {} })]],
     ["outreach_wrote_back", [inbound({ channel: "sms", meta: {} })]],
-    // A responder and a program's mail are no person's words: the sequence goes on.
+    // A helpdesk or a CRM sends a person's no with a list's headers: a no missed is the mistake that must not be made.
+    ["outreach_wrote_back", [inbound({ channel: "email", meta: { email: { claim: "automated" } } })]],
+    // An out-of-office is no person's words: the sequence goes on.
     [null, [inbound({ channel: "email", meta: { email: { claim: "auto_reply" } } })]],
-    [null, [inbound({ channel: "email", meta: { email: { claim: "automated" } } })]],
     // Another person's thread is not theirs.
     [null, [inbound({ channel: "email", conversation_id: "c2", meta: {} })]],
   ];

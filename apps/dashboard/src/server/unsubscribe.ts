@@ -17,7 +17,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient, type Database } from "@chanlytics/db";
 import { addressOf, verifyUnsubscribeToken } from "@chanlytics/channels";
-import { unsubscribePageWords, type UnsubscribeView } from "@chanlytics/contracts";
+import { UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, type UnsubscribeView } from "@chanlytics/contracts";
 
 /** The largest body a one click or the page's button sends. Anything larger is not one. */
 const MAX_BODY_BYTES = 4096;
@@ -69,17 +69,20 @@ function sayUnavailable(why: "no_secret" | "no_database"): void {
   sayOnceAMinute("error", "unsubscribe_unavailable", { why });
 }
 
-/** Links refused since the last line said so. */
+/** Links this instance refused since its last line said so. */
 let refusedSinceSaid = 0;
 
 /**
- * A link no key here made: a guess, a link a mail client broke, or one sealed under a key this page does not hold. One
- * is nothing; a stream of them after a key changed is every link in every inbox refused, which the edge's probe pages
- * about (apps/edge lib/email/unsubscribe-probe.ts). The line counts them, so a person reading it can tell the two.
+ * A link no key here made: a guess, a link a mail client broke, or one sealed under a key this page does not hold. The
+ * page says the first at once, then once a minute at most, each line counting what this instance (one of several)
+ * refused since its previous line (`since`, null for its first). So a key set wrong reads as one line, then a count that
+ * keeps coming; it is the edge's probe that pages about it (apps/edge lib/email/unsubscribe-probe.ts).
  */
 function sayBadLink(): void {
   refusedSinceSaid += 1;
-  if (sayOnceAMinute("warn", "unsubscribe_bad_link", { refused: refusedSinceSaid })) refusedSinceSaid = 0;
+  const last = saidAt.get("unsubscribe_bad_link");
+  const since = last === undefined ? null : new Date(last).toISOString();
+  if (sayOnceAMinute("warn", "unsubscribe_bad_link", { refused: refusedSinceSaid, since })) refusedSinceSaid = 0;
 }
 
 /** The secrets and the database, or null once the platform has been told which is missing. */
@@ -137,7 +140,9 @@ function page(status: number, view: UnsubscribeView): Response {
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${STYLE}</style></head>
 <body><main><div class="card"><h1>${escapeHtml(w.lead)}</h1><p>${escapeHtml(w.body)}</p>${form}</div>${foot}</main></body></html>`;
-  return new Response(html, { status, headers: { ...HEADERS, "content-type": "text/html; charset=utf-8" } });
+  // Which view this is, so the edge can tell the page answering from anything else answering at its address.
+  const headers = { ...HEADERS, "content-type": "text/html; charset=utf-8", [UNSUBSCRIBE_PAGE_HEADER]: view.kind };
+  return new Response(html, { status, headers });
 }
 
 function text(status: number, body: string): Response {

@@ -13,7 +13,10 @@ export interface OutreachFactsRow {
   lead_stage: string | null;
   /** The address is on the workspace's never-again list (lead_suppressions, email). */
   suppressed: boolean;
-  /** The person sent a message of their own, on any channel; an email's automatic reply or a program's mail aside (00181). */
+  /**
+   * The person wrote back, or phoned (00181): a message of their own on any channel, an email from any address that
+   * answers or cites one sent to them, or a call they made. An out-of-office is not one.
+   */
   wrote_back: boolean;
   /** The From host's row as Connections set it up; null when the workspace owns no such domain. */
   domain: { state: string; from_local: string; clean_since: string | null } | null;

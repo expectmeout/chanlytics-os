@@ -84,6 +84,13 @@ export type UnsubscribeView =
   /** `retry`: the link is sound and a press did not go through, so the page offers the press again. */
   | { kind: "unavailable"; retry?: boolean };
 
+/**
+ * The header the page answers with, naming the view it drew (its `kind`). The edge's probe of the links reads it
+ * (apps/edge lib/email/unsubscribe-probe.ts): a 404 or a 503 carrying it is the page's own answer, and one without it
+ * is the platform's, or some other page's, which says nothing about the keys.
+ */
+export const UNSUBSCRIBE_PAGE_HEADER = "x-unsubscribe-page";
+
 export interface UnsubscribePageWords {
   title: string;
   lead: string;

@@ -785,8 +785,9 @@ the batch writer that sends a reach-out is Part 3's, so no cold email has left y
   by clean days.
 - **The `outreach` purpose at the door** (core `deliver.ts`, 00177's `outreach_facts` in one call; spec §4.8). A cold
   email is always a broadcast. It is refused, in words, unless it goes to a lead still `ready` or `nurture`, off the
-  never-again list, who has never written back (00181: a message of their own on any channel; an out-of-office or a
-  program's mail is not one), with its unsubscribe link, from the workspace's own verified domain by its whole From,
+  never-again list, who has never written back or phoned (00181: a message of their own on any channel, an email
+  from any address that answers or cites one sent to them, or a call they made; an out-of-office is not one), with its
+  unsubscribe link, from the workspace's own verified domain by its whole From,
   and inside that domain's rolling 24 hours. It never moves its thread, and a failure is recorded on its row, not flagged. Email
   leaves by one of two lanes (`emailSender`): hosted (the mailbox, on the platform's account) for every other purpose,
   own (a sending domain, on the cold account) for outreach only.
@@ -799,10 +800,11 @@ the batch writer that sends a reach-out is Part 3's, so no cold email has left y
   nothing back: the cold webhook's secret set wrong. `/api/diag` reports the five email switches (`emailDomain`,
   `resendWebhook`, `resendCold`, `resendColdWebhook`, `unsubscribe`) as booleans.
 - **The probe of the unsubscribe links.** With `UNSUBSCRIBE_SECRET` on the edge, the `domains` sweep seals a link that
-  names nobody and opens it on the dashboard's `/u/` page (edge `lib/email/unsubscribe-probe.ts`). A 404 (the two
-  projects hold different keys), a 503 (the page holds none) or a redirect pages the platform
-  (`email_unsubscribe_links_broken`); no answer is asked again next tick. The page logs a link no key of its own made
-  as `unsubscribe_bad_link`, once a minute at most, with how many since.
+  names nobody and opens it on the dashboard's `/u/` page (edge `lib/email/unsubscribe-probe.ts`). The page names
+  the view it drew (`x-unsubscribe-page`). Its own 404 (the two projects hold different keys), its own 503 (it holds
+  none, or has no database) or any redirect pages the platform (`email_unsubscribe_links_broken`); anything else is
+  asked once more and pages as unreachable if it stays so. The page logs a link no key of its own made as
+  `unsubscribe_bad_link`, at once and then once a minute at most per instance, with how many since its last line.
 
 ## S-15 · Calendar and availability
 

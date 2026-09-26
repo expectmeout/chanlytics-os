@@ -73,6 +73,7 @@ test("a GET asks, with one button, and changes nothing: link scanners open every
   const res = await get();
   noStore(res);
   assert.equal(res.status, 200);
+  assert.equal(res.headers.get("x-unsubscribe-page"), "ask", "the view it drew, which the edge's probe reads");
   const html = await res.text();
   assert.match(html, /Stop emails from Best &lt;Movers&gt; &amp; Sons\?/, "the name is read and escaped");
   assert.equal((html.match(/<form method="post">/g) ?? []).length, 1);
@@ -82,36 +83,33 @@ test("a GET asks, with one button, and changes nothing: link scanners open every
   assert.ok(!w.db.seen.some((q) => q.rpc), "nothing but the name is asked of the database");
 });
 
-test("a link this secret did not make is refused before the database is asked", async () => {
-  const w = world();
-  const said = [];
-  const was = console.warn;
-  console.warn = (...a) => said.push(a.map(String).join(" "));
-  try {
-    await refusedLinks(w);
-  } finally {
-    console.warn = was;
-  }
-  // Said to the platform once a minute at most, never the link: a scanner's burst is one line.
-  const lines = said.filter((l) => l.startsWith("unsubscribe_bad_link"));
-  assert.deepEqual(lines, ['unsubscribe_bad_link {"refused":1}']);
-});
-
-test("the next line counts every link refused since the last: a stream of them is a key set wrong, not a guess", async () => {
+test("a link this secret did not make is refused before the database is asked, and said once a minute with a count", async () => {
   const w = world();
   const said = [];
   const was = console.warn;
   const clock = Date.now;
   console.warn = (...a) => said.push(a.map(String).join(" "));
+  // Clear of any line an earlier test said: the window is the module's, one minute per event.
+  const at = clock() + 10 * 60_000;
   try {
-    // A minute after the file's first refusal (the test above, which this one follows), with nine more since.
-    Date.now = () => clock() + 61_000;
+    Date.now = () => at;
+    await refusedLinks(w);
+    // A minute on, one more: the line counts every refusal since the last one, and says when that was.
+    Date.now = () => at + 61_000;
     assert.equal((await get("short")).status, 404);
   } finally {
     Date.now = clock;
     console.warn = was;
   }
-  assert.deepEqual(said, ['unsubscribe_bad_link {"refused":10}']);
+  const lines = said.filter((l) => l.startsWith("unsubscribe_bad_link "));
+  assert.equal(lines.length, 2, "a scanner's burst is one line, and a minute on another");
+  const [first, next] = lines.map((l) => JSON.parse(l.slice("unsubscribe_bad_link ".length)));
+  assert.ok(first.refused >= 1, "the first says at once, with whatever it had counted");
+  assert.deepEqual(next, { refused: 10, since: new Date(at).toISOString() });
+  assert.ok(
+    lines.every((l) => !l.includes(TOKEN.slice(0, 20))),
+    "never the link",
+  );
   assert.equal(w.db.seen.length, 0);
 });
 
@@ -121,6 +119,7 @@ async function refusedLinks(w) {
     const g = await get(t);
     noStore(g);
     assert.equal(g.status, 404);
+    assert.equal(g.headers.get("x-unsubscribe-page"), "bad_link");
     assert.match(await g.text(), /This link doesn&#39;t work\./);
     for (const body of ["List-Unsubscribe=One-Click", "unsubscribe=yes"]) {
       const p = await post(body, { token: t });

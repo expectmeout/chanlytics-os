@@ -238,8 +238,9 @@ undoable for seven days on the lead ("read as no · undo").
   It is refused, each in words (contracts `PURPOSE_REFUSALS`), when the person said no (`unsubscribed`), when it is not
   email (`outreach_is_email_only`), not to a business a search found (`outreach_not_a_lead`), to a lead no longer
   `ready` or `nurture` (`outreach_lead_closed`), to an address on the never-again list (`outreach_suppressed`), to a
-  person who has written back, on any channel, ever (`outreach_wrote_back`, 00181: an out-of-office or a program's mail
-  is not writing back), built without its unsubscribe link (`outreach_without_unsubscribe`), not from the workspace's own domain by its whole From
+  person who has ever written back or phoned (`outreach_wrote_back`, 00181: a message of their own on any channel, an
+  email from any address that answers or cites one sent to them, or a call they made; an out-of-office is not one), built
+  without its unsubscribe link (`outreach_without_unsubscribe`), not from the workspace's own domain by its whole From
   (`outreach_needs_own_domain`), from one not verified (`sending_domain_not_ready`), or past the domain's day: its
   rolling 24 hours against the ramp (`sending_domain_at_cap`). The day's count is the backstop; Part 3's batch writer
   claims within it (C7).
@@ -324,7 +325,8 @@ Each to 100% before the next, and each shippable in either deploy order unless s
    first. 3 PRs. It also owes what Part 2.5 carried here, none of it built yet:
    - **C1** the footer's "Reply 'no thanks'" kept: no email to an address after any human reply to a reach-out. The
      door's half shipped in Part 2.6 (00181, `outreach_wrote_back`); the chain's own stop (`replied`) is still owed;
-   - **C2** the stop keyed by lead, with In-Reply-To and References matching;
+   - **C2** the stop keyed by lead, with In-Reply-To and References matching (the door already matches a reply from
+     another address by both, 00181);
    - **C3** auto-replies excluded from "replied" (the door already reads the intake's claim, 00181);
    - **C4** any bounce stops the chain;
    - **C5** a held or removed domain defers a send, never cancels it;

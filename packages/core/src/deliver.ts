@@ -294,7 +294,10 @@ interface OutreachFacts {
   leadStage: string | null;
   /** The address is on the workspace's never-again list: unsubscribed, complained, or erased. */
   suppressed: boolean;
-  /** The person wrote to the business, on any channel, in words of their own: a conversation now, never cold again. */
+  /**
+   * The person wrote to the business in words of their own, on any channel or from another address in answer to an
+   * email sent to them, or phoned it: a conversation now, never cold again (00181).
+   */
   wroteBack: boolean;
   /** The request carries RFC 8058's one-click unsubscribe, both headers. */
   unsubscribable: boolean;
@@ -404,8 +407,9 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
     if (o.suppressed) return "outreach_suppressed";
     // Every cold email's foot promises "reply 'no thanks' and I won't write again", and a reply asking to stop, in any
     // words, is an opt-out the law says to honour. Nothing reads a reply to tell a no from a yes, so the promise is
-    // kept the plain way: a person who wrote back is in a conversation, answered from the Inbox, and a reach-out's
-    // next email (a nudge, a later run) is never sent to them. An out-of-office is not a person writing (00181).
+    // kept the plain way: a person who wrote back, or phoned, is in a conversation, answered from the Inbox, and a
+    // reach-out's next email (a nudge, a later run) is never sent to them. An out-of-office is not a person writing;
+    // mail with a list's headers is, since a helpdesk sends a person's no with them too (00181).
     if (o.wroteBack) return "outreach_wrote_back";
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
