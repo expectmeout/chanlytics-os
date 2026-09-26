@@ -216,9 +216,15 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   // on (00189). One job carries every ticket of this send.
   const tickets: PushTicket[] = receipts.flatMap((r) => (r.status === "ok" && r.id ? [{ id: r.id, to: r.to }] : []));
   if (tickets.length) {
-    await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
-      tickets: tickets.map((t) => ({ id: t.id, to: t.to })),
-    });
+    try {
+      await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
+        tickets: tickets.map((t) => ({ id: t.id, to: t.to })),
+      });
+    } catch {
+      // The alert has left; a receipts job that cannot be written (a ledger whose CHECK predates 00189, in the
+      // window between the edge's deploy and the migration) is a dead phone forgotten a send later, not a reason
+      // to throw and have the ledger send the alert again.
+    }
   }
 }
 

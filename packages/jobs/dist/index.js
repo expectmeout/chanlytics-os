@@ -21840,9 +21840,12 @@ async function pushSend(ctx, job) {
   }
   const tickets = receipts.flatMap((r6) => r6.status === "ok" && r6.id ? [{ id: r6.id, to: r6.to }] : []);
   if (tickets.length) {
-    await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
-      tickets: tickets.map((t2) => ({ id: t2.id, to: t2.to }))
-    });
+    try {
+      await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
+        tickets: tickets.map((t2) => ({ id: t2.id, to: t2.to }))
+      });
+    } catch {
+    }
   }
 }
 async function badgesFor(ctx, tenantId, readers) {

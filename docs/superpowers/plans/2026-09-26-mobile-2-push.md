@@ -58,8 +58,8 @@ tree) generated the white status-bar icon from the mark, once.
 
 - [x] `corepack pnpm --filter "./packages/*" build && -r typecheck && lint && test`, `format:check`, the app's
       `tsc`, `expo lint`, a Metro export.
-- [ ] Production `db push` of 00189 before the merge (the CHECK must allow `push_receipts` before the edge that
-      schedules it deploys), then the squash-merge.
+- [ ] The squash-merge, then the production `db push` of 00189 from a linked laptop (either order is safe: an edge
+      ahead of the migration swallows the refused receipts insert, never sending an alert twice).
 
 ---
 

@@ -124,6 +124,16 @@ test("the badge is each reader's own bell number; the tickets go to one push_rec
   );
 });
 
+test("a receipts job the ledger refuses does not make the alert leave twice", async () => {
+  const { db } = world();
+  const p = port();
+  const refusing = async () => {
+    throw new Error("jobs_kind_check");
+  };
+  assert.equal(await dispatchJob(ctx(db, { push: p.push, schedule: refusing }), job), "done");
+  assert.equal(p.sent.length, 3, "sent once, and the job is done, not retried");
+});
+
 test("push_receipts forgets the phones their receipts say are gone and leaves every other answer alone", async () => {
   const { db, devices } = world();
   const asked = [];

@@ -7,6 +7,10 @@
 -- (00162) therefore leaves one push_receipts job behind it, due a quarter of
 -- an hour on, carrying the tickets it was given; that job reads the receipts
 -- and forgets every phone answered gone. The ledger learns the kind here.
+--
+-- Either deploy order: an edge that predates this cannot claim the kind, and
+-- an edge ahead of it swallows the refused insert (a receipts job lost, never
+-- an alert sent twice).
 
 alter table public.jobs drop constraint if exists jobs_kind_check;
 alter table public.jobs add constraint jobs_kind_check
