@@ -19,9 +19,9 @@ the Dynamic Island, the moment it starts, and leaves when it ends. PRD tier 2, P
       `enablePushNotifications` on the widgets plugin.
 - [x] Tests: `call-activity.test.mjs` (the rule over the fake database, the payload, the token verifying under the
       key, the wire against a stub of HTTP/2), the bridge tests on both sides, `push.test.mjs`.
-- [ ] Ruben's: `supabase db push` for 00191; the APNs key and the four variables on the edge (runbook, "Turn on the
+- [ ] Ruben's (00191 is on production, checked 26 Sep): the APNs key and the four variables on the edge (runbook, "Turn on the
       call in progress on phones"); a new build (the widgets plugin's push flag is native).
-- [ ] Squash-merge.
+- [x] Squash-merge (#1138).
 
 ## As built (26 Sep 2026)
 

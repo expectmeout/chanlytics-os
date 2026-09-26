@@ -13,8 +13,8 @@ the day on the server in the page's own words, and the app draws it. PRD tier 2,
       bridge. A row's door is the page's route, opened in its tab; a thread opens natively (PR 8). The screen reads
       again on focus, on pull, and on every refresh the page reports (`todayTick`).
 - [x] Tests: `today-route.test.mjs` (the policy, the composed day, the calls additive), the app's `today.test.mjs`.
-- [ ] Ruben's: nothing to set. A new build carries the screen.
-- [ ] Squash-merge.
+- [x] Ruben's: nothing to set. A new build carries the screen.
+- [x] Squash-merge (#1154).
 
 ## As built (26 Sep 2026)
 
