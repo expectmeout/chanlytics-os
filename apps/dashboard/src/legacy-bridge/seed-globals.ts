@@ -61,6 +61,7 @@ import {
   leadMapPlot,
   leadMapAcross,
   leadMapNote,
+  leadMapLegend,
   leadPinTone,
 } from "@chanlytics/contracts";
 
@@ -120,6 +121,7 @@ declare global {
       leadMapPlot: typeof leadMapPlot;
       leadMapAcross: typeof leadMapAcross;
       leadMapNote: typeof leadMapNote;
+      leadMapLegend: typeof leadMapLegend;
       leadPinTone: typeof leadPinTone;
       LEAD_REVIEW_ACT_WORDS: typeof LEAD_REVIEW_ACT_WORDS;
       LEAD_REVIEW_GROUP_WHY: typeof LEAD_REVIEW_GROUP_WHY;
@@ -228,6 +230,7 @@ if (typeof window !== "undefined") {
     leadMapPlot,
     leadMapAcross,
     leadMapNote,
+    leadMapLegend,
     leadPinTone,
   };
 }

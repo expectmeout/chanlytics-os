@@ -12493,14 +12493,25 @@ function stateLabel(kind, value) {
 function stateOf(kind, value) {
   return { tone: stateTone(kind, value), label: stateLabel(kind, value) };
 }
-function leadPinTone(lead, by) {
-  if (by === "reach") {
-    const { phone, mailbox } = lead.slots;
-    if (phone.state === "ok" || mailbox.state === "ok") return "ok";
-    return phone.state === "none" && mailbox.state === "none" ? "plain" : "warn";
-  }
-  if (by === "stage") return stateTone("lead_row_state", lead.state);
-  return lead.cls === "qualified" ? stateTone("lead_fit", lead.fit ?? "look") : stateTone("lead_class", lead.cls);
+function leadPinTone(lead) {
+  return stateTone("lead_row_state", lead.state);
+}
+var LEAD_MAP_LEGEND_ORDER = ["talking", "contacted", "review", "ready", "out"];
+var LEAD_MAP_STATE_WORDS = {
+  talking: LEAD_STAGE_WORDS.converted,
+  contacted: LEAD_STAGE_WORDS.nurture,
+  review: LEAD_REVIEW_WORD,
+  ready: LEAD_STAGE_WORDS.ready,
+  out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`
+};
+function leadMapLegend(rows) {
+  const present = new Set(rows.map((r2) => r2.state));
+  return LEAD_MAP_LEGEND_ORDER.filter((s) => present.has(s)).map((state) => ({
+    state,
+    tone: leadPinTone({ state }),
+    label: LEAD_MAP_STATE_WORDS[state],
+    out: state === "out"
+  }));
 }
 
 // src/playbook-schedule.ts
@@ -24054,6 +24065,7 @@ export {
   leadLowShare,
   leadLowerFirst,
   leadMapAcross,
+  leadMapLegend,
   leadMapNote,
   leadMapPlot,
   leadMarkSrc,

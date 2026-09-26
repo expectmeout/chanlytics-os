@@ -1794,6 +1794,12 @@ var LEAD_CALL_OUTCOMES = [
   "wrong_number"
 ];
 var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_STAGE_WORDS = {
+  ready: "Ready",
+  nurture: "Contacted",
+  converted: "Talking",
+  archived: "Closed"
+};
 var LEAD_CLOSED_WORDS = {
   said_no: "Said no",
   not_a_fit: "Not a fit",
@@ -1826,6 +1832,8 @@ var LEAD_NOT_A_FIT_WORDS = {
   other: "Something else"
 };
 var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
+var LEAD_REVIEW_WORD = "Needs review";
+var LEAD_LEFT_OUT_WORD = "Left out";
 var LEAD_SENT_QUESTION = "Did you send it?";
 var LEAD_CALL_QUESTION = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
@@ -2699,6 +2707,13 @@ var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 var PROVISIONING_DEADLINE_MS = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+var LEAD_MAP_STATE_WORDS = {
+  talking: LEAD_STAGE_WORDS.converted,
+  contacted: LEAD_STAGE_WORDS.nurture,
+  review: LEAD_REVIEW_WORD,
+  ready: LEAD_STAGE_WORDS.ready,
+  out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`
+};
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
 var PLAYBOOK_CLASS_LABEL = {
@@ -5435,6 +5450,12 @@ var LEAD_CALL_OUTCOMES2 = [
   "wrong_number"
 ];
 var LEAD_NOT_A_FIT_WHYS2 = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_STAGE_WORDS2 = {
+  ready: "Ready",
+  nurture: "Contacted",
+  converted: "Talking",
+  archived: "Closed"
+};
 var LEAD_CLOSED_WORDS2 = {
   said_no: "Said no",
   not_a_fit: "Not a fit",
@@ -5467,6 +5488,8 @@ var LEAD_NOT_A_FIT_WORDS2 = {
   other: "Something else"
 };
 var LEAD_NOT_A_FIT_TITLE2 = "What makes it not a fit?";
+var LEAD_REVIEW_WORD2 = "Needs review";
+var LEAD_LEFT_OUT_WORD2 = "Left out";
 var LEAD_SENT_QUESTION2 = "Did you send it?";
 var LEAD_CALL_QUESTION2 = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER2 = "A note for next time, if you like";
@@ -6854,6 +6877,13 @@ var FIRST_RUN_FIND_ROUTE2 = `${FIRST_RUN_ROUTE2}/${FIND_PARAM2}`;
 var PROVISIONING_DEADLINE_MS2 = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
+var LEAD_MAP_STATE_WORDS2 = {
+  talking: LEAD_STAGE_WORDS2.converted,
+  contacted: LEAD_STAGE_WORDS2.nurture,
+  review: LEAD_REVIEW_WORD2,
+  ready: LEAD_STAGE_WORDS2.ready,
+  out: `${LEAD_STAGE_WORDS2.archived} or ${LEAD_LEFT_OUT_WORD2.toLowerCase()}`
+};
 function planRun(mode, now) {
   switch (mode) {
     case "auto":
@@ -8467,6 +8497,12 @@ var LEAD_CALL_OUTCOMES3 = [
   "wrong_number"
 ];
 var LEAD_NOT_A_FIT_WHYS3 = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_STAGE_WORDS3 = {
+  ready: "Ready",
+  nurture: "Contacted",
+  converted: "Talking",
+  archived: "Closed"
+};
 var LEAD_CLOSED_WORDS3 = {
   said_no: "Said no",
   not_a_fit: "Not a fit",
@@ -8499,6 +8535,8 @@ var LEAD_NOT_A_FIT_WORDS3 = {
   other: "Something else"
 };
 var LEAD_NOT_A_FIT_TITLE3 = "What makes it not a fit?";
+var LEAD_REVIEW_WORD3 = "Needs review";
+var LEAD_LEFT_OUT_WORD3 = "Left out";
 var LEAD_SENT_QUESTION3 = "Did you send it?";
 var LEAD_CALL_QUESTION3 = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER3 = "A note for next time, if you like";
@@ -9372,6 +9410,13 @@ var FIRST_RUN_FIND_ROUTE3 = `${FIRST_RUN_ROUTE3}/${FIND_PARAM3}`;
 var PROVISIONING_DEADLINE_MS3 = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
+var LEAD_MAP_STATE_WORDS3 = {
+  talking: LEAD_STAGE_WORDS3.converted,
+  contacted: LEAD_STAGE_WORDS3.nurture,
+  review: LEAD_REVIEW_WORD3,
+  ready: LEAD_STAGE_WORDS3.ready,
+  out: `${LEAD_STAGE_WORDS3.archived} or ${LEAD_LEFT_OUT_WORD3.toLowerCase()}`
+};
 var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
 var PLAYBOOK_CLASS_LABEL3 = {

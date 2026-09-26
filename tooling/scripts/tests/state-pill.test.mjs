@@ -163,32 +163,6 @@ test("a map pin takes its tone from the registry the row reads, and a pin never 
     ...over,
   });
 
-  assert.equal(leadPinTone(lead({ fit: "strong" }), "fit"), "ok", "a strong fit is a good outcome, not an urgent one");
-  assert.equal(
-    leadPinTone(lead({ fit: "look" }), "fit"),
-    "plain",
-    "a look drew amber on the map and plain everywhere else",
-  );
-  assert.equal(leadPinTone(lead({ fit: "long" }), "fit"), "plain");
-  assert.equal(
-    leadPinTone(lead({ fit: null }), "fit"),
-    "plain",
-    "a qualified lead with no fit recorded is not a strong one",
-  );
-  assert.equal(
-    leadPinTone(lead({ cls: "review" }), "fit"),
-    "warn",
-    "a lead waiting on a person says so on the map too",
-  );
-  assert.equal(leadPinTone(lead({ cls: "excluded" }), "fit"), "plain");
-
-  // One way through is enough; nothing at all is the quietest a lead gets; part-way is worth a look.
-  const reach = (phone, mailbox) =>
-    leadPinTone(lead({ slots: { phone: { state: phone }, mailbox: { state: mailbox } } }), "reach");
-  assert.deepEqual([reach("ok", "none"), reach("none", "ok"), reach("ok", "ok")], ["ok", "ok", "ok"]);
-  assert.equal(reach("none", "none"), "plain", "no phone and no mailbox is nothing to say, not a warning");
-  assert.deepEqual([reach("part", "none"), reach("none", "checking"), reach("bad", "part")], ["warn", "warn", "warn"]);
-
   for (const [state, tone] of [
     ["ready", "plain"],
     ["contacted", "info"],
@@ -196,7 +170,7 @@ test("a map pin takes its tone from the registry the row reads, and a pin never 
     ["review", "warn"],
     ["out", "plain"],
   ]) {
-    assert.equal(leadPinTone(lead({ state }), "stage"), tone, `${state} on a pin`);
+    assert.equal(leadPinTone(lead({ state })), tone, `${state} on a pin`);
     assert.equal(
       stateTone("lead_row_state", state),
       tone,
@@ -204,19 +178,17 @@ test("a map pin takes its tone from the registry the row reads, and a pin never 
     );
   }
 
-  for (const by of ["fit", "reach", "stage"]) {
-    for (const over of [
-      {},
-      { cls: "review" },
-      { cls: "excluded" },
-      { state: "talking" },
-      { state: "review" },
-      { fit: "look" },
-    ]) {
-      const t = leadPinTone(lead(over), by);
-      assert.ok(TONES.includes(t), `${by}: "${t}" is not one of the six`);
-      assert.notEqual(t, "accent", `${by}: a pin is data, and data never wears the accent`);
-    }
+  for (const over of [
+    {},
+    { cls: "review" },
+    { cls: "excluded" },
+    { state: "talking" },
+    { state: "review" },
+    { state: "out" },
+  ]) {
+    const t = leadPinTone(lead(over));
+    assert.ok(TONES.includes(t), `"${t}" is not one of the six`);
+    assert.notEqual(t, "accent", "a pin is data, and data never wears the accent");
   }
 });
 

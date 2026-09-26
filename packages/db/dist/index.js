@@ -905,6 +905,12 @@ var LEAD_CALL_OUTCOMES = [
   "wrong_number"
 ];
 var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_STAGE_WORDS = {
+  ready: "Ready",
+  nurture: "Contacted",
+  converted: "Talking",
+  archived: "Closed"
+};
 var LEAD_CLOSED_WORDS = {
   said_no: "Said no",
   not_a_fit: "Not a fit",
@@ -937,6 +943,8 @@ var LEAD_NOT_A_FIT_WORDS = {
   other: "Something else"
 };
 var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
+var LEAD_REVIEW_WORD = "Needs review";
+var LEAD_LEFT_OUT_WORD = "Left out";
 var LEAD_SENT_QUESTION = "Did you send it?";
 var LEAD_CALL_QUESTION = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
@@ -1870,6 +1878,13 @@ var FIRST_RUN_FIND_ROUTE = `${FIRST_RUN_ROUTE}/${FIND_PARAM}`;
 var PROVISIONING_DEADLINE_MS = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
+var LEAD_MAP_STATE_WORDS = {
+  talking: LEAD_STAGE_WORDS.converted,
+  contacted: LEAD_STAGE_WORDS.nurture,
+  review: LEAD_REVIEW_WORD,
+  ready: LEAD_STAGE_WORDS.ready,
+  out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`
+};
 function parts(tz, now) {
   try {
     const f = new Intl.DateTimeFormat("en-CA", {
