@@ -3059,46 +3059,64 @@ async function reachOutFollowers(db, p) {
       throw new Error("cannot read who a step may write to: the database did not say whether they wrote back");
   return rows;
 }
-async function planSends(db, rows) {
-  if (rows.length === 0) return;
-  const { error } = await db.from("reach_out_sends").upsert(rows, { onConflict: "broadcast_id,lead_id", ignoreDuplicates: true });
-  if (error) throw new Error(`cannot plan the run's sends: ${error.message}`);
-}
-var OPEN_STATES = ["planned", "claimed", "queued"];
-async function sendsIn(db, state, limit) {
-  const { data, error } = await db.from("reach_out_sends").select("*").eq("state", state).order("updated_at", { ascending: true }).limit(limit);
-  if (error) throw new Error(`cannot read the ${state} sends: ${error.message}`);
+async function queuedOutcomes(db, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_queued_outcomes", {
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the queued sends: ${error.message}`);
   return data ?? [];
 }
-async function plannedDue(db, before, limit) {
-  const { data, error } = await db.from("reach_out_sends").select("*").eq("state", "planned").lte("send_at", before.toISOString()).order("send_at", { ascending: true }).limit(limit);
-  if (error) throw new Error(`cannot read the sends due: ${error.message}`);
+async function stuckClaims(db, before, limit, tenantId) {
+  let q = db.from("reach_out_sends").select("*").eq("state", "claimed");
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data, error } = await q.lt("claimed_at", before.toISOString()).order("claimed_at", { ascending: true }).limit(limit);
+  if (error) throw new Error(`cannot read the claimed sends: ${error.message}`);
   return data ?? [];
 }
-async function reachOutRunsIn(db, states, since) {
-  let q = db.from("broadcasts").select("id, tenant_id, state, playbook_id, audience, updated_at").eq("audience->>kind", "reach_out").in("state", states);
-  if (since) q = q.gte("updated_at", since.toISOString());
-  const { data, error } = await q.limit(1e3);
-  if (error) throw new Error(`cannot read the reach-out runs: ${error.message}`);
+async function staleSends(db, before, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_stale_sends", {
+    p_before: before.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the stale sends: ${error.message}`);
   return data ?? [];
 }
-async function runsById(db, ids) {
-  if (ids.length === 0) return /* @__PURE__ */ new Map();
-  const { data, error } = await db.from("broadcasts").select("id, tenant_id, state, playbook_id, audience, updated_at").in("id", [...new Set(ids)]);
-  if (error) throw new Error(`cannot read the sends' runs: ${error.message}`);
-  return new Map((data ?? []).map((r2) => [r2.id, r2]));
-}
-async function sendsOfRuns(db, runIds, states = OPEN_STATES) {
-  if (runIds.length === 0) return [];
-  const { data, error } = await db.from("reach_out_sends").select("*").in("broadcast_id", [...new Set(runIds)]).in("state", [...states]);
-  if (error) throw new Error(`cannot read the runs' sends: ${error.message}`);
+async function closedRunSends(db, stuckBefore, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_closed_sends", {
+    p_stuck_before: stuckBefore.toISOString(),
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the closed runs' sends: ${error.message}`);
   return data ?? [];
 }
-async function messagesById(db, ids) {
-  if (ids.length === 0) return /* @__PURE__ */ new Map();
-  const { data, error } = await db.from("messages").select("id, status, error, meta, created_at").in("id", [...new Set(ids)]);
-  if (error) throw new Error(`cannot read the sends' emails: ${error.message}`);
-  return new Map((data ?? []).map((m) => [m.id, m]));
+async function finishableRuns(db, limit, tenantId) {
+  const { data, error } = await db.rpc("reach_out_finishable", {
+    p_limit: limit,
+    ...tenantId ? { p_tenant_id: tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the runs to finish: ${error.message}`);
+  return (data ?? []).map(
+    (r2) => typeof r2 === "string" ? r2 : String(r2.reach_out_finishable ?? "")
+  );
+}
+async function writtenEmails(db, ids) {
+  const out = /* @__PURE__ */ new Set();
+  const all = [...new Set(ids)];
+  for (let i = 0; i < all.length; i += 100) {
+    const { data, error } = await db.from("messages").select("id").in("id", all.slice(i, i + 100));
+    if (error) throw new Error(`cannot read the sends' emails: ${error.message}`);
+    for (const m of data ?? []) out.add(m.id);
+  }
+  return out;
+}
+async function withdrawEmail(db, p) {
+  const why = { reason: p.reason };
+  const { data, error } = await db.from("messages").update({ status: "canceled", error: why }).eq("tenant_id", p.tenantId).eq("id", p.id).eq("status", "queued").select("id");
+  if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
+  return (data ?? []).length > 0;
 }
 async function leadWritten(db, p) {
   const { data: lead, error } = await db.from("leads").select("stage, version, contacted_at").eq("tenant_id", p.tenantId).eq("id", p.leadId).maybeSingle();
@@ -3111,7 +3129,7 @@ async function leadWritten(db, p) {
     version: lead.version + 1
   }).eq("tenant_id", p.tenantId).eq("id", p.leadId).eq("version", lead.version).select("id");
   if (e2) throw new Error(`cannot record the lead as written to: ${e2.message}`);
-  if ((moved ?? []).length === 0) return false;
+  if ((moved ?? []).length === 0) return p.retried ? false : leadWritten(db, { ...p, retried: true });
   const said = { by: "reach_out", send_id: p.sendId };
   const { error: e3 } = await db.from("events").insert({
     tenant_id: p.tenantId,
@@ -3824,6 +3842,7 @@ export {
   claimCallNotification,
   claimControl,
   claimSends,
+  closedRunSends,
   coldReceiptsOwed,
   countSendingDomains,
   countSentToday,
@@ -3839,6 +3858,7 @@ export {
   dueSendingDomains,
   emitEvent,
   everyoneIn,
+  finishableRuns,
   followUpTouchesSince,
   getTenantConfig,
   ingestCall,
@@ -3854,21 +3874,18 @@ export {
   mailboxFor,
   mailboxOfTenant,
   markProcessed,
-  messagesById,
   moveSend,
   notesForReceptionist,
   outreachFactsOf,
   pauseConversation,
   peoplePage,
   personReplyMode,
-  planSends,
-  plannedDue,
   playbooksOnList,
   putTenantConfig,
+  queuedOutcomes,
   reachOutAudience,
   reachOutFollowers,
   reachOutPerson,
-  reachOutRunsIn,
   readAllRows,
   readDealForPhone,
   readLeadContext,
@@ -3886,24 +3903,23 @@ export {
   resolveChannel,
   resolveChannelDetailed,
   resolveOutboundTarget,
-  runsById,
   savedListFor,
   savedListsFor,
   sendingDomainByHost,
   sendingDomainCounts,
   sendingDomainOf,
   sendingDomainsOf,
-  sendsIn,
-  sendsOfRuns,
   sentEmailRequestOf,
   sentEmailWithMessageId,
   setCallRecording,
   setListRule,
   setPersonReplyMode,
   setPolicyMode,
+  staleSends,
   stampEmailComplaint,
   stampEmailSent,
   stampMailboxReceived,
+  stuckClaims,
   subscribeMessagesInserts,
   suppressEmailOf,
   templatesFor,
@@ -3911,5 +3927,7 @@ export {
   touchSendingDomain,
   touchesSince,
   watchedTables,
+  withdrawEmail,
+  writtenEmails,
   yesesSince
 };

@@ -2162,6 +2162,41 @@ The clock runs every minute. This PR gives it everything except the claim, so it
 while no send is claimable: it reads, reconciles and finishes runs, and it is watched (`sweep_status`) from its first
 tick.
 
+> **As built (PR 5, 26 Sep 2026; its migration is 00186).** `apps/edge/lib/reach-out/clock.ts` and
+> `replan.ts` are the reference. They depart from the plan below in these ways:
+> - **Each step's work is chosen in SQL**, in four bounded reads that filter before their limit:
+>   `reach_out_queued_outcomes`, `reach_out_stale_sends`, `reach_out_closed_sends` and `reach_out_finishable`, each
+>   with an optional `p_tenant_id` that only the tests pass. The first cut read ids into `.in()` lists and pages.
+>   Its review found both broke at real sizes. A 208-id list is a URL too long, so the clock would 500 for good. A
+>   1,000-row page finishes a run that still holds a send.
+> - **`attempts` counts emails written.** Only a door's wait, or an email that never left, moves it on, so a send's
+>   next email id is always one it has not written. A stale re-plan keeps its number. A send is given up
+>   (`kept_waiting`) after two weeks, or after ten emails. The plan's "ten re-plans" would have spent a send's tries in
+>   hours.
+> - **Reconcile:**
+>   - `delivered` and `read` count as sent.
+>   - An email that never left (a 429, `never_delivered`, `orphaned`) is planned again. A 5xx, a network error or a
+>     timeout may have left, and fails.
+>   - An unknown outcome waits a day for its receipt, then fails `outcome_unknown`.
+>   - The waits are one list (contracts `OUTREACH_WAIT_REFUSALS`: the domain's day, the domain not ready or removed,
+>     the workspace paused).
+>   - The lead write retries once on a version race, and never undoes the send.
+> - **Close** withdraws a queued email (`queued → canceled`, `run_canceled`) before its send is skipped. A claim whose
+>   writer may still hold it is left alone. A stuck claim is adopted first if its email was written.
+> - **Re-plan:**
+>   - A send with no room waits a day **with no domain**, so only the timetable places it, in its lead's hours.
+>   - A send whose step was removed is skipped, `step_removed`.
+>   - A claim's own time is taken out of its domain's times.
+> - **The door yields at 40 s** of its 60. Finish comes before restale.
+> - **Proved on a stack** (`reach-out-clock.db.test.mjs`), with the clock kept to that suite's workspace: 250 queued
+>   sends in one tick, a run with 1,001 sends open not finished, a stale send past 600 of a waiting run, and a canceled
+>   run's written email withdrawn.
+>
+> **For PR 6's writer:**
+> - Check the run's and the chain's state after the claim and before writing.
+> - Write the email row, then move the send `claimed → queued`.
+> - Use `sendMessageId(send, attempts)`.
+
 ### Task 5.1: The migration
 
 **Files:**

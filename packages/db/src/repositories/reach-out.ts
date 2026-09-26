@@ -155,113 +155,107 @@ export async function reachOutFollowers(
   return rows;
 }
 
-/** A run's sends, planned once: a lead already in the run keeps the plan it has. */
-export async function planSends(db: Db, rows: ReachOutSendInsert[]): Promise<void> {
-  if (rows.length === 0) return;
-  const { error } = await db
-    .from("reach_out_sends")
-    .upsert(rows as never, { onConflict: "broadcast_id,lead_id", ignoreDuplicates: true });
-  if (error) throw new Error(`cannot plan the run's sends: ${error.message}`);
-}
-
 /* ------------------------------------------------------------- the clock -- */
 
-const OPEN_STATES = ["planned", "claimed", "queued"] as const;
-
-/** The sends in one state, oldest first: the clock's queued (to reconcile) and claimed (to see stuck) ones. */
-export async function sendsIn(db: Db, state: "claimed" | "queued", limit: number): Promise<ReachOutSendRow[]> {
-  const { data, error } = await db
-    .from("reach_out_sends")
-    .select("*")
-    .eq("state", state)
-    .order("updated_at", { ascending: true })
-    .limit(limit);
-  if (error) throw new Error(`cannot read the ${state} sends: ${error.message}`);
-  return data ?? [];
-}
-
-/**
- * Planned sends due by `before`, oldest first: what the clock plans again once stale (and, from PR 6, claims). A send
- * whose domain was removed is among them once its time has passed.
- */
-export async function plannedDue(db: Db, before: Date, limit: number): Promise<ReachOutSendRow[]> {
-  const { data, error } = await db
-    .from("reach_out_sends")
-    .select("*")
-    .eq("state", "planned")
-    .lte("send_at", before.toISOString())
-    .order("send_at", { ascending: true })
-    .limit(limit);
-  if (error) throw new Error(`cannot read the sends due: ${error.message}`);
-  return data ?? [];
-}
-
-export interface ReachOutRunRow {
-  id: string;
-  tenant_id: string;
-  state: string;
-  playbook_id: string | null;
-  audience: unknown;
-  updated_at: string;
-}
-
-/** Reach-out runs in these states, changed since `since` when given (a run canceled a week ago has nothing open). */
-export async function reachOutRunsIn(db: Db, states: string[], since?: Date): Promise<ReachOutRunRow[]> {
-  let q = db
-    .from("broadcasts")
-    .select("id, tenant_id, state, playbook_id, audience, updated_at")
-    .eq("audience->>kind", "reach_out")
-    .in("state", states);
-  if (since) q = q.gte("updated_at", since.toISOString());
-  const { data, error } = await q.limit(1000);
-  if (error) throw new Error(`cannot read the reach-out runs: ${error.message}`);
-  return (data ?? []) as ReachOutRunRow[];
-}
-
-/** The runs, by id, that sends belong to. */
-export async function runsById(db: Db, ids: string[]): Promise<Map<string, ReachOutRunRow>> {
-  if (ids.length === 0) return new Map();
-  const { data, error } = await db
-    .from("broadcasts")
-    .select("id, tenant_id, state, playbook_id, audience, updated_at")
-    .in("id", [...new Set(ids)]);
-  if (error) throw new Error(`cannot read the sends' runs: ${error.message}`);
-  return new Map(((data ?? []) as ReachOutRunRow[]).map((r) => [r.id, r]));
-}
-
-/** The sends of these runs still open (planned, claimed, queued), or in the states asked. */
-export async function sendsOfRuns(
-  db: Db,
-  runIds: string[],
-  states: readonly string[] = OPEN_STATES,
-): Promise<ReachOutSendRow[]> {
-  if (runIds.length === 0) return [];
-  const { data, error } = await db
-    .from("reach_out_sends")
-    .select("*")
-    .in("broadcast_id", [...new Set(runIds)])
-    .in("state", [...states]);
-  if (error) throw new Error(`cannot read the runs' sends: ${error.message}`);
-  return data ?? [];
-}
-
-export interface SendMessage {
-  id: string;
-  status: string;
+/** A queued send and what became of its email (00186 reach_out_queued_outcomes). An email row gone is all nulls. */
+export interface QueuedOutcome {
+  send: ReachOutSendRow;
+  status: string | null;
   error: unknown;
-  meta: unknown;
-  created_at: string;
+  /** When it left, as its row was stamped (messages_guard's status_at.sent). */
+  sent_at: string | null;
+  /** When its email row was written. */
+  written_at: string | null;
 }
 
-/** The email rows these ids name, by id: what became of each send's email. A row not there is a row gone. */
-export async function messagesById(db: Db, ids: string[]): Promise<Map<string, SendMessage>> {
-  if (ids.length === 0) return new Map();
+/** Queued sends with their emails, the ones with an outcome to read first (00186). */
+export async function queuedOutcomes(db: Db, limit: number, tenantId?: string): Promise<QueuedOutcome[]> {
+  const { data, error } = await db.rpc("reach_out_queued_outcomes", {
+    p_limit: limit,
+    ...(tenantId ? { p_tenant_id: tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot read the queued sends: ${error.message}`);
+  return (data ?? []) as QueuedOutcome[];
+}
+
+/** Claims older than `before`, oldest first: a writer that died mid-send left them. */
+export async function stuckClaims(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
+  let q = db.from("reach_out_sends").select("*").eq("state", "claimed");
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data, error } = await q
+    .lt("claimed_at", before.toISOString())
+    .order("claimed_at", { ascending: true })
+    .limit(limit);
+  if (error) throw new Error(`cannot read the claimed sends: ${error.message}`);
+  return data ?? [];
+}
+
+/** Planned sends left past `before` in runs that go ahead on running chains (00186 reach_out_stale_sends). */
+export async function staleSends(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
+  const { data, error } = await db.rpc("reach_out_stale_sends", {
+    p_before: before.toISOString(),
+    p_limit: limit,
+    ...(tenantId ? { p_tenant_id: tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot read the stale sends: ${error.message}`);
+  return (data ?? []) as ReachOutSendRow[];
+}
+
+/** The open sends of canceled or failed runs, with their email's state (00186 reach_out_closed_sends). */
+export async function closedRunSends(
+  db: Db,
+  stuckBefore: Date,
+  limit: number,
+  tenantId?: string,
+): Promise<Array<{ send: ReachOutSendRow; email_status: string | null }>> {
+  const { data, error } = await db.rpc("reach_out_closed_sends", {
+    p_stuck_before: stuckBefore.toISOString(),
+    p_limit: limit,
+    ...(tenantId ? { p_tenant_id: tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot read the closed runs' sends: ${error.message}`);
+  return (data ?? []) as Array<{ send: ReachOutSendRow; email_status: string | null }>;
+}
+
+/** Reach-out runs that go ahead with nothing left open (00186 reach_out_finishable). */
+export async function finishableRuns(db: Db, limit: number, tenantId?: string): Promise<string[]> {
+  const { data, error } = await db.rpc("reach_out_finishable", {
+    p_limit: limit,
+    ...(tenantId ? { p_tenant_id: tenantId } : {}),
+  } as never);
+  if (error) throw new Error(`cannot read the runs to finish: ${error.message}`);
+  return ((data ?? []) as unknown[]).map((r) =>
+    typeof r === "string" ? r : String((r as Record<string, unknown>).reach_out_finishable ?? ""),
+  );
+}
+
+/** Which of these email ids have a row, a hundred at a time (an id list rides in the request's address). */
+export async function writtenEmails(db: Db, ids: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  const all = [...new Set(ids)];
+  for (let i = 0; i < all.length; i += 100) {
+    const { data, error } = await db
+      .from("messages")
+      .select("id")
+      .in("id", all.slice(i, i + 100));
+    if (error) throw new Error(`cannot read the sends' emails: ${error.message}`);
+    for (const m of data ?? []) out.add(m.id);
+  }
+  return out;
+}
+
+/** An email the clock withdraws while it is still queued (its run was closed): its job then sends nothing. */
+export async function withdrawEmail(db: Db, p: { tenantId: string; id: string; reason: string }): Promise<boolean> {
+  const why = { reason: p.reason } as unknown as Json;
   const { data, error } = await db
     .from("messages")
-    .select("id, status, error, meta, created_at")
-    .in("id", [...new Set(ids)]);
-  if (error) throw new Error(`cannot read the sends' emails: ${error.message}`);
-  return new Map(((data ?? []) as SendMessage[]).map((m) => [m.id, m]));
+    .update({ status: "canceled", error: why })
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.id)
+    .eq("status", "queued")
+    .select("id");
+  if (error) throw new Error(`cannot withdraw the email: ${error.message}`);
+  return (data ?? []).length > 0;
 }
 
 /**
@@ -271,7 +265,7 @@ export async function messagesById(db: Db, ids: string[]): Promise<Map<string, S
  */
 export async function leadWritten(
   db: Db,
-  p: { tenantId: string; leadId: string; at: string; sendId: string },
+  p: { tenantId: string; leadId: string; at: string; sendId: string; retried?: boolean },
 ): Promise<boolean> {
   const { data: lead, error } = await db
     .from("leads")
@@ -294,7 +288,8 @@ export async function leadWritten(
     .eq("version", lead.version)
     .select("id");
   if (e2) throw new Error(`cannot record the lead as written to: ${e2.message}`);
-  if ((moved ?? []).length === 0) return false;
+  // Worked by a person at the same moment: read again and write once more (it only merges), then say it was not.
+  if ((moved ?? []).length === 0) return p.retried ? false : leadWritten(db, { ...p, retried: true });
   const said = { by: "reach_out", send_id: p.sendId } as unknown as Json;
   const { error: e3 } = await db.from("events").insert({
     tenant_id: p.tenantId,

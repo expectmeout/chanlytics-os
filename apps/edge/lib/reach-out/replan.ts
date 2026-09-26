@@ -53,6 +53,11 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
   const zones = new Map<string, string>();
   for (const [stepId, group] of byStep) {
     const tenantId = group[0].tenant_id;
+    // A step removed since (its sends' playbook_id set null): nothing to pace or place them by, so they go no further.
+    if (!stepId) {
+      for (const s of group) if (await move(s, { state: "skipped", reason: "step_removed" })) out.gave_up += 1;
+      continue;
+    }
     try {
       const { data: step, error: se } = await db
         .from("playbooks")
@@ -81,8 +86,11 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
       if (de) throw new Error(`the domains: ${de.message}`);
       // Each domain's times, less these sends' own: a send planned again never waits for the time it held.
       const own = new Map<string, number[]>();
-      for (const s of group)
-        if (s.domain_id && s.send_at) own.set(s.domain_id, [...(own.get(s.domain_id) ?? []), Date.parse(s.send_at)]);
+      for (const s of group) {
+        // What it holds in its domain's times (00184): a planned send its time, a claim the moment it was claimed.
+        const held = s.state === "planned" ? s.send_at : s.state === "claimed" ? s.claimed_at : null;
+        if (s.domain_id && held) own.set(s.domain_id, [...(own.get(s.domain_id) ?? []), Date.parse(held)]);
+      }
       const domains: TimetableDomain[] = [];
       for (const d of doms ?? []) {
         const c = await domainCapacityOf(db, d.id, now);
@@ -125,9 +133,12 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
           )
             out.replanned += 1;
         } else if (
+          // No domain: only the timetable places it, in its lead's hours, when it is planned again tomorrow (a claim
+          // would otherwise take it at this clock time, whatever the hour where the lead is).
           await move(s, {
             state: "planned",
             send_at: new Date(now.getTime() + DAY_MS).toISOString(),
+            domain_id: null,
             attempts,
             message_id: null,
             claimed_at: null,

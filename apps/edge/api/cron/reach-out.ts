@@ -20,7 +20,7 @@ export async function POST(request: Request): Promise<Response> {
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
   try {
-    const out = await reachOutClock(db, new Date(), L);
+    const out = await reachOutClock(db, new Date(), L, started);
     L.info("reach_out_swept", { ...out, took_ms: Date.now() - started });
     return json(200, { ok: true, ...out });
   } catch (e) {

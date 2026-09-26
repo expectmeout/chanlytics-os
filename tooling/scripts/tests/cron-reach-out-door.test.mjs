@@ -60,6 +60,58 @@ const email = (id, status, over = {}) => ({
   ...over,
 });
 
+/** 00186's reads over the tables, as the SQL makes them (its limits and its filters are proved on a stack). */
+function clockReads(t) {
+  const runOf = (s) => t.broadcasts.find((b) => b.id === s.broadcast_id);
+  const running = (id) => t.playbooks.some((p) => p.id === id && p.state === "running");
+  const emailOf = (s) => (s.message_id ? t.messages.find((m) => m.id === s.message_id) : null);
+  return {
+    reach_out_queued_outcomes: () =>
+      t.reach_out_sends
+        .filter((s) => s.state === "queued")
+        .map((s) => {
+          const m = emailOf(s);
+          return {
+            send: { ...s },
+            status: m?.status ?? null,
+            error: m?.error ?? null,
+            sent_at: m?.meta?.status_at?.sent ?? null,
+            written_at: m?.created_at ?? null,
+          };
+        }),
+    reach_out_stale_sends: (a) =>
+      t.reach_out_sends
+        .filter(
+          (s) =>
+            s.state === "planned" &&
+            s.send_at <= a.p_before &&
+            ["scheduled", "sending"].includes(runOf(s)?.state) &&
+            running(s.playbook_id) &&
+            running(s.root_id),
+        )
+        .map((s) => ({ ...s })),
+    reach_out_closed_sends: (a) =>
+      t.reach_out_sends
+        .filter(
+          (s) =>
+            ["canceled", "failed"].includes(runOf(s)?.state) &&
+            (["planned", "queued"].includes(s.state) || (s.state === "claimed" && s.claimed_at < a.p_stuck_before)),
+        )
+        .map((s) => ({ send: { ...s }, email_status: emailOf(s)?.status ?? null })),
+    reach_out_finishable: () =>
+      t.broadcasts
+        .filter(
+          (b) =>
+            b.audience?.kind === "reach_out" &&
+            ["scheduled", "sending"].includes(b.state) &&
+            !t.reach_out_sends.some(
+              (s) => s.broadcast_id === b.id && ["planned", "claimed", "queued"].includes(s.state),
+            ),
+        )
+        .map((b) => b.id),
+  };
+}
+
 function world({ sends = [], messages = [], runs = null, playbooks = null, domains = null } = {}) {
   const leadIds = sends.map((s) => s.lead_id);
   const tables = {
@@ -104,6 +156,7 @@ function world({ sends = [], messages = [], runs = null, playbooks = null, domai
         recent: [],
         last_sent_at: null,
       }),
+      ...clockReads(tables),
     },
   );
   setPg(db);
@@ -127,6 +180,12 @@ test("reconcile: each queued send reads what became of its email, once", async (
     noDomain: send({ state: "queued", message_id: "m-nodomain" }),
     erased: send({ state: "queued", message_id: "m-gone" }),
     waiting: send({ state: "queued", message_id: "m-queued" }),
+    delivered: send({ state: "queued", message_id: "m-delivered" }),
+    limited: send({ state: "queued", message_id: "m-429" }),
+    neverSent: send({ state: "queued", message_id: "m-never" }),
+    orphan: send({ state: "queued", message_id: "m-orphan" }),
+    oldUnknown: send({ state: "queued", message_id: "m-old-unknown" }),
+    paused: send({ state: "queued", message_id: "m-paused" }),
   };
   const w = world({
     sends: Object.values(s),
@@ -139,6 +198,15 @@ test("reconcile: each queued send reads what became of its email, once", async (
       email("m-wrote", "canceled", { error: { reason: "outreach_wrote_back" } }),
       email("m-nodomain", "canceled", { error: { reason: "outreach_needs_own_domain" } }),
       email("m-queued", "queued"),
+      email("m-delivered", "delivered", { meta: { status_at: { sent: sentAt } } }),
+      email("m-429", "failed", { error: { http_status: 429, body: "rate_limit_exceeded" } }),
+      email("m-never", "failed", { error: { reason: "never_delivered" } }),
+      email("m-orphan", "failed", { error: { reason: "orphaned" } }),
+      email("m-old-unknown", "failed", {
+        error: { outcome: "unknown", reason: "run_interrupted" },
+        created_at: ago(25 * 60 * MIN),
+      }),
+      email("m-paused", "canceled", { error: { reason: "paused" } }),
     ],
   });
   const [status, body] = await w.tick();
@@ -154,7 +222,10 @@ test("reconcile: each queued send reads what became of its email, once", async (
   );
   assert.deepEqual(
     w.tables.events.filter((e) => e.kind === "lead.emailed").map((e) => [e.subject_id, e.data.send_id]),
-    [[s.sent.lead_id, s.sent.id]],
+    [
+      [s.sent.lead_id, s.sent.id],
+      [s.delivered.lead_id, s.delivered.id],
+    ],
   );
   assert.equal(got("unknown").state, "queued", "its receipt settles it");
   assert.deepEqual([got("bounced").state, got("bounced").reason], ["failed", "bounced"]);
@@ -175,8 +246,19 @@ test("reconcile: each queued send reads what became of its email, once", async (
   assert.deepEqual([got("wrote").state, got("wrote").reason], ["skipped", "outreach_wrote_back"]);
   assert.deepEqual([got("erased").state, got("erased").reason], ["skipped", "erased"]);
   assert.equal(got("waiting").state, "queued", "its job has not run yet");
+  assert.equal(got("delivered").state, "sent", "delivered is left, and more");
+  // Never left: the provider's limit, a job that died before it, a row no job ever took. Another try costs nothing.
+  for (const k of ["limited", "neverSent", "orphan", "paused"]) {
+    assert.equal(got(k).state, "planned", k);
+    assert.equal(got(k).attempts, 1, `${k}: its email was written, so its next is a new one`);
+  }
+  assert.deepEqual(
+    [got("oldUnknown").state, got("oldUnknown").reason],
+    ["failed", "outcome_unknown"],
+    "a day with no receipt: it may have gone, so no second email and no nudge",
+  );
   // Five settled here; the two waits are counted where they are planned again.
-  assert.deepEqual([body.reconciled, body.sent, body.failed, body.skipped, body.replanned], [5, 1, 2, 2, 2]);
+  assert.deepEqual([body.reconciled, body.sent, body.failed, body.skipped, body.replanned], [7, 2, 3, 2, 6]);
   // A second tick moves nothing that the first did.
   const before = JSON.stringify(w.tables.reach_out_sends);
   await w.tick();
@@ -213,10 +295,13 @@ test("close: a canceled or failed run's open sends are skipped; a waiting run's 
   const CANCELED = "44444444-4444-4444-8444-444444444444";
   const WAITING = "55555555-5555-4555-8555-555555555555";
   const a = send({ broadcast_id: CANCELED, send_at: ahead(DAY) });
-  const b = send({ broadcast_id: CANCELED, state: "claimed", claimed_at: ago(MIN) });
+  const b = send({ broadcast_id: CANCELED, state: "claimed", claimed_at: ago(11 * MIN) });
   const c = send({ broadcast_id: WAITING, send_at: ago(3 * 60 * MIN) });
+  const young = send({ broadcast_id: CANCELED, state: "claimed", claimed_at: ago(MIN) });
+  const q = send({ broadcast_id: CANCELED, state: "queued", message_id: "m-canceled-run" });
   const w = world({
-    sends: [a, b, c],
+    sends: [a, b, c, young, q],
+    messages: [email("m-canceled-run", "queued"), email(await sendMessageId(b.id, 0), "queued")],
     runs: [
       {
         id: CANCELED,
@@ -238,9 +323,21 @@ test("close: a canceled or failed run's open sends are skipped; a waiting run's 
   });
   const [, body] = await w.tick();
   assert.deepEqual([w.row(a.id).state, w.row(a.id).reason], ["skipped", "run_canceled"]);
-  assert.deepEqual([w.row(b.id).state, w.row(b.id).reason], ["skipped", "run_canceled"]);
+  // A stuck claim whose email was written is adopted first (queued), then its email withdrawn with the rest.
+  assert.deepEqual([w.row(b.id).state, w.row(b.id).message_id], ["queued", await sendMessageId(b.id, 0)]);
   assert.deepEqual([w.row(c.id).state, w.row(c.id).send_at], ["planned", c.send_at], "a waiting run keeps its sends");
-  assert.equal(body.closed, 2);
+  assert.equal(w.row(young.id).state, "claimed", "a claim a writer may still hold is its writer's");
+  const withdrawn = (id) => w.tables.messages.find((m) => m.id === id);
+  assert.deepEqual(
+    [withdrawn("m-canceled-run").status, withdrawn("m-canceled-run").error.reason],
+    ["canceled", "run_canceled"],
+    "a queued email of a canceled run is withdrawn: its job sends nothing",
+  );
+  assert.equal(withdrawn(await sendMessageId(b.id, 0)).status, "canceled", "and a stuck claim's email too");
+  assert.deepEqual([body.closed, body.adopted, body.withdrawn], [1, 1, 2]);
+  // The next tick reads the withdrawn email and skips its send.
+  await w.tick();
+  for (const id of [q.id, b.id]) assert.deepEqual([w.row(id).state, w.row(id).reason], ["skipped", "run_canceled"], id);
 });
 
 test("restale: a send left long past its time in a run that goes ahead is planned again from now; a due one, a paused chain's or a waiting run's is not", async () => {
@@ -293,6 +390,7 @@ test("a send with no room tries again tomorrow; after two weeks waiting it is gi
   const y = w.row(young.id);
   assert.equal(y.state, "planned");
   assert.ok(Date.parse(y.send_at) > Date.now() + DAY - 5 * MIN, "tomorrow");
+  assert.equal(y.domain_id, null, "no domain: only the timetable places it, in its lead's hours");
   assert.deepEqual([w.row(old.id).state, w.row(old.id).reason], ["skipped", "kept_waiting"]);
   assert.deepEqual([body.waiting, body.gave_up], [1, 1]);
 });
@@ -332,4 +430,12 @@ test("finish: a run that goes ahead with nothing left open is sent, through its 
   assert.ok(done.finished_at, "it says when it finished");
   assert.equal(w.tables.broadcasts.find((b) => b.id === BUSY).state, "sending");
   assert.equal(body.finished, 1);
+});
+
+test("a send whose step was removed has nothing to be planned by, and goes no further", async () => {
+  const orphan = send({ state: "claimed", claimed_at: ago(11 * MIN), playbook_id: null });
+  const w = world({ sends: [orphan] });
+  const [status] = await w.tick();
+  assert.equal(status, 200, "the clock carries on");
+  assert.deepEqual([w.row(orphan.id).state, w.row(orphan.id).reason], ["skipped", "step_removed"]);
 });
