@@ -32,6 +32,8 @@ import {
   toInboxThreadVM,
   toPersonVM,
   toReportVM,
+  toBookingReportVM,
+  toDealReportVM,
   toTodayVM,
   PLAYBOOK_TRIGGERS,
   dealPaceOf,
@@ -49,7 +51,6 @@ import {
   type AskReadSet,
   type LeadRoundEnding,
   type PersonRowDto,
-  type ReportDto,
   visitLine,
 } from "@chanlytics/contracts";
 import { savedListsFor } from "@chanlytics/db";
@@ -58,7 +59,6 @@ import { audiencePoolOnce, poolList } from "../audience";
 import { dealPaceRead } from "../deals";
 import { listSearches, waitingQuestionOf } from "../leads";
 import { listPlaybooks, proposalFollowUps } from "../playbooks";
-import { calendarWeek } from "../calendar";
 import { load, readerContext, type ReaderContext } from "../readers";
 import * as readers from "../readers/facts";
 import { calls as callsReader } from "../readers/calls";
@@ -68,7 +68,9 @@ import { person } from "../readers/person";
 import { escalations as escalationsReader } from "../readers/escalations";
 import { inbox } from "../readers/inbox";
 import { today } from "../readers/today";
-import { openingsFor } from "./openings";
+import { calendar } from "../readers/calendar";
+import { report } from "../readers/report";
+import { openings } from "../readers/openings";
 import { workspaceFacts } from "./prompt";
 
 /**
@@ -689,11 +691,15 @@ async function getCall(t: ToolContext, input: Record<string, unknown>): Promise<
 async function getReport(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
   const days = Number(input.days) || 30;
   if (!REPORT_RANGES.some((r) => r.days === days)) return { error: "days must be 7, 30 or 90" };
-  const { data, error } = await t.ctx.supabase.rpc("report_series", { p_tenant_id: t.tenantId, p_days: days });
-  if (error) throw new Error(error.message);
-  const report = data as unknown as ReportDto;
-  if (!report || report.error) return { error: "report unavailable" };
-  const vm = toReportVM(report);
+  // The Reports page's own read (readers/report.ts), once a turn: the series, then the booking line and the deals
+  // beside it, with how the workspace's customers buy taken from the turn (ledger #1). A report the function will not
+  // answer is the reader's 404, said as the tool always said it.
+  const r = await unlessNotFound(load(t.rc, report, { days }));
+  if (!r) return { error: "report unavailable" };
+  // The page's own builders over the page's own payload, as the bridge applies them (legacy-bridge/surface-data.ts).
+  const vm = toReportVM(r.data.report);
+  const booking = r.data.booking ? toBookingReportVM(r.data.booking) : null;
+  const deals = toDealReportVM(r.data.deals, vm.rangeLabel);
   return {
     range: vm.rangeLabel,
     empty: vm.empty,
@@ -706,6 +712,19 @@ async function getReport(t: ToolContext, input: Record<string, unknown>): Promis
     by_day: vm.answered.points
       .slice(-14)
       .map((p) => ({ day: p.short, in: p.in, receptionist: p.ai, you: p.you, unanswered: p.none })),
+    // Asked, then booked: the page's one conversion line, its headline ("12 of 40 booked", "Nobody asked") where the
+    // calendar was read, else the page's own sentence for why there is nothing to count. Null: that line's read failed.
+    booking: booking ? (booking.present ? booking.headline : booking.sub) : null,
+    // The Deals section as the page draws it, where it draws one (deals are on and one was recorded): the cohort's
+    // headline, what became of its proposals, the lines beside the bars, and the clients now. Null where it draws none.
+    deals: deals.present
+      ? {
+          headline: deals.headline,
+          outcomes: (deals.outcomes?.rows ?? []).map((o) => `${o.label}: ${o.value}`),
+          lines: deals.lines.map((l) => l.text),
+          stock: deals.stock,
+        }
+      : null,
   };
 }
 
@@ -751,12 +770,10 @@ async function getSettings(t: ToolContext): Promise<unknown> {
 }
 
 async function getOpenings(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
-  const r = await openingsFor(
-    t.ctx,
-    t.tenantId,
-    { day: str(input.day, 20) || null, service: str(input.service, 80) || null },
-    t.now,
-  );
+  // The palette's own read (readers/openings.ts), once a turn, with the zone and the settings the turn read; what was
+  // asked is cut where the route cuts it, the service at 160 (ledger #13).
+  const r = (await load(t.rc, openings, { day: str(input.day, 20) || null, service: str(input.service, 160) || null }))
+    .data.openings;
   return { state: r.state, text: r.text, days: r.days, service: r.service?.name ?? null };
 }
 
@@ -1041,7 +1058,16 @@ async function getCalendar(t: ToolContext, input: Record<string, unknown>): Prom
     }
   }
   const days = Math.min(14, Math.max(1, Math.round(Number(input.days)) || 1));
-  const vm = toCalendarVM(await calendarWeek(t.ctx, t.tenantId, { from, days }, t.now), t.now);
+  // The board as its page reads it (readers/calendar.ts), once a turn, with the zone and the settings the turn read,
+  // and never a write. No day asked is the page's own span from its Monday: its week, as the Calendar opens (ledger
+  // #11), or as many days as were asked for; a day asked is that day and the days after it, as before. Then the page's
+  // own view model, as the bridge builds it.
+  const r = await load(
+    t.rc,
+    calendar,
+    asked ? { from, days } : { from: null, days: input.days === undefined ? 7 : days },
+  );
+  const vm = toCalendarVM(r.data.calendar, t.now);
   // A person the calendar names is a row read: the answer may name them, and open their profile.
   for (const d of vm.days) for (const b of [...d.allDay, ...d.blocks]) if (b.person) t.read.person.add(b.person.id);
   return {

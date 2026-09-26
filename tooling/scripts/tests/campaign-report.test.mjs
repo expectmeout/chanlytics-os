@@ -9,7 +9,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toCampaignReportVM } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { importSrc, readCode, readRaw } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
+
+// The route runs below over a database in memory; a module that ever builds a service client reads these, and nothing
+// dials it.
+process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 function day(d, over = {}) {
   return { day: d, sent: 0, delivered: 0, read: 0, replied: 0, opt_ins: 0, opt_outs: 0, ...over };
@@ -134,7 +140,7 @@ test("the honest empty, and the table twin", () => {
   assert.deepEqual(vm.table.rows[0].slice(1), [10, 9, 2, 2, 0]);
 });
 
-test("the door: two periods by the business's clock, replied by the Broadcasts rule, yeses and stops from the consent ledger, the invoker's RLS", () => {
+test("the door: two periods by the business's clock, replied by the Broadcasts rule, yeses and stops from the consent ledger, the invoker's RLS", async () => {
   const m = readRaw("supabase/migrations/00051_campaign_series.sql");
   assert.ok(
     m.includes("create or replace function public.campaign_series(p_tenant_id uuid, p_days integer default 30)"),
@@ -155,12 +161,43 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
   );
   assert.ok(!/security definer/i.test(m), "the caller's RLS applies");
   assert.ok(m.includes("grant execute on function public.campaign_series(uuid, integer) to authenticated;"));
-  const r = readCode("apps/dashboard/app/api/v1/reports/campaigns/route.ts");
-  assert.ok(
-    r.includes('rate: "aggregate",') &&
-      r.includes('ctx.supabase.rpc("campaign_series", { p_tenant_id: tenantId, p_days: days })'),
+  // The route, run: counted with the aggregate reads, the function asked for the workspace and the period, and any
+  // other period refused in the receptionist's report's own words.
+  const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/rate-limit.ts");
+  setRateStore(memoryStore());
+  const route = await importSrc("apps/dashboard/app/api/v1/reports/campaigns/route.ts");
+  assert.equal(route.GET.policy.rate, "aggregate");
+  const W = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const asked = [];
+  const ctx = () => ({
+    supabase: fakeDb(
+      {
+        memberships: [
+          { user_id: "u1", tenant_id: W, role: "viewer", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
+        ],
+      },
+      {},
+      {
+        campaign_series: (a) => {
+          asked.push(a);
+          return { days: a.p_days };
+        },
+      },
+    ),
+    userId: "u1",
+    email: "ada@example.com",
+    params: {},
+  });
+  const week = await route.GET.run(
+    new Request(`http://localhost/api/v1/reports/campaigns?days=7&workspace=${W}`),
+    ctx(),
   );
-  assert.ok(r.includes("days must be 7, 30 or 90."), "the same three presets as the receptionist's report");
+  assert.deepEqual([week, asked], [{ report: { days: 7 } }, [{ p_tenant_id: W, p_days: 7 }]]);
+  await assert.rejects(
+    route.GET.run(new Request(`http://localhost/api/v1/reports/campaigns?days=45&workspace=${W}`), ctx()),
+    (e) => e.status === 400 && e.message === "days must be 7, 30 or 90.",
+    "the same three presets as the receptionist's report",
+  );
   const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(
     s.includes('read("GET reports/campaigns", { query: { days: String(days) } })'),

@@ -17,11 +17,14 @@ import type { Member } from "../route";
  * Two caches. The TurnCache memoises by reader and arguments for the life of
  * one turn or one request (the memo that lived in Ask's ToolContext,
  * generalised; a failure is never kept). The ReaderCache keeps a reader that
- * declares `ttlMs` across turns on this instance, per workspace and person;
- * in Phase 1 only the tenant's name and zone do.
+ * declares `ttlMs` across turns on this instance, per workspace and person,
+ * for a context that opts in (`keep`): an Ask turn does; a route does not, so
+ * it answers each request from its own reads, the same bytes it answered
+ * before there were readers. In Phase 1 only the tenant's name and zone
+ * declare a ttl.
  *
- * A `Read` is one object every caller in the turn shares by reference, and
- * with a ttl every later turn of the same person: never mutate `data`; copy
+ * A `Read` is one object every caller in the turn shares by reference, and,
+ * kept, every later turn of the same person: never mutate `data`; copy
  * it. A reader with `ttlMs` may depend on nothing but its arguments and the
  * workspace, never on `rc.now` or `rc.role`, because its promise is served to
  * turns with other clocks and other roles.
@@ -49,7 +52,10 @@ export interface Reader<A, T> {
   /** Unique in the directory: the first half of every cache key. */
   name: string;
   read(rc: ReaderContext, args: A): Promise<Read<T>>;
-  /** Kept across turns on this instance for this long, per workspace and person. Unset: per turn only. */
+  /**
+   * Kept across turns on this instance for this long, per workspace and person, for a context that keeps (`keep`).
+   * Unset, or a context that does not keep: per turn only.
+   */
   ttlMs?: number;
 }
 
@@ -61,6 +67,11 @@ export interface ReaderContext {
   /** The turn's clock: every reader that says "today" says this day. */
   now: Date;
   turn: TurnCache;
+  /**
+   * Whether readers with a ttl may be served from this instance's cache across turns. A turn says yes; a route
+   * answers each request from its own reads, so it says no.
+   */
+  keep: boolean;
 }
 
 /** The arguments as one key: the same fields in any order are the same key; undefined is the empty key. */
@@ -115,7 +126,7 @@ export class TurnCache {
     const key = `${r.name}:${stableJson(args)}`;
     const had = this.hits.get(key) as Promise<Read<T>> | undefined;
     if (had) return had;
-    const read = r.ttlMs ? readerCache.get(rc, r, args, key) : r.read(rc, args);
+    const read = rc.keep && r.ttlMs ? readerCache.get(rc, r, args, key) : r.read(rc, args);
     this.hits.set(key, read);
     // memoised() in tools.ts kept a rejection for the whole turn, so a read
     // that failed once failed on every later call. Not here.
@@ -131,13 +142,25 @@ export function load<A, T>(rc: ReaderContext, r: Reader<A, T>, args: A): Promise
   return rc.turn.get(rc, r, args);
 }
 
-/** The context a route builds from its resolved membership, or a turn from its own. */
+/**
+ * The context a route builds from its resolved membership, or a turn from its own. Only a context that says `keep`
+ * (an Ask turn) is served what an earlier turn kept; by default, a route's, everything is read for this request.
+ */
 export function readerContext(
   ctx: RouteContext,
   member: Pick<Member, "tenantId" | "role">,
   now: Date = new Date(),
+  opts: { keep?: boolean } = {},
 ): ReaderContext {
-  return { ctx, tenantId: member.tenantId, userId: ctx.userId, role: member.role, now, turn: new TurnCache() };
+  return {
+    ctx,
+    tenantId: member.tenantId,
+    userId: ctx.userId,
+    role: member.role,
+    now,
+    turn: new TurnCache(),
+    keep: opts.keep === true,
+  };
 }
 
 /** A stamp for a read made now. */

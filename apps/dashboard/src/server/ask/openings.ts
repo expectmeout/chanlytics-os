@@ -185,20 +185,33 @@ function fmtWindow(start: number, end: number, tz: string): string {
   return `${f.format(new Date(start))}–${f.format(new Date(end))}`;
 }
 
+/**
+ * `known`: the workspace's zone and its raw settings, handed in by a caller that read them this turn
+ * (readers/openings.ts), so neither is read again; without it, both are read here.
+ */
 export async function openingsFor(
   ctx: RouteContext,
   tenantId: string,
   by: { day?: string | null; service?: string | null },
   now = new Date(),
+  known?: { timezone: string; config: unknown },
 ): Promise<OpeningsResult> {
-  const { timezone } = await tenantFacts(ctx.supabase, tenantId);
-  const { data: row, error } = await ctx.supabase
-    .from("tenant_config")
-    .select("config")
-    .eq("tenant_id", tenantId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  const cfg = parseTenantConfig(row?.config ?? null);
+  let timezone: string;
+  let raw: unknown;
+  if (known) {
+    timezone = known.timezone;
+    raw = known.config;
+  } else {
+    ({ timezone } = await tenantFacts(ctx.supabase, tenantId));
+    const { data: row, error } = await ctx.supabase
+      .from("tenant_config")
+      .select("config")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    raw = row?.config ?? null;
+  }
+  const cfg = parseTenantConfig(raw);
   const url = cfg?.calendar?.ical_url;
   const profile = cfg?.brain?.profile;
   // What the asked-for service is offered as, by the phone tool's rule: itself, or a consultation first (C5b).

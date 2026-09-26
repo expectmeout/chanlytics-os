@@ -158,7 +158,9 @@ export const POST = write({
     const turn = thread;
     await appendMessage(ctx, turn.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
 
-    const rc = readerContext(ctx, member);
+    // A turn keeps what may be kept across turns (the workspace's name and zone, five minutes): the next question of
+    // the same person does not read them again. The GET routes keep nothing.
+    const rc = readerContext(ctx, member, undefined, { keep: true });
     const [{ name, timezone }, cfg, policies, sellsBy] = await Promise.all([
       load(rc, readers.facts, undefined).then((r) => r.data),
       load(rc, readers.config, undefined).then((r) => r.data),

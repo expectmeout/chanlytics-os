@@ -35,9 +35,24 @@ const { call: oneCall } = await import(at("apps/dashboard/src/server/readers/cal
 const { person: onePerson } = await import(at("apps/dashboard/src/server/readers/person.ts"));
 const threadRoute = await import(at("apps/dashboard/app/api/v1/conversations/[id]/route.ts"));
 const personRoute = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
+const { report: reportReader } = await import(at("apps/dashboard/src/server/readers/report.ts"));
+const { campaignReport } = await import(at("apps/dashboard/src/server/readers/campaign-report.ts"));
+const reportsRoute = await import(at("apps/dashboard/app/api/v1/reports/route.ts"));
+const campaignsRoute = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
+const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar.ts"));
+const { forgetFeeds, openingsFor } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+const { openings: openingsReader } = await import(at("apps/dashboard/src/server/readers/openings.ts"));
+const openingsRoute = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
+const { calendar: calendarReader, sources: calendarSources } = await import(
+  at("apps/dashboard/src/server/readers/calendar.ts")
+);
+const calendarRoute = await import(at("apps/dashboard/app/api/v1/calendar/route.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
 beforeEach(() => kernel.readerCache.clear());
+// The aggregate routes count against their bucket: this instance's memory, never a store dialled.
+beforeEach(() => setRateStore(memoryStore()));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -98,17 +113,22 @@ test("a turn reads a reader once per arguments: the same call again is the same 
   assert.equal(r.reads, 3, "another turn is another read");
 });
 
-test("a reader with a ttl is kept across turns on this instance, per workspace and person, until the ttl; a failure is not kept; the cache is bounded", async () => {
+test("a reader with a ttl is kept across turns that keep, on this instance, per workspace and person, until the ttl; a failure is not kept; the cache is bounded", async () => {
   const r = counting("kept", { ttlMs: 60_000 });
-  const t1 = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" });
-  const t2 = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" });
+  const t1 = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true });
+  const t2 = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true });
   await kernel.load(t1, r, undefined);
   await kernel.load(t2, r, undefined);
   assert.equal(r.reads, 1, "the second turn read the kept value");
-  const elsewhere = kernel.readerContext(ctxFor(tables()), { tenantId: B, role: "owner" });
+  const elsewhere = kernel.readerContext(ctxFor(tables()), { tenantId: B, role: "owner" }, undefined, { keep: true });
   await kernel.load(elsewhere, r, undefined);
   assert.equal(r.reads, 2, "another workspace is another entry");
-  const someoneElse = kernel.readerContext({ ...ctxFor(tables()), userId: "u2" }, { tenantId: A, role: "owner" });
+  const someoneElse = kernel.readerContext(
+    { ...ctxFor(tables()), userId: "u2" },
+    { tenantId: A, role: "owner" },
+    undefined,
+    { keep: true },
+  );
   await kernel.load(someoneElse, r, undefined);
   assert.equal(r.reads, 3, "another person is another entry");
   kernel.readerCache.clear();
@@ -118,15 +138,23 @@ test("a reader with a ttl is kept across turns on this instance, per workspace a
   assert.equal(f.reads, 2, "a failed read is not kept");
   kernel.readerCache.clear();
   const stale = counting("stale", { ttlMs: 10 });
-  await kernel.load(kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }), stale, undefined);
+  await kernel.load(
+    kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true }),
+    stale,
+    undefined,
+  );
   await new Promise((res) => setTimeout(res, 15));
-  await kernel.load(kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }), stale, undefined);
+  await kernel.load(
+    kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true }),
+    stale,
+    undefined,
+  );
   assert.equal(stale.reads, 2, "past the ttl the value is read again");
   assert.equal(kernel.READER_CACHE_CAP, 500);
 });
 
 test("the kept values are bounded at READER_CACHE_CAP, the oldest write first out: a value read again goes to the back", async () => {
-  const turn = () => kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" });
+  const turn = () => kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true });
   const r = counting("fifo", { ttlMs: 60_000 });
   await kernel.load(turn(), r, { n: 0 });
   await kernel.load(turn(), r, { n: 1 });
@@ -144,9 +172,9 @@ test("the kept values are bounded at READER_CACHE_CAP, the oldest write first ou
   assert.equal(r.reads, reads + 1, "the oldest write was the one let go");
 });
 
-test("the facts readers: the tenant's name and zone are read once and kept; sells_by, the policies and the config are read once per turn; each answers the row's fields and nothing else", async () => {
+test("the facts readers: the tenant's name and zone are read once and kept for turns that keep; sells_by, the policies and the config are read once per turn; each answers the row's fields and nothing else", async () => {
   const ctx = ctxFor(tables());
-  const rc = kernel.readerContext(ctx, { tenantId: A, role: "operator" });
+  const rc = kernel.readerContext(ctx, { tenantId: A, role: "operator" }, undefined, { keep: true });
   const [f, s, p, c] = await Promise.all([
     kernel.load(rc, facts, undefined),
     kernel.load(rc, sellsBy, undefined),
@@ -164,7 +192,7 @@ test("the facts readers: the tenant's name and zone are read once and kept; sell
     [2, 1],
     "tenants once for facts and once for sells_by; the config once",
   );
-  const later = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "operator" });
+  const later = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "operator" }, undefined, { keep: true });
   const f2 = await kernel.load(later, facts, undefined);
   assert.deepEqual(f2.data, f.data);
   assert.equal(
@@ -1320,5 +1348,534 @@ test("a config read that fails keeps the route's place in the error order: a per
         return true;
       },
     );
+  });
+});
+
+/* ------------------------------------------------------------------------ the reports (PR 1.5) */
+
+/** A member of harbor and bayside, viewing both, as ask-routes' reports fixtures hold them. */
+const reportMembers = () => [
+  membership(A, "viewer", "harbor", "2026-01-01T00:00:00Z"),
+  membership(B, "viewer", "bayside", "2026-02-01T00:00:00Z"),
+];
+const series = (a) => ({ days: a.p_days, tenant: a.p_tenant_id });
+/** ask-routes.test.mjs, "the reports: the three presets and no other": nobody in People, no calendar, no deals. */
+const presetsWorld = () => ({
+  tables: { memberships: reportMembers(), tenants: [], tenant_config: [], policies: [] },
+  rpcs: {
+    report_series: series,
+    campaign_series: (a) => (a.p_tenant_id === A ? { days: a.p_days } : { error: "no" }),
+    people_list: () => [],
+  },
+});
+const CLIENT = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
+/**
+ * ask-routes.test.mjs, "the reports' Deals section": one page of People, whose one row says the client came from a
+ * lead, and their deal, won five days ago at $2,500 a month. `sellsBy` is how the workspace's customers buy, or unset.
+ */
+const dealsWorld = (sellsBy) => ({
+  tables: {
+    memberships: reportMembers(),
+    tenants: [{ id: A, slug: "harbor", ...(sellsBy === undefined ? {} : { sells_by: sellsBy }) }],
+    tenant_config: [],
+    policies: [],
+    deals: [
+      {
+        id: "dddddddd-dddd-4ddd-8ddd-dddddddddd01",
+        tenant_id: A,
+        contact_id: CLIENT,
+        stage: "won",
+        proposed_at: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+        amount_cents: 250_000,
+        per: "month",
+      },
+    ],
+  },
+  rpcs: { report_series: series, people_list: () => [{ id: CLIENT, came_from: "lead" }] },
+});
+/** A request's database over a world, `faults` failing a read the way PostgREST fails. */
+const worldCtx = (w, faults = {}) => ({
+  supabase: fakeDb(w.tables, faults, w.rpcs),
+  userId: USER,
+  email: "ada@example.com",
+  params: {},
+});
+/** Every query in the order it reached the database: a door by name, a table by what was done to it. */
+const asked = (ctx) => ctx.supabase.seen.map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`));
+const noReport = (e) => {
+  assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "No workspace found for this report."]);
+  return true;
+};
+
+test("the reports, for Ask and for the page: GET reports answers its reader's payload, key for key and byte for byte -- the series, the booking line and the deals, in that order -- over ask-routes' two fixtures and each preset; the Reports page is the row", async () => {
+  for (const [w, days] of [
+    [presetsWorld(), 7],
+    [presetsWorld(), 30],
+    [dealsWorld("proposal"), 30],
+    [dealsWorld("proposal"), 90],
+    [dealsWorld("booking"), 30],
+    [dealsWorld(null), 7],
+    [dealsWorld(undefined), 30],
+  ]) {
+    const page = await reportsRoute.GET.run(req(`?days=${days}&workspace=${A}`), worldCtx(w));
+    const r = await kernel.load(turnIn(worldCtx(w)), reportReader, { days });
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+    assert.deepEqual(
+      Object.keys(r.data),
+      ["report", "booking", "deals"],
+      "the keys in the order the route answered them",
+    );
+    assert.deepEqual(r.rows, [{ kind: "page", id: "reports", route: "reports", label: `Reports, ${days} days` }]);
+  }
+  // What ask-routes asserts of the route, of the reader.
+  const week = await kernel.load(turnIn(worldCtx(presetsWorld())), reportReader, { days: 7 });
+  assert.deepEqual(week.data.report, { days: 7, tenant: A });
+  assert.deepEqual(week.data.booking, { calendar: "none", days: 7, asked: 0, booked: 0 }, "no calendar, said as none");
+  const on = await kernel.load(turnIn(worldCtx(dealsWorld("proposal"))), reportReader, { days: 30 });
+  assert.deepEqual([on.data.deals.any, on.data.deals.clients, on.data.deals.monthly_cents], [true, 1, 250_000]);
+  assert.deepEqual(on.data.deals.sources, [{ came_from: "lead", count: 1 }], "the new client's source, from People");
+  for (const sellsBy of ["booking", null, undefined]) {
+    const off = await kernel.load(turnIn(worldCtx(dealsWorld(sellsBy))), reportReader, { days: 30 });
+    assert.equal(off.data.deals.any, false, `${sellsBy}: a deal on file switches nothing`);
+  }
+});
+
+test("GET reports through its reader asks what it asked at origin/main, in its order: the series; People once, with their reply modes, for the booking line and the deals alike; the booking line's calendar zone and settings, now through their readers; how the workspace's customers buy, once, through its reader; then the deals, and only where deals are on -- and a turn that holds the zone, the settings and sells_by reads none of them again", async () => {
+  const REPORT_READS = [
+    "rpc:report_series",
+    // Everyone, read once for the whole report: the booking line's read, which the deals take their sources from.
+    "rpc:people_list",
+    "policies.select",
+    // The booking line's calendar: its zone and its settings, through the facts and config readers, where its own
+    // lookup read them at origin/main.
+    "tenants.select",
+    "tenant_config.select",
+    // How the workspace's customers buy, after the booking line, then the deals.
+    "tenants.select",
+    "deals.select",
+  ];
+  const routed = worldCtx(dealsWorld("proposal"));
+  await reportsRoute.GET.run(req(`?workspace=${A}`), routed);
+  assert.deepEqual(asked(routed), ["memberships.select", ...REPORT_READS], "the workspace's door, then the reads");
+  const ctx = worldCtx(dealsWorld("proposal"));
+  await kernel.load(turnIn(ctx), reportReader, { days: 30 });
+  assert.deepEqual(asked(ctx), REPORT_READS);
+  assert.deepEqual(
+    selects(ctx, "tenants").map((q) => q.columns),
+    ["name, timezone", "sells_by"],
+    "the calendar's zone, then sells_by once",
+  );
+  assert.deepEqual(
+    selects(ctx, "tenant_config").map((q) => q.columns),
+    // At origin/main (c39ce689) the booking line's lookup asked for the one column, config.
+    ["tenant_id, config, version, updated_at, updated_by"],
+    "the settings once, through the config reader",
+  );
+  assert.deepEqual(
+    ctx.supabase.seen.filter((q) => q.rpc === "report_series").map((q) => q.args),
+    [{ p_tenant_id: A, p_days: 30 }],
+  );
+  // A turn that already holds the zone, the settings and how the workspace's customers buy is asked for none again.
+  const turn = turnIn(worldCtx(dealsWorld("proposal")));
+  await Promise.all([facts, config, sellsBy].map((r) => kernel.load(turn, r, undefined)));
+  const held = turn.ctx.supabase.seen.length;
+  await kernel.load(turn, reportReader, { days: 30 });
+  assert.deepEqual(
+    asked(turn.ctx).slice(held),
+    ["rpc:report_series", "rpc:people_list", "policies.select", "deals.select"],
+    "the series, everyone and the deals: the tenant, its settings and sells_by were the turn's",
+  );
+  // Where the workspace's customers book, the deals are not even read.
+  const off = worldCtx(dealsWorld("booking"));
+  await kernel.load(turnIn(off), reportReader, { days: 30 });
+  assert.deepEqual(asked(off), REPORT_READS.slice(0, -1));
+});
+
+test("a report the function will not answer is GET reports' 404, in its sentence, and nothing else is read; the booking line is never fatal: a calendar lookup that fails is null, said once in the log, and the series and the deals stand", async () => {
+  const refused = { ...presetsWorld(), rpcs: { ...presetsWorld().rpcs, report_series: () => ({ error: "no" }) } };
+  const ctx = worldCtx(refused);
+  await assert.rejects(kernel.load(turnIn(ctx), reportReader, { days: 30 }), noReport);
+  assert.deepEqual(asked(ctx), ["rpc:report_series"], "nothing read past the series");
+  await assert.rejects(reportsRoute.GET.run(req(`?workspace=${A}`), worldCtx(refused)), noReport);
+  const empty = { ...presetsWorld(), rpcs: { ...presetsWorld().rpcs, report_series: () => null } };
+  await assert.rejects(kernel.load(turnIn(worldCtx(empty)), reportReader, { days: 30 }), noReport);
+
+  const down = { "tenant_config.select": { message: "config down" } };
+  const { result: page, lines } = await logged("booking_report_failed", () =>
+    reportsRoute.GET.run(req(`?workspace=${A}`), worldCtx(dealsWorld("proposal"), down)),
+  );
+  assert.deepEqual(Object.keys(page), ["report", "booking", "deals"]);
+  assert.equal(page.booking, null, "the line, and only the line, is lost");
+  assert.deepEqual([page.report.days, page.deals.any, page.deals.clients], [30, true, 1]);
+  assert.deepEqual(
+    lines.map(([json]) => JSON.parse(json)),
+    // The settings come through the config reader now (getTenantConfig), which names itself in its failure.
+    [{ tenant: A, error: "getTenantConfig: config down" }],
+  );
+  const { result: r } = await logged("booking_report_failed", () =>
+    kernel.load(turnIn(worldCtx(dealsWorld("proposal"), down)), reportReader, { days: 30 }),
+  );
+  assert.deepEqual(r.data, page, "the reader's payload is the route's");
+});
+
+test("the campaigns' report, for Ask and for the page: GET reports/campaigns answers its reader's payload over ask-routes' fixture, for each preset -- the function's series alone, and no row a citation names; a report it will not answer is the route's 404", async () => {
+  const w = presetsWorld();
+  for (const days of [7, 30, 90]) {
+    const page = await campaignsRoute.GET.run(req(`?days=${days}&workspace=${A}`), worldCtx(w));
+    const ctx = worldCtx(w);
+    const r = await kernel.load(turnIn(ctx), campaignReport, { days });
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.deepEqual(r.data, { report: { days } });
+    assert.deepEqual(r.rows, []);
+    assert.deepEqual(ctx.supabase.seen, [{ rpc: "campaign_series", args: { p_tenant_id: A, p_days: days } }]);
+  }
+  await assert.rejects(kernel.load(turnIn(worldCtx(w), B), campaignReport, { days: 30 }), noReport);
+  await assert.rejects(campaignsRoute.GET.run(req(`?workspace=${B}`), worldCtx(w)), noReport);
+});
+
+/* ----------------------------------------------------------------------- the calendar (PR 1.5) */
+
+/** calendar-feed.test.mjs's clock: Tuesday noon in New York. */
+const CAL_NOW = new Date("2026-09-08T16:00:00.000Z");
+/** calendar-feed.test.mjs's one appointment: Ana Ruiz, with her number in its words, on the Tuesday afternoon. */
+const ONE_ICS = [
+  "BEGIN:VCALENDAR",
+  "BEGIN:VEVENT",
+  "UID:a1",
+  "SUMMARY:Ana Ruiz · Balayage",
+  "DESCRIPTION:Ana Ruiz +1 (917) 555-0100",
+  "DTSTART;TZID=America/New_York:20260908T140000",
+  "DTEND;TZID=America/New_York:20260908T153000",
+  "END:VEVENT",
+  "END:VCALENDAR",
+].join("\r\n");
+const calProfile = {
+  hours: {
+    mon: { open: "09:00", close: "18:00" },
+    tue: { open: "09:00", close: "18:00" },
+    wed: { open: "09:00", close: "18:00" },
+    thu: { open: "09:00", close: "18:00" },
+    fri: { open: "09:00", close: "18:00" },
+    sat: {},
+    sun: {},
+  },
+  closures: [],
+  services: [{ name: "Balayage", duration_min: 90 }],
+  booking_rules: { lead_hours: 2, max_days_ahead: 14, slot_min: 30 },
+};
+/** calendar-feed.test.mjs, tables(url, role): harbor's calendar at `url` (none when null), its hours, its one service. */
+const calTables = (url, role = "owner") => ({
+  memberships: [membership(A, role, "harbor", "2026-01-01T00:00:00Z")],
+  tenants: [{ id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
+  tenant_config: [
+    {
+      tenant_id: A,
+      config: {
+        ...(url ? { calendar: { ical_url: url } } : {}),
+        brain: {
+          business_name: "Harbor",
+          booking_link: "https://book.example/harbor",
+          system_prompt: "Answer as the front desk of Harbor: brief, warm, and never a price or a booking.",
+          fallbacks: { greeting: "g", error: "e", non_text: "n" },
+          profile: calProfile,
+        },
+      },
+    },
+  ],
+  policies: [],
+});
+/** A request over `t`: People as `people` answers them, and the door that puts a person in People, each call kept. */
+const calCtx = (t, people = () => [], made = []) => ({
+  supabase: fakeDb(
+    t,
+    {},
+    {
+      people_list: people,
+      create_person: (a) => {
+        made.push(a);
+        return { contact_id: "p1", existed: false };
+      },
+    },
+  ),
+  userId: USER,
+  email: "ada@example.com",
+  params: {},
+});
+/** The network, scripted for `fn`: every calendar answers `answer`, each fetch kept; no feed is remembered past it. */
+async function withFeed(answer, fn) {
+  const was = globalThis.fetch;
+  const fetched = [];
+  globalThis.fetch = async (url) => {
+    fetched.push(String(url));
+    return new Response(answer.body, { status: answer.status ?? 200, headers: { "content-type": "text/calendar" } });
+  };
+  forgetFeeds();
+  try {
+    return await fn(fetched);
+  } finally {
+    globalThis.fetch = was;
+    forgetFeeds();
+  }
+}
+/** A turn on calendar-feed's clock. */
+const calIn = (ctx, role = "viewer") => kernel.readerContext(ctx, { tenantId: A, role }, CAL_NOW);
+const WEEK = { from: "2026-09-07", days: 7 };
+/** Ana in People, by the number her appointment carries. */
+const ANA = { id: "k-ana", display_name: "Ana Ruiz", wa_profile_name: null, phone_e164: "+19175550100", email: null };
+const tuesday = (week) => week.days.find((d) => d.key === "2026-09-08");
+
+test("the calendar, for Ask: the board's week exactly as calendarWeek assembles it for a read that puts nobody in People -- over calendar-feed's fixture with no calendar, a calendar that cannot be read, and its one appointment -- and each person its days name is a row, once, by the board's name for them", async () => {
+  const none = calTables(null);
+  const quiet = await calendarWeek(calCtx(none), A, WEEK, CAL_NOW, { canAct: false });
+  const noFeed = await kernel.load(calIn(calCtx(none)), calendarReader, WEEK);
+  assert.deepEqual(noFeed.data, { calendar: quiet });
+  assert.equal(quiet.feed.state, "none");
+  assert.deepEqual(noFeed.rows, []);
+
+  await logged("ask_feed_fetch_failed", () =>
+    withFeed({ body: "nope", status: 503 }, async () => {
+      const t = calTables("https://cal.example/down.ics");
+      const want = await calendarWeek(calCtx(t), A, WEEK, CAL_NOW, { canAct: false });
+      const r = await kernel.load(calIn(calCtx(t)), calendarReader, WEEK);
+      assert.deepEqual(r.data, { calendar: want });
+      assert.deepEqual([want.feed.state, want.feed.reason, want.feed.status], ["unavailable", "http", 503]);
+    }),
+  );
+
+  await withFeed({ body: ONE_ICS }, async (fetched) => {
+    const t = calTables("https://cal.example/ok.ics");
+    const want = await calendarWeek(
+      calCtx(t, () => [ANA]),
+      A,
+      WEEK,
+      CAL_NOW,
+      { canAct: false },
+    );
+    const r = await kernel.load(calIn(calCtx(t, () => [ANA])), calendarReader, WEEK);
+    assert.deepEqual(r.data, { calendar: want }, "the week calendarWeek answers");
+    assert.equal(JSON.stringify(r.data.calendar), JSON.stringify(want), "byte for byte");
+    assert.equal(fetched.length, 1, "the calendar asked once: the second read took the loader's cache");
+    assert.deepEqual(
+      tuesday(want).items.map((i) => i.person?.id),
+      [ANA.id],
+      "the appointment names Ana by her number",
+    );
+    assert.ok(tuesday(want).windows.length > 0, "and the receptionist's windows beside it");
+    assert.deepEqual(r.rows, [{ kind: "person", id: ANA.id, route: `clients/${ANA.id}`, label: "Ana Ruiz" }]);
+    // Two appointments of hers are one row.
+    const twice = ONE_ICS.replace(
+      "END:VCALENDAR",
+      [
+        "BEGIN:VEVENT",
+        "UID:a2",
+        "SUMMARY:Ana Ruiz · Toner",
+        "DESCRIPTION:Ana Ruiz +1 (917) 555-0100",
+        "DTSTART;TZID=America/New_York:20260910T100000",
+        "DTEND;TZID=America/New_York:20260910T110000",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\r\n"),
+    );
+    forgetFeeds();
+    globalThis.fetch = async () => new Response(twice, { status: 200, headers: { "content-type": "text/calendar" } });
+    const again = await kernel.load(calIn(calCtx(t, () => [ANA])), calendarReader, WEEK);
+    assert.equal(again.data.calendar.days.flatMap((d) => d.items).length, 2);
+    assert.deepEqual(
+      again.rows.map((x) => x.id),
+      [ANA.id],
+    );
+  });
+});
+
+test("the calendar's reader never writes (D7): an owner's Ask reads the board of a feed naming someone People does not hold and puts nobody in People -- no door called, nothing inserted -- and its zone and settings are the turn's: a turn that holds them reads neither again", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    const made = [];
+    const ctx = calCtx(calTables("https://cal.example/ok.ics"), () => [], made);
+    const rc = calIn(ctx, "owner");
+    await Promise.all([kernel.load(rc, facts, undefined), kernel.load(rc, config, undefined)]);
+    const before = ctx.supabase.seen.length;
+    const r = await kernel.load(rc, calendarReader, WEEK);
+    assert.deepEqual(made, [], "nobody put in People");
+    assert.deepEqual(
+      ctx.supabase.seen.slice(before).map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`)),
+      ["rpc:people_list", "policies.select"],
+      "everyone, and nothing the turn already read: no door, no write",
+    );
+    assert.deepEqual(
+      tuesday(r.data.calendar).items.map((i) => i.person),
+      [null],
+      "the appointment names nobody People holds",
+    );
+    assert.deepEqual(r.rows, []);
+    // Read once a turn: the board again is the same read, and its sources are one read for any reader of them.
+    assert.equal(kernel.load(rc, calendarReader, WEEK), kernel.load(rc, calendarReader, WEEK));
+    const s = await kernel.load(rc, calendarSources, { ...WEEK, fresh: false });
+    assert.equal(s.data.week, null, "the feed was read");
+    assert.deepEqual(s.rows, []);
+    // What the board needs of the address and the settings, and not them: nothing a projection of the read could leak.
+    assert.ok(!("url" in s.data) && !("cfg" in s.data), "no address, no raw settings");
+    assert.equal(typeof s.data.source, "string");
+    const json = JSON.stringify(s.data);
+    assert.ok(
+      !json.includes("cal.example") && !json.includes("front desk of Harbor"),
+      "neither is anywhere in the read",
+    );
+    assert.equal(ctx.supabase.seen.length, before + 2, "nothing asked again");
+  });
+});
+
+/**
+ * Every query GET calendar asked at origin/main (c39ce689) for an owner over calendar-feed's one appointment with
+ * nobody in People yet, in order, with the columns it selected: the workspace's door, the zone, the settings, everyone
+ * with their reply modes, then the person the feed names put in People.
+ */
+const CALENDAR_ASKED_AT_MAIN = [
+  ["memberships.select", "tenant_id, role, tenants (slug)"],
+  ["tenants.select", "name, timezone"],
+  ["tenant_config.select", "config"],
+  ["rpc:people_list", null],
+  ["policies.select", "subject_type, subject_id, mode"],
+  ["rpc:create_person", null],
+];
+
+test("GET calendar through its reader asks what it asked at origin/main, in the same order -- the settings now through the config reader's columns -- and keeps its write between the read and the board: an owner's or an operator's read puts the person the feed names in People and the board links them, as it did; a viewer's asks the same, less the write", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    for (const role of ["owner", "operator", "viewer"]) {
+      // One instance, three requests: a route keeps nothing across requests, so each asks for the zone again.
+      const made = [];
+      const ctx = calCtx(calTables("https://cal.example/route.ics", role), () => [], made);
+      const page = await calendarRoute.GET.run(req(`?workspace=${A}&from=2026-09-07&days=7`), ctx);
+      const want = CALENDAR_ASKED_AT_MAIN.map(([k, cols]) => [
+        k,
+        k === "tenant_config.select" ? "tenant_id, config, version, updated_at, updated_by" : cols,
+      ]);
+      assert.deepEqual(
+        ctx.supabase.seen.map((q) => (q.rpc ? [`rpc:${q.rpc}`, null] : [`${q.table}.${q.op}`, q.columns])),
+        role === "viewer" ? want.slice(0, -1) : want,
+        role,
+      );
+      assert.deepEqual(
+        made.map((a) => [a.p_tenant_id, a.p_phone_e164, a.p_display_name, a.p_source]),
+        role === "viewer" ? [] : [[A, "+19175550100", "Ana Ruiz", "calendar"]],
+        `${role}: who is put in People`,
+      );
+      assert.deepEqual(
+        tuesday(page.calendar).items.map((i) => i.person),
+        role === "viewer" ? [null] : [{ id: "p1", name: "Ana Ruiz", via: "phone" }],
+        `${role}: the board links whom the read just added, as it did at origin/main`,
+      );
+      assert.equal(page.calendar.days.length, 7);
+      assert.ok(!JSON.stringify(page).includes("cal.example"), "the address never reaches the browser");
+    }
+  });
+});
+
+/* ----------------------------------------------------------------------- the openings (PR 1.5) */
+
+/** calendar-counts.test.mjs's feed for the openings: Wednesday morning taken, the afternoon open. */
+const WEDNESDAY_TAKEN = [
+  "BEGIN:VCALENDAR",
+  "BEGIN:VEVENT",
+  "UID:o1",
+  "SUMMARY:Taken",
+  "DTSTART;TZID=America/New_York:20260909T090000",
+  "DTEND;TZID=America/New_York:20260909T120000",
+  "END:VEVENT",
+  "END:VCALENDAR",
+].join("\r\n");
+
+test("the openings, for Ask and for the palette: GET ask/openings answers its reader's payload over ask-routes' fixture, with no calendar connected, and over a calendar that cannot be read; over calendar-counts' feed the reader answers what openingsFor answers on the same clock -- the morning taken, the afternoon open; no row a citation names", async () => {
+  const bare = { memberships: reportMembers(), tenants: [], tenant_config: [] };
+  const page = await openingsRoute.GET.run(req(`?day=saturday&workspace=${A}`), dayCtx(bare));
+  const r = await kernel.load(turnIn(dayCtx(bare)), openingsReader, { day: "saturday", service: null });
+  assert.deepEqual(r.data, page, "the route's payload");
+  assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+  assert.equal(r.data.openings.state, "no_calendar");
+  assert.deepEqual(r.rows, []);
+
+  await logged("ask_feed_fetch_failed", () =>
+    withFeed({ body: "nope", status: 404 }, async () => {
+      const t = calTables("https://cal.example/open.ics");
+      const down = await openingsRoute.GET.run(req(`?workspace=${A}`), calCtx(t));
+      const read = await kernel.load(calIn(calCtx(t)), openingsReader, { day: null, service: null });
+      assert.deepEqual(read.data, down, "the route's payload");
+      assert.deepEqual(
+        [down.openings.state, down.openings.text],
+        ["unavailable", "The calendar could not be read right now."],
+      );
+    }),
+  );
+
+  await withFeed({ body: WEDNESDAY_TAKEN }, async () => {
+    const t = calTables("https://cal.example/open.ics");
+    const want = await openingsFor(calCtx(t), A, { day: "2026-09-09", service: "Balayage" }, CAL_NOW);
+    const read = await kernel.load(calIn(calCtx(t)), openingsReader, { day: "2026-09-09", service: "Balayage" });
+    assert.deepEqual(read.data, { openings: want });
+    assert.deepEqual(
+      want.days.map((d) => d.windows),
+      [["12:00 PM–6:00 PM"]],
+      "the morning is taken; the afternoon is open",
+    );
+    assert.match(want.text, /^For Balayage \(about 90 minutes\): /);
+  });
+});
+
+test("GET ask/openings through its reader asks what it asked at origin/main, in the same order -- the workspace's door, the zone, then the settings, now through the config reader's columns -- and a turn that holds the zone and the settings reads neither again", async () => {
+  const bare = { memberships: reportMembers(), tenants: [], tenant_config: [] };
+  const ctx = dayCtx(bare);
+  await openingsRoute.GET.run(req(`?workspace=${A}`), ctx);
+  assert.deepEqual(
+    ctx.supabase.seen.map((q) => [`${q.table}.${q.op}`, q.columns]),
+    [
+      ["memberships.select", "tenant_id, role, tenants (slug)"],
+      ["tenants.select", "name, timezone"],
+      // At origin/main (c39ce689), the one column: config.
+      ["tenant_config.select", "tenant_id, config, version, updated_at, updated_by"],
+    ],
+  );
+  const turn = turnIn(dayCtx(bare));
+  await Promise.all([kernel.load(turn, facts, undefined), kernel.load(turn, config, undefined)]);
+  const before = turn.ctx.supabase.seen.length;
+  const r = await kernel.load(turn, openingsReader, { day: null, service: null });
+  assert.equal(r.data.openings.state, "no_calendar");
+  assert.equal(turn.ctx.supabase.seen.length, before, "nothing read: the zone and the settings were the turn's");
+});
+
+/* ---------------------------------------------------- the cross-turn cache is opt-in (PR 1.5) */
+
+test("the cross-turn cache is opt-in: a context that does not keep reads a ttl reader again in the next context, and what a turn kept is never served to it; a route keeps nothing -- GET calendar and GET ask/openings read the zone on every request, so a zone changed between two requests is the second request's", async () => {
+  const r = counting("opt-in", { ttlMs: 60_000 });
+  const plain = () => kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" });
+  const keeps = () => kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true });
+  assert.equal(plain().keep, false, "a context keeps nothing unless it says so");
+  await kernel.load(plain(), r, undefined);
+  await kernel.load(plain(), r, undefined);
+  assert.equal(r.reads, 2, "no keep: the next context read again");
+  await kernel.load(keeps(), r, undefined);
+  await kernel.load(keeps(), r, undefined);
+  assert.equal(r.reads, 3, "a turn that keeps: the next turn took the kept value");
+  await kernel.load(plain(), r, undefined);
+  assert.equal(r.reads, 4, "what a turn kept is not served to a context that does not keep");
+
+  await withFeed({ body: ONE_ICS }, async () => {
+    const t = calTables("https://cal.example/zone.ics", "viewer");
+    for (const timezone of ["America/New_York", "Europe/Madrid", "America/New_York"]) {
+      t.tenants[0].timezone = timezone;
+      const board = calCtx(t);
+      const week = await calendarRoute.GET.run(req(`?workspace=${A}&from=2026-09-07&days=7`), board);
+      const palette = calCtx(t);
+      const open = await openingsRoute.GET.run(req(`?workspace=${A}`), palette);
+      assert.deepEqual(
+        [week.calendar.timezone, open.openings.tz],
+        [timezone, timezone],
+        "each request answers its own read of the zone",
+      );
+      assert.deepEqual(
+        [selects(board, "tenants").length, selects(palette, "tenants").length],
+        [1, 1],
+        "the zone read for this request, by each route",
+      );
+    }
   });
 });

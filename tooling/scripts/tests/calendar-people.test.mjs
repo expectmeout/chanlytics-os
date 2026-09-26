@@ -35,6 +35,10 @@ import { fakeDb } from "./_fake-db.mjs";
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const personRoute = await importSrc("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
+const reportsRoute = await importSrc("apps/dashboard/app/api/v1/reports/route.ts");
+// The reports route counts against its bucket: this instance's memory, never a store dialled.
+const { setRateStore, memoryStore } = await importSrc("apps/dashboard/src/server/rate-limit.ts");
+setRateStore(memoryStore());
 
 /**
  * The People page and the table it draws with, each read once for the whole file. The table, its Columns menu and
@@ -1126,7 +1130,7 @@ test("asked, then booked: the report's one conversion line, in words that say wh
   );
 });
 
-test("the wiring: the list and the assistant carry appointments from one parsed feed; the report carries the line; Leads and the Deal board retire into People", () => {
+test("the wiring: the list and the assistant carry appointments from one parsed feed; the report carries the line; Leads and the Deal board retire into People", async () => {
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(
     svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") &&
@@ -1146,10 +1150,50 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
     ].every((line) => route.includes(line)),
     "the list carries visits and the calendar's state, a page at a time",
   );
-  const rep = readCode("apps/dashboard/app/api/v1/reports/route.ts");
+  // The report carries the line, and is never fatal for it: GET reports, run. The series, the booking line and the
+  // deals, in that order; People read once, for the line and the deals alike, and the deals read after the line's
+  // calendar lookup; a lookup that fails costs the line, said in the log, never the report.
+  const reportOf = async (faults = {}) => {
+    const supabase = fakeDb(
+      {
+        memberships: [
+          { user_id: "u1", tenant_id: HARBOR, role: "owner", tenants: { slug: "harbor" }, created_at: "2026-01-01" },
+        ],
+        tenants: [{ id: HARBOR, name: "Harbor", timezone: TZ, sells_by: "proposal" }],
+        tenant_config: [{ tenant_id: HARBOR, config: { brain: BRAIN } }],
+        policies: [],
+        deals: [],
+      },
+      faults,
+      { report_series: (a) => ({ days: a.p_days }), people_list: () => [] },
+    );
+    const lines = [];
+    const was = console.error;
+    console.error = (event, ...rest) => lines.push({ event, rest });
+    try {
+      const out = await reportsRoute.GET.run(new Request(`http://localhost/api/v1/reports?workspace=${HARBOR}`), {
+        supabase,
+        userId: "u1",
+        email: "owner@example.com",
+        params: {},
+      });
+      return { out, asked: supabase.seen.map((q) => q.rpc ?? q.table), logged: lines.map((l) => l.event) };
+    } finally {
+      console.error = was;
+    }
+  };
+  const whole = await reportOf();
+  assert.deepEqual(Object.keys(whole.out), ["report", "booking", "deals"]);
+  assert.deepEqual(whole.out.booking, { calendar: "none", days: 30, asked: 0, booked: 0 });
+  assert.equal(whole.asked.filter((x) => x === "people_list").length, 1, "People read once for the whole report");
   assert.ok(
-    rep.includes(".then((rows) => bookingReport(ctx, tenantId, rows, days))") &&
-      rep.includes("return { report, booking, deals };"),
+    whole.asked.lastIndexOf("tenant_config") < whole.asked.indexOf("deals"),
+    `the deals read after the booking line's: ${whole.asked.join(", ")}`,
+  );
+  const lineDown = await reportOf({ "tenant_config.select": { message: "down" } });
+  assert.deepEqual(
+    [lineDown.out.report, lineDown.out.booking, lineDown.logged.includes("booking_report_failed")],
+    [{ days: 30 }, null, true],
     "never fatal to the report",
   );
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");

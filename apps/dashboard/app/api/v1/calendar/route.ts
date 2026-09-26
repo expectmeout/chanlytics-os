@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
-import { calendarWeek } from "@/server/calendar";
+import { addPeopleSeen, weekFrom } from "@/server/calendar";
+import { load, readerContext } from "@/server/readers";
+import { sources } from "@/server/readers/calendar";
 
 const Query = z.object({
   /** YYYY-MM-DD; the Monday of today when absent. */
@@ -30,6 +32,25 @@ export const GET = read({
     // name in People; a viewer's read changes nothing.
     const canAct = member.role === "owner" || member.role === "operator";
     const fresh = input.fresh === "1";
-    return { calendar: await calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct, fresh }) };
+    // The calendar's one read (readers/calendar.ts), then the write a reader never makes (D7): the people the feed
+    // names put in People before the board is matched, as calendarWeek does for its callers. One clock, the read's,
+    // for the span, the people and the windows.
+    const rc = readerContext(ctx, member);
+    const s = (await load(rc, sources, { from, days, fresh })).data;
+    if (s.week) return { calendar: s.week };
+    const people = [...s.people];
+    if (canAct)
+      people.push(
+        ...(await addPeopleSeen(ctx, member.tenantId, s.parsed.items, s.serviceNames, people, rc.now).catch(
+          (e: unknown) => {
+            console.error(
+              "calendar_people_seen_failed",
+              JSON.stringify({ tenant: member.tenantId, error: e instanceof Error ? e.message : String(e) }),
+            );
+            return [];
+          },
+        )),
+      );
+    return { calendar: weekFrom(s, people, rc.now) };
   },
 });
