@@ -12,7 +12,7 @@ a sole owner; an app the site no longer speaks to says so. Spec `2026-09-26-mobi
 - [x] `/api/version` `min_app`; `MIN_APP_VERSION` in the dashboard's env example; the app's `minAppOf`, `isOlderThan`,
       the Update screen.
 - [x] Tests: `account-deletion.db.test.mjs` (the stack), `settings-doors.test.mjs` (the row), `deploy.test.mjs`.
-- [ ] Squash-merge; then the production `db push` of 00190 (either order: the route without the door answers a
+- [x] Squash-merge (#1134); then the production `db push` of 00190 (either order: the route without the door answers a
       refusal, never a deletion).
 
 ## As built (26 Sep 2026)
