@@ -734,11 +734,6 @@
     "branches": 36,
     "depth": 3
   },
-  "apps/dashboard/src/legacy/pages/leads-real.jsx::LeadsReal#1": {
-    "lines": 718,
-    "branches": 246,
-    "depth": 3
-  },
   "apps/dashboard/src/legacy/pages/leads-scope.jsx::LeadsBulkBar#1": {
     "lines": 86,
     "branches": 53,
