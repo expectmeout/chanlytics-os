@@ -7,6 +7,6 @@
   "e2e": 48,
   "packages/channels/src": 25,
   "packages/contracts/src": 129,
-  "tooling/scripts": 24,
-  "tooling/scripts/tests": 544
+  "tooling/scripts": 25,
+  "tooling/scripts/tests": 548
 }
