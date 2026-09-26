@@ -355,7 +355,15 @@ test(
     const mine = ok(await partner.client.rpc("partner_balance"));
     const byState = Object.fromEntries(mine.map((r) => [r.state, Number(r.earned_cents)]));
     assert.equal(byState.payable, 2500, "$100 earned, $75 of it refunded");
-    assert.equal(byState.held, 10000, "the second workspace's share, held while it is looked at");
+    // The second workspace's share was held while it was looked at, then voided when it was disqualified (above).
+    const voided = ok(
+      await partner.client.from("partner_earnings").select("state").eq("stripe_invoice_id", "in_led_2"),
+    );
+    assert.deepEqual(
+      voided.map((r) => r.state),
+      ["void"],
+    );
+    assert.equal(byState.held, undefined, "nothing else is held");
     assert.equal(byState.void, undefined, "what was voided is not a balance");
     assert.deepEqual(ok(await customer.client.rpc("partner_balance")), [], "an owner has no balance");
     assert.ok(ok(await partner.client.from("partner_earnings").select("id")).length > 0);
