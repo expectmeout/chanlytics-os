@@ -1868,6 +1868,45 @@ test("get_calendar reads the board as its page reads it (ledger #11): with no da
   }
 });
 
+test("get_openings is the palette's own read (ledger #13): the service asked for is cut where the route cuts it, at 160, so a question that names the service past its eightieth character still reaches it; the zone and the settings the turn already read are not read again", async () => {
+  const base = tables();
+  const profile = {
+    ...base.tenant_config[0].config.brain.profile,
+    services: [{ name: "Moving estimate", duration_min: 60 }],
+  };
+  const t = tables({
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, brain: { ...base.tenant_config[0].config.brain, profile } },
+      },
+    ],
+  });
+  const asked =
+    "Please look for any free time later this week, or else early next week if you can, for a moving estimate";
+  assert.ok(asked.toLowerCase().indexOf("moving estimate") >= 80, "the service is named past the eightieth character");
+  const ctx = ctxFor(t);
+  // The Ask route reads the workspace's facts, config, policies and sells_by through the turn's readers first.
+  const rc = readerContext(ctx, { tenantId: A, role: "operator" }, NOW);
+  await Promise.all(
+    [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
+      load(rc, r, undefined),
+    ),
+  );
+  const before = ctx.supabase.seen.length;
+  const tc = newToolContext(ctx, A, "operator", TZ, NOW, rc);
+  const out = await runTool(tc, { name: "get_openings", input: { day: "", service: asked } });
+  assert.equal(out.isError, false, out.result);
+  const read = JSON.parse(out.result);
+  assert.equal(read.service, "Moving estimate", "cut at 80, the question named no service at all");
+  assert.equal(read.state, "no_calendar");
+  assert.deepEqual(
+    ctx.supabase.seen.slice(before),
+    [],
+    "nothing read: the zone and the settings were the turn's, and no calendar is connected",
+  );
+});
+
 test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 'said_yes_now' was the reach, so a moment whose yes had no number read as nobody's", async () => {
   const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
   const out = await runTool(tc, { name: "list_playbooks", input: {} });

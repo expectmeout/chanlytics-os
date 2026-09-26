@@ -41,7 +41,9 @@ const reportsRoute = await import(at("apps/dashboard/app/api/v1/reports/route.ts
 const campaignsRoute = await import(at("apps/dashboard/app/api/v1/reports/campaigns/route.ts"));
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { calendarWeek } = await import(at("apps/dashboard/src/server/calendar.ts"));
-const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+const { forgetFeeds, openingsFor } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+const { openings: openingsReader } = await import(at("apps/dashboard/src/server/readers/openings.ts"));
+const openingsRoute = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
 const { calendar: calendarReader, sources: calendarSources } = await import(
   at("apps/dashboard/src/server/readers/calendar.ts")
 );
@@ -1738,4 +1740,75 @@ test("GET calendar through its reader asks what it asked at origin/main, in the 
       assert.ok(!JSON.stringify(page).includes("cal.example"), "the address never reaches the browser");
     }
   });
+});
+
+/* ----------------------------------------------------------------------- the openings (PR 1.5) */
+
+/** calendar-counts.test.mjs's feed for the openings: Wednesday morning taken, the afternoon open. */
+const WEDNESDAY_TAKEN = [
+  "BEGIN:VCALENDAR",
+  "BEGIN:VEVENT",
+  "UID:o1",
+  "SUMMARY:Taken",
+  "DTSTART;TZID=America/New_York:20260909T090000",
+  "DTEND;TZID=America/New_York:20260909T120000",
+  "END:VEVENT",
+  "END:VCALENDAR",
+].join("\r\n");
+
+test("the openings, for Ask and for the palette: GET ask/openings answers its reader's payload over ask-routes' fixture, with no calendar connected, and over a calendar that cannot be read; over calendar-counts' feed the reader answers what openingsFor answers on the same clock -- the morning taken, the afternoon open; no row a citation names", async () => {
+  const bare = { memberships: reportMembers(), tenants: [], tenant_config: [] };
+  const page = await openingsRoute.GET.run(req(`?day=saturday&workspace=${A}`), dayCtx(bare));
+  const r = await kernel.load(turnIn(dayCtx(bare)), openingsReader, { day: "saturday", service: null });
+  assert.deepEqual(r.data, page, "the route's payload");
+  assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+  assert.equal(r.data.openings.state, "no_calendar");
+  assert.deepEqual(r.rows, []);
+
+  await logged("ask_feed_fetch_failed", () =>
+    withFeed({ body: "nope", status: 404 }, async () => {
+      const t = calTables("https://cal.example/open.ics");
+      const down = await openingsRoute.GET.run(req(`?workspace=${A}`), calCtx(t));
+      const read = await kernel.load(calIn(calCtx(t)), openingsReader, { day: null, service: null });
+      assert.deepEqual(read.data, down, "the route's payload");
+      assert.deepEqual(
+        [down.openings.state, down.openings.text],
+        ["unavailable", "The calendar could not be read right now."],
+      );
+    }),
+  );
+
+  await withFeed({ body: WEDNESDAY_TAKEN }, async () => {
+    const t = calTables("https://cal.example/open.ics");
+    const want = await openingsFor(calCtx(t), A, { day: "2026-09-09", service: "Balayage" }, CAL_NOW);
+    const read = await kernel.load(calIn(calCtx(t)), openingsReader, { day: "2026-09-09", service: "Balayage" });
+    assert.deepEqual(read.data, { openings: want });
+    assert.deepEqual(
+      want.days.map((d) => d.windows),
+      [["12:00 PM–6:00 PM"]],
+      "the morning is taken; the afternoon is open",
+    );
+    assert.match(want.text, /^For Balayage \(about 90 minutes\): /);
+  });
+});
+
+test("GET ask/openings through its reader asks what it asked at origin/main, in the same order -- the workspace's door, the zone, then the settings, now through the config reader's columns -- and a turn that holds the zone and the settings reads neither again", async () => {
+  const bare = { memberships: reportMembers(), tenants: [], tenant_config: [] };
+  const ctx = dayCtx(bare);
+  await openingsRoute.GET.run(req(`?workspace=${A}`), ctx);
+  assert.deepEqual(
+    ctx.supabase.seen.map((q) => [`${q.table}.${q.op}`, q.columns]),
+    [
+      ["memberships.select", "tenant_id, role, tenants (slug)"],
+      ["tenants.select", "name, timezone"],
+      // At origin/main (c39ce689), the one column: config.
+      ["tenant_config.select", "tenant_id, config, version, updated_at, updated_by"],
+    ],
+  );
+  const turn = turnIn(dayCtx(bare));
+  await Promise.all([kernel.load(turn, facts, undefined), kernel.load(turn, config, undefined)]);
+  const before = turn.ctx.supabase.seen.length;
+  const r = await kernel.load(turn, openingsReader, { day: null, service: null });
+  assert.equal(r.data.openings.state, "no_calendar");
+  assert.equal(turn.ctx.supabase.seen.length, before, "nothing read: the zone and the settings were the turn's");
 });

@@ -68,7 +68,7 @@ import { escalations as escalationsReader } from "../readers/escalations";
 import { inbox } from "../readers/inbox";
 import { today } from "../readers/today";
 import { calendar } from "../readers/calendar";
-import { openingsFor } from "./openings";
+import { openings } from "../readers/openings";
 import { workspaceFacts } from "./prompt";
 
 /**
@@ -751,12 +751,10 @@ async function getSettings(t: ToolContext): Promise<unknown> {
 }
 
 async function getOpenings(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
-  const r = await openingsFor(
-    t.ctx,
-    t.tenantId,
-    { day: str(input.day, 20) || null, service: str(input.service, 80) || null },
-    t.now,
-  );
+  // The palette's own read (readers/openings.ts), once a turn, with the zone and the settings the turn read; what was
+  // asked is cut where the route cuts it, the service at 160 (ledger #13).
+  const r = (await load(t.rc, openings, { day: str(input.day, 20) || null, service: str(input.service, 160) || null }))
+    .data.openings;
   return { state: r.state, text: r.text, days: r.days, service: r.service?.name ?? null };
 }
 
