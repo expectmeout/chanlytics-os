@@ -133,6 +133,8 @@ Copy the shape of these; do not invent a second one.
 - What such a door calls: `apps/edge/lib/<domain>/`, and `apps/edge/lib` itself for the
   plumbing every domain uses. A new domain earns a directory at its second module.
 - A member-facing route: `apps/dashboard/app/api/v1`.
+- What such a route calls: `apps/dashboard/src/server/<domain>/`, and `src/server` itself for the
+  plumbing every domain uses (`route.ts`, `with-route.ts`, `edge.ts`, `tenant.ts` and their kind).
 - Something a page draws: `apps/dashboard/src/legacy/pages`, fed through `src/legacy-bridge`.
 
 ## What not to introduce
