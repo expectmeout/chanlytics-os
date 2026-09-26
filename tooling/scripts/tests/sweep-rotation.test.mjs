@@ -163,10 +163,12 @@ test("a failed feed leaves the workspace due, so the next tick retries it", asyn
 
 test("playbooks rotate on last_run_at, which the table already had", async () => {
   const rows = [
-    { id: "p1", tenant_id: "a", state: "running", last_run_at: ago(10) },
-    { id: "p2", tenant_id: "b", state: "running", last_run_at: null },
-    { id: "p3", tenant_id: "c", state: "running", last_run_at: ago(600) },
-    { id: "p4", tenant_id: "d", state: "paused", last_run_at: null },
+    { id: "p1", tenant_id: "a", kind: "moment", state: "running", last_run_at: ago(10) },
+    { id: "p2", tenant_id: "b", kind: "moment", state: "running", last_run_at: null },
+    { id: "p3", tenant_id: "c", kind: "moment", state: "running", last_run_at: ago(600) },
+    { id: "p4", tenant_id: "d", kind: "moment", state: "paused", last_run_at: null },
+    // A reach-out step runs through its own verb (Part 3): never on the moments' page.
+    { id: "r1", tenant_id: "e", kind: "reach_out", state: "running", last_run_at: null },
   ];
   const db = fakeDb({ playbooks: rows });
   const page = await playbooksDue(db, PLAYBOOKS_PER_TICK);

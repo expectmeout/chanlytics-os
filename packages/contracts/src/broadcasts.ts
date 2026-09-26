@@ -40,6 +40,13 @@ export type BroadcastState = (typeof BROADCAST_STATES)[number];
 export const RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"] as const;
 export type RecipientState = (typeof RECIPIENT_STATES)[number];
 
+/**
+ * A reach-out's send (00183 reach_out_sends): planned (a time and a domain), claimed under the domain's capacity,
+ * queued as an email row with its job, then what that row became. A wait refusal plans it again (Reach out, Part 3).
+ */
+export const REACH_OUT_SEND_STATES = ["planned", "claimed", "queued", "sent", "skipped", "failed"] as const;
+export type ReachOutSendState = (typeof REACH_OUT_SEND_STATES)[number];
+
 export const BROADCAST_STATE_LABELS: Record<BroadcastState, string> = {
   pending_approval: "Needs you",
   scheduled: "Scheduled",

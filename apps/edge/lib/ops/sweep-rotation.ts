@@ -122,6 +122,8 @@ export async function playbooksDue(
     .from("playbooks")
     .select("*", { count: "exact" })
     .eq("state", "running")
+    // The moments. A reach-out step runs through its own verb (Reach out, Part 3).
+    .eq("kind", "moment")
     .order("last_run_at", { ascending: true, nullsFirst: true })
     .limit(limit);
   if (error) throw new Error(`reading the playbooks due: ${error.message}`);

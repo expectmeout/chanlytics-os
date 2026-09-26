@@ -1,4 +1,4 @@
-import { AppError, PLAYBOOK_STATES } from "@chanlytics/contracts";
+import { AppError, PLAYBOOK_STATES, REACH_OUT_IS_NOT_A_MOMENT, triggerOf } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { write } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
@@ -47,6 +47,8 @@ export const PUT = write({
       return { id, state, decision_id: decisionId };
     }
 
+    // A reach-out step is edited on its own sheet (Part 4); here it may only be paused or resumed, above.
+    if (triggerOf(p.trigger)?.kind === "reach_out") throw new AppError("conflict", REACH_OUT_IS_NOT_A_MOMENT, 409);
     const v = await checkPlaybookInput(ctx, p.tenant_id, body);
     const { error } = await ctx.supabase
       .from("playbooks")
