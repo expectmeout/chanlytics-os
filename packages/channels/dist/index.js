@@ -9,6 +9,7 @@ import { z as z6 } from "zod";
 import { z as z8 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
+import { z as z11 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -127,7 +128,11 @@ var EVENT_KINDS = [
   "deal.proposed",
   "deal.won",
   "deal.lost",
-  "deal.ended"
+  "deal.ended",
+  // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -2279,6 +2284,34 @@ function isTimezone(raw) {
     return false;
   }
 }
+var PARTNER_CODE_MIN = 3;
+var PARTNER_CODE_MAX = 24;
+var PartnerBecomeSchema = z10.object({
+  code: z10.string().trim().min(1).max(64),
+  terms: z10.literal(true, { message: "The terms have to be accepted." })
+}).strict();
+var PARTNER_WORDS = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner"
+};
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -2463,15 +2496,15 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z10.object({
-  places: z10.array(
-    z10.object({
-      ref: z10.number().int(),
-      criteria: z10.array(
-        z10.object({ key: z10.string(), answer: z10.enum(["pass", "fail", "unknown"]), facts: z10.array(z10.string()) })
+var AnswerSchema = z11.object({
+  places: z11.array(
+    z11.object({
+      ref: z11.number().int(),
+      criteria: z11.array(
+        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
       ),
-      email_index: z10.number().int().nullable(),
-      reason: z10.string()
+      email_index: z11.number().int().nullable(),
+      reason: z11.string()
     })
   )
 });

@@ -3305,6 +3305,93 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_tenants: {
+        Row: {
+          attributed_at: string
+          checks: Json
+          code_used: string
+          partner_id: string
+          standing: string | null
+          standing_at: string | null
+          standing_by: string | null
+          standing_why: string | null
+          tenant_id: string
+        }
+        Insert: {
+          attributed_at?: string
+          checks?: Json
+          code_used: string
+          partner_id: string
+          standing?: string | null
+          standing_at?: string | null
+          standing_by?: string | null
+          standing_why?: string | null
+          tenant_id: string
+        }
+        Update: {
+          attributed_at?: string
+          checks?: Json
+          code_used?: string
+          partner_id?: string
+          standing?: string | null
+          standing_at?: string | null
+          standing_by?: string | null
+          standing_why?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_tenants_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partners: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          payout_facts: Json
+          share_bp: number
+          status: string
+          terms_accepted_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          payout_facts?: Json
+          share_bp?: number
+          status?: string
+          terms_accepted_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          payout_facts?: Json
+          share_bp?: number
+          status?: string
+          terms_accepted_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       person_notes: {
         Row: {
           author_kind: string
@@ -4335,7 +4422,7 @@ export type Database = {
         Returns: Json
       }
       create_workspace: {
-        Args: { p_name: string; p_timezone?: string }
+        Args: { p_name: string; p_partner_code?: string; p_timezone?: string }
         Returns: {
           id: string
           locale: string
@@ -4346,7 +4433,7 @@ export type Database = {
         }[]
       }
       create_workspace_for: {
-        Args: { p_name: string; p_timezone?: string; p_user: string }
+        Args: { p_name: string; p_partner_code?: string; p_timezone?: string; p_user: string }
         Returns: {
           id: string
           locale: string
@@ -4885,6 +4972,10 @@ export type Database = {
           p_tenant_id: string
           p_to: string
         }
+        Returns: Json
+      }
+      partner_become: {
+        Args: { p_code: string }
         Returns: Json
       }
       people_list: {

@@ -51,6 +51,7 @@ export const ROUTES = {
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
   "GET notifications": { method: "GET", path: "/api/v1/notifications" },
+  "GET partner": { method: "GET", path: "/api/v1/partner" },
   "GET platform/overview": { method: "GET", path: "/api/v1/platform/overview" },
   "GET platform/tenants/[id]": { method: "GET", path: "/api/v1/platform/tenants/[id]" },
   "GET playbooks": { method: "GET", path: "/api/v1/playbooks" },
@@ -125,6 +126,7 @@ export const ROUTES = {
   "POST mailboxes": { method: "POST", path: "/api/v1/mailboxes" },
   "POST messages/[id]/cancel-send": { method: "POST", path: "/api/v1/messages/[id]/cancel-send" },
   "POST messages/[id]/steer": { method: "POST", path: "/api/v1/messages/[id]/steer" },
+  "POST partner": { method: "POST", path: "/api/v1/partner" },
   "POST platform/lines/refile": { method: "POST", path: "/api/v1/platform/lines/refile" },
   "POST platform/lines/release": { method: "POST", path: "/api/v1/platform/lines/release" },
   "POST platform/lines/replace": { method: "POST", path: "/api/v1/platform/lines/replace" },
@@ -218,6 +220,7 @@ export type Routes = {
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
   "GET notifications": typeof import("../../app/api/v1/notifications/route").GET;
+  "GET partner": typeof import("../../app/api/v1/partner/route").GET;
   "GET platform/overview": typeof import("../../app/api/v1/platform/overview/route").GET;
   "GET platform/tenants/[id]": typeof import("../../app/api/v1/platform/tenants/[id]/route").GET;
   "GET playbooks": typeof import("../../app/api/v1/playbooks/route").GET;
@@ -292,6 +295,7 @@ export type Routes = {
   "POST mailboxes": typeof import("../../app/api/v1/mailboxes/route").POST;
   "POST messages/[id]/cancel-send": typeof import("../../app/api/v1/messages/[id]/cancel-send/route").POST;
   "POST messages/[id]/steer": typeof import("../../app/api/v1/messages/[id]/steer/route").POST;
+  "POST partner": typeof import("../../app/api/v1/partner/route").POST;
   "POST platform/lines/refile": typeof import("../../app/api/v1/platform/lines/refile/route").POST;
   "POST platform/lines/release": typeof import("../../app/api/v1/platform/lines/release/route").POST;
   "POST platform/lines/replace": typeof import("../../app/api/v1/platform/lines/replace/route").POST;

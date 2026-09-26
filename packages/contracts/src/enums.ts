@@ -233,6 +233,10 @@ export const EVENT_KINDS = [
   "deal.won",
   "deal.lost",
   "deal.ended",
+  // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 

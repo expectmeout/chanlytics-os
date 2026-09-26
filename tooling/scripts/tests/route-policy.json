@@ -821,6 +821,20 @@
       "rate": "notify_mark",
       "spend": false
     },
+    "GET partner": {
+      "kind": "read",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST partner": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "partner_become",
+      "spend": false
+    },
     "POST platform/lines/refile": {
       "kind": "write",
       "scope": "platform",

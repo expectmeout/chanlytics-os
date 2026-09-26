@@ -125,6 +125,8 @@ export const RATE = {
    */
   platform_waitlist_invited: { limit: 200, windowMs: 3_600_000, noun: "people marked as invited" },
   profile_set: { limit: 10, windowMs: 3_600_000, noun: "name changes" },
+  /** Becoming a partner (0011): once per account, so the bucket is for the codes tried. */
+  partner_become: { limit: 10, windowMs: 3_600_000, noun: "partner codes tried" },
   /** The native app's sign-in door (app/auth/native): per network, a token that does not verify costs a call each time. */
   native_sign_in: { limit: 20, windowMs: 3_600_000, noun: "sign-ins" },
   /** The phone app registers its push token on launch (me/devices); sixty an hour is a loop, not a person. */

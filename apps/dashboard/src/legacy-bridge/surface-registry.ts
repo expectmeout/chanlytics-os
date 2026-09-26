@@ -78,6 +78,8 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // clicked Back office got the Not-in-this-release card -- found by Ruben
   // on 11 September, the day the tab became the way to file a campaign.
   "admin/platform": "real",
+  // A partner's account and link (0011): the offer for everyone else, the row for a partner (partner-real.jsx).
+  "admin/partner": "real",
 };
 
 /**
@@ -124,6 +126,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   // The pane fetches its own list through the typed client on mount; it waits
   // for the settings surface like every other pane, so nothing paints early.
   "admin/platform": "settings",
+  "admin/partner": "settings",
 };
 
 /** A person's page, as ROUTE_DRAWS names it. */

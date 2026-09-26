@@ -1,12 +1,14 @@
 # 0011 · A partner brings a workspace, sets it up, and earns a share
 
-**Status:** decided; P1 (the role) built on the branch this note ships with, P2 onward not yet. Written against
-commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read at that commit, before P1, so
-the Context describes the code P1 changed: `memberships.role` now admits `partner`, `has_permission()` and
-`ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, and `requireRole` refuses a role it
-does not know (00189, `with-route.ts`). Ruben's calls, 26 September: a share of 25% for as long as the workspace pays;
-30 days before a share is payable; the partner works inside the workspace they brought, as a member; nothing new to
-draw where an existing surface already does the job. Where this note and the code disagree, the code wins.
+**Status:** decided; P1 (the role) and P2 (attribution) built on the branch this note ships with, P3 onward not
+yet. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read at that
+commit, before P1, so the Context describes the code P1 and P2 changed: `memberships.role` admits `partner`,
+`has_permission()` and `ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, `requireRole`
+refuses a role it does not know (00189, `with-route.ts`); `partners` and `partner_tenants` exist, `create_workspace`
+takes the code the link's cookie left, `GET /workspaces` carries each role and the partner, and Settings › Partner
+is the offer or the link (00190, `app/p/[code]`, `partner-real.jsx`). One thing moved from the Shape below as
+written: the link is `/p/<code>` alone, a route that leaves the cookie and goes on to sign-up; nothing rides in the
+sign-up body, so one mechanism attributes whether the account arrives by email or by Google.
 
 ## Context
 

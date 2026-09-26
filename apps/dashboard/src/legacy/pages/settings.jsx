@@ -93,6 +93,8 @@ window.INT_STORE = window.INT_STORE || {
  */
 const SET_TABS = [
   { id: "profile",       label: "Profile",       icon: "user",     group: "You" },
+  // A partner's account and link (0011): the offer for everyone else. On the account, like Profile.
+  { id: "partner",       label: "Partner",       icon: "users",    group: "You" },
   { id: "workspace",     label: "Business",      icon: "home",     group: "Workspace" },
   { id: "team",          label: "Team",          icon: "users",    group: "Workspace" },
   { id: "autonomy",      label: "Autonomy",      icon: "shield",   group: "Workspace" },
@@ -773,7 +775,7 @@ const TeamSection = ({ flash }) => {
       })}
 
       <div className="set-roles-legend">
-        {["owner", "operator", "viewer"].map(r => (
+        {["owner", "operator", ...(team.some((m) => m.role === "partner") ? ["partner"] : []), "viewer"].map(r => (
           <div key={r} className="set-role-def">
             <RolePill role={r} />
             <span className="set-role-can">{ST_ROLE_META[r].can}</span>
@@ -1841,6 +1843,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
           />
         )}
         {active.id === "profile" && <PaneProfile flash={flash} />}
+        {active.id === "partner" && window.PanePartner && <window.PanePartner flash={flash} />}
         {active.id === "team" && <TeamSection flash={flash} />}
         {active.id === "workspace" && <PaneWorkspace flash={flash} />}
         {active.id === "autonomy" && (window.__POLICIES === undefined ? <PaneAutonomy flash={flash} /> : <PaneAutonomyReal flash={flash} />)}

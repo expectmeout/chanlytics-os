@@ -91,6 +91,8 @@ export interface Workspace {
   timezone: string;
   /** How its customers buy (0008): deals are on exactly when it is "proposal" (dealsAreOn); null is not asked yet. */
   sells_by?: string | null;
+  /** The caller's role in it (0011): said beside every workspace on the switcher. */
+  role?: string | null;
 }
 
 export interface Me {
@@ -100,6 +102,8 @@ export interface Me {
   display_name?: string | null;
   /** Whether the Chanlytics back office exists for this person. Never the authorization -- every platform route asks the database. */
   platform_admin?: boolean;
+  /** Whether this person is a partner (0011), and their code. */
+  partner?: { code: string; status: string } | null;
 }
 
 export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {

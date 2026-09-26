@@ -145,6 +145,7 @@ test("where you are: every workspace with who is signed in; the active one by me
     role: "viewer",
     display_name: "Ada",
     platform_admin: false,
+    partner: null,
   });
   const bayside = await workspaces.GET.run(get(inB), ctxFor(tables, {}, { is_platform_admin: () => false }));
   assert.deepEqual(
@@ -185,7 +186,7 @@ test("where you are: every workspace with who is signed in; the active one by me
     activeWorkspaceId: null,
     pending: null,
     posture: "open",
-    user: { id: USER, email: "ada@example.com", role: null, display_name: null, platform_admin: false },
+    user: { id: USER, email: "ada@example.com", role: null, display_name: null, platform_admin: false, partner: null },
   });
 });
 

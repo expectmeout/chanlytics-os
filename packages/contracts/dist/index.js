@@ -456,7 +456,11 @@ var EVENT_KINDS = [
   "deal.proposed",
   "deal.won",
   "deal.lost",
-  "deal.ended"
+  "deal.ended",
+  // A partner (0011): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -883,8 +887,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z11] = m;
-  if (z11) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z12] = m;
+  if (z12) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -19847,6 +19851,95 @@ function usableDeviceTimezone(resolve) {
   return tz && isTimezone(tz) ? tz : null;
 }
 
+// src/partner.ts
+import { z as z10 } from "zod";
+var PARTNER_STATUSES = ["active", "paused", "closed"];
+var PARTNER_SHARE_BP_DEFAULT = 2500;
+var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
+var PARTNER_CODE_MIN = 3;
+var PARTNER_CODE_MAX = 24;
+var CODE_SHAPE = /^[a-z0-9][a-z0-9-]{1,22}[a-z0-9]$/;
+var PARTNER_CODES_RESERVED = ["chanlytics", "admin", "support", "signup", "login", "partner", "partners"];
+function cleanPartnerCode(raw) {
+  const code2 = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!code2) return { ok: false, reason: "Choose a code for your link." };
+  if (code2.length < PARTNER_CODE_MIN || code2.length > PARTNER_CODE_MAX)
+    return { ok: false, reason: `A code is ${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} characters.` };
+  if (!CODE_SHAPE.test(code2))
+    return { ok: false, reason: "Letters, digits and dashes only, starting and ending with a letter or digit." };
+  if (PARTNER_CODES_RESERVED.includes(code2)) return { ok: false, reason: "That code is reserved. Try another." };
+  return { ok: true, code: code2 };
+}
+var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
+var PartnerBecomeSchema = z10.object({
+  code: z10.string().trim().min(1).max(64),
+  terms: z10.literal(true, { message: "The terms have to be accepted." })
+}).strict();
+var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
+var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
+var PARTNER_COOKIE = "chanlytics_partner";
+var PARTNER_COOKIE_DAYS = 30;
+function partnerCodeFromCookie(header) {
+  if (!header) return null;
+  for (const part of header.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() !== PARTNER_COOKIE) continue;
+    let value = part.slice(eq + 1).trim();
+    try {
+      value = decodeURIComponent(value);
+    } catch {
+      return null;
+    }
+    const cleaned = cleanPartnerCode(value);
+    return cleaned.ok ? cleaned.code : null;
+  }
+  return null;
+}
+var PARTNER_WORDS = {
+  tab: "Partner",
+  title: "Bring a business to Chanlytics",
+  /** The offer, before the share, which is printed from the row (shareWords). */
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  codeLabel: "Your code",
+  codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
+  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  termsAgree: "I agree to these terms.",
+  become: "Become a partner",
+  becoming: "Setting you up\u2026",
+  linkLabel: "Your link",
+  copy: "Copy link",
+  copied: "Copied",
+  since: (at2) => `A partner since ${new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`,
+  paused: "Your partner account is paused. Write to us to have it looked at.",
+  closed: "Your partner account is closed.",
+  reading: "Reading your partner account\u2026",
+  failed: "your partner account",
+  /** What the switcher and Team show for a workspace brought this way. */
+  role: "Partner"
+};
+function shareWords(shareBp) {
+  const pct2 = shareBp / 100;
+  const shown = Number.isInteger(pct2) ? String(pct2) : pct2.toFixed(1).replace(/\.0$/, "");
+  return `${shown}% of what it pays for its plan`;
+}
+function broughtWords(count2) {
+  if (count2 <= 0) return "No workspace has come through your link yet.";
+  if (count2 === 1) return "1 workspace came through your link.";
+  return `${count2} workspaces came through your link.`;
+}
+function partnerVM(dto, origin, workspacesAsPartner) {
+  return {
+    code: dto.code,
+    link: partnerLinkFor(dto.code, origin),
+    status: dto.status,
+    share: shareWords(dto.share_bp),
+    since: PARTNER_WORDS.since(dto.created_at),
+    brought: broughtWords(workspacesAsPartner),
+    standing: dto.status === "paused" ? PARTNER_WORDS.paused : dto.status === "closed" ? PARTNER_WORDS.closed : null
+  };
+}
+
 // src/chrome.ts
 var THEME_OPTIONS = [
   { id: "light", label: "Light", icon: "sun" },
@@ -22476,6 +22569,8 @@ var SCHEMA_SETS = {
     "leads_question",
     "note_for_you"
   ],
+  "partner_tenants.standing": ["qualified", "review", "disqualified"],
+  "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],
   "person_notes.source": ["page", "bulk", "moved", "call", "thread"],
   "person_notes.state": ["kept", "suggested"],
@@ -22591,7 +22686,7 @@ function dealPaceFrom(rows, nowMs) {
 }
 
 // src/lead-judge.ts
-import { z as z10 } from "zod";
+import { z as z11 } from "zod";
 var JUDGE_FACT_KEYS = [
   "name",
   "category",
@@ -22694,15 +22789,15 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z10.object({
-  places: z10.array(
-    z10.object({
-      ref: z10.number().int(),
-      criteria: z10.array(
-        z10.object({ key: z10.string(), answer: z10.enum(["pass", "fail", "unknown"]), facts: z10.array(z10.string()) })
+var AnswerSchema = z11.object({
+  places: z11.array(
+    z11.object({
+      ref: z11.number().int(),
+      criteria: z11.array(
+        z11.object({ key: z11.string(), answer: z11.enum(["pass", "fail", "unknown"]), facts: z11.array(z11.string()) })
       ),
-      email_index: z10.number().int().nullable(),
-      reason: z10.string()
+      email_index: z11.number().int().nullable(),
+      reason: z11.string()
     })
   )
 });
@@ -23920,6 +24015,15 @@ export {
   PARAM_SOURCES,
   PARAM_SOURCE_HINTS,
   PARAM_SOURCE_LABELS,
+  PARTNER_CODES_RESERVED,
+  PARTNER_CODE_MAX,
+  PARTNER_CODE_MIN,
+  PARTNER_COOKIE,
+  PARTNER_COOKIE_DAYS,
+  PARTNER_SHARE_BP_DEFAULT,
+  PARTNER_STANDINGS,
+  PARTNER_STATUSES,
+  PARTNER_WORDS,
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN,
   PASSWORD_WORDS,
@@ -23977,6 +24081,7 @@ export {
   PURPOSE_REFUSALS,
   PUSH_KINDS,
   PUSH_PLATFORMS,
+  PartnerBecomeSchema,
   PendingWorkspaceSchema,
   PeopleExportQuerySchema,
   PolicyLimitsSchema,
@@ -24169,6 +24274,7 @@ export {
   broadcastFailureFix,
   broadcastFailureWords,
   broadcastName,
+  broughtWords,
   buildAskSuggestions,
   buildNotificationFeed,
   businessFieldsFor,
@@ -24213,6 +24319,7 @@ export {
   cleanDraft,
   cleanEmailCandidates,
   cleanParam,
+  cleanPartnerCode,
   cleanTimezone,
   clipAtWord,
   clockDate,
@@ -24441,6 +24548,7 @@ export {
   isOptedOut,
   isOptedOutContact,
   isOwned,
+  isPartnerCode,
   isPipelineView,
   isProductFallback,
   isPushKind,
@@ -24629,6 +24737,10 @@ export {
   parseTenantConfig,
   parseTenantConfigResult,
   partialSay,
+  partnerCodeFromCookie,
+  partnerLinkFor,
+  partnerPathFor,
+  partnerVM,
   passwordProblem,
   pausedGreetingFor,
   pausedVoiceFacts,
@@ -24815,6 +24927,7 @@ export {
   setupRoute,
   setupSteps,
   sha256Hex,
+  shareWords,
   shellStatusLine,
   shiftKey,
   shiftMonth,
