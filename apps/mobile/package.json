@@ -9,8 +9,8 @@
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "doctor": "expo-doctor",
-    "export:check": "expo export --platform ios --output-dir ../../.expo-export-check && rm -rf ../../.expo-export-check"
+    "export:check": "expo export --platform ios --output-dir ../../.expo-export-check && rm -rf ../../.expo-export-check",
+    "check:doctor": "expo-doctor"
   },
   "dependencies": {
     "@chanlytics/contracts": "workspace:*",
