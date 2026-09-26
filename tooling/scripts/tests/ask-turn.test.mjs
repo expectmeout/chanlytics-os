@@ -26,6 +26,7 @@ import {
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
   noNumberWords,
+  toPersonVM,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -43,7 +44,9 @@ const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
-const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const workspaceReads = await import(at("apps/dashboard/src/server/readers/facts.ts"));
+const personRoute = await import(at("apps/dashboard/app/api/v1/contacts/[id]/route.ts"));
 // The workspace's facts are kept across turns in the module: each test starts with none kept.
 beforeEach(() => readerCache.clear());
 
@@ -2223,6 +2226,196 @@ test("get_thread and get_call read through the readers (ledger #5): the thread a
   assert.equal(elsewhere.supabase.seen.filter((q) => q.table === "messages").length, 0, "none of its messages is read");
   assert.ok(
     !away.read.thread.has(C4) && !away.read.conversation.has(C4) && !away.read.call.has(K3),
+    "nothing of another workspace enters the read set",
+  );
+});
+
+test("get_person is the person page's one read (ledger #3): the reader's one round, every read keyed on the person asked for at once and only their threads' own waiting for the ids; the config and sells_by the turn already read are not read again; read once a turn; the page's own view model over the page's payload, so the About rows and the timeline say what the profile says; another workspace's person is an error, never a row", async () => {
+  const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const P2 = "abababab-abab-4aba-8aba-abababababa2";
+  const C3 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc3";
+  const wrote = iso(NOW.getTime() - 3600_000);
+  const days = (n) => iso(NOW.getTime() - n * 86_400_000);
+  // Rosa as people_list answers her: one thread, one call.
+  const rosa = {
+    id: P1,
+    display_name: "Rosa",
+    wa_profile_name: null,
+    phone_e164: "+15555550100",
+    email: null,
+    consent: "opted_in",
+    consent_source: null,
+    consent_updated_at: null,
+    dnc: false,
+    channels: ["whatsapp"],
+    conversation_count: 1,
+    escalation_count: 0,
+    needs_human: false,
+    open_escalation_reason: null,
+    open_escalation_since: null,
+    latest_conversation_id: C1,
+    latest_state: "open",
+    latest_paused_until: null,
+    latest_assignee_user_id: null,
+    latest_snooze_until: null,
+    latest_wa_inbound_at: wrote,
+    last_message_at: wrote,
+    last_message_direction: "inbound",
+    last_message_sender: "customer",
+    last_inbound_text: "Are you open Saturday?",
+    last_inbound_at: wrote,
+    last_call_at: iso(NOW.getTime() - 7200_000),
+    call_count: 1,
+    call_seconds: 200,
+    first_contact_at: days(10),
+    earliest_row_at: days(10),
+    has_backfill: false,
+    has_chat: true,
+    queued_reply_at: null,
+  };
+  // Harbor's Rosa, and Bea, who is bayside's: people_list answers each for their own workspace alone.
+  const rpcs = {
+    ...RPCS,
+    people_list: (a) =>
+      a.p_tenant_id === A && a.p_contact_id === P1
+        ? [rosa]
+        : a.p_tenant_id === B && a.p_contact_id === P2
+          ? [{ ...rosa, id: P2, display_name: "Bea", latest_conversation_id: C3 }]
+          : [],
+  };
+  const t = tables({
+    contacts: [
+      { ...contact, tenant_id: A, erased_at: null },
+      { ...contact, id: P2, display_name: "Bea", tenant_id: B, erased_at: null },
+    ],
+    conversations: [
+      conversation(C1),
+      conversation(C3, { tenant_id: B, contact_id: P2, contacts: { ...contact, id: P2, display_name: "Bea" } }),
+    ],
+    contact_identities: [{ contact_id: P1, channel: "whatsapp", external_id: "15555550100", created_at: days(10) }],
+    // Where she came from, and a yes she gave: the profile says both; the tool's own read said neither.
+    events: [
+      {
+        tenant_id: A,
+        kind: "contact.added",
+        subject_type: "contact",
+        subject_id: P1,
+        data: { source: "calendar", title: "Local move" },
+        created_at: days(10),
+      },
+      {
+        id: "ev-1",
+        tenant_id: A,
+        kind: "contact.consent_changed",
+        subject_type: "contact",
+        subject_id: P1,
+        data: { consent: "opted_in", source: "customer_message", channel: "whatsapp", words: "START" },
+        created_at: days(5),
+      },
+    ],
+  });
+
+  // The Ask route reads the workspace's facts, config, policies and sells_by through the turn's readers first.
+  const ctx = ctxFor(t, rpcs);
+  const rc = readerContext(ctx, { tenantId: A, role: "operator" }, NOW);
+  await Promise.all(
+    [workspaceReads.facts, workspaceReads.config, workspaceReads.policies, workspaceReads.sellsBy].map((r) =>
+      load(rc, r, undefined),
+    ),
+  );
+  const before = ctx.supabase.seen.length;
+  const tc = newToolContext(ctx, A, "operator", TZ, NOW, rc);
+  const out = await runTool(tc, { name: "get_person", input: { contact_id: P1 } });
+  assert.equal(out.isError, false, out.result);
+  const seen = ctx.supabase.seen.slice(before);
+  const order = seen.map((q) => q.rpc ?? q.table);
+  const waited = order.indexOf("messages");
+  for (const read of [
+    "people_list",
+    "conversations",
+    "calls",
+    "policies",
+    "events",
+    "contacts",
+    "deals",
+    "contact_identities",
+    "leads",
+    "broadcast_recipients",
+    "person_notes",
+  ]) {
+    const asked = order.indexOf(read);
+    assert.ok(asked >= 0 && asked < waited, `REGRESSION: ${read} waited for another round (${order.join(", ")})`);
+  }
+  assert.deepEqual(
+    order.slice(waited),
+    ["messages", "escalations", "decisions"],
+    "only the threads' own reads wait, for their ids",
+  );
+  assert.deepEqual(
+    ["people_list", "policies", "events"].map((x) => order.filter((o) => o === x).length),
+    [1, 2, 2],
+    "the row once; both reply modes; where she came from, and her consent changes",
+  );
+  const columns = (table) => seen.filter((q) => q.table === table).map((q) => q.columns);
+  assert.deepEqual(
+    [columns("tenants"), columns("tenant_config")],
+    [["name, timezone"], ["config"]],
+    "the config and sells_by are the turn's; only the calendar's own lookup, which is not a reader, reads the zone and the config, as the page's read does",
+  );
+  const reads = ctx.supabase.seen.length;
+  await runTool(tc, { name: "get_person", input: { contact_id: P1 } });
+  assert.equal(ctx.supabase.seen.length, reads, "read once a turn: the second call is the first read");
+
+  // The page's own view model over the page's own payload: GET contacts/:id, then toPersonVM for the member looking, as
+  // the profile builds it (legacy-bridge/people-detail.ts).
+  const page = await personRoute.GET.run(new Request(`http://localhost/api/v1/contacts/${P1}?workspace=${A}`), {
+    ...ctxFor(t, rpcs),
+    params: { id: P1 },
+  });
+  const vm = toPersonVM(page.person, TZ, NOW, USER);
+  const said = JSON.parse(out.result);
+  assert.deepEqual(
+    said.about,
+    vm.about.map((a) => `${a.k}: ${a.v}`),
+    "the profile's About rows",
+  );
+  assert.deepEqual(
+    said.timeline,
+    vm.timeline
+      .slice(0, 20)
+      .map((i) => ({ day: i.day, time: i.time, kind: i.kind, who: i.who, text: i.text.slice(0, 240) })),
+    "the profile's timeline",
+  );
+  assert.deepEqual(said.right_now, { title: vm.rightNow.title, detail: vm.rightNow.detail });
+  assert.ok(
+    said.about.some((a) => /^Added: .* · from your calendar \(Local move\)$/.test(a)),
+    `where she came from, which the tool's own read never said: ${said.about}`,
+  );
+  assert.ok(
+    said.timeline.some((i) => i.kind === "system" && i.text === "Added from your calendar (Local move)") &&
+      said.timeline.some((i) => i.kind === "consent"),
+    "and on the timeline, with the yes she gave",
+  );
+  assert.deepEqual([said.conversations.map((c) => c.conversation_id), said.calls.map((c) => c.call_id)], [[C1], [K1]]);
+  assert.deepEqual(
+    [[...tc.read.person], [...tc.read.thread], [...tc.read.conversation], [...tc.read.call]],
+    [[P1], [C1], [C1], [K1]],
+    "the person, each thread, each call: rows a citation may name",
+  );
+
+  // Bea is bayside's: a harbor turn is told she is not here, in the tool's own words, and nothing of hers is a row.
+  const away = newToolContext(ctxFor(t, rpcs), A, "operator", TZ, NOW);
+  const { result: refused, lines } = await logged("ask_tool_failed", () =>
+    runTool(away, { name: "get_person", input: { contact_id: P2 } }),
+  );
+  assert.deepEqual(
+    [refused.isError, JSON.parse(refused.result)],
+    [true, { error: "no such person in this workspace" }],
+  );
+  assert.deepEqual(lines, [], "a person who is not here is not a failed read");
+  assert.deepEqual(
+    Object.values(away.read).map((s) => s.size),
+    [0, 0, 0, 0],
     "nothing of another workspace enters the read set",
   );
 });

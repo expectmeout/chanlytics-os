@@ -48,24 +48,12 @@ import {
   triggerOf,
   type AskReadSet,
   type LeadRoundEnding,
-  type MessageDto,
-  type PersonDetailDto,
-  type PersonDecisionDto,
-  type PersonEscalationDto,
   type PersonRowDto,
   type ReportDto,
   visitLine,
 } from "@chanlytics/contracts";
 import { savedListsFor } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
-import {
-  CALL_COLUMNS,
-  CONVERSATION_COLUMNS,
-  MESSAGE_COLUMNS,
-  groupMessages,
-  toCallDto,
-  toConversationDto,
-} from "../dto";
 import { audiencePoolOnce, poolList } from "../audience";
 import { dealPaceRead } from "../deals";
 import { listSearches, waitingQuestionOf } from "../leads";
@@ -76,12 +64,12 @@ import * as readers from "../readers/facts";
 import { calls as callsReader } from "../readers/calls";
 import { call } from "../readers/call";
 import { conversation } from "../readers/conversation";
+import { person } from "../readers/person";
 import { escalations as escalationsReader } from "../readers/escalations";
 import { inbox } from "../readers/inbox";
 import { today } from "../readers/today";
 import { openingsFor } from "./openings";
 import { workspaceFacts } from "./prompt";
-import { personNotesRead } from "../person-notes";
 
 /**
  * What the assistant may read, and how each read is shaped.
@@ -574,95 +562,13 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
 async function getPerson(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
   const id = str(input.contact_id);
   if (!UUID.test(id)) return { error: "contact_id must be an id a tool returned" };
-  const sb = t.ctx.supabase;
-  const { data: rows, error } = await sb.rpc("people_list", { p_tenant_id: t.tenantId, p_contact_id: id });
-  if (error) throw new Error(error.message);
-  const row = (rows ?? [])[0] as PersonRowDto | undefined;
-  if (!row) return { error: "no such person in this workspace" };
-  const [convs, calls, personPol, wsPol, own, sellsBy] = await Promise.all([
-    sb
-      .from("conversations")
-      .select(CONVERSATION_COLUMNS)
-      .eq("tenant_id", t.tenantId)
-      .eq("contact_id", id)
-      .order("last_message_at", { ascending: false, nullsFirst: false })
-      .limit(20),
-    sb
-      .from("calls")
-      .select(CALL_COLUMNS)
-      .eq("tenant_id", t.tenantId)
-      .eq("contact_id", id)
-      .order("started_at", { ascending: false, nullsFirst: false })
-      .limit(50),
-    sb
-      .from("policies")
-      .select("mode")
-      .eq("tenant_id", t.tenantId)
-      .eq("class", "reply")
-      .eq("subject_type", "contact")
-      .eq("subject_id", id)
-      .maybeSingle(),
-    sb
-      .from("policies")
-      .select("mode")
-      .eq("tenant_id", t.tenantId)
-      .eq("class", "reply")
-      .is("subject_type", null)
-      .maybeSingle(),
-    // The owner's proposal link (00154): people_list does not carry it, and About should say "Proposal: <host>"
-    // so a card can carry the address into a reply.
-    sb.from("contacts").select("proposal_url").eq("id", id).maybeSingle(),
-    // How the workspace's customers buy (0008): the deal and its proposal are said only where deals are on.
-    load(t.rc, readers.sellsBy, undefined).then((r) => r.data),
-  ]);
-  if (convs.error) throw new Error(convs.error.message);
-  if (calls.error) throw new Error(calls.error.message);
-  if (own.error) throw new Error(own.error.message);
-  const convIds = (convs.data ?? []).map((c) => c.id);
-  let byConv = new Map<string, MessageDto[]>();
-  let escalations: PersonEscalationDto[] = [];
-  let decisions: PersonDecisionDto[] = [];
-  if (convIds.length) {
-    const [msgs, escs, decs] = await Promise.all([
-      sb
-        .from("messages")
-        .select(MESSAGE_COLUMNS)
-        .in("conversation_id", convIds)
-        .order("created_at", { ascending: false })
-        .limit(400),
-      sb
-        .from("escalations")
-        .select("id, conversation_id, reason, state, details, created_at, updated_at, resolved_by_user_id")
-        .in("conversation_id", convIds)
-        .order("created_at", { ascending: false })
-        .limit(50),
-      sb
-        .from("decisions")
-        .select("id, verb, subject_type, subject_id, actor_type, actor_user_id, created_at, payload")
-        .eq("subject_type", "conversation")
-        .in("subject_id", convIds)
-        .order("created_at", { ascending: false })
-        .limit(100),
-    ]);
-    byConv = groupMessages(msgs.data ?? []);
-    escalations = escs.data ?? [];
-    decisions = (decs.data ?? []).map((d) => ({ ...d, payload: d.payload as Record<string, unknown> | null }));
-  }
-  // Their notes (0007): the team's own words about them, which Ask reads as the team does -- team-only ones too.
-  const notesRead = await personNotesRead(t.ctx, t.tenantId, id);
-  const detail: PersonDetailDto = {
-    row: { ...row, effective_reply_mode: personPol.data?.mode ?? wsPol.data?.mode ?? null },
-    identities: [],
-    ...(notesRead.notes ? { person_notes: notesRead.notes } : {}),
-    conversations: (convs.data ?? []).map((c) => toConversationDto(c, byConv.get(c.id) ?? [], t.ctx.userId)),
-    calls: (calls.data ?? []).map(toCallDto),
-    escalations,
-    decisions,
-    receptionist_mode: personPol.data?.mode ?? null,
-    workspace_reply_mode: wsPol.data?.mode ?? null,
-    proposal_url: own.data?.proposal_url ?? null,
-    deals_on: dealsAreOn(sellsBy),
-  };
+  // The person as their page reads them (readers/person.ts): the profile's one round of reads, once a turn, the
+  // workspace's config and sells_by shared with the rest of it; a person this workspace does not hold is the reader's
+  // 404. Then the page's own view model, for the member asking, as the profile builds it
+  // (legacy-bridge/people-detail.ts): the facts, the timeline and the notes are the page's (ledger #3).
+  const r = await unlessNotFound(load(t.rc, person, { id }));
+  if (!r) return { error: "no such person in this workspace" };
+  const detail = r.data.person;
   const vm = toPersonVM(detail, t.timezone, t.now, t.ctx.userId ?? null);
   t.read.person.add(id);
   for (const c of detail.conversations) {
