@@ -45,8 +45,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runAskTurn, foldHistory, askPorts, blocksRefused } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
-const { runTool, newToolContext, READ_TOOLS } = await import(at("apps/dashboard/src/server/ask/tools.ts"));
-const { buildProposal, ACT_TOOLS } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
+const { runTool, newToolContext, READ_TOOLS, buildProposal, ACT_TOOLS } = await import(
+  at("apps/dashboard/src/server/ask/tools/index.ts")
+);
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
@@ -70,6 +71,7 @@ const E1 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5";
 const K1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc9";
 const K2 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc8";
 const TPL = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
+const TPL2 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
 const USER = "u1";
 const TZ = "America/New_York";
 /** A Monday at 10:00 in New York. */
@@ -890,6 +892,8 @@ test("REGRESSION: the assistant's people search says when someone was last in to
     JSON.parse(r.result).people.map((p) => [p.name, p.last_contact, p.next_step]),
     [["Rosa", "2h ago", "Send the price list · Overdue since Fri"]],
   );
+  const [row] = JSON.parse(r.result).people;
+  assert.equal(row.route, `clients/${row.contact_id}`, "a person says where they open");
 });
 
 test("the round gathers the stream: blocks in order, the text so far handed on as it grows, the stop reason, and an error after the start kept beside the blocks", async () => {
@@ -1029,6 +1033,17 @@ test("the fourteen reads run against the database in memory: each answers in its
   const thread = JSON.parse(out.get_thread.result);
   assert.equal(out.get_thread.isError, false, out.get_thread.result);
   assert.equal(thread.conversation_id ?? thread.thread?.conversation_id ?? C1, C1);
+  // Each row carries its last exchanges, so one read round answers most questions; and every row a tool returns
+  // says where it opens, in the shape the answer's sources take (normalizeAnswer, ask-answer.test.mjs). Both were
+  // pinned as source text in ask.test.mjs until the registry (PR 3.1).
+  assert.deepEqual(
+    threads.threads[0].recent.map((x) => [["customer", "you", "receptionist"].includes(x.from), x.text]),
+    [[true, "Are you open Saturday?"]],
+  );
+  assert.equal(threads.threads[0].route, `inbox/th-${C1}`);
+  assert.equal(thread.route, `inbox/th-${C1}`);
+  assert.equal(JSON.parse(out.get_call.result).route, `conversations/cv-${K1}`);
+  assert.equal(JSON.parse(out.list_calls.result).calls[0].route, `conversations/cv-${K1}`);
   assert.equal(out.get_call.isError, false, out.get_call.result);
   assert.ok(tc.read.call.has(K1));
   assert.equal(out.list_calls.isError, false, out.list_calls.result);
@@ -1069,7 +1084,11 @@ test("the fourteen reads run against the database in memory: each answers in its
     [failed.isError, JSON.parse(failed.result).error],
     [true, "that read failed; say so and answer with what you have"],
   );
-  assert.equal((await run("get_report", { days: 12 })).result, JSON.stringify({ error: "days must be 7, 30 or 90" }));
+  // A period the schema does not list is refused before the read runs, in the schema's own words (PR 3.1, D2).
+  assert.equal(
+    (await run("get_report", { days: 12 })).result,
+    JSON.stringify({ error: "get_report: days Invalid option: expected one of 7|30|90" }),
+  );
   assert.equal(
     (await run("get_thread", { conversation_id: "nope" })).result,
     JSON.stringify({ error: "conversation_id must be an id a tool returned" }),
@@ -1160,6 +1179,18 @@ test("the proposal builders run against the database in memory: each kind is a c
         body_preview: "We are open Saturday 9 to 5.",
         hidden_at: null,
       },
+      {
+        id: TPL2,
+        tenant_id: A,
+        channel: "whatsapp",
+        name: "month_offer",
+        language: "en",
+        meta_status: "approved",
+        category: "MARKETING",
+        variables: [{ position: 1, label: "offer", example: "20% off cuts" }],
+        body_preview: "This month: {{1}}.",
+        hidden_at: null,
+      },
     ],
   });
   const tc = newToolContext(
@@ -1237,9 +1268,10 @@ test("the proposal builders run against the database in memory: each kind is a c
   const resolve = await p("propose_thread_verb", { conversation_id: C1, verb: "resolve" });
   assert.deepEqual([resolve.proposal.payload.escalation_id, resolve.proposal.undo], [E1, null]);
   assert.match((await p("propose_thread_verb", { conversation_id: C2, verb: "resolve" })).result, /no open escalation/);
-  assert.match(
-    (await p("propose_thread_verb", { conversation_id: C1, verb: "delete" })).result,
-    /verb must be one of take_over, hand_back, snooze, wake, archive, resolve/,
+  // A verb the schema does not list is refused before the builder runs, in the schema's own words (PR 3.1, D2).
+  assert.equal(
+    JSON.parse((await p("propose_thread_verb", { conversation_id: C1, verb: "delete" })).result).error,
+    'propose_thread_verb: verb Invalid option: expected one of "take_over"|"hand_back"|"snooze"|"wake"|"archive"|"resolve"',
   );
 
   const mode = await p("propose_person_mode", { contact_id: P1, mode: "never" });
@@ -1271,7 +1303,11 @@ test("the proposal builders run against the database in memory: each kind is a c
     (await p("propose_settings", { change: { op: "add_closure", date: "tomorrow" } })).result,
     /change rejected/,
   );
-  assert.match((await p("propose_settings", {})).result, /change is required/);
+  assert.match(
+    (await p("propose_settings", {})).result,
+    /propose_settings: change Invalid input: expected object, received undefined/,
+    "no change at all is refused by the schema, before the builder (PR 3.1, D2)",
+  );
 
   const whisper = await p("propose_whisper", { call_id: K1, text: "Saturday is full" });
   assert.deepEqual([whisper.proposal.kind, whisper.proposal.title], ["whisper", "Whisper on the call with Rosa"]);
@@ -1280,16 +1316,22 @@ test("the proposal builders run against the database in memory: each kind is a c
   assert.match((await p("propose_whisper", { call_id: K1, text: "x" })).result, /not in progress/);
 
   assert.match((await p("propose_invite", { email: "nope", role: "viewer" })).result, /not an email address/);
-  assert.match(
-    (await p("propose_invite", { email: "ada@example.com", role: "owner" })).result,
-    /role must be operator or viewer/,
+  assert.equal(
+    JSON.parse((await p("propose_invite", { email: "ada@example.com", role: "owner" })).result).error,
+    'propose_invite: role Invalid option: expected one of "operator"|"viewer"',
+    "a role the schema does not list is refused by the schema (PR 3.1, D2)",
   );
 
   const broadcast = await p("propose_broadcast", { template_id: TPL, audience_kind: "everyone", params: [] });
   assert.equal(broadcast.isError, false, broadcast.result);
   assert.deepEqual(
-    [broadcast.proposal.kind, broadcast.proposal.payload.count, broadcast.proposal.payload.audience_label],
-    ["broadcast", 1, EVERYONE_LABEL],
+    [
+      broadcast.proposal.kind,
+      broadcast.proposal.needs,
+      broadcast.proposal.payload.count,
+      broadcast.proposal.payload.audience_label,
+    ],
+    ["broadcast", "operator", 1, EVERYONE_LABEL],
   );
   assert.match(
     (await p("propose_broadcast", { template_id: TPL, audience_kind: "list", audience_id: "nope" })).result,
@@ -1311,8 +1353,39 @@ test("the proposal builders run against the database in memory: each kind is a c
     ],
     ["playbook", "quiet_30", TPL, "Delete it — nothing will run"],
   );
-  assert.match((await p("propose_playbook", { trigger: "never" })).result, /trigger must be/);
+  assert.match(
+    (await p("propose_playbook", { trigger: "never" })).result,
+    /propose_playbook: trigger Invalid option/,
+    "a moment the schema does not list is refused by the schema (PR 3.1, D2)",
+  );
 
+  // What the model is told of every card, and the reply refused for a person who opted out (pinned as text in
+  // ask.test.mjs until PR 3.1).
+  assert.equal(
+    JSON.parse(broadcast.result).note,
+    "Nothing has happened yet. This is a card the person can approve, edit or dismiss. Say what you proposed; never say it is done.",
+  );
+  t.conversations[0].contacts = { ...t.conversations[0].contacts, dnc: true };
+  assert.match(
+    (await p("draft_reply", { conversation_id: C1, text: "See you Saturday", voice: "you" })).result,
+    /Rosa opted out; nothing can be sent to them/,
+  );
+  t.conversations[0].contacts = { ...t.conversations[0].contacts, dnc: false };
+  // A playbook with no template takes the trigger's starter, and says so when the workspace does not hold it; a
+  // template with a typed slot and no words is a question for the person, never invented words (pinned as text in
+  // playbooks.test.mjs until PR 3.1).
+  assert.match(
+    (await p("propose_playbook", { trigger: "new_week" })).result,
+    /starter is not approved on this workspace yet/,
+  );
+  assert.match(
+    (await p("propose_playbook", { trigger: "everyone_monthly", template_id: TPL2 })).result,
+    /ask the person what to say there, then propose again with params/,
+  );
+  assert.ok(
+    !tc.ctx.supabase.seen.some((q) => ["insert", "update", "upsert", "delete"].includes(q.op)),
+    "a proposal reads; it never writes",
+  );
   assert.match((await p("teleport", {})).result, /unknown tool teleport/);
   const throwing = newToolContext(
     ctxFor(t, RPCS, { "contacts.select": { message: "permission denied" } }),
@@ -1803,6 +1876,12 @@ test("get_calendar reads the people it names: a person on the calendar enters th
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
     const out = await runTool(tc, { name: "get_calendar", input: { day: "tomorrow" } });
     assert.equal(out.isError, false, out.result);
+    assert.ok(
+      JSON.parse(out.result).note.includes(
+        "Nothing is booked from here: customers book through the booking link, or with the team where there is none.",
+      ),
+      "the read says nothing is booked from here (pinned as text in calendar.test.mjs until PR 3.1)",
+    );
     assert.deepEqual(
       JSON.parse(out.result).days[0].taken.map((b) => b.person && b.person.contact_id),
       [LUIS],
@@ -1886,7 +1965,7 @@ test("get_calendar reads the board as its page reads it (ledger #11): with no da
         (q) => q.rpc === "create_person" || ["insert", "update", "upsert", "delete"].includes(q.op),
       ),
     );
-    const threeDays = await runTool(tc, { name: "get_calendar", input: { days: 3 } });
+    const threeDays = await runTool(tc, { name: "get_calendar", input: { day: "", days: 3 } });
     assert.deepEqual(
       JSON.parse(threeDays.result).days.map((d) => d.day),
       ["2026-09-14", "2026-09-15", "2026-09-16"],
@@ -2113,6 +2192,10 @@ test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 
   const out = await runTool(tc, { name: "list_playbooks", input: {} });
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
+  assert.ok(
+    read.note.endsWith("Nothing here has run because you read it."),
+    "nothing ran because it was read (pinned as text in playbooks.test.mjs until PR 3.1)",
+  );
   /** One trigger's two counts: who its moment names that said the yes it needs, and who of them a run can reach. */
   const counts = (id) => {
     const x = read.triggers.find((y) => y.trigger === id);
@@ -2373,6 +2456,7 @@ test("the day is read once a turn, each tool as its page reads it: get_today, li
     s.requests[1].messages.at(-1).content.map((c) => [c.tool_use_id, JSON.parse(c.content)]),
   );
   const [longest] = out["t-get_today"].needs_you.rows;
+  assert.equal(longest.route, `inbox/th-${longest.conversation_id}`, "a Today row says where it opens");
   assert.deepEqual(
     [out["t-get_today"].needs_you.count, longest.conversation_id, longest.who],
     [22, C2, "Unknown"],
@@ -2655,6 +2739,7 @@ test("get_person is the person page's one read (ledger #3): the reader's one rou
   const tc = newToolContext(ctx, A, "operator", TZ, NOW, rc);
   const out = await runTool(tc, { name: "get_person", input: { contact_id: P1 } });
   assert.equal(out.isError, false, out.result);
+  assert.equal(JSON.parse(out.result).route, `clients/${P1}`, "a profile says where it opens");
   const seen = ctx.supabase.seen.slice(before);
   const order = seen.map((q) => q.rpc ?? q.table);
   const waited = order.indexOf("messages");
@@ -3122,9 +3207,10 @@ test("propose_deal makes a card the route commits: a new proposal has no deal_id
     (await p("propose_deal", { contact_id: MARIA, stage: "proposed", valid_until: "2026-02-31" })).result,
     /valid_until must be a day, like 2026-09-30/,
   );
-  assert.match(
-    (await p("propose_deal", { contact_id: MARIA, stage: "lost", lost_reason: "banana" })).result,
-    /lost_reason must be one of price, timing, elsewhere, no_reply, not_a_fit, other/,
+  assert.equal(
+    JSON.parse((await p("propose_deal", { contact_id: MARIA, stage: "lost", lost_reason: "banana" })).result).error,
+    'propose_deal: lost_reason Invalid option: expected one of "price"|"timing"|"elsewhere"|"no_reply"|"not_a_fit"|"other"',
+    "a reason the schema does not list is refused by the schema (PR 3.1, D2)",
   );
   assert.match(
     (await p("propose_deal", { contact_id: MARIA, stage: "won", lost_reason: "price" })).result,
@@ -3133,7 +3219,11 @@ test("propose_deal makes a card the route commits: a new proposal has no deal_id
 
   const bad = await p("propose_deal", { contact_id: MARIA, stage: "banana" });
   assert.equal(bad.isError, true);
-  assert.match(bad.result, /stage must be proposed, won, lost or ended/);
+  assert.equal(
+    JSON.parse(bad.result).error,
+    'propose_deal: stage Invalid option: expected one of "proposed"|"won"|"lost"|"ended"',
+    "a stage the schema does not list is refused by the schema (PR 3.1, D2)",
+  );
   assert.match((await p("propose_deal", { contact_id: C2, stage: "won" })).result, /no such person/);
   assert.match(
     (await p("propose_deal", { contact_id: "c1", stage: "won" })).result,

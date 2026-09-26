@@ -92,7 +92,7 @@ test("the cache hit ratio: cache reads over everything the model was fed; nothin
 });
 
 const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
-const { buildProposal } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
+const { buildProposal } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
 
 const NONE = { kind: "none", id: "", label: "" };
@@ -243,7 +243,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const askRoute = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { runTool } = await import(at("apps/dashboard/src/server/ask/tools.ts"));
+const { runTool } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 beforeEach(() => setRateStore(memoryStore()));
 // The workspace's facts are kept across turns in the module: each test starts with none kept.
 beforeEach(() => readerCache.clear());
@@ -417,7 +417,7 @@ test("one turn reads the workspace's facts once, on one clock: the route's own r
       if (rounds === 1)
         return ROUND([
           { type: "tool_use", id: "t-get_settings", name: "get_settings", text: "", json: "{}" },
-          { type: "tool_use", id: "t-list_calls", name: "list_calls", text: "", json: "{}" },
+          { type: "tool_use", id: "t-list_calls", name: "list_calls", text: "", json: '{"filter":"recent"}' },
         ]);
       onText(written);
       return ROUND([text(written)], { stopReason: "end_turn" });
