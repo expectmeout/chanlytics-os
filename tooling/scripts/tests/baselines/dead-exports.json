@@ -112,7 +112,6 @@
   "apps/edge/lib/sms/sms.ts": 1,
   "apps/edge/lib/voice/call-recording.ts": 4,
   "apps/edge/lib/voice/call-start.ts": 5,
-  "apps/edge/lib/voice/forwarding.ts": 1,
   "apps/edge/lib/voice/voice-agent.ts": 2,
   "apps/edge/lib/voice/voice-door-auth.ts": 1,
   "apps/edge/lib/whatsapp/alerts.ts": 2,

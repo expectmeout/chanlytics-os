@@ -1074,11 +1074,6 @@
     "branches": 37,
     "depth": 4
   },
-  "apps/edge/api/retell-webhook.ts::POST#1": {
-    "lines": 403,
-    "branches": 97,
-    "depth": 4
-  },
   "apps/edge/api/stripe-webhook.ts::POST#1": {
     "lines": 145,
     "branches": 45,
