@@ -7,8 +7,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../packages/db.js";
-import type { LineSecrets, ProviderAccount } from "../packages/channels.js";
-import { smsStatusUrl } from "../packages/channels.js";
+import type { LineSecrets, ProviderAccount, SendResult } from "../packages/channels.js";
+import { smsStatusUrl, smsRefusalOf } from "../packages/channels.js";
 import { lineProviderFromEnv, edgeFnUrl } from "../lines/lines.js";
 import { logger, errField } from "../log.js";
 import { phoneTail } from "../packages/contracts.js";
@@ -111,14 +111,17 @@ export async function refreshLineToken(
 }
 
 export interface SmsSender {
-  send(to: string, body: string): Promise<{ ok: boolean; wamid: string | null; status: number; errorBody?: string }>;
+  send(to: string, body: string): Promise<SendResult>;
 }
 
 /**
  * The sender for one line. `wamid` carries the provider's message id under
  * the name the WhatsApp path gave it, so every caller records it the same
- * way. Twilio 21610 (the person opted out at the carrier) is reported as a
- * refusal, not a failure of ours.
+ * way; `code` carries the provider's own error code, so the send door (core
+ * deliver.ts) can tell the carrier's no on the person's behalf -- Twilio
+ * 21610, the person replied STOP to this number (channels smsRefusalOf) --
+ * from a failure of ours. The first is said here as the person's refusal,
+ * the second as our failure: alerting greps the second.
  */
 export function smsSenderFor(line: SmsLine, acct: ProviderAccount): SmsSender | null {
   const choice = lineProviderFromEnv();
@@ -135,8 +138,15 @@ export function smsSenderFor(line: SmsLine, acct: ProviderAccount): SmsSender | 
         statusCallback: smsStatusUrl(edgeFnUrl()),
       });
       if (r.ok) L.info("sms_sent", { to_tail: phoneTail(to), sid: r.sid });
+      else if (smsRefusalOf(r)) L.info("sms_send_refused", { to_tail: phoneTail(to), status: r.status, code: r.code });
       else L.error("sms_send_failed", { to_tail: phoneTail(to), status: r.status, code: r.code });
-      return { ok: r.ok, wamid: r.sid, status: r.status, errorBody: r.ok ? undefined : `Twilio ${r.code ?? r.status}` };
+      return {
+        ok: r.ok,
+        wamid: r.sid,
+        status: r.status,
+        code: r.code,
+        errorBody: r.ok ? undefined : `Twilio ${r.code ?? r.status}`,
+      };
     },
   };
 }

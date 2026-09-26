@@ -6,9 +6,13 @@
  * preview pointed at a staging edge is then one variable away). The
  * credential was one shared key in a header; a call now carries a token
  * minted for the door it opens (packages/channels edge-token), bound to the
- * workspace and the person, valid for a minute, when EDGE_CALL_SECRET is set,
- * and the shared key for as long as DIAG_KEY still is. The edge decides which
- * it honours (apps/edge/lib/admin-auth.ts).
+ * workspace and the person, valid for a minute, when EDGE_CALL_SECRET is set
+ * -- and then nothing else. The key rode beside the token on every call, so a
+ * token the edge verified bought nothing while a static key that opened every
+ * door travelled with it. The shared key rides only while there is no secret
+ * to sign with, and the edge must hold the same secret: without it, it reads
+ * no token (apps/edge/lib/admin-auth.ts), so the two projects hold it together
+ * or not at all.
  */
 import { signEdgeToken } from "@chanlytics/channels";
 
@@ -32,6 +36,6 @@ export function edgeHeaders(
   const h: Record<string, string> = { "content-type": "application/json" };
   const secret = process.env.EDGE_CALL_SECRET;
   if (secret) h["x-edge-token"] = signEdgeToken(secret, aud, ctx);
-  if (process.env.DIAG_KEY) h["x-diag-key"] = process.env.DIAG_KEY;
+  else if (process.env.DIAG_KEY) h["x-diag-key"] = process.env.DIAG_KEY;
   return h;
 }

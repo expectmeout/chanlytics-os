@@ -22,7 +22,7 @@ import { isOptedOutContact, resolveSystemPrompt, describeNow, fallbackMessages }
 // TYPES ONLY: the normalised message is the channels package's shape and this
 // verb speaks it. A VALUE from channels would be a provider inside a verb —
 // that is a port, not a widening (hygiene.test.mjs).
-import type { CarrierConsent, NormalizedInbound } from "@chanlytics/channels";
+import type { CarrierConsent, NormalizedInbound, SendResult } from "@chanlytics/channels";
 import type { IngestResult, Json, RoutedChannel } from "@chanlytics/db";
 import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "./vision";
 import { replyPosture, effectiveReplyMode } from "./reply-posture";
@@ -59,7 +59,8 @@ function errField(e: unknown): string {
  */
 export interface InboundCarrier {
   channel: "sms";
-  send(to: string, body: string): Promise<{ ok: boolean; wamid: string | null; status: number }>;
+  /** The provider's answer, its own code with it: the door tells the carrier's no on the person's behalf (21610) from a failure of ours. */
+  send(to: string, body: string): Promise<SendResult>;
   body(text: string, isFirstReply: boolean): string;
   held: { reason: string; details: string } | null;
   /** What the carrier itself decided about the text: its STOP or START outranks our reading of the words. */

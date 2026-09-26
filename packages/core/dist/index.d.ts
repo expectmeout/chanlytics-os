@@ -2853,11 +2853,8 @@ declare function noModelPlan(fallbacks: {
  */
 interface InboundCarrier {
     channel: "sms";
-    send(to: string, body: string): Promise<{
-        ok: boolean;
-        wamid: string | null;
-        status: number;
-    }>;
+    /** The provider's answer, its own code with it: the door tells the carrier's no on the person's behalf (21610) from a failure of ours. */
+    send(to: string, body: string): Promise<SendResult>;
     body(text: string, isFirstReply: boolean): string;
     held: {
         reason: string;

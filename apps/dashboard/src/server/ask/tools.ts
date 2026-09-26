@@ -79,6 +79,7 @@ import { channels as channelsReader } from "../readers/channels";
 import { templates as templatesReader, type TemplatesRead } from "../readers/templates";
 import { searches } from "../readers/searches";
 import { workspaceFacts } from "./prompt";
+import { threadState } from "./thread-state";
 
 /**
  * What the assistant may read, and how each read is shaped.
@@ -398,15 +399,7 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
       conversation_id: v.conversationId,
       route: `inbox/th-${v.conversationId}`,
       who: v.who,
-      state: v.needsYou
-        ? "needs you"
-        : v.takenOver
-          ? "waiting on you"
-          : v.state === "snoozed"
-            ? "snoozed"
-            : v.optedOut
-              ? "opted out"
-              : "answering",
+      state: threadState(v),
       held_draft: v.veto
         ? { message_id: v.veto.messageId, text: v.veto.draft.slice(0, 200), why: v.veto.why?.summary ?? null }
         : v.heldDraft
@@ -461,15 +454,7 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
     // reader's first row is the thread.
     who: r.rows[0].label,
     channel: vm.replyVia,
-    state: vm.needsYou
-      ? "needs you"
-      : vm.takenOver
-        ? "waiting on you"
-        : vm.state === "snoozed"
-          ? "snoozed"
-          : vm.optedOut
-            ? "opted out"
-            : "answering",
+    state: threadState(vm),
     escalation: esc
       ? { id: esc.id, reason: ESCALATION_REASON_LABELS[esc.reason] ?? esc.reason, details: esc.details }
       : null,

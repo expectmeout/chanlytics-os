@@ -229,6 +229,8 @@ export interface SendResult {
   wamid: string | null;
   status: number;
   errorBody?: string;
+  /** The provider's own error code when it gives one: a text's carrier says 21610 for a person who opted out (sms.ts smsRefusalOf). */
+  code?: number | null;
 }
 
 /**
