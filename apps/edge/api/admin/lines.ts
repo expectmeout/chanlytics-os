@@ -191,9 +191,16 @@ export async function POST(request: Request): Promise<Response> {
     const number = typeof body.number === "string" ? body.number.trim() : "";
     if (!isE164(number)) return json(400, { ok: false, error: "number must be E.164, like +13055550100" });
     const areaCode = areaCodeOf(body.area_code) ?? (number.startsWith("+1") ? Number(number.slice(2, 5)) : null);
-    const others = await db.from("lines").select("*").eq("tenant_id", tenantId).order("created_at");
+    // ONE LINE PER WORKSPACE. Read here so the owner is answered with the line
+    // that stands, or the failed one to retry; KEPT by the database
+    // (lines_one_live_per_tenant_idx, 00195), because two buys can both read
+    // nothing -- see the insert below.
+    const ours = () => db.from("lines").select("*").eq("tenant_id", tenantId).order("created_at");
+    const liveOf = <T extends { voice_state: string }>(rows: T[]) =>
+      rows.find((l) => l.voice_state === "provisioning" || l.voice_state === "answering");
+    const others = await ours();
     if (others.error) return json(503, { ok: false, error: others.error.message });
-    const live = (others.data ?? []).find((l) => l.voice_state === "provisioning" || l.voice_state === "answering");
+    const live = liveOf(others.data ?? []);
     if (live) return json(409, { ok: false, error: "line_exists", line: lineForClient(live) });
     const failed = (others.data ?? []).find((l) => l.voice_state === "failed");
     if (failed) return json(409, { ok: false, error: "line_failed_retry", line: lineForClient(failed) });
@@ -211,7 +218,23 @@ export async function POST(request: Request): Promise<Response> {
       })
       .select("*")
       .single();
-    if (ins.error) return json(503, { ok: false, error: ins.error.message });
+    if (ins.error) {
+      // THE DATABASE'S RULE, when two buys crossed. Both read no line above and
+      // both inserted; a workspace holds one line that is being set up or
+      // answers (lines_one_live_per_tenant_idx, 00195) and a number is live once
+      // (lines_e164_live_idx, 00066), so the second insert fails here with 23505
+      // -- before a saga is queued for it, and before the carrier hears of it.
+      // Answered as the read above would have answered it, with the line that
+      // stands. A conflict that leaves this workspace with no live line (a
+      // number another workspace holds) is not its line_exists and keeps the
+      // provider's words.
+      if (ins.error.code === "23505") {
+        const again = await ours();
+        const stands = liveOf(again.data ?? []);
+        if (stands) return json(409, { ok: false, error: "line_exists", line: lineForClient(stands) });
+      }
+      return json(503, { ok: false, error: ins.error.message });
+    }
     // On the ledger (00109): claimed under a lease within ten seconds, resumed
     // by the heartbeat if a worker dies, tried up to the cap. The page repaints
     // from the row through realtime as each step lands its receipt.
