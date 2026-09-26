@@ -1,7 +1,7 @@
 /**
  * The assistant's turn, executed without a model.
  *
- * runAskTurn is the loop: the snapshot, the rounds, the reads in parallel,
+ * runAskTurn is the loop: the page's context, the rounds, the reads in parallel,
  * the proposals, the answer, and every way a turn ends without one. Every
  * door around it was executed; the turn itself was read for its text. Here
  * the model round is scripted through the ports the loop now takes (the move
@@ -43,11 +43,11 @@ delete process.env.ASK_MODEL;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { runAskTurn, foldHistory, askPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { runAskTurn, foldHistory, askPorts, blocksRefused } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
 const { runTool, newToolContext, READ_TOOLS } = await import(at("apps/dashboard/src/server/ask/tools.ts"));
 const { buildProposal, ACT_TOOLS } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
-const { buildSnapshot, snapshotBlock } = await import(at("apps/dashboard/src/server/ask/snapshot.ts"));
+const { scopedRead } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );
@@ -241,9 +241,30 @@ async function logged(event, fn) {
     console.error = was.error;
   }
 }
+/** A page's context as the server builds it (server/ask/context.ts): the page's aggregate, then a row. */
+const BUILT = {
+  blocks: [
+    {
+      type: "search_result",
+      source: "page://today",
+      title: "Today",
+      content: [{ type: "text", text: "Today: 2 need you" }],
+      citations: { enabled: false },
+    },
+  ],
+  refs: [{ kind: "page", id: "today", route: "today", label: "Today" }],
+  rows: 0,
+  chars: 30,
+  stamp: 1,
+  failed: false,
+  warm: "hit",
+};
+/** A page context as the tab sends it (contracts PageContext). */
+const PAGE = { v: 1, surface: "today", route: "today", view: null, focus: null, rows: [], askedAt: 1 };
 const ports = (round, extra = {}) => ({
   round,
-  snapshot: async () => "The day: two threads, one call.",
+  context: async () => BUILT,
+  shape: async () => "The workspace: Harbor · zone America/New_York",
   tool: runTool,
   propose: buildProposal,
   ...extra,
@@ -314,8 +335,8 @@ test("a read, then the answer: the read runs for real, its rows enter the read s
   );
   assert.equal(s.requests[0].model, ASK_MODEL);
   assert.ok(
-    s.requests[0].system.some((b) => b.text === "The day: two threads, one call." && b.cache_control),
-    "the snapshot rides in, cached",
+    s.requests[0].system.some((b) => b.text.startsWith("The workspace: Harbor") && b.cache_control),
+    "the shape of the workspace rides in system, cached",
   );
   const second = s.requests[1].messages;
   assert.equal(second.at(-2).role, "assistant");
@@ -428,7 +449,7 @@ test("an act tool beside the answer stands: the proposal is built for real, the 
   assert.deepEqual(r.tools, ["propose_policy"]);
   // A proposal counts as a read: its figures are the request, checked against the workspace. With no day read and
   // nothing proposed, a figure is not from the workspace.
-  const noDay = { snapshot: async () => "" };
+  const noDay = {};
   const act = tool("propose_policy", { class: "reply", mode: "ask" });
   const proposed = await runAskTurn(
     turn(ctxFor()).input,
@@ -745,18 +766,26 @@ test("Say streams from the answer's JSON as it is written: only what changed, at
   );
 });
 
-test("a snapshot that fails costs the snapshot, never the turn; a round that throws something other than a refusal is the turn's stated failure", async () => {
+test("a page's context or a shape that fails costs its block, never the turn; a round that throws something other than a refusal is the turn's stated failure", async () => {
   const s = scripted([ROUND([answer("Nothing waiting.")])]);
   const r = await runAskTurn(
-    turn(ctxFor()).input,
+    turn(ctxFor(), { context: PAGE }).input,
     ports(s.round, {
-      snapshot: async () => {
-        throw new Error("snapshot query timed out");
+      context: async () => {
+        throw new Error("context read timed out");
+      },
+      shape: async () => {
+        throw new Error("shape read timed out");
       },
     }),
   );
   assert.deepEqual([r.text, r.failed], ["Nothing waiting.", false]);
-  assert.ok(!s.requests[0].system.some((b) => b.text.startsWith("The day:")), "no snapshot block");
+  assert.equal(s.requests[0].system.length, 1, "no shape block: the rules and facts alone");
+  assert.ok(
+    !JSON.stringify(s.requests[0].messages).includes("search_result"),
+    "no page block: the question goes with its words",
+  );
+  assert.equal(r.shape.warm, "failed");
   const broken = await runAskTurn(
     turn(ctxFor()).input,
     ports(async () => {
@@ -769,7 +798,7 @@ test("a snapshot that fails costs the snapshot, never the turn; a round that thr
   );
 });
 
-test("the prefetch: a question that names a report reads it before the model is asked, and the read rides in as data", async () => {
+test("a question that names another page's rows reads them before the model is asked, and the read rides in as data, never in system", async () => {
   const s = scripted([ROUND([answer("Quiet week.")])]);
   const t = tables();
   const r = await runAskTurn(
@@ -778,15 +807,17 @@ test("the prefetch: a question that names a report reads it before the model is 
     ports(s.round),
   );
   assert.equal(r.failed, false);
-  // The report function answered with an error, so the prefetch was dropped, not the turn.
+  // The report function answered with an error, so the read was dropped, not the turn.
   assert.deepEqual(r.tools, []);
   const s2 = scripted([ROUND([answer("Two playbooks run.")])]);
   const r2 = await runAskTurn(turn(ctxFor(t), { text: "Which playbooks are running?" }).input, ports(s2.round));
   assert.deepEqual(r2.tools, ["list_playbooks"], "a read that succeeded is on the turn's tools");
+  const q = s2.requests[0].messages.at(-1).content;
   assert.ok(
-    s2.requests[0].system.some((b) => b.text.includes("list_playbooks")),
-    "and in the first round's block",
+    q.some((b) => b.type === "search_result" && b.source === "read://list_playbooks"),
+    "and in the question's message, as data",
   );
+  assert.ok(!JSON.stringify(s2.requests[0].system).includes("list_playbooks {"), "never in system");
 });
 
 test("the history is folded so no two neighbours share a role and the person speaks first", () => {
@@ -1045,7 +1076,7 @@ test("the fourteen reads run against the database in memory: each answers in its
   );
 });
 
-test("the caller who hung up in seconds: list_calls finds them under their own word, and the day's snapshot carries them into the first round", async () => {
+test("the caller who hung up in seconds: list_calls finds them under their own word", async () => {
   // Filed `handled`, because it was. Nothing in the product said the salon
   // had lost a booking an hour ago from a number it already has.
   const quick = call(K2, {
@@ -1075,13 +1106,6 @@ test("the caller who hung up in seconds: list_calls finds them under their own w
     undefined,
     "an ordinary call carries no flag at all, so the block costs nothing on a normal day",
   );
-
-  const snap = await buildSnapshot(tc, TZ, null);
-  assert.doesNotMatch(snapshotBlock(snap), /navigate|citation/, "the day names nothing the answer no longer has");
-  assert.deepEqual([snap.counts.abandoned_today, snap.counts.missed_today, snap.counts.calls_today], [1, 0, 2]);
-  assert.equal(snap.calls_today.find((c) => c.call_id === K2).abandoned, true);
-  assert.equal(snap.calls_today.find((c) => c.call_id === K1).abandoned, undefined);
-  assert.match(snap.note, /marked abandoned/, "the model reads the block cold, so the block says what the mark means");
 });
 
 test("the proposal builders run against the database in memory: each kind is a card with its door and its undo, or a refusal in the model's words", async () => {
@@ -2182,7 +2206,7 @@ test("the answers the model is shown fit the format key for key, ride in the cac
 
 test("the real ports are the real modules, and an override reaches only the field it names", async () => {
   const real = askPorts();
-  assert.deepEqual(Object.keys(real).sort(), ["propose", "round", "snapshot", "tool"]);
+  assert.deepEqual(Object.keys(real).sort(), ["context", "propose", "round", "shape", "tool"]);
   assert.equal(real.tool, runTool);
   assert.equal(real.propose, buildProposal);
   assert.equal(real.round, runRound);
@@ -3988,17 +4012,232 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
   assert.equal(noTemplates.lines.length, 1, "said once in the log");
 });
 
-test("a lead, a search or a run in scope rides along nothing (the Phase 2 plan, PR 2.1): no tool reads them until Phase 4, so the snapshot asks none -- it read a thread by the lead's id before", async () => {
+test("the row the scope names rides in whole, read by its own tool: a call, a person, a thread; a lead, a search or a run is read by no tool until Phase 4, and a page needs no read", () => {
   const X = "77777777-7777-4777-8777-777777777777";
-  for (const kind of ["lead", "search", "run"]) {
-    const ctx = ctxFor(tables({}));
-    const tc = newToolContext(ctx, A, "owner", TZ, NOW);
-    const snap = await buildSnapshot(tc, TZ, { kind, id: X, label: `this ${kind}` });
-    assert.equal(snap.scoped, null, kind);
-    assert.ok(!JSON.stringify(ctx.supabase.seen).includes(X), `nothing read by the ${kind}'s id`);
+  assert.deepEqual(scopedRead({ kind: "call", id: X, label: "this call" }), {
+    name: "get_call",
+    input: { call_id: X },
+  });
+  assert.deepEqual(scopedRead({ kind: "person", id: X, label: "Rosa" }), {
+    name: "get_person",
+    input: { contact_id: X },
+  });
+  for (const kind of ["thread", "conversation"])
+    assert.deepEqual(scopedRead({ kind, id: X, label: "Rosa" }), {
+      name: "get_thread",
+      input: { conversation_id: X, more: false },
+    });
+  for (const kind of ["lead", "search", "run", "page"])
+    assert.equal(scopedRead({ kind, id: X, label: kind }), null, kind);
+  assert.equal(scopedRead(null), null);
+});
+
+/* ------------------------------------------------ the turn reads the page (the Phase 2 plan, PR 2.4) */
+
+/** The page as the server built it, with one row a citation may name. */
+const builtWith = (refs = [], rows = []) => ({
+  ...BUILT,
+  blocks: [
+    ...BUILT.blocks,
+    ...rows.map((id) => ({
+      type: "search_result",
+      source: `thread://${id}`,
+      title: "Rosa",
+      content: [{ type: "text", text: "Rosa · needs you · route: inbox/th-" + id }],
+      citations: { enabled: false },
+    })),
+  ],
+  refs: [...BUILT.refs, ...refs],
+  rows: rows.length,
+});
+
+test("the request: system is two blocks with two breakpoints; the question's message is the page's data, its last block the third breakpoint, then the turn's words, then the question -- and the clock, the person and the page are never in system", async () => {
+  const s = scripted([ROUND([answer("Rosa needs you.")])]);
+  const built = builtWith([{ kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Rosa" }], [C1]);
+  const r = await runAskTurn(
+    turn(ctxFor(), { context: { ...PAGE, rows: [{ kind: "thread", id: C1 }] } }).input,
+    ports(s.round, { context: async () => built }),
+  );
+  assert.equal(r.failed, false, r.failure ?? "");
+  const req = s.requests[0];
+  assert.deepEqual(
+    req.system.map((b) => !!b.cache_control),
+    [true, true],
+    "the rules and facts, then the shape",
+  );
+  assert.ok(!JSON.stringify(req.system).includes("You are speaking with"), "the person is not in system");
+  const q = req.messages.at(-1);
+  assert.equal(q.role, "user");
+  assert.deepEqual(
+    q.content.map((c) => [c.type, c.source ?? null, !!c.cache_control]),
+    [
+      ["search_result", "page://today", false],
+      ["search_result", `thread://${C1}`, true],
+      ["text", null, false],
+      ["text", null, false],
+    ],
+    "the page's figures, its row with the breakpoint, the turn's words, the question",
+  );
+  assert.ok(q.content[2].text.includes("You are speaking with ada@example.com"), "the words say who is asking");
+  assert.ok(q.content[2].text.includes("The page they are on is in the search results before these words"));
+  assert.equal(q.content[3].text, "Who needs me?", "the question last, alone");
+  assert.deepEqual([r.shape.context_rows, r.shape.warm, r.shape.context_chars], [1, "hit", 30]);
+});
+
+test("the bytes before the messages are the same on two pages and for two people of one workspace: the tools and system cache for everyone", async () => {
+  const requests = [];
+  const run = async (over) => {
+    const s = scripted([ROUND([answer("Fine.")])]);
+    await runAskTurn(turn(ctxFor(), over).input, ports(s.round));
+    requests.push(s.requests[0]);
+  };
+  await run({ surface: "today", context: PAGE });
+  await run({ surface: "inbox", context: { ...PAGE, surface: "inbox", route: "inbox" } });
+  await run({ surface: "reports", personLabel: "sam@example.com (viewer)", role: "operator" });
+  const prefix = (r) => JSON.stringify({ system: r.system, tools: r.tools, model: r.model });
+  assert.equal(prefix(requests[1]), prefix(requests[0]), "another page");
+  assert.equal(prefix(requests[2]), prefix(requests[0]), "another person of the same role");
+});
+
+test("a row the page carried can be cited; one it did not, and one another workspace holds, cannot; a figure answered from the page is grounded, and with no page it is not", async () => {
+  const rosa = { kind: "thread", id: C1, label: "Rosa" };
+  const foreign = { kind: "thread", id: "99999999-9999-4999-8999-999999999999", label: "Someone" };
+  const s = scripted([
+    ROUND([
+      answer("2 people need you.", {
+        show: {
+          items: [
+            { title: "Rosa", meta: "", line: "", source: rosa },
+            { title: "Someone", meta: "", line: "", source: foreign },
+          ],
+        },
+      }),
+    ]),
+  ]);
+  const built = builtWith([{ kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Rosa" }], [C1]);
+  const r = await runAskTurn(turn(ctxFor(), { context: PAGE }).input, ports(s.round, { context: async () => built }));
+  assert.deepEqual(
+    r.answer.show.items.map((i) => i.source.id),
+    [C1],
+    "the page's row is a source; a row nobody read is dropped",
+  );
+  assert.equal(r.ungrounded, false, "a figure from the page is from the workspace");
+  const bare = await runAskTurn(turn(ctxFor()).input, ports(scripted([ROUND([answer("2 people need you.")])]).round));
+  assert.equal(bare.ungrounded, true, "with no page and no read, a figure is not");
+});
+
+test("the row the scope names rides in whole, read by its own tool, as data beside the page -- never as a tool the model called", async () => {
+  const s = scripted([ROUND([answer("Rosa asked about Saturday.")])]);
+  const r = await runAskTurn(
+    turn(ctxFor(), { context: PAGE, scope: { kind: "thread", id: C1, label: "Rosa" } }).input,
+    ports(s.round),
+  );
+  assert.equal(r.failed, false, r.failure ?? "");
+  const data = s.requests[0].messages.at(-1).content.filter((c) => c.type === "search_result");
+  assert.deepEqual(
+    data.map((b) => [b.source, !!b.cache_control]),
+    [
+      ["page://today", false],
+      ["read://get_thread", true],
+    ],
+    "the page, then the scope's row, the breakpoint on the last",
+  );
+  assert.ok(JSON.parse(data[1].content[0].text).messages, "the thread, as get_thread reads it");
+  assert.deepEqual(r.tools, [], "the model called nothing");
+});
+
+test("a request refused while it carries the page's data is asked once more without it, before the answer's format is ever given up; the words stop pointing at it, and its reads leave the count", async () => {
+  const requests = [];
+  const refusals = ["400 messages.0.content.0: search_result is not supported here"];
+  const round = async (c) => {
+    requests.push(structuredClone(c.request));
+    const message = refusals.shift();
+    if (message) throw new GatewayRefused({ kind: "bad_request", message });
+    return ROUND([answer("2 people need you.")]);
+  };
+  const { result: r, lines } = await logged(
+    "ask_context_rejected",
+    async () => await runAskTurn(turn(ctxFor(), { context: PAGE }).input, ports(round)),
+  );
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.equal(requests.length, 2, "asked again, once");
+  assert.equal(lines.length, 1, "said once");
+  const retry = requests[1];
+  assert.ok(!JSON.stringify(retry.messages).includes("search_result"), "without the page's data");
+  assert.ok(
+    !JSON.stringify(retry.messages).includes("search results before these words"),
+    "the words point at nothing",
+  );
+  assert.ok(retry.output_config.format, "the answer's format kept");
+  assert.equal(r.ungrounded, true, "the page it could not read grounds nothing");
+  assert.equal(r.shape.context_dropped, true, "the drop is recorded");
+});
+
+test("only a refusal that names the data blocks drops them: the format's refusal drops the format and keeps the page, and an overload or a size is the turn's, the page never dropped for it", async () => {
+  const refusing = async (refusals) => {
+    const requests = [];
+    const round = async (c) => {
+      requests.push(structuredClone(c.request));
+      const message = refusals.shift();
+      if (message) throw new GatewayRefused({ kind: "bad_request", message });
+      return ROUND([answer("2 people need you.")]);
+    };
+    const { result } = await logged(
+      "ask_",
+      async () => await runAskTurn(turn(ctxFor(), { context: PAGE }).input, ports(round)),
+    );
+    return { r: result, requests };
+  };
+  const format = await refusing(["400 output_config.format.schema: too many properties"]);
+  assert.equal(format.r.failed, false, format.r.failure ?? "");
+  assert.equal(format.requests.length, 2, "asked again, once");
+  assert.ok(JSON.stringify(format.requests[1].messages).includes("search_result"), "the page kept");
+  assert.equal(format.requests[1].output_config.format, undefined, "the format dropped");
+  assert.equal(format.r.shape.context_dropped, false);
+  for (const m of ["529 overloaded", "429 rate limited", "413 request too large", "400 messages: too long"]) {
+    const other = await refusing([m]);
+    assert.deepEqual([other.r.failure, other.requests.length], ["bad_request", 1], m);
+    assert.equal(other.r.shape.context_dropped, false, m);
   }
-  // A thread still rides along, as before.
-  const ctx = ctxFor(tables({}));
-  await buildSnapshot(newToolContext(ctx, A, "owner", TZ, NOW), TZ, { kind: "thread", id: X, label: "Rosa" });
-  assert.ok(JSON.stringify(ctx.supabase.seen).includes(X), "a thread in scope is read");
+  assert.equal(blocksRefused("400 messages.0.content.1.cache_control: too many breakpoints"), true);
+  assert.equal(blocksRefused("500 search_result upstream"), false, "a 400 only");
+});
+
+test("a page counts as a read only when something on it was read: not one whose read failed, nor the address alone of a page Ask does not draw", async () => {
+  const ask = async (context, built) =>
+    await runAskTurn(
+      turn(ctxFor(), { context }).input,
+      ports(scripted([ROUND([answer("2 people need you.")])]).round, { context: async () => built }),
+    );
+  assert.equal((await ask(PAGE, BUILT)).ungrounded, false, "a page read grounds its figures");
+  const failed = await ask(PAGE, { ...BUILT, failed: true, warm: "miss" });
+  assert.equal(failed.ungrounded, true, "a page that could not be read grounds nothing");
+  assert.equal(failed.shape.warm, "failed", "and is said as failed");
+  const other = { ...PAGE, surface: "other", route: "billing" };
+  assert.equal((await ask(other, BUILT)).ungrounded, true, "an address alone grounds nothing");
+});
+
+test("the history folds a question of blocks: words joined with words, and words beside blocks as one list, the words first", () => {
+  const q = [
+    { type: "search_result", source: "page://today" },
+    { type: "text", text: "Who?" },
+  ];
+  assert.deepEqual(foldHistory([{ role: "assistant", text: "Hi" }], q), [{ role: "user", content: q }]);
+  assert.deepEqual(foldHistory([{ role: "user", text: "a" }], q), [
+    { role: "user", content: [{ type: "text", text: "a" }, ...q] },
+  ]);
+  assert.deepEqual(
+    foldHistory(
+      [
+        { role: "user", text: "a" },
+        { role: "assistant", text: "b" },
+      ],
+      q,
+    ),
+    [
+      { role: "user", content: "a" },
+      { role: "assistant", content: "b" },
+      { role: "user", content: q },
+    ],
+  );
 });

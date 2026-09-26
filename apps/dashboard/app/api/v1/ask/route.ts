@@ -104,7 +104,7 @@ export const POST = write({
     }
     // The page the question was asked on (contracts PageContext): identities and words, read by its one schema. One the
     // schema refuses is no context, said once in the log, and never a refused question: an older tab sends none, and a
-    // context is a help to the answer, not a condition of it. Until the turn reads it, only its size is kept.
+    // context is a help to the answer, not a condition of it. The turn reads the page again from these identities.
     let context: PageContext | null = null;
     if (body?.context !== undefined && body.context !== null) {
       const read = PageContextSchema.safeParse(body.context);

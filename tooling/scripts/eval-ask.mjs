@@ -276,8 +276,8 @@ export function judge(c, r) {
   const e = c.expect ?? {};
   const text = m.text ?? "";
   if (m.failed) fails.push(`turn failed: ${text.slice(0, 120)}`);
-  // Context first: the overview reads (Today, the Inbox, the calls) ride into every turn as the snapshot, and an
-  // on-page case's page rode with it, so a case the page answers is satisfied by an answer that needed no read at all.
+  // Context first: an on-page case's page rode with it, so a case the page answers is satisfied by an answer that
+  // needed no read at all.
   if (e.tools_any && !fromContext(c, m, r.context) && !e.tools_any.some((t) => m.tools.includes(t)))
     fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_any.join("/")}`);
   fails.push(...contextFails(c, m, r.context));

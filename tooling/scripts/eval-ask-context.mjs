@@ -255,20 +255,14 @@ export function describeContext(spec) {
 
 /* ---- what the judge asks of a case that rode with its page ---- */
 
-/** The reads that ride in every turn as the snapshot until PR 2.4 (loop.ts): a case that names one needs no read. */
-export const OVERVIEW = ["get_today", "list_threads", "list_calls"];
-
 /**
- * Whether a case's tools may be missing: the page answered it. The snapshot's overview still excuses today's cases (the
- * loop carries it until PR 2.4); a case marked `on_page` is excused when the page it asked about rode with it -- its
- * rows, when it names a GET for them and that GET drew at least one; the page itself, when it draws no rows.
+ * Whether a case's tools may be missing: the page answered it. A case marked `on_page` is excused when the page it
+ * asked about rode with it -- its rows, when it names a GET for them and that GET drew at least one; the page itself,
+ * when it draws no rows. Nothing else is: the snapshot that carried the day on every turn went in PR 2.4, so a case
+ * sent with no page reads what it answers from.
  */
 export function fromContext(c, m, sent) {
   const e = c.expect ?? {};
-  const tools = m?.tools ?? [];
-  const fromSnapshot =
-    !!e.tools_any && e.tools_any.some((t) => OVERVIEW.includes(t)) && !tools.some((t) => OVERVIEW.includes(t));
-  if (fromSnapshot) return true;
   if (!e.on_page || !c.context || !sent) return false;
   return c.context.rows ? sent.rows.length > 0 : true;
 }

@@ -34,8 +34,9 @@ export const ASK_TURN_BUDGET_MS = 45_000;
 export const ASK_MAX_TOKENS = 2000;
 /**
  * Ask's own daily token budget per workspace, apart from the receptionist's.
- * Counted on uncached input plus output. With the day's snapshot riding into
- * every round, a turn costs two to eight thousand such tokens; a busy owner
+ * Counted on uncached input plus output. With the page's context riding into
+ * every round behind its own cache breakpoint (a cache read is not counted),
+ * a turn costs two to eight thousand such tokens; a busy owner
  * asking sixty questions stays well under this, and an eval run of the whole
  * case set fits several times over. The first cap (400k) was spent by a day
  * of eval runs and refused the palette until the window rolled.
@@ -299,7 +300,7 @@ export interface AskMessageVM {
   /** The tools this turn ran, in order. */
   tools: string[];
   latencyMs: number | null;
-  /** Model rounds the turn took; one means the snapshot was enough. */
+  /** Model rounds the turn took; one means the page's context was enough. */
   rounds?: number | null;
   /** Set on a turn that could not be answered; the text says why. */
   failed: boolean;

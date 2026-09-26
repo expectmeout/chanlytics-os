@@ -52,6 +52,8 @@ export interface BuiltContext {
   chars: number;
   /** When it was built. A kept build keeps its stamp. */
   stamp: number;
+  /** Whether a read failed in it: the aggregate then says the page could not be read, and nothing on it was read. */
+  failed: boolean;
   /** Whether this answer was a build kept on this instance. */
   warm: "hit" | "miss";
 }
@@ -128,21 +130,22 @@ function assemble(ctx: PageContext, got: Provided): Built {
     rows: taken.length,
     chars: blocks.reduce((n, b) => n + size(b), 0),
     stamp: Date.now(),
+    failed: false,
   };
 }
 
 /** One build: the surface's provider, its failure caught and said in the aggregate, then the caps. */
-async function build(rc: ReaderContext, ctx: PageContext): Promise<{ built: Built; failed: boolean }> {
+async function build(rc: ReaderContext, ctx: PageContext): Promise<Built> {
   const provider = PROVIDERS[ctx.surface] ?? other;
   try {
-    return { built: assemble(ctx, await provider(rc, ctx)), failed: false };
+    return assemble(ctx, await provider(rc, ctx));
   } catch (e) {
     console.error(
       "ask_context_read_failed",
       JSON.stringify({ surface: ctx.surface, tenant: rc.tenantId, error: e instanceof Error ? e.message : String(e) }),
     );
     return {
-      built: assemble(ctx, {
+      ...assemble(ctx, {
         rows: [],
         aggregate: `${PAGE_TITLES[ctx.surface] ?? "The page"}: could not be read just now`,
       }),
@@ -161,14 +164,13 @@ export async function buildContext(rc: ReaderContext, context: PageContext): Pro
   })}`;
   const had = kept.get(key);
   if (had && Date.now() - had.at < CONTEXT_TTL_MS) return { ...(await had.built), warm: "hit" };
-  const run = build(rc, context);
-  const built = run.then((r) => r.built);
+  const built = build(rc, context);
   // Deleted first, so a new write goes to the back; past the cap, the oldest write goes.
   kept.delete(key);
   kept.set(key, { at: Date.now(), built });
   if (kept.size > CONTEXT_CACHE_CAP) kept.delete(kept.keys().next().value as string);
   // A build a read failed in is not a page: the next warm or question reads again.
-  void run.then(
+  void built.then(
     (r) => {
       if (r.failed && kept.get(key)?.built === built) kept.delete(key);
     },

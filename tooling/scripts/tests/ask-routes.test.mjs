@@ -180,11 +180,18 @@ test("a question answered: the thread is made before the model is asked, the per
     },
     language: "en",
   });
-  // What the model was told each turn: the surface the palette sent must reach the prompt.
+  // What the model was told each turn: the surface the palette sent must reach the prompt (the turn's words, in the
+  // question's message, after the page's data).
   const systems = [];
   setAskPorts({
     round: async (call, onText) => {
-      systems.push(call.request.system.map((b) => b.text).join("\n"));
+      const q = call.request.messages.at(-1).content;
+      systems.push(
+        [
+          ...call.request.system.map((b) => b.text),
+          ...(Array.isArray(q) ? q.map((c) => c.text ?? "") : [String(q)]),
+        ].join("\n"),
+      );
       onText(written);
       return {
         blocks: [{ type: "text", id: "", name: "", text: written, json: "" }],
@@ -192,7 +199,7 @@ test("a question answered: the thread is made before the model is asked, the per
         streamError: null,
       };
     },
-    snapshot: async () => "",
+    shape: async () => "",
   });
   try {
     const res = await ask.POST.run(
@@ -640,7 +647,7 @@ function wordsOnly() {
         streamError: null,
       };
     },
-    snapshot: async () => "",
+    shape: async () => "",
   });
   return requests;
 }
@@ -653,9 +660,10 @@ const leadWorld = (threads = [], messages = []) => ({
   ask_messages: messages,
   lead_searches_view: [waitingSearch()],
 });
+/** The question itself: the last text of the question's message, after the page's data and the turn's words. */
 const lastUser = (req) => {
   const m = req.messages.at(-1);
-  return typeof m.content === "string" ? m.content : m.content.map((c) => c.text ?? "").join("");
+  return typeof m.content === "string" ? m.content : (m.content.filter((c) => c.type === "text").at(-1)?.text ?? "");
 };
 const linesOf = async (res) =>
   (await res.text())
@@ -813,7 +821,7 @@ test("a new search's card carries the thread it was planned in, for the commit t
       stopReason: "tool_use",
       streamError: null,
     }),
-    snapshot: async () => "",
+    shape: async () => "",
     propose: async () => ({
       proposal: {
         id: `p${n}`,
