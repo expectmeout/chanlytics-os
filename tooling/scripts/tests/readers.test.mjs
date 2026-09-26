@@ -58,6 +58,8 @@ const segmentsRoute = await import(at("apps/dashboard/app/api/v1/segments/route.
 const broadcastsRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/route.ts"));
 const broadcastRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/route.ts"));
 const { everyone } = await import(at("apps/dashboard/src/server/people.ts"));
+const { audiencePool: audiencePoolReader } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
+const { audiencePool: audiencePoolOf } = await import(at("apps/dashboard/src/server/audience.ts"));
 const { getBroadcast } = await import(at("apps/dashboard/src/server/broadcasts.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
@@ -2414,4 +2416,27 @@ test("one broadcast, for Ask and for the page: GET broadcasts/:id answers its re
     return true;
   });
   assert.deepEqual(asked(typo), ["memberships.select"], "the workspace's door, and nothing of the broadcast's");
+});
+
+/* --------------------------------------------------------------------------- the audience pool (PR 1.6) */
+
+test("the audience pool, for Ask: everyone with their appointments for the member asking, exactly as server/audience.ts reads it for the same zone and clock -- over a calendar that names one of them -- read once a turn; the zone, the settings and sells_by are the turn's, so the pool's calendar lookup reads neither and sells_by is not read again; a workspace-wide read, with no row of its own", async () => {
+  await withFeed({ body: ONE_ICS }, async () => {
+    const w = peopleWorld();
+    const want = await audiencePoolOf(worldCtx(w), A, "America/New_York", CAL_NOW);
+    const r = await kernel.load(calIn(worldCtx(w)), audiencePoolReader, undefined);
+    assert.deepEqual(r.data, want, "the pool server/audience.ts reads");
+    assert.deepEqual(r.rows, []);
+    // Ana's appointment is on the turn's own day, ahead of its clock; deals are on here, so Luis's proposal is his.
+    const [ana, luis] = r.data.rows;
+    assert.deepEqual([r.data.calendar.state, ana.nextVisitDate, luis.nextVisitDate], ["ok", "2026-09-08", null]);
+    assert.deepEqual([r.data.deals_on, !!luis.deal], [true, true]);
+    // A turn that holds the zone, the settings and how the customers buy reads everyone and their reply modes, once.
+    const turn = calIn(worldCtx(w));
+    await Promise.all([facts, config, sellsBy].map((x) => kernel.load(turn, x, undefined)));
+    const held = turn.ctx.supabase.seen.length;
+    assert.equal(kernel.load(turn, audiencePoolReader, undefined), kernel.load(turn, audiencePoolReader, undefined));
+    await kernel.load(turn, audiencePoolReader, undefined);
+    assert.deepEqual(asked(turn.ctx).slice(held), ["rpc:people_list", "policies.select"]);
+  });
 });

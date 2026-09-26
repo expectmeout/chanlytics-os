@@ -3252,3 +3252,100 @@ test("the proposal follow-up in Ask (0006): listed where deals are on and counte
   assert.equal(again.isError, false, again.result);
   assert.equal(again.proposal.payload.candidates, 0);
 });
+
+/* ------------------------------------------------------------------------ the pool, once a turn (PR 1.6) */
+
+/** An approved offer to everyone, with no values to fill. */
+const OFFER = {
+  id: TPL,
+  tenant_id: A,
+  channel: "whatsapp",
+  name: "fall_offer",
+  language: "en",
+  meta_status: "approved",
+  category: "MARKETING",
+  variables: [],
+  body_preview: "20% off this week.",
+  hidden_at: null,
+};
+
+test("the audience pool is read once a turn, through its reader: a turn that lists the audiences, searches People and proposes a broadcast reads everyone once, and the workspace's zone, how its customers buy and its settings once each -- the memo that kept one pool whatever its zone and clock is gone from the tools' context", async () => {
+  const ctx = ctxFor(tables({ templates: [OFFER] }), { ...RPCS, people_list: () => threeAnswers() });
+  const tc = newToolContext(ctx, A, "owner", TZ, NOW);
+  assert.equal("memo" in tc, false, "the tools' context holds the turn's readers and nothing else to remember");
+  for (const [name, input] of [
+    ["list_audiences", {}],
+    ["search_people", { query: "rosa" }],
+  ]) {
+    const out = await runTool(tc, { name, input });
+    assert.equal(out.isError, false, out.result);
+  }
+  const card = await buildProposal(tc, "propose_broadcast", {
+    template_id: TPL,
+    audience_kind: "everyone",
+    audience_id: null,
+    params: [],
+  });
+  assert.equal(card.isError, false, card.result);
+  assert.equal(card.proposal.payload.count, 1, "Rosa: a yes to offers and a number, counted over the same pool");
+  const reads = (key, columns) =>
+    ctx.supabase.seen.filter(
+      (q) =>
+        (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`) === key && (columns === undefined || q.columns === columns),
+    ).length;
+  assert.deepEqual(
+    [
+      reads("rpc:people_list"),
+      reads("tenants.select", "name, timezone"),
+      reads("tenants.select", "sells_by"),
+      reads("tenant_config.select"),
+    ],
+    [1, 1, 1, 1],
+    "everyone once; the zone, sells_by and the settings once each",
+  );
+});
+
+test("the assistant counts with the calendar too: a visit tomorrow on the owner's calendar is counted by list_playbooks' reminder from the feed, over the same people the page counts, and the Bookings class's mode is said beside the others", async () => {
+  const { forgetFeeds } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
+  const ICS = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//test//EN",
+    "BEGIN:VEVENT",
+    "UID:e-tomorrow",
+    "DTSTART:20260915T140000Z",
+    "DTEND:20260915T150000Z",
+    "SUMMARY:Colour",
+    "DESCRIPTION:Rosa +15555550102",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+  const base = tables();
+  const t = tables({
+    tenant_config: [
+      {
+        ...base.tenant_config[0],
+        config: { ...base.tenant_config[0].config, calendar: { ical_url: "https://calendar.example/harbor.ics" } },
+      },
+    ],
+  });
+  const fetchWas = globalThis.fetch;
+  globalThis.fetch = async () => new Response(ICS, { status: 200, headers: { "content-type": "text/calendar" } });
+  try {
+    forgetFeeds();
+    const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
+    const out = await runTool(tc, { name: "list_playbooks", input: {} });
+    assert.equal(out.isError, false, out.result);
+    const read = JSON.parse(out.result);
+    const reminder = read.triggers.find((x) => x.trigger === "visit_tomorrow");
+    assert.deepEqual(
+      [reminder.said_yes_now, reminder.can_be_sent_now],
+      [1, 1],
+      "Rosa's visit tomorrow, read from the feed: her yes to messages and her number",
+    );
+    assert.equal(read.modes.booking, "ask", "the Bookings class, which the reminder runs under, with no row: ask");
+  } finally {
+    globalThis.fetch = fetchWas;
+    forgetFeeds();
+  }
+});

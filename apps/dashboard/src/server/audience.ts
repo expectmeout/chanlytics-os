@@ -12,10 +12,11 @@ import {
   type ListRef,
   type PersonRowDto,
   type PersonRowVM,
+  type SellsBy,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "./with-route";
 import { everyone } from "./people";
-import { withVisits, type PeopleVisits } from "./calendar";
+import { withVisits, type KnownFacts, type PeopleVisits } from "./calendar";
 import { sellsByOf } from "./deals";
 
 /**
@@ -42,10 +43,21 @@ export interface AudiencePool {
   listCtx: ListContext;
 }
 
-export async function audiencePool(ctx: RouteContext, tenantId: string, tz: string, now: Date): Promise<AudiencePool> {
+export async function audiencePool(
+  ctx: RouteContext,
+  tenantId: string,
+  tz: string,
+  now: Date,
+  /**
+   * What a caller already read this turn (readers/audience-pool.ts): how the workspace's customers buy, taken instead
+   * of reading it here, and the calendar's zone and settings, which the calendar's lookup then reads neither of
+   * (withVisits). The send reads its own.
+   */
+  opts: { sellsBy?: SellsBy | null; known?: KnownFacts } = {},
+): Promise<AudiencePool> {
   const [{ people, calendar, consult_first }, sellsBy] = await Promise.all([
-    everyone(ctx, tenantId).then((rows) => withVisits(ctx, tenantId, rows, now)),
-    sellsByOf(ctx, tenantId),
+    everyone(ctx, tenantId).then((rows) => withVisits(ctx, tenantId, rows, now, opts.known)),
+    opts.sellsBy !== undefined ? opts.sellsBy : sellsByOf(ctx, tenantId),
   ]);
   const deals_on = dealsAreOn(sellsBy);
   const viewer = ctx.userId ?? null;
@@ -65,22 +77,6 @@ export async function audiencePool(ctx: RouteContext, tenantId: string, tz: stri
       viewer,
     }),
   };
-}
-
-/** The pool once per assistant turn: a turn that lists audiences and then proposes a send reads everyone once. */
-export function audiencePoolOnce(
-  memo: Map<string, Promise<unknown>>,
-  ctx: RouteContext,
-  tenantId: string,
-  tz: string,
-  now: Date,
-): Promise<AudiencePool> {
-  let p = memo.get("audience_pool") as Promise<AudiencePool> | undefined;
-  if (!p) {
-    p = audiencePool(ctx, tenantId, tz, now);
-    memo.set("audience_pool", p);
-  }
-  return p;
 }
 
 /** What a new send or playbook is told of an archived list (00169). */

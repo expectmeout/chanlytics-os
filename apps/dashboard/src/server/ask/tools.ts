@@ -55,7 +55,7 @@ import {
 } from "@chanlytics/contracts";
 import { savedListsFor } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
-import { audiencePoolOnce, poolList } from "../audience";
+import { poolList } from "../audience";
 import { dealPaceRead } from "../deals";
 import { listSearches, waitingQuestionOf } from "../leads";
 import { listPlaybooks, proposalFollowUps } from "../playbooks";
@@ -71,6 +71,7 @@ import { today } from "../readers/today";
 import { calendar } from "../readers/calendar";
 import { report } from "../readers/report";
 import { openings } from "../readers/openings";
+import { audiencePool } from "../readers/audience-pool";
 import { workspaceFacts } from "./prompt";
 
 /**
@@ -202,11 +203,9 @@ export interface ToolContext {
   read: AskReadSet;
   now: Date;
   /**
-   * The audience pool, once a turn (audience.ts audiencePoolOnce): the one load that is not a reader yet. Every
-   * other read goes through `rc`, whose turn cache keeps no failure.
+   * The turn's reader context: every read goes through the readers and shares the route's turn cache, which keeps no
+   * failure -- the audience pool too (readers/audience-pool.ts), read once a turn by its arguments.
    */
-  memo: Map<string, Promise<unknown>>;
-  /** The turn's reader context: every read through the readers shares the route's turn cache. */
   rc: ReaderContext;
 }
 
@@ -521,8 +520,8 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
     : null;
   if (listIn && !ref) return { error: "list must be a list token from list_audiences, or a People list's id" };
   // With their appointments, so "who asked but never booked?" and "who is
-  // booked this week?" are answered from the calendar, not guessed.
-  const pool = await audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now);
+  // booked this week?" are answered from the calendar, not guessed. Once a turn (readers/audience-pool.ts).
+  const pool = (await load(t.rc, audiencePool, undefined)).data;
   const { people: rows } = pool;
   // Counted as a send and the page count it (audience.ts poolList); one that can't be counted here says why, in the
   // page's words, and names the condition that failed.
@@ -808,7 +807,7 @@ export function newToolContext(
   now = new Date(),
   rc: ReaderContext = readerContext(ctx, { tenantId, role }, now),
 ): ToolContext {
-  return { ctx, tenantId, role, timezone, read: emptyReadSet(), now, memo: new Map(), rc };
+  return { ctx, tenantId, role, timezone, read: emptyReadSet(), now, rc };
 }
 
 /** Run one read. A tool's own failure is returned to the model as an error result, never thrown. */
@@ -819,7 +818,7 @@ export function newToolContext(
  */
 async function listAudiences(t: ToolContext): Promise<unknown> {
   const [pool, lists, tpls, ch] = await Promise.all([
-    audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now),
+    load(t.rc, audiencePool, undefined).then((r) => r.data),
     savedListsFor(t.ctx.supabase, t.tenantId),
     t.ctx.supabase
       .from("templates")
@@ -931,7 +930,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       (r) => r.data,
       () => [],
     ),
-    audiencePoolOnce(t.memo, t.ctx, t.tenantId, t.timezone, t.now),
+    load(t.rc, audiencePool, undefined).then((r) => r.data),
     // A proposal's moment is counted as the page counts it (0006): by the workspace's pace, leaving out whoever
     // already had their follow-up, from any playbook. Unreadable, that moment is not counted.
     dealPaceRead(t.ctx, t.tenantId, t.now),
