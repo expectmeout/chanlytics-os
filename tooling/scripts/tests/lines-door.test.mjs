@@ -211,9 +211,27 @@ function world(over = {}) {
     ...over,
   };
 }
+/**
+ * The two unique indexes `lines` keeps, as the database keeps them: one live line per workspace
+ * (lines_one_live_per_tenant_idx, 00195) and one live line per number (lines_e164_live_idx, 00066).
+ */
+const LINES_INDEXES = [
+  {
+    table: "lines",
+    name: "lines_one_live_per_tenant_idx",
+    columns: ["tenant_id"],
+    where: (r) => r.voice_state === "provisioning" || r.voice_state === "answering",
+  },
+  {
+    table: "lines",
+    name: "lines_e164_live_idx",
+    columns: ["e164"],
+    where: (r) => r.e164 != null && r.voice_state !== "failed",
+  },
+];
 /** The database the door will find, over these tables. */
 function use(tables, rpcs = {}, faults = {}) {
-  const db = fakeDb(tables, faults, rpcs);
+  const db = fakeDb(tables, faults, rpcs, { uniqueIndexes: LINES_INDEXES });
   setPg(db);
   return db;
 }
@@ -302,10 +320,12 @@ test("the door: a token for another door, a forgery and a bad token beside the r
 });
 
 test("the workspace: a token naming one refuses a body naming another; the token's own is acted on with or without a body; a key-holder's body is believed", async () => {
+  // B's line has a number of its own: both are retried below, a retry moves a row to provisioning, and one number is
+  // live once (lines_e164_live_idx) -- the database would not hold the second take on a shared one.
   const tables = world({
     lines: [
       lineRow({ voice_state: "failed", step: "import" }),
-      lineRow({ id: B_LINE, tenant_id: B, voice_state: "failed", step: "trunk" }),
+      lineRow({ id: B_LINE, tenant_id: B, voice_state: "failed", step: "trunk", e164: "+13055550101" }),
     ],
   });
   const db = use(tables);
@@ -569,6 +589,52 @@ test("buy for a workspace that may spend writes a provisioning row and schedules
   assert.equal(b4.line.voice_state, "provisioning", "the row stands; the lines sweep picks it up past the deadline");
 });
 
+test("buy: two buys that cross both read no line and both insert; the database keeps one, the loser is answered line_exists with the row that stands, and one saga is queued -- the one purchase", async () => {
+  // Two numbers, so it is the workspace's index that decides, not the number's. Both knocks start in the same
+  // tick and the fake answers every read in the same number of hops, so they run in lockstep: each reads the
+  // workspace's lines before either has written -- the window the door's own read cannot close. Asserted, so a
+  // run in which the race did not happen says so instead of proving the read.
+  const tables = world();
+  const db = use(tables);
+  const net = unreachable("the door schedules the saga; it does not run it");
+  try {
+    const [a, b] = await Promise.all([
+      knock({ op: "buy", number: NUMBER }),
+      knock({ op: "buy", number: "+13055550101" }),
+    ]);
+    const onLines = db.seen.filter((s) => s.table === "lines").map((s) => s.op);
+    assert.deepEqual(onLines.slice(0, 3), ["select", "select", "insert"], "the race: both read before either wrote");
+    assert.equal(onLines.filter((op) => op === "insert").length, 2, "both tried to write; the database decided");
+    const answers = await Promise.all([answer(a), answer(b)]);
+    const won = answers.filter(([s]) => s === 202);
+    const lost = answers.filter(([s]) => s === 409);
+    assert.equal(won.length, 1, JSON.stringify(answers));
+    assert.equal(lost.length, 1, JSON.stringify(answers));
+    assert.equal(tables.lines.length, 1, "one line");
+    const row = tables.lines[0];
+    assert.equal(won[0][1].line.id, row.id);
+    assert.deepEqual(
+      [lost[0][1].error, lost[0][1].line.id],
+      ["line_exists", row.id],
+      "the loser is shown the line that stands",
+    );
+    assert.equal(tables.jobs.length, 1, "one saga queued: the only path to the carrier, and to a bill");
+    assert.deepEqual(tables.jobs[0].payload, { line_id: row.id, by: "owner" });
+  } finally {
+    net.restore();
+  }
+
+  // The same number pressed twice: the number's own index refuses the second row, and the answer is the same.
+  const twice = world();
+  use(twice);
+  const [c, d] = await Promise.all([knock({ op: "buy", number: NUMBER }), knock({ op: "buy", number: NUMBER })]);
+  const pair = await Promise.all([answer(c), answer(d)]);
+  assert.deepEqual(pair.map(([s]) => s).sort(), [202, 409], JSON.stringify(pair));
+  assert.equal(pair.find(([s]) => s === 409)[1].error, "line_exists");
+  assert.equal(twice.lines.length, 1);
+  assert.equal(twice.jobs.length, 1);
+});
+
 /* ------------------------------ retry and release ------------------------- */
 
 test("retry resumes only the named row of the named workspace at its own step, records who asked, and refuses a line that cannot be retried in words", async () => {
@@ -634,6 +700,14 @@ test("retry resumes only the named row of the named workspace at its own step, r
     );
     assert.equal(tables.jobs.length, 0, "no refusal scheduled anything");
 
+    // One workspace, one line. The rows above were each read for a refusal in words; the database holds a workspace's
+    // live rows one at a time (lines_one_live_per_tenant_idx, and lines_e164_live_idx on the number they share), so a
+    // take runs with the line it is about as the workspace's only one.
+    const alone = (line) => {
+      tables.lines = [line, ...tables.lines.filter((l) => l.tenant_id !== A)];
+    };
+    alone(tables.lines[0]);
+
     // The failed line, by the owner: taken, cleared, scheduled at its step.
     const [status, body] = await answer(await knock({ op: "retry", line_id: LINE, by: "owner" }));
     assert.equal(status, 202);
@@ -672,7 +746,7 @@ test("retry resumes only the named row of the named workspace at its own step, r
       step: "trunk",
       state_since: new Date(NOW - PROVISIONING_DEADLINE_MS - 60_000).toISOString(),
     });
-    tables.lines.push(stuck);
+    alone(stuck);
     const [s4, b4] = await answer(await knock({ op: "retry", line_id: stuck.id }));
     assert.equal(s4, 202);
     assert.equal(b4.line.step, "trunk");

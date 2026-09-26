@@ -747,16 +747,6 @@ interface VoiceProvisionPlan {
 /** What the endpoint will do, in order. Pure: the dry run prints this; the apply follows it. */
 declare function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan;
 
-/**
- * Lines — a workspace's own phone number, behind a provider interface.
- *
- * The plan (docs/plans/2026-09-07-onboarding-and-lines.md §5): the product
- * owns lines through a provider, Twilio first, one subaccount per
- * workspace, and a `dry` provider outside production so the whole path
- * runs with fake SIDs. Nothing here touches the network: this file is the
- * interface, the words the product needs from a provider, and the small
- * pure helpers the saga and the endpoint share.
- */
 type LineProviderName = "twilio" | "dry";
 /** Credentials to act as — the master account, or a workspace's subaccount. */
 interface ProviderAccount {
@@ -908,7 +898,9 @@ declare function subaccountName(tenantName: string, lineId: string): string;
 declare function sipUsername(lineId: string): string;
 /**
  * A SIP password Twilio accepts: at least 12 characters, a digit, mixed
- * case (SIP Credential docs). 24 characters here; `random` is injectable so
+ * case (SIP Credential docs). 24 characters here, from node:crypto -- the
+ * source the edge token's nonce is minted from (edge-token.ts), never
+ * Math.random, which nothing in production seeds; `random` is injectable so
  * a test can pin one.
  */
 declare function sipPassword(random?: () => number): string;
@@ -1036,6 +1028,7 @@ interface LinePorts {
         name: string;
     };
     now: () => string;
+    /** A source for the SIP password a test can pin; absent, as the edge wires it, the password comes from node:crypto. */
     random?: () => number;
     store: {
         /** Persist a patch of the row; the saga keeps its own copy current. */

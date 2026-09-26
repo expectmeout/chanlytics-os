@@ -135,6 +135,27 @@ function matches(row, filters) {
 }
 
 /**
+ * A partial unique index (`opts.uniqueIndexes`: `[{ table, name, columns, where }]`): among the rows `where` admits,
+ * the `columns` hold each combination once. An insert or an update that would leave two such rows fails as Postgres
+ * fails the statement (23505, naming the index, nothing written). Modelled for the one line a workspace holds
+ * (lines_one_live_per_tenant_idx, 00195): two buys that crossed both read no line, and it is the database, not the
+ * door's read, that refuses the second insert -- and a retry's compare-and-swap beside a live line the same way.
+ * Rows a fixture seeded are taken as they are; only what the code under test writes is judged.
+ */
+function uniqueViolation(indexes, table, candidates, others) {
+  for (const ix of indexes.filter((i) => i.table === table)) {
+    const held = others.filter((r) => ix.where(r));
+    for (const row of candidates) {
+      if (!ix.where(row)) continue;
+      if (held.some((r) => ix.columns.every((c) => r[c] === row[c])))
+        return { code: "23505", message: `duplicate key value violates unique constraint "${ix.name}"` };
+      held.push(row);
+    }
+  }
+  return null;
+}
+
+/**
  * @param tables {Record<string, object[]>} mutated in place, so a test can read
  *   back what the code under test actually wrote.
  * @param faults {Record<string, {message: string}>} `"<table>.select"` or
@@ -203,6 +224,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             data: null,
             error: { code: "23505", message: `duplicate key value violates unique constraint "${table}_pkey"` },
           };
+        const clash = uniqueViolation(opts.uniqueIndexes ?? [], table, made, rows());
+        if (clash) return { data: null, error: clash };
         rows().push(...made);
         return { data: made.map((r) => ({ ...r })), error: null };
       }
@@ -279,6 +302,14 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // testable: a second caller whose filters name a value the first one has
       // already replaced matches nothing and comes back empty.
       const hit = rows().filter((r) => matches(r, q.filters));
+      // Judged before anything is written: Postgres refuses the whole statement.
+      const clash = uniqueViolation(
+        opts.uniqueIndexes ?? [],
+        table,
+        hit.map((r) => ({ ...r, ...q.values })),
+        rows().filter((r) => !hit.includes(r)),
+      );
+      if (clash) return { data: null, error: clash };
       for (const r of hit) Object.assign(r, q.values);
       // `.select("a, b")` after an update reads those columns back, as PostgREST
       // does, and `.select("*")` the whole row: how a caller that must act on what
