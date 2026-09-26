@@ -32,6 +32,9 @@ import {
   toReportVM,
   toBookingReportVM,
   toDealReportVM,
+  compareTemplates,
+  numberHealth,
+  sendableTemplates,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -3726,4 +3729,261 @@ test("list_playbooks says the Playbooks page's numbers (ledger #10): every momen
       .every((x) => x.said_yes_now === null && x.can_be_sent_now === null),
   );
   assert.ok(!/Settings/.test(JSON.stringify(blind.playbooks)), "REGRESSION: a failed read was told to fix Settings");
+});
+
+/** The workspace's WhatsApp number, with the quality Meta assigned it, and its line. */
+const CHANNELS = [
+  {
+    id: "ch-wa",
+    tenant_id: A,
+    kind: "whatsapp",
+    number_e164: "+19295550199",
+    status: "active",
+    created_at: "2026-08-01T00:00:00Z",
+    config: { quality_rating: "YELLOW", messaging_limit: "TIER_1K" },
+  },
+  {
+    id: "ch-voice",
+    tenant_id: A,
+    kind: "voice",
+    number_e164: "+19295550100",
+    status: "active",
+    created_at: "2026-08-01T00:00:00Z",
+    config: {},
+  },
+];
+/** A search as lead_searches_view answers it: one round, stopped to ask the owner a question. */
+const WAITING_SEARCH = {
+  id: "55555555-5555-4555-8555-555555555551",
+  tenant_id: A,
+  created_by: USER,
+  card: "local_businesses",
+  name: "Personal trainers in Austin",
+  asked: "find me 200 personal trainers in Austin",
+  via: "ask",
+  plan: { version: 1, count: 200 },
+  removed_at: null,
+  created_at: "2026-09-12T15:00:00Z",
+  round_id: "66666666-6666-4666-8666-666666666661",
+  seq: 1,
+  purpose: "probe",
+  state: "waiting_on_owner",
+  ending: null,
+  question: { sentence: "Most of the first 25 are chain gyms. Include them?", criterionKey: "chains" },
+  answered: null,
+  target: 200,
+  plan_version: 1,
+  cost_usd: 0.4,
+  qualified: 20,
+  review: 2,
+  excluded: 3,
+  counted: 20,
+  judge_tokens: 900,
+};
+
+test("the workspace's pages are read once a turn, each tool as its page reads it: get_settings and list_audiences read the channels once between them and list_audiences the composers' templates once, list_lead_searches the searches and the rail's counts once each -- however often the model asks; get_settings says the channels in the page's order, list_audiences the page's number, list_lead_searches the rail's six counts (ledger #12)", async () => {
+  const COUNTS = { all: 12, ready: 7, nurture: 2, converted: 1, said_no: 1, not_a_fit: 1 };
+  const ctx = ctxFor(tables({ tenant_channels: CHANNELS, templates: [OFFER], lead_searches_view: [WAITING_SEARCH] }), {
+    ...RPCS,
+    lead_list_counts: () => COUNTS,
+  });
+  const s = scripted([
+    ROUND([tool("get_settings", {}), tool("list_audiences", {}), tool("list_lead_searches", {})]),
+    ROUND([tool("list_audiences", {}, "t-audiences-again"), tool("list_lead_searches", {}, "t-searches-again")]),
+    ROUND([answer("Your WhatsApp number is fine and one search is waiting on you.")]),
+  ]);
+  const { input } = turn(ctx);
+  const r = await runAskTurn(input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
+  assert.deepEqual(
+    ["tenant_channels", "templates", "lead_searches_view"].map(selects),
+    [1, 1, 1],
+    "the channels once for get_settings and list_audiences alike, the templates once, the searches once",
+  );
+  assert.equal(ctx.supabase.seen.filter((q) => q.rpc === "lead_list_counts").length, 1, "the rail's counts once");
+  // Every tool result the model was handed, by its call's id, across both rounds.
+  const out = Object.fromEntries(
+    s.requests
+      .at(-1)
+      .messages.flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+      .filter((c) => c.type === "tool_result")
+      .map((c) => [c.tool_use_id, JSON.parse(c.content)]),
+  );
+  assert.deepEqual(
+    out["t-get_settings"].channels,
+    [
+      { kind: "voice", status: "active", number: "+19295550100" },
+      { kind: "whatsapp", status: "active", number: "+19295550199" },
+    ],
+    "the same three fields, in the page's order: by kind",
+  );
+  // The page's own builder, over what the page reads of the number: Meta's quality and limit from the row's config.
+  const health = numberHealth({ quality: "YELLOW", event: null, limit: "TIER_1K" });
+  assert.deepEqual(
+    out["t-list_audiences"].number,
+    { present: true, health: health.label, can_send: health.canSend, limit_per_day: 1000 },
+    "the number the Broadcasts page picks, and its health from the quality Meta assigned it",
+  );
+  assert.deepEqual(out["t-audiences-again"], out["t-list_audiences"], "the same answer from the turn's reads");
+  const searches = out["t-list_lead_searches"];
+  assert.deepEqual(searches.counts, COUNTS, "the rail's six counts, as the Leads page shows them");
+  assert.deepEqual(
+    searches.searches.map((x) => [x.id, x.state, x.question]),
+    [[WAITING_SEARCH.id, "waiting for an answer from you", "Most of the first 25 are chain gyms. Include them?"]],
+  );
+  assert.deepEqual(out["t-searches-again"], searches);
+});
+
+test("list_audiences offers what the composer offers (ledger #14): a template this product cannot put on the wire -- a button that takes a value -- is withheld as the Broadcasts composer withholds it, and cannot_send says why in the composer's own sentence; nothing withheld, it says nothing", async () => {
+  const T2 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
+  const bookNow = {
+    ...OFFER,
+    id: T2,
+    name: "book_now",
+    category: "UTILITY",
+    body_preview: "Book your next visit.",
+    components: [
+      { type: "BODY", text: "Book your next visit." },
+      { type: "BUTTONS", buttons: [{ type: "URL", text: "Book", url: "https://book.example/{{1}}" }] },
+    ],
+  };
+  const t = tables({ templates: [OFFER, bookNow] });
+  const out = await runTool(newToolContext(ctxFor(t), A, "owner", TZ, NOW), { name: "list_audiences", input: {} });
+  assert.equal(out.isError, false, out.result);
+  const read = JSON.parse(out.result);
+  assert.deepEqual(
+    read.templates.map((x) => x.template_id),
+    [TPL],
+    "REGRESSION: a template whose button takes a value was offered, and became a card whose send failed for everyone",
+  );
+  assert.equal(
+    read.cannot_send,
+    "One of your messages can't go out from here — it has a button that takes a value. It still works in WhatsApp Manager.",
+  );
+  // The composer's own split, over the composers' own read: the same templates, the same sentence.
+  const composer = await templatesRoute.GET.run(new Request(`http://localhost/api/v1/templates?workspace=${A}`), {
+    ...ctxFor(t),
+    params: {},
+  });
+  const split = sendableTemplates(
+    composer.templates.filter((x) => x.channel === "whatsapp" && x.meta_status === "approved").sort(compareTemplates),
+  );
+  assert.deepEqual(
+    [read.templates.map((x) => x.template_id), read.cannot_send],
+    [split.sendable.map((x) => x.id), split.why],
+    "the composer's own list and its words",
+  );
+  const clear = JSON.parse(
+    (
+      await runTool(newToolContext(ctxFor(tables({ templates: [OFFER] })), A, "owner", TZ, NOW), {
+        name: "list_audiences",
+        input: {},
+      })
+    ).result,
+  );
+  assert.deepEqual([clear.templates.map((x) => x.template_id), clear.cannot_send], [[TPL], null]);
+});
+
+test("a list of the workspace's own is read once a turn: list_audiences reads the lists and their members, and search_people and propose_broadcast count a list from them, never reading it again", async () => {
+  const S_REG = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1";
+  const t = tables({
+    segments: [{ id: S_REG, tenant_id: A, name: "Regulars", rule: null, archived_at: null }],
+    segment_members: [
+      { segment_id: S_REG, contact_id: LUIS, tenant_id: A },
+      { segment_id: S_REG, contact_id: ROSA, tenant_id: A },
+    ],
+    templates: [OFFER],
+  });
+  const ctx = ctxFor(t, { ...RPCS, people_list: () => threeAnswers() });
+  const tc = newToolContext(ctx, A, "owner", TZ, NOW);
+  const listed = await runTool(tc, { name: "list_audiences", input: {} });
+  assert.equal(listed.isError, false, listed.result);
+  const search = JSON.parse(
+    (await runTool(tc, { name: "search_people", input: { query: "", list: `list:${S_REG}` } })).result,
+  );
+  assert.deepEqual(search.people.map((p) => p.name).sort(), ["Luis Mora", "Rosa Diaz"]);
+  const card = await buildProposal(tc, "propose_broadcast", {
+    template_id: TPL,
+    audience_kind: "saved",
+    audience_id: S_REG,
+    params: [],
+  });
+  assert.equal(card.isError, false, card.result);
+  assert.deepEqual([card.proposal.payload.audience_label, card.proposal.payload.count], ["Regulars", 1]);
+  const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
+  assert.deepEqual(
+    [selects("segments"), selects("segment_members")],
+    [1, 1],
+    "the lists and their members once, for the listing, the search and the card alike",
+  );
+});
+
+test("a read the page tolerates, Ask tolerates as the page does and says so: a failed channels read is get_settings' channels and list_audiences' number null, a failed templates read list_audiences' templates null -- each with its sentence, never none and never a failed tool, said once in the log; everything else still answers; the turn keeps no failure, so the next tool reads again", async () => {
+  const world = () => tables({ tenant_channels: CHANNELS, templates: [OFFER] });
+  const answers = async (faults, names) => {
+    const ctx = ctxFor(world(), RPCS, faults);
+    const tc = newToolContext(ctx, A, "owner", TZ, NOW);
+    const out = {};
+    const { lines } = await logged("ask_tool_read_failed", async () => {
+      for (const name of names) out[name] = await runTool(tc, { name, input: {} });
+    });
+    return { ctx, out, lines };
+  };
+  const parsed = (o) => JSON.parse(o.result);
+  const without = (o, ...keys) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
+  const healthy = await answers({}, ["get_settings", "list_audiences"]);
+  const settings = parsed(healthy.out.get_settings);
+  const listing = parsed(healthy.out.list_audiences);
+  assert.equal("could_not_read" in settings || "could_not_read" in listing, false, "nothing to say when all was read");
+
+  // The channels: get_settings, then list_audiences, in one turn.
+  const noChannels = await answers({ "tenant_channels.select": { message: "channels down" } }, [
+    "get_settings",
+    "list_audiences",
+  ]);
+  const s = parsed(noChannels.out.get_settings);
+  assert.equal(noChannels.out.get_settings.isError, false, noChannels.out.get_settings.result);
+  assert.deepEqual(
+    [s.channels, s.could_not_read],
+    [null, ["The channels could not be read just now."]],
+    "never [] -- no channels read is not no channels",
+  );
+  assert.deepEqual(without(s, "channels", "could_not_read"), without(settings, "channels"), "the rest still answers");
+  const a = parsed(noChannels.out.list_audiences);
+  assert.equal(noChannels.out.list_audiences.isError, false, noChannels.out.list_audiences.result);
+  assert.deepEqual(
+    [a.number, a.could_not_read],
+    [null, ["The WhatsApp number's state could not be read just now."]],
+    "no number known, never 'no number'",
+  );
+  assert.deepEqual(without(a, "number", "could_not_read"), without(listing, "number"), "the audiences still answer");
+  assert.equal(
+    noChannels.ctx.supabase.seen.filter((q) => q.table === "tenant_channels" && q.op === "select").length,
+    2,
+    "the failure was not kept: list_audiences read the channels again",
+  );
+  assert.deepEqual(
+    noChannels.lines.map((l) => JSON.parse(l)).map((x) => [x.tool, x.read, x.tenant]),
+    [
+      ["get_settings", "channels", A],
+      ["list_audiences", "channels", A],
+    ],
+  );
+
+  // The templates.
+  const noTemplates = await answers({ "templates.select": { message: "templates down" } }, ["list_audiences"]);
+  const t = parsed(noTemplates.out.list_audiences);
+  assert.equal(noTemplates.out.list_audiences.isError, false, noTemplates.out.list_audiences.result);
+  assert.deepEqual(
+    [t.templates, t.cannot_send, t.could_not_read],
+    [null, null, ["The messages could not be read just now: say so, and propose no broadcast until they can."]],
+    "the templates' own state, never 'no template yet'",
+  );
+  assert.deepEqual(
+    without(t, "templates", "cannot_send", "could_not_read"),
+    without(listing, "templates", "cannot_send"),
+    "the audiences and the number still answer",
+  );
+  assert.equal(noTemplates.lines.length, 1, "said once in the log");
 });

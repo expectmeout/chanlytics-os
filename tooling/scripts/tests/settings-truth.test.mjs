@@ -37,13 +37,9 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
 });
 
 test("F32: a config the parser refuses is its own state, and no form can save over it", () => {
-  const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
-  assert.ok(route.includes("parseTenantConfigResult(row.config)"));
-  assert.match(route, /configBroken: true as const,\s*issues: parsed\.issues/);
-  assert.ok(
-    !route.includes("parseTenantConfig(row.config) ?? {}"),
-    "REGRESSION: a broken config collapsed to {} and read as 'no receptionist yet'",
-  );
+  // The read's half is RUN: a config the parser refuses answers { config: null, configBroken: true, issues }, never
+  // {} read as "no receptionist yet" -- through the route in settings-routes.test.mjs ("the settings read") and
+  // through its reader in readers.test.mjs, so the three pins on the route's text are gone.
   const surface = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(surface.includes("broken: { issues: cfg.issues ?? [] }"));
   assert.ok(pane.includes("const broken = !!(settings && settings.broken);"));

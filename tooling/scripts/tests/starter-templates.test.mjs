@@ -417,11 +417,8 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
     "owner or operator, never a viewer, and a stranger reads not found",
   );
   assert.ok(m.includes("grant execute on function public.set_template_hidden(uuid, boolean) to authenticated;"));
-  const r = readCode("apps/dashboard/app/api/v1/templates/route.ts");
-  assert.ok(
-    r.includes('if (!all) q = q.eq("meta_status", "approved").is("hidden_at", null);'),
-    "the composers never see a hidden template; Settings sees everything",
-  );
+  // The composers never see a hidden template and Settings sees everything: RUN through the route in
+  // outbound-routes.test.mjs ("templates: the composers see the approved and unhidden") and its reader in readers.test.mjs.
   const one = readCode("apps/dashboard/app/api/v1/templates/[id]/route.ts");
   assert.ok(
     /ctx\.supabase\.rpc\("set_template_hidden", \{\s*p_template_id: id,\s*p_hidden: input\.hidden === true,?\s*\}\)/.test(
@@ -476,7 +473,7 @@ test("a template's title: the workspace's own words, set through its door, shown
     assert.ok(s.includes(`data-testid="${id}"`), id);
   // The default names of a broadcast and a playbook use the title: run in core-campaigns.test.mjs.
   assert.ok(
-    readCode("apps/dashboard/app/api/v1/templates/route.ts").includes("source, hidden_at, title"),
+    readCode("apps/dashboard/src/server/readers/templates.ts").includes("source, hidden_at, title"),
     "the composers read it",
   );
 });
