@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { imageBytes, leadMarkPath, pageText, storeLeadMark } from "../../../apps/edge/lib/leads/lead-marks.ts";
-import { LEAD_MARK_PATH, LEAD_MARKS_BUCKET } from "../../../packages/contracts/src/leads.ts";
+import { LEAD_MARK_PATH, LEAD_MARKS_BUCKET } from "../../../packages/contracts/src/leads/leads.ts";
 import { png } from "./_mark-images.mjs";
 
 const PNG = { kind: "png", contentType: "image/png", width: 180, height: 180 };

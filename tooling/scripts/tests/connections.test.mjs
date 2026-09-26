@@ -480,7 +480,7 @@ test("every verb a row can offer is a verb the page runs", () => {
   //
   // This is that missing type. Anything the contract can put on a row has to be
   // answered by the page that renders it, or by a route the shell knows.
-  const rows = readRaw("packages/contracts/src/connections.ts");
+  const rows = readRaw("packages/contracts/src/setup/connections.ts");
   const offered = [...rows.matchAll(/to:\s*"verb:([a-z-]+)"/g)].map((m) => m[1]);
   assert.ok(offered.length >= 5, "the verbs were found at all");
   const page = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");

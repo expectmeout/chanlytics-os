@@ -136,7 +136,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
     const inserted = new RegExp(`insert into (?:public\\.)?jobs\\b[^;]*'${k}'`, "s");
     assert.ok(named.test(src) || inserted.test(sql), `${k} is scheduled by something`);
   }
-  // That the CHECK agrees is held at compile time by contracts/src/schema-sets.ts.
+  // That the CHECK agrees is held at compile time by contracts/src/shared/schema-sets.ts.
 });
 
 test("the retired kind is withdrawn from the database too, rows first", () => {
@@ -148,7 +148,7 @@ test("the retired kind is withdrawn from the database too, rows first", () => {
   const check = m.indexOf("add constraint jobs_kind_check");
   assert.ok(del > -1 && check > del, "the rows go before the CHECK that would refuse them");
   // The CHECK it wrote names no retired kind. That the CURRENT CHECK is the
-  // declared set, in order, is held at compile time (contracts/src/schema-sets.ts
+  // declared set, in order, is held at compile time (contracts/src/shared/schema-sets.ts
   // against the set generated from the database) and by CI's replay, so a later
   // migration that widens it (00162's push_send) is not this one's to repeat.
   assert.ok(!m.slice(check).includes("'blob_thread_erase'"), "the CHECK it wrote has no retired kind");

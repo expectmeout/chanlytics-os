@@ -143,7 +143,7 @@ test("both money routes carry the second door", () => {
 test("payment_required is its own code, mapped to 402", () => {
   // A client that renders it as "forbidden" sends the owner to the wrong page:
   // nothing is wrong with their account or their role.
-  const errors = readCode("packages/contracts/src/errors.ts");
+  const errors = readCode("packages/contracts/src/shared/errors.ts");
   assert.ok(errors.includes('"payment_required",'));
   assert.ok(errors.includes("payment_required: 402,"));
 });

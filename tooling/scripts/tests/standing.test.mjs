@@ -114,12 +114,12 @@ test("the three surfaces agree on the filler's cases", () => {
 
 test("the wiring: every surface reads the one function, and Today's queue is named for what it holds", () => {
   for (const [file, s] of [
-    ["packages/contracts/src/viewmodels.ts", /standingOf\(\s*\{/],
-    ["packages/contracts/src/people.ts", /standingOf\(\s*\{/],
-    ["packages/contracts/src/today.ts", /standingOf\(\s*\{/],
+    ["packages/contracts/src/conversations/viewmodels.ts", /standingOf\(\s*\{/],
+    ["packages/contracts/src/people/people.ts", /standingOf\(\s*\{/],
+    ["packages/contracts/src/today/today.ts", /standingOf\(\s*\{/],
   ])
     assert.ok(s.test(readCode(file)), `${file} reads standingOf`);
-  const today = readCode("packages/contracts/src/today.ts");
+  const today = readCode("packages/contracts/src/today/today.ts");
   assert.ok(
     !today.includes("live.escalations_open"),
     "Today no longer counts the SQL's open escalations — it counts the threads that need you",

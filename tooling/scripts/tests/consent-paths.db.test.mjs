@@ -22,7 +22,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
-import { LEAD_CONSENT_REFUSAL } from "../../../packages/contracts/src/leads.ts";
+import { LEAD_CONSENT_REFUSAL } from "../../../packages/contracts/src/leads/leads.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const CLI = process.env.SUPABASE_CLI || "supabase";

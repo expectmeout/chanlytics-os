@@ -31,16 +31,16 @@ import {
   leadsStanding,
   parseLeadsRoute,
   toLeadRowVM,
-} from "../../../packages/contracts/src/leads.ts";
-import { leadsFirstDayWays } from "../../../packages/contracts/src/lead-first-day.ts";
-import { leadMapLegend, leadPinTone, stateOf } from "../../../packages/contracts/src/tone.ts";
+} from "../../../packages/contracts/src/leads/leads.ts";
+import { leadsFirstDayWays } from "../../../packages/contracts/src/leads/lead-first-day.ts";
+import { leadMapLegend, leadPinTone, stateOf } from "../../../packages/contracts/src/shell/tone.ts";
 import {
   planArea,
   planMinutes,
   planVersionOf,
   planWhere,
   planWho,
-} from "../../../packages/contracts/src/lead-search.ts";
+} from "../../../packages/contracts/src/leads/lead-search.ts";
 import { hookFrames } from "./_hook-frames.mjs";
 import { pipelineHelpers } from "../../../apps/dashboard/src/legacy-bridge/pipeline-helpers.ts";
 

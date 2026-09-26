@@ -51,12 +51,12 @@ import {
   leadQuestionRoute,
   leadQuestionMail,
   LEAD_QUESTION_WAIT_LINE,
-} from "../../../packages/contracts/src/leads.ts";
+} from "../../../packages/contracts/src/leads/leads.ts";
 import {
   LEAD_ROUND_ENDINGS,
   LEAD_ENDING_WORDS,
   LeadSearchPlanSchema,
-} from "../../../packages/contracts/src/lead-search.ts";
+} from "../../../packages/contracts/src/leads/lead-search.ts";
 
 /* ------------------------------------------------------------ the fixtures */
 
@@ -704,7 +704,7 @@ test("the month's allowance and the searching budget are one unit on every scree
 
 /* ------------------------------------------------- a search, kept (§8.10) */
 // Its own import, at the foot with its tests, so the block above stays whoever's it was.
-import { leadSearchWords, LEAD_REMOVE_KEEPS } from "../../../packages/contracts/src/leads.ts";
+import { leadSearchWords, LEAD_REMOVE_KEEPS } from "../../../packages/contracts/src/leads/leads.ts";
 
 test("a kept search says what was asked, in the owner's words and the date they asked", () => {
   const s = {

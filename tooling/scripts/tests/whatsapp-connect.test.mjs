@@ -240,7 +240,7 @@ test("the Integrations pane offers the connection to an owner or says exactly wh
   assert.ok(
     s.includes('"verb:whatsapp-connect": "connect-whatsapp-btn"') && s.includes('case "verb:whatsapp-connect": {'),
   );
-  const rows = readCode("packages/contracts/src/connections.ts");
+  const rows = readCode("packages/contracts/src/setup/connections.ts");
   assert.ok(
     rows.includes('const wa = channel("whatsapp");') && rows.includes("} else if (i.whatsapp === undefined) {"),
     "offered only when the workspace has no WhatsApp channel, and honest while asking",

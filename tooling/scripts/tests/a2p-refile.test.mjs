@@ -199,12 +199,12 @@ test("one sentence for a rehearsal, wherever an owner meets it", () => {
   assert.match(MOCK_TEXTING_SENTENCE, /test registry/);
   assert.match(MOCK_TEXTING_SENTENCE, /nothing is delivered/);
   assert.match(MOCK_TEXTING_SENTENCE, /a person at Chanlytics/);
-  for (const f of ["packages/contracts/src/setup.ts", "apps/dashboard/app/api/v1/lines/register/route.ts"]) {
+  for (const f of ["packages/contracts/src/setup/setup.ts", "apps/dashboard/app/api/v1/lines/register/route.ts"]) {
     assert.ok(readCode(f).includes("MOCK_TEXTING_SENTENCE"), `${f} says the shared sentence, not its own`);
   }
   // Integrations reaches it through the same function Setup's row uses, so the
   // two pages cannot describe one state two ways even by accident.
-  const conn = readCode("packages/contracts/src/connections.ts");
+  const conn = readCode("packages/contracts/src/setup/connections.ts");
   assert.ok(conn.includes("if (line?.reg_mock) {") && conn.includes("textingWords(line).sentence"));
   assert.ok(!/test registry/.test(conn), "and it holds no copy of the sentence");
 });
@@ -411,7 +411,7 @@ test("a rejection reaches every person who can act on it, in words about what ha
   assert.match(owner, /b\.reason/, "carrying what the carriers actually said");
 
   // The row no longer promises the action gate 6 took away from owners.
-  const conn = readCode("packages/contracts/src/connections.ts");
+  const conn = readCode("packages/contracts/src/setup/connections.ts");
   const rejected = conn.slice(conn.indexOf('case "rejected":'), conn.indexOf('case "failed":'));
   assert.ok(!/Fix and resubmit/.test(rejected), "REGRESSION: a button an owner may not press");
   assert.match(rejected, /Chanlytics sends it again/);
@@ -423,7 +423,7 @@ test("a rejection reaches every person who can act on it, in words about what ha
   const bridge = readCode("apps/dashboard/src/legacy-bridge/platform.ts");
   assert.match(bridge, /Array\.isArray\(res\?\.problems\)/);
   assert.match(bridge, /if \(problems\.length\) return \{ ok: false, message: problems\.join\(" "\) \};/);
-  const act = readCode("packages/contracts/src/platform.ts");
+  const act = readCode("packages/contracts/src/workspace/platform.ts");
   assert.match(
     act,
     /It refuses, with the reason, if the record or the workspace's name still would not pass review\./,

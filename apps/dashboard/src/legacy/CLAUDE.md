@@ -39,7 +39,7 @@ trip it up. A screenshot of `Chanlytics.html` offered as proof of a real page wi
 ## Canonical enums (do not invent variants)
 - Thread state: `needs | watching | drafts | escalated | snoozed | done`
 - Task status: `pending | scheduled | running | done | failed`
-- Lead stage (the mockup's, `people-data.jsx`): `ready | qualifying | new | nurture | converted | archived`. The real set is the stored one — `ready | nurture | converted | archived` with a `closed_reason` — and its words are contracts' `LEAD_STAGE_WORDS` (`packages/contracts/src/leads.ts`). The seeded set is never read by the Leads scope of People.
+- Lead stage (the mockup's, `people-data.jsx`): `ready | qualifying | new | nurture | converted | archived`. The real set is the stored one — `ready | nurture | converted | archived` with a `closed_reason` — and its words are contracts' `LEAD_STAGE_WORDS` (`packages/contracts/src/leads/leads.ts`). The seeded set is never read by the Leads scope of People.
 - Client bucket: `needs-you | drifting | champion | new | steady`
 - Segment kind: `agent | manual | lead`; playbook status: `running | draft` (+ session-paused)
 - Agent activity status: `in-flight | approval | escalated | scheduled | stalled`

@@ -19,7 +19,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { leadSuppressionHash } from "@chanlytics/contracts";
-import { stageArgs, LEAD_CONSENT_REFUSAL } from "../../../packages/contracts/src/leads.ts";
+import { stageArgs, LEAD_CONSENT_REFUSAL } from "../../../packages/contracts/src/leads/leads.ts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

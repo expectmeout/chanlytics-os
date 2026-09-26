@@ -158,18 +158,83 @@ async function cancelJobsFor(db, tenantId, kind, payloadKey, payloadValue) {
 // ../contracts/dist/index.js
 import { z } from "zod";
 import { z as z2 } from "zod";
-import { z as z3 } from "zod";
 import { z as z4 } from "zod";
+import { z as z3 } from "zod";
 import { z as z5 } from "zod";
-import { z as z7 } from "zod";
 import { z as z6 } from "zod";
 import { z as z8 } from "zod";
+import { z as z7 } from "zod";
 import { z as z9 } from "zod";
 import { z as z10 } from "zod";
 z.config({ jitless: true });
+var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
+var ASK_LANGUAGES = ["en", "es", "other"];
+var ASK_UNDO_MS = 10 * 6e4;
+var AskProposalOutcomeSchema = z2.object({
+  state: z2.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z2.string().max(300).catch(""),
+  atMs: z2.number().catch(0),
+  undo: z2.record(z2.string(), z2.unknown()).nullable().optional()
+});
+var AskSettingsChangeSchema = z2.discriminatedUnion("op", [
+  z2.object({
+    op: z2.literal("add_closure"),
+    date: z2.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z2.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z2.string().max(200).optional()
+  }),
+  z2.object({
+    op: z2.literal("set_hours"),
+    day: z2.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z2.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z2.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
+  z2.object({ op: z2.literal("add_note"), title: z2.string().min(1).max(80), text: z2.string().min(1).max(1200) }),
+  z2.object({
+    op: z2.literal("add_service"),
+    name: z2.string().min(1).max(80),
+    duration_min: z2.number().int().min(1).max(1440).optional()
+  })
+]);
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
+function feedUrlOk(raw) {
+  if (!raw) return null;
+  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
+    return null;
+  return u.toString();
+}
+function feedProblemWords(reason, status) {
+  switch (reason) {
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
+    default:
+      return null;
+  }
+}
 var EVENT_KINDS = [
   "message.received",
   "message.sent",
@@ -385,137 +450,6 @@ var DECISION_VERBS = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var BRAIN_INTENTS = [
-  "booking",
-  "pricing",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS],
-      description: "What the customer is after."
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-var BrainOutputSchema = z2.object({
-  reply: z2.string(),
-  intent: z2.enum(BRAIN_INTENTS).catch("other"),
-  escalate: z2.boolean().catch(false),
-  reason: z2.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
-  confidence: z2.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z2.array(z2.string()).catch([]).transform(
-    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
-  ),
-  language: z2.enum(BRAIN_LANGUAGES).catch("other")
-});
-var WA_WINDOW_MS = 24 * 3600 * 1e3;
-var REPLY_LIMITS = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
-var RETENTION_DAYS = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
-  call_recordings: 90,
-  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
-  events_evidence: 30,
-  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
-  ask_threads: 90,
-  /** The bell's rows and their marks (purge_notifications, 00057). */
-  notifications: 90,
-  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
-  leads_untouched: 90,
-  leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
-  leads_excluded_blanked: 30
-};
-var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
-var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
-var RECORDING_NOTE = {
-  none: "No recording",
-  pending: "Recording still processing",
-  failed: "Recording couldn't be saved",
-  purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
-};
-var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
-var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
-var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
-function feedUrlOk(raw) {
-  if (!raw) return null;
-  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const h = u.hostname;
-  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
-    return null;
-  return u.toString();
-}
-function feedProblemWords(reason, status) {
-  switch (reason) {
-    case "address":
-      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable":
-      return "The calendar could not be reached. Check the address and try again.";
-    case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large":
-      return "That feed is too large to read (over 2 MB).";
-    case "not_ical":
-      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
-    case "settings":
-      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default:
-      return null;
-  }
-}
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -858,31 +792,6 @@ function parseTenantConfig(raw) {
   const r23 = parseTenantConfigResult(raw);
   return r23.ok ? r23.config : null;
 }
-var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var LIVE_STALE_MS = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
-var REPLY_VIA = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS = {
-  whatsapp: REPLY_VIA.whatsapp,
-  sms: REPLY_VIA.sms,
-  email: REPLY_VIA.email,
-  call: PERSON_CHANNEL_WORDS.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported",
-  lead: "A lead you found"
-};
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
@@ -1136,6 +1045,101 @@ var LeadSuggestAnswerSchema = z5.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
+var DAY_MS2 = 864e5;
+var WEEK_MS = 7 * DAY_MS2;
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var BRAIN_LANGUAGES = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS],
+      description: "What the customer is after."
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+var BrainOutputSchema = z6.object({
+  reply: z6.string(),
+  intent: z6.enum(BRAIN_INTENTS).catch("other"),
+  escalate: z6.boolean().catch(false),
+  reason: z6.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
+  confidence: z6.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
+  facts_used: z6.array(z6.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
+  language: z6.enum(BRAIN_LANGUAGES).catch("other")
+});
+var WA_WINDOW_MS = 24 * 3600 * 1e3;
+var REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
+var RETENTION_DAYS = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
+  leads_excluded_blanked: 30
+};
+var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
+var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
+var RECORDING_NOTE = {
+  none: "No recording",
+  pending: "Recording still processing",
+  failed: "Recording couldn't be saved",
+  purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
+};
 var LEAD_FIRST_DAY_TITLE = "Your people gather here";
 var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
@@ -1229,34 +1233,154 @@ var LEAD_WORDS = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var SELLS_BY_QUESTION = "How customers buy";
-var SELLS_BY_WORDS = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
+var ASK_ANSWER_CAPS = {
+  headline: 160,
+  detail: 700,
+  figures: 4,
+  items: 5,
+  parts: 4,
+  next: 2,
+  value: 24,
+  label: 60,
+  note: 60,
+  title: 80,
+  meta: 60,
+  line: 160,
+  question: 90
 };
-var DAY_MS4 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS4;
-var MONTH_MS = 30 * DAY_MS4;
-var NOTE_MAX = 600;
-var NOTE_REFUSALS = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done."
+var C = ASK_ANSWER_CAPS;
+var SOURCE = {
+  type: "object",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  properties: {
+    kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
+    id: { type: "string" },
+    label: { type: "string", description: `A short name for it, at most ${C.label} characters.` }
+  },
+  required: ["kind", "id", "label"],
+  additionalProperties: false
 };
-var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = {
-  ...PERSON_MODE_LABELS,
-  inherit: "Follow the workspace"
+var ASK_ANSWER_FORMAT = {
+  type: "object",
+  properties: {
+    say: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C.headline} characters.`
+        },
+        detail: {
+          type: "string",
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C.detail} characters.`
+        }
+      },
+      required: ["headline", "detail"],
+      additionalProperties: false
+    },
+    show: {
+      type: "object",
+      properties: {
+        figures: {
+          type: "array",
+          description: `The numbers the headline rests on, at most ${C.figures}; empty when there is none.`,
+          items: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                description: `The number as said: "5", "44%", "1 min"; at most ${C.value} characters.`
+              },
+              label: { type: "string", description: `What it counts, at most ${C.label} characters.` },
+              note: {
+                type: "string",
+                description: `How it compares ("up from 1"), or empty; at most ${C.note} characters.`
+              },
+              source: SOURCE
+            },
+            required: ["value", "label", "note", "source"],
+            additionalProperties: false
+          }
+        },
+        items: {
+          type: "array",
+          description: `The rows the answer names (people, threads, calls), at most ${C.items}; empty when it names none. Each opens its row.`,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: `Who or what it is, at most ${C.title} characters.` },
+              meta: {
+                type: "string",
+                description: `The channel and how long, or empty; at most ${C.meta} characters.`
+              },
+              line: { type: "string", description: `Why it matters, in one line of at most ${C.line} characters.` },
+              source: SOURCE
+            },
+            required: ["title", "meta", "line", "source"],
+            additionalProperties: false
+          }
+        },
+        breakdown: {
+          type: "object",
+          description: `One whole in its parts, at most ${C.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          properties: {
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C.label} characters.`
+            },
+            total: { type: "number" },
+            parts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: `At most ${C.label} characters.` },
+                  value: { type: "number" },
+                  warn: { type: "boolean", description: "True for the one part that needs attention." }
+                },
+                required: ["label", "value", "warn"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE
+          },
+          required: ["label", "total", "parts", "source"],
+          additionalProperties: false
+        }
+      },
+      required: ["figures", "items", "breakdown"],
+      additionalProperties: false
+    },
+    do: {
+      type: "object",
+      properties: {
+        open: {
+          type: "object",
+          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
+          properties: {
+            source: SOURCE,
+            label: { type: "string", description: `The button's words, at most ${C.label} characters.` },
+            now: {
+              type: "boolean",
+              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
+            }
+          },
+          required: ["source", "label", "now"],
+          additionalProperties: false
+        },
+        next: {
+          type: "array",
+          description: `Up to ${C.next} short questions they might ask next, at most ${C.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          items: { type: "string" }
+        }
+      },
+      required: ["open", "next"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES] }
+  },
+  required: ["say", "show", "do", "language"],
+  additionalProperties: false
 };
 var L = (id, name2, region, native) => ({
   id,
@@ -1379,7 +1503,7 @@ var WHATSAPP_LANGUAGES = [
   L("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS5 = 864e5;
+var DAY_MS3 = 864e5;
 var SWEEP_TICK_MS = 5 * 6e4;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -1483,7 +1607,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS3;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -1501,6 +1625,56 @@ var PROPOSAL = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES = { ...PROPOSAL, label: "Enlace de la propuesta" };
+var REPLY_VIA = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
+var PERSON_CAME_FROM_WORDS = {
+  whatsapp: REPLY_VIA.whatsapp,
+  sms: REPLY_VIA.sms,
+  email: REPLY_VIA.email,
+  call: PERSON_CHANNEL_WORDS.voice,
+  calendar: "Your calendar",
+  manual: "Added by hand",
+  import: "Imported",
+  lead: "A lead you found"
+};
+var SELLS_BY_QUESTION = "How customers buy";
+var SELLS_BY_WORDS = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+var DAY_MS5 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS5;
+var MONTH_MS = 30 * DAY_MS5;
+var NOTE_MAX = 600;
+var NOTE_REFUSALS = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
+};
+var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS = {
+  ...PERSON_MODE_LABELS,
+  inherit: "Follow the workspace"
+};
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {
@@ -1628,36 +1802,36 @@ var LIST_DEAL_STAGES = ["consultation", "proposed", "won", "lost", "ended"];
 var LIST_RULE_MAX = 12;
 var LIST_ANY_MAX = 6;
 var DAY_OPS = ["more_than", "within", "never", "ever", "this_week"];
-var Days = { op: z6.enum(DAY_OPS), days: z6.number().int().min(1).max(3650).optional() };
-var YesNo = { op: z6.literal("is"), yes: z6.boolean() };
-var Count = { op: z6.enum(["at_least", "at_most"]), n: z6.number().int().min(0).max(1e4) };
-var IsOrNot = z6.enum(["is", "is_not"]);
-var Token = z6.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact = (shape) => z6.object(shape).strict();
-var ListFactSchema = z6.discriminatedUnion("field", [
-  fact({ field: z6.literal("last_visit"), ...Days }),
-  fact({ field: z6.literal("next_visit"), ...Days }),
-  fact({ field: z6.literal("booked"), ...YesNo }),
-  fact({ field: z6.literal("asked_not_booked"), ...YesNo }),
-  fact({ field: z6.literal("last_heard"), ...Days }),
-  fact({ field: z6.literal("first_contact"), ...Days }),
-  fact({ field: z6.literal("channel"), op: IsOrNot, channel: z6.enum(CHANNELS) }),
-  fact({ field: z6.literal("came_from"), op: IsOrNot, from: z6.enum(CAME_FROM) }),
-  fact({ field: z6.literal("calls"), ...Count }),
-  fact({ field: z6.literal("conversations"), ...Count }),
-  fact({ field: z6.literal("has_chat"), ...YesNo }),
-  fact({ field: z6.literal("said_yes"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  fact({ field: z6.literal("can_receive"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  fact({ field: z6.literal("stopped"), ...YesNo }),
-  fact({ field: z6.literal("standing"), op: IsOrNot, value: z6.enum(LIST_STANDINGS) }),
-  fact({ field: z6.literal("assigned"), op: IsOrNot, value: z6.enum(LIST_ASSIGNED) }),
-  fact({ field: z6.literal("deal_stage"), op: IsOrNot, value: z6.enum(LIST_DEAL_STAGES) }),
-  fact({ field: z6.literal("consultation"), ...YesNo }),
-  fact({ field: z6.literal("step_due"), ...YesNo }),
-  fact({ field: z6.literal("in_list"), op: IsOrNot, list: Token })
+var Days = { op: z7.enum(DAY_OPS), days: z7.number().int().min(1).max(3650).optional() };
+var YesNo = { op: z7.literal("is"), yes: z7.boolean() };
+var Count = { op: z7.enum(["at_least", "at_most"]), n: z7.number().int().min(0).max(1e4) };
+var IsOrNot = z7.enum(["is", "is_not"]);
+var Token = z7.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact = (shape) => z7.object(shape).strict();
+var ListFactSchema = z7.discriminatedUnion("field", [
+  fact({ field: z7.literal("last_visit"), ...Days }),
+  fact({ field: z7.literal("next_visit"), ...Days }),
+  fact({ field: z7.literal("booked"), ...YesNo }),
+  fact({ field: z7.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z7.literal("last_heard"), ...Days }),
+  fact({ field: z7.literal("first_contact"), ...Days }),
+  fact({ field: z7.literal("channel"), op: IsOrNot, channel: z7.enum(CHANNELS) }),
+  fact({ field: z7.literal("came_from"), op: IsOrNot, from: z7.enum(CAME_FROM) }),
+  fact({ field: z7.literal("calls"), ...Count }),
+  fact({ field: z7.literal("conversations"), ...Count }),
+  fact({ field: z7.literal("has_chat"), ...YesNo }),
+  fact({ field: z7.literal("said_yes"), ...YesNo, to: z7.enum(LIST_PURPOSES) }),
+  fact({ field: z7.literal("can_receive"), ...YesNo, to: z7.enum(LIST_PURPOSES) }),
+  fact({ field: z7.literal("stopped"), ...YesNo }),
+  fact({ field: z7.literal("standing"), op: IsOrNot, value: z7.enum(LIST_STANDINGS) }),
+  fact({ field: z7.literal("assigned"), op: IsOrNot, value: z7.enum(LIST_ASSIGNED) }),
+  fact({ field: z7.literal("deal_stage"), op: IsOrNot, value: z7.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z7.literal("consultation"), ...YesNo }),
+  fact({ field: z7.literal("step_due"), ...YesNo }),
+  fact({ field: z7.literal("in_list"), op: IsOrNot, list: Token })
 ]);
-var AnySchema = z6.object({ any: z6.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
-var ListConditionSchema = z6.union([AnySchema, ListFactSchema]);
+var AnySchema = z7.object({ any: z7.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
+var ListConditionSchema = z7.union([AnySchema, ListFactSchema]);
 function factProblem(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
@@ -1665,13 +1839,13 @@ function factProblem(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
   return null;
 }
-var ListRuleSchema = z6.object({
-  v: z6.literal(2).optional(),
-  all: z6.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
+var ListRuleSchema = z7.object({
+  v: z7.literal(2).optional(),
+  all: z7.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
 }).strict().superRefine((r23, ctx) => {
   for (const f of r23.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem(f);
-    if (p) ctx.addIssue({ code: z6.ZodIssueCode.custom, message: p });
+    if (p) ctx.addIssue({ code: z7.ZodIssueCode.custom, message: p });
   }
 });
 function ruleFacts(rule) {
@@ -1793,10 +1967,10 @@ var LIST_DRAFT_JSON_SCHEMA = {
     }
   }
 };
-var ListDraftAnswerSchema = z6.object({
-  name: z6.string().trim().min(1).max(60),
-  cannot: z6.string().trim().max(200),
-  all: z6.array(z6.unknown()).max(LIST_RULE_MAX)
+var ListDraftAnswerSchema = z7.object({
+  name: z7.string().trim().min(1).max(60),
+  cannot: z7.string().trim().max(200),
+  all: z7.array(z7.unknown()).max(LIST_RULE_MAX)
 });
 var SAVED_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID = /^[a-z_]{1,40}$/;
@@ -1972,8 +2146,8 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l2) => {
     test: (vm) => listRuleMatches(l2.rule, vm)
   };
 });
-var PeopleExportQuerySchema = z7.object({
-  list: z7.string().max(80).refine((t2) => parseListToken(t2) !== null, "Name a list by its token.").optional()
+var PeopleExportQuerySchema = z8.object({
+  list: z8.string().max(80).refine((t2) => parseListToken(t2) !== null, "Name a list by its token.").optional()
 });
 var LIMIT_TIERS = {
   TIER_50: 50,
@@ -1986,7 +2160,7 @@ var LIMIT_TIERS = {
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
@@ -1994,12 +2168,16 @@ var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
+var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var DATE_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
+var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var SOLE_PROP_LIMITS = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -2028,7 +2206,7 @@ var LEAD_MAP_STATE_WORDS = {
   out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS3;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -2036,6 +2214,8 @@ var PLAYBOOK_CLASS_LABEL = {
   follow_up: POLICY_CLASS_WORDS.follow_up.short,
   outreach: POLICY_CLASS_WORDS.outreach.short
 };
+var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS = 30 * 864e5;
 var TRY_QUIET_AFTER_MS = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
@@ -2137,324 +2317,6 @@ var FIRST_RUN_PHONE_WORDS = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
-function firstLine(body, max = 160) {
-  return body.split("\n").find((l2) => l2.trim())?.trim().slice(0, max) ?? "";
-}
-function pushFor(n2, tokens) {
-  const body = firstLine(n2.body);
-  return tokens.map((to) => ({
-    to,
-    title: n2.title,
-    body,
-    sound: "default",
-    data: { route: n2.route, notification_id: n2.id, tenant_id: n2.tenant_id }
-  }));
-}
-var DAY_MS6 = 24 * 3600 * 1e3;
-var JOB_WORK = {
-  outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
-  broadcast_send: { stopped: "A broadcast stopped partway", to: "broadcasts" },
-  line_provision: { stopped: "Setting up a phone line stopped", to: "admin/integrations" },
-  email_ingest: { stopped: "An email could not be taken in", to: "inbox" },
-  lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
-  lead_collect: { stopped: "A search stopped partway", to: "clients/leads" },
-  lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
-  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" }
-};
-var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
-function jobNewsWords(jobKind, end, attempts = 1) {
-  const w = JOB_WORK[jobKind] ?? JOB_WORK_OTHER;
-  const lead = end === "unfinished" ? jobKind === "outbound_send" ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again." : "It started and never reported back, so how it ended is unknown." : end === "unknown_kind" ? "Nothing ran: this is work the app does not know how to do." : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and will not start again on its own.`;
-  return { title: w.stopped, lead, to: w.to };
-}
-var DAY_MS7 = 864e5;
-var QUIET_AFTER_MS = 7 * DAY_MS7;
-var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var CHANNEL_KIND_WORDS = {
-  whatsapp: "WhatsApp",
-  voice: "Phone line",
-  sms: "Texting",
-  email: "Email",
-  instagram: "Instagram"
-};
-var KIND_META = {
-  whatsapp: {
-    name: `${CHANNEL_KIND_WORDS.whatsapp} Business`,
-    what: "Customers text this number; the receptionist answers",
-    icon: "chat",
-    noun: "message"
-  },
-  voice: {
-    name: CHANNEL_KIND_WORDS.voice,
-    what: "Customers call this number; the receptionist picks up",
-    icon: "phone",
-    noun: "call"
-  },
-  sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
-};
-var SEARCH_WARN_MS = 12 * 36e5;
-var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
-var NOTE_SUGGEST_SCHEMA = {
-  type: "object",
-  properties: {
-    worth: { type: "boolean" },
-    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS, "none"] },
-    text: { type: "string" },
-    quote: { type: "string" }
-  },
-  required: ["worth", "kind", "text", "quote"],
-  additionalProperties: false
-};
-var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
-var ASK_LANGUAGES = ["en", "es", "other"];
-var ASK_UNDO_MS = 10 * 6e4;
-var AskProposalOutcomeSchema = z8.object({
-  state: z8.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z8.string().max(300).catch(""),
-  atMs: z8.number().catch(0),
-  undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
-});
-var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
-  z8.object({
-    op: z8.literal("add_closure"),
-    date: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z8.string().max(200).optional()
-  }),
-  z8.object({
-    op: z8.literal("set_hours"),
-    day: z8.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z8.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z8.string().regex(/^\d{2}:\d{2}$/).nullable()
-  }),
-  z8.object({ op: z8.literal("add_note"), title: z8.string().min(1).max(80), text: z8.string().min(1).max(1200) }),
-  z8.object({
-    op: z8.literal("add_service"),
-    name: z8.string().min(1).max(80),
-    duration_min: z8.number().int().min(1).max(1440).optional()
-  })
-]);
-var ASK_ANSWER_CAPS = {
-  headline: 160,
-  detail: 700,
-  figures: 4,
-  items: 5,
-  parts: 4,
-  next: 2,
-  value: 24,
-  label: 60,
-  note: 60,
-  title: 80,
-  meta: 60,
-  line: 160,
-  question: 90
-};
-var C = ASK_ANSWER_CAPS;
-var SOURCE = {
-  type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
-  properties: {
-    kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
-    id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C.label} characters.` }
-  },
-  required: ["kind", "id", "label"],
-  additionalProperties: false
-};
-var ASK_ANSWER_FORMAT = {
-  type: "object",
-  properties: {
-    say: {
-      type: "object",
-      properties: {
-        headline: {
-          type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C.headline} characters.`
-        },
-        detail: {
-          type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C.detail} characters.`
-        }
-      },
-      required: ["headline", "detail"],
-      additionalProperties: false
-    },
-    show: {
-      type: "object",
-      properties: {
-        figures: {
-          type: "array",
-          description: `The numbers the headline rests on, at most ${C.figures}; empty when there is none.`,
-          items: {
-            type: "object",
-            properties: {
-              value: {
-                type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C.value} characters.`
-              },
-              label: { type: "string", description: `What it counts, at most ${C.label} characters.` },
-              note: {
-                type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C.note} characters.`
-              },
-              source: SOURCE
-            },
-            required: ["value", "label", "note", "source"],
-            additionalProperties: false
-          }
-        },
-        items: {
-          type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C.items}; empty when it names none. Each opens its row.`,
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C.title} characters.` },
-              meta: {
-                type: "string",
-                description: `The channel and how long, or empty; at most ${C.meta} characters.`
-              },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C.line} characters.` },
-              source: SOURCE
-            },
-            required: ["title", "meta", "line", "source"],
-            additionalProperties: false
-          }
-        },
-        breakdown: {
-          type: "object",
-          description: `One whole in its parts, at most ${C.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
-          properties: {
-            label: {
-              type: "string",
-              description: `What the whole is ("customer messages"), at most ${C.label} characters.`
-            },
-            total: { type: "number" },
-            parts: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  label: { type: "string", description: `At most ${C.label} characters.` },
-                  value: { type: "number" },
-                  warn: { type: "boolean", description: "True for the one part that needs attention." }
-                },
-                required: ["label", "value", "warn"],
-                additionalProperties: false
-              }
-            },
-            source: SOURCE
-          },
-          required: ["label", "total", "parts", "source"],
-          additionalProperties: false
-        }
-      },
-      required: ["figures", "items", "breakdown"],
-      additionalProperties: false
-    },
-    do: {
-      type: "object",
-      properties: {
-        open: {
-          type: "object",
-          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
-          properties: {
-            source: SOURCE,
-            label: { type: "string", description: `The button's words, at most ${C.label} characters.` },
-            now: {
-              type: "boolean",
-              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
-            }
-          },
-          required: ["source", "label", "now"],
-          additionalProperties: false
-        },
-        next: {
-          type: "array",
-          description: `Up to ${C.next} short questions they might ask next, at most ${C.question} characters each, never one about a place already offered; empty when nothing follows.`,
-          items: { type: "string" }
-        }
-      },
-      required: ["open", "next"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES] }
-  },
-  required: ["say", "show", "do", "language"],
-  additionalProperties: false
-};
-var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var SIGNUP_NAME_MIN = 2;
-var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z9.string().trim().max(80);
-var SignupSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z9.string().trim().toLowerCase().email("Enter a work email address.").max(254),
-  /**
-   * The credential, and the reason it is OPTIONAL here rather than required.
-   *
-   * The waitlist posture takes details and creates nothing -- no account, so
-   * no password -- and its form shows no such field. A schema that demanded
-   * one would refuse the queue, which is the posture a launch actually runs
-   * in. So the shape admits it and the CREATING path insists on it: the
-   * route calls `passwordProblem` the moment it knows the posture is not the
-   * list, and that one function is also what the page checks with, so the
-   * browser's rule and the server's rule cannot drift.
-   *
-   * The cap here is a body-size guard, not the rule; the rule is bytes.
-   */
-  password: z9.string().max(200).optional(),
-  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z9.string().trim().min(1).max(64).optional(),
-  /** The invite code, when sign-up is by invitation. */
-  code: InviteCodeSchema.optional()
-}).strict();
-var PendingWorkspaceSchema = z9.object({
-  name: z9.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
-  // A clock Postgres would refuse is dropped here, so the owner's first Create
-  // never fails over a zone a stranger's device reported.
-  timezone: z9.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
-});
-function isTimezone(raw) {
-  if (typeof raw !== "string" || !raw.trim()) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: raw });
-    return true;
-  } catch {
-    return false;
-  }
-}
-var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
-var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
-var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var REPUTATION_MEMORY_MS = 30 * 864e5;
-var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
-var PASSWORD_MIN = 12;
-var PASSWORD_WORDS = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var JUDGE_FACT_KEYS = [
   "name",
   "category",
@@ -2499,15 +2361,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z10.object({
-  places: z10.array(
-    z10.object({
-      ref: z10.number().int(),
-      criteria: z10.array(
-        z10.object({ key: z10.string(), answer: z10.enum(["pass", "fail", "unknown"]), facts: z10.array(z10.string()) })
+var AnswerSchema = z9.object({
+  places: z9.array(
+    z9.object({
+      ref: z9.number().int(),
+      criteria: z9.array(
+        z9.object({ key: z9.string(), answer: z9.enum(["pass", "fail", "unknown"]), facts: z9.array(z9.string()) })
       ),
-      email_index: z10.number().int().nullable(),
-      reason: z10.string()
+      email_index: z9.number().int().nullable(),
+      reason: z9.string()
     })
   )
 });
@@ -2577,7 +2439,45 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
+var DAY_MS7 = 864e5;
+var QUIET_AFTER_MS = 7 * DAY_MS7;
+var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META = {
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
+  sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
+var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
+var NOTE_SUGGEST_SCHEMA = {
+  type: "object",
+  properties: {
+    worth: { type: "boolean" },
+    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS, "none"] },
+    text: { type: "string" },
+    quote: { type: "string" }
+  },
+  required: ["worth", "kind", "text", "quote"],
+  additionalProperties: false
+};
 function isCampaignEmail(request) {
   const headers = request?.headers;
   const v = headers?.["List-Unsubscribe"];
@@ -2585,16 +2485,116 @@ function isCampaignEmail(request) {
 }
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
+var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
+function firstLine(body, max = 160) {
+  return body.split("\n").find((l2) => l2.trim())?.trim().slice(0, max) ?? "";
+}
+function pushFor(n2, tokens) {
+  const body = firstLine(n2.body);
+  return tokens.map((to) => ({
+    to,
+    title: n2.title,
+    body,
+    sound: "default",
+    data: { route: n2.route, notification_id: n2.id, tenant_id: n2.tenant_id }
+  }));
+}
+var DAY_MS10 = 24 * 3600 * 1e3;
+var JOB_WORK = {
+  outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
+  broadcast_send: { stopped: "A broadcast stopped partway", to: "broadcasts" },
+  line_provision: { stopped: "Setting up a phone line stopped", to: "admin/integrations" },
+  email_ingest: { stopped: "An email could not be taken in", to: "inbox" },
+  lead_round_start: { stopped: "A search could not start", to: "clients/leads" },
+  lead_collect: { stopped: "A search stopped partway", to: "clients/leads" },
+  lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
+  push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" }
+};
+var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
+function jobNewsWords(jobKind, end, attempts = 1) {
+  const w = JOB_WORK[jobKind] ?? JOB_WORK_OTHER;
+  const lead = end === "unfinished" ? jobKind === "outbound_send" ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again." : "It started and never reported back, so how it ended is unknown." : end === "unknown_kind" ? "Nothing ran: this is work the app does not know how to do." : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and will not start again on its own.`;
+  return { title: w.stopped, lead, to: w.to };
+}
+var SEARCH_WARN_MS = 12 * 36e5;
+var SIGNUP_NAME_MIN = 2;
+var SIGNUP_NAME_MAX = 120;
+var InviteCodeSchema = z10.string().trim().max(80);
+var SignupSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z10.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: z10.string().max(200).optional(),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: z10.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: InviteCodeSchema.optional()
+}).strict();
+var PendingWorkspaceSchema = z10.object({
+  name: z10.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: z10.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+});
+function isTimezone(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
+var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var PASSWORD_MIN = 12;
+var PASSWORD_WORDS = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 
 // ../channels/dist/index.js
 import { z as z11 } from "zod";
 import { z as z22 } from "zod";
-import { z as z32 } from "zod";
 import { z as z42 } from "zod";
+import { z as z32 } from "zod";
 import { z as z52 } from "zod";
-import { z as z72 } from "zod";
 import { z as z62 } from "zod";
 import { z as z82 } from "zod";
+import { z as z72 } from "zod";
 import { z as z92 } from "zod";
 import { z as z102 } from "zod";
 
@@ -7538,9 +7538,74 @@ function handleDeprecatedOptions(options) {
 
 // ../channels/dist/index.js
 z11.config({ jitless: true });
+var ASK_CITATION_KINDS2 = ["thread", "conversation", "call", "person", "page"];
+var ASK_LANGUAGES2 = ["en", "es", "other"];
+var ASK_UNDO_MS2 = 10 * 6e4;
+var AskProposalOutcomeSchema2 = z22.object({
+  state: z22.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z22.string().max(300).catch(""),
+  atMs: z22.number().catch(0),
+  undo: z22.record(z22.string(), z22.unknown()).nullable().optional()
+});
+var AskSettingsChangeSchema2 = z22.discriminatedUnion("op", [
+  z22.object({
+    op: z22.literal("add_closure"),
+    date: z22.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z22.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z22.string().max(200).optional()
+  }),
+  z22.object({
+    op: z22.literal("set_hours"),
+    day: z22.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z22.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z22.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
+  z22.object({ op: z22.literal("add_note"), title: z22.string().min(1).max(80), text: z22.string().min(1).max(1200) }),
+  z22.object({
+    op: z22.literal("add_service"),
+    name: z22.string().min(1).max(80),
+    duration_min: z22.number().int().min(1).max(1440).optional()
+  })
+]);
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
+var PRIVATE_HOST2 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT2 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V62 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
+function feedUrlOk2(raw) {
+  if (!raw) return null;
+  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST2.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT2.test(h) || PRIVATE_V62.test(h))
+    return null;
+  return u.toString();
+}
+function feedProblemWords2(reason, status) {
+  switch (reason) {
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
+    default:
+      return null;
+  }
+}
 var EVENT_KINDS2 = [
   "message.received",
   "message.sent",
@@ -7756,145 +7821,6 @@ var DECISION_VERBS2 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var DAY_MS2 = 864e5;
-var WEEK_MS4 = 7 * DAY_MS2;
-var BRAIN_INTENTS2 = [
-  "booking",
-  "pricing",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES2 = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA2 = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS2],
-      description: "What the customer is after."
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES2],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-var BrainOutputSchema2 = z22.object({
-  reply: z22.string(),
-  intent: z22.enum(BRAIN_INTENTS2).catch("other"),
-  escalate: z22.boolean().catch(false),
-  reason: z22.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
-  confidence: z22.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z22.array(z22.string()).catch([]).transform(
-    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
-  ),
-  language: z22.enum(BRAIN_LANGUAGES2).catch("other")
-});
-var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
-var REPLY_LIMITS2 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
-var CALL_OUTCOMES = [
-  "answered",
-  "booking_link_sent",
-  "callback_needed",
-  "voicemail",
-  "no_request",
-  "other"
-];
-var RETENTION_DAYS2 = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
-  call_recordings: 90,
-  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
-  events_evidence: 30,
-  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
-  ask_threads: 90,
-  /** The bell's rows and their marks (purge_notifications, 00057). */
-  notifications: 90,
-  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
-  leads_untouched: 90,
-  leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
-  leads_excluded_blanked: 30
-};
-var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
-var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
-var RECORDING_NOTE2 = {
-  none: "No recording",
-  pending: "Recording still processing",
-  failed: "Recording couldn't be saved",
-  purged: `Recording removed after ${RECORDING_RETENTION_DAYS2} days`
-};
-var PRIVATE_HOST2 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
-var CARRIER_NAT2 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
-var PRIVATE_V62 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
-function feedUrlOk2(raw) {
-  if (!raw) return null;
-  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const h = u.hostname;
-  if (PRIVATE_HOST2.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT2.test(h) || PRIVATE_V62.test(h))
-    return null;
-  return u.toString();
-}
-function feedProblemWords2(reason, status) {
-  switch (reason) {
-    case "address":
-      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable":
-      return "The calendar could not be reached. Check the address and try again.";
-    case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large":
-      return "That feed is too large to read (over 2 MB).";
-    case "not_ical":
-      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
-    case "settings":
-      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default:
-      return null;
-  }
-}
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -8225,31 +8151,6 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure2(c2, n2, ctx));
 });
-var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var LIVE_STALE_MS2 = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
-var REPLY_VIA2 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS2 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS2 = {
-  whatsapp: REPLY_VIA2.whatsapp,
-  sms: REPLY_VIA2.sms,
-  email: REPLY_VIA2.email,
-  call: PERSON_CHANNEL_WORDS2.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported",
-  lead: "A lead you found"
-};
 var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES2 = 1e3;
 var LEAD_QUESTION_WAIT_MS2 = 24 * 36e5;
@@ -8503,6 +8404,109 @@ var LeadSuggestAnswerSchema2 = z52.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
+var DAY_MS22 = 864e5;
+var WEEK_MS4 = 7 * DAY_MS22;
+var BRAIN_INTENTS2 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var BRAIN_LANGUAGES2 = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA2 = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS2],
+      description: "What the customer is after."
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES2],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+var BrainOutputSchema2 = z62.object({
+  reply: z62.string(),
+  intent: z62.enum(BRAIN_INTENTS2).catch("other"),
+  escalate: z62.boolean().catch(false),
+  reason: z62.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
+  confidence: z62.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
+  facts_used: z62.array(z62.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
+  language: z62.enum(BRAIN_LANGUAGES2).catch("other")
+});
+var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
+var REPLY_LIMITS2 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
+var CALL_OUTCOMES = [
+  "answered",
+  "booking_link_sent",
+  "callback_needed",
+  "voicemail",
+  "no_request",
+  "other"
+];
+var RETENTION_DAYS2 = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
+  leads_excluded_blanked: 30
+};
+var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
+var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
+var RECORDING_NOTE2 = {
+  none: "No recording",
+  pending: "Recording still processing",
+  failed: "Recording couldn't be saved",
+  purged: `Recording removed after ${RECORDING_RETENTION_DAYS2} days`
+};
 var LEAD_FIRST_DAY_TITLE2 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB2 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT2 = "Claude finds businesses, not people at home.";
@@ -8596,34 +8600,154 @@ var LEAD_WORDS2 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var SELLS_BY_QUESTION2 = "How customers buy";
-var SELLS_BY_WORDS2 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
+var ASK_ANSWER_CAPS2 = {
+  headline: 160,
+  detail: 700,
+  figures: 4,
+  items: 5,
+  parts: 4,
+  next: 2,
+  value: 24,
+  label: 60,
+  note: 60,
+  title: 80,
+  meta: 60,
+  line: 160,
+  question: 90
 };
-var DAY_MS42 = 864e5;
-var WEEK_MS22 = 7 * DAY_MS42;
-var MONTH_MS2 = 30 * DAY_MS42;
-var NOTE_MAX2 = 600;
-var NOTE_REFUSALS2 = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX2} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done."
+var C2 = ASK_ANSWER_CAPS2;
+var SOURCE2 = {
+  type: "object",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  properties: {
+    kind: { type: "string", enum: [...ASK_CITATION_KINDS2, "none"] },
+    id: { type: "string" },
+    label: { type: "string", description: `A short name for it, at most ${C2.label} characters.` }
+  },
+  required: ["kind", "id", "label"],
+  additionalProperties: false
 };
-var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS2 = {
-  ...PERSON_MODE_LABELS2,
-  inherit: "Follow the workspace"
+var ASK_ANSWER_FORMAT2 = {
+  type: "object",
+  properties: {
+    say: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C2.headline} characters.`
+        },
+        detail: {
+          type: "string",
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C2.detail} characters.`
+        }
+      },
+      required: ["headline", "detail"],
+      additionalProperties: false
+    },
+    show: {
+      type: "object",
+      properties: {
+        figures: {
+          type: "array",
+          description: `The numbers the headline rests on, at most ${C2.figures}; empty when there is none.`,
+          items: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                description: `The number as said: "5", "44%", "1 min"; at most ${C2.value} characters.`
+              },
+              label: { type: "string", description: `What it counts, at most ${C2.label} characters.` },
+              note: {
+                type: "string",
+                description: `How it compares ("up from 1"), or empty; at most ${C2.note} characters.`
+              },
+              source: SOURCE2
+            },
+            required: ["value", "label", "note", "source"],
+            additionalProperties: false
+          }
+        },
+        items: {
+          type: "array",
+          description: `The rows the answer names (people, threads, calls), at most ${C2.items}; empty when it names none. Each opens its row.`,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: `Who or what it is, at most ${C2.title} characters.` },
+              meta: {
+                type: "string",
+                description: `The channel and how long, or empty; at most ${C2.meta} characters.`
+              },
+              line: { type: "string", description: `Why it matters, in one line of at most ${C2.line} characters.` },
+              source: SOURCE2
+            },
+            required: ["title", "meta", "line", "source"],
+            additionalProperties: false
+          }
+        },
+        breakdown: {
+          type: "object",
+          description: `One whole in its parts, at most ${C2.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          properties: {
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C2.label} characters.`
+            },
+            total: { type: "number" },
+            parts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: `At most ${C2.label} characters.` },
+                  value: { type: "number" },
+                  warn: { type: "boolean", description: "True for the one part that needs attention." }
+                },
+                required: ["label", "value", "warn"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE2
+          },
+          required: ["label", "total", "parts", "source"],
+          additionalProperties: false
+        }
+      },
+      required: ["figures", "items", "breakdown"],
+      additionalProperties: false
+    },
+    do: {
+      type: "object",
+      properties: {
+        open: {
+          type: "object",
+          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
+          properties: {
+            source: SOURCE2,
+            label: { type: "string", description: `The button's words, at most ${C2.label} characters.` },
+            now: {
+              type: "boolean",
+              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
+            }
+          },
+          required: ["source", "label", "now"],
+          additionalProperties: false
+        },
+        next: {
+          type: "array",
+          description: `Up to ${C2.next} short questions they might ask next, at most ${C2.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          items: { type: "string" }
+        }
+      },
+      required: ["open", "next"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES2] }
+  },
+  required: ["say", "show", "do", "language"],
+  additionalProperties: false
 };
 var L2 = (id, name2, region, native) => ({
   id,
@@ -8746,7 +8870,7 @@ var WHATSAPP_LANGUAGES2 = [
   L2("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS52 = 864e5;
+var DAY_MS32 = 864e5;
 var SWEEP_TICK_MS2 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS2 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -8850,7 +8974,7 @@ var SENDING_HOURS_WORDS2 = {
   range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
   between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
 };
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS32;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var FIRST2 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS2 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -8868,6 +8992,56 @@ var PROPOSAL2 = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES2 = { ...PROPOSAL2, label: "Enlace de la propuesta" };
+var REPLY_VIA2 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS2 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
+var PERSON_CAME_FROM_WORDS2 = {
+  whatsapp: REPLY_VIA2.whatsapp,
+  sms: REPLY_VIA2.sms,
+  email: REPLY_VIA2.email,
+  call: PERSON_CHANNEL_WORDS2.voice,
+  calendar: "Your calendar",
+  manual: "Added by hand",
+  import: "Imported",
+  lead: "A lead you found"
+};
+var SELLS_BY_QUESTION2 = "How customers buy";
+var SELLS_BY_WORDS2 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+var DAY_MS52 = 864e5;
+var WEEK_MS22 = 7 * DAY_MS52;
+var MONTH_MS2 = 30 * DAY_MS52;
+var NOTE_MAX2 = 600;
+var NOTE_REFUSALS2 = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX2} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
+};
+var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS2 = {
+  ...PERSON_MODE_LABELS2,
+  inherit: "Follow the workspace"
+};
 var LIST_NEEDS2 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS2 = [
   {
@@ -8995,36 +9169,36 @@ var LIST_DEAL_STAGES2 = ["consultation", "proposed", "won", "lost", "ended"];
 var LIST_RULE_MAX2 = 12;
 var LIST_ANY_MAX2 = 6;
 var DAY_OPS2 = ["more_than", "within", "never", "ever", "this_week"];
-var Days2 = { op: z62.enum(DAY_OPS2), days: z62.number().int().min(1).max(3650).optional() };
-var YesNo2 = { op: z62.literal("is"), yes: z62.boolean() };
-var Count2 = { op: z62.enum(["at_least", "at_most"]), n: z62.number().int().min(0).max(1e4) };
-var IsOrNot2 = z62.enum(["is", "is_not"]);
-var Token2 = z62.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact2 = (shape) => z62.object(shape).strict();
-var ListFactSchema2 = z62.discriminatedUnion("field", [
-  fact2({ field: z62.literal("last_visit"), ...Days2 }),
-  fact2({ field: z62.literal("next_visit"), ...Days2 }),
-  fact2({ field: z62.literal("booked"), ...YesNo2 }),
-  fact2({ field: z62.literal("asked_not_booked"), ...YesNo2 }),
-  fact2({ field: z62.literal("last_heard"), ...Days2 }),
-  fact2({ field: z62.literal("first_contact"), ...Days2 }),
-  fact2({ field: z62.literal("channel"), op: IsOrNot2, channel: z62.enum(CHANNELS2) }),
-  fact2({ field: z62.literal("came_from"), op: IsOrNot2, from: z62.enum(CAME_FROM2) }),
-  fact2({ field: z62.literal("calls"), ...Count2 }),
-  fact2({ field: z62.literal("conversations"), ...Count2 }),
-  fact2({ field: z62.literal("has_chat"), ...YesNo2 }),
-  fact2({ field: z62.literal("said_yes"), ...YesNo2, to: z62.enum(LIST_PURPOSES2) }),
-  fact2({ field: z62.literal("can_receive"), ...YesNo2, to: z62.enum(LIST_PURPOSES2) }),
-  fact2({ field: z62.literal("stopped"), ...YesNo2 }),
-  fact2({ field: z62.literal("standing"), op: IsOrNot2, value: z62.enum(LIST_STANDINGS2) }),
-  fact2({ field: z62.literal("assigned"), op: IsOrNot2, value: z62.enum(LIST_ASSIGNED2) }),
-  fact2({ field: z62.literal("deal_stage"), op: IsOrNot2, value: z62.enum(LIST_DEAL_STAGES2) }),
-  fact2({ field: z62.literal("consultation"), ...YesNo2 }),
-  fact2({ field: z62.literal("step_due"), ...YesNo2 }),
-  fact2({ field: z62.literal("in_list"), op: IsOrNot2, list: Token2 })
+var Days2 = { op: z72.enum(DAY_OPS2), days: z72.number().int().min(1).max(3650).optional() };
+var YesNo2 = { op: z72.literal("is"), yes: z72.boolean() };
+var Count2 = { op: z72.enum(["at_least", "at_most"]), n: z72.number().int().min(0).max(1e4) };
+var IsOrNot2 = z72.enum(["is", "is_not"]);
+var Token2 = z72.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact2 = (shape) => z72.object(shape).strict();
+var ListFactSchema2 = z72.discriminatedUnion("field", [
+  fact2({ field: z72.literal("last_visit"), ...Days2 }),
+  fact2({ field: z72.literal("next_visit"), ...Days2 }),
+  fact2({ field: z72.literal("booked"), ...YesNo2 }),
+  fact2({ field: z72.literal("asked_not_booked"), ...YesNo2 }),
+  fact2({ field: z72.literal("last_heard"), ...Days2 }),
+  fact2({ field: z72.literal("first_contact"), ...Days2 }),
+  fact2({ field: z72.literal("channel"), op: IsOrNot2, channel: z72.enum(CHANNELS2) }),
+  fact2({ field: z72.literal("came_from"), op: IsOrNot2, from: z72.enum(CAME_FROM2) }),
+  fact2({ field: z72.literal("calls"), ...Count2 }),
+  fact2({ field: z72.literal("conversations"), ...Count2 }),
+  fact2({ field: z72.literal("has_chat"), ...YesNo2 }),
+  fact2({ field: z72.literal("said_yes"), ...YesNo2, to: z72.enum(LIST_PURPOSES2) }),
+  fact2({ field: z72.literal("can_receive"), ...YesNo2, to: z72.enum(LIST_PURPOSES2) }),
+  fact2({ field: z72.literal("stopped"), ...YesNo2 }),
+  fact2({ field: z72.literal("standing"), op: IsOrNot2, value: z72.enum(LIST_STANDINGS2) }),
+  fact2({ field: z72.literal("assigned"), op: IsOrNot2, value: z72.enum(LIST_ASSIGNED2) }),
+  fact2({ field: z72.literal("deal_stage"), op: IsOrNot2, value: z72.enum(LIST_DEAL_STAGES2) }),
+  fact2({ field: z72.literal("consultation"), ...YesNo2 }),
+  fact2({ field: z72.literal("step_due"), ...YesNo2 }),
+  fact2({ field: z72.literal("in_list"), op: IsOrNot2, list: Token2 })
 ]);
-var AnySchema2 = z62.object({ any: z62.array(ListFactSchema2).min(2).max(LIST_ANY_MAX2) }).strict();
-var ListConditionSchema2 = z62.union([AnySchema2, ListFactSchema2]);
+var AnySchema2 = z72.object({ any: z72.array(ListFactSchema2).min(2).max(LIST_ANY_MAX2) }).strict();
+var ListConditionSchema2 = z72.union([AnySchema2, ListFactSchema2]);
 function factProblem2(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
@@ -9032,13 +9206,13 @@ function factProblem2(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
   return null;
 }
-var ListRuleSchema2 = z62.object({
-  v: z62.literal(2).optional(),
-  all: z62.array(ListConditionSchema2).min(1).max(LIST_RULE_MAX2)
+var ListRuleSchema2 = z72.object({
+  v: z72.literal(2).optional(),
+  all: z72.array(ListConditionSchema2).min(1).max(LIST_RULE_MAX2)
 }).strict().superRefine((r23, ctx) => {
   for (const f of r23.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem2(f);
-    if (p) ctx.addIssue({ code: z62.ZodIssueCode.custom, message: p });
+    if (p) ctx.addIssue({ code: z72.ZodIssueCode.custom, message: p });
   }
 });
 function ruleFacts2(rule) {
@@ -9160,10 +9334,10 @@ var LIST_DRAFT_JSON_SCHEMA2 = {
     }
   }
 };
-var ListDraftAnswerSchema2 = z62.object({
-  name: z62.string().trim().min(1).max(60),
-  cannot: z62.string().trim().max(200),
-  all: z62.array(z62.unknown()).max(LIST_RULE_MAX2)
+var ListDraftAnswerSchema2 = z72.object({
+  name: z72.string().trim().min(1).max(60),
+  cannot: z72.string().trim().max(200),
+  all: z72.array(z72.unknown()).max(LIST_RULE_MAX2)
 });
 var SAVED_ID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID2 = /^[a-z_]{1,40}$/;
@@ -9339,8 +9513,8 @@ var PEOPLE_LISTS2 = BUILTIN_LISTS2.map((l2) => {
     test: (vm) => listRuleMatches2(l2.rule, vm)
   };
 });
-var PeopleExportQuerySchema2 = z72.object({
-  list: z72.string().max(80).refine((t2) => parseListToken2(t2) !== null, "Name a list by its token.").optional()
+var PeopleExportQuerySchema2 = z82.object({
+  list: z82.string().max(80).refine((t2) => parseListToken2(t2) !== null, "Name a list by its token.").optional()
 });
 var LIMIT_TIERS2 = {
   TIER_50: 50,
@@ -9353,7 +9527,7 @@ var LIMIT_TIERS2 = {
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
-var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
+var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
@@ -9361,12 +9535,16 @@ var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
 var BOOTSTRAP_MS2 = 3600 * 1e3;
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS32 = 7 * 864e5;
+var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
 var DATE_FMT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS2 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
+var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
+var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
 var SOLE_PROP_LIMITS2 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -9395,7 +9573,7 @@ var LEAD_MAP_STATE_WORDS2 = {
   out: `${LEAD_STAGE_WORDS2.archived} or ${LEAD_LEFT_OUT_WORD2.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS52;
+var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS32;
 var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
   campaign: POLICY_CLASS_WORDS2.campaign.short,
@@ -9403,6 +9581,8 @@ var PLAYBOOK_CLASS_LABEL2 = {
   follow_up: POLICY_CLASS_WORDS2.follow_up.short,
   outreach: POLICY_CLASS_WORDS2.outreach.short
 };
+var DAY_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS2 = 30 * 864e5;
 var TRY_QUIET_AFTER_MS2 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS2 = {
   chooseHeading: "How should calls reach your receptionist?",
@@ -9504,295 +9684,6 @@ var FIRST_RUN_PHONE_WORDS2 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
-var DAY_MS62 = 24 * 3600 * 1e3;
-var DAY_MS72 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS72;
-var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var CHANNEL_KIND_WORDS2 = {
-  whatsapp: "WhatsApp",
-  voice: "Phone line",
-  sms: "Texting",
-  email: "Email",
-  instagram: "Instagram"
-};
-var KIND_META2 = {
-  whatsapp: {
-    name: `${CHANNEL_KIND_WORDS2.whatsapp} Business`,
-    what: "Customers text this number; the receptionist answers",
-    icon: "chat",
-    noun: "message"
-  },
-  voice: {
-    name: CHANNEL_KIND_WORDS2.voice,
-    what: "Customers call this number; the receptionist picks up",
-    icon: "phone",
-    noun: "call"
-  },
-  sms: { name: CHANNEL_KIND_WORDS2.sms, what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: CHANNEL_KIND_WORDS2.email, what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
-};
-var SEARCH_WARN_MS2 = 12 * 36e5;
-var NOTE_SUGGEST_KINDS2 = ["preference", "timing", "contact", "sensitivity", "context"];
-var NOTE_SUGGEST_SCHEMA2 = {
-  type: "object",
-  properties: {
-    worth: { type: "boolean" },
-    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS2, "none"] },
-    text: { type: "string" },
-    quote: { type: "string" }
-  },
-  required: ["worth", "kind", "text", "quote"],
-  additionalProperties: false
-};
-var ASK_CITATION_KINDS2 = ["thread", "conversation", "call", "person", "page"];
-var ASK_LANGUAGES2 = ["en", "es", "other"];
-var ASK_UNDO_MS2 = 10 * 6e4;
-var AskProposalOutcomeSchema2 = z82.object({
-  state: z82.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z82.string().max(300).catch(""),
-  atMs: z82.number().catch(0),
-  undo: z82.record(z82.string(), z82.unknown()).nullable().optional()
-});
-var AskSettingsChangeSchema2 = z82.discriminatedUnion("op", [
-  z82.object({
-    op: z82.literal("add_closure"),
-    date: z82.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z82.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z82.string().max(200).optional()
-  }),
-  z82.object({
-    op: z82.literal("set_hours"),
-    day: z82.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z82.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z82.string().regex(/^\d{2}:\d{2}$/).nullable()
-  }),
-  z82.object({ op: z82.literal("add_note"), title: z82.string().min(1).max(80), text: z82.string().min(1).max(1200) }),
-  z82.object({
-    op: z82.literal("add_service"),
-    name: z82.string().min(1).max(80),
-    duration_min: z82.number().int().min(1).max(1440).optional()
-  })
-]);
-var ASK_ANSWER_CAPS2 = {
-  headline: 160,
-  detail: 700,
-  figures: 4,
-  items: 5,
-  parts: 4,
-  next: 2,
-  value: 24,
-  label: 60,
-  note: 60,
-  title: 80,
-  meta: 60,
-  line: 160,
-  question: 90
-};
-var C2 = ASK_ANSWER_CAPS2;
-var SOURCE2 = {
-  type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
-  properties: {
-    kind: { type: "string", enum: [...ASK_CITATION_KINDS2, "none"] },
-    id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C2.label} characters.` }
-  },
-  required: ["kind", "id", "label"],
-  additionalProperties: false
-};
-var ASK_ANSWER_FORMAT2 = {
-  type: "object",
-  properties: {
-    say: {
-      type: "object",
-      properties: {
-        headline: {
-          type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C2.headline} characters.`
-        },
-        detail: {
-          type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C2.detail} characters.`
-        }
-      },
-      required: ["headline", "detail"],
-      additionalProperties: false
-    },
-    show: {
-      type: "object",
-      properties: {
-        figures: {
-          type: "array",
-          description: `The numbers the headline rests on, at most ${C2.figures}; empty when there is none.`,
-          items: {
-            type: "object",
-            properties: {
-              value: {
-                type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C2.value} characters.`
-              },
-              label: { type: "string", description: `What it counts, at most ${C2.label} characters.` },
-              note: {
-                type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C2.note} characters.`
-              },
-              source: SOURCE2
-            },
-            required: ["value", "label", "note", "source"],
-            additionalProperties: false
-          }
-        },
-        items: {
-          type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C2.items}; empty when it names none. Each opens its row.`,
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C2.title} characters.` },
-              meta: {
-                type: "string",
-                description: `The channel and how long, or empty; at most ${C2.meta} characters.`
-              },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C2.line} characters.` },
-              source: SOURCE2
-            },
-            required: ["title", "meta", "line", "source"],
-            additionalProperties: false
-          }
-        },
-        breakdown: {
-          type: "object",
-          description: `One whole in its parts, at most ${C2.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
-          properties: {
-            label: {
-              type: "string",
-              description: `What the whole is ("customer messages"), at most ${C2.label} characters.`
-            },
-            total: { type: "number" },
-            parts: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  label: { type: "string", description: `At most ${C2.label} characters.` },
-                  value: { type: "number" },
-                  warn: { type: "boolean", description: "True for the one part that needs attention." }
-                },
-                required: ["label", "value", "warn"],
-                additionalProperties: false
-              }
-            },
-            source: SOURCE2
-          },
-          required: ["label", "total", "parts", "source"],
-          additionalProperties: false
-        }
-      },
-      required: ["figures", "items", "breakdown"],
-      additionalProperties: false
-    },
-    do: {
-      type: "object",
-      properties: {
-        open: {
-          type: "object",
-          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
-          properties: {
-            source: SOURCE2,
-            label: { type: "string", description: `The button's words, at most ${C2.label} characters.` },
-            now: {
-              type: "boolean",
-              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
-            }
-          },
-          required: ["source", "label", "now"],
-          additionalProperties: false
-        },
-        next: {
-          type: "array",
-          description: `Up to ${C2.next} short questions they might ask next, at most ${C2.question} characters each, never one about a place already offered; empty when nothing follows.`,
-          items: { type: "string" }
-        }
-      },
-      required: ["open", "next"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES2] }
-  },
-  required: ["say", "show", "do", "language"],
-  additionalProperties: false
-};
-var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var SIGNUP_NAME_MIN2 = 2;
-var SIGNUP_NAME_MAX2 = 120;
-var InviteCodeSchema2 = z92.string().trim().max(80);
-var SignupSchema2 = z92.object({
-  name: z92.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
-  email: z92.string().trim().toLowerCase().email("Enter a work email address.").max(254),
-  /**
-   * The credential, and the reason it is OPTIONAL here rather than required.
-   *
-   * The waitlist posture takes details and creates nothing -- no account, so
-   * no password -- and its form shows no such field. A schema that demanded
-   * one would refuse the queue, which is the posture a launch actually runs
-   * in. So the shape admits it and the CREATING path insists on it: the
-   * route calls `passwordProblem` the moment it knows the posture is not the
-   * list, and that one function is also what the page checks with, so the
-   * browser's rule and the server's rule cannot drift.
-   *
-   * The cap here is a body-size guard, not the rule; the rule is bytes.
-   */
-  password: z92.string().max(200).optional(),
-  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z92.string().trim().min(1).max(64).optional(),
-  /** The invite code, when sign-up is by invitation. */
-  code: InviteCodeSchema2.optional()
-}).strict();
-var PendingWorkspaceSchema2 = z92.object({
-  name: z92.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
-  // A clock Postgres would refuse is dropped here, so the owner's first Create
-  // never fails over a zone a stranger's device reported.
-  timezone: z92.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
-});
-function isTimezone2(raw) {
-  if (typeof raw !== "string" || !raw.trim()) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: raw });
-    return true;
-  } catch {
-    return false;
-  }
-}
-var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
-var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
-var DAY_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var REPUTATION_MEMORY_MS2 = 30 * 864e5;
-var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
-var PASSWORD_MIN2 = 12;
-var PASSWORD_WORDS2 = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN2} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var JUDGE_FACT_KEYS2 = [
   "name",
   "category",
@@ -9837,15 +9728,15 @@ var JUDGE_OUTPUT_SCHEMA2 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema2 = z102.object({
-  places: z102.array(
-    z102.object({
-      ref: z102.number().int(),
-      criteria: z102.array(
-        z102.object({ key: z102.string(), answer: z102.enum(["pass", "fail", "unknown"]), facts: z102.array(z102.string()) })
+var AnswerSchema2 = z92.object({
+  places: z92.array(
+    z92.object({
+      ref: z92.number().int(),
+      criteria: z92.array(
+        z92.object({ key: z92.string(), answer: z92.enum(["pass", "fail", "unknown"]), facts: z92.array(z92.string()) })
       ),
-      email_index: z102.number().int().nullable(),
-      reason: z102.string()
+      email_index: z92.number().int().nullable(),
+      reason: z92.string()
     })
   )
 });
@@ -9915,9 +9806,118 @@ var K2 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
+var DAY_MS72 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS72;
+var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS2 = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META2 = {
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS2.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS2.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
+  sms: { name: CHANNEL_KIND_WORDS2.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS2.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
+var NOTE_SUGGEST_KINDS2 = ["preference", "timing", "contact", "sensitivity", "context"];
+var NOTE_SUGGEST_SCHEMA2 = {
+  type: "object",
+  properties: {
+    worth: { type: "boolean" },
+    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS2, "none"] },
+    text: { type: "string" },
+    quote: { type: "string" }
+  },
+  required: ["worth", "kind", "text", "quote"],
+  additionalProperties: false
+};
 var NINE_TO_FIVE2 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME2 = { from: 8 * 60, to: 20 * 60 };
+var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS2 = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
+var DAY_MS102 = 24 * 3600 * 1e3;
+var SEARCH_WARN_MS2 = 12 * 36e5;
+var SIGNUP_NAME_MIN2 = 2;
+var SIGNUP_NAME_MAX2 = 120;
+var InviteCodeSchema2 = z102.string().trim().max(80);
+var SignupSchema2 = z102.object({
+  name: z102.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
+  email: z102.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: z102.string().max(200).optional(),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: z102.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: InviteCodeSchema2.optional()
+}).strict();
+var PendingWorkspaceSchema2 = z102.object({
+  name: z102.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: z102.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
+});
+function isTimezone2(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
+var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
+var PASSWORD_MIN2 = 12;
+var PASSWORD_WORDS2 = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN2} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -10027,32 +10027,32 @@ var PAYLOAD_BYTES = 1 + 16 * 3;
 // ../core/dist/index.js
 import { z as z12 } from "zod";
 import { z as z23 } from "zod";
-import { z as z33 } from "zod";
 import { z as z43 } from "zod";
+import { z as z33 } from "zod";
 import { z as z53 } from "zod";
-import { z as z73 } from "zod";
 import { z as z63 } from "zod";
 import { z as z83 } from "zod";
+import { z as z73 } from "zod";
 import { z as z93 } from "zod";
 import { z as z103 } from "zod";
 import { z as z112 } from "zod";
 import { z as z222 } from "zod";
-import { z as z322 } from "zod";
 import { z as z422 } from "zod";
+import { z as z322 } from "zod";
 import { z as z522 } from "zod";
-import { z as z722 } from "zod";
 import { z as z622 } from "zod";
 import { z as z822 } from "zod";
+import { z as z722 } from "zod";
 import { z as z922 } from "zod";
 import { z as z1022 } from "zod";
 import { z as z122 } from "zod";
 import { z as z232 } from "zod";
-import { z as z332 } from "zod";
 import { z as z432 } from "zod";
+import { z as z332 } from "zod";
 import { z as z532 } from "zod";
-import { z as z732 } from "zod";
 import { z as z632 } from "zod";
 import { z as z832 } from "zod";
+import { z as z732 } from "zod";
 import { z as z932 } from "zod";
 import { z as z1032 } from "zod";
 var __create2 = Object.create;
@@ -10975,9 +10975,74 @@ var DEFAULT_OPTIONS2 = {
   wordwrap: 80
 };
 z12.config({ jitless: true });
+var ASK_CITATION_KINDS3 = ["thread", "conversation", "call", "person", "page"];
+var ASK_LANGUAGES3 = ["en", "es", "other"];
+var ASK_UNDO_MS3 = 10 * 6e4;
+var AskProposalOutcomeSchema3 = z23.object({
+  state: z23.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z23.string().max(300).catch(""),
+  atMs: z23.number().catch(0),
+  undo: z23.record(z23.string(), z23.unknown()).nullable().optional()
+});
+var AskSettingsChangeSchema3 = z23.discriminatedUnion("op", [
+  z23.object({
+    op: z23.literal("add_closure"),
+    date: z23.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z23.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z23.string().max(200).optional()
+  }),
+  z23.object({
+    op: z23.literal("set_hours"),
+    day: z23.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z23.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z23.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
+  z23.object({ op: z23.literal("add_note"), title: z23.string().min(1).max(80), text: z23.string().min(1).max(1200) }),
+  z23.object({
+    op: z23.literal("add_service"),
+    name: z23.string().min(1).max(80),
+    duration_min: z23.number().int().min(1).max(1440).optional()
+  })
+]);
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
+var PRIVATE_HOST3 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT3 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V63 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
+function feedUrlOk3(raw) {
+  if (!raw) return null;
+  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST3.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT3.test(h) || PRIVATE_V63.test(h))
+    return null;
+  return u.toString();
+}
+function feedProblemWords3(reason, status) {
+  switch (reason) {
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
+    default:
+      return null;
+  }
+}
 var EVENT_KINDS3 = [
   "message.received",
   "message.sent",
@@ -11193,145 +11258,6 @@ var DECISION_VERBS3 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var DAY_MS3 = 864e5;
-var WEEK_MS5 = 7 * DAY_MS3;
-var BRAIN_INTENTS3 = [
-  "booking",
-  "pricing",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES3 = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA3 = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS3],
-      description: "What the customer is after."
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES3],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-var BrainOutputSchema3 = z23.object({
-  reply: z23.string(),
-  intent: z23.enum(BRAIN_INTENTS3).catch("other"),
-  escalate: z23.boolean().catch(false),
-  reason: z23.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
-  confidence: z23.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z23.array(z23.string()).catch([]).transform(
-    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
-  ),
-  language: z23.enum(BRAIN_LANGUAGES3).catch("other")
-});
-var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
-var REPLY_LIMITS3 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY3 = Math.max(...Object.values(REPLY_LIMITS3).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
-var CALL_OUTCOMES2 = [
-  "answered",
-  "booking_link_sent",
-  "callback_needed",
-  "voicemail",
-  "no_request",
-  "other"
-];
-var RETENTION_DAYS3 = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
-  call_recordings: 90,
-  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
-  events_evidence: 30,
-  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
-  ask_threads: 90,
-  /** The bell's rows and their marks (purge_notifications, 00057). */
-  notifications: 90,
-  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
-  leads_untouched: 90,
-  leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
-  leads_excluded_blanked: 30
-};
-var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
-var RECORDING_PURGED_WORDS3 = `Recording removed after ${RECORDING_RETENTION_DAYS3} days; the transcript is kept`;
-var RECORDING_NOTE3 = {
-  none: "No recording",
-  pending: "Recording still processing",
-  failed: "Recording couldn't be saved",
-  purged: `Recording removed after ${RECORDING_RETENTION_DAYS3} days`
-};
-var PRIVATE_HOST3 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
-var CARRIER_NAT3 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
-var PRIVATE_V63 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
-function feedUrlOk3(raw) {
-  if (!raw) return null;
-  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const h = u.hostname;
-  if (PRIVATE_HOST3.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT3.test(h) || PRIVATE_V63.test(h))
-    return null;
-  return u.toString();
-}
-function feedProblemWords3(reason, status) {
-  switch (reason) {
-    case "address":
-      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable":
-      return "The calendar could not be reached. Check the address and try again.";
-    case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large":
-      return "That feed is too large to read (over 2 MB).";
-    case "not_ical":
-      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
-    case "settings":
-      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default:
-      return null;
-  }
-}
 var POLICY_CLASS_WORDS3 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -11662,31 +11588,6 @@ var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure3(c2, n2, ctx));
 });
-var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var LIVE_STALE_MS3 = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
-var REPLY_VIA3 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS3 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS3 = {
-  whatsapp: REPLY_VIA3.whatsapp,
-  sms: REPLY_VIA3.sms,
-  email: REPLY_VIA3.email,
-  call: PERSON_CHANNEL_WORDS3.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported",
-  lead: "A lead you found"
-};
 var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES3 = 1e3;
 var LEAD_QUESTION_WAIT_MS3 = 24 * 36e5;
@@ -11940,6 +11841,109 @@ var LeadSuggestAnswerSchema3 = z53.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
+var DAY_MS23 = 864e5;
+var WEEK_MS5 = 7 * DAY_MS23;
+var BRAIN_INTENTS3 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var BRAIN_LANGUAGES3 = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA3 = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS3],
+      description: "What the customer is after."
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES3],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+var BrainOutputSchema3 = z63.object({
+  reply: z63.string(),
+  intent: z63.enum(BRAIN_INTENTS3).catch("other"),
+  escalate: z63.boolean().catch(false),
+  reason: z63.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
+  confidence: z63.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
+  facts_used: z63.array(z63.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
+  language: z63.enum(BRAIN_LANGUAGES3).catch("other")
+});
+var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
+var REPLY_LIMITS3 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY3 = Math.max(...Object.values(REPLY_LIMITS3).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
+var CALL_OUTCOMES2 = [
+  "answered",
+  "booking_link_sent",
+  "callback_needed",
+  "voicemail",
+  "no_request",
+  "other"
+];
+var RETENTION_DAYS3 = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
+  leads_excluded_blanked: 30
+};
+var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
+var RECORDING_PURGED_WORDS3 = `Recording removed after ${RECORDING_RETENTION_DAYS3} days; the transcript is kept`;
+var RECORDING_NOTE3 = {
+  none: "No recording",
+  pending: "Recording still processing",
+  failed: "Recording couldn't be saved",
+  purged: `Recording removed after ${RECORDING_RETENTION_DAYS3} days`
+};
 var LEAD_FIRST_DAY_TITLE3 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB3 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT3 = "Claude finds businesses, not people at home.";
@@ -12033,34 +12037,154 @@ var LEAD_WORDS3 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var SELLS_BY_QUESTION3 = "How customers buy";
-var SELLS_BY_WORDS3 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
+var ASK_ANSWER_CAPS3 = {
+  headline: 160,
+  detail: 700,
+  figures: 4,
+  items: 5,
+  parts: 4,
+  next: 2,
+  value: 24,
+  label: 60,
+  note: 60,
+  title: 80,
+  meta: 60,
+  line: 160,
+  question: 90
 };
-var DAY_MS43 = 864e5;
-var WEEK_MS23 = 7 * DAY_MS43;
-var MONTH_MS3 = 30 * DAY_MS43;
-var NOTE_MAX3 = 600;
-var NOTE_REFUSALS3 = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX3} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done."
+var C3 = ASK_ANSWER_CAPS3;
+var SOURCE3 = {
+  type: "object",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  properties: {
+    kind: { type: "string", enum: [...ASK_CITATION_KINDS3, "none"] },
+    id: { type: "string" },
+    label: { type: "string", description: `A short name for it, at most ${C3.label} characters.` }
+  },
+  required: ["kind", "id", "label"],
+  additionalProperties: false
 };
-var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS3 = {
-  ...PERSON_MODE_LABELS3,
-  inherit: "Follow the workspace"
+var ASK_ANSWER_FORMAT3 = {
+  type: "object",
+  properties: {
+    say: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C3.headline} characters.`
+        },
+        detail: {
+          type: "string",
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C3.detail} characters.`
+        }
+      },
+      required: ["headline", "detail"],
+      additionalProperties: false
+    },
+    show: {
+      type: "object",
+      properties: {
+        figures: {
+          type: "array",
+          description: `The numbers the headline rests on, at most ${C3.figures}; empty when there is none.`,
+          items: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                description: `The number as said: "5", "44%", "1 min"; at most ${C3.value} characters.`
+              },
+              label: { type: "string", description: `What it counts, at most ${C3.label} characters.` },
+              note: {
+                type: "string",
+                description: `How it compares ("up from 1"), or empty; at most ${C3.note} characters.`
+              },
+              source: SOURCE3
+            },
+            required: ["value", "label", "note", "source"],
+            additionalProperties: false
+          }
+        },
+        items: {
+          type: "array",
+          description: `The rows the answer names (people, threads, calls), at most ${C3.items}; empty when it names none. Each opens its row.`,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: `Who or what it is, at most ${C3.title} characters.` },
+              meta: {
+                type: "string",
+                description: `The channel and how long, or empty; at most ${C3.meta} characters.`
+              },
+              line: { type: "string", description: `Why it matters, in one line of at most ${C3.line} characters.` },
+              source: SOURCE3
+            },
+            required: ["title", "meta", "line", "source"],
+            additionalProperties: false
+          }
+        },
+        breakdown: {
+          type: "object",
+          description: `One whole in its parts, at most ${C3.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          properties: {
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C3.label} characters.`
+            },
+            total: { type: "number" },
+            parts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: `At most ${C3.label} characters.` },
+                  value: { type: "number" },
+                  warn: { type: "boolean", description: "True for the one part that needs attention." }
+                },
+                required: ["label", "value", "warn"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE3
+          },
+          required: ["label", "total", "parts", "source"],
+          additionalProperties: false
+        }
+      },
+      required: ["figures", "items", "breakdown"],
+      additionalProperties: false
+    },
+    do: {
+      type: "object",
+      properties: {
+        open: {
+          type: "object",
+          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
+          properties: {
+            source: SOURCE3,
+            label: { type: "string", description: `The button's words, at most ${C3.label} characters.` },
+            now: {
+              type: "boolean",
+              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
+            }
+          },
+          required: ["source", "label", "now"],
+          additionalProperties: false
+        },
+        next: {
+          type: "array",
+          description: `Up to ${C3.next} short questions they might ask next, at most ${C3.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          items: { type: "string" }
+        }
+      },
+      required: ["open", "next"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES3] }
+  },
+  required: ["say", "show", "do", "language"],
+  additionalProperties: false
 };
 var L3 = (id, name2, region, native) => ({
   id,
@@ -12183,7 +12307,7 @@ var WHATSAPP_LANGUAGES3 = [
   L3("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS53 = 864e5;
+var DAY_MS33 = 864e5;
 var SWEEP_TICK_MS3 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS3 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -12287,7 +12411,7 @@ var SENDING_HOURS_WORDS3 = {
   range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
   between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
 };
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS33;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -12305,6 +12429,56 @@ var PROPOSAL3 = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES3 = { ...PROPOSAL3, label: "Enlace de la propuesta" };
+var REPLY_VIA3 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS3 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
+var PERSON_CAME_FROM_WORDS3 = {
+  whatsapp: REPLY_VIA3.whatsapp,
+  sms: REPLY_VIA3.sms,
+  email: REPLY_VIA3.email,
+  call: PERSON_CHANNEL_WORDS3.voice,
+  calendar: "Your calendar",
+  manual: "Added by hand",
+  import: "Imported",
+  lead: "A lead you found"
+};
+var SELLS_BY_QUESTION3 = "How customers buy";
+var SELLS_BY_WORDS3 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+var DAY_MS53 = 864e5;
+var WEEK_MS23 = 7 * DAY_MS53;
+var MONTH_MS3 = 30 * DAY_MS53;
+var NOTE_MAX3 = 600;
+var NOTE_REFUSALS3 = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX3} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
+};
+var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS3 = {
+  ...PERSON_MODE_LABELS3,
+  inherit: "Follow the workspace"
+};
 var LIST_NEEDS3 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS3 = [
   {
@@ -12432,36 +12606,36 @@ var LIST_DEAL_STAGES3 = ["consultation", "proposed", "won", "lost", "ended"];
 var LIST_RULE_MAX3 = 12;
 var LIST_ANY_MAX3 = 6;
 var DAY_OPS3 = ["more_than", "within", "never", "ever", "this_week"];
-var Days3 = { op: z63.enum(DAY_OPS3), days: z63.number().int().min(1).max(3650).optional() };
-var YesNo3 = { op: z63.literal("is"), yes: z63.boolean() };
-var Count3 = { op: z63.enum(["at_least", "at_most"]), n: z63.number().int().min(0).max(1e4) };
-var IsOrNot3 = z63.enum(["is", "is_not"]);
-var Token3 = z63.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact3 = (shape) => z63.object(shape).strict();
-var ListFactSchema3 = z63.discriminatedUnion("field", [
-  fact3({ field: z63.literal("last_visit"), ...Days3 }),
-  fact3({ field: z63.literal("next_visit"), ...Days3 }),
-  fact3({ field: z63.literal("booked"), ...YesNo3 }),
-  fact3({ field: z63.literal("asked_not_booked"), ...YesNo3 }),
-  fact3({ field: z63.literal("last_heard"), ...Days3 }),
-  fact3({ field: z63.literal("first_contact"), ...Days3 }),
-  fact3({ field: z63.literal("channel"), op: IsOrNot3, channel: z63.enum(CHANNELS3) }),
-  fact3({ field: z63.literal("came_from"), op: IsOrNot3, from: z63.enum(CAME_FROM3) }),
-  fact3({ field: z63.literal("calls"), ...Count3 }),
-  fact3({ field: z63.literal("conversations"), ...Count3 }),
-  fact3({ field: z63.literal("has_chat"), ...YesNo3 }),
-  fact3({ field: z63.literal("said_yes"), ...YesNo3, to: z63.enum(LIST_PURPOSES3) }),
-  fact3({ field: z63.literal("can_receive"), ...YesNo3, to: z63.enum(LIST_PURPOSES3) }),
-  fact3({ field: z63.literal("stopped"), ...YesNo3 }),
-  fact3({ field: z63.literal("standing"), op: IsOrNot3, value: z63.enum(LIST_STANDINGS3) }),
-  fact3({ field: z63.literal("assigned"), op: IsOrNot3, value: z63.enum(LIST_ASSIGNED3) }),
-  fact3({ field: z63.literal("deal_stage"), op: IsOrNot3, value: z63.enum(LIST_DEAL_STAGES3) }),
-  fact3({ field: z63.literal("consultation"), ...YesNo3 }),
-  fact3({ field: z63.literal("step_due"), ...YesNo3 }),
-  fact3({ field: z63.literal("in_list"), op: IsOrNot3, list: Token3 })
+var Days3 = { op: z73.enum(DAY_OPS3), days: z73.number().int().min(1).max(3650).optional() };
+var YesNo3 = { op: z73.literal("is"), yes: z73.boolean() };
+var Count3 = { op: z73.enum(["at_least", "at_most"]), n: z73.number().int().min(0).max(1e4) };
+var IsOrNot3 = z73.enum(["is", "is_not"]);
+var Token3 = z73.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact3 = (shape) => z73.object(shape).strict();
+var ListFactSchema3 = z73.discriminatedUnion("field", [
+  fact3({ field: z73.literal("last_visit"), ...Days3 }),
+  fact3({ field: z73.literal("next_visit"), ...Days3 }),
+  fact3({ field: z73.literal("booked"), ...YesNo3 }),
+  fact3({ field: z73.literal("asked_not_booked"), ...YesNo3 }),
+  fact3({ field: z73.literal("last_heard"), ...Days3 }),
+  fact3({ field: z73.literal("first_contact"), ...Days3 }),
+  fact3({ field: z73.literal("channel"), op: IsOrNot3, channel: z73.enum(CHANNELS3) }),
+  fact3({ field: z73.literal("came_from"), op: IsOrNot3, from: z73.enum(CAME_FROM3) }),
+  fact3({ field: z73.literal("calls"), ...Count3 }),
+  fact3({ field: z73.literal("conversations"), ...Count3 }),
+  fact3({ field: z73.literal("has_chat"), ...YesNo3 }),
+  fact3({ field: z73.literal("said_yes"), ...YesNo3, to: z73.enum(LIST_PURPOSES3) }),
+  fact3({ field: z73.literal("can_receive"), ...YesNo3, to: z73.enum(LIST_PURPOSES3) }),
+  fact3({ field: z73.literal("stopped"), ...YesNo3 }),
+  fact3({ field: z73.literal("standing"), op: IsOrNot3, value: z73.enum(LIST_STANDINGS3) }),
+  fact3({ field: z73.literal("assigned"), op: IsOrNot3, value: z73.enum(LIST_ASSIGNED3) }),
+  fact3({ field: z73.literal("deal_stage"), op: IsOrNot3, value: z73.enum(LIST_DEAL_STAGES3) }),
+  fact3({ field: z73.literal("consultation"), ...YesNo3 }),
+  fact3({ field: z73.literal("step_due"), ...YesNo3 }),
+  fact3({ field: z73.literal("in_list"), op: IsOrNot3, list: Token3 })
 ]);
-var AnySchema3 = z63.object({ any: z63.array(ListFactSchema3).min(2).max(LIST_ANY_MAX3) }).strict();
-var ListConditionSchema3 = z63.union([AnySchema3, ListFactSchema3]);
+var AnySchema3 = z73.object({ any: z73.array(ListFactSchema3).min(2).max(LIST_ANY_MAX3) }).strict();
+var ListConditionSchema3 = z73.union([AnySchema3, ListFactSchema3]);
 function factProblem3(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
@@ -12469,13 +12643,13 @@ function factProblem3(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
   return null;
 }
-var ListRuleSchema3 = z63.object({
-  v: z63.literal(2).optional(),
-  all: z63.array(ListConditionSchema3).min(1).max(LIST_RULE_MAX3)
+var ListRuleSchema3 = z73.object({
+  v: z73.literal(2).optional(),
+  all: z73.array(ListConditionSchema3).min(1).max(LIST_RULE_MAX3)
 }).strict().superRefine((r222, ctx) => {
   for (const f of r222.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem3(f);
-    if (p) ctx.addIssue({ code: z63.ZodIssueCode.custom, message: p });
+    if (p) ctx.addIssue({ code: z73.ZodIssueCode.custom, message: p });
   }
 });
 function ruleFacts3(rule) {
@@ -12597,10 +12771,10 @@ var LIST_DRAFT_JSON_SCHEMA3 = {
     }
   }
 };
-var ListDraftAnswerSchema3 = z63.object({
-  name: z63.string().trim().min(1).max(60),
-  cannot: z63.string().trim().max(200),
-  all: z63.array(z63.unknown()).max(LIST_RULE_MAX3)
+var ListDraftAnswerSchema3 = z73.object({
+  name: z73.string().trim().min(1).max(60),
+  cannot: z73.string().trim().max(200),
+  all: z73.array(z73.unknown()).max(LIST_RULE_MAX3)
 });
 var SAVED_ID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID3 = /^[a-z_]{1,40}$/;
@@ -12776,8 +12950,8 @@ var PEOPLE_LISTS3 = BUILTIN_LISTS3.map((l2) => {
     test: (vm) => listRuleMatches3(l2.rule, vm)
   };
 });
-var PeopleExportQuerySchema3 = z73.object({
-  list: z73.string().max(80).refine((t2) => parseListToken3(t2) !== null, "Name a list by its token.").optional()
+var PeopleExportQuerySchema3 = z83.object({
+  list: z83.string().max(80).refine((t2) => parseListToken3(t2) !== null, "Name a list by its token.").optional()
 });
 var LIMIT_TIERS3 = {
   TIER_50: 50,
@@ -12790,7 +12964,7 @@ var LIMIT_TIERS3 = {
 var REPLY_WINDOW_HOURS3 = 72;
 var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
 var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
-var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
+var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
 var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
@@ -12798,12 +12972,16 @@ var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
 var BOOTSTRAP_MS3 = 3600 * 1e3;
 var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS33 = 7 * 864e5;
+var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 var DATE_FMT33 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS3 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
+var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
+var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
 var SOLE_PROP_LIMITS3 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -12832,7 +13010,7 @@ var LEAD_MAP_STATE_WORDS3 = {
   out: `${LEAD_STAGE_WORDS3.archived} or ${LEAD_LEFT_OUT_WORD3.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
+var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS33;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
   campaign: POLICY_CLASS_WORDS3.campaign.short,
@@ -12840,6 +13018,8 @@ var PLAYBOOK_CLASS_LABEL3 = {
   follow_up: POLICY_CLASS_WORDS3.follow_up.short,
   outreach: POLICY_CLASS_WORDS3.outreach.short
 };
+var DAY_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS3 = 30 * 864e5;
 var TRY_QUIET_AFTER_MS3 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS3 = {
   chooseHeading: "How should calls reach your receptionist?",
@@ -12941,295 +13121,6 @@ var FIRST_RUN_PHONE_WORDS3 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
-var DAY_MS63 = 24 * 3600 * 1e3;
-var DAY_MS73 = 864e5;
-var QUIET_AFTER_MS3 = 7 * DAY_MS73;
-var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var CHANNEL_KIND_WORDS3 = {
-  whatsapp: "WhatsApp",
-  voice: "Phone line",
-  sms: "Texting",
-  email: "Email",
-  instagram: "Instagram"
-};
-var KIND_META3 = {
-  whatsapp: {
-    name: `${CHANNEL_KIND_WORDS3.whatsapp} Business`,
-    what: "Customers text this number; the receptionist answers",
-    icon: "chat",
-    noun: "message"
-  },
-  voice: {
-    name: CHANNEL_KIND_WORDS3.voice,
-    what: "Customers call this number; the receptionist picks up",
-    icon: "phone",
-    noun: "call"
-  },
-  sms: { name: CHANNEL_KIND_WORDS3.sms, what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
-};
-var SEARCH_WARN_MS3 = 12 * 36e5;
-var NOTE_SUGGEST_KINDS3 = ["preference", "timing", "contact", "sensitivity", "context"];
-var NOTE_SUGGEST_SCHEMA3 = {
-  type: "object",
-  properties: {
-    worth: { type: "boolean" },
-    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS3, "none"] },
-    text: { type: "string" },
-    quote: { type: "string" }
-  },
-  required: ["worth", "kind", "text", "quote"],
-  additionalProperties: false
-};
-var ASK_CITATION_KINDS3 = ["thread", "conversation", "call", "person", "page"];
-var ASK_LANGUAGES3 = ["en", "es", "other"];
-var ASK_UNDO_MS3 = 10 * 6e4;
-var AskProposalOutcomeSchema3 = z83.object({
-  state: z83.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z83.string().max(300).catch(""),
-  atMs: z83.number().catch(0),
-  undo: z83.record(z83.string(), z83.unknown()).nullable().optional()
-});
-var AskSettingsChangeSchema3 = z83.discriminatedUnion("op", [
-  z83.object({
-    op: z83.literal("add_closure"),
-    date: z83.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z83.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z83.string().max(200).optional()
-  }),
-  z83.object({
-    op: z83.literal("set_hours"),
-    day: z83.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z83.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z83.string().regex(/^\d{2}:\d{2}$/).nullable()
-  }),
-  z83.object({ op: z83.literal("add_note"), title: z83.string().min(1).max(80), text: z83.string().min(1).max(1200) }),
-  z83.object({
-    op: z83.literal("add_service"),
-    name: z83.string().min(1).max(80),
-    duration_min: z83.number().int().min(1).max(1440).optional()
-  })
-]);
-var ASK_ANSWER_CAPS3 = {
-  headline: 160,
-  detail: 700,
-  figures: 4,
-  items: 5,
-  parts: 4,
-  next: 2,
-  value: 24,
-  label: 60,
-  note: 60,
-  title: 80,
-  meta: 60,
-  line: 160,
-  question: 90
-};
-var C3 = ASK_ANSWER_CAPS3;
-var SOURCE3 = {
-  type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
-  properties: {
-    kind: { type: "string", enum: [...ASK_CITATION_KINDS3, "none"] },
-    id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C3.label} characters.` }
-  },
-  required: ["kind", "id", "label"],
-  additionalProperties: false
-};
-var ASK_ANSWER_FORMAT3 = {
-  type: "object",
-  properties: {
-    say: {
-      type: "object",
-      properties: {
-        headline: {
-          type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C3.headline} characters.`
-        },
-        detail: {
-          type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C3.detail} characters.`
-        }
-      },
-      required: ["headline", "detail"],
-      additionalProperties: false
-    },
-    show: {
-      type: "object",
-      properties: {
-        figures: {
-          type: "array",
-          description: `The numbers the headline rests on, at most ${C3.figures}; empty when there is none.`,
-          items: {
-            type: "object",
-            properties: {
-              value: {
-                type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C3.value} characters.`
-              },
-              label: { type: "string", description: `What it counts, at most ${C3.label} characters.` },
-              note: {
-                type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C3.note} characters.`
-              },
-              source: SOURCE3
-            },
-            required: ["value", "label", "note", "source"],
-            additionalProperties: false
-          }
-        },
-        items: {
-          type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C3.items}; empty when it names none. Each opens its row.`,
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C3.title} characters.` },
-              meta: {
-                type: "string",
-                description: `The channel and how long, or empty; at most ${C3.meta} characters.`
-              },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C3.line} characters.` },
-              source: SOURCE3
-            },
-            required: ["title", "meta", "line", "source"],
-            additionalProperties: false
-          }
-        },
-        breakdown: {
-          type: "object",
-          description: `One whole in its parts, at most ${C3.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
-          properties: {
-            label: {
-              type: "string",
-              description: `What the whole is ("customer messages"), at most ${C3.label} characters.`
-            },
-            total: { type: "number" },
-            parts: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  label: { type: "string", description: `At most ${C3.label} characters.` },
-                  value: { type: "number" },
-                  warn: { type: "boolean", description: "True for the one part that needs attention." }
-                },
-                required: ["label", "value", "warn"],
-                additionalProperties: false
-              }
-            },
-            source: SOURCE3
-          },
-          required: ["label", "total", "parts", "source"],
-          additionalProperties: false
-        }
-      },
-      required: ["figures", "items", "breakdown"],
-      additionalProperties: false
-    },
-    do: {
-      type: "object",
-      properties: {
-        open: {
-          type: "object",
-          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
-          properties: {
-            source: SOURCE3,
-            label: { type: "string", description: `The button's words, at most ${C3.label} characters.` },
-            now: {
-              type: "boolean",
-              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
-            }
-          },
-          required: ["source", "label", "now"],
-          additionalProperties: false
-        },
-        next: {
-          type: "array",
-          description: `Up to ${C3.next} short questions they might ask next, at most ${C3.question} characters each, never one about a place already offered; empty when nothing follows.`,
-          items: { type: "string" }
-        }
-      },
-      required: ["open", "next"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES3] }
-  },
-  required: ["say", "show", "do", "language"],
-  additionalProperties: false
-};
-var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var SIGNUP_NAME_MIN3 = 2;
-var SIGNUP_NAME_MAX3 = 120;
-var InviteCodeSchema3 = z93.string().trim().max(80);
-var SignupSchema3 = z93.object({
-  name: z93.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
-  email: z93.string().trim().toLowerCase().email("Enter a work email address.").max(254),
-  /**
-   * The credential, and the reason it is OPTIONAL here rather than required.
-   *
-   * The waitlist posture takes details and creates nothing -- no account, so
-   * no password -- and its form shows no such field. A schema that demanded
-   * one would refuse the queue, which is the posture a launch actually runs
-   * in. So the shape admits it and the CREATING path insists on it: the
-   * route calls `passwordProblem` the moment it knows the posture is not the
-   * list, and that one function is also what the page checks with, so the
-   * browser's rule and the server's rule cannot drift.
-   *
-   * The cap here is a body-size guard, not the rule; the rule is bytes.
-   */
-  password: z93.string().max(200).optional(),
-  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z93.string().trim().min(1).max(64).optional(),
-  /** The invite code, when sign-up is by invitation. */
-  code: InviteCodeSchema3.optional()
-}).strict();
-var PendingWorkspaceSchema3 = z93.object({
-  name: z93.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
-  // A clock Postgres would refuse is dropped here, so the owner's first Create
-  // never fails over a zone a stranger's device reported.
-  timezone: z93.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
-});
-function isTimezone3(raw) {
-  if (typeof raw !== "string" || !raw.trim()) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: raw });
-    return true;
-  } catch {
-    return false;
-  }
-}
-var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
-var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
-var DAY_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var REPUTATION_MEMORY_MS3 = 30 * 864e5;
-var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
-var PASSWORD_MIN3 = 12;
-var PASSWORD_WORDS3 = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN3} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var JUDGE_FACT_KEYS3 = [
   "name",
   "category",
@@ -13274,15 +13165,15 @@ var JUDGE_OUTPUT_SCHEMA3 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema3 = z103.object({
-  places: z103.array(
-    z103.object({
-      ref: z103.number().int(),
-      criteria: z103.array(
-        z103.object({ key: z103.string(), answer: z103.enum(["pass", "fail", "unknown"]), facts: z103.array(z103.string()) })
+var AnswerSchema3 = z93.object({
+  places: z93.array(
+    z93.object({
+      ref: z93.number().int(),
+      criteria: z93.array(
+        z93.object({ key: z93.string(), answer: z93.enum(["pass", "fail", "unknown"]), facts: z93.array(z93.string()) })
       ),
-      email_index: z103.number().int().nullable(),
-      reason: z103.string()
+      email_index: z93.number().int().nullable(),
+      reason: z93.string()
     })
   )
 });
@@ -13352,9 +13243,118 @@ var K3 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
+var DAY_MS73 = 864e5;
+var QUIET_AFTER_MS3 = 7 * DAY_MS73;
+var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS3 = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META3 = {
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS3.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS3.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
+  sms: { name: CHANNEL_KIND_WORDS3.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
+var NOTE_SUGGEST_KINDS3 = ["preference", "timing", "contact", "sensitivity", "context"];
+var NOTE_SUGGEST_SCHEMA3 = {
+  type: "object",
+  properties: {
+    worth: { type: "boolean" },
+    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS3, "none"] },
+    text: { type: "string" },
+    quote: { type: "string" }
+  },
+  required: ["worth", "kind", "text", "quote"],
+  additionalProperties: false
+};
 var NINE_TO_FIVE3 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME3 = { from: 8 * 60, to: 20 * 60 };
+var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS3 = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
+var DAY_MS103 = 24 * 3600 * 1e3;
+var SEARCH_WARN_MS3 = 12 * 36e5;
+var SIGNUP_NAME_MIN3 = 2;
+var SIGNUP_NAME_MAX3 = 120;
+var InviteCodeSchema3 = z103.string().trim().max(80);
+var SignupSchema3 = z103.object({
+  name: z103.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
+  email: z103.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: z103.string().max(200).optional(),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: z103.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: InviteCodeSchema3.optional()
+}).strict();
+var PendingWorkspaceSchema3 = z103.object({
+  name: z103.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: z103.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
+});
+function isTimezone3(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
+var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
+var PASSWORD_MIN3 = 12;
+var PASSWORD_WORDS3 = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN3} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
   {
@@ -13445,6 +13445,35 @@ var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
 z112.config({ jitless: true });
+var ASK_CITATION_KINDS22 = ["thread", "conversation", "call", "person", "page"];
+var ASK_LANGUAGES22 = ["en", "es", "other"];
+var ASK_UNDO_MS22 = 10 * 6e4;
+var AskProposalOutcomeSchema22 = z222.object({
+  state: z222.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z222.string().max(300).catch(""),
+  atMs: z222.number().catch(0),
+  undo: z222.record(z222.string(), z222.unknown()).nullable().optional()
+});
+var AskSettingsChangeSchema22 = z222.discriminatedUnion("op", [
+  z222.object({
+    op: z222.literal("add_closure"),
+    date: z222.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z222.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z222.string().max(200).optional()
+  }),
+  z222.object({
+    op: z222.literal("set_hours"),
+    day: z222.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z222.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z222.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
+  z222.object({ op: z222.literal("add_note"), title: z222.string().min(1).max(80), text: z222.string().min(1).max(1200) }),
+  z222.object({
+    op: z222.literal("add_service"),
+    name: z222.string().min(1).max(80),
+    duration_min: z222.number().int().min(1).max(1440).optional()
+  })
+]);
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -13457,6 +13486,42 @@ function normalizeEmail(raw) {
   const m = SHAPE22.exec(s2);
   if (!m || m[1].length > MAX_LOCAL) return null;
   return s2;
+}
+var PRIVATE_HOST22 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT22 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V622 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
+function feedUrlOk22(raw) {
+  if (!raw) return null;
+  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST22.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT22.test(h) || PRIVATE_V622.test(h))
+    return null;
+  return u.toString();
+}
+function feedProblemWords22(reason, status) {
+  switch (reason) {
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
+    default:
+      return null;
+  }
 }
 var EVENT_KINDS22 = [
   "message.received",
@@ -13673,153 +13738,6 @@ var DECISION_VERBS22 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-function isOptedOutContact(c2) {
-  return c2.consent === "opted_out" || c2.dnc === true;
-}
-function mayMessageFor(c2, purpose, opts = {}) {
-  if (isOptedOutContact(c2)) return { ok: false, reason: "opted_out" };
-  if (purpose === "outreach")
-    return c2.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
-  if (purpose === "marketing") {
-    return c2.marketing_consent === "opted_in" ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
-  }
-  if (opts.proactive && c2.consent !== "opted_in") return { ok: false, reason: "not_opted_in" };
-  return { ok: true, reason: null };
-}
-function purposeOfTemplate(category) {
-  return category === "utility" || category === "authentication" ? "conversational" : "marketing";
-}
-var DAY_MS22 = 864e5;
-var WEEK_MS42 = 7 * DAY_MS22;
-var BRAIN_INTENTS22 = [
-  "booking",
-  "pricing",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES22 = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA22 = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS22],
-      description: "What the customer is after."
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES22],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-var BrainOutputSchema22 = z222.object({
-  reply: z222.string(),
-  intent: z222.enum(BRAIN_INTENTS22).catch("other"),
-  escalate: z222.boolean().catch(false),
-  reason: z222.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
-  confidence: z222.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z222.array(z222.string()).catch([]).transform(
-    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
-  ),
-  language: z222.enum(BRAIN_LANGUAGES22).catch("other")
-});
-var WA_WINDOW_MS22 = 24 * 3600 * 1e3;
-var REPLY_LIMITS22 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY22 = Math.max(...Object.values(REPLY_LIMITS22).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS22 = 10 * 60 * 1e3;
-var RETENTION_DAYS22 = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
-  call_recordings: 90,
-  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
-  events_evidence: 30,
-  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
-  ask_threads: 90,
-  /** The bell's rows and their marks (purge_notifications, 00057). */
-  notifications: 90,
-  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
-  leads_untouched: 90,
-  leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
-  leads_excluded_blanked: 30
-};
-var RECORDING_RETENTION_DAYS22 = RETENTION_DAYS22.call_recordings;
-var RECORDING_PURGED_WORDS22 = `Recording removed after ${RECORDING_RETENTION_DAYS22} days; the transcript is kept`;
-var RECORDING_NOTE22 = {
-  none: "No recording",
-  pending: "Recording still processing",
-  failed: "Recording couldn't be saved",
-  purged: `Recording removed after ${RECORDING_RETENTION_DAYS22} days`
-};
-var PRIVATE_HOST22 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
-var CARRIER_NAT22 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
-var PRIVATE_V622 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
-function feedUrlOk22(raw) {
-  if (!raw) return null;
-  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const h = u.hostname;
-  if (PRIVATE_HOST22.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT22.test(h) || PRIVATE_V622.test(h))
-    return null;
-  return u.toString();
-}
-function feedProblemWords22(reason, status) {
-  switch (reason) {
-    case "address":
-      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable":
-      return "The calendar could not be reached. Check the address and try again.";
-    case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large":
-      return "That feed is too large to read (over 2 MB).";
-    case "not_ical":
-      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
-    case "settings":
-      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default:
-      return null;
-  }
-}
 var POLICY_CLASS_WORDS22 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -14150,31 +14068,6 @@ var TenantConfigWriteSchema22 = TenantConfigSchema22.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure22(c2, n2, ctx));
 });
-var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var LIVE_STALE_MS22 = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS22 = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS22 = 10 * 60 * 1e3;
-var REPLY_VIA22 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS22 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS22 = {
-  whatsapp: REPLY_VIA22.whatsapp,
-  sms: REPLY_VIA22.sms,
-  email: REPLY_VIA22.email,
-  call: PERSON_CHANNEL_WORDS22.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported",
-  lead: "A lead you found"
-};
 var LEAD_MEMBER_CLASSES22 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES22 = 1e3;
 var LEAD_QUESTION_WAIT_MS22 = 24 * 36e5;
@@ -14428,6 +14321,117 @@ var LeadSuggestAnswerSchema22 = z522.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS22 = 24 * 60 * 6e4;
+var DAY_MS222 = 864e5;
+var WEEK_MS42 = 7 * DAY_MS222;
+var BRAIN_INTENTS22 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var BRAIN_LANGUAGES22 = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA22 = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS22],
+      description: "What the customer is after."
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES22],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+var BrainOutputSchema22 = z622.object({
+  reply: z622.string(),
+  intent: z622.enum(BRAIN_INTENTS22).catch("other"),
+  escalate: z622.boolean().catch(false),
+  reason: z622.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
+  confidence: z622.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
+  facts_used: z622.array(z622.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
+  language: z622.enum(BRAIN_LANGUAGES22).catch("other")
+});
+function isOptedOutContact(c2) {
+  return c2.consent === "opted_out" || c2.dnc === true;
+}
+function mayMessageFor(c2, purpose, opts = {}) {
+  if (isOptedOutContact(c2)) return { ok: false, reason: "opted_out" };
+  if (purpose === "outreach")
+    return c2.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
+  if (purpose === "marketing") {
+    return c2.marketing_consent === "opted_in" ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
+  }
+  if (opts.proactive && c2.consent !== "opted_in") return { ok: false, reason: "not_opted_in" };
+  return { ok: true, reason: null };
+}
+function purposeOfTemplate(category) {
+  return category === "utility" || category === "authentication" ? "conversational" : "marketing";
+}
+var WA_WINDOW_MS22 = 24 * 3600 * 1e3;
+var REPLY_LIMITS22 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY22 = Math.max(...Object.values(REPLY_LIMITS22).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS22 = 10 * 60 * 1e3;
+var RETENTION_DAYS22 = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
+  leads_excluded_blanked: 30
+};
+var RECORDING_RETENTION_DAYS22 = RETENTION_DAYS22.call_recordings;
+var RECORDING_PURGED_WORDS22 = `Recording removed after ${RECORDING_RETENTION_DAYS22} days; the transcript is kept`;
+var RECORDING_NOTE22 = {
+  none: "No recording",
+  pending: "Recording still processing",
+  failed: "Recording couldn't be saved",
+  purged: `Recording removed after ${RECORDING_RETENTION_DAYS22} days`
+};
 var LEAD_FIRST_DAY_TITLE22 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB22 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT22 = "Claude finds businesses, not people at home.";
@@ -14521,34 +14525,154 @@ var LEAD_WORDS22 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var SELLS_BY_QUESTION22 = "How customers buy";
-var SELLS_BY_WORDS22 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
+var ASK_ANSWER_CAPS22 = {
+  headline: 160,
+  detail: 700,
+  figures: 4,
+  items: 5,
+  parts: 4,
+  next: 2,
+  value: 24,
+  label: 60,
+  note: 60,
+  title: 80,
+  meta: 60,
+  line: 160,
+  question: 90
 };
-var DAY_MS422 = 864e5;
-var WEEK_MS222 = 7 * DAY_MS422;
-var MONTH_MS22 = 30 * DAY_MS422;
-var NOTE_MAX22 = 600;
-var NOTE_REFUSALS22 = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX22} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done."
+var C22 = ASK_ANSWER_CAPS22;
+var SOURCE22 = {
+  type: "object",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  properties: {
+    kind: { type: "string", enum: [...ASK_CITATION_KINDS22, "none"] },
+    id: { type: "string" },
+    label: { type: "string", description: `A short name for it, at most ${C22.label} characters.` }
+  },
+  required: ["kind", "id", "label"],
+  additionalProperties: false
 };
-var PERSON_MODE_LABELS22 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS22 = {
-  ...PERSON_MODE_LABELS22,
-  inherit: "Follow the workspace"
+var ASK_ANSWER_FORMAT22 = {
+  type: "object",
+  properties: {
+    say: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C22.headline} characters.`
+        },
+        detail: {
+          type: "string",
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C22.detail} characters.`
+        }
+      },
+      required: ["headline", "detail"],
+      additionalProperties: false
+    },
+    show: {
+      type: "object",
+      properties: {
+        figures: {
+          type: "array",
+          description: `The numbers the headline rests on, at most ${C22.figures}; empty when there is none.`,
+          items: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                description: `The number as said: "5", "44%", "1 min"; at most ${C22.value} characters.`
+              },
+              label: { type: "string", description: `What it counts, at most ${C22.label} characters.` },
+              note: {
+                type: "string",
+                description: `How it compares ("up from 1"), or empty; at most ${C22.note} characters.`
+              },
+              source: SOURCE22
+            },
+            required: ["value", "label", "note", "source"],
+            additionalProperties: false
+          }
+        },
+        items: {
+          type: "array",
+          description: `The rows the answer names (people, threads, calls), at most ${C22.items}; empty when it names none. Each opens its row.`,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: `Who or what it is, at most ${C22.title} characters.` },
+              meta: {
+                type: "string",
+                description: `The channel and how long, or empty; at most ${C22.meta} characters.`
+              },
+              line: { type: "string", description: `Why it matters, in one line of at most ${C22.line} characters.` },
+              source: SOURCE22
+            },
+            required: ["title", "meta", "line", "source"],
+            additionalProperties: false
+          }
+        },
+        breakdown: {
+          type: "object",
+          description: `One whole in its parts, at most ${C22.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          properties: {
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C22.label} characters.`
+            },
+            total: { type: "number" },
+            parts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: `At most ${C22.label} characters.` },
+                  value: { type: "number" },
+                  warn: { type: "boolean", description: "True for the one part that needs attention." }
+                },
+                required: ["label", "value", "warn"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE22
+          },
+          required: ["label", "total", "parts", "source"],
+          additionalProperties: false
+        }
+      },
+      required: ["figures", "items", "breakdown"],
+      additionalProperties: false
+    },
+    do: {
+      type: "object",
+      properties: {
+        open: {
+          type: "object",
+          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
+          properties: {
+            source: SOURCE22,
+            label: { type: "string", description: `The button's words, at most ${C22.label} characters.` },
+            now: {
+              type: "boolean",
+              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
+            }
+          },
+          required: ["source", "label", "now"],
+          additionalProperties: false
+        },
+        next: {
+          type: "array",
+          description: `Up to ${C22.next} short questions they might ask next, at most ${C22.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          items: { type: "string" }
+        }
+      },
+      required: ["open", "next"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES22] }
+  },
+  required: ["say", "show", "do", "language"],
+  additionalProperties: false
 };
 var L22 = (id, name2, region, native) => ({
   id,
@@ -14714,7 +14838,7 @@ function resolveParams(specs, f) {
     }
   });
 }
-var DAY_MS522 = 864e5;
+var DAY_MS322 = 864e5;
 var SWEEP_TICK_MS22 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS22 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -14818,7 +14942,7 @@ var SENDING_HOURS_WORDS22 = {
   range: `${PLAYBOOK_HOURS22.min}:00\u2013${PLAYBOOK_HOURS22.max}:59`,
   between: `between ${PLAYBOOK_HOURS22.min}:00 and ${PLAYBOOK_HOURS22.max}:59`
 };
-var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS522;
+var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS322;
 var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
 var FIRST22 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS22 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -14836,6 +14960,56 @@ var PROPOSAL22 = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES22 = { ...PROPOSAL22, label: "Enlace de la propuesta" };
+var REPLY_VIA22 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS22 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
+var PERSON_CAME_FROM_WORDS22 = {
+  whatsapp: REPLY_VIA22.whatsapp,
+  sms: REPLY_VIA22.sms,
+  email: REPLY_VIA22.email,
+  call: PERSON_CHANNEL_WORDS22.voice,
+  calendar: "Your calendar",
+  manual: "Added by hand",
+  import: "Imported",
+  lead: "A lead you found"
+};
+var SELLS_BY_QUESTION22 = "How customers buy";
+var SELLS_BY_WORDS22 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+var DAY_MS522 = 864e5;
+var WEEK_MS222 = 7 * DAY_MS522;
+var MONTH_MS22 = 30 * DAY_MS522;
+var NOTE_MAX22 = 600;
+var NOTE_REFUSALS22 = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX22} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
+};
+var PERSON_MODE_LABELS22 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS22 = {
+  ...PERSON_MODE_LABELS22,
+  inherit: "Follow the workspace"
+};
 var LIST_NEEDS22 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS22 = [
   {
@@ -14963,36 +15137,36 @@ var LIST_DEAL_STAGES22 = ["consultation", "proposed", "won", "lost", "ended"];
 var LIST_RULE_MAX22 = 12;
 var LIST_ANY_MAX22 = 6;
 var DAY_OPS22 = ["more_than", "within", "never", "ever", "this_week"];
-var Days22 = { op: z622.enum(DAY_OPS22), days: z622.number().int().min(1).max(3650).optional() };
-var YesNo22 = { op: z622.literal("is"), yes: z622.boolean() };
-var Count22 = { op: z622.enum(["at_least", "at_most"]), n: z622.number().int().min(0).max(1e4) };
-var IsOrNot22 = z622.enum(["is", "is_not"]);
-var Token22 = z622.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact22 = (shape) => z622.object(shape).strict();
-var ListFactSchema22 = z622.discriminatedUnion("field", [
-  fact22({ field: z622.literal("last_visit"), ...Days22 }),
-  fact22({ field: z622.literal("next_visit"), ...Days22 }),
-  fact22({ field: z622.literal("booked"), ...YesNo22 }),
-  fact22({ field: z622.literal("asked_not_booked"), ...YesNo22 }),
-  fact22({ field: z622.literal("last_heard"), ...Days22 }),
-  fact22({ field: z622.literal("first_contact"), ...Days22 }),
-  fact22({ field: z622.literal("channel"), op: IsOrNot22, channel: z622.enum(CHANNELS22) }),
-  fact22({ field: z622.literal("came_from"), op: IsOrNot22, from: z622.enum(CAME_FROM22) }),
-  fact22({ field: z622.literal("calls"), ...Count22 }),
-  fact22({ field: z622.literal("conversations"), ...Count22 }),
-  fact22({ field: z622.literal("has_chat"), ...YesNo22 }),
-  fact22({ field: z622.literal("said_yes"), ...YesNo22, to: z622.enum(LIST_PURPOSES22) }),
-  fact22({ field: z622.literal("can_receive"), ...YesNo22, to: z622.enum(LIST_PURPOSES22) }),
-  fact22({ field: z622.literal("stopped"), ...YesNo22 }),
-  fact22({ field: z622.literal("standing"), op: IsOrNot22, value: z622.enum(LIST_STANDINGS22) }),
-  fact22({ field: z622.literal("assigned"), op: IsOrNot22, value: z622.enum(LIST_ASSIGNED22) }),
-  fact22({ field: z622.literal("deal_stage"), op: IsOrNot22, value: z622.enum(LIST_DEAL_STAGES22) }),
-  fact22({ field: z622.literal("consultation"), ...YesNo22 }),
-  fact22({ field: z622.literal("step_due"), ...YesNo22 }),
-  fact22({ field: z622.literal("in_list"), op: IsOrNot22, list: Token22 })
+var Days22 = { op: z722.enum(DAY_OPS22), days: z722.number().int().min(1).max(3650).optional() };
+var YesNo22 = { op: z722.literal("is"), yes: z722.boolean() };
+var Count22 = { op: z722.enum(["at_least", "at_most"]), n: z722.number().int().min(0).max(1e4) };
+var IsOrNot22 = z722.enum(["is", "is_not"]);
+var Token22 = z722.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact22 = (shape) => z722.object(shape).strict();
+var ListFactSchema22 = z722.discriminatedUnion("field", [
+  fact22({ field: z722.literal("last_visit"), ...Days22 }),
+  fact22({ field: z722.literal("next_visit"), ...Days22 }),
+  fact22({ field: z722.literal("booked"), ...YesNo22 }),
+  fact22({ field: z722.literal("asked_not_booked"), ...YesNo22 }),
+  fact22({ field: z722.literal("last_heard"), ...Days22 }),
+  fact22({ field: z722.literal("first_contact"), ...Days22 }),
+  fact22({ field: z722.literal("channel"), op: IsOrNot22, channel: z722.enum(CHANNELS22) }),
+  fact22({ field: z722.literal("came_from"), op: IsOrNot22, from: z722.enum(CAME_FROM22) }),
+  fact22({ field: z722.literal("calls"), ...Count22 }),
+  fact22({ field: z722.literal("conversations"), ...Count22 }),
+  fact22({ field: z722.literal("has_chat"), ...YesNo22 }),
+  fact22({ field: z722.literal("said_yes"), ...YesNo22, to: z722.enum(LIST_PURPOSES22) }),
+  fact22({ field: z722.literal("can_receive"), ...YesNo22, to: z722.enum(LIST_PURPOSES22) }),
+  fact22({ field: z722.literal("stopped"), ...YesNo22 }),
+  fact22({ field: z722.literal("standing"), op: IsOrNot22, value: z722.enum(LIST_STANDINGS22) }),
+  fact22({ field: z722.literal("assigned"), op: IsOrNot22, value: z722.enum(LIST_ASSIGNED22) }),
+  fact22({ field: z722.literal("deal_stage"), op: IsOrNot22, value: z722.enum(LIST_DEAL_STAGES22) }),
+  fact22({ field: z722.literal("consultation"), ...YesNo22 }),
+  fact22({ field: z722.literal("step_due"), ...YesNo22 }),
+  fact22({ field: z722.literal("in_list"), op: IsOrNot22, list: Token22 })
 ]);
-var AnySchema22 = z622.object({ any: z622.array(ListFactSchema22).min(2).max(LIST_ANY_MAX22) }).strict();
-var ListConditionSchema22 = z622.union([AnySchema22, ListFactSchema22]);
+var AnySchema22 = z722.object({ any: z722.array(ListFactSchema22).min(2).max(LIST_ANY_MAX22) }).strict();
+var ListConditionSchema22 = z722.union([AnySchema22, ListFactSchema22]);
 function factProblem22(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
@@ -15000,13 +15174,13 @@ function factProblem22(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
   return null;
 }
-var ListRuleSchema22 = z622.object({
-  v: z622.literal(2).optional(),
-  all: z622.array(ListConditionSchema22).min(1).max(LIST_RULE_MAX22)
+var ListRuleSchema22 = z722.object({
+  v: z722.literal(2).optional(),
+  all: z722.array(ListConditionSchema22).min(1).max(LIST_RULE_MAX22)
 }).strict().superRefine((r222, ctx) => {
   for (const f of r222.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem22(f);
-    if (p) ctx.addIssue({ code: z622.ZodIssueCode.custom, message: p });
+    if (p) ctx.addIssue({ code: z722.ZodIssueCode.custom, message: p });
   }
 });
 function ruleFacts22(rule) {
@@ -15128,10 +15302,10 @@ var LIST_DRAFT_JSON_SCHEMA22 = {
     }
   }
 };
-var ListDraftAnswerSchema22 = z622.object({
-  name: z622.string().trim().min(1).max(60),
-  cannot: z622.string().trim().max(200),
-  all: z622.array(z622.unknown()).max(LIST_RULE_MAX22)
+var ListDraftAnswerSchema22 = z722.object({
+  name: z722.string().trim().min(1).max(60),
+  cannot: z722.string().trim().max(200),
+  all: z722.array(z722.unknown()).max(LIST_RULE_MAX22)
 });
 var SAVED_ID22 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID22 = /^[a-z_]{1,40}$/;
@@ -15307,8 +15481,8 @@ var PEOPLE_LISTS22 = BUILTIN_LISTS22.map((l2) => {
     test: (vm) => listRuleMatches22(l2.rule, vm)
   };
 });
-var PeopleExportQuerySchema22 = z722.object({
-  list: z722.string().max(80).refine((t2) => parseListToken22(t2) !== null, "Name a list by its token.").optional()
+var PeopleExportQuerySchema22 = z822.object({
+  list: z822.string().max(80).refine((t2) => parseListToken22(t2) !== null, "Name a list by its token.").optional()
 });
 var LIMIT_TIERS22 = {
   TIER_50: 50,
@@ -15330,7 +15504,7 @@ function renderTemplate(body, params) {
   });
 }
 var OUTCOME_UNKNOWN = "outcome_unknown";
-var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
+var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REVIEW_AUTO_REPLY_MAX_AGE_MS22 = 14 * 864e5;
 var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS22 = 36 * 3600 * 1e3;
@@ -15338,12 +15512,16 @@ var REVIEW_NEWS_MAX_AGE_MS22 = 14 * 864e5;
 var BOOTSTRAP_MS22 = 3600 * 1e3;
 var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS322 = 7 * 864e5;
+var NAME_MAX22 = BrainConfigSchema22.shape.business_name.maxLength ?? Infinity;
 var DATE_FMT322 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS22 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
+var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
+var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
 var SOLE_PROP_LIMITS22 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -15372,7 +15550,7 @@ var LEAD_MAP_STATE_WORDS22 = {
   out: `${LEAD_STAGE_WORDS22.archived} or ${LEAD_LEFT_OUT_WORD22.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS22 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION22}\u201D with \u201C${SELLS_BY_WORDS22.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS522;
+var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS322;
 var PLAYBOOK_CLASS_LABEL22 = {
   reengage: POLICY_CLASS_WORDS22.reengage.short,
   campaign: POLICY_CLASS_WORDS22.campaign.short,
@@ -15380,6 +15558,18 @@ var PLAYBOOK_CLASS_LABEL22 = {
   follow_up: POLICY_CLASS_WORDS22.follow_up.short,
   outreach: POLICY_CLASS_WORDS22.outreach.short
 };
+var DAY_FMT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS22 = 30 * 864e5;
+var DOMAIN_RAMP = [
+  { days: 0, perDay: 30 },
+  { days: 14, perDay: 100 },
+  { days: 30, perDay: 200 }
+];
+function domainDailyCap(sentDays) {
+  let cap2 = 0;
+  for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap2 = step2.perDay;
+  return cap2;
+}
 var TRY_QUIET_AFTER_MS22 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS22 = {
   chooseHeading: "How should calls reach your receptionist?",
@@ -15481,305 +15671,6 @@ var FIRST_RUN_PHONE_WORDS22 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
-var DAY_MS622 = 24 * 3600 * 1e3;
-var DAY_MS722 = 864e5;
-var QUIET_AFTER_MS22 = 7 * DAY_MS722;
-var DATE_FMT422 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var CHANNEL_KIND_WORDS22 = {
-  whatsapp: "WhatsApp",
-  voice: "Phone line",
-  sms: "Texting",
-  email: "Email",
-  instagram: "Instagram"
-};
-var KIND_META22 = {
-  whatsapp: {
-    name: `${CHANNEL_KIND_WORDS22.whatsapp} Business`,
-    what: "Customers text this number; the receptionist answers",
-    icon: "chat",
-    noun: "message"
-  },
-  voice: {
-    name: CHANNEL_KIND_WORDS22.voice,
-    what: "Customers call this number; the receptionist picks up",
-    icon: "phone",
-    noun: "call"
-  },
-  sms: { name: CHANNEL_KIND_WORDS22.sms, what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: CHANNEL_KIND_WORDS22.email, what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: CHANNEL_KIND_WORDS22.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
-};
-var SEARCH_WARN_MS22 = 12 * 36e5;
-var NOTE_SUGGEST_KINDS22 = ["preference", "timing", "contact", "sensitivity", "context"];
-var NOTE_SUGGEST_SCHEMA22 = {
-  type: "object",
-  properties: {
-    worth: { type: "boolean" },
-    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS22, "none"] },
-    text: { type: "string" },
-    quote: { type: "string" }
-  },
-  required: ["worth", "kind", "text", "quote"],
-  additionalProperties: false
-};
-var ASK_CITATION_KINDS22 = ["thread", "conversation", "call", "person", "page"];
-var ASK_LANGUAGES22 = ["en", "es", "other"];
-var ASK_UNDO_MS22 = 10 * 6e4;
-var AskProposalOutcomeSchema22 = z822.object({
-  state: z822.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z822.string().max(300).catch(""),
-  atMs: z822.number().catch(0),
-  undo: z822.record(z822.string(), z822.unknown()).nullable().optional()
-});
-var AskSettingsChangeSchema22 = z822.discriminatedUnion("op", [
-  z822.object({
-    op: z822.literal("add_closure"),
-    date: z822.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z822.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z822.string().max(200).optional()
-  }),
-  z822.object({
-    op: z822.literal("set_hours"),
-    day: z822.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z822.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z822.string().regex(/^\d{2}:\d{2}$/).nullable()
-  }),
-  z822.object({ op: z822.literal("add_note"), title: z822.string().min(1).max(80), text: z822.string().min(1).max(1200) }),
-  z822.object({
-    op: z822.literal("add_service"),
-    name: z822.string().min(1).max(80),
-    duration_min: z822.number().int().min(1).max(1440).optional()
-  })
-]);
-var ASK_ANSWER_CAPS22 = {
-  headline: 160,
-  detail: 700,
-  figures: 4,
-  items: 5,
-  parts: 4,
-  next: 2,
-  value: 24,
-  label: 60,
-  note: 60,
-  title: 80,
-  meta: 60,
-  line: 160,
-  question: 90
-};
-var C22 = ASK_ANSWER_CAPS22;
-var SOURCE22 = {
-  type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
-  properties: {
-    kind: { type: "string", enum: [...ASK_CITATION_KINDS22, "none"] },
-    id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C22.label} characters.` }
-  },
-  required: ["kind", "id", "label"],
-  additionalProperties: false
-};
-var ASK_ANSWER_FORMAT22 = {
-  type: "object",
-  properties: {
-    say: {
-      type: "object",
-      properties: {
-        headline: {
-          type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C22.headline} characters.`
-        },
-        detail: {
-          type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C22.detail} characters.`
-        }
-      },
-      required: ["headline", "detail"],
-      additionalProperties: false
-    },
-    show: {
-      type: "object",
-      properties: {
-        figures: {
-          type: "array",
-          description: `The numbers the headline rests on, at most ${C22.figures}; empty when there is none.`,
-          items: {
-            type: "object",
-            properties: {
-              value: {
-                type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C22.value} characters.`
-              },
-              label: { type: "string", description: `What it counts, at most ${C22.label} characters.` },
-              note: {
-                type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C22.note} characters.`
-              },
-              source: SOURCE22
-            },
-            required: ["value", "label", "note", "source"],
-            additionalProperties: false
-          }
-        },
-        items: {
-          type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C22.items}; empty when it names none. Each opens its row.`,
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C22.title} characters.` },
-              meta: {
-                type: "string",
-                description: `The channel and how long, or empty; at most ${C22.meta} characters.`
-              },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C22.line} characters.` },
-              source: SOURCE22
-            },
-            required: ["title", "meta", "line", "source"],
-            additionalProperties: false
-          }
-        },
-        breakdown: {
-          type: "object",
-          description: `One whole in its parts, at most ${C22.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
-          properties: {
-            label: {
-              type: "string",
-              description: `What the whole is ("customer messages"), at most ${C22.label} characters.`
-            },
-            total: { type: "number" },
-            parts: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  label: { type: "string", description: `At most ${C22.label} characters.` },
-                  value: { type: "number" },
-                  warn: { type: "boolean", description: "True for the one part that needs attention." }
-                },
-                required: ["label", "value", "warn"],
-                additionalProperties: false
-              }
-            },
-            source: SOURCE22
-          },
-          required: ["label", "total", "parts", "source"],
-          additionalProperties: false
-        }
-      },
-      required: ["figures", "items", "breakdown"],
-      additionalProperties: false
-    },
-    do: {
-      type: "object",
-      properties: {
-        open: {
-          type: "object",
-          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
-          properties: {
-            source: SOURCE22,
-            label: { type: "string", description: `The button's words, at most ${C22.label} characters.` },
-            now: {
-              type: "boolean",
-              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
-            }
-          },
-          required: ["source", "label", "now"],
-          additionalProperties: false
-        },
-        next: {
-          type: "array",
-          description: `Up to ${C22.next} short questions they might ask next, at most ${C22.question} characters each, never one about a place already offered; empty when nothing follows.`,
-          items: { type: "string" }
-        }
-      },
-      required: ["open", "next"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES22] }
-  },
-  required: ["say", "show", "do", "language"],
-  additionalProperties: false
-};
-var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var SIGNUP_NAME_MIN22 = 2;
-var SIGNUP_NAME_MAX22 = 120;
-var InviteCodeSchema22 = z922.string().trim().max(80);
-var SignupSchema22 = z922.object({
-  name: z922.string().trim().min(SIGNUP_NAME_MIN22, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX22, "That name is too long \u2014 120 characters at most."),
-  email: z922.string().trim().toLowerCase().email("Enter a work email address.").max(254),
-  /**
-   * The credential, and the reason it is OPTIONAL here rather than required.
-   *
-   * The waitlist posture takes details and creates nothing -- no account, so
-   * no password -- and its form shows no such field. A schema that demanded
-   * one would refuse the queue, which is the posture a launch actually runs
-   * in. So the shape admits it and the CREATING path insists on it: the
-   * route calls `passwordProblem` the moment it knows the posture is not the
-   * list, and that one function is also what the page checks with, so the
-   * browser's rule and the server's rule cannot drift.
-   *
-   * The cap here is a body-size guard, not the rule; the rule is bytes.
-   */
-  password: z922.string().max(200).optional(),
-  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z922.string().trim().min(1).max(64).optional(),
-  /** The invite code, when sign-up is by invitation. */
-  code: InviteCodeSchema22.optional()
-}).strict();
-var PendingWorkspaceSchema22 = z922.object({
-  name: z922.string().trim().min(SIGNUP_NAME_MIN22).max(SIGNUP_NAME_MAX22),
-  // A clock Postgres would refuse is dropped here, so the owner's first Create
-  // never fails over a zone a stranger's device reported.
-  timezone: z922.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone22(v) ? v : null)
-});
-function isTimezone22(raw) {
-  if (typeof raw !== "string" || !raw.trim()) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: raw });
-    return true;
-  } catch {
-    return false;
-  }
-}
-var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
-var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
-var DAY_FMT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var REPUTATION_MEMORY_MS22 = 30 * 864e5;
-var DOMAIN_RAMP = [
-  { days: 0, perDay: 30 },
-  { days: 14, perDay: 100 },
-  { days: 30, perDay: 200 }
-];
-function domainDailyCap(sentDays) {
-  let cap2 = 0;
-  for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap2 = step2.perDay;
-  return cap2;
-}
-var ACTIVITY_KINDS22 = [...DECISION_VERBS22, ...EVENT_KINDS22];
-var PASSWORD_MIN22 = 12;
-var PASSWORD_WORDS22 = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN22} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var JUDGE_FACT_KEYS22 = [
   "name",
   "category",
@@ -15824,15 +15715,15 @@ var JUDGE_OUTPUT_SCHEMA22 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema22 = z1022.object({
-  places: z1022.array(
-    z1022.object({
-      ref: z1022.number().int(),
-      criteria: z1022.array(
-        z1022.object({ key: z1022.string(), answer: z1022.enum(["pass", "fail", "unknown"]), facts: z1022.array(z1022.string()) })
+var AnswerSchema22 = z922.object({
+  places: z922.array(
+    z922.object({
+      ref: z922.number().int(),
+      criteria: z922.array(
+        z922.object({ key: z922.string(), answer: z922.enum(["pass", "fail", "unknown"]), facts: z922.array(z922.string()) })
       ),
-      email_index: z1022.number().int().nullable(),
-      reason: z1022.string()
+      email_index: z922.number().int().nullable(),
+      reason: z922.string()
     })
   )
 });
@@ -15902,7 +15793,45 @@ var K22 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var NAME_MAX22 = BrainConfigSchema22.shape.business_name.maxLength ?? Infinity;
+var DAY_MS722 = 864e5;
+var QUIET_AFTER_MS22 = 7 * DAY_MS722;
+var DATE_FMT422 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS22 = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META22 = {
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS22.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS22.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
+  sms: { name: CHANNEL_KIND_WORDS22.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS22.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS22.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
+var NOTE_SUGGEST_KINDS22 = ["preference", "timing", "contact", "sensitivity", "context"];
+var NOTE_SUGGEST_SCHEMA22 = {
+  type: "object",
+  properties: {
+    worth: { type: "boolean" },
+    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS22, "none"] },
+    text: { type: "string" },
+    quote: { type: "string" }
+  },
+  required: ["worth", "kind", "text", "quote"],
+  additionalProperties: false
+};
 function isCampaignEmail2(request) {
   const headers = request?.headers;
   const v = headers?.["List-Unsubscribe"];
@@ -15920,10 +15849,146 @@ function outreachRefusalOf(f) {
 function isReachOutRun(audience) {
   return !!audience && typeof audience === "object" && audience.kind === "reach_out";
 }
+var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS22 = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS22 = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS22 = 10 * 60 * 1e3;
+var DAY_MS1022 = 24 * 3600 * 1e3;
+var SEARCH_WARN_MS22 = 12 * 36e5;
+var SIGNUP_NAME_MIN22 = 2;
+var SIGNUP_NAME_MAX22 = 120;
+var InviteCodeSchema22 = z1022.string().trim().max(80);
+var SignupSchema22 = z1022.object({
+  name: z1022.string().trim().min(SIGNUP_NAME_MIN22, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX22, "That name is too long \u2014 120 characters at most."),
+  email: z1022.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: z1022.string().max(200).optional(),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: z1022.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: InviteCodeSchema22.optional()
+}).strict();
+var PendingWorkspaceSchema22 = z1022.object({
+  name: z1022.string().trim().min(SIGNUP_NAME_MIN22).max(SIGNUP_NAME_MAX22),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: z1022.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone22(v) ? v : null)
+});
+function isTimezone22(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
+var ACTIVITY_KINDS22 = [...DECISION_VERBS22, ...EVENT_KINDS22];
+var PASSWORD_MIN22 = 12;
+var PASSWORD_WORDS22 = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN22} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 z122.config({ jitless: true });
+var ASK_CITATION_KINDS32 = ["thread", "conversation", "call", "person", "page"];
+var ASK_LANGUAGES32 = ["en", "es", "other"];
+var ASK_UNDO_MS32 = 10 * 6e4;
+var AskProposalOutcomeSchema32 = z232.object({
+  state: z232.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z232.string().max(300).catch(""),
+  atMs: z232.number().catch(0),
+  undo: z232.record(z232.string(), z232.unknown()).nullable().optional()
+});
+var AskSettingsChangeSchema32 = z232.discriminatedUnion("op", [
+  z232.object({
+    op: z232.literal("add_closure"),
+    date: z232.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z232.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z232.string().max(200).optional()
+  }),
+  z232.object({
+    op: z232.literal("set_hours"),
+    day: z232.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z232.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z232.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
+  z232.object({ op: z232.literal("add_note"), title: z232.string().min(1).max(80), text: z232.string().min(1).max(1200) }),
+  z232.object({
+    op: z232.literal("add_service"),
+    name: z232.string().min(1).max(80),
+    duration_min: z232.number().int().min(1).max(1440).optional()
+  })
+]);
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
+var PRIVATE_HOST32 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT32 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V632 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
+function feedUrlOk32(raw) {
+  if (!raw) return null;
+  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST32.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT32.test(h) || PRIVATE_V632.test(h))
+    return null;
+  return u.toString();
+}
+function feedProblemWords32(reason, status) {
+  switch (reason) {
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
+    default:
+      return null;
+  }
+}
 var EVENT_KINDS32 = [
   "message.received",
   "message.sent",
@@ -16139,137 +16204,6 @@ var DECISION_VERBS32 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var DAY_MS8 = 864e5;
-var WEEK_MS52 = 7 * DAY_MS8;
-var BRAIN_INTENTS32 = [
-  "booking",
-  "pricing",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES32 = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA32 = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS32],
-      description: "What the customer is after."
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES32],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-var BrainOutputSchema32 = z232.object({
-  reply: z232.string(),
-  intent: z232.enum(BRAIN_INTENTS32).catch("other"),
-  escalate: z232.boolean().catch(false),
-  reason: z232.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
-  confidence: z232.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z232.array(z232.string()).catch([]).transform(
-    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
-  ),
-  language: z232.enum(BRAIN_LANGUAGES32).catch("other")
-});
-var WA_WINDOW_MS32 = 24 * 3600 * 1e3;
-var REPLY_LIMITS32 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY32 = Math.max(...Object.values(REPLY_LIMITS32).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS32 = 10 * 60 * 1e3;
-var RETENTION_DAYS32 = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
-  call_recordings: 90,
-  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
-  events_evidence: 30,
-  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
-  ask_threads: 90,
-  /** The bell's rows and their marks (purge_notifications, 00057). */
-  notifications: 90,
-  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
-  leads_untouched: 90,
-  leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
-  leads_excluded_blanked: 30
-};
-var RECORDING_RETENTION_DAYS32 = RETENTION_DAYS32.call_recordings;
-var RECORDING_PURGED_WORDS32 = `Recording removed after ${RECORDING_RETENTION_DAYS32} days; the transcript is kept`;
-var RECORDING_NOTE32 = {
-  none: "No recording",
-  pending: "Recording still processing",
-  failed: "Recording couldn't be saved",
-  purged: `Recording removed after ${RECORDING_RETENTION_DAYS32} days`
-};
-var PRIVATE_HOST32 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
-var CARRIER_NAT32 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
-var PRIVATE_V632 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
-function feedUrlOk32(raw) {
-  if (!raw) return null;
-  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const h = u.hostname;
-  if (PRIVATE_HOST32.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT32.test(h) || PRIVATE_V632.test(h))
-    return null;
-  return u.toString();
-}
-function feedProblemWords32(reason, status) {
-  switch (reason) {
-    case "address":
-      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable":
-      return "The calendar could not be reached. Check the address and try again.";
-    case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large":
-      return "That feed is too large to read (over 2 MB).";
-    case "not_ical":
-      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
-    case "settings":
-      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default:
-      return null;
-  }
-}
 var POLICY_CLASS_WORDS32 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -16600,31 +16534,6 @@ var TenantConfigWriteSchema32 = TenantConfigSchema32.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure32(c2, n2, ctx));
 });
-var SHORT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var LIVE_STALE_MS32 = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS32 = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS32 = 10 * 60 * 1e3;
-var REPLY_VIA32 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS32 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS32 = {
-  whatsapp: REPLY_VIA32.whatsapp,
-  sms: REPLY_VIA32.sms,
-  email: REPLY_VIA32.email,
-  call: PERSON_CHANNEL_WORDS32.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported",
-  lead: "A lead you found"
-};
 var LEAD_MEMBER_CLASSES32 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES32 = 1e3;
 var LEAD_QUESTION_WAIT_MS32 = 24 * 36e5;
@@ -16878,6 +16787,101 @@ var LeadSuggestAnswerSchema32 = z532.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS32 = 24 * 60 * 6e4;
+var DAY_MS232 = 864e5;
+var WEEK_MS52 = 7 * DAY_MS232;
+var BRAIN_INTENTS32 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var BRAIN_LANGUAGES32 = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA32 = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS32],
+      description: "What the customer is after."
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES32],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+var BrainOutputSchema32 = z632.object({
+  reply: z632.string(),
+  intent: z632.enum(BRAIN_INTENTS32).catch("other"),
+  escalate: z632.boolean().catch(false),
+  reason: z632.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
+  confidence: z632.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
+  facts_used: z632.array(z632.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
+  language: z632.enum(BRAIN_LANGUAGES32).catch("other")
+});
+var WA_WINDOW_MS32 = 24 * 3600 * 1e3;
+var REPLY_LIMITS32 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY32 = Math.max(...Object.values(REPLY_LIMITS32).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS32 = 10 * 60 * 1e3;
+var RETENTION_DAYS32 = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
+  leads_excluded_blanked: 30
+};
+var RECORDING_RETENTION_DAYS32 = RETENTION_DAYS32.call_recordings;
+var RECORDING_PURGED_WORDS32 = `Recording removed after ${RECORDING_RETENTION_DAYS32} days; the transcript is kept`;
+var RECORDING_NOTE32 = {
+  none: "No recording",
+  pending: "Recording still processing",
+  failed: "Recording couldn't be saved",
+  purged: `Recording removed after ${RECORDING_RETENTION_DAYS32} days`
+};
 var LEAD_FIRST_DAY_TITLE32 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB32 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT32 = "Claude finds businesses, not people at home.";
@@ -16971,34 +16975,154 @@ var LEAD_WORDS32 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var SELLS_BY_QUESTION32 = "How customers buy";
-var SELLS_BY_WORDS32 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
+var ASK_ANSWER_CAPS32 = {
+  headline: 160,
+  detail: 700,
+  figures: 4,
+  items: 5,
+  parts: 4,
+  next: 2,
+  value: 24,
+  label: 60,
+  note: 60,
+  title: 80,
+  meta: 60,
+  line: 160,
+  question: 90
 };
-var DAY_MS432 = 864e5;
-var WEEK_MS232 = 7 * DAY_MS432;
-var MONTH_MS32 = 30 * DAY_MS432;
-var NOTE_MAX32 = 600;
-var NOTE_REFUSALS32 = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX32} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done."
+var C32 = ASK_ANSWER_CAPS32;
+var SOURCE32 = {
+  type: "object",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  properties: {
+    kind: { type: "string", enum: [...ASK_CITATION_KINDS32, "none"] },
+    id: { type: "string" },
+    label: { type: "string", description: `A short name for it, at most ${C32.label} characters.` }
+  },
+  required: ["kind", "id", "label"],
+  additionalProperties: false
 };
-var PERSON_MODE_LABELS32 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS32 = {
-  ...PERSON_MODE_LABELS32,
-  inherit: "Follow the workspace"
+var ASK_ANSWER_FORMAT32 = {
+  type: "object",
+  properties: {
+    say: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C32.headline} characters.`
+        },
+        detail: {
+          type: "string",
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C32.detail} characters.`
+        }
+      },
+      required: ["headline", "detail"],
+      additionalProperties: false
+    },
+    show: {
+      type: "object",
+      properties: {
+        figures: {
+          type: "array",
+          description: `The numbers the headline rests on, at most ${C32.figures}; empty when there is none.`,
+          items: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                description: `The number as said: "5", "44%", "1 min"; at most ${C32.value} characters.`
+              },
+              label: { type: "string", description: `What it counts, at most ${C32.label} characters.` },
+              note: {
+                type: "string",
+                description: `How it compares ("up from 1"), or empty; at most ${C32.note} characters.`
+              },
+              source: SOURCE32
+            },
+            required: ["value", "label", "note", "source"],
+            additionalProperties: false
+          }
+        },
+        items: {
+          type: "array",
+          description: `The rows the answer names (people, threads, calls), at most ${C32.items}; empty when it names none. Each opens its row.`,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: `Who or what it is, at most ${C32.title} characters.` },
+              meta: {
+                type: "string",
+                description: `The channel and how long, or empty; at most ${C32.meta} characters.`
+              },
+              line: { type: "string", description: `Why it matters, in one line of at most ${C32.line} characters.` },
+              source: SOURCE32
+            },
+            required: ["title", "meta", "line", "source"],
+            additionalProperties: false
+          }
+        },
+        breakdown: {
+          type: "object",
+          description: `One whole in its parts, at most ${C32.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          properties: {
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C32.label} characters.`
+            },
+            total: { type: "number" },
+            parts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: `At most ${C32.label} characters.` },
+                  value: { type: "number" },
+                  warn: { type: "boolean", description: "True for the one part that needs attention." }
+                },
+                required: ["label", "value", "warn"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE32
+          },
+          required: ["label", "total", "parts", "source"],
+          additionalProperties: false
+        }
+      },
+      required: ["figures", "items", "breakdown"],
+      additionalProperties: false
+    },
+    do: {
+      type: "object",
+      properties: {
+        open: {
+          type: "object",
+          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
+          properties: {
+            source: SOURCE32,
+            label: { type: "string", description: `The button's words, at most ${C32.label} characters.` },
+            now: {
+              type: "boolean",
+              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
+            }
+          },
+          required: ["source", "label", "now"],
+          additionalProperties: false
+        },
+        next: {
+          type: "array",
+          description: `Up to ${C32.next} short questions they might ask next, at most ${C32.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          items: { type: "string" }
+        }
+      },
+      required: ["open", "next"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES32] }
+  },
+  required: ["say", "show", "do", "language"],
+  additionalProperties: false
 };
 var L32 = (id, name2, region, native) => ({
   id,
@@ -17121,7 +17245,7 @@ var WHATSAPP_LANGUAGES32 = [
   L32("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID32 = new Map(WHATSAPP_LANGUAGES32.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS532 = 864e5;
+var DAY_MS332 = 864e5;
 var SWEEP_TICK_MS32 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS32 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -17225,7 +17349,7 @@ var SENDING_HOURS_WORDS32 = {
   range: `${PLAYBOOK_HOURS32.min}:00\u2013${PLAYBOOK_HOURS32.max}:59`,
   between: `between ${PLAYBOOK_HOURS32.min}:00 and ${PLAYBOOK_HOURS32.max}:59`
 };
-var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS532;
+var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS332;
 var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
 var FIRST32 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS32 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -17243,6 +17367,56 @@ var PROPOSAL32 = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES32 = { ...PROPOSAL32, label: "Enlace de la propuesta" };
+var REPLY_VIA32 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS32 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
+var PERSON_CAME_FROM_WORDS32 = {
+  whatsapp: REPLY_VIA32.whatsapp,
+  sms: REPLY_VIA32.sms,
+  email: REPLY_VIA32.email,
+  call: PERSON_CHANNEL_WORDS32.voice,
+  calendar: "Your calendar",
+  manual: "Added by hand",
+  import: "Imported",
+  lead: "A lead you found"
+};
+var SELLS_BY_QUESTION32 = "How customers buy";
+var SELLS_BY_WORDS32 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+var DAY_MS532 = 864e5;
+var WEEK_MS232 = 7 * DAY_MS532;
+var MONTH_MS32 = 30 * DAY_MS532;
+var NOTE_MAX32 = 600;
+var NOTE_REFUSALS32 = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX32} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
+};
+var PERSON_MODE_LABELS32 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS32 = {
+  ...PERSON_MODE_LABELS32,
+  inherit: "Follow the workspace"
+};
 var LIST_NEEDS32 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS32 = [
   {
@@ -17370,36 +17544,36 @@ var LIST_DEAL_STAGES32 = ["consultation", "proposed", "won", "lost", "ended"];
 var LIST_RULE_MAX32 = 12;
 var LIST_ANY_MAX32 = 6;
 var DAY_OPS32 = ["more_than", "within", "never", "ever", "this_week"];
-var Days32 = { op: z632.enum(DAY_OPS32), days: z632.number().int().min(1).max(3650).optional() };
-var YesNo32 = { op: z632.literal("is"), yes: z632.boolean() };
-var Count32 = { op: z632.enum(["at_least", "at_most"]), n: z632.number().int().min(0).max(1e4) };
-var IsOrNot32 = z632.enum(["is", "is_not"]);
-var Token32 = z632.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact32 = (shape) => z632.object(shape).strict();
-var ListFactSchema32 = z632.discriminatedUnion("field", [
-  fact32({ field: z632.literal("last_visit"), ...Days32 }),
-  fact32({ field: z632.literal("next_visit"), ...Days32 }),
-  fact32({ field: z632.literal("booked"), ...YesNo32 }),
-  fact32({ field: z632.literal("asked_not_booked"), ...YesNo32 }),
-  fact32({ field: z632.literal("last_heard"), ...Days32 }),
-  fact32({ field: z632.literal("first_contact"), ...Days32 }),
-  fact32({ field: z632.literal("channel"), op: IsOrNot32, channel: z632.enum(CHANNELS32) }),
-  fact32({ field: z632.literal("came_from"), op: IsOrNot32, from: z632.enum(CAME_FROM32) }),
-  fact32({ field: z632.literal("calls"), ...Count32 }),
-  fact32({ field: z632.literal("conversations"), ...Count32 }),
-  fact32({ field: z632.literal("has_chat"), ...YesNo32 }),
-  fact32({ field: z632.literal("said_yes"), ...YesNo32, to: z632.enum(LIST_PURPOSES32) }),
-  fact32({ field: z632.literal("can_receive"), ...YesNo32, to: z632.enum(LIST_PURPOSES32) }),
-  fact32({ field: z632.literal("stopped"), ...YesNo32 }),
-  fact32({ field: z632.literal("standing"), op: IsOrNot32, value: z632.enum(LIST_STANDINGS32) }),
-  fact32({ field: z632.literal("assigned"), op: IsOrNot32, value: z632.enum(LIST_ASSIGNED32) }),
-  fact32({ field: z632.literal("deal_stage"), op: IsOrNot32, value: z632.enum(LIST_DEAL_STAGES32) }),
-  fact32({ field: z632.literal("consultation"), ...YesNo32 }),
-  fact32({ field: z632.literal("step_due"), ...YesNo32 }),
-  fact32({ field: z632.literal("in_list"), op: IsOrNot32, list: Token32 })
+var Days32 = { op: z732.enum(DAY_OPS32), days: z732.number().int().min(1).max(3650).optional() };
+var YesNo32 = { op: z732.literal("is"), yes: z732.boolean() };
+var Count32 = { op: z732.enum(["at_least", "at_most"]), n: z732.number().int().min(0).max(1e4) };
+var IsOrNot32 = z732.enum(["is", "is_not"]);
+var Token32 = z732.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact32 = (shape) => z732.object(shape).strict();
+var ListFactSchema32 = z732.discriminatedUnion("field", [
+  fact32({ field: z732.literal("last_visit"), ...Days32 }),
+  fact32({ field: z732.literal("next_visit"), ...Days32 }),
+  fact32({ field: z732.literal("booked"), ...YesNo32 }),
+  fact32({ field: z732.literal("asked_not_booked"), ...YesNo32 }),
+  fact32({ field: z732.literal("last_heard"), ...Days32 }),
+  fact32({ field: z732.literal("first_contact"), ...Days32 }),
+  fact32({ field: z732.literal("channel"), op: IsOrNot32, channel: z732.enum(CHANNELS32) }),
+  fact32({ field: z732.literal("came_from"), op: IsOrNot32, from: z732.enum(CAME_FROM32) }),
+  fact32({ field: z732.literal("calls"), ...Count32 }),
+  fact32({ field: z732.literal("conversations"), ...Count32 }),
+  fact32({ field: z732.literal("has_chat"), ...YesNo32 }),
+  fact32({ field: z732.literal("said_yes"), ...YesNo32, to: z732.enum(LIST_PURPOSES32) }),
+  fact32({ field: z732.literal("can_receive"), ...YesNo32, to: z732.enum(LIST_PURPOSES32) }),
+  fact32({ field: z732.literal("stopped"), ...YesNo32 }),
+  fact32({ field: z732.literal("standing"), op: IsOrNot32, value: z732.enum(LIST_STANDINGS32) }),
+  fact32({ field: z732.literal("assigned"), op: IsOrNot32, value: z732.enum(LIST_ASSIGNED32) }),
+  fact32({ field: z732.literal("deal_stage"), op: IsOrNot32, value: z732.enum(LIST_DEAL_STAGES32) }),
+  fact32({ field: z732.literal("consultation"), ...YesNo32 }),
+  fact32({ field: z732.literal("step_due"), ...YesNo32 }),
+  fact32({ field: z732.literal("in_list"), op: IsOrNot32, list: Token32 })
 ]);
-var AnySchema32 = z632.object({ any: z632.array(ListFactSchema32).min(2).max(LIST_ANY_MAX32) }).strict();
-var ListConditionSchema32 = z632.union([AnySchema32, ListFactSchema32]);
+var AnySchema32 = z732.object({ any: z732.array(ListFactSchema32).min(2).max(LIST_ANY_MAX32) }).strict();
+var ListConditionSchema32 = z732.union([AnySchema32, ListFactSchema32]);
 function factProblem32(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
@@ -17407,13 +17581,13 @@ function factProblem32(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
   return null;
 }
-var ListRuleSchema32 = z632.object({
-  v: z632.literal(2).optional(),
-  all: z632.array(ListConditionSchema32).min(1).max(LIST_RULE_MAX32)
+var ListRuleSchema32 = z732.object({
+  v: z732.literal(2).optional(),
+  all: z732.array(ListConditionSchema32).min(1).max(LIST_RULE_MAX32)
 }).strict().superRefine((r222, ctx) => {
   for (const f of r222.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem32(f);
-    if (p) ctx.addIssue({ code: z632.ZodIssueCode.custom, message: p });
+    if (p) ctx.addIssue({ code: z732.ZodIssueCode.custom, message: p });
   }
 });
 function ruleFacts32(rule) {
@@ -17535,10 +17709,10 @@ var LIST_DRAFT_JSON_SCHEMA32 = {
     }
   }
 };
-var ListDraftAnswerSchema32 = z632.object({
-  name: z632.string().trim().min(1).max(60),
-  cannot: z632.string().trim().max(200),
-  all: z632.array(z632.unknown()).max(LIST_RULE_MAX32)
+var ListDraftAnswerSchema32 = z732.object({
+  name: z732.string().trim().min(1).max(60),
+  cannot: z732.string().trim().max(200),
+  all: z732.array(z732.unknown()).max(LIST_RULE_MAX32)
 });
 var SAVED_ID32 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID32 = /^[a-z_]{1,40}$/;
@@ -17714,8 +17888,8 @@ var PEOPLE_LISTS32 = BUILTIN_LISTS32.map((l2) => {
     test: (vm) => listRuleMatches32(l2.rule, vm)
   };
 });
-var PeopleExportQuerySchema32 = z732.object({
-  list: z732.string().max(80).refine((t2) => parseListToken32(t2) !== null, "Name a list by its token.").optional()
+var PeopleExportQuerySchema32 = z832.object({
+  list: z832.string().max(80).refine((t2) => parseListToken32(t2) !== null, "Name a list by its token.").optional()
 });
 var LIMIT_TIERS32 = {
   TIER_50: 50,
@@ -17728,7 +17902,7 @@ var LIMIT_TIERS32 = {
 var REPLY_WINDOW_HOURS32 = 72;
 var REPLY_WINDOW_MS32 = REPLY_WINDOW_HOURS32 * 36e5;
 var REPLY_WINDOW_WORDS32 = `within ${REPLY_WINDOW_HOURS32 / 24} days`;
-var FORWARDING_TEST_WINDOW_MS32 = 30 * 6e4;
+var SHORT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REVIEW_AUTO_REPLY_MAX_AGE_MS32 = 14 * 864e5;
 var DATE_FMT62 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS32 = 36 * 3600 * 1e3;
@@ -17736,12 +17910,16 @@ var REVIEW_NEWS_MAX_AGE_MS32 = 14 * 864e5;
 var BOOTSTRAP_MS32 = 3600 * 1e3;
 var DATE_FMT232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS332 = 7 * 864e5;
+var NAME_MAX32 = BrainConfigSchema32.shape.business_name.maxLength ?? Infinity;
 var DATE_FMT332 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS32 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var CONSENT_PHRASE32 = OFFERS_OPT_IN_PHRASES32.en;
+var CONSENT_PHRASE_ES32 = OFFERS_OPT_IN_PHRASES32.es;
+var FORWARDING_TEST_WINDOW_MS32 = 30 * 6e4;
 var SOLE_PROP_LIMITS32 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -17770,7 +17948,7 @@ var LEAD_MAP_STATE_WORDS32 = {
   out: `${LEAD_STAGE_WORDS32.archived} or ${LEAD_LEFT_OUT_WORD32.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS32 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION32}\u201D with \u201C${SELLS_BY_WORDS32.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS32 = (365 + 7) * DAY_MS532;
+var PLAYBOOK_TOUCH_WINDOW_MS32 = (365 + 7) * DAY_MS332;
 var PLAYBOOK_CLASS_LABEL32 = {
   reengage: POLICY_CLASS_WORDS32.reengage.short,
   campaign: POLICY_CLASS_WORDS32.campaign.short,
@@ -17778,6 +17956,8 @@ var PLAYBOOK_CLASS_LABEL32 = {
   follow_up: POLICY_CLASS_WORDS32.follow_up.short,
   outreach: POLICY_CLASS_WORDS32.outreach.short
 };
+var DAY_FMT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS32 = 30 * 864e5;
 var TRY_QUIET_AFTER_MS32 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS32 = {
   chooseHeading: "How should calls reach your receptionist?",
@@ -17879,295 +18059,6 @@ var FIRST_RUN_PHONE_WORDS32 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
-var DAY_MS632 = 24 * 3600 * 1e3;
-var DAY_MS732 = 864e5;
-var QUIET_AFTER_MS32 = 7 * DAY_MS732;
-var DATE_FMT432 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var CHANNEL_KIND_WORDS32 = {
-  whatsapp: "WhatsApp",
-  voice: "Phone line",
-  sms: "Texting",
-  email: "Email",
-  instagram: "Instagram"
-};
-var KIND_META32 = {
-  whatsapp: {
-    name: `${CHANNEL_KIND_WORDS32.whatsapp} Business`,
-    what: "Customers text this number; the receptionist answers",
-    icon: "chat",
-    noun: "message"
-  },
-  voice: {
-    name: CHANNEL_KIND_WORDS32.voice,
-    what: "Customers call this number; the receptionist picks up",
-    icon: "phone",
-    noun: "call"
-  },
-  sms: { name: CHANNEL_KIND_WORDS32.sms, what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: CHANNEL_KIND_WORDS32.email, what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: CHANNEL_KIND_WORDS32.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
-};
-var SEARCH_WARN_MS32 = 12 * 36e5;
-var NOTE_SUGGEST_KINDS32 = ["preference", "timing", "contact", "sensitivity", "context"];
-var NOTE_SUGGEST_SCHEMA32 = {
-  type: "object",
-  properties: {
-    worth: { type: "boolean" },
-    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS32, "none"] },
-    text: { type: "string" },
-    quote: { type: "string" }
-  },
-  required: ["worth", "kind", "text", "quote"],
-  additionalProperties: false
-};
-var ASK_CITATION_KINDS32 = ["thread", "conversation", "call", "person", "page"];
-var ASK_LANGUAGES32 = ["en", "es", "other"];
-var ASK_UNDO_MS32 = 10 * 6e4;
-var AskProposalOutcomeSchema32 = z832.object({
-  state: z832.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z832.string().max(300).catch(""),
-  atMs: z832.number().catch(0),
-  undo: z832.record(z832.string(), z832.unknown()).nullable().optional()
-});
-var AskSettingsChangeSchema32 = z832.discriminatedUnion("op", [
-  z832.object({
-    op: z832.literal("add_closure"),
-    date: z832.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z832.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z832.string().max(200).optional()
-  }),
-  z832.object({
-    op: z832.literal("set_hours"),
-    day: z832.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z832.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z832.string().regex(/^\d{2}:\d{2}$/).nullable()
-  }),
-  z832.object({ op: z832.literal("add_note"), title: z832.string().min(1).max(80), text: z832.string().min(1).max(1200) }),
-  z832.object({
-    op: z832.literal("add_service"),
-    name: z832.string().min(1).max(80),
-    duration_min: z832.number().int().min(1).max(1440).optional()
-  })
-]);
-var ASK_ANSWER_CAPS32 = {
-  headline: 160,
-  detail: 700,
-  figures: 4,
-  items: 5,
-  parts: 4,
-  next: 2,
-  value: 24,
-  label: 60,
-  note: 60,
-  title: 80,
-  meta: 60,
-  line: 160,
-  question: 90
-};
-var C32 = ASK_ANSWER_CAPS32;
-var SOURCE32 = {
-  type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
-  properties: {
-    kind: { type: "string", enum: [...ASK_CITATION_KINDS32, "none"] },
-    id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C32.label} characters.` }
-  },
-  required: ["kind", "id", "label"],
-  additionalProperties: false
-};
-var ASK_ANSWER_FORMAT32 = {
-  type: "object",
-  properties: {
-    say: {
-      type: "object",
-      properties: {
-        headline: {
-          type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C32.headline} characters.`
-        },
-        detail: {
-          type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C32.detail} characters.`
-        }
-      },
-      required: ["headline", "detail"],
-      additionalProperties: false
-    },
-    show: {
-      type: "object",
-      properties: {
-        figures: {
-          type: "array",
-          description: `The numbers the headline rests on, at most ${C32.figures}; empty when there is none.`,
-          items: {
-            type: "object",
-            properties: {
-              value: {
-                type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C32.value} characters.`
-              },
-              label: { type: "string", description: `What it counts, at most ${C32.label} characters.` },
-              note: {
-                type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C32.note} characters.`
-              },
-              source: SOURCE32
-            },
-            required: ["value", "label", "note", "source"],
-            additionalProperties: false
-          }
-        },
-        items: {
-          type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C32.items}; empty when it names none. Each opens its row.`,
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C32.title} characters.` },
-              meta: {
-                type: "string",
-                description: `The channel and how long, or empty; at most ${C32.meta} characters.`
-              },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C32.line} characters.` },
-              source: SOURCE32
-            },
-            required: ["title", "meta", "line", "source"],
-            additionalProperties: false
-          }
-        },
-        breakdown: {
-          type: "object",
-          description: `One whole in its parts, at most ${C32.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
-          properties: {
-            label: {
-              type: "string",
-              description: `What the whole is ("customer messages"), at most ${C32.label} characters.`
-            },
-            total: { type: "number" },
-            parts: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  label: { type: "string", description: `At most ${C32.label} characters.` },
-                  value: { type: "number" },
-                  warn: { type: "boolean", description: "True for the one part that needs attention." }
-                },
-                required: ["label", "value", "warn"],
-                additionalProperties: false
-              }
-            },
-            source: SOURCE32
-          },
-          required: ["label", "total", "parts", "source"],
-          additionalProperties: false
-        }
-      },
-      required: ["figures", "items", "breakdown"],
-      additionalProperties: false
-    },
-    do: {
-      type: "object",
-      properties: {
-        open: {
-          type: "object",
-          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
-          properties: {
-            source: SOURCE32,
-            label: { type: "string", description: `The button's words, at most ${C32.label} characters.` },
-            now: {
-              type: "boolean",
-              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
-            }
-          },
-          required: ["source", "label", "now"],
-          additionalProperties: false
-        },
-        next: {
-          type: "array",
-          description: `Up to ${C32.next} short questions they might ask next, at most ${C32.question} characters each, never one about a place already offered; empty when nothing follows.`,
-          items: { type: "string" }
-        }
-      },
-      required: ["open", "next"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES32] }
-  },
-  required: ["say", "show", "do", "language"],
-  additionalProperties: false
-};
-var WHEN232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var SIGNUP_NAME_MIN32 = 2;
-var SIGNUP_NAME_MAX32 = 120;
-var InviteCodeSchema32 = z932.string().trim().max(80);
-var SignupSchema32 = z932.object({
-  name: z932.string().trim().min(SIGNUP_NAME_MIN32, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX32, "That name is too long \u2014 120 characters at most."),
-  email: z932.string().trim().toLowerCase().email("Enter a work email address.").max(254),
-  /**
-   * The credential, and the reason it is OPTIONAL here rather than required.
-   *
-   * The waitlist posture takes details and creates nothing -- no account, so
-   * no password -- and its form shows no such field. A schema that demanded
-   * one would refuse the queue, which is the posture a launch actually runs
-   * in. So the shape admits it and the CREATING path insists on it: the
-   * route calls `passwordProblem` the moment it knows the posture is not the
-   * list, and that one function is also what the page checks with, so the
-   * browser's rule and the server's rule cannot drift.
-   *
-   * The cap here is a body-size guard, not the rule; the rule is bytes.
-   */
-  password: z932.string().max(200).optional(),
-  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z932.string().trim().min(1).max(64).optional(),
-  /** The invite code, when sign-up is by invitation. */
-  code: InviteCodeSchema32.optional()
-}).strict();
-var PendingWorkspaceSchema32 = z932.object({
-  name: z932.string().trim().min(SIGNUP_NAME_MIN32).max(SIGNUP_NAME_MAX32),
-  // A clock Postgres would refuse is dropped here, so the owner's first Create
-  // never fails over a zone a stranger's device reported.
-  timezone: z932.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone32(v) ? v : null)
-});
-function isTimezone32(raw) {
-  if (typeof raw !== "string" || !raw.trim()) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: raw });
-    return true;
-  } catch {
-    return false;
-  }
-}
-var CONSENT_PHRASE32 = OFFERS_OPT_IN_PHRASES32.en;
-var CONSENT_PHRASE_ES32 = OFFERS_OPT_IN_PHRASES32.es;
-var DAY_FMT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var REPUTATION_MEMORY_MS32 = 30 * 864e5;
-var ACTIVITY_KINDS32 = [...DECISION_VERBS32, ...EVENT_KINDS32];
-var PASSWORD_MIN32 = 12;
-var PASSWORD_WORDS32 = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN32} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var JUDGE_FACT_KEYS32 = [
   "name",
   "category",
@@ -18212,15 +18103,15 @@ var JUDGE_OUTPUT_SCHEMA32 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema32 = z1032.object({
-  places: z1032.array(
-    z1032.object({
-      ref: z1032.number().int(),
-      criteria: z1032.array(
-        z1032.object({ key: z1032.string(), answer: z1032.enum(["pass", "fail", "unknown"]), facts: z1032.array(z1032.string()) })
+var AnswerSchema32 = z932.object({
+  places: z932.array(
+    z932.object({
+      ref: z932.number().int(),
+      criteria: z932.array(
+        z932.object({ key: z932.string(), answer: z932.enum(["pass", "fail", "unknown"]), facts: z932.array(z932.string()) })
       ),
-      email_index: z1032.number().int().nullable(),
-      reason: z1032.string()
+      email_index: z932.number().int().nullable(),
+      reason: z932.string()
     })
   )
 });
@@ -18290,9 +18181,118 @@ var K32 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var NAME_MAX32 = BrainConfigSchema32.shape.business_name.maxLength ?? Infinity;
+var DAY_MS732 = 864e5;
+var QUIET_AFTER_MS32 = 7 * DAY_MS732;
+var DATE_FMT432 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS32 = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META32 = {
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS32.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS32.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
+  sms: { name: CHANNEL_KIND_WORDS32.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS32.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS32.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
+var NOTE_SUGGEST_KINDS32 = ["preference", "timing", "contact", "sensitivity", "context"];
+var NOTE_SUGGEST_SCHEMA32 = {
+  type: "object",
+  properties: {
+    worth: { type: "boolean" },
+    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS32, "none"] },
+    text: { type: "string" },
+    quote: { type: "string" }
+  },
+  required: ["worth", "kind", "text", "quote"],
+  additionalProperties: false
+};
 var NINE_TO_FIVE32 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME32 = { from: 8 * 60, to: 20 * 60 };
+var WHEN232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS32 = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS32 = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS32 = 10 * 60 * 1e3;
+var DAY_MS1032 = 24 * 3600 * 1e3;
+var SEARCH_WARN_MS32 = 12 * 36e5;
+var SIGNUP_NAME_MIN32 = 2;
+var SIGNUP_NAME_MAX32 = 120;
+var InviteCodeSchema32 = z1032.string().trim().max(80);
+var SignupSchema32 = z1032.object({
+  name: z1032.string().trim().min(SIGNUP_NAME_MIN32, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX32, "That name is too long \u2014 120 characters at most."),
+  email: z1032.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: z1032.string().max(200).optional(),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: z1032.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: InviteCodeSchema32.optional()
+}).strict();
+var PendingWorkspaceSchema32 = z1032.object({
+  name: z1032.string().trim().min(SIGNUP_NAME_MIN32).max(SIGNUP_NAME_MAX32),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: z1032.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone32(v) ? v : null)
+});
+function isTimezone32(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
+var ACTIVITY_KINDS32 = [...DECISION_VERBS32, ...EVENT_KINDS32];
+var PASSWORD_MIN32 = 12;
+var PASSWORD_WORDS32 = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN32} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 async function recordOutbound(db, p) {
   if (p.channel === "email")
     throw new Error("record_outbound: an email's row is written before it is sent, never after");
@@ -18362,7 +18362,7 @@ async function outreachFactsOf(db, p) {
 }
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
-var DAY_MS222 = 24 * 3600 * 1e3;
+var DAY_MS = 24 * 3600 * 1e3;
 var CALL_CONTROL_S = 15 * 60;
 function kindOf(d) {
   if (d.purpose === "outreach") return "broadcast";
@@ -18980,15 +18980,47 @@ var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 // ../db/dist/index.js
 import { z as z13 } from "zod";
 import { z as z24 } from "zod";
-import { z as z34 } from "zod";
 import { z as z44 } from "zod";
+import { z as z34 } from "zod";
 import { z as z54 } from "zod";
-import { z as z74 } from "zod";
 import { z as z64 } from "zod";
 import { z as z84 } from "zod";
+import { z as z74 } from "zod";
 import { z as z94 } from "zod";
 import { z as z104 } from "zod";
 z13.config({ jitless: true });
+var ASK_CITATION_KINDS4 = ["thread", "conversation", "call", "person", "page"];
+var ASK_LANGUAGES4 = ["en", "es", "other"];
+var ASK_UNDO_MS4 = 10 * 6e4;
+var AskProposalOutcomeSchema4 = z24.object({
+  state: z24.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z24.string().max(300).catch(""),
+  atMs: z24.number().catch(0),
+  undo: z24.record(z24.string(), z24.unknown()).nullable().optional()
+});
+var AskSettingsChangeSchema4 = z24.discriminatedUnion("op", [
+  z24.object({
+    op: z24.literal("add_closure"),
+    date: z24.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z24.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z24.string().max(200).optional()
+  }),
+  z24.object({
+    op: z24.literal("set_hours"),
+    day: z24.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z24.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z24.string().regex(/^\d{2}:\d{2}$/).nullable()
+  }),
+  z24.object({ op: z24.literal("add_note"), title: z24.string().min(1).max(80), text: z24.string().min(1).max(1200) }),
+  z24.object({
+    op: z24.literal("add_service"),
+    name: z24.string().min(1).max(80),
+    duration_min: z24.number().int().min(1).max(1440).optional()
+  })
+]);
+var LABEL4 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL4 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE4 = new RegExp(`^(${LOCAL4})@(${LABEL4}(?:\\.${LABEL4})+)$`);
 function normalizePhone(raw) {
   if (raw == null) return null;
   const digits2 = String(raw).replace(/[^\d]/g, "");
@@ -18997,9 +19029,42 @@ function normalizePhone(raw) {
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
-var LABEL4 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-var LOCAL4 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
-var SHAPE4 = new RegExp(`^(${LOCAL4})@(${LABEL4}(?:\\.${LABEL4})+)$`);
+var PRIVATE_HOST4 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT4 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V64 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
+function feedUrlOk4(raw) {
+  if (!raw) return null;
+  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST4.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT4.test(h) || PRIVATE_V64.test(h))
+    return null;
+  return u.toString();
+}
+function feedProblemWords4(reason, status) {
+  switch (reason) {
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
+    default:
+      return null;
+  }
+}
 var EVENT_KINDS4 = [
   "message.received",
   "message.sent",
@@ -19215,137 +19280,6 @@ var DECISION_VERBS4 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
-var DAY_MS9 = 864e5;
-var WEEK_MS6 = 7 * DAY_MS9;
-var BRAIN_INTENTS4 = [
-  "booking",
-  "pricing",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var BRAIN_LANGUAGES4 = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA4 = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS4],
-      description: "What the customer is after."
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES4],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-var BrainOutputSchema4 = z24.object({
-  reply: z24.string(),
-  intent: z24.enum(BRAIN_INTENTS4).catch("other"),
-  escalate: z24.boolean().catch(false),
-  reason: z24.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
-  confidence: z24.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
-  facts_used: z24.array(z24.string()).catch([]).transform(
-    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
-  ),
-  language: z24.enum(BRAIN_LANGUAGES4).catch("other")
-});
-var WA_WINDOW_MS4 = 24 * 3600 * 1e3;
-var REPLY_LIMITS4 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY4 = Math.max(...Object.values(REPLY_LIMITS4).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS4 = 10 * 60 * 1e3;
-var RETENTION_DAYS4 = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
-  call_recordings: 90,
-  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
-  events_evidence: 30,
-  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
-  ask_threads: 90,
-  /** The bell's rows and their marks (purge_notifications, 00057). */
-  notifications: 90,
-  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
-  leads_untouched: 90,
-  leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
-  leads_excluded_blanked: 30
-};
-var RECORDING_RETENTION_DAYS4 = RETENTION_DAYS4.call_recordings;
-var RECORDING_PURGED_WORDS4 = `Recording removed after ${RECORDING_RETENTION_DAYS4} days; the transcript is kept`;
-var RECORDING_NOTE4 = {
-  none: "No recording",
-  pending: "Recording still processing",
-  failed: "Recording couldn't be saved",
-  purged: `Recording removed after ${RECORDING_RETENTION_DAYS4} days`
-};
-var PRIVATE_HOST4 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
-var CARRIER_NAT4 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
-var PRIVATE_V64 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
-function feedUrlOk4(raw) {
-  if (!raw) return null;
-  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const h = u.hostname;
-  if (PRIVATE_HOST4.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT4.test(h) || PRIVATE_V64.test(h))
-    return null;
-  return u.toString();
-}
-function feedProblemWords4(reason, status) {
-  switch (reason) {
-    case "address":
-      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable":
-      return "The calendar could not be reached. Check the address and try again.";
-    case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large":
-      return "That feed is too large to read (over 2 MB).";
-    case "not_ical":
-      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
-    case "settings":
-      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default:
-      return null;
-  }
-}
 var POLICY_CLASS_WORDS4 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -19676,31 +19610,6 @@ var TenantConfigWriteSchema4 = TenantConfigSchema4.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure4(c2, n2, ctx));
 });
-var SHORT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var LIVE_STALE_MS4 = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS4 = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS4 = 10 * 60 * 1e3;
-var REPLY_VIA4 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  email: "Email"
-};
-var PERSON_CHANNEL_WORDS4 = {
-  whatsapp: "WhatsApp",
-  sms: "Text",
-  voice: "Phone",
-  email: "Email"
-};
-var PERSON_CAME_FROM_WORDS4 = {
-  whatsapp: REPLY_VIA4.whatsapp,
-  sms: REPLY_VIA4.sms,
-  email: REPLY_VIA4.email,
-  call: PERSON_CHANNEL_WORDS4.voice,
-  calendar: "Your calendar",
-  manual: "Added by hand",
-  import: "Imported",
-  lead: "A lead you found"
-};
 var LEAD_MEMBER_CLASSES4 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES4 = 1e3;
 var LEAD_QUESTION_WAIT_MS4 = 24 * 36e5;
@@ -19954,6 +19863,101 @@ var LeadSuggestAnswerSchema4 = z54.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS4 = 24 * 60 * 6e4;
+var DAY_MS24 = 864e5;
+var WEEK_MS6 = 7 * DAY_MS24;
+var BRAIN_INTENTS4 = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var BRAIN_LANGUAGES4 = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA4 = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS4],
+      description: "What the customer is after."
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES4],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+var BrainOutputSchema4 = z64.object({
+  reply: z64.string(),
+  intent: z64.enum(BRAIN_INTENTS4).catch("other"),
+  escalate: z64.boolean().catch(false),
+  reason: z64.string().catch("").transform((s2) => s2.trim().slice(0, 300)),
+  confidence: z64.number().catch(0).transform((n2) => Number.isFinite(n2) ? Math.min(1, Math.max(0, n2)) : 0),
+  facts_used: z64.array(z64.string()).catch([]).transform(
+    (a) => a.map((s2) => s2.trim()).filter(Boolean).slice(0, 5).map((s2) => s2.slice(0, 80))
+  ),
+  language: z64.enum(BRAIN_LANGUAGES4).catch("other")
+});
+var WA_WINDOW_MS4 = 24 * 3600 * 1e3;
+var REPLY_LIMITS4 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY4 = Math.max(...Object.values(REPLY_LIMITS4).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS4 = 10 * 60 * 1e3;
+var RETENTION_DAYS4 = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
+  leads_excluded_blanked: 30
+};
+var RECORDING_RETENTION_DAYS4 = RETENTION_DAYS4.call_recordings;
+var RECORDING_PURGED_WORDS4 = `Recording removed after ${RECORDING_RETENTION_DAYS4} days; the transcript is kept`;
+var RECORDING_NOTE4 = {
+  none: "No recording",
+  pending: "Recording still processing",
+  failed: "Recording couldn't be saved",
+  purged: `Recording removed after ${RECORDING_RETENTION_DAYS4} days`
+};
 var LEAD_FIRST_DAY_TITLE4 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB4 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT4 = "Claude finds businesses, not people at home.";
@@ -20047,34 +20051,154 @@ var LEAD_WORDS4 = {
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
-var SELLS_BY_QUESTION4 = "How customers buy";
-var SELLS_BY_WORDS4 = {
-  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
-  proposal: {
-    label: "Some get a proposal first",
-    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
-  }
+var ASK_ANSWER_CAPS4 = {
+  headline: 160,
+  detail: 700,
+  figures: 4,
+  items: 5,
+  parts: 4,
+  next: 2,
+  value: 24,
+  label: 60,
+  note: 60,
+  title: 80,
+  meta: 60,
+  line: 160,
+  question: 90
 };
-var DAY_MS44 = 864e5;
-var WEEK_MS24 = 7 * DAY_MS44;
-var MONTH_MS4 = 30 * DAY_MS44;
-var NOTE_MAX4 = 600;
-var NOTE_REFUSALS4 = {
-  empty: "Write something first.",
-  too_long: `A note is at most ${NOTE_MAX4} characters.`,
-  not_found: "This person or this note is no longer here.",
-  not_a_member: "That person is not on the team.",
-  not_yours: "Only the person who wrote this note can change it.",
-  moved: "Someone changed this note since you opened it. Read it again, then save.",
-  decided: "Someone already decided on this suggestion.",
-  bad_source: "Could not save this note.",
-  bad_deal: "That deal is not this person's.",
-  not_a_step: "Only a note with a day can be done."
+var C4 = ASK_ANSWER_CAPS4;
+var SOURCE4 = {
+  type: "object",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  properties: {
+    kind: { type: "string", enum: [...ASK_CITATION_KINDS4, "none"] },
+    id: { type: "string" },
+    label: { type: "string", description: `A short name for it, at most ${C4.label} characters.` }
+  },
+  required: ["kind", "id", "label"],
+  additionalProperties: false
 };
-var PERSON_MODE_LABELS4 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS4 = {
-  ...PERSON_MODE_LABELS4,
-  inherit: "Follow the workspace"
+var ASK_ANSWER_FORMAT4 = {
+  type: "object",
+  properties: {
+    say: {
+      type: "object",
+      properties: {
+        headline: {
+          type: "string",
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C4.headline} characters.`
+        },
+        detail: {
+          type: "string",
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C4.detail} characters.`
+        }
+      },
+      required: ["headline", "detail"],
+      additionalProperties: false
+    },
+    show: {
+      type: "object",
+      properties: {
+        figures: {
+          type: "array",
+          description: `The numbers the headline rests on, at most ${C4.figures}; empty when there is none.`,
+          items: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                description: `The number as said: "5", "44%", "1 min"; at most ${C4.value} characters.`
+              },
+              label: { type: "string", description: `What it counts, at most ${C4.label} characters.` },
+              note: {
+                type: "string",
+                description: `How it compares ("up from 1"), or empty; at most ${C4.note} characters.`
+              },
+              source: SOURCE4
+            },
+            required: ["value", "label", "note", "source"],
+            additionalProperties: false
+          }
+        },
+        items: {
+          type: "array",
+          description: `The rows the answer names (people, threads, calls), at most ${C4.items}; empty when it names none. Each opens its row.`,
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: `Who or what it is, at most ${C4.title} characters.` },
+              meta: {
+                type: "string",
+                description: `The channel and how long, or empty; at most ${C4.meta} characters.`
+              },
+              line: { type: "string", description: `Why it matters, in one line of at most ${C4.line} characters.` },
+              source: SOURCE4
+            },
+            required: ["title", "meta", "line", "source"],
+            additionalProperties: false
+          }
+        },
+        breakdown: {
+          type: "object",
+          description: `One whole in its parts, at most ${C4.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          properties: {
+            label: {
+              type: "string",
+              description: `What the whole is ("customer messages"), at most ${C4.label} characters.`
+            },
+            total: { type: "number" },
+            parts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  label: { type: "string", description: `At most ${C4.label} characters.` },
+                  value: { type: "number" },
+                  warn: { type: "boolean", description: "True for the one part that needs attention." }
+                },
+                required: ["label", "value", "warn"],
+                additionalProperties: false
+              }
+            },
+            source: SOURCE4
+          },
+          required: ["label", "total", "parts", "source"],
+          additionalProperties: false
+        }
+      },
+      required: ["figures", "items", "breakdown"],
+      additionalProperties: false
+    },
+    do: {
+      type: "object",
+      properties: {
+        open: {
+          type: "object",
+          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
+          properties: {
+            source: SOURCE4,
+            label: { type: "string", description: `The button's words, at most ${C4.label} characters.` },
+            now: {
+              type: "boolean",
+              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
+            }
+          },
+          required: ["source", "label", "now"],
+          additionalProperties: false
+        },
+        next: {
+          type: "array",
+          description: `Up to ${C4.next} short questions they might ask next, at most ${C4.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          items: { type: "string" }
+        }
+      },
+      required: ["open", "next"],
+      additionalProperties: false
+    },
+    language: { type: "string", enum: [...ASK_LANGUAGES4] }
+  },
+  required: ["say", "show", "do", "language"],
+  additionalProperties: false
 };
 var L4 = (id, name2, region, native) => ({
   id,
@@ -20197,7 +20321,7 @@ var WHATSAPP_LANGUAGES4 = [
   L4("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID4 = new Map(WHATSAPP_LANGUAGES4.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS54 = 864e5;
+var DAY_MS34 = 864e5;
 var SWEEP_TICK_MS4 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS4 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -20301,7 +20425,7 @@ var SENDING_HOURS_WORDS4 = {
   range: `${PLAYBOOK_HOURS4.min}:00\u2013${PLAYBOOK_HOURS4.max}:59`,
   between: `between ${PLAYBOOK_HOURS4.min}:00 and ${PLAYBOOK_HOURS4.max}:59`
 };
-var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS54;
+var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS34;
 var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
 var FIRST4 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS4 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -20319,6 +20443,56 @@ var PROPOSAL4 = {
   example: "https://docs.example.com/proposal"
 };
 var PROPOSAL_ES4 = { ...PROPOSAL4, label: "Enlace de la propuesta" };
+var REPLY_VIA4 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  email: "Email"
+};
+var PERSON_CHANNEL_WORDS4 = {
+  whatsapp: "WhatsApp",
+  sms: "Text",
+  voice: "Phone",
+  email: "Email"
+};
+var PERSON_CAME_FROM_WORDS4 = {
+  whatsapp: REPLY_VIA4.whatsapp,
+  sms: REPLY_VIA4.sms,
+  email: REPLY_VIA4.email,
+  call: PERSON_CHANNEL_WORDS4.voice,
+  calendar: "Your calendar",
+  manual: "Added by hand",
+  import: "Imported",
+  lead: "A lead you found"
+};
+var SELLS_BY_QUESTION4 = "How customers buy";
+var SELLS_BY_WORDS4 = {
+  booking: { label: "They book an appointment", sentence: "Bookings, reminders and the booking link." },
+  proposal: {
+    label: "Some get a proposal first",
+    sentence: "Adds deals: a proposal on each person, a Pipeline in People, and a Deals section in Reports."
+  }
+};
+var DAY_MS54 = 864e5;
+var WEEK_MS24 = 7 * DAY_MS54;
+var MONTH_MS4 = 30 * DAY_MS54;
+var NOTE_MAX4 = 600;
+var NOTE_REFUSALS4 = {
+  empty: "Write something first.",
+  too_long: `A note is at most ${NOTE_MAX4} characters.`,
+  not_found: "This person or this note is no longer here.",
+  not_a_member: "That person is not on the team.",
+  not_yours: "Only the person who wrote this note can change it.",
+  moved: "Someone changed this note since you opened it. Read it again, then save.",
+  decided: "Someone already decided on this suggestion.",
+  bad_source: "Could not save this note.",
+  bad_deal: "That deal is not this person's.",
+  not_a_step: "Only a note with a day can be done."
+};
+var PERSON_MODE_LABELS4 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS4 = {
+  ...PERSON_MODE_LABELS4,
+  inherit: "Follow the workspace"
+};
 var LIST_NEEDS4 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS4 = [
   {
@@ -20446,36 +20620,36 @@ var LIST_DEAL_STAGES4 = ["consultation", "proposed", "won", "lost", "ended"];
 var LIST_RULE_MAX4 = 12;
 var LIST_ANY_MAX4 = 6;
 var DAY_OPS4 = ["more_than", "within", "never", "ever", "this_week"];
-var Days4 = { op: z64.enum(DAY_OPS4), days: z64.number().int().min(1).max(3650).optional() };
-var YesNo4 = { op: z64.literal("is"), yes: z64.boolean() };
-var Count4 = { op: z64.enum(["at_least", "at_most"]), n: z64.number().int().min(0).max(1e4) };
-var IsOrNot4 = z64.enum(["is", "is_not"]);
-var Token4 = z64.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact4 = (shape) => z64.object(shape).strict();
-var ListFactSchema4 = z64.discriminatedUnion("field", [
-  fact4({ field: z64.literal("last_visit"), ...Days4 }),
-  fact4({ field: z64.literal("next_visit"), ...Days4 }),
-  fact4({ field: z64.literal("booked"), ...YesNo4 }),
-  fact4({ field: z64.literal("asked_not_booked"), ...YesNo4 }),
-  fact4({ field: z64.literal("last_heard"), ...Days4 }),
-  fact4({ field: z64.literal("first_contact"), ...Days4 }),
-  fact4({ field: z64.literal("channel"), op: IsOrNot4, channel: z64.enum(CHANNELS4) }),
-  fact4({ field: z64.literal("came_from"), op: IsOrNot4, from: z64.enum(CAME_FROM4) }),
-  fact4({ field: z64.literal("calls"), ...Count4 }),
-  fact4({ field: z64.literal("conversations"), ...Count4 }),
-  fact4({ field: z64.literal("has_chat"), ...YesNo4 }),
-  fact4({ field: z64.literal("said_yes"), ...YesNo4, to: z64.enum(LIST_PURPOSES4) }),
-  fact4({ field: z64.literal("can_receive"), ...YesNo4, to: z64.enum(LIST_PURPOSES4) }),
-  fact4({ field: z64.literal("stopped"), ...YesNo4 }),
-  fact4({ field: z64.literal("standing"), op: IsOrNot4, value: z64.enum(LIST_STANDINGS4) }),
-  fact4({ field: z64.literal("assigned"), op: IsOrNot4, value: z64.enum(LIST_ASSIGNED4) }),
-  fact4({ field: z64.literal("deal_stage"), op: IsOrNot4, value: z64.enum(LIST_DEAL_STAGES4) }),
-  fact4({ field: z64.literal("consultation"), ...YesNo4 }),
-  fact4({ field: z64.literal("step_due"), ...YesNo4 }),
-  fact4({ field: z64.literal("in_list"), op: IsOrNot4, list: Token4 })
+var Days4 = { op: z74.enum(DAY_OPS4), days: z74.number().int().min(1).max(3650).optional() };
+var YesNo4 = { op: z74.literal("is"), yes: z74.boolean() };
+var Count4 = { op: z74.enum(["at_least", "at_most"]), n: z74.number().int().min(0).max(1e4) };
+var IsOrNot4 = z74.enum(["is", "is_not"]);
+var Token4 = z74.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact4 = (shape) => z74.object(shape).strict();
+var ListFactSchema4 = z74.discriminatedUnion("field", [
+  fact4({ field: z74.literal("last_visit"), ...Days4 }),
+  fact4({ field: z74.literal("next_visit"), ...Days4 }),
+  fact4({ field: z74.literal("booked"), ...YesNo4 }),
+  fact4({ field: z74.literal("asked_not_booked"), ...YesNo4 }),
+  fact4({ field: z74.literal("last_heard"), ...Days4 }),
+  fact4({ field: z74.literal("first_contact"), ...Days4 }),
+  fact4({ field: z74.literal("channel"), op: IsOrNot4, channel: z74.enum(CHANNELS4) }),
+  fact4({ field: z74.literal("came_from"), op: IsOrNot4, from: z74.enum(CAME_FROM4) }),
+  fact4({ field: z74.literal("calls"), ...Count4 }),
+  fact4({ field: z74.literal("conversations"), ...Count4 }),
+  fact4({ field: z74.literal("has_chat"), ...YesNo4 }),
+  fact4({ field: z74.literal("said_yes"), ...YesNo4, to: z74.enum(LIST_PURPOSES4) }),
+  fact4({ field: z74.literal("can_receive"), ...YesNo4, to: z74.enum(LIST_PURPOSES4) }),
+  fact4({ field: z74.literal("stopped"), ...YesNo4 }),
+  fact4({ field: z74.literal("standing"), op: IsOrNot4, value: z74.enum(LIST_STANDINGS4) }),
+  fact4({ field: z74.literal("assigned"), op: IsOrNot4, value: z74.enum(LIST_ASSIGNED4) }),
+  fact4({ field: z74.literal("deal_stage"), op: IsOrNot4, value: z74.enum(LIST_DEAL_STAGES4) }),
+  fact4({ field: z74.literal("consultation"), ...YesNo4 }),
+  fact4({ field: z74.literal("step_due"), ...YesNo4 }),
+  fact4({ field: z74.literal("in_list"), op: IsOrNot4, list: Token4 })
 ]);
-var AnySchema4 = z64.object({ any: z64.array(ListFactSchema4).min(2).max(LIST_ANY_MAX4) }).strict();
-var ListConditionSchema4 = z64.union([AnySchema4, ListFactSchema4]);
+var AnySchema4 = z74.object({ any: z74.array(ListFactSchema4).min(2).max(LIST_ANY_MAX4) }).strict();
+var ListConditionSchema4 = z74.union([AnySchema4, ListFactSchema4]);
 function factProblem4(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
@@ -20483,13 +20657,13 @@ function factProblem4(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
   return null;
 }
-var ListRuleSchema4 = z64.object({
-  v: z64.literal(2).optional(),
-  all: z64.array(ListConditionSchema4).min(1).max(LIST_RULE_MAX4)
+var ListRuleSchema4 = z74.object({
+  v: z74.literal(2).optional(),
+  all: z74.array(ListConditionSchema4).min(1).max(LIST_RULE_MAX4)
 }).strict().superRefine((r23, ctx) => {
   for (const f of r23.all.flatMap((c2) => "any" in c2 ? c2.any : [c2])) {
     const p = factProblem4(f);
-    if (p) ctx.addIssue({ code: z64.ZodIssueCode.custom, message: p });
+    if (p) ctx.addIssue({ code: z74.ZodIssueCode.custom, message: p });
   }
 });
 function ruleFacts4(rule) {
@@ -20611,10 +20785,10 @@ var LIST_DRAFT_JSON_SCHEMA4 = {
     }
   }
 };
-var ListDraftAnswerSchema4 = z64.object({
-  name: z64.string().trim().min(1).max(60),
-  cannot: z64.string().trim().max(200),
-  all: z64.array(z64.unknown()).max(LIST_RULE_MAX4)
+var ListDraftAnswerSchema4 = z74.object({
+  name: z74.string().trim().min(1).max(60),
+  cannot: z74.string().trim().max(200),
+  all: z74.array(z74.unknown()).max(LIST_RULE_MAX4)
 });
 var SAVED_ID4 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var BUILTIN_ID4 = /^[a-z_]{1,40}$/;
@@ -20790,8 +20964,8 @@ var PEOPLE_LISTS4 = BUILTIN_LISTS4.map((l2) => {
     test: (vm) => listRuleMatches4(l2.rule, vm)
   };
 });
-var PeopleExportQuerySchema4 = z74.object({
-  list: z74.string().max(80).refine((t2) => parseListToken4(t2) !== null, "Name a list by its token.").optional()
+var PeopleExportQuerySchema4 = z84.object({
+  list: z84.string().max(80).refine((t2) => parseListToken4(t2) !== null, "Name a list by its token.").optional()
 });
 var LIMIT_TIERS4 = {
   TIER_50: 50,
@@ -20804,7 +20978,7 @@ var LIMIT_TIERS4 = {
 var REPLY_WINDOW_HOURS4 = 72;
 var REPLY_WINDOW_MS4 = REPLY_WINDOW_HOURS4 * 36e5;
 var REPLY_WINDOW_WORDS4 = `within ${REPLY_WINDOW_HOURS4 / 24} days`;
-var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
+var SHORT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REVIEW_AUTO_REPLY_MAX_AGE_MS4 = 14 * 864e5;
 var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS4 = 36 * 3600 * 1e3;
@@ -20812,12 +20986,16 @@ var REVIEW_NEWS_MAX_AGE_MS4 = 14 * 864e5;
 var BOOTSTRAP_MS4 = 3600 * 1e3;
 var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS34 = 7 * 864e5;
+var NAME_MAX4 = BrainConfigSchema4.shape.business_name.maxLength ?? Infinity;
 var DATE_FMT34 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS4 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
   portal: "Back from Stripe. Any change you made there shows here within a minute."
 };
+var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;
+var CONSENT_PHRASE_ES4 = OFFERS_OPT_IN_PHRASES4.es;
+var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
 var SOLE_PROP_LIMITS4 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -20846,7 +21024,7 @@ var LEAD_MAP_STATE_WORDS4 = {
   out: `${LEAD_STAGE_WORDS4.archived} or ${LEAD_LEFT_OUT_WORD4.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS4 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION4}\u201D with \u201C${SELLS_BY_WORDS4.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS4 = (365 + 7) * DAY_MS54;
+var PLAYBOOK_TOUCH_WINDOW_MS4 = (365 + 7) * DAY_MS34;
 var PLAYBOOK_CLASS_LABEL4 = {
   reengage: POLICY_CLASS_WORDS4.reengage.short,
   campaign: POLICY_CLASS_WORDS4.campaign.short,
@@ -20854,6 +21032,8 @@ var PLAYBOOK_CLASS_LABEL4 = {
   follow_up: POLICY_CLASS_WORDS4.follow_up.short,
   outreach: POLICY_CLASS_WORDS4.outreach.short
 };
+var DAY_FMT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var REPUTATION_MEMORY_MS4 = 30 * 864e5;
 var TRY_QUIET_AFTER_MS4 = 3 * 6e4;
 var FIRST_RUN_PHONE_WORDS4 = {
   chooseHeading: "How should calls reach your receptionist?",
@@ -20955,295 +21135,6 @@ var FIRST_RUN_PHONE_WORDS4 = {
   withMeSent: "We'll email you to find a time for a call.",
   notForwarded: "Forwarding not saved"
 };
-var DAY_MS64 = 24 * 3600 * 1e3;
-var DAY_MS74 = 864e5;
-var QUIET_AFTER_MS4 = 7 * DAY_MS74;
-var DATE_FMT44 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var CHANNEL_KIND_WORDS4 = {
-  whatsapp: "WhatsApp",
-  voice: "Phone line",
-  sms: "Texting",
-  email: "Email",
-  instagram: "Instagram"
-};
-var KIND_META4 = {
-  whatsapp: {
-    name: `${CHANNEL_KIND_WORDS4.whatsapp} Business`,
-    what: "Customers text this number; the receptionist answers",
-    icon: "chat",
-    noun: "message"
-  },
-  voice: {
-    name: CHANNEL_KIND_WORDS4.voice,
-    what: "Customers call this number; the receptionist picks up",
-    icon: "phone",
-    noun: "call"
-  },
-  sms: { name: CHANNEL_KIND_WORDS4.sms, what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: CHANNEL_KIND_WORDS4.email, what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: CHANNEL_KIND_WORDS4.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
-};
-var SEARCH_WARN_MS4 = 12 * 36e5;
-var NOTE_SUGGEST_KINDS4 = ["preference", "timing", "contact", "sensitivity", "context"];
-var NOTE_SUGGEST_SCHEMA4 = {
-  type: "object",
-  properties: {
-    worth: { type: "boolean" },
-    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS4, "none"] },
-    text: { type: "string" },
-    quote: { type: "string" }
-  },
-  required: ["worth", "kind", "text", "quote"],
-  additionalProperties: false
-};
-var ASK_CITATION_KINDS4 = ["thread", "conversation", "call", "person", "page"];
-var ASK_LANGUAGES4 = ["en", "es", "other"];
-var ASK_UNDO_MS4 = 10 * 6e4;
-var AskProposalOutcomeSchema4 = z84.object({
-  state: z84.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z84.string().max(300).catch(""),
-  atMs: z84.number().catch(0),
-  undo: z84.record(z84.string(), z84.unknown()).nullable().optional()
-});
-var AskSettingsChangeSchema4 = z84.discriminatedUnion("op", [
-  z84.object({
-    op: z84.literal("add_closure"),
-    date: z84.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z84.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z84.string().max(200).optional()
-  }),
-  z84.object({
-    op: z84.literal("set_hours"),
-    day: z84.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z84.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z84.string().regex(/^\d{2}:\d{2}$/).nullable()
-  }),
-  z84.object({ op: z84.literal("add_note"), title: z84.string().min(1).max(80), text: z84.string().min(1).max(1200) }),
-  z84.object({
-    op: z84.literal("add_service"),
-    name: z84.string().min(1).max(80),
-    duration_min: z84.number().int().min(1).max(1440).optional()
-  })
-]);
-var ASK_ANSWER_CAPS4 = {
-  headline: 160,
-  detail: 700,
-  figures: 4,
-  items: 5,
-  parts: 4,
-  next: 2,
-  value: 24,
-  label: 60,
-  note: 60,
-  title: 80,
-  meta: 60,
-  line: 160,
-  question: 90
-};
-var C4 = ASK_ANSWER_CAPS4;
-var SOURCE4 = {
-  type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
-  properties: {
-    kind: { type: "string", enum: [...ASK_CITATION_KINDS4, "none"] },
-    id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C4.label} characters.` }
-  },
-  required: ["kind", "id", "label"],
-  additionalProperties: false
-};
-var ASK_ANSWER_FORMAT4 = {
-  type: "object",
-  properties: {
-    say: {
-      type: "object",
-      properties: {
-        headline: {
-          type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C4.headline} characters.`
-        },
-        detail: {
-          type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C4.detail} characters.`
-        }
-      },
-      required: ["headline", "detail"],
-      additionalProperties: false
-    },
-    show: {
-      type: "object",
-      properties: {
-        figures: {
-          type: "array",
-          description: `The numbers the headline rests on, at most ${C4.figures}; empty when there is none.`,
-          items: {
-            type: "object",
-            properties: {
-              value: {
-                type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C4.value} characters.`
-              },
-              label: { type: "string", description: `What it counts, at most ${C4.label} characters.` },
-              note: {
-                type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C4.note} characters.`
-              },
-              source: SOURCE4
-            },
-            required: ["value", "label", "note", "source"],
-            additionalProperties: false
-          }
-        },
-        items: {
-          type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C4.items}; empty when it names none. Each opens its row.`,
-          items: {
-            type: "object",
-            properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C4.title} characters.` },
-              meta: {
-                type: "string",
-                description: `The channel and how long, or empty; at most ${C4.meta} characters.`
-              },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C4.line} characters.` },
-              source: SOURCE4
-            },
-            required: ["title", "meta", "line", "source"],
-            additionalProperties: false
-          }
-        },
-        breakdown: {
-          type: "object",
-          description: `One whole in its parts, at most ${C4.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
-          properties: {
-            label: {
-              type: "string",
-              description: `What the whole is ("customer messages"), at most ${C4.label} characters.`
-            },
-            total: { type: "number" },
-            parts: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  label: { type: "string", description: `At most ${C4.label} characters.` },
-                  value: { type: "number" },
-                  warn: { type: "boolean", description: "True for the one part that needs attention." }
-                },
-                required: ["label", "value", "warn"],
-                additionalProperties: false
-              }
-            },
-            source: SOURCE4
-          },
-          required: ["label", "total", "parts", "source"],
-          additionalProperties: false
-        }
-      },
-      required: ["figures", "items", "breakdown"],
-      additionalProperties: false
-    },
-    do: {
-      type: "object",
-      properties: {
-        open: {
-          type: "object",
-          description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
-          properties: {
-            source: SOURCE4,
-            label: { type: "string", description: `The button's words, at most ${C4.label} characters.` },
-            now: {
-              type: "boolean",
-              description: "True when they asked to open, show or see it: the app goes there as the answer lands."
-            }
-          },
-          required: ["source", "label", "now"],
-          additionalProperties: false
-        },
-        next: {
-          type: "array",
-          description: `Up to ${C4.next} short questions they might ask next, at most ${C4.question} characters each, never one about a place already offered; empty when nothing follows.`,
-          items: { type: "string" }
-        }
-      },
-      required: ["open", "next"],
-      additionalProperties: false
-    },
-    language: { type: "string", enum: [...ASK_LANGUAGES4] }
-  },
-  required: ["say", "show", "do", "language"],
-  additionalProperties: false
-};
-var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var SIGNUP_NAME_MIN4 = 2;
-var SIGNUP_NAME_MAX4 = 120;
-var InviteCodeSchema4 = z94.string().trim().max(80);
-var SignupSchema4 = z94.object({
-  name: z94.string().trim().min(SIGNUP_NAME_MIN4, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX4, "That name is too long \u2014 120 characters at most."),
-  email: z94.string().trim().toLowerCase().email("Enter a work email address.").max(254),
-  /**
-   * The credential, and the reason it is OPTIONAL here rather than required.
-   *
-   * The waitlist posture takes details and creates nothing -- no account, so
-   * no password -- and its form shows no such field. A schema that demanded
-   * one would refuse the queue, which is the posture a launch actually runs
-   * in. So the shape admits it and the CREATING path insists on it: the
-   * route calls `passwordProblem` the moment it knows the posture is not the
-   * list, and that one function is also what the page checks with, so the
-   * browser's rule and the server's rule cannot drift.
-   *
-   * The cap here is a body-size guard, not the rule; the rule is bytes.
-   */
-  password: z94.string().max(200).optional(),
-  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z94.string().trim().min(1).max(64).optional(),
-  /** The invite code, when sign-up is by invitation. */
-  code: InviteCodeSchema4.optional()
-}).strict();
-var PendingWorkspaceSchema4 = z94.object({
-  name: z94.string().trim().min(SIGNUP_NAME_MIN4).max(SIGNUP_NAME_MAX4),
-  // A clock Postgres would refuse is dropped here, so the owner's first Create
-  // never fails over a zone a stranger's device reported.
-  timezone: z94.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone4(v) ? v : null)
-});
-function isTimezone4(raw) {
-  if (typeof raw !== "string" || !raw.trim()) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: raw });
-    return true;
-  } catch {
-    return false;
-  }
-}
-var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;
-var CONSENT_PHRASE_ES4 = OFFERS_OPT_IN_PHRASES4.es;
-var DAY_FMT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-var REPUTATION_MEMORY_MS4 = 30 * 864e5;
-var ACTIVITY_KINDS4 = [...DECISION_VERBS4, ...EVENT_KINDS4];
-var PASSWORD_MIN4 = 12;
-var PASSWORD_WORDS4 = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN4} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var JUDGE_FACT_KEYS4 = [
   "name",
   "category",
@@ -21288,15 +21179,15 @@ var JUDGE_OUTPUT_SCHEMA4 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema4 = z104.object({
-  places: z104.array(
-    z104.object({
-      ref: z104.number().int(),
-      criteria: z104.array(
-        z104.object({ key: z104.string(), answer: z104.enum(["pass", "fail", "unknown"]), facts: z104.array(z104.string()) })
+var AnswerSchema4 = z94.object({
+  places: z94.array(
+    z94.object({
+      ref: z94.number().int(),
+      criteria: z94.array(
+        z94.object({ key: z94.string(), answer: z94.enum(["pass", "fail", "unknown"]), facts: z94.array(z94.string()) })
       ),
-      email_index: z104.number().int().nullable(),
-      reason: z104.string()
+      email_index: z94.number().int().nullable(),
+      reason: z94.string()
     })
   )
 });
@@ -21366,9 +21257,118 @@ var K4 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var NAME_MAX4 = BrainConfigSchema4.shape.business_name.maxLength ?? Infinity;
+var DAY_MS74 = 864e5;
+var QUIET_AFTER_MS4 = 7 * DAY_MS74;
+var DATE_FMT44 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS4 = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META4 = {
+  whatsapp: {
+    name: `${CHANNEL_KIND_WORDS4.whatsapp} Business`,
+    what: "Customers text this number; the receptionist answers",
+    icon: "chat",
+    noun: "message"
+  },
+  voice: {
+    name: CHANNEL_KIND_WORDS4.voice,
+    what: "Customers call this number; the receptionist picks up",
+    icon: "phone",
+    noun: "call"
+  },
+  sms: { name: CHANNEL_KIND_WORDS4.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS4.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS4.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
+var NOTE_SUGGEST_KINDS4 = ["preference", "timing", "contact", "sensitivity", "context"];
+var NOTE_SUGGEST_SCHEMA4 = {
+  type: "object",
+  properties: {
+    worth: { type: "boolean" },
+    kind: { type: "string", enum: [...NOTE_SUGGEST_KINDS4, "none"] },
+    text: { type: "string" },
+    quote: { type: "string" }
+  },
+  required: ["worth", "kind", "text", "quote"],
+  additionalProperties: false
+};
 var NINE_TO_FIVE4 = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME4 = { from: 8 * 60, to: 20 * 60 };
+var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LIVE_STALE_MS4 = 5 * 60 * 1e3;
+var LIVE_OVERLONG_MS4 = 30 * 60 * 1e3;
+var ANALYSIS_GRACE_MS4 = 10 * 60 * 1e3;
+var DAY_MS104 = 24 * 3600 * 1e3;
+var SEARCH_WARN_MS4 = 12 * 36e5;
+var SIGNUP_NAME_MIN4 = 2;
+var SIGNUP_NAME_MAX4 = 120;
+var InviteCodeSchema4 = z104.string().trim().max(80);
+var SignupSchema4 = z104.object({
+  name: z104.string().trim().min(SIGNUP_NAME_MIN4, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX4, "That name is too long \u2014 120 characters at most."),
+  email: z104.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: z104.string().max(200).optional(),
+  /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
+  timezone: z104.string().trim().min(1).max(64).optional(),
+  /** The invite code, when sign-up is by invitation. */
+  code: InviteCodeSchema4.optional()
+}).strict();
+var PendingWorkspaceSchema4 = z104.object({
+  name: z104.string().trim().min(SIGNUP_NAME_MIN4).max(SIGNUP_NAME_MAX4),
+  // A clock Postgres would refuse is dropped here, so the owner's first Create
+  // never fails over a zone a stranger's device reported.
+  timezone: z104.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone4(v) ? v : null)
+});
+function isTimezone4(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: raw });
+    return true;
+  } catch {
+    return false;
+  }
+}
+var ACTIVITY_KINDS4 = [...DECISION_VERBS4, ...EVENT_KINDS4];
+var PASSWORD_MIN4 = 12;
+var PASSWORD_WORDS4 = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN4} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,
@@ -21507,7 +21507,7 @@ async function stampMailboxReceived(db, mailboxId, at) {
 }
 var POS_TTL_MS2 = 5 * 60 * 1e3;
 var NEG_TTL_MS2 = 60 * 1e3;
-var DAY_MS23 = 24 * 3600 * 1e3;
+var DAY_MS4 = 24 * 3600 * 1e3;
 var CALL_CONTROL_S2 = 15 * 60;
 
 // src/escalate.ts

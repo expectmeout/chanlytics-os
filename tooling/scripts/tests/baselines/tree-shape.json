@@ -6,7 +6,6 @@
   "apps/dashboard/src/server/readers": 22,
   "e2e": 48,
   "packages/channels/src": 25,
-  "packages/contracts/src": 129,
   "tooling/scripts": 25,
-  "tooling/scripts/tests": 548
+  "tooling/scripts/tests": 549
 }

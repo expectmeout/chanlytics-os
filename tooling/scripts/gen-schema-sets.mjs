@@ -6,7 +6,7 @@
  * public schema -- which is how Postgres stores `check (col in (...))` -- from
  * the LOCAL database that `supabase start` builds out of every migration, and
  * writes packages/contracts/src/schema-sets.generated.ts. Then
- * packages/contracts/src/schema-sets.ts holds every hand-kept list and type to
+ * packages/contracts/src/shared/schema-sets.ts holds every hand-kept list and type to
  * that file at compile time.
  *
  *   supabase start

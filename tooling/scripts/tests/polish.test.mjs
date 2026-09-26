@@ -85,7 +85,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
       mig.includes("create or replace function public.campaign_series"),
     "the SQL series keeps the same window",
   );
-  assert.ok(readCode("packages/contracts/src/campaign-report.ts").includes("wrote back ${REPLY_WINDOW_WORDS}"));
+  assert.ok(readCode("packages/contracts/src/reports/campaign-report.ts").includes("wrote back ${REPLY_WINDOW_WORDS}"));
   assert.ok(
     readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(
       ".brief-beat-text { flex: 1; min-width: 0; }",
@@ -103,7 +103,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
       'title={typeof meta === "string" ? meta : undefined}',
     ),
   );
-  const today = readCode("packages/contracts/src/today.ts");
+  const today = readCode("packages/contracts/src/today/today.ts");
   assert.ok((today.match(/tzClock\(/g) ?? []).length >= 5, "every closing time names its day");
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(!app.includes("other surfaces seeded") && !app.includes("liveLabels"), "the footer is the customer's");

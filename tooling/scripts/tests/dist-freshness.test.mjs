@@ -77,7 +77,7 @@ test("contracts really does resolve to dist — if that ever changes, so must th
  * and no job runner ever draws into channels, core, db and jobs — and jobs
  * carried the rules fold six times, once per package re-bundled into it.
  *
- * `packages/contracts/src/business-tab.ts` states the fix beside GUARDRAIL_KEYS,
+ * `packages/contracts/src/config/business-tab.ts` states the fix beside GUARDRAIL_KEYS,
  * which met this first: build the value inside a call marked `/* @__PURE__ *\/`,
  * so esbuild may drop the whole thing where nothing reads it.
  *

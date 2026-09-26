@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { inAppFrom, inAppBootScript, IN_APP_CLASS } from "../../../packages/contracts/src/chrome.ts";
+import { inAppFrom, inAppBootScript, IN_APP_CLASS } from "../../../packages/contracts/src/shell/chrome.ts";
 
 test("the shell's User-Agent token names the app, its version and its platform; a browser has none", () => {
   assert.deepEqual(

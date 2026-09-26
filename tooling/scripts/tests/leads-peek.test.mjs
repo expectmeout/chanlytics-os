@@ -8,8 +8,8 @@
  */
 import { test, mock } from "node:test";
 import assert from "node:assert/strict";
-import { roleGate } from "../../../packages/contracts/src/refusal.ts";
-import { stateOf } from "../../../packages/contracts/src/tone.ts";
+import { roleGate } from "../../../packages/contracts/src/shell/refusal.ts";
+import { stateOf } from "../../../packages/contracts/src/shell/tone.ts";
 import {
   LEAD_WORDS,
   LEAD_EMAIL_WORDS,
@@ -20,7 +20,7 @@ import {
   LEAD_CONTACT_STANDARD_WORDS,
   leadDraftFooter,
   toLeadPeekVM,
-} from "../../../packages/contracts/src/leads.ts";
+} from "../../../packages/contracts/src/leads/leads.ts";
 import { hookFrames } from "./_hook-frames.mjs";
 
 let cells = [];

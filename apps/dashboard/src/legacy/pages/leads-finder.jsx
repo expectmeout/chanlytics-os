@@ -472,7 +472,7 @@ const LeadPlanPanel = ({
  * six next steps that make a new round: a strip offers one of them, never two.
  *
  * NOTE (release B, Task 10): the plan writes `leadStrip` in
- * packages/contracts/src/leads.ts (step 4) and puts it in `window.__LEAD_VM`
+ * packages/contracts/src/leads/leads.ts (step 4) and puts it in `window.__LEAD_VM`
  * (step 7a). Neither is on this branch, and neither file is this run's to
  * touch, so the view model is built here, beside the component that draws it,
  * and published on window for the page. The NINE ENDING SENTENCES stay

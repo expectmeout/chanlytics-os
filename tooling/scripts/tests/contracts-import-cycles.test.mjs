@@ -24,7 +24,7 @@ const SRC = path.join(ROOT, "packages/contracts/src");
 const ts = createRequire(path.join(ROOT, "packages/contracts/package.json"))("typescript");
 
 /** The one cycle allowed, and why it is safe: each calls the other's function declaration inside a function. */
-const ALLOWED = [["signup.ts", "workspace.ts"]];
+const ALLOWED = [["workspace/signup.ts", "workspace/workspace.ts"]];
 
 /**
  * Each module's value imports and re-exports of another module of the folder, from its source. Modules are named by

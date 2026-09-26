@@ -373,5 +373,5 @@ test("the top bar shows the real feed outside a demo, with the device-alert swit
     readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installNotifications();"),
     "the refresh map re-reads the notifications surface after a mark; the bridge never imports the runner",
   );
-  assert.ok(readCode("packages/contracts/src/index.ts").includes('export * from "./notifications";'));
+  assert.ok(readCode("packages/contracts/src/today/index.ts").includes('from "./notifications";'));
 });

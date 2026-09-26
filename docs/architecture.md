@@ -116,9 +116,9 @@ memory by a test.
 | Email    | `apps/edge/api/resend-webhook.ts`                                                                | `apps/edge/lib/email/email-ingress.ts` | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist does not draft email replies yet |
 
 The receptionist itself: `apps/edge/lib/tenant-runtime.ts` reads the
-workspace's config through one door; `packages/contracts/src/config.ts`
+workspace's config through one door; `packages/contracts/src/config/config.ts`
 composes the system prompt from the business's facts; `apps/edge/lib/receptionist/brain.ts`
-asks the model and reads a structured answer (`packages/contracts/src/brain.ts`);
+asks the model and reads a structured answer (`packages/contracts/src/config/brain.ts`);
 `packages/core/src/inbound/reply-posture.ts` is the truth table of whether it may speak at
 all; the Autonomy matrix and the confidence dial decide whether the answer goes
 now, waits in a veto window, or waits for a person.
@@ -239,17 +239,17 @@ and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 
 | To change                              | Look in                                                                                                                                                  |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| What the receptionist says             | `packages/contracts/src/config.ts` (the composer), `apps/edge/lib/receptionist/brain.ts`, the Business tab in Settings                                   |
-| Whether it speaks at all               | `packages/core/src/inbound/reply-posture.ts`, `policies` and `packages/contracts/src/policy.ts`                                                          |
-| Who may be messaged                    | `packages/contracts/src/consent.ts` (`mayMessageFor`), `packages/core/src/deliver.ts`                                                                    |
+| What the receptionist says             | `packages/contracts/src/config/config.ts` (the composer), `apps/edge/lib/receptionist/brain.ts`, the Business tab in Settings                            |
+| Whether it speaks at all               | `packages/core/src/inbound/reply-posture.ts`, `policies` and `packages/contracts/src/config/policy.ts`                                                   |
+| Who may be messaged                    | `packages/contracts/src/consent/consent.ts` (`mayMessageFor`), `packages/core/src/deliver.ts`                                                            |
 | A new channel                          | An adapter in `packages/channels`, a door under `apps/edge/api`, a `tenant_channels.kind`, a wire in `deliver.ts`                                        |
 | A new operator verb                    | A core verb in `packages/core/src/conversations`, a route under `/api/v1/conversations/[id]`, a row in `route-policy.json`, the shell's `inbox-verbs.ts` |
 | A new job kind                         | `JOB_KINDS` in contracts, a handler in `packages/jobs`, its caller, and the `jobs.kind` CHECK, in one change                                             |
 | A new sweep                            | A cron door, a `sweep_status` registration, the pg_cron schedule                                                                                         |
 | Billing                                | `apps/edge/lib/billing.ts`, `apps/edge/api/stripe-webhook.ts`                                                                                            |
 | The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads.ts`, migration `00140`                                               |
-| Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask.ts`                                                                                       |
-| The calendar                           | `apps/dashboard/src/server/calendar.ts`, `packages/contracts/src/availability.ts`, `apps/edge/api/cron/calendar.ts`                                      |
+| Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/ask.ts`                                                                                   |
+| The calendar                           | `apps/dashboard/src/server/calendar.ts`, `packages/contracts/src/calendar/availability.ts`, `apps/edge/api/cron/calendar.ts`                             |
 | Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `a2p*.ts`, `apps/edge/lib/lines/`                                                                                     |
 | Email                                  | `packages/channels/src/email*.ts`, `apps/edge/lib/email/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                  |
 | Voice                                  | `packages/channels/src/voice-*.ts`, the four `retell-*` doors                                                                                            |

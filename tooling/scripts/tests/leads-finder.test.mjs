@@ -23,14 +23,14 @@ import {
   planWhere,
   planWho,
   planWords,
-} from "../../../packages/contracts/src/lead-search.ts";
+} from "../../../packages/contracts/src/leads/lead-search.ts";
 import {
   LEAD_QUESTION_WAIT_LINE,
   leadEndingLine,
   leadPlanAsk,
   leadPlanFacts,
   leadPlanLikely,
-} from "../../../packages/contracts/src/leads.ts";
+} from "../../../packages/contracts/src/leads/leads.ts";
 import { hookFrames } from "./_hook-frames.mjs";
 
 let cells = [];

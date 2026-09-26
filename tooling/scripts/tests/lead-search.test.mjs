@@ -42,9 +42,9 @@ import {
   LEAD_QUESTION_THRESHOLD,
   LEAD_JUDGE_BATCH,
   LEAD_ESTIMATE_MARGIN,
-} from "../../../packages/contracts/src/lead-search.ts";
-import * as searchWords from "../../../packages/contracts/src/lead-search.ts";
-import * as judgeWords from "../../../packages/contracts/src/lead-judge.ts";
+} from "../../../packages/contracts/src/leads/lead-search.ts";
+import * as searchWords from "../../../packages/contracts/src/leads/lead-search.ts";
+import * as judgeWords from "../../../packages/contracts/src/leads/lead-judge.ts";
 
 /** The plan every test starts from: 200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms. */
 const plan = (over = {}) =>

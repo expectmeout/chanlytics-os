@@ -82,7 +82,7 @@ test("the door asks, rather than deciding for itself", () => {
 test("the shared normalizer is NOT tightened, because two of its callers fail open", () => {
   // forwarding: a destination that will not parse makes `dest` falsy, and the
   // whole guard is skipped — a line marked verified by the wrong call.
-  const fwd = readCode("packages/contracts/src/forwarding.ts");
+  const fwd = readCode("packages/contracts/src/voice/forwarding.ts");
   assert.ok(
     fwd.includes("if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;"),
     "still guarded only when dest parses",

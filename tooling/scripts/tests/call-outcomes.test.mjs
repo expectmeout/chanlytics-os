@@ -347,14 +347,14 @@ test("the converge endpoint has more than the default budget", () => {
 });
 
 test("a caller who needs a call back lands on Needs you: the reason exists everywhere a reason is named", () => {
-  const enums = readCode("packages/contracts/src/enums.ts");
+  const enums = readCode("packages/contracts/src/shared/enums.ts");
   assert.ok(enums.includes('"callback",'), "the reason is declared");
   assert.ok(readRaw("supabase/migrations/00062_callback_reason.sql").includes("'callback'"), "and the CHECK admits it");
   assert.ok(
-    readCode("packages/contracts/src/people.ts").includes('callback: "needs a call back",'),
+    readCode("packages/contracts/src/people/people.ts").includes('callback: "needs a call back",'),
     "the strip's words",
   );
-  const vm = readCode("packages/contracts/src/viewmodels.ts");
+  const vm = readCode("packages/contracts/src/conversations/viewmodels.ts");
   assert.ok(
     vm.includes('callback: "Needs a call back — the phone receptionist could not finish it",') &&
       vm.includes('callback: "They phoned and the receptionist couldn\'t finish it.",'),

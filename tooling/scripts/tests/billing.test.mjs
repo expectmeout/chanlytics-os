@@ -507,7 +507,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
   assert.ok(page.includes('verb.to === "verb:billing-checkout"') && page.includes('verb.to === "verb:billing-portal"'));
   assert.ok(readCode("packages/db/src/realtime.ts").includes('{ table: "billing_accounts", event: "*" }'));
-  const kinds = readCode("packages/contracts/src/notifications.ts");
+  const kinds = readCode("packages/contracts/src/today/notifications.ts");
   assert.ok(
     kinds.includes('billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" }') &&
       kinds.includes('[/^admin\\/billing/, "Open Billing"]'),

@@ -83,7 +83,7 @@ test("the thread's line above an attachment names it, and the attachment itself 
     "Document",
   );
   // The view models carry it through.
-  const vm = readCode("packages/contracts/src/viewmodels.ts");
+  const vm = readCode("packages/contracts/src/conversations/viewmodels.ts");
   assert.ok(vm.includes("...(media ? { media } : {}),"), "the Inbox timeline entry");
   assert.ok(vm.includes("...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),"), "the Conversations message");
 });

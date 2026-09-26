@@ -514,7 +514,7 @@ test("a released line leaves a disabled route beside the active one, and the pic
     "or the tie-break has nothing to read",
   );
   assert.match(
-    readCode("packages/contracts/src/connections.ts"),
+    readCode("packages/contracts/src/setup/connections.ts"),
     /const channel = \(kind: string\) => channelFor\(i\.channels, kind\);/,
   );
 });

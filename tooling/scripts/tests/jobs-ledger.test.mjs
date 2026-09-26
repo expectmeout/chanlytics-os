@@ -21,7 +21,7 @@ import {
   SPEAKS_TO_A_PERSON,
   RETRY_WAITS_MS,
 } from "../../../packages/jobs/src/ledger.ts";
-import { JOB_KINDS } from "../../../packages/contracts/src/enums.ts";
+import { JOB_KINDS } from "../../../packages/contracts/src/shared/enums.ts";
 import { settleJob, saySettled } from "../../../packages/jobs/src/settle.ts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";

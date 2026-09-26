@@ -237,7 +237,7 @@ test("Settings collects the website and the notes; the transfer line is edited i
   // The website row writes only its own key, and the transfer row normalises through the one rule in contracts:
   // both are pressed in business-tab-page.test.mjs, which reads what the save was sent.
   // Its two refusals moved with it, and are now shared rather than retyped.
-  const phone = readCode("packages/contracts/src/phone.ts");
+  const phone = readCode("packages/contracts/src/shared/phone.ts");
   assert.ok(phone.includes("export function whyNotAHandoff("));
   assert.ok(phone.includes("The transfer number needs the country code"));
   assert.ok(phone.includes("it would ring itself"), "the receptionist's own line is still refused");

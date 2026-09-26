@@ -112,7 +112,7 @@ Copy the shape of these; do not invent a second one.
 | A provider adapter                            | `packages/channels/src/sms.ts`                                                     | Owns the wire format; knows nothing about threads                                                       |
 | A job handler                                 | `packages/jobs/src/handlers.ts`                                                    | Builds ports from the job's context and calls core                                                      |
 | A migration                                   | `supabase/migrations/00125_a_person_may_have_an_email.sql`                         | Header of a few lines, re-runnable statements, RLS and grants like the other tenant tables              |
-| A view model                                  | `packages/contracts/src/calendar.ts`                                               | Pure; every sentence the page says comes from here                                                      |
+| A view model                                  | `packages/contracts/src/calendar/calendar.ts`                                      | Pure; every sentence the page says comes from here                                                      |
 | A real surface                                | `apps/dashboard/src/legacy/pages/calendar.jsx` with `legacy-bridge/calendar.ts`    | Classify it in `surface-registry.ts`; feed it through the surface seam; never a raw fetch in a page     |
 | An environment variable on the edge           | A getter in `apps/edge/lib/env.ts` and a line in `apps/edge/.env.example`          | `env-manifest.test.mjs` holds the two to the same list; blank is unset                                  |
 | A log line on the edge                        | `logger({ tenant_id }).info("event_name", { fields })` from `apps/edge/lib/log.ts` | One JSON object per line; the event name is the contract                                                |
@@ -126,7 +126,8 @@ Copy the shape of these; do not invent a second one.
 
 - A rule the product enforces: `packages/core`, or a SQL door when it needs the service role.
 - A provider's wire: `packages/channels`.
-- A type, a schema, an enum, a view model: `packages/contracts`.
+- A type, a schema, an enum, a view model: `packages/contracts`, in its domain's folder, named in that
+  folder's `index.ts` (never `export *`; a module imports another by its path, never through a barrel).
 - A read or write of a table: `packages/db`.
 - An HTTP door for a provider, a sweep, or the job runner: `apps/edge/api`.
 - What such a door calls: `apps/edge/lib/<domain>/`, and `apps/edge/lib` itself for the

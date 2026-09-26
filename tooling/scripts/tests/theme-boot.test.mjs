@@ -21,7 +21,7 @@ import {
   DEVICE_PREFS_STORAGE,
   DEFAULT_THEME_PREF,
   THEME_COLORS,
-} from "../../../packages/contracts/src/chrome.ts";
+} from "../../../packages/contracts/src/shell/chrome.ts";
 import { paintThemeColor } from "../../../apps/dashboard/src/legacy-bridge/theme-color.ts";
 import * as manifestModule from "../../../apps/dashboard/app/manifest.ts";
 

@@ -1184,220 +1184,220 @@
     "branches": 51,
     "depth": 6
   },
-  "packages/contracts/src/activity.ts::activityWords#1": {
-    "lines": 159,
-    "branches": 77,
-    "depth": 5
-  },
-  "packages/contracts/src/ask-answer.ts::partialField#1": {
+  "packages/contracts/src/ask/ask-answer.ts::partialField#1": {
     "lines": 32,
     "branches": 18,
     "depth": 7
   },
-  "packages/contracts/src/ask.ts::buildAskSuggestions#1": {
+  "packages/contracts/src/ask/ask.ts::buildAskSuggestions#1": {
     "lines": 84,
     "branches": 51,
     "depth": 3
   },
-  "packages/contracts/src/availability.ts::parseIcs#1": {
-    "lines": 134,
-    "branches": 69,
-    "depth": 5
-  },
-  "packages/contracts/src/billing.ts::toBillingVM#1": {
-    "lines": 125,
-    "branches": 34,
-    "depth": 3
-  },
-  "packages/contracts/src/business-tab.ts::abilityRows#1": {
-    "lines": 162,
-    "branches": 40,
-    "depth": 5
-  },
-  "packages/contracts/src/calendar.ts::toCalendarVM#1": {
-    "lines": 186,
-    "branches": 72,
-    "depth": 3
-  },
-  "packages/contracts/src/capabilities.ts::capabilityStatus#1": {
-    "lines": 66,
-    "branches": 34,
-    "depth": 6
-  },
-  "packages/contracts/src/config.ts::composeSystemPromptWith#1": {
-    "lines": 254,
-    "branches": 58,
-    "depth": 4
-  },
-  "packages/contracts/src/connections.ts::connectionRows#1": {
-    "lines": 394,
-    "branches": 54,
-    "depth": 5
-  },
-  "packages/contracts/src/deal-sheet.ts::dealSheetBody#1": {
-    "lines": 73,
-    "branches": 49,
-    "depth": 3
-  },
-  "packages/contracts/src/deal-sheet.ts::dealSheetFor#1": {
-    "lines": 103,
-    "branches": 57,
-    "depth": 3
-  },
-  "packages/contracts/src/first-run-phone.ts::firstRunPhoneOf#1": {
-    "lines": 302,
-    "branches": 117,
-    "depth": 4
-  },
-  "packages/contracts/src/first-run-try.ts::firstRunTryOf#1": {
-    "lines": 127,
-    "branches": 60,
-    "depth": 3
-  },
-  "packages/contracts/src/first-run.ts::firstRunOf#1": {
-    "lines": 104,
-    "branches": 47,
-    "depth": 4
-  },
-  "packages/contracts/src/first-run.ts::receptionistCardOf#1": {
-    "lines": 55,
-    "branches": 31,
-    "depth": 2
-  },
-  "packages/contracts/src/google.ts::toGoogleVM#1": {
-    "lines": 140,
-    "branches": 39,
-    "depth": 3
-  },
-  "packages/contracts/src/lead-peek.ts::toLeadPeekVM#1": {
-    "lines": 194,
-    "branches": 76,
-    "depth": 4
-  },
-  "packages/contracts/src/lead-row.ts::toLeadRowVM#1": {
-    "lines": 146,
-    "branches": 55,
-    "depth": 5
-  },
-  "packages/contracts/src/list-rules.ts::listFactWords#1": {
-    "lines": 60,
-    "branches": 48,
-    "depth": 5
-  },
-  "packages/contracts/src/live.ts::toLiveCallVM#1": {
-    "lines": 86,
-    "branches": 45,
-    "depth": 4
-  },
-  "packages/contracts/src/people.ts::toPersonRowVM#1": {
-    "lines": 144,
-    "branches": 59,
-    "depth": 7
-  },
-  "packages/contracts/src/person-attention.ts::attentionRow#1": {
-    "lines": 34,
-    "branches": 22,
-    "depth": 7
-  },
-  "packages/contracts/src/person-profile.ts::toPersonVM#1": {
-    "lines": 594,
-    "branches": 201,
-    "depth": 8
-  },
-  "packages/contracts/src/pipeline.ts::pipelineOf#1": {
-    "lines": 111,
-    "branches": 38,
-    "depth": 5
-  },
-  "packages/contracts/src/platform.ts::sentenceFor#1": {
-    "lines": 55,
-    "branches": 34,
-    "depth": 3
-  },
-  "packages/contracts/src/playbook-reach.ts::playbookRunReach#1": {
-    "lines": 100,
-    "branches": 33,
-    "depth": 4
-  },
-  "packages/contracts/src/refusal.ts::refusalOf#1": {
-    "lines": 58,
-    "branches": 34,
-    "depth": 3
-  },
-  "packages/contracts/src/reports.ts::toReportVM#1": {
-    "lines": 237,
-    "branches": 39,
-    "depth": 2
-  },
-  "packages/contracts/src/run-report.ts::(callback)#15": {
+  "packages/contracts/src/broadcasts/run-report.ts::(callback)#15": {
     "lines": 70,
     "branches": 55,
     "depth": 9
   },
-  "packages/contracts/src/run-report.ts::toRunReportVM#1": {
+  "packages/contracts/src/broadcasts/run-report.ts::toRunReportVM#1": {
     "lines": 229,
     "branches": 105,
     "depth": 9
   },
-  "packages/contracts/src/sending-domains.ts::judgeDomain#1": {
-    "lines": 63,
-    "branches": 33,
-    "depth": 3
-  },
-  "packages/contracts/src/setup.ts::setupSteps#1": {
-    "lines": 930,
-    "branches": 197,
-    "depth": 13
-  },
-  "packages/contracts/src/template-languages.ts::(callback)#3": {
-    "lines": 18,
-    "branches": 11,
-    "depth": 6
-  },
-  "packages/contracts/src/template-languages.ts::findLanguages#1": {
-    "lines": 27,
-    "branches": 14,
-    "depth": 6
-  },
-  "packages/contracts/src/templates.ts::validateTemplateDraft#1": {
-    "lines": 76,
-    "branches": 35,
-    "depth": 3
-  },
-  "packages/contracts/src/today.ts::(callback)#57": {
-    "lines": 28,
-    "branches": 15,
-    "depth": 6
-  },
-  "packages/contracts/src/today.ts::figuresOf#1": {
-    "lines": 200,
-    "branches": 65,
+  "packages/contracts/src/calendar/availability.ts::parseIcs#1": {
+    "lines": 134,
+    "branches": 69,
     "depth": 5
   },
-  "packages/contracts/src/today.ts::toTodayVM#1": {
-    "lines": 726,
-    "branches": 182,
-    "depth": 6
-  },
-  "packages/contracts/src/today.ts::todayAwayGrouped#1": {
-    "lines": 98,
-    "branches": 45,
+  "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {
+    "lines": 186,
+    "branches": 72,
     "depth": 3
   },
-  "packages/contracts/src/today.ts::todayLeaks#1": {
-    "lines": 207,
-    "branches": 71,
-    "depth": 3
+  "packages/contracts/src/config/business-tab.ts::abilityRows#1": {
+    "lines": 162,
+    "branches": 40,
+    "depth": 5
   },
-  "packages/contracts/src/viewmodels.ts::toCallVM#1": {
+  "packages/contracts/src/config/config.ts::composeSystemPromptWith#1": {
+    "lines": 254,
+    "branches": 58,
+    "depth": 4
+  },
+  "packages/contracts/src/conversations/viewmodels.ts::toCallVM#1": {
     "lines": 140,
     "branches": 81,
     "depth": 5
   },
-  "packages/contracts/src/viewmodels.ts::toInboxThreadVM#1": {
+  "packages/contracts/src/conversations/viewmodels.ts::toInboxThreadVM#1": {
     "lines": 219,
     "branches": 70,
     "depth": 4
+  },
+  "packages/contracts/src/deals/deal-sheet.ts::dealSheetBody#1": {
+    "lines": 73,
+    "branches": 49,
+    "depth": 3
+  },
+  "packages/contracts/src/deals/deal-sheet.ts::dealSheetFor#1": {
+    "lines": 103,
+    "branches": 57,
+    "depth": 3
+  },
+  "packages/contracts/src/deals/pipeline.ts::pipelineOf#1": {
+    "lines": 111,
+    "branches": 38,
+    "depth": 5
+  },
+  "packages/contracts/src/email/sending-domains.ts::judgeDomain#1": {
+    "lines": 63,
+    "branches": 33,
+    "depth": 3
+  },
+  "packages/contracts/src/google/google.ts::toGoogleVM#1": {
+    "lines": 140,
+    "branches": 39,
+    "depth": 3
+  },
+  "packages/contracts/src/leads/lead-peek.ts::toLeadPeekVM#1": {
+    "lines": 194,
+    "branches": 76,
+    "depth": 4
+  },
+  "packages/contracts/src/leads/lead-row.ts::toLeadRowVM#1": {
+    "lines": 146,
+    "branches": 55,
+    "depth": 5
+  },
+  "packages/contracts/src/people/list-rules.ts::listFactWords#1": {
+    "lines": 60,
+    "branches": 48,
+    "depth": 5
+  },
+  "packages/contracts/src/people/people.ts::toPersonRowVM#1": {
+    "lines": 144,
+    "branches": 59,
+    "depth": 7
+  },
+  "packages/contracts/src/people/person-attention.ts::attentionRow#1": {
+    "lines": 34,
+    "branches": 22,
+    "depth": 7
+  },
+  "packages/contracts/src/people/person-profile.ts::toPersonVM#1": {
+    "lines": 594,
+    "branches": 201,
+    "depth": 8
+  },
+  "packages/contracts/src/playbooks/playbook-reach.ts::playbookRunReach#1": {
+    "lines": 100,
+    "branches": 33,
+    "depth": 4
+  },
+  "packages/contracts/src/reports/reports.ts::toReportVM#1": {
+    "lines": 237,
+    "branches": 39,
+    "depth": 2
+  },
+  "packages/contracts/src/setup/capabilities.ts::capabilityStatus#1": {
+    "lines": 66,
+    "branches": 34,
+    "depth": 6
+  },
+  "packages/contracts/src/setup/connections.ts::connectionRows#1": {
+    "lines": 394,
+    "branches": 54,
+    "depth": 5
+  },
+  "packages/contracts/src/setup/first-run-phone.ts::firstRunPhoneOf#1": {
+    "lines": 302,
+    "branches": 117,
+    "depth": 4
+  },
+  "packages/contracts/src/setup/first-run-try.ts::firstRunTryOf#1": {
+    "lines": 127,
+    "branches": 60,
+    "depth": 3
+  },
+  "packages/contracts/src/setup/first-run.ts::firstRunOf#1": {
+    "lines": 104,
+    "branches": 47,
+    "depth": 4
+  },
+  "packages/contracts/src/setup/first-run.ts::receptionistCardOf#1": {
+    "lines": 55,
+    "branches": 31,
+    "depth": 2
+  },
+  "packages/contracts/src/setup/setup.ts::setupSteps#1": {
+    "lines": 930,
+    "branches": 197,
+    "depth": 13
+  },
+  "packages/contracts/src/shell/refusal.ts::refusalOf#1": {
+    "lines": 58,
+    "branches": 34,
+    "depth": 3
+  },
+  "packages/contracts/src/templates/template-languages.ts::(callback)#3": {
+    "lines": 18,
+    "branches": 11,
+    "depth": 6
+  },
+  "packages/contracts/src/templates/template-languages.ts::findLanguages#1": {
+    "lines": 27,
+    "branches": 14,
+    "depth": 6
+  },
+  "packages/contracts/src/templates/templates.ts::validateTemplateDraft#1": {
+    "lines": 76,
+    "branches": 35,
+    "depth": 3
+  },
+  "packages/contracts/src/today/today.ts::(callback)#57": {
+    "lines": 28,
+    "branches": 15,
+    "depth": 6
+  },
+  "packages/contracts/src/today/today.ts::figuresOf#1": {
+    "lines": 200,
+    "branches": 65,
+    "depth": 5
+  },
+  "packages/contracts/src/today/today.ts::toTodayVM#1": {
+    "lines": 726,
+    "branches": 182,
+    "depth": 6
+  },
+  "packages/contracts/src/today/today.ts::todayAwayGrouped#1": {
+    "lines": 98,
+    "branches": 45,
+    "depth": 3
+  },
+  "packages/contracts/src/today/today.ts::todayLeaks#1": {
+    "lines": 207,
+    "branches": 71,
+    "depth": 3
+  },
+  "packages/contracts/src/voice/live.ts::toLiveCallVM#1": {
+    "lines": 86,
+    "branches": 45,
+    "depth": 4
+  },
+  "packages/contracts/src/workspace/activity.ts::activityWords#1": {
+    "lines": 159,
+    "branches": 77,
+    "depth": 5
+  },
+  "packages/contracts/src/workspace/billing.ts::toBillingVM#1": {
+    "lines": 125,
+    "branches": 34,
+    "depth": 3
+  },
+  "packages/contracts/src/workspace/platform.ts::sentenceFor#1": {
+    "lines": 55,
+    "branches": 34,
+    "depth": 3
   },
   "packages/core/src/campaigns/create-broadcast.ts::createBroadcast#1": {
     "lines": 168,

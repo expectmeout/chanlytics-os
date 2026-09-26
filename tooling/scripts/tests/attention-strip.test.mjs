@@ -199,7 +199,9 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
     "the grants are re-stated after the drop",
   );
   assert.ok(
-    readCode("packages/contracts/src/people.ts").includes("callSummary: r.last_inbound_call_summary?.trim() || null,"),
+    readCode("packages/contracts/src/people/people.ts").includes(
+      "callSummary: r.last_inbound_call_summary?.trim() || null,",
+    ),
   );
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(

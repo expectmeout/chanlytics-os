@@ -116,7 +116,7 @@ test("F36/F37: alerts that go to Chanlytics say so; switching a number off is de
   // The channels sentence moved with the pane it belongs to; the alerts
   // above it are the notifications pane and stay in the settings shell.
   assert.ok(
-    readCode("packages/contracts/src/channels.ts").includes(
+    readCode("packages/contracts/src/lines/channels.ts").includes(
       "neither answered nor recorded; Chanlytics is told they are arriving, you are not",
     ),
     "the row's own sentence says what the code does (channels-vm.test.mjs runs it)",

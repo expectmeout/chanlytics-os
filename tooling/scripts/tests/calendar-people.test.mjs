@@ -670,7 +670,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
   );
   assert.ok(!page.includes("read just now") && !page.includes("feedLine"), "the chip's sentence stays on the chip");
   assert.ok(page.includes("matched by {b.person.via}") && page.includes("Not in People yet"));
-  const dto = readCode("packages/contracts/src/calendar.ts");
+  const dto = readCode("packages/contracts/src/calendar/calendar.ts");
   assert.ok(
     dto.includes('source: dto.feed.source ?? "your calendar"') &&
       dto.includes('From ${dto.feed.source ?? "your calendar"} · read'),
@@ -1987,7 +1987,7 @@ test("the Calendar never labels an appointment as the owner's, and still finds t
 });
 
 test("a visit's title drops the person's own name at its end, and nothing else: on Tom's page it is Consultation", async () => {
-  const { visitTitleFor } = await import("../../../packages/contracts/src/people.ts");
+  const { visitTitleFor } = await import("../../../packages/contracts/src/people/people.ts");
   assert.equal(visitTitleFor("Consultation · Tom Baker", "Tom Baker"), "Consultation", "a booking app's title");
   assert.equal(visitTitleFor("Color treatment - tom baker", "Tom Baker"), "Color treatment", "any case, any dash");
   assert.equal(visitTitleFor("Consultation · Tom", "Tom Baker"), "Consultation · Tom", "not a part of the name");

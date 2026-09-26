@@ -166,7 +166,7 @@ test("a business with no website of its own files the page we publish", () => {
   );
 
   // Which is only safe because the form no longer demands a URL it cannot get.
-  const rec = readRaw("packages/contracts/src/business-record.ts");
+  const rec = readRaw("packages/contracts/src/lines/business-record.ts");
   assert.match(rec, /\{ name: "website_url", required: false \}/);
   assert.ok(rec.includes("We publish `/b/<slug>`"), "and says why, where the next person will read it");
 });
