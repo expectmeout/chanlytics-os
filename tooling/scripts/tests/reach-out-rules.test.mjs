@@ -71,3 +71,26 @@ test("a slot is named in any case or spacing; one this cannot fill, or no slot a
     text: "Hi $& {{city}}",
   });
 });
+
+test("all six slots: the lead's two, the workspace's three, and the send's own opening", () => {
+  const ws = { businessName: "Harbor Moving Co", yourName: "Sam", bookingLink: "https://example.com/book" };
+  const r = reachOutSlots(
+    "{{opening}} {{business}} in {{city}}: {{your business}}, {{booking link}}, {{ Your  Name }}",
+    { business_name: "Austin Movers", city: "Austin" },
+    ws,
+    "Your 4.9 says people find you.",
+  );
+  assert.deepEqual(r, {
+    ok: true,
+    text: "Your 4.9 says people find you. Austin Movers in Austin: Harbor Moving Co, https://example.com/book, Sam",
+  });
+  // No opening yet, or none for this send: the email is held, never sent with its braces.
+  assert.deepEqual(reachOutSlots("{{opening}} hi", { business_name: "A", city: "B" }, ws), {
+    ok: false,
+    reason: "missing_value",
+  });
+  assert.deepEqual(reachOutSlots("{{booking link}}", { business_name: "A", city: "B" }, { businessName: "H" }), {
+    ok: false,
+    reason: "missing_value",
+  });
+});
