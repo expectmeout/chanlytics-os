@@ -113,17 +113,22 @@ test("a turn reads a reader once per arguments: the same call again is the same 
   assert.equal(r.reads, 3, "another turn is another read");
 });
 
-test("a reader with a ttl is kept across turns on this instance, per workspace and person, until the ttl; a failure is not kept; the cache is bounded", async () => {
+test("a reader with a ttl is kept across turns that keep, on this instance, per workspace and person, until the ttl; a failure is not kept; the cache is bounded", async () => {
   const r = counting("kept", { ttlMs: 60_000 });
-  const t1 = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" });
-  const t2 = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" });
+  const t1 = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true });
+  const t2 = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true });
   await kernel.load(t1, r, undefined);
   await kernel.load(t2, r, undefined);
   assert.equal(r.reads, 1, "the second turn read the kept value");
-  const elsewhere = kernel.readerContext(ctxFor(tables()), { tenantId: B, role: "owner" });
+  const elsewhere = kernel.readerContext(ctxFor(tables()), { tenantId: B, role: "owner" }, undefined, { keep: true });
   await kernel.load(elsewhere, r, undefined);
   assert.equal(r.reads, 2, "another workspace is another entry");
-  const someoneElse = kernel.readerContext({ ...ctxFor(tables()), userId: "u2" }, { tenantId: A, role: "owner" });
+  const someoneElse = kernel.readerContext(
+    { ...ctxFor(tables()), userId: "u2" },
+    { tenantId: A, role: "owner" },
+    undefined,
+    { keep: true },
+  );
   await kernel.load(someoneElse, r, undefined);
   assert.equal(r.reads, 3, "another person is another entry");
   kernel.readerCache.clear();
@@ -133,15 +138,23 @@ test("a reader with a ttl is kept across turns on this instance, per workspace a
   assert.equal(f.reads, 2, "a failed read is not kept");
   kernel.readerCache.clear();
   const stale = counting("stale", { ttlMs: 10 });
-  await kernel.load(kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }), stale, undefined);
+  await kernel.load(
+    kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true }),
+    stale,
+    undefined,
+  );
   await new Promise((res) => setTimeout(res, 15));
-  await kernel.load(kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }), stale, undefined);
+  await kernel.load(
+    kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true }),
+    stale,
+    undefined,
+  );
   assert.equal(stale.reads, 2, "past the ttl the value is read again");
   assert.equal(kernel.READER_CACHE_CAP, 500);
 });
 
 test("the kept values are bounded at READER_CACHE_CAP, the oldest write first out: a value read again goes to the back", async () => {
-  const turn = () => kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" });
+  const turn = () => kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true });
   const r = counting("fifo", { ttlMs: 60_000 });
   await kernel.load(turn(), r, { n: 0 });
   await kernel.load(turn(), r, { n: 1 });
@@ -159,9 +172,9 @@ test("the kept values are bounded at READER_CACHE_CAP, the oldest write first ou
   assert.equal(r.reads, reads + 1, "the oldest write was the one let go");
 });
 
-test("the facts readers: the tenant's name and zone are read once and kept; sells_by, the policies and the config are read once per turn; each answers the row's fields and nothing else", async () => {
+test("the facts readers: the tenant's name and zone are read once and kept for turns that keep; sells_by, the policies and the config are read once per turn; each answers the row's fields and nothing else", async () => {
   const ctx = ctxFor(tables());
-  const rc = kernel.readerContext(ctx, { tenantId: A, role: "operator" });
+  const rc = kernel.readerContext(ctx, { tenantId: A, role: "operator" }, undefined, { keep: true });
   const [f, s, p, c] = await Promise.all([
     kernel.load(rc, facts, undefined),
     kernel.load(rc, sellsBy, undefined),
@@ -179,7 +192,7 @@ test("the facts readers: the tenant's name and zone are read once and kept; sell
     [2, 1],
     "tenants once for facts and once for sells_by; the config once",
   );
-  const later = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "operator" });
+  const later = kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "operator" }, undefined, { keep: true });
   const f2 = await kernel.load(later, facts, undefined);
   assert.deepEqual(f2.data, f.data);
   assert.equal(
@@ -1712,8 +1725,7 @@ const CALENDAR_ASKED_AT_MAIN = [
 test("GET calendar through its reader asks what it asked at origin/main, in the same order -- the settings now through the config reader's columns -- and keeps its write between the read and the board: an owner's or an operator's read puts the person the feed names in People and the board links them, as it did; a viewer's asks the same, less the write", async () => {
   await withFeed({ body: ONE_ICS }, async () => {
     for (const role of ["owner", "operator", "viewer"]) {
-      // The zone is the facts reader's, kept across requests on an instance: each caller here starts with none kept.
-      kernel.readerCache.clear();
+      // One instance, three requests: a route keeps nothing across requests, so each asks for the zone again.
       const made = [];
       const ctx = calCtx(calTables("https://cal.example/route.ics", role), () => [], made);
       const page = await calendarRoute.GET.run(req(`?workspace=${A}&from=2026-09-07&days=7`), ctx);
@@ -1811,4 +1823,42 @@ test("GET ask/openings through its reader asks what it asked at origin/main, in 
   const r = await kernel.load(turn, openingsReader, { day: null, service: null });
   assert.equal(r.data.openings.state, "no_calendar");
   assert.equal(turn.ctx.supabase.seen.length, before, "nothing read: the zone and the settings were the turn's");
+});
+
+/* ---------------------------------------------------- the cross-turn cache is opt-in (PR 1.5) */
+
+test("the cross-turn cache is opt-in: a context that does not keep reads a ttl reader again in the next context, and what a turn kept is never served to it; a route keeps nothing -- GET calendar and GET ask/openings read the zone on every request, so a zone changed between two requests is the second request's", async () => {
+  const r = counting("opt-in", { ttlMs: 60_000 });
+  const plain = () => kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" });
+  const keeps = () => kernel.readerContext(ctxFor(tables()), { tenantId: A, role: "owner" }, undefined, { keep: true });
+  assert.equal(plain().keep, false, "a context keeps nothing unless it says so");
+  await kernel.load(plain(), r, undefined);
+  await kernel.load(plain(), r, undefined);
+  assert.equal(r.reads, 2, "no keep: the next context read again");
+  await kernel.load(keeps(), r, undefined);
+  await kernel.load(keeps(), r, undefined);
+  assert.equal(r.reads, 3, "a turn that keeps: the next turn took the kept value");
+  await kernel.load(plain(), r, undefined);
+  assert.equal(r.reads, 4, "what a turn kept is not served to a context that does not keep");
+
+  await withFeed({ body: ONE_ICS }, async () => {
+    const t = calTables("https://cal.example/zone.ics", "viewer");
+    for (const timezone of ["America/New_York", "Europe/Madrid", "America/New_York"]) {
+      t.tenants[0].timezone = timezone;
+      const board = calCtx(t);
+      const week = await calendarRoute.GET.run(req(`?workspace=${A}&from=2026-09-07&days=7`), board);
+      const palette = calCtx(t);
+      const open = await openingsRoute.GET.run(req(`?workspace=${A}`), palette);
+      assert.deepEqual(
+        [week.calendar.timezone, open.openings.tz],
+        [timezone, timezone],
+        "each request answers its own read of the zone",
+      );
+      assert.deepEqual(
+        [selects(board, "tenants").length, selects(palette, "tenants").length],
+        [1, 1],
+        "the zone read for this request, by each route",
+      );
+    }
+  });
 });
