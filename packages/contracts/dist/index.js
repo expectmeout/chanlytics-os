@@ -5096,10 +5096,18 @@ var LEAD_PLATFORM_HOSTS = /* @__PURE__ */ (() => [
   "wixsite.com",
   "business.site",
   "facebook.com",
+  "fb.com",
   "instagram.com",
+  "tiktok.com",
+  "youtube.com",
+  "x.com",
+  "twitter.com",
+  "linkedin.com",
   "linktr.ee",
+  "linkin.bio",
   "yelp.com",
-  "google.com"
+  "google.com",
+  "g.page"
 ])();
 var LEAD_JUNK_EMAIL_DOMAINS = /* @__PURE__ */ (() => [
   ...BOOKING_PLATFORM_HOSTS,
@@ -23702,6 +23710,7 @@ function checkOpening(o, r2) {
   if (LINKISH.test(text)) return "link";
   if (/\{\{|\}\}/.test(text)) return "brace";
   if (shoutingLine(text)) return "shouting";
+  if (violatesNoPrices(text)) return "price";
   const angle = o.angle.trim().split(/\s+/).filter(Boolean);
   if (angle.length === 0 || angle.length > ANGLE_WORDS_MAX) return "angle";
   for (const k of o.facts_used) if (!factValue(r2, k)) return "unnamed_fact";
@@ -23721,6 +23730,8 @@ function openingProblemWords(p) {
       return "it left a {{slot}} in";
     case "shouting":
       return "it had a line in capitals";
+    case "price":
+      return "it named a price";
     case "angle":
       return `its angle was not ${ANGLE_WORDS_MAX} words or fewer`;
     case "unnamed_fact":
@@ -23729,51 +23740,9 @@ function openingProblemWords(p) {
       return "it named a number the record does not hold";
   }
 }
-var PLATFORM_HOSTS = [
-  "facebook.com",
-  "fb.com",
-  "instagram.com",
-  "tiktok.com",
-  "youtube.com",
-  "x.com",
-  "twitter.com",
-  "linkedin.com",
-  "linktr.ee",
-  "linkin.bio",
-  "yelp.com",
-  "google.com",
-  "business.site",
-  "g.page",
-  "wixsite.com",
-  "wix.com",
-  "squarespace.com",
-  "square.site",
-  "squareup.com",
-  "godaddysites.com",
-  "weebly.com",
-  "wordpress.com",
-  "carrd.co",
-  "webflow.io",
-  "myshopify.com",
-  "vagaro.com",
-  "booksy.com",
-  "mindbodyonline.com",
-  "schedulicity.com",
-  "glossgenius.com",
-  "fresha.com",
-  "setmore.com",
-  "acuityscheduling.com",
-  "calendly.com",
-  "styleseat.com"
-];
-function siteKeyOf(host) {
-  const h = (host ?? "").trim().toLowerCase().replace(/^www\./, "").replace(/\.$/, "");
-  if (!h || !h.includes(".")) return null;
-  return PLATFORM_HOSTS.some((p) => h === p || h.endsWith(`.${p}`)) ? null : h;
-}
 var CHAIN_MIN_LISTINGS = 3;
 function chainOf(l) {
-  if (siteKeyOf(l.website) && l.site_listings >= CHAIN_MIN_LISTINGS) return { by: "site", listings: l.site_listings };
+  if (siteHost(l.website) && l.site_listings >= CHAIN_MIN_LISTINGS) return { by: "site", listings: l.site_listings };
   if (l.name_listings >= CHAIN_MIN_LISTINGS) return { by: "name", listings: l.name_listings };
   return null;
 }
@@ -24370,7 +24339,6 @@ export {
   PLATFORM_HOLD_NOTICE,
   PLATFORM_HOLD_READD,
   PLATFORM_HOLD_REFUSAL,
-  PLATFORM_HOSTS,
   PLATFORM_NEW_DAYS,
   PLATFORM_QUIET_DAYS,
   PLATFORM_VERDICTS,
@@ -25281,7 +25249,6 @@ export {
   shoutingLine,
   signupPosture,
   siteHost,
-  siteKeyOf,
   slotChoices,
   slotCount,
   slotKey,

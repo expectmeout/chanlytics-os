@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import {
   checkOpening,
   chainOf,
-  siteKeyOf,
+  siteHost,
   customerDomainOf,
   holdWords,
   holdDoors,
@@ -53,17 +53,28 @@ test("an opening code can send: short, no link, no brace, every number the recor
     "unnamed_fact",
   );
   assert.equal(checkOpening(opening("Hi.", { angle: "four words is too many" }), RECORD), "angle");
+  // A price is the platform's one price rule's (violatesNoPrices), asked in code before the reader is.
+  assert.equal(checkOpening(opening("Moves from $99 are rare in town."), RECORD), "price");
 });
 
 test("a chain is three listings sharing the business's own website, or its name; a platform's page is nobody's own", () => {
-  assert.equal(siteKeyOf("www.AustinMovers.example"), "austinmovers.example");
-  for (const h of ["facebook.com", "m.facebook.com", "fitco.wixsite.com", "booksy.com", "sites.google.com"])
-    assert.equal(siteKeyOf(h), null, h);
+  // A business's own site is the finder's one rule (siteHost): a profile on a platform is nobody's own.
+  assert.equal(siteHost("www.AustinMovers.example"), "austinmovers.example");
+  for (const h of [
+    "facebook.com",
+    "m.facebook.com",
+    "fitco.wixsite.com",
+    "booksy.com",
+    "sites.google.com",
+    "tiktok.com",
+  ])
+    assert.equal(siteHost(h), null, h);
   assert.deepEqual(chainOf({ website: "austinmovers.example", site_listings: 3, name_listings: 1 }), {
     by: "site",
     listings: 3,
   });
-  assert.equal(chainOf({ website: "facebook.com", site_listings: 40, name_listings: 1 }), null);
+  for (const website of ["facebook.com", "tiktok.com", "youtube.com", "g.page"])
+    assert.equal(chainOf({ website, site_listings: 40, name_listings: 1 }), null, website);
   assert.deepEqual(chainOf({ website: null, site_listings: 0, name_listings: 4 }), { by: "name", listings: 4 });
   assert.equal(chainOf({ website: "austinmovers.example", site_listings: 2, name_listings: 2 }), null);
 });

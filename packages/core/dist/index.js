@@ -5476,10 +5476,18 @@ var LEAD_PLATFORM_HOSTS = /* @__PURE__ */ (() => [
   "wixsite.com",
   "business.site",
   "facebook.com",
+  "fb.com",
   "instagram.com",
+  "tiktok.com",
+  "youtube.com",
+  "x.com",
+  "twitter.com",
+  "linkedin.com",
   "linktr.ee",
+  "linkin.bio",
   "yelp.com",
-  "google.com"
+  "google.com",
+  "g.page"
 ])();
 var LEAD_JUNK_EMAIL_DOMAINS = /* @__PURE__ */ (() => [
   ...BOOKING_PLATFORM_HOSTS,

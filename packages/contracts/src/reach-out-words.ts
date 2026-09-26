@@ -9,13 +9,15 @@
  *   ReachOutChainSchema,     a chain as the sheet saves it: its name, its search, its steps and their days, its pace,
  *   validateReachOutChain    its domains, and what its words ask the workspace to have
  *   checkOpening             an opening as the writer wrote it, read by code (F2)
- *   chainOf, customerDomainOf    the check's two code holds (F4, F6)
+ *   chainOf, customerDomainOf    the check's two code holds (F4, F6); a business's own site is lead-search's siteHost
  *   holdWords, holdDoors     what a held send says, and what its owner can do about it (F3)
  */
 import { z } from "zod";
 import { isFreeMail } from "./free-mail";
 import { posesAsReply } from "./email-subject";
 import { languageName } from "./template-languages";
+import { siteHost } from "./lead-search";
+import { violatesNoPrices } from "./policy";
 
 export const REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"] as const;
 export type ReachOutSlot = (typeof REACH_OUT_SLOTS)[number];
@@ -319,7 +321,7 @@ function recordNumbers(r: OpeningRecord): Set<string> {
 }
 
 export type OpeningProblem =
-  "empty" | "too_long" | "link" | "brace" | "shouting" | "angle" | "unnamed_fact" | "unbacked_number";
+  "empty" | "too_long" | "link" | "brace" | "shouting" | "price" | "angle" | "unnamed_fact" | "unbacked_number";
 
 // A scheme, a www., or any name.tld (a business's own host is a link to a spam filter too). Numbers never match: a
 // rating's "4.9" has no letters after its dot.
@@ -327,7 +329,7 @@ const LINKISH = /https?:\/\/|\bwww\.|\b[a-z0-9-]+\.[a-z]{2,}\b/i;
 
 /**
  * An opening as the writer wrote it, read by code before the reader reads it (§4.4, F2): something to say, forty
- * words at most, no link (the owner's words carry theirs), no brace, no line in capitals, an angle of one to three
+ * words at most, no link (the owner's words carry theirs), no brace, no line in capitals, no price, an angle of one to three
  * words, every fact it names one the record has, and every number in it one the record holds.
  */
 export function checkOpening(o: WrittenOpening, r: OpeningRecord): OpeningProblem | null {
@@ -337,6 +339,8 @@ export function checkOpening(o: WrittenOpening, r: OpeningRecord): OpeningProble
   if (LINKISH.test(text)) return "link";
   if (/\{\{|\}\}/.test(text)) return "brace";
   if (shoutingLine(text)) return "shouting";
+  // The platform's one price rule (policy.ts), the one every reply the receptionist writes is read by.
+  if (violatesNoPrices(text)) return "price";
   const angle = o.angle.trim().split(/\s+/).filter(Boolean);
   if (angle.length === 0 || angle.length > ANGLE_WORDS_MAX) return "angle";
   for (const k of o.facts_used) if (!factValue(r, k)) return "unnamed_fact";
@@ -358,6 +362,8 @@ export function openingProblemWords(p: OpeningProblem): string {
       return "it left a {{slot}} in";
     case "shouting":
       return "it had a line in capitals";
+    case "price":
+      return "it named a price";
     case "angle":
       return `its angle was not ${ANGLE_WORDS_MAX} words or fewer`;
     case "unnamed_fact":
@@ -367,68 +373,19 @@ export function openingProblemWords(p: OpeningProblem): string {
   }
 }
 
-/** Hosts that are a platform's pages, never a business's own site: a listing there says nothing about a chain. */
-export const PLATFORM_HOSTS: readonly string[] = [
-  "facebook.com",
-  "fb.com",
-  "instagram.com",
-  "tiktok.com",
-  "youtube.com",
-  "x.com",
-  "twitter.com",
-  "linkedin.com",
-  "linktr.ee",
-  "linkin.bio",
-  "yelp.com",
-  "google.com",
-  "business.site",
-  "g.page",
-  "wixsite.com",
-  "wix.com",
-  "squarespace.com",
-  "square.site",
-  "squareup.com",
-  "godaddysites.com",
-  "weebly.com",
-  "wordpress.com",
-  "carrd.co",
-  "webflow.io",
-  "myshopify.com",
-  "vagaro.com",
-  "booksy.com",
-  "mindbodyonline.com",
-  "schedulicity.com",
-  "glossgenius.com",
-  "fresha.com",
-  "setmore.com",
-  "acuityscheduling.com",
-  "calendly.com",
-  "styleseat.com",
-];
-
-/** A business's own site, as listings are compared by it; null for none, or for a platform's page. */
-export function siteKeyOf(host: string | null | undefined): string | null {
-  const h = (host ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/^www\./, "")
-    .replace(/\.$/, "");
-  if (!h || !h.includes(".")) return null;
-  return PLATFORM_HOSTS.some((p) => h === p || h.endsWith(`.${p}`)) ? null : h;
-}
-
 export const CHAIN_MIN_LISTINGS = 3;
 
 /**
  * Whether a business reads like a chain (§4.4, F4): three or more of the workspace's leads share its own website, or
- * its name. The spec's "three locations on Maps" has no field; this is what the finder holds, said as measured.
+ * its name. The spec's "three locations on Maps" has no field; this is what the finder holds, said as measured. A page
+ * on a platform (a social profile, a booking site) is nobody's own site (siteHost), so it counts nothing.
  */
 export function chainOf(l: {
   website: string | null;
   site_listings: number;
   name_listings: number;
 }): { by: "site" | "name"; listings: number } | null {
-  if (siteKeyOf(l.website) && l.site_listings >= CHAIN_MIN_LISTINGS) return { by: "site", listings: l.site_listings };
+  if (siteHost(l.website) && l.site_listings >= CHAIN_MIN_LISTINGS) return { by: "site", listings: l.site_listings };
   if (l.name_listings >= CHAIN_MIN_LISTINGS) return { by: "name", listings: l.name_listings };
   return null;
 }
