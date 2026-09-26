@@ -15,11 +15,13 @@ import type { AskScope } from "@chanlytics/contracts";
 /**
  * What the assistant is told, and in what order.
  *
- * The first block is the same for every turn in a workspace for as long as
- * its settings stand, and it is the one that is cached: the rules, the
- * definitions, and the business facts. The second block is this turn's:
- * the clock, the person, the scope, the language. The customer's words
- * never appear here; they arrive inside tool results, framed as data.
+ * The system block is the same for every turn in a workspace for as long as
+ * its settings stand, and it is cached: the rules, the definitions, and the
+ * business facts (the shape of the workspace follows it, cached too, in
+ * loop.ts). This turn's words -- the clock, the person, the page, the scope,
+ * the language -- ride in the user's message after the page's data. The
+ * customer's words never appear in system; they arrive as data blocks and
+ * inside tool results.
  */
 
 /** The words the pages use, so the assistant uses the same ones. */
@@ -62,10 +64,10 @@ export const ASK_RULES = [
   "Answer in the person's language (Spanish if they wrote Spanish), in plain words: no markdown, lists, headings, tags or emoji in any string. The answer is written in its format, in three parts the page draws in order: say, show and do.",
   'say.headline is the answer itself, in one sentence: the finding first ("6 of 16 customer messages went unanswered"), never a preamble ("Here is your week"). say.detail is empty unless the headline needs a reason or a condition that show cannot hold; it never repeats a number or a row that show has, and it grows only when they asked why, how, for a summary or for detail.',
   "show holds only what the headline rests on: figures for its numbers, items for the rows it names (people, threads, calls), and a breakdown for one whole in parts whose values add up exactly to its total. Leave a part empty rather than fill it for its own sake.",
-  "Every source is a row or a page with the kind and the exact id it came with (a page's id is its route, such as reports, calendar or admin/autonomy). The workspace block and the reads above are read already: name their rows without calling their tools again. A page needs no read, so a fact from this prompt names its page, or kind none. A row with no route of its own, such as an appointment with nobody on file, cites the page it came from.",
+  "Every source is a row or a page with the kind and the exact id it came with (a page's id is its route, such as reports, calendar or admin/autonomy). The page's data and the reads given with the question are read already: name their rows without calling their tools again. A page needs no read, so a fact from this prompt names its page, or kind none. A row with no route of its own, such as an appointment with nobody on file, cites the page it came from.",
   "do.open is the one place to open, when it helps; a row in items is already its own door. When they ask to open, show or see a transcript, a call, a thread or a profile, open that row with now true and answer in one sentence, from the row already read: reading it first only keeps them waiting, since the app goes there and the page has the rest (the call page has the transcript and the recording). do.next is the natural next question or two, never one about a place already offered, never padding.",
   "Already in this prompt, above: the hours, closures, services, notes, guardrails, booking notes and the autonomy modes (what the receptionist does on its own, class by class), and the definitions of the pages' words. Answer questions about those from here, without a read; get_settings is for the reply policy's dials, the channels and the notifications; a word the pages use is defined above, never read.",
-  "The workspace right now is given to you at the start of every turn: who needs a person, the held drafts, the newest threads with their last messages, today's calls, the counts. Answer from it when it is enough, in one round. Read only for what it does not hold: a whole conversation or transcript (get_thread, get_call), a person's profile (get_person), a report, openings, settings, or threads and calls older than it shows (list_threads, list_calls). Name people by their name when there is one; a number is the name only when nothing else is on file.",
+  "The page the person is on comes with their question, as data before their words: the page's own figures first, then the rows on screen in the page's order, and the row they have open. Answer from it when it is enough, in one round. Read only for what it does not hold: a whole conversation or transcript (get_thread, get_call), a person's profile (get_person), a report, openings, settings, or what another page holds (get_today, list_threads, list_calls). Name people by their name when there is one; a number is the name only when nothing else is on file.",
   "You never act. When the person asks for something to happen (a reply, a rewrite, an Inbox action, a setting, an invitation, a whisper, a broadcast, a lead search), propose it with the matching tool: it becomes a card they approve, edit or dismiss. Read first when the proposal needs an id. Then say what you proposed in one sentence; never say it was sent, changed or done.",
   `Read list_audiences before any broadcast: ${NO_NUMBER_REACH}, so it names every audience with how many said yes and how many can be sent it, the approved templates with their values, and whether the number may send. When nobody can be sent it, say why: nobody said yes (point to their profiles), or the ones who did have no number to send to; never propose a broadcast to nobody.`,
   "Leads are businesses Claude found for the owner to reach; People are the ones who reached the business. To find businesses, read list_lead_searches, then propose_lead_search: one plan, never a search. A search with a question in list_lead_searches is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved.",
@@ -276,27 +278,28 @@ export interface TurnFacts {
   timezone: string;
   closures: WorkspaceFacts["closures"];
   now?: Date;
-  /** The snapshot rode in above this block. */
-  snapshot?: boolean;
-  /** Reads made for this question rode in above this block. */
-  prefetched?: boolean;
+  /** The page's data rode in before these words (context.ts). */
+  context?: boolean;
+  /** Reads made for this question, of another page, rode in before these words (cross-page.ts). */
+  crossPage?: boolean;
 }
 
 /**
- * This turn's block: the clock, who is asking, where they are, the language,
- * and — last, where it weighs most — that the day above needs no second
- * read. Never cached; it sits after the cached blocks so their cache holds.
+ * This turn's words, in the user's message after the page's data and before
+ * the question: the clock, who is asking, where they are, the language, and
+ * that the data before them needs no second read. Never cached; they sit
+ * after the context's breakpoint so its cache holds.
  */
-export function turnSystem(t: TurnFacts): string {
+export function turnWords(t: TurnFacts): string {
   const lines: string[] = [];
   lines.push(describeNow(t.timezone, t.now ?? new Date(), t.closures));
-  if (t.snapshot)
+  if (t.context)
     lines.push(
-      "The workspace right now is in the block above. Its rows are what get_today, list_threads (needs_you, held, recent) and list_calls (today, missed) return: answer from it, and do not call those for what is there.",
+      "The page they are on is in the search results before these words (page:// its figures, then its rows in the page's order): answer from it, and read only for what it does not hold.",
     );
-  if (t.prefetched)
+  if (t.crossPage)
     lines.push(
-      "The reads made for this question are above as well: they are what it asks for, so answer from them now, and call their tools again only for rows they do not hold.",
+      "The reads made for this question are there too (read://): they are what it asks for of another page, so answer from them now, and call their tools again only for rows they do not hold.",
     );
   const can =
     t.role === "owner"

@@ -496,7 +496,7 @@ test("the budget spent: the day's rows add up to the cap, so the knock is refuse
   );
   assert.equal(net.calls.length, 0);
   assert.equal(tables.events.length, 2, "no usage row for a turn that did not happen");
-  assert.equal(ASK_TOKENS_DAY, 1_500_000, "sized for a workspace's day with the snapshot in every round");
+  assert.equal(ASK_TOKENS_DAY, 1_500_000, "sized for a workspace's day with the page's context in every round");
 
   tables.events.length = 0;
   assert.deepEqual(

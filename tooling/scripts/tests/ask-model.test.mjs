@@ -113,7 +113,7 @@ test("the loop asks the profile: the request names its id and its effort, and th
         emit: () => {},
         now: new Date("2026-09-14T14:00:00Z"),
       },
-      { round, snapshot: async () => "", tool: async () => ({ result: "{}", isError: false }), propose: buildProposal },
+      { round, shape: async () => "", tool: async () => ({ result: "{}", isError: false }), propose: buildProposal },
     );
     assert.equal(r.failed, false, r.failure ?? "");
     assert.equal(r.model, "claude-sonnet-5");

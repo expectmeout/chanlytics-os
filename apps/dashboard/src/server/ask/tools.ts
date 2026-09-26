@@ -109,7 +109,7 @@ export const READ_TOOLS: ToolDef[] = [
   {
     name: "get_today",
     description:
-      "The Today page: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist and the day's counts. It holds no drafts: the workspace snapshot's held_drafts and list_threads filter=held have them. Start here for 'how are we doing', 'what needs me', 'brief me'.",
+      "The Today page: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist and the day's counts. It holds no drafts: list_threads filter=held has them. Start here for 'how are we doing', 'what needs me', 'brief me'.",
     input_schema: obj({}),
   },
   {
@@ -214,7 +214,7 @@ export interface ToolContext {
    * which keeps no failure -- the audience pool, the lists, the channels, the templates and the searches among them,
    * each read once a turn by its arguments -- and poolList counts a list of the workspace's own from the lists the turn
    * holds (audience.ts). What still reads the database itself: a proposal's own checks (proposals.ts, a card's
-   * validation) and the snapshot (snapshot.ts, until Phase 2 replaces it).
+   * validation).
    */
   rc: ReaderContext;
 }

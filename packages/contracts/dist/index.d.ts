@@ -13084,8 +13084,9 @@ declare const ASK_TURN_BUDGET_MS = 45000;
 declare const ASK_MAX_TOKENS = 2000;
 /**
  * Ask's own daily token budget per workspace, apart from the receptionist's.
- * Counted on uncached input plus output. With the day's snapshot riding into
- * every round, a turn costs two to eight thousand such tokens; a busy owner
+ * Counted on uncached input plus output. With the page's context riding into
+ * every round behind its own cache breakpoint (a cache read is not counted),
+ * a turn costs two to eight thousand such tokens; a busy owner
  * asking sixty questions stays well under this, and an eval run of the whole
  * case set fits several times over. The first cap (400k) was spent by a day
  * of eval runs and refused the palette until the window rolled.
@@ -13227,7 +13228,7 @@ interface AskMessageVM {
     /** The tools this turn ran, in order. */
     tools: string[];
     latencyMs: number | null;
-    /** Model rounds the turn took; one means the snapshot was enough. */
+    /** Model rounds the turn took; one means the page's context was enough. */
     rounds?: number | null;
     /** Set on a turn that could not be answered; the text says why. */
     failed: boolean;
@@ -13449,13 +13450,17 @@ interface AskTurnShape {
     /** From the palette opening to the question being sent, as the tab measured it. */
     opened_ms: number | null;
     /**
-     * The rows the page's context carried (contracts ask-context.ts): null when the tab sent none, or one the route could
-     * not read. Recorded before the turn reads it (the Phase 2 plan, PR 2.1), so a day's numbers say what pages send.
+     * The page's context as the turn read it (the Phase 2 plan, PR 2.4): the rows its blocks carried, after the server
+     * read every id again and the caps (null when the tab sent none, or the build failed); every block's characters;
+     * whether the warm's build was kept on this instance (hit), built now (miss), failed, or no context came (none); and
+     * how long the page, the shape, the cross-page reads and the scope's row took, together, before the first round.
      */
     context_rows: number | null;
-    /** The snapshot and the prefetch, before the first round. */
-    snapshot_ms: number;
-    prefetched: string[];
+    context_chars: number | null;
+    warm: "hit" | "miss" | "failed" | "none";
+    context_ms: number;
+    /** The reads the question named of another page, made before the first round (cross-page.ts). */
+    cross_page: string[];
     rounds: number;
     /** Each round's time from its request to its last event. */
     rounds_ms: number[];
