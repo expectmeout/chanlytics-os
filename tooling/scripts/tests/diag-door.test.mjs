@@ -202,6 +202,8 @@ test("the environment report is booleans only and carries no value; the memory i
     EMAIL_DOMAIN: "mail.value-nobody-may-see.example",
     RESEND_COLD_API_KEY: "re_cold_value_nobody_may_see",
     RESEND_COLD_WEBHOOK_SECRET: "whsec_cold_value_nobody_may_see",
+    // The key the unsubscribe links are sealed under, which the dashboard must hold too.
+    UNSUBSCRIBE_SECRET: "unsubscribe_value_nobody_may_see",
   };
   const body = await withEnv(secrets, read);
   // Postgres, always. It used to be read off PG_READS and BLOB_SHADOW and
@@ -222,6 +224,7 @@ test("the environment report is booleans only and carries no value; the memory i
     resendWebhook: false,
     resendCold: true,
     resendColdWebhook: true,
+    unsubscribe: true,
   });
   const printed = JSON.stringify(body);
   for (const v of Object.values(secrets))

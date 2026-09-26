@@ -115,6 +115,13 @@ export const env = {
   get RESEND_COLD_WEBHOOK_SECRET() {
     return read(process.env.RESEND_COLD_WEBHOOK_SECRET);
   },
+  /**
+   * The key that seals a cold email's unsubscribe link (Reach out): the SAME value as the dashboard's, whose /u/ page
+   * opens them. The domains sweep probes that the two agree (email/unsubscribe-probe.ts).
+   */
+  get UNSUBSCRIBE_SECRET() {
+    return read(process.env.UNSUBSCRIBE_SECRET);
+  },
   // Push (Expo's push service)
   get EXPO_ACCESS_TOKEN() {
     return read(process.env.EXPO_ACCESS_TOKEN);

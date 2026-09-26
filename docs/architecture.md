@@ -139,7 +139,8 @@ business.
 A cold email (the `outreach` purpose, Reach out) is always a broadcast, and
 asks more of the door. One call, `outreach_facts` (00177), answers whether the
 business is a lead still being written to, whether its address is on the
-never-again list, and what its From domain is and has sent in the last day;
+never-again list, whether the person ever wrote back or phoned (00181), and
+what its From domain is and has sent in the last day;
 the refusals are words in contracts (`PURPOSE_REFUSALS`). Email leaves by one
 of two lanes (`emailSender`): the hosted lane, the workspace's mailbox on the
 platform's mail account, for everything else; the own lane, a verified sending

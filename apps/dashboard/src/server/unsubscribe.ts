@@ -17,7 +17,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient, type Database } from "@chanlytics/db";
 import { addressOf, verifyUnsubscribeToken } from "@chanlytics/channels";
-import { unsubscribePageWords, type UnsubscribeView } from "@chanlytics/contracts";
+import { UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, type UnsubscribeView } from "@chanlytics/contracts";
 
 /** The largest body a one click or the page's button sends. Anything larger is not one. */
 const MAX_BODY_BYTES = 4096;
@@ -47,16 +47,42 @@ function secrets(): string[] | null {
   return previous ? [current, previous] : [current];
 }
 
-/** How often at most the door says it cannot answer: a scanner fetching every link must not flood the log. */
-const UNAVAILABLE_SAID_EVERY_MS = 60_000;
-let unavailableSaidAt = 0;
+/** How often at most the door says each thing: a scanner fetching every link must not flood the log. */
+const SAID_EVERY_MS = 60_000;
+const saidAt = new Map<string, number>();
+
+/** One line to the platform, once a minute at most for each event; whether it was said. Never the link. */
+function sayOnceAMinute(
+  level: "error" | "warn",
+  event: "unsubscribe_unavailable" | "unsubscribe_bad_link",
+  fields: Record<string, unknown>,
+): boolean {
+  const now = Date.now();
+  if (now - (saidAt.get(event) ?? 0) < SAID_EVERY_MS) return false;
+  saidAt.set(event, now);
+  console[level](event, JSON.stringify(fields));
+  return true;
+}
 
 /** A door that cannot answer, said to the platform (never the link, which is the authority to stop). */
 function sayUnavailable(why: "no_secret" | "no_database"): void {
-  const now = Date.now();
-  if (now - unavailableSaidAt < UNAVAILABLE_SAID_EVERY_MS) return;
-  unavailableSaidAt = now;
-  console.error("unsubscribe_unavailable", JSON.stringify({ why }));
+  sayOnceAMinute("error", "unsubscribe_unavailable", { why });
+}
+
+/** Links this instance refused since its last line said so. */
+let refusedSinceSaid = 0;
+
+/**
+ * A link no key here made: a guess, a link a mail client broke, or one sealed under a key this page does not hold. The
+ * page says the first at once, then once a minute at most, each line counting what this instance (one of several)
+ * refused since its previous line (`since`, null for its first). So a key set wrong reads as one line, then a count that
+ * keeps coming; it is the edge's probe that pages about it (apps/edge lib/email/unsubscribe-probe.ts).
+ */
+function sayBadLink(): void {
+  refusedSinceSaid += 1;
+  const last = saidAt.get("unsubscribe_bad_link");
+  const since = last === undefined ? null : new Date(last).toISOString();
+  if (sayOnceAMinute("warn", "unsubscribe_bad_link", { refused: refusedSinceSaid, since })) refusedSinceSaid = 0;
 }
 
 /** The secrets and the database, or null once the platform has been told which is missing. */
@@ -114,7 +140,9 @@ function page(status: number, view: UnsubscribeView): Response {
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow"><title>${escapeHtml(w.title)}</title><style>${STYLE}</style></head>
 <body><main><div class="card"><h1>${escapeHtml(w.lead)}</h1><p>${escapeHtml(w.body)}</p>${form}</div>${foot}</main></body></html>`;
-  return new Response(html, { status, headers: { ...HEADERS, "content-type": "text/html; charset=utf-8" } });
+  // Which view this is, so the edge can tell the page answering from anything else answering at its address.
+  const headers = { ...HEADERS, "content-type": "text/html; charset=utf-8", [UNSUBSCRIBE_PAGE_HEADER]: view.kind };
+  return new Response(html, { status, headers });
 }
 
 function text(status: number, body: string): Response {
@@ -153,7 +181,10 @@ export async function unsubscribeGet(token: string): Promise<Response> {
   if (!open) return page(503, { kind: "unavailable" });
   const { db } = open;
   const claims = verifyUnsubscribeToken(open.keys, token);
-  if (!claims) return page(404, { kind: "bad_link" });
+  if (!claims) {
+    sayBadLink();
+    return page(404, { kind: "bad_link" });
+  }
   const [business, sender] = await Promise.all([
     businessName(db, claims.tenantId),
     senderOf(db, claims.tenantId, claims.messageId),
@@ -210,7 +241,10 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
   // The link first: one we did not make is refused before its body is read or the database asked. Our own page
   // never draws the button under a bad link, so no person pressing lands here.
   const claims = verifyUnsubscribeToken(open.keys, token);
-  if (!claims) return text(400, "This link doesn't work.");
+  if (!claims) {
+    sayBadLink();
+    return text(400, "This link doesn't work.");
+  }
   if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return text(413, "Too large.");
   const fields = await readFields(req);
   if (fields === "too_large") return text(413, "Too large.");

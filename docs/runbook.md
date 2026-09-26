@@ -292,12 +292,15 @@ Reach out Part 3; these are the switches it needs, in order.
 4. **The unsubscribe secret, the same value on both projects:**
    `UNSUBSCRIBE_SECRET`, generated once with
    `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`.
-   The dashboard's `/u/<token>` page opens the links; the edge mints them from
-   Part 3. Without it the page says it cannot record anything, and logs
-   `unsubscribe_unavailable` once a minute at most.
+   The dashboard's `/u/<token>` page opens the links; the edge seals them.
+   Without it the page says it cannot record anything, and logs
+   `unsubscribe_unavailable` once a minute at most. A value that differs
+   between the two is found for you: every `domains` sweep seals a link that
+   names nobody, opens it on the page, and pages
+   `email_unsubscribe_links_broken` when the page refuses it.
 5. **Redeploy both projects**, then check `GET /api/diag` on the edge:
-   `env.emailDomain`, `env.resendWebhook`, `env.resendCold` and
-   `env.resendColdWebhook` all `true`.
+   `env.emailDomain`, `env.resendWebhook`, `env.resendCold`,
+   `env.resendColdWebhook` and `env.unsubscribe` all `true`.
 6. **The first domain.** Add it on Connections › Email, publish its records at
    the registrar, and press Check until it reads verified (the sweep reads it
    every ten minutes too).
@@ -306,10 +309,13 @@ Reach out Part 3; these are the switches it needs, in order.
    `List-Unsubscribe` among the signed headers.
 
 **Rotating the unsubscribe secret.** A link already in someone's inbox must
-keep working for at least thirty days (CAN-SPAM). Move the current value to
-`UNSUBSCRIBE_SECRET_PREVIOUS` on the dashboard, set the new one as
-`UNSUBSCRIBE_SECRET` on both projects, and redeploy. Clear the previous value
-no sooner than thirty days later.
+keep working for at least thirty days (CAN-SPAM). The dashboard first: move
+its current value to `UNSUBSCRIBE_SECRET_PREVIOUS`, set the new one as its
+`UNSUBSCRIBE_SECRET`, and redeploy it. Then set the new one on the edge and
+redeploy that. The other way round, every link the edge seals in between is
+one the page cannot open, and the sweep pages
+`email_unsubscribe_links_broken`. Clear the previous value no sooner than
+thirty days later.
 
 ## Apply a migration
 

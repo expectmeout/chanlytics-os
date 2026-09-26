@@ -73,6 +73,7 @@ test("a GET asks, with one button, and changes nothing: link scanners open every
   const res = await get();
   noStore(res);
   assert.equal(res.status, 200);
+  assert.equal(res.headers.get("x-unsubscribe-page"), "ask", "the view it drew, which the edge's probe reads");
   const html = await res.text();
   assert.match(html, /Stop emails from Best &lt;Movers&gt; &amp; Sons\?/, "the name is read and escaped");
   assert.equal((html.match(/<form method="post">/g) ?? []).length, 1);
@@ -82,13 +83,43 @@ test("a GET asks, with one button, and changes nothing: link scanners open every
   assert.ok(!w.db.seen.some((q) => q.rpc), "nothing but the name is asked of the database");
 });
 
-test("a link this secret did not make is refused before the database is asked", async () => {
+test("a link this secret did not make is refused before the database is asked, and said once a minute with a count", async () => {
   const w = world();
+  const said = [];
+  const was = console.warn;
+  const clock = Date.now;
+  console.warn = (...a) => said.push(a.map(String).join(" "));
+  // Clear of any line an earlier test said: the window is the module's, one minute per event.
+  const at = clock() + 10 * 60_000;
+  try {
+    Date.now = () => at;
+    await refusedLinks(w);
+    // A minute on, one more: the line counts every refusal since the last one, and says when that was.
+    Date.now = () => at + 61_000;
+    assert.equal((await get("short")).status, 404);
+  } finally {
+    Date.now = clock;
+    console.warn = was;
+  }
+  const lines = said.filter((l) => l.startsWith("unsubscribe_bad_link "));
+  assert.equal(lines.length, 2, "a scanner's burst is one line, and a minute on another");
+  const [first, next] = lines.map((l) => JSON.parse(l.slice("unsubscribe_bad_link ".length)));
+  assert.ok(first.refused >= 1, "the first says at once, with whatever it had counted");
+  assert.deepEqual(next, { refused: 10, since: new Date(at).toISOString() });
+  assert.ok(
+    lines.every((l) => !l.includes(TOKEN.slice(0, 20))),
+    "never the link",
+  );
+  assert.equal(w.db.seen.length, 0);
+});
+
+async function refusedLinks(w) {
   const bent = `${TOKEN.slice(0, 10)}${TOKEN[10] === "A" ? "B" : "A"}${TOKEN.slice(11)}`;
   for (const t of [bent, "short", `${TOKEN}x`]) {
     const g = await get(t);
     noStore(g);
     assert.equal(g.status, 404);
+    assert.equal(g.headers.get("x-unsubscribe-page"), "bad_link");
     assert.match(await g.text(), /This link doesn&#39;t work\./);
     for (const body of ["List-Unsubscribe=One-Click", "unsubscribe=yes"]) {
       const p = await post(body, { token: t });
@@ -108,7 +139,7 @@ test("a link this secret did not make is refused before the database is asked", 
   assert.equal(forged.status, 400);
   assert.ok(pulled <= 1, `the body of a forged link is not read (${pulled} pulls)`);
   assert.equal(w.db.seen.length, 0);
-});
+}
 
 test("the one click records the stop in the same response: 200, plain, no page, no redirect", async () => {
   const w = world();

@@ -15,6 +15,8 @@ import { dueSendingDomains } from "../../lib/packages/db.js";
 import { dkimPublished, readDmarc } from "../../lib/email/dmarc.js";
 import { checkSendingDomain, type DomainPorts } from "../../lib/email/sending-domains.js";
 import { watchColdReceipts } from "../../lib/email/cold-receipts.js";
+import { probeUnsubscribe } from "../../lib/email/unsubscribe-probe.js";
+import { dashboardOrigin } from "../../lib/dashboard-origin.js";
 import { pageOperator } from "../../lib/ops/page-operator.js";
 
 /**
@@ -75,7 +77,12 @@ export async function POST(request: Request): Promise<Response> {
   // when a domain's emails of the last day heard nothing back. First, inside the tick's time budget, so a tick with
   // hundreds of domains to read still asks it. It is the platform's to act on: the sweep's answer is about the
   // domains, and a watch that could not be read changes nothing below.
-  await watchColdReceipts({ db, now: Date.now, log: L, page });
+  // And whether the dashboard opens the unsubscribe links the edge seals (lib/email/unsubscribe-probe.ts), asked
+  // beside it: the same budget, the same pager, and nothing below depends on either.
+  const [, unsubscribe] = await Promise.all([
+    watchColdReceipts({ db, now: Date.now, log: L, page }),
+    probeUnsubscribe({ secret: env.UNSUBSCRIBE_SECRET ?? null, origin: dashboardOrigin(), log: L, page }),
+  ]);
   const counts = { checked: 0, verified: 0, held: 0, released: 0, unreadable: 0, refused: 0 };
   for (let i = 0; i < rows.length; i += AT_ONCE) {
     // What is left is read next tick, the longest unread first.
@@ -100,11 +107,11 @@ export async function POST(request: Request): Promise<Response> {
     const spent = Date.now() - batchStarted;
     if (i + AT_ONCE < rows.length && spent < BATCH_AT_LEAST_MS) await sleep(BATCH_AT_LEAST_MS - spent);
   }
-  L.info("domains_swept", { ...counts, due: rows.length, oldest_read_s: oldestReadS });
+  L.info("domains_swept", { ...counts, due: rows.length, oldest_read_s: oldestReadS, unsubscribe });
   // The key refused for every domain read is the sweep learning nothing -- ours, not the domains' -- and 503 is how
   // sweep_health turns that red. A blip (a 5xx, a slow second, a 429) is not: those domains are read next tick, and
   // with one or two domains a single blip must not page the platform (registrations.ts judges the same way).
   if (counts.checked > 0 && counts.refused === counts.checked)
     return json(503, { ok: false, error: "no_domain_readable", ...counts });
-  return json(200, { ok: true, ...counts, due: rows.length, oldest_read_s: oldestReadS });
+  return json(200, { ok: true, ...counts, due: rows.length, oldest_read_s: oldestReadS, unsubscribe });
 }

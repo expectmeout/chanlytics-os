@@ -2865,9 +2865,12 @@ async function outreachFactsOf(db, p) {
   });
   if (error) throw new Error(`cannot read the outreach facts: ${error.message}`);
   const f = data ?? {};
+  if (typeof f.wrote_back !== "boolean")
+    throw new Error("cannot read the outreach facts: the database did not say whether this person wrote back");
   return {
     lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
     suppressed: f.suppressed === true,
+    wrote_back: f.wrote_back,
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,
       from_local: String(f.domain.from_local ?? ""),
