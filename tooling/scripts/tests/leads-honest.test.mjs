@@ -33,7 +33,7 @@ import {
   toLeadRowVM,
 } from "../../../packages/contracts/src/leads.ts";
 import { leadsFirstDayWays } from "../../../packages/contracts/src/lead-first-day.ts";
-import { leadPinTone, stateOf } from "../../../packages/contracts/src/tone.ts";
+import { leadMapLegend, leadPinTone, stateOf } from "../../../packages/contracts/src/tone.ts";
 import {
   planArea,
   planMinutes,
@@ -641,6 +641,7 @@ const install = ({ role = "owner", refuse = null } = {}) => {
       leadMapPlot,
       leadMapAcross,
       leadMapNote,
+      leadMapLegend,
       leadPinTone,
     },
     // The shell's doors to Ask, recorded: askAbout (dashboard-a-ask.jsx) with what the page hands it, and appAsk
@@ -3313,8 +3314,8 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   assert.match(pins[0].props["aria-label"], /^Zilker Strength Lab — /, "a pin says who it is and what it is");
   assert.match(
     String(pins[0].props.className),
-    /tone-ok/,
-    "coloured by fit, to start: a strong fit is a good outcome, in the registry's own tone",
+    /tone-plain/,
+    "a pin wears its row's state: a lead ready to call is the quiet default, as its row is",
   );
   assert.doesNotMatch(String(pins[0].props.className), /is-out/, "a qualified lead stands at full strength");
   assert.match(String(pins[4].props.className), /is-out/, "a lead that was left out steps back, as its row does");
@@ -3326,25 +3327,30 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
     /Zilker Strength Lab/,
     "the pin under the pointer names itself",
   );
-  click(byTestId(tree, "map-by-reach"));
-  tree = at();
-  assert.match(
-    String(byTestId(tree, "lead-pin-l1").props.className),
-    /tone-ok/,
-    "coloured by reach: a checked mailbox and a number two sources agree on",
+  // One meaning, said under the map (25 Sep): a pin wears its row's state, and the legend names each state a pin on
+  // the map wears, in the row's own words. There is no switch of colourings any more: it had no key, and two of its
+  // three repeated the rows.
+  assert.equal(all(tree, (n) => /^map-by-/.test(String(n.props?.["data-testid"] || ""))).length, 0, "no colour switch");
+  const keys = all(byTestId(tree, "lead-map-legend"), (n) =>
+    /^lead-map-key-/.test(String(n.props?.["data-testid"] || "")),
   );
+  assert.ok(keys.length > 0, "a legend under the map");
+  for (const k of keys) {
+    const state = k.props["data-testid"].slice("lead-map-key-".length);
+    const dot = find(k, (n) => String(n.props?.className || "").includes("ld-pin-dot"));
+    assert.match(
+      String(dot.props.className),
+      new RegExp(`tone-${leadPinTone({ state })}`),
+      `${state}: the pin's own tone`,
+    );
+  }
   assert.match(
-    String(byTestId(tree, "lead-pin-l5").props.className),
-    /tone-warn/,
-    "and one with only a number is part-way there, which is worth a look",
+    textOf(byTestId(tree, "lead-map-key-out")),
+    /Closed or left out/,
+    "the row's own words for a lead that left",
   );
-  // It is still left out. Stepping back used to ride a word only two of the three colourings used (`out`), so an
-  // excluded lead came back to full strength the moment the map was coloured by reach. It follows the row now.
-  assert.match(
-    String(byTestId(tree, "lead-pin-l5").props.className),
-    /is-out/,
-    "left out in every colouring, not in whichever uses the word",
-  );
+  // Left out steps back, as its row does.
+  assert.match(String(byTestId(tree, "lead-pin-l5").props.className), /is-out/);
 
   click(byTestId(tree, "lead-pin-l1"));
   tree = at();
