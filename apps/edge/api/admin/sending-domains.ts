@@ -45,14 +45,18 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 export async function POST(request: Request): Promise<Response> {
-  const auth = authorizeAdmin(request, "/api/admin/sending-domains");
-  if (!auth.ok) return auth.response;
   let body: Body = {};
   try {
     body = JSON.parse(await request.text()) as Body;
   } catch {
     /* validated below */
   }
+  // The platform lifts a second hold with its key and never with a token (D16, the runbook): that one op is the
+  // key's on an edge that holds the secret too. Every other op is a dashboard's and carries a token; the key alone
+  // is refused before a row is read.
+  const platformLift = str(body.op) === "resume" && str(body.by) === "platform";
+  const auth = authorizeAdmin(request, "/api/admin/sending-domains", { platformKey: platformLift });
+  if (!auth.ok) return auth.response;
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const op = str(body.op);
