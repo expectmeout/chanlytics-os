@@ -254,13 +254,75 @@ export async function listCalls(
   };
 }
 
-/** Full call detail — the only source of transcript/transcript_object. */
-export async function getCall(cfg: RetellConfig, callId: string): Promise<RetellCall | null> {
-  const r = await fetch(`${API}/v2/get-call/${callId}`, {
-    headers: { Authorization: `Bearer ${cfg.apiKey}` },
-  });
-  if (!r.ok) return null;
-  return (await r.json()) as RetellCall;
+/**
+ * How long a call read waits for the provider. The calls sweep reads inside a
+ * sixty-second function, twenty-five rows a tick: a read that never answered
+ * used to be waited for until the platform cut the function off.
+ */
+export const RETELL_READ_TIMEOUT_MS = 10_000;
+
+/**
+ * What a read of one call came back as. `null` once stood for every non-2xx
+ * alike, and the calls sweep counted each one as a try against the recording:
+ * a Retell outage, a rate limit or a revoked key marked every pending
+ * recording failed within three ticks. The four answers a caller tells apart:
+ *
+ *   found        the call, as the provider holds it;
+ *   not_found    the provider answered and has no such call -- a 404, or any
+ *                other refusal of the request: asking again will not change it;
+ *   unavailable  the provider could not answer just now: a 429, a 5xx, a body
+ *                that is not a call, a timeout or a network error, with the
+ *                wait it named when it named one; `status` is null when no
+ *                answer came at all;
+ *   auth         the key is refused (401, 403): every read will be, until it is fixed.
+ */
+export type RetellCallRead =
+  | { kind: "found"; call: RetellCall }
+  | { kind: "not_found"; status: number }
+  | { kind: "unavailable"; status: number | null; retryAfterMs: number | null }
+  | { kind: "auth"; status: number };
+
+/** Retry-After as the provider spells it: seconds, or an HTTP-date. Null when absent or unreadable. */
+function retryAfterMs(header: string | null): number | null {
+  if (!header) return null;
+  const h = header.trim();
+  if (/^\d+$/.test(h)) return Number(h) * 1000;
+  const at = Date.parse(h);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
+
+/**
+ * Full call detail — the only source of transcript/transcript_object. Never
+ * throws: the answer says what happened, so a sweep can tell a row the
+ * provider has no record of from a provider that could not be asked.
+ */
+export async function getCall(
+  cfg: RetellConfig,
+  callId: string,
+  opts: { timeoutMs?: number } = {},
+): Promise<RetellCallRead> {
+  let r: Response;
+  try {
+    r = await fetch(`${API}/v2/get-call/${callId}`, {
+      headers: { Authorization: `Bearer ${cfg.apiKey}` },
+      signal: AbortSignal.timeout(opts.timeoutMs ?? RETELL_READ_TIMEOUT_MS),
+    });
+  } catch {
+    // A timeout, a refused connection, a reset: no answer at all.
+    return { kind: "unavailable", status: null, retryAfterMs: null };
+  }
+  if (r.ok) {
+    const call = plainObject(await r.json().catch(() => null));
+    // A 200 that is not a call is a proxy's page in front of the provider, not its word.
+    return call
+      ? { kind: "found", call: call as unknown as RetellCall }
+      : { kind: "unavailable", status: r.status, retryAfterMs: null };
+  }
+  await r.body?.cancel().catch(() => undefined);
+  if (r.status === 401 || r.status === 403) return { kind: "auth", status: r.status };
+  if (r.status === 429 || r.status >= 500)
+    return { kind: "unavailable", status: r.status, retryAfterMs: retryAfterMs(r.headers.get("retry-after")) };
+  return { kind: "not_found", status: r.status };
 }
 
 /** The agent settings that decide what the call pipeline can show. */
