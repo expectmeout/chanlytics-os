@@ -3,13 +3,12 @@
  * the few that pass the first gate, check its answer in code, and suggest what passes.
  *
  * Every rule is contracts' (note-suggest.ts): whyNotLook before the model, the prompt, checkNoteSuggestion after it.
- * This file does the transport. A look is taken once -- note_candidates stamps what it hands over -- so a failure
+ * The transport is lib/model.ts, the one the reach-out check asks through too. A look is taken once -- note_candidates stamps what it hands over -- so a failure
  * here costs that one look, never a retry storm. What is suggested waits on the person's page for Keep or Dismiss.
  *
  * The model's tokens are logged with each look (notes_looked), not written as usage rows: the smallest model, a few
  * looks a day, and none of it the receptionist's daily reply budget.
  */
-import Anthropic from "@anthropic-ai/sdk";
 import {
   NOTE_SUGGEST_LIMITS,
   NOTE_SUGGEST_MODEL,
@@ -20,7 +19,7 @@ import {
   whyNotLook,
   type NoteTurn,
 } from "../packages/contracts.js";
-import { env } from "../env.js";
+import { askJson } from "../model.js";
 import type { Logger } from "../log.js";
 
 /** One look, as note_candidates hands it over. */
@@ -48,61 +47,18 @@ export interface NotesDb {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string } | null }>;
 }
 
-let client: Anthropic | null = null;
-function anthropic(): Anthropic {
-  // Built on first use: this module rides with a sweep that must run on a deployment without a key.
-  if (!client) client = new Anthropic({ timeout: 20_000, maxRetries: 1 });
-  return client;
-}
-
-/** The API refused the request's format, not the content: asked again once for plain JSON. */
-function formatRejected(e: unknown): boolean {
-  const err = e as { status?: number; message?: string } | null;
-  return err?.status === 400 && /output_config|output_format|json_schema|schema|format/i.test(err.message ?? "");
-}
-
-/** The first JSON object in a text answer, or null. */
-function firstJson(text: string): unknown {
-  const at = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (at < 0 || end <= at) return null;
-  try {
-    return JSON.parse(text.slice(at, end + 1));
-  } catch {
-    return null;
-  }
-}
-
-export const askNoteModel: AskNote = async (system, user) => {
-  if (!env.ANTHROPIC_API_KEY) return null;
-  const create = anthropic().messages.create.bind(anthropic().messages) as unknown as (p: unknown) => Promise<{
-    content: Array<{ type: string; text?: string }>;
-    stop_reason?: string | null;
-    usage?: { input_tokens: number; output_tokens: number };
-  }>;
-  const base = { model: NOTE_SUGGEST_MODEL, max_tokens: 300, system, messages: [{ role: "user", content: user }] };
-  let res;
-  try {
-    res = await create({ ...base, output_config: { format: { type: "json_schema", schema: NOTE_SUGGEST_SCHEMA } } });
-  } catch (e) {
-    if (!formatRejected(e)) throw e;
-    res = await create({
-      ...base,
-      system: `${system}\nAnswer with only a JSON object with the keys worth, kind, text and quote.`,
-    });
-  }
-  const text = res.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text ?? "")
-    .join("")
-    .trim();
-  // A refusal or a capped answer is nothing: no note is better than half of one.
-  const answer = res.stop_reason === "refusal" || res.stop_reason === "max_tokens" ? null : firstJson(text);
-  return {
-    answer,
-    tokens: { input: res.usage?.input_tokens ?? 0, output: res.usage?.output_tokens ?? 0 },
-  };
-};
+/** The smallest model, in its schema, through the platform's one JSON-model transport (lib/model.ts). */
+export const askNoteModel: AskNote = (system, user) =>
+  askJson({
+    model: NOTE_SUGGEST_MODEL,
+    system,
+    user,
+    schema: NOTE_SUGGEST_SCHEMA,
+    maxTokens: 300,
+    plainJsonHint: "Answer with only a JSON object with the keys worth, kind, text and quote.",
+    timeoutMs: 20_000,
+    maxRetries: 1,
+  });
 
 export interface NotesSweepOutcome {
   looked: number;
