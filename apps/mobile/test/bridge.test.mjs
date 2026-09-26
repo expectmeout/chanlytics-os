@@ -82,3 +82,13 @@ test("the Live page's count of calls in progress ends the call's activity only a
   assert.equal(onPageMessage(INITIAL, '{"t":"calls","live":0}').effect, "calls-over");
   assert.equal(onPageMessage(INITIAL, '{"t":"calls","live":1}').effect, "nothing");
 });
+
+test("the page's token lands in the state and leaves with the person", () => {
+  let r = onPageMessage(INITIAL, '{"t":"token","access":"tok","expires":1800000000}');
+  assert.deepEqual(r.state.access, { token: "tok", expires: 1800000000 });
+  assert.equal(r.effect, "nothing");
+  r = onPageMessage(r.state, '{"t":"token","access":null,"expires":0}');
+  assert.equal(r.state.access, null);
+  r = onPageMessage({ ...INITIAL, access: { token: "tok", expires: 1 } }, '{"t":"session","state":"out"}');
+  assert.equal(r.state.access, null);
+});

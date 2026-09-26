@@ -111,3 +111,4 @@ export * from "./reach-out-opening";
 export * from "./app-bridge";
 export * from "./widget";
 export * from "./live-activity";
+export * from "./native-thread";

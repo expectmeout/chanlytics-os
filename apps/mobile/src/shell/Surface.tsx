@@ -13,13 +13,14 @@ import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTyp
 import * as Application from "expo-application";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused } from "expo-router";
+import { useIsFocused, useRouter } from "expo-router";
 import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
 import { askPage, bottomInset, insetScript, onPageMessage, registrationKey, shouldRegister } from "./bridge";
 import { getState, registerReloader, setState, useShell, type Tab } from "./state";
 import { setBadge, tabOf } from "./notifications";
 import { updateTodayWidget } from "./widget";
 import { endCallActivities } from "./live-activity";
+import { threadIdOf, tokenArrived } from "./api";
 import { Offline } from "./Offline";
 import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
 
@@ -48,6 +49,7 @@ const FORGET_WAIT_MS = 2000;
 export function Surface({ route, tab, onReady, post }: Props) {
   const ref = useRef<WebView>(null);
   const focused = useIsFocused();
+  const router = useRouter();
   // Created the first time this tab is in front, kept afterwards: a latch set during render, not in an effect.
   const [mounted, setMounted] = useState(focused);
   if (focused && !mounted) setMounted(true);
@@ -90,12 +92,20 @@ export function Surface({ route, tab, onReady, post }: Props) {
       const m = parsePageMessage(e.nativeEvent.data);
       if (m?.t === "today") updateTodayWidget(m.snapshot);
       if (m?.t === "device" && m.state === "forgotten") forgetting.current?.resolve();
+      if (m?.t === "token") tokenArrived(m.access ? { token: m.access, expires: m.expires } : null);
       if (m?.t === "route") {
         setReady(true);
         if (focused) onReady?.(handle);
+        // A thread opened on the Inbox page is drawn natively over it (PR 8): the page goes back to its list, so the
+        // list is what stands under the thread and what the person returns to.
+        const thread = tab === "inbox" ? threadIdOf(m.route) : null;
+        if (thread) {
+          handle.ask({ t: "navigate", route: "inbox" });
+          router.push({ pathname: "/(tabs)/inbox/[id]", params: { id: thread } });
+        }
       }
     },
-    [focused, handle, onReady],
+    [focused, handle, onReady, router, tab],
   );
 
   // The phone registers through the page in front: once per token pair per person (bridge.ts shouldRegister).

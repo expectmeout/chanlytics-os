@@ -168,12 +168,16 @@ export async function proxy(request: NextRequest) {
   // nothing in review would have flagged it. Adding a public route is now a
   // deliberate edit to this list, which the auth tests assert against.
   const isPublic = PUBLIC_PATHS.has(path) || PUBLIC_PREFIXES.some((p) => path.startsWith(p));
+  // A /api/v1 request that carries a bearer token (decision 0011: the phone app's native screens) has no cookie for
+  // this gate to read; the route's own wrapper verifies the token, and auth-gate.test.mjs holds every /api/v1 route
+  // to that wrapper. Only there, only with the header: a page request never passes on a header.
+  const bearer = path.startsWith("/api/v1/") && /^Bearer\s+\S+/i.test(request.headers.get("authorization") ?? "");
 
   // "We could not ask" is not "you are not signed in". withRoute answers 503
   // for a retryable auth failure so the client keeps its session — but this
   // gate ran first and answered 401, so that branch was unreachable in the
   // exact outage it was written for.
-  if (!user && !isPublic && isRetryableAuthError(authErr)) {
+  if (!user && !isPublic && !bearer && isRetryableAuthError(authErr)) {
     if (path.startsWith("/api/")) {
       return NextResponse.json(
         { ok: false, error: { code: "upstream_auth", message: "Could not verify your session just now — try again." } },
@@ -188,7 +192,7 @@ export async function proxy(request: NextRequest) {
     );
   }
 
-  if (!user && !isPublic) {
+  if (!user && !isPublic && !bearer) {
     // API callers get a machine-readable 401 — redirecting a fetch() to the
     // login HTML makes every client parse failure look like a data bug.
     if (path.startsWith("/api/")) {
