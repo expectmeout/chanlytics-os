@@ -5367,6 +5367,10 @@ type Database = {
                 };
                 Returns: number;
             };
+            delete_my_account: {
+                Args: Record<PropertyKey, never>;
+                Returns: Json;
+            };
             push_device_forget: {
                 Args: {
                     p_token: string;

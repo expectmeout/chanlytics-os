@@ -30,6 +30,8 @@ export interface IdentityApi {
 export interface MeApi {
   /** Set your own name; empty clears it. Never throws. */
   setName(name: string): Promise<{ ok: boolean; name: string; message: string }>;
+  /** Delete your own account (00190). On success the session is gone and the page walks to the sign-in. Never throws. */
+  deleteAccount(): Promise<{ ok: boolean; message: string }>;
 }
 
 export interface TzApi {
@@ -83,6 +85,13 @@ export function installIdentity(win: Window = window): void {
       if (me) (win as unknown as { __ME?: Me }).__ME = { ...me, display_name: saved };
       win.dispatchEvent(new CustomEvent("me:changed"));
       return { ok: true, name: saved, message: "" };
+    },
+    async deleteAccount() {
+      const r = await api()("DELETE me");
+      if (!r.ok) return { ok: false, message: r.message };
+      // The door ended the session; the sign-in page is where a person with no account belongs.
+      win.location.assign("/login");
+      return { ok: true, message: "" };
     },
   };
   const patch: WorkspaceApi["patch"] = async (fields) => {

@@ -5077,6 +5077,7 @@ export type Database = {
       purge_events: { Args: { p_keep?: string }; Returns: number }
       purge_leads: { Args: never; Returns: number }
       purge_notifications: { Args: { p_keep?: string }; Returns: number }
+      delete_my_account: { Args: Record<PropertyKey, never>; Returns: Json }
       push_device_forget: { Args: { p_token: string }; Returns: Json }
       push_device_register: {
         Args: { p_app_version?: string; p_platform: string; p_token: string }
