@@ -37,11 +37,29 @@ export const policies: Reader<undefined, Awaited<ReturnType<typeof listPolicies>
   },
 };
 
-export const config: Reader<undefined, { config: unknown; version: number } | null> = {
+/**
+ * The workspace's configuration row as getTenantConfig reads it: the config, the version a write must echo, and who
+ * last changed it and when (00085), so the settings read is the turn's one read of the row. Null: there is no row.
+ */
+export const config: Reader<
+  undefined,
+  { config: unknown; version: number; updated_by: string | null; updated_at: string | null } | null
+> = {
   name: "config",
   async read(rc) {
     const row = await getTenantConfig(rc.ctx.supabase, rc.tenantId);
-    return { data: row ? { config: row.config, version: row.version } : null, rows: [], stamp: stamp() };
+    return {
+      data: row
+        ? {
+            config: row.config,
+            version: row.version,
+            updated_by: row.updated_by ?? null,
+            updated_at: row.updated_at ?? null,
+          }
+        : null,
+      rows: [],
+      stamp: stamp(),
+    };
   },
 };
 

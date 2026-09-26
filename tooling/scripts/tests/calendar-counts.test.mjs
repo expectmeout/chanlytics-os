@@ -128,6 +128,8 @@ const ctxFor = (t, rpcs = {}) => ({
   email: "ada@example.com",
   params: {},
 });
+/** The workspace's zone and settings as a turn reads them from `t` (readers/openings.ts hands openingsFor these). */
+const knownOf = (t) => ({ timezone: t.tenants[0].timezone, config: t.tenant_config[0].config });
 
 test("everyone: the people come page after page, never one page of them", async () => {
   const all = Array.from({ length: PEOPLE_PAGE + 3 }, (_, i) => person(i + 1));
@@ -501,11 +503,11 @@ test("the edge reads the feed by the same address rule: a private address is nev
 });
 
 test("the openings the palette answers with, and its route: no calendar, a calendar that cannot be read, and the windows of a day", async () => {
-  const none = await openingsFor(ctxFor(tables(null)), T, { day: null, service: null }, NOW);
+  const none = await openingsFor(T, { day: null, service: null }, NOW, knownOf(tables(null)));
   assert.equal(none.state, "no_calendar");
   const url = "https://cal.example/open.ics";
   answers.set(url, { body: "nope", status: 404 });
-  const down = await openingsFor(ctxFor(tables(url)), T, { day: null, service: null }, NOW);
+  const down = await openingsFor(T, { day: null, service: null }, NOW, knownOf(tables(url)));
   assert.deepEqual([down.state, down.text], ["unavailable", "The calendar could not be read right now."]);
   forgetFeeds();
   answers.set(url, {
@@ -520,7 +522,7 @@ test("the openings the palette answers with, and its route: no calendar, a calen
       "END:VCALENDAR",
     ].join("\r\n"),
   });
-  const wed = await openingsFor(ctxFor(tables(url)), T, { day: "2026-09-09", service: "Balayage" }, NOW);
+  const wed = await openingsFor(T, { day: "2026-09-09", service: "Balayage" }, NOW, knownOf(tables(url)));
   assert.equal(wed.state, "ok");
   assert.equal(wed.days.length, 1);
   assert.deepEqual(wed.days[0].windows, ["12:00 PM–6:00 PM"], "the morning is taken; the afternoon is open");
@@ -565,10 +567,10 @@ test("REGRESSION (C5b): the assistant answers a consultation-first service with 
     },
   };
   const wed = await openingsFor(
-    ctxFor(tables(url, "owner", { tenant_config: [{ tenant_id: T, config: cfg }] })),
     T,
     { day: "2026-09-09", service: "color correction" },
     NOW,
+    knownOf(tables(url, "owner", { tenant_config: [{ tenant_id: T, config: cfg }] })),
   );
   assert.equal(wed.state, "ok");
   assert.match(

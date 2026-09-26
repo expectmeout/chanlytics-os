@@ -513,16 +513,22 @@ test("support sees the customer's own Setup, from the customer's own function", 
     "the client is an argument, so either caller may pass its own",
   );
 
-  const own = readCode("apps/dashboard/app/api/v1/setup/route.ts");
+  // The customer's route reads through its reader (readers/connections.ts), which is where the call now is; the
+  // route and the reader are held to the one assembly alike. readers.test.mjs runs the route: setupDtoFor's own reads.
+  const [own, route] = [
+    "apps/dashboard/src/server/readers/connections.ts",
+    "apps/dashboard/app/api/v1/setup/route.ts",
+  ].map((file) => readCode(file));
   assert.match(
     own,
-    /setupDtoFor\(ctx\.supabase, member\.tenantId, \{ kind: "member" \}\)/,
+    /setupDtoFor\(rc\.ctx\.supabase, rc\.tenantId, \{ kind: "member" \}, rc\.now\)/,
     "the customer reads their own on the session client",
   );
-  assert.ok(
-    !own.includes("getTenantConfig"),
-    "REGRESSION: the assembly is back inside the route, where a second copy can grow",
-  );
+  for (const src of [own, route])
+    assert.ok(
+      !src.includes("getTenantConfig"),
+      "REGRESSION: the assembly is back inside the route, where a second copy can grow",
+    );
 
   const office = readCode("apps/dashboard/app/api/v1/platform/tenants/[id]/route.ts");
   assert.match(
