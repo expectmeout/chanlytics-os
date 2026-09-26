@@ -9,6 +9,7 @@ export const ROUTES = {
   "DELETE google/link": { method: "DELETE", path: "/api/v1/google/link" },
   "DELETE lead-searches/[id]": { method: "DELETE", path: "/api/v1/lead-searches/[id]" },
   "DELETE leads/[id]": { method: "DELETE", path: "/api/v1/leads/[id]" },
+  "DELETE me": { method: "DELETE", path: "/api/v1/me" },
   "DELETE me/devices": { method: "DELETE", path: "/api/v1/me/devices" },
   "DELETE playbooks/[id]": { method: "DELETE", path: "/api/v1/playbooks/[id]" },
   "DELETE segments/[id]": { method: "DELETE", path: "/api/v1/segments/[id]" },
@@ -176,6 +177,7 @@ export type Routes = {
   "DELETE google/link": typeof import("../../app/api/v1/google/link/route").DELETE;
   "DELETE lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").DELETE;
   "DELETE leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").DELETE;
+  "DELETE me": typeof import("../../app/api/v1/me/route").DELETE;
   "DELETE me/devices": typeof import("../../app/api/v1/me/devices/route").DELETE;
   "DELETE playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").DELETE;
   "DELETE segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").DELETE;

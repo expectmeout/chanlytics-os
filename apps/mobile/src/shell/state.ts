@@ -23,6 +23,8 @@ export interface ShellState {
   pendingRoute: string | null;
   /** The icon's number, as the bell last said it. */
   badge: number;
+  /** The site said this app is older than it speaks to (/api/version min_app): the update screen stands. */
+  tooOld: boolean;
 }
 
 export const INITIAL: ShellState = {
@@ -36,6 +38,7 @@ export const INITIAL: ShellState = {
   registered: null,
   pendingRoute: null,
   badge: 0,
+  tooOld: false,
 };
 
 let state: ShellState = INITIAL;

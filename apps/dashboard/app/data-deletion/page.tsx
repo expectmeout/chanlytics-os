@@ -24,6 +24,13 @@ export default function DataDeletionPage() {
         customers; we hold that data on the business’s behalf. So there are two paths, and both end in the same place.
       </p>
 
+      <h2>If you have a Chanlytics account</h2>
+      <p>
+        Delete it yourself, in the app or on the web: Settings, then You, then Delete account. That removes you from
+        every workspace and deletes your sign-in at once. If you are the only owner of a workspace that has other
+        members, make someone else an owner first.
+      </p>
+
       <h2>If you own a Chanlytics workspace</h2>
       <p>
         Write to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a> from the email address on the account and ask

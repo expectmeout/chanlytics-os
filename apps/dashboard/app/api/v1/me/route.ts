@@ -24,3 +24,33 @@ export const PUT = write({
     return { display_name: saved ?? cleaned.name };
   },
 });
+
+/**
+ * DELETE /api/v1/me — delete your own account (App Store 5.1.1(v); 00190). The door refuses the only owner of a
+ * workspace with other members, who must make someone else an owner first; that refusal is a conflict the page says
+ * in the door's own words. On success the session is ended here too, so the page that asked lands on the sign-in.
+ */
+export const DELETE = write({
+  scope: account,
+  role: null,
+  rate: "profile_set",
+  handle: async ({ ctx }) => {
+    const { data, error } = await ctx.supabase.rpc("delete_my_account");
+    if (error) {
+      if (error.message.includes("sole_owner")) {
+        throw new AppError(
+          "conflict",
+          "You are the only owner of a workspace with other members. Make someone else an owner first.",
+          409,
+        );
+      }
+      throw new AppError("validation", error.message, 400);
+    }
+    await ctx.supabase.auth.signOut().catch(() => undefined);
+    const left =
+      data && typeof data === "object" && !Array.isArray(data)
+        ? Number((data as { workspaces_left_empty?: unknown }).workspaces_left_empty ?? 0)
+        : 0;
+    return { deleted: true, workspaces_left_empty: left };
+  },
+});
