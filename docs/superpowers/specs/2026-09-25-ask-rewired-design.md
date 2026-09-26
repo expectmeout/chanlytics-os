@@ -284,6 +284,28 @@ TTL. The palette calls it on open and when the route changes while it is open. W
 rates; until then the shared prefix (tools, rules, facts, shape) is what the cache holds, and the context rides
 uncached, which is cheap because it is identifiers.
 
+**Amended by the Phase 2 plan** (`docs/superpowers/plans/2026-09-26-ask-rewired-2-page-context.md`, written against
+`b6f22164`, 26 Sep 2026), where the code map found this section and the code apart:
+
+- **The contract** is a flat file, `packages/contracts/src/ask-context.ts`, beside `ask.ts`: contracts has no `ask/`
+  directory.
+- **Surfaces grow from nine to thirteen, not eleven.** Today's nine include `conversations` and `live`, which are real
+  pages, store turns and drive the suggestions, so they stay; `pipeline`, `calendar`, `campaigns` and `start` are
+  added. Scope kinds get their own list (adding lead, search and run), and so do the context's row kinds. Citation kinds
+  stay five until Phase 4, because they build the answer's grammar.
+- **The warm is a write, not a read.** It is `write({ role: "viewer", rate: "aggregate" })`, because the route policy
+  refuses a non-GET `read()`. The tab sends it through `raw()`, so it neither drops the tab's reads nor runs the refresh
+  map.
+- **The warm keeps its built blocks itself,** per person and context hash, for sixty seconds, per instance. It does not
+  fill the `ReaderCache`: the kernel forbids a TTL on any reader that reads `rc.now`, and the calendar, people,
+  playbooks, broadcasts, the pool and openings all do. Whether the warm and the question land on one instance is
+  recorded on every turn.
+- **The context carries a cache breakpoint from the start.** The daily budget counts uncached input only, so the cached
+  snapshot never counted against it; the context would, on every round. A breakpoint pays for itself once about a
+  quarter of turns take a second round. A day of numbers decides whether it stays (the plan's PR 2.5).
+- **The context is capped:** 40 rows, 160 characters a row, 1,200 for the aggregate, 8,000 characters in all, cut in
+  the page's order and the cut said.
+
 ### 5.3 The tool registry (fix; cuts the two switches)
 
 One definition per tool: a zod input, the reader it calls or the check it runs, a projection for the model, and the
@@ -690,13 +712,16 @@ Still open: the composer's further filter, offering only a template whose every 
 which `list_audiences` does not apply; `search_people`'s match in SQL (people_list's `p_query`), where the People
 page's box matches the rows it holds in the browser; and the tool descriptions, which wait for Phase 3's registry.
 
-**Phase 2 · The page context and the warm call.** Contracts `PageContext` and eleven surfaces; the client providers;
-`POST ask/warm` as a data warm; the server providers and the context as `search_result` blocks in the user turn; the
-shape of the workspace as the byte-stable second system block; the snapshot and the regex prefetch replaced (the
-cross-page nouns kept inside the context builder); focus from the client; scope kinds grown; a cache breakpoint on the
-context only if Phase 0's follow-up rate earns it. No migration. **Proof:** eval cases per surface with context
-fixtures; one-round rate and first-token time against the Phase 0 baseline; the e2e ask spec asks one question on each
-of five surfaces.
+**Phase 2 · The page context and the warm call** (four PRs, and a fifth only if a day of numbers asks for it; plan
+`2026-09-26-ask-rewired-2-page-context.md`). PR 2.1: contracts `PageContext` and thirteen surfaces, scope kinds of
+their own, the client providers, focus from the client; the route records the context and uses nothing of it. PR 2.2:
+`GET leads` moved into its reader, the shape of the workspace as a reader, the server providers writing the context
+as `search_result` blocks, and `POST ask/warm` as a data warm; the turn does not read it yet. PR 2.3: the eval cases per
+surface with context recipes, and their baseline on the loop as it is. PR 2.4: the turn reads the context in its user
+message behind a cache breakpoint, the shape is the byte-stable second system block, and the snapshot and the regex
+prefetch go (the cross-page nouns kept as reads in the user turn). PR 2.5, only if the numbers ask: the context's
+breakpoint removed. No migration. **Proof:** eval cases per surface with context fixtures; one-round rate and
+first-token time against PR 2.3's baseline; the e2e ask spec asks one question on each of five surfaces.
 
 **Phase 3 · The registry and the specs.** `defineRead`/`defineAct` with zod, generated schemas, the reads consolidated
 under `action` parameters to about twenty-two tools, three-to-four-sentence descriptions with `input_examples` where
