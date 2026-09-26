@@ -403,6 +403,20 @@ Nothing sends until a build carries push credentials, and nothing is signed unti
 3. **Watch** `push_send` and `push_receipts` on the jobs ledger: a `push_rejected 401` is the token; a phone the
    receipts say is gone is forgotten by the job, never by hand.
 
+## Turn on native sign-in
+
+The app signs in with Apple and Google natively (PR 3 of the phone app) and hands the identity token to
+`POST /auth/native` (PR 0). Until the providers know the app, only the email door works inside it.
+
+1. **Apple**, once the Apple Developer Program account exists: in the hosted Supabase project, Providers → Apple, add
+   the app's bundle id `com.chanlytics.app` to the client ids (the Services ID and key are for the web's own Apple
+   sign-in, if ever). EAS Build turns the Sign in with Apple capability on from `usesAppleSignIn`.
+2. **Google**: in the Google Cloud project, an iOS OAuth client for `com.chanlytics.app` and a web client; in
+   Supabase, Providers → Google → Authorized Client IDs, add the iOS client id. Then `eas env:create` for
+   `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` and `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in each environment, and a new build:
+   the Google button and its URL scheme exist only in a build made with the ids.
+3. **Watch** `native_sign_in_failed` on the dashboard's logs: a provider that does not know the app answers there.
+
 ## Apply a migration
 
 1. Write it: the next free number, named for the schema change, re-runnable
