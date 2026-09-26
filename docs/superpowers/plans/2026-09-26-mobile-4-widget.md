@@ -17,7 +17,7 @@ bridge, the page posting it on `surface:today`, `shell/widget.ios.ts` handing it
 - [x] `widgets/TodayWidget.tsx`, `shell/widget.ios.ts`, `shell/widget.ts` (Android no-op), `Surface.tsx` hand-off,
       `app.config.ts` plugin entry with the three families.
 - [x] The gates and a Metro export.
-- [ ] Squash-merge.
+- [x] Squash-merge (#1132).
 
 ## As built (26 Sep 2026)
 

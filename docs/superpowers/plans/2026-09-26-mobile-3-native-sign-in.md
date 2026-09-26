@@ -40,7 +40,7 @@ SDK's versions; `@react-native-google-signin/google-signin` 16 (its free, origin
 ### Task 3: The gates and the PR
 
 - [x] The app's `tsc`, `expo lint`, the suite; a Metro export; the repository's gates.
-- [ ] Squash-merge.
+- [x] Squash-merge (#1130).
 
 ---
 

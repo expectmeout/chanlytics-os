@@ -21,8 +21,8 @@ in `docs/decisions/0011-a-bearer-token-beside-the-cookie.md` before the code. PR
       `inbox/<id>` and sends the page back to its list.
 - [x] Tests: `bearer.test.mjs` (the wrapper executed with a stand-in verifier), `auth-gate.test.mjs` (the bypass's
       shape), the bridge tests on both sides, `native-thread.test.mjs`, the app's `api.test.mjs`.
-- [ ] Ruben's: nothing to set. A new build carries the screen; the site accepts a bearer either way.
-- [ ] Squash-merge.
+- [x] Ruben's: nothing to set. A new build carries the screen; the site accepts a bearer either way.
+- [x] Squash-merge (#1149).
 
 ## As built (26 Sep 2026)
 
