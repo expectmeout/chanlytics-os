@@ -134,7 +134,9 @@ const playbook = (tenant, id, over = {}) => ({
 
 /* -------------------------------------------------------------- the world */
 
-function world({ people = {}, ticks = 1, faults = {} } = {}) {
+/** The world a door test runs in, for the fakes of the database's own doors that write to its tables. */
+const latest = { tables: null };
+function world({ people = {}, ticks = 1, faults = {}, rpcs = {} } = {}) {
   const tables = {
     tenants: [],
     tenant_config: [],
@@ -148,7 +150,12 @@ function world({ people = {}, ticks = 1, faults = {} } = {}) {
     decisions: [],
     events: [],
     notifications: [],
+    // Reach out (Part 3): what a reach-out step's run reads and writes.
+    billing_accounts: [],
+    sending_domains: [],
+    reach_out_sends: [],
   };
+  latest.tables = tables;
   const backlog = [];
   const db = fakeDb(tables, faults, {
     ...vault,
@@ -157,6 +164,7 @@ function world({ people = {}, ticks = 1, faults = {} } = {}) {
       backlog.push(a);
       return ticks;
     },
+    ...rpcs,
   });
   setPg(db);
   return { db, tables, backlog, tick: () => knock(POST, "playbooks") };
@@ -411,4 +419,202 @@ test("playbooks that cannot be read are a 500, and nothing is noted", async () =
   assert.deepEqual(await answer(await w.tick()), [500, { ok: false }]);
   assert.deepEqual(w.backlog, []);
   nothingMade(w);
+});
+
+/* ------------------------------------------------------------ reach-outs */
+
+/** A reach-out's root (00183): a search's leads, a pace, on the playbooks clock at ten. */
+const reachOut = (tenant, id, over = {}) =>
+  playbook(tenant, id, {
+    kind: "reach_out",
+    name: "Movers in Austin",
+    trigger: "lead_first",
+    policy_class: "outreach",
+    template_id: "tpl-reach",
+    template_name: "reach_first",
+    template_language: "en",
+    params: [],
+    lead_search_id: "search-1",
+    after_playbook_id: null,
+    after_days: null,
+    gap_minutes: 12,
+    domain_ids: [],
+    ...over,
+  });
+/** A workspace that may send cold email: its outreach class at its default, a verified domain, and billing. */
+function coldWorkspace(tables, id, tz, mode = "veto") {
+  workspace(tables, id, tz, "auto");
+  tables.policies.push({ ...tables.policies.at(-1), id: `pol-o-${id.slice(0, 8)}`, class: "outreach", mode });
+  tables.billing_accounts.push({ tenant_id: id, mode: "direct", status: "active" });
+  tables.sending_domains.push({
+    id: `dom-${id.slice(0, 8)}`,
+    tenant_id: id,
+    host: "getharbor.example",
+    state: "verified",
+    clean_since: iso(20 * D),
+  });
+}
+const coldRpcs = (leads) => ({
+  reach_out_audience: () => leads,
+  // 00185's door, as the database answers it: the run and its sends together, or {exists} for the step's day.
+  reach_out_plan_run: (a) => {
+    const t = latest.tables;
+    if (
+      t.broadcasts.some(
+        (b) => b.id === a.p_run.id || (b.playbook_id === a.p_run.playbook_id && b.run_for === a.p_run.run_for),
+      )
+    )
+      return { exists: true };
+    t.broadcasts.push({ ...a.p_run });
+    for (const x of a.p_sends)
+      t.reach_out_sends.push({
+        ...x,
+        tenant_id: a.p_run.tenant_id,
+        broadcast_id: a.p_run.id,
+        playbook_id: a.p_run.playbook_id,
+        root_id: a.p_run.audience.root_id,
+      });
+    return { id: a.p_run.id };
+  },
+  sending_domain_capacity: (a) => ({
+    state: "verified",
+    clean_since: iso(20 * D),
+    sent_days: 0,
+    used: 0,
+    recent: [],
+    last_sent_at: null,
+    domain: a.p_domain_id,
+  }),
+});
+const coldLead = (id) => ({
+  lead_id: id,
+  email: `${id}@fixture.example`,
+  business_name: `Biz ${id}`,
+  city: "Austin",
+  region: "TX",
+  hours: [],
+});
+
+test("a reach-out's first run waits for its owner: one pending run, its sends planned, the owner told, no broadcast job; the next tick that day makes nothing", async () => {
+  const w = world({ rpcs: coldRpcs([coldLead("l1"), coldLead("l2"), coldLead("l3")]) });
+  coldWorkspace(w.tables, A, OPEN);
+  w.tables.playbooks.push(reachOut(A, R));
+  const today = localDate(OPEN, new Date());
+
+  const [status, body] = await answer(await w.tick());
+  assert.equal(status, 200);
+  assert.deepEqual(body, counts({ due: 1, held: 1 }));
+  assert.equal(w.tables.broadcasts.length, 1);
+  const run = w.tables.broadcasts[0];
+  assert.deepEqual(
+    [run.state, run.playbook_id, run.run_for, run.recipient_count, run.audience.kind, run.audience.root_id],
+    ["pending_approval", R, today, 3, "reach_out", R],
+  );
+  assert.equal(w.tables.reach_out_sends.length, 3);
+  for (const s of w.tables.reach_out_sends)
+    assert.deepEqual([s.state, s.broadcast_id, s.root_id, s.domain_id], ["planned", run.id, R, `dom-${A.slice(0, 8)}`]);
+  assert.deepEqual(w.tables.jobs, [], "no broadcast job: the reach-out clock claims its sends");
+  assert.deepEqual(w.tables.broadcast_recipients, []);
+  assert.equal(
+    w.tables.notifications.filter((n) => n.route === "broadcasts").length,
+    1,
+    "its owner is told where to approve it",
+  );
+  assert.equal(w.tables.playbooks[0].last_run_for, today, "the step remembers the day");
+
+  const [, again] = await answer(await w.tick());
+  assert.deepEqual(again, counts({}), "not due again today");
+  assert.equal(w.tables.broadcasts.length, 1);
+});
+
+test("a paused reach-out, a workspace whose class is never, or one that may not spend makes no run", async () => {
+  for (const setup of [
+    (t) => (t.playbooks[0].state = "paused"),
+    (t) => (t.policies.find((p) => p.class === "outreach").mode = "never"),
+    (t) => (t.billing_accounts[0] = { tenant_id: A, mode: "stripe", status: "canceled" }),
+  ]) {
+    const w = world({ rpcs: coldRpcs([coldLead("l1")]) });
+    coldWorkspace(w.tables, A, OPEN);
+    w.tables.playbooks.push(reachOut(A, R));
+    setup(w.tables);
+    const [status] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.deepEqual([w.tables.broadcasts, w.tables.reach_out_sends], [[], []], String(setup));
+  }
+});
+
+test("a moment and a reach-out in one workspace each run through their own verb: the moment's broadcast job, the reach-out's planned sends", async () => {
+  const w = world({ people: { [A]: [person("c1")] }, rpcs: coldRpcs([coldLead("l1")]) });
+  coldWorkspace(w.tables, A, OPEN);
+  w.tables.playbooks.push(playbook(A, P), reachOut(A, R));
+  const [, body] = await answer(await w.tick());
+  assert.deepEqual(body, counts({ tenants: 1, due: 2, sent: 1, held: 1 }));
+  const byPlaybook = Object.fromEntries(w.tables.broadcasts.map((b) => [b.playbook_id, b]));
+  assert.equal(byPlaybook[P].state, "scheduled");
+  assert.equal(byPlaybook[R].state, "pending_approval");
+  assert.deepEqual(
+    w.tables.jobs.map((j) => j.payload.broadcast_id),
+    [byPlaybook[P].id],
+    "one send job, the moment's",
+  );
+  assert.equal(w.tables.reach_out_sends.length, 1);
+});
+
+test("a reach-out that cannot run moves to the back of the page and keeps its day open; the steps behind it run, and the alarm counts both pages", async () => {
+  const w = world({ rpcs: coldRpcs([coldLead("l1")]) });
+  // A paused workspace's step, never run: it sorts first.
+  coldWorkspace(w.tables, A, OPEN);
+  w.tables.tenants[0].status = "paused";
+  w.tables.playbooks.push(reachOut(A, R, { last_run_at: null }));
+  // A healthy workspace's step, run yesterday: it sorts after.
+  const B = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  coldWorkspace(w.tables, B, OPEN);
+  w.tables.playbooks.push(reachOut(B, "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", { last_run_at: iso(D) }));
+  const [, body] = await answer(await w.tick());
+  assert.deepEqual([body.off, body.held], [1, 1], "the paused one off, the healthy one waiting for its owner");
+  const paused = w.tables.playbooks.find((p) => p.id === R);
+  assert.equal(paused.last_run_for, null, "its day stays open");
+  assert.ok(Date.parse(paused.last_run_at) > Date.now() - 60_000, "but it goes to the back of the page");
+});
+
+test("what the reach-out page could not reach is noted with the moments': starved reach-outs can raise the alarm", async () => {
+  const w = world({ rpcs: coldRpcs([]) });
+  coldWorkspace(w.tables, A, CLOSED);
+  for (let i = 0; i < PLAYBOOKS_PER_TICK + 1; i += 1)
+    w.tables.playbooks.push(reachOut(A, `ro-${String(i).padStart(2, "0")}`, { last_run_at: iso(i * H) }));
+  const [, body] = await answer(await w.tick());
+  assert.equal(body.remaining, 1);
+  assert.deepEqual(
+    w.backlog.map((b) => b.p_remaining),
+    [1],
+  );
+});
+
+test("a veto run goes on the record: the system's decision under the mode its owner chose, and the run's event", async () => {
+  const w = world({ rpcs: coldRpcs([coldLead("l1")]) });
+  coldWorkspace(w.tables, A, OPEN);
+  w.tables.playbooks.push(reachOut(A, R));
+  // A run of the chain already went ahead: this one is not asked.
+  w.tables.broadcasts.push({
+    id: "prior-run",
+    tenant_id: A,
+    playbook_id: R,
+    run_for: "2026-01-01",
+    state: "sent",
+    audience: { kind: "reach_out", root_id: R },
+  });
+  const [, body] = await answer(await w.tick());
+  assert.equal(body.sent, 1);
+  const run = w.tables.broadcasts.find((b) => b.id !== "prior-run");
+  assert.equal(run.state, "scheduled");
+  assert.deepEqual(
+    w.tables.decisions.map((d) => [d.subject_id, d.verb, d.actor_type, d.payload.reach_out]),
+    [[run.id, "send_broadcast", "system", true]],
+  );
+  assert.ok(w.tables.events.some((e) => e.kind === "playbook.run" && e.subject_id === R));
+  assert.deepEqual(
+    w.tables.notifications.filter((n) => n.route === "broadcasts"),
+    [],
+    "nobody is asked",
+  );
 });

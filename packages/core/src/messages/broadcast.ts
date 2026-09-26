@@ -3,6 +3,7 @@ import {
   BROADCAST_GAP_MS,
   OUTCOME_UNKNOWN,
   firstNameOf,
+  isReachOutRun,
   parseParamSpecs,
   purposeOfTemplate,
   renderTemplate,
@@ -64,6 +65,9 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // Only a scheduled or sending broadcast goes out: a run waiting for a
   // person (pending_approval) has no job, and one that ended stays ended.
   if (b.state !== "scheduled" && b.state !== "sending") return;
+  // A reach-out's run has no recipients here: its sends are the reach-out clock's (Part 3). A job that reached one
+  // would end it as sent to nobody, and the clock would claim nothing more from it.
+  if (isReachOutRun(b.audience)) return;
   // A paused workspace (tenants.status, written by billing) sends nothing:
   // the run fails with its reason and the owner is told, rather than a
   // template going out under a subscription that stopped.

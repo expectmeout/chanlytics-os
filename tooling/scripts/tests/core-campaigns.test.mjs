@@ -983,3 +983,53 @@ test("the playbook's check: the trigger first, then the template through the one
   });
   assert.deepEqual([nums.run_hour, nums.cap_per_run, nums.gap_days, nums.cadence_days], [18, 5, 30, 7]);
 });
+
+test("approve: a reach-out's run is released now with no broadcast job, on its own day or a later one, its sends keeping their times", async () => {
+  const run = {
+    id: "b9",
+    tenant_id: "t1",
+    state: "pending_approval",
+    name: "Movers in Austin",
+    recipient_count: 12,
+    playbook_id: "p1",
+    run_for: "2026-09-01",
+    audience: { kind: "reach_out", root_id: "p1", step_id: "p1", search_id: "s1" },
+  };
+  const f = fakes();
+  const r = await approveRun(f.ports, { row: run, now: NOW });
+  assert.deepEqual(
+    [r.state, r.scheduled_for, r.moved_from, r.decision_id],
+    ["scheduled", NOW.toISOString(), null, "d1"],
+  );
+  assert.deepEqual(f.ops(), ["release", "record"], "no broadcast job: it would find nobody and end the run as sent");
+  assert.equal(f.of("release")[0][2].toISOString(), NOW.toISOString(), "from the moment it is approved");
+  assert.equal(f.of("record")[0][4].reach_out, true);
+  await refused(
+    approveRun(fakes({ release: false }).ports, { row: run, now: NOW }),
+    "conflict",
+    409,
+    "This run just changed state",
+  );
+});
+
+test("approve: a reach-out's run keeps when its first email goes, and says now only once that time has passed", async () => {
+  const run = (scheduled_for) => ({
+    id: "b9",
+    tenant_id: "t1",
+    state: "pending_approval",
+    name: "Movers in Austin · 2026-09-06",
+    recipient_count: 4,
+    playbook_id: "p1",
+    run_for: "2026-09-06",
+    scheduled_for,
+    audience: { kind: "reach_out", root_id: "p1", step_id: "p1", search_id: "s1" },
+  });
+  const ahead = new Date(NOW.getTime() + 2 * 86_400_000).toISOString();
+  const f = fakes();
+  const r = await approveRun(f.ports, { row: run(ahead), now: NOW });
+  assert.equal(r.scheduled_for, ahead, "Monday's first email, not now");
+  assert.equal(f.of("release")[0][2].toISOString(), ahead);
+  const past = fakes();
+  const stale = new Date(NOW.getTime() - 3_600_000).toISOString();
+  assert.equal((await approveRun(past.ports, { row: run(stale), now: NOW })).scheduled_for, NOW.toISOString());
+});

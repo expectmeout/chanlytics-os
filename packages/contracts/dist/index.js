@@ -23454,6 +23454,9 @@ function isWaitRefusal(reason) {
   return OUTREACH_WAIT_REFUSALS.includes(reason ?? "");
 }
 var REACH_OUT_MONTH_EMAILS = 2e3;
+function isReachOutRun(audience) {
+  return !!audience && typeof audience === "object" && audience.kind === "reach_out";
+}
 function reachOutSlots(words4, lead, workspace) {
   const values = /* @__PURE__ */ new Map([
     ["business", lead.business_name?.trim() || null],
@@ -24359,6 +24362,7 @@ export {
   isPipelineView,
   isProductFallback,
   isPushKind,
+  isReachOutRun,
   isRealDate,
   isReplyTo,
   isSellsBy,

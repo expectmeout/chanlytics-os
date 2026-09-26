@@ -1745,6 +1745,40 @@ A step's run is assembled over the leads it may write to, and every send is plan
 clock does that. After this PR a reach-out made in the database (a test, or Part 4's sheet) produces a run waiting for
 its owner, with its sends planned.
 
+> **As built (PR 4, 26 Sep 2026).** The code in the tree is the reference. It departs from the plan in these ways:
+> - **Approving a reach-out run queues no `broadcast_send` job.** `approveRun` scheduled one for every run. For a
+>   reach-out run that job would find no recipients and end the run as `sent`, and PR 3's claim takes only from runs
+>   still `scheduled` or `sending`, so the whole chain would stop.
+>   - `approveReachOut` releases the run from now, on its own day or any later one, and records the decision with
+>     `reach_out: true`.
+>   - The job also leaves any reach-out run untouched (`isReachOutRun`, contracts `reach-out-rules.ts`, said once).
+>   - The dashboard's `loadBroadcast` reads `audience`.
+> - **A step's `state` is its chain's.** The context sets it to `paused` when the step or its root is paused, as the
+>   claim does.
+> - **The waiting notice** uses the existing kind `playbook` with the route `broadcasts` ("Open Broadcasts"), not a
+>   new kind. It says when the first email goes, in the workspace's time.
+> - **The sweep** reads reach-out steps as a page of their own (`reachOutsDue`) and yields at 40 s of its 60, since
+>   a step is due all day from its hour. A step whose run throws is counted failed and not stamped, so the next hour
+>   tries it again.
+> - **The context's reads are its own and light.** Unlike the moments', it never reads People. A read that fails is
+>   this step's error for the tick. A missing outreach row reads as `ask`, and a missing billing row as may-not-spend.
+> - **PR 4's review.** Its fixes are in the second commit, with a migration of the PR's own: **00185**. The migration
+>   numbers after it move up one: **PR 5's is 00186 and PR 7's is 00187.**
+>   - **The run is written whole** (`reach_out_plan_run`), under its own id (`reachOutRunIdFor`, from its step and its
+>     day). A run made with nothing planned would hold its chain for good.
+>   - **The followers are filtered before their limit.** A refused follower no longer heads every day's page while the
+>     eligible ones behind it wait.
+>   - **A refused or never-open lead is skipped with why** in the run, so it leaves the page. The audience is read at
+>     twice the step's share for the same reason.
+>   - **A run that waits holds its chain** (`chainState` puts waiting first), so unanswered runs under `ask` do not pile
+>     up.
+>   - **A veto run is on the record.** It carries the system's decision and a `playbook.run` event.
+>   - **Approval keeps the first send's time.**
+>   - **The run is named with its day.**
+>   - **A step that cannot run moves to the back of the page, with its day left open.** The backlog alarm counts both
+>     pages.
+>   - `uuidV5` is shared with the lead runner.
+
 ### Task 4.1: The ids
 
 **Files:**
