@@ -13,7 +13,6 @@
  * each of them can import it without importing each other.
  */
 import { formatPhoneDisplay } from "./phone";
-import type { CallDto } from "./viewmodels";
 
 /** The fields a name is made from. Any of them may be missing; each is null or absent when it is. */
 export interface NameableContact {
@@ -21,6 +20,18 @@ export interface NameableContact {
   wa_profile_name?: string | null;
   phone_e164?: string | null;
   email?: string | null;
+}
+
+/**
+ * The fields a caller's name is made from: what the line showed, and the
+ * person the number is, when it is someone's. A call as the Calls page reads it
+ * (CallDto) is one. Declared here, not imported, so this file stays below
+ * everything that names a person.
+ */
+export interface NameableCaller {
+  from_e164?: string | null;
+  from_raw?: string | null;
+  contact?: { display_name?: string | null; wa_profile_name?: string | null } | null;
 }
 
 /**
@@ -39,7 +50,7 @@ export function personName(c: NameableContact | null | undefined): string {
  * page (toCallVM), Live (toLiveCallVM) and a call a citation names read it
  * here, so the three cannot drift.
  */
-export function callerName(c: CallDto): string {
+export function callerName(c: NameableCaller): string {
   const withheld = !c.from_e164 && !c.from_raw;
   const phone = formatPhoneDisplay(c.from_e164);
   const name = c.contact?.display_name || c.contact?.wa_profile_name || null;

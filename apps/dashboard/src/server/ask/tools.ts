@@ -445,8 +445,9 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
     contact_id: dto.contact.id || null,
     contact_route: dto.contact.id ? `clients/${dto.contact.id}` : null,
     // Named as the Inbox row names them, which is the reader's row: the route's payload carries no email, so its view
-    // model would call a person reached only by email "Unknown" where the Inbox names them by their address.
-    who: r.rows.find((x) => x.kind === "thread")?.label ?? vm.who,
+    // model would call a person reached only by email "Unknown" where the Inbox names them by their address. The
+    // reader's first row is the thread.
+    who: r.rows[0].label,
     channel: vm.replyVia,
     state: vm.needsYou
       ? "needs you"
