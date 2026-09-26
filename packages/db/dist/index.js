@@ -3988,6 +3988,39 @@ async function yesesSince(db, tenantId, since) {
   return rows.map((r2) => ({ stage: r2.stage, proposed_at: r2.proposed_at, decided_at: r2.decided_at }));
 }
 
+// src/repositories/sweeps.ts
+function remainingOf(rows) {
+  if (rows.length === 0) return 0;
+  const total = rows[0].due_total;
+  if (typeof total !== "number") throw new Error("the database answered without its count of what is due");
+  return Math.max(0, total - rows.length);
+}
+async function duePlaybooks(db, p) {
+  const { data, error } = await db.rpc("playbooks_due", {
+    p_kind: p.kind,
+    p_at: p.at.toISOString(),
+    p_last_hour: PLAYBOOK_HOURS.max,
+    p_limit: p.limit,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the playbooks due: ${error.message}`);
+  const rows = data ?? [];
+  return {
+    rows: rows.map((r2) => ({ playbook: r2.playbook, timezone: r2.timezone })),
+    remaining: remainingOf(rows)
+  };
+}
+async function dueCalendars(db, p) {
+  const { data, error } = await db.rpc("calendars_due", {
+    p_before: p.before.toISOString(),
+    p_limit: p.limit,
+    ...p.tenantId ? { p_tenant_id: p.tenantId } : {}
+  });
+  if (error) throw new Error(`cannot read the calendars due: ${error.message}`);
+  const rows = data ?? [];
+  return { rows: rows.map((r2) => ({ tenant_id: r2.tenant_id, config: r2.config })), remaining: remainingOf(rows) };
+}
+
 // src/realtime.ts
 var WATCHED = [
   { table: "messages", event: "INSERT" },
@@ -4098,7 +4131,9 @@ export {
   domainCapacityOf,
   domainHeldSince,
   dropFromList,
+  dueCalendars,
   dueDomains,
+  duePlaybooks,
   dueSendingDomains,
   emailWordsOf,
   emitEvent,

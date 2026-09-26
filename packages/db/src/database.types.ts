@@ -4272,6 +4272,14 @@ export type Database = {
       }
     }
     Functions: {
+      calendars_due: {
+        Args: { p_before: string; p_limit: number; p_tenant_id?: string }
+        Returns: {
+          config: Json
+          due_total: number
+          tenant_id: string
+        }[]
+      }
       call_status_rank: { Args: { p_status: string }; Returns: number }
       campaign_series: {
         Args: { p_days?: number; p_tenant_id: string }
@@ -5062,6 +5070,20 @@ export type Database = {
           voice_state: string
           whatsapp_active: boolean
           whatsapp_number: string
+        }[]
+      }
+      playbooks_due: {
+        Args: {
+          p_at: string
+          p_kind: string
+          p_last_hour: number
+          p_limit: number
+          p_tenant_id?: string
+        }
+        Returns: {
+          due_total: number
+          playbook: Json
+          timezone: string
         }[]
       }
       profile_set: { Args: { p_display_name: string }; Returns: Json }
