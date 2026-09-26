@@ -343,8 +343,9 @@ checked could leave), and `503 model_unavailable` for a tick in which every
 model call failed (`reach_out_check_unanswered`). A send whose tries fail for an
 hour is held `check_unavailable` for its owner (`reach_out_check_held`, warn),
 and the clock puts it back to be checked an hour on. A workspace that may not
-spend, is at its month's allowance, or checked 400 sends in the last day is
-asked again an hour on (`reach_out_check_gated`).
+spend, is at its month's allowance, or has spent its 400 model attempts of
+the UTC day (`reach_out_check_spend`) is asked again an hour on
+(`reach_out_check_gated`).
 
 **A domain held twice in 30 days.** Its owner cannot resume it: the platform
 is paged (`sending_domain_held_twice:<host>`, naming the workspace and the

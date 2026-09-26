@@ -1651,10 +1651,15 @@ Expected: lint at its baseline (0 errors), every suite green, `dist in sync with
 > - **R2, R12: the gates, before any call.** `reach_out_unchecked(p_limit, p_per_workspace, p_ahead_minutes,
 >   p_tenant_id)` takes 40 a tick, 20 of a workspace, round-robin (`row_number()` over the workspace, by
 >   `coalesce(check_after, created_at)`), within two hours or in a run waiting for its owner. Then per workspace, in the
->   edge: `workspaceMaySpend` (contracts `maySpend` over `billing_accounts`, and a paused workspace may not), room in
->   the month (`reach_out_month_sent` under `REACH_OUT_MONTH_EMAILS`), and `REACH_OUT_CHECKS_PER_DAY` (400, contracts)
->   counted by `checked_at` over the last 24 hours (a rolling day: no zone to disagree about). A gated send is handed
->   back with `check_after` an hour on (`reach_out_check_gated`). With the cold lane unset nothing is checked, and a
+>   edge: `workspaceMaySpend` (contracts `maySpend` over `billing_accounts`, and a paused workspace may not; the one
+>   reading, which the step's run in `run-context.ts` asks too) and room in the month (`reach_out_month_sent` under
+>   `REACH_OUT_MONTH_EMAILS`). The day's ceiling, `REACH_OUT_CHECKS_PER_DAY` (400 attempts per workspace per UTC day,
+>   contracts), is counted where no reset clears it: a table of its own, `reach_out_check_spend(tenant_id, day,
+>   attempts)` (RLS on, no member policy, service role only; in `delete-tenant.mjs` and the tenancy suite), and
+>   `reach_out_check_take(p_tenant_id, p_cap, p_at)`, which takes one attempt atomically while the day is under the
+>   cap (`insert … on conflict do update … where attempts < p_cap returning true`). One attempt is taken before each
+>   send's check that asks the model, a rewrite in the same attempt and a failure counted; words that name no opening
+>   ask no model and take none. A gated send is handed back with `check_after` an hour on (`reach_out_check_gated`). With the cold lane unset nothing is checked, and a
 >   waiting send answers 503 `cold_lane_unset`, so the page the reach-out clock used to give still comes (its own
 >   due test now counts only checked sends).
 > - **R3: the lease.** `reach_out_unchecked` is plpgsql, volatile: it locks the picked rows `for update skip locked`,
@@ -1664,8 +1669,9 @@ Expected: lint at its baseline (0 errors), every suite green, `dist in sync with
 > - **R4: failures.** A thrown call, a deadline, no answer or no shape each fail the try: `check_tries` + 1,
 >   `check_first_at` kept, `check_after` 1, 2, 4, 8, then 15 minutes on. After `CHECK_GIVE_UP_MS` (60 min from
 >   `check_first_at`, a new column) the send is held `check_unavailable` with no detail (warn
->   `reach_out_check_held`). Each tick first puts such holds left an hour back to planned at the next `check_gen`
->   (`releaseUnavailableHolds`); a hold for a rule an opening broke keeps. `check_tries` allows 0–100. No
+>   `reach_out_check_held`). Each tick first puts such holds left an hour back to planned at the next `check_gen`, in
+>   one statement (`reach_out_release_unavailable(p_before, p_tenant_id)`, service role, returning the count); a hold
+>   for a rule an opening broke keeps. `check_tries` allows 0–100. No
 >   `ANTHROPIC_API_KEY`: nothing is touched (not even leased), `reach_out_check_unset`, and 503 `check_unset` while a
 >   send waits. A tick in which every call failed answers 503 `model_unavailable`. The notice R20 asks for on a first
 >   hold is PR 7's.
@@ -1693,9 +1699,17 @@ Expected: lint at its baseline (0 errors), every suite green, `dist in sync with
 >   retries a caller allows); the notes sweep keeps its 20 s and one retry through it. The preview
 >   (`lib/reach-out/preview.ts`, door `api/admin/reach-out-preview.ts`, audience `"/api/admin/reach-out-preview"`)
 >   assembles its email through `reachOutRequest` over stand-in identities (`preview.invalid`, a one-off seal),
->   caps `index` at 199, takes the step's `language` (`template_language`) in its body, returns `refused` (the
+>   refuses an `index` past 199 with a 400 (never a silent clamp), takes the step's `language` (`template_language`) in its body, returns `refused` (the
 >   sender's reason) and `unavailable` (the model could not answer), and has 30 s (calls stop at 20 s). It previews
 >   a first step only. `check.ts` imports `WrittenOpening`.
+> - **The opening's bounds.** `checkOpening` refuses an opening past `OPENING_CHARS_MAX` (400 characters, the column's
+>   bound) as `too_long`, so it is rewritten once, then held. `OPENING_SCHEMA` says the bound in the opening's
+>   `description`, not as `maxLength`: structured outputs refuse string-length constraints, and a refused schema would
+>   send every writer call through the plain-JSON retry. An answer the send cannot store is a failed try, never a pass.
+>   A code hold (`customer_domain`, `chain`) that wins over an opening the reader or code refused stores no opening, so
+>   an Include past the code hold finds none and the send is checked again, where the opening's own hold is said.
+>   Whether words need an opening is one contracts predicate, `wordsNeedOpening({ subject, body })`, which the check
+>   and `reachOutWords` both ask.
 > - **Held give-up in the reach-out clock** (Task 3.3 Step 4), after its restale; the trigger wakes the clock for a
 >   hold two weeks old, and counts a held send as open in a canceled run and in a run to finish.
 > - **The lead's own person is not a customer's domain** (departs from the task code's record): the domain test in
