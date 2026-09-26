@@ -1,6 +1,6 @@
 /**
  * A partner's ledger (decision 0012, P3), run: the Stripe webhook's deliveries signed with the SDK's own helper, over a
- * database in memory, the Stripe calls faked. What a share is and what a reversal takes are the database's (00200,
+ * database in memory, the Stripe calls faked. What a share is and what a reversal takes are the database's (00203,
  * proved against the stack in partner.db.test.mjs); this proves the transport: which invoice, which door, which
  * amount, when a call to Stripe is spent and when it is not, and that a database without the doors never costs the
  * webhook its own work. Then the clock: the key, the one door, the counts.

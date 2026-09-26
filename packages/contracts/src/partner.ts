@@ -21,15 +21,15 @@ export interface PartnerDto {
 }
 
 export const PARTNER_STATUSES = ["active", "paused", "closed"] as const;
-/** The share every new partner account starts with: partners.share_bp's default (00199). The offer says it before there is a row. */
+/** The share every new partner account starts with: partners.share_bp's default (00202). The offer says it before there is a row. */
 export const PARTNER_SHARE_BP_DEFAULT = 2500;
 /** What the sweep decides about a workspace a partner brought (0012, P3). Null until it has looked. */
 export const PARTNER_STANDINGS = ["qualified", "review", "disqualified"] as const;
-/** A movement on the ledger (00200): a share of a paid plan invoice, or what a refund, a dispute or a won dispute did to it. */
+/** A movement on the ledger (00203): a share of a paid plan invoice, or what a refund, a dispute or a won dispute did to it. */
 export const PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"] as const;
 /** Where a movement stands: held thirty days, payable once the workspace qualifies, paid (P5), void if disqualified. */
 export const PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"] as const;
-/** Days a share is held before it may be paid: what 00200 adds to the invoice's paid_at. */
+/** Days a share is held before it may be paid: what 00203 adds to the invoice's paid_at. */
 export const PARTNER_HOLD_DAYS = 30;
 
 /* ------------------------------------------------------------------ the code */
@@ -138,7 +138,7 @@ export function broughtWords(count: number): string {
   return `${count} workspaces came through your link.`;
 }
 
-/** One line of partner_balance() (00200): a currency's total in one state, and when the next held one is due. */
+/** One line of partner_balance() (00203): a currency's total in one state, and when the next held one is due. */
 export interface PartnerBalanceRow {
   currency: string;
   state: string;

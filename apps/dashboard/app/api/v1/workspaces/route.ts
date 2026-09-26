@@ -89,7 +89,7 @@ export const GET = read({
     const platformAdmin = await isPlatformAdmin(ctx);
     // Whether this person is a partner (0012), on the same payload for the same reason: the Partner pane and the
     // switcher's role chips are drawn from what boot already fetched. Their own row alone, by RLS; null on a
-    // database 00199 has not reached.
+    // database 00202 has not reached.
     const partnerRow = await getOwnPartner(supabase);
     const partner = partnerRow ? { code: partnerRow.code, status: partnerRow.status } : null;
 

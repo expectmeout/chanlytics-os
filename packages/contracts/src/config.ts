@@ -49,7 +49,7 @@ export const ROLE_PERMS: Record<
   // `find` is the lead finder: starting a search, keeping a lead from review,
   // putting one back. Each spends the month's allowance, so it is the
   // owner's, and the partner's (PRD v3 §16.6, S9); has_permission() in 00140
-  // (widened in 00198) says the same, and lead-engine.db.test.mjs holds the
+  // (widened in 00201) says the same, and lead-engine.db.test.mjs holds the
   // two together.
   // `partner` (decision 0012) is the member who brought the workspace and sets
   // it up for its owner: everything setting up and running the receptionist

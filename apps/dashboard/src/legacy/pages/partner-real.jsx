@@ -4,7 +4,7 @@
 // For a person who is not a partner: the offer, the code to choose, the terms, one press. For a partner: the link
 // to hand out, the share their row holds, how many workspaces came through the link, and what the ledger holds for
 // them: held, payable and paid. Nothing here states a number the database does not hold: the share is the row's, the
-// count is the memberships', and every sum is partner_balance's (00200); a zero is said as a zero.
+// count is the memberships', and every sum is partner_balance's (00203); a zero is said as a zero.
 
 const PanePartner = ({ flash }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);

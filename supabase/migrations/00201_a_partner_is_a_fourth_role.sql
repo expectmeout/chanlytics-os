@@ -1,4 +1,4 @@
--- 00198 · A partner is a fourth role: it sets a workspace up and runs its receptionist, and touches neither its
+-- 00201 · A partner is a fourth role: it sets a workspace up and runs its receptionist, and touches neither its
 --         money nor its team.
 --
 -- Decision 0012, P1. A partner is the member who brought the workspace and sets it up for its owner. Nothing writes

@@ -1,4 +1,4 @@
--- 00200 · A partner earns a share: the ledger, held thirty days, reversed by a refund or a dispute.
+-- 00203 · A partner earns a share: the ledger, held thirty days, reversed by a refund or a dispute.
 --
 -- Decision 0012, P3. What a partner earns is written from what Stripe collected, never from a plan's price, and
 -- never by anything but the Stripe webhook (the service role). Every row carries the Stripe event that wrote it, and

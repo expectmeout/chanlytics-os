@@ -3917,15 +3917,15 @@ interface PartnerDto {
     created_at: string;
 }
 declare const PARTNER_STATUSES: readonly ["active", "paused", "closed"];
-/** The share every new partner account starts with: partners.share_bp's default (00199). The offer says it before there is a row. */
+/** The share every new partner account starts with: partners.share_bp's default (00202). The offer says it before there is a row. */
 declare const PARTNER_SHARE_BP_DEFAULT = 2500;
 /** What the sweep decides about a workspace a partner brought (0012, P3). Null until it has looked. */
 declare const PARTNER_STANDINGS: readonly ["qualified", "review", "disqualified"];
-/** A movement on the ledger (00200): a share of a paid plan invoice, or what a refund, a dispute or a won dispute did to it. */
+/** A movement on the ledger (00203): a share of a paid plan invoice, or what a refund, a dispute or a won dispute did to it. */
 declare const PARTNER_EARNING_KINDS: readonly ["share", "refund", "dispute", "dispute_won"];
 /** Where a movement stands: held thirty days, payable once the workspace qualifies, paid (P5), void if disqualified. */
 declare const PARTNER_EARNING_STATES: readonly ["held", "payable", "paid", "void"];
-/** Days a share is held before it may be paid: what 00200 adds to the invoice's paid_at. */
+/** Days a share is held before it may be paid: what 00203 adds to the invoice's paid_at. */
 declare const PARTNER_HOLD_DAYS = 30;
 declare const PARTNER_CODE_MIN = 3;
 declare const PARTNER_CODE_MAX = 24;
@@ -3982,7 +3982,7 @@ declare const PARTNER_WORDS: {
 declare function shareWords(shareBp: number): string;
 /** How many workspaces came through the link, as a sentence. Zero is a real count and is said. */
 declare function broughtWords(count: number): string;
-/** One line of partner_balance() (00200): a currency's total in one state, and when the next held one is due. */
+/** One line of partner_balance() (00203): a currency's total in one state, and when the next held one is due. */
 interface PartnerBalanceRow {
     currency: string;
     state: string;

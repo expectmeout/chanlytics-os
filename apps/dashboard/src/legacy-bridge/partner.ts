@@ -19,7 +19,7 @@ import { refreshSurfaces } from "./surface-runner";
 
 export interface PartnerSurface {
   dto: PartnerDto | null;
-  /** What the ledger holds for this partner, by currency and state (00200). */
+  /** What the ledger holds for this partner, by currency and state (00203). */
   balance: PartnerBalanceRow[];
   fetchedAt: number;
 }

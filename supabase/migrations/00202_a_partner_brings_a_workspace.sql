@@ -1,8 +1,8 @@
--- 00199 · A partner brings a workspace: the partner, the attribution, and the membership that comes with it.
+-- 00202 · A partner brings a workspace: the partner, the attribution, and the membership that comes with it.
 --
 -- Decision 0012, P2. A partner is a person with an account and a code; their link (/p/<code>) leaves a cookie, and
 -- a workspace made while the cookie is there is attributed to them, once, at creation, in the same transaction as
--- the tenant: a partner_tenants row and a 'partner' membership (00198). Nothing attributes a workspace later, and a
+-- the tenant: a partner_tenants row and a 'partner' membership (00201). Nothing attributes a workspace later, and a
 -- partner is never credited with a workspace they made themselves.
 --
 --   partners         one per account: the code, the standing (active · paused · closed), the share in basis points

@@ -7885,7 +7885,7 @@ type PartnerRow = Database["public"]["Tables"]["partners"]["Row"];
 type PartnerTenantRow = Database["public"]["Tables"]["partner_tenants"]["Row"];
 type PartnerPublicRow = Pick<PartnerRow, "id" | "code" | "status" | "share_bp" | "terms_accepted_at" | "created_at">;
 /**
- * The caller's own partner row, or null: none, or a database 00199 has not reached, which reads as none so the app
+ * The caller's own partner row, or null: none, or a database 00202 has not reached, which reads as none so the app
  * boots whichever deploys first. Any other failure is thrown.
  */
 declare function getOwnPartner(db: Db): Promise<PartnerPublicRow | null>;
@@ -7897,7 +7897,7 @@ interface PartnerBalanceLine {
     next_payable_at: string | null;
 }
 /**
- * The caller's own totals (00200 partner_balance): held, payable and paid, by currency. Empty on a database 00200
+ * The caller's own totals (00203 partner_balance): held, payable and paid, by currency. Empty on a database 00203
  * has not reached, which reads as nothing earned yet, which is true.
  */
 declare function getPartnerBalance(db: Db): Promise<PartnerBalanceLine[]>;
