@@ -1524,8 +1524,29 @@ test("REGRESSION: the timeline says who sent each of ours in the Inbox's words -
   );
 });
 
+/**
+ * The fixture moved whole onto another clock: every timestamp in it shifted by the same amount, so what is two days
+ * ahead of NOW is two days ahead of `at`. A test whose answer turns on the day of the week reads a fixed clock this
+ * way; the fixture's own NOW is the real one, which the pages drawn in this file read too.
+ */
+const movedTo = (value, at) => {
+  const by = at - NOW;
+  const move = (v) =>
+    typeof v === "string" && /^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(v)
+      ? new Date(Date.parse(v) + by).toISOString()
+      : Array.isArray(v)
+        ? v.map(move)
+        : v && typeof v === "object"
+          ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, move(x)]))
+          : v;
+  return move(value);
+};
+
 test("a person's page names the lists that keep themselves current and have them on, by the rail's own tests -- and not the ones it already says", () => {
-  const booked = toPersonVM(detail(), ZONE, new Date(NOW));
+  // A Wednesday noon in New York, so the booking two days ahead is Friday of the same week, Monday to Sunday. Read
+  // on the real clock it fell into next week every Saturday and Sunday (26 Sep 2026), and Booked this week went.
+  const WEDNESDAY = Date.parse("2026-09-23T16:00:00Z");
+  const booked = toPersonVM(movedTo(detail(), WEDNESDAY), ZONE, new Date(WEDNESDAY));
   assert.deepEqual(
     booked.smartLists.map((l) => l.id),
     ["booked_week", "booked"],
