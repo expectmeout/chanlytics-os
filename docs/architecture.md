@@ -97,7 +97,7 @@ Every request proves who is knocking before anything is read.
 
 1. **Provider to edge.** HMAC over the raw body (Meta), Retell's signature, Twilio's signature with the line's own token, Svix headers (Resend), Stripe's signature. Apify signs nothing, so each run is started with a per-run token in its webhook URL, kept only as a hash and compared in constant time. A webhook whose write the database did not accept is not acknowledged, so the provider retries.
 2. **Browser to dashboard.** A Supabase session cookie verified with `getUser()` on every request; same origin required for every write.
-3. **Dashboard to edge.** A token minted for one door, one workspace, one person, one minute (`x-edge-token`). The dashboard proves who the person is; the edge spends the provider key. The platform's shared key (`x-diag-key`) opens only the diagnostic, the eval door and the sending-domains lift on an edge that holds the secret, and every key-only knock there is logged (`admin_door_key_only`).
+3. **Dashboard to edge.** A token minted for one door, one workspace, one person, one minute (`x-edge-token`). The dashboard proves who the person is; the edge spends the provider key. The platform's shared key (`x-diag-key`) opens only the diagnostic and the sending-domains lift of a domain held twice on an edge that holds the secret, and every key-only knock there is logged (`admin_door_key_only`).
 4. **Database to edge.** `x-cron-key` on `/api/cron/*` and `/api/jobs/tick`, read from Vault on both sides.
 
 And one door with no key: `GET /api/health` answers 200 or 503 so a pinger outside the failure domain can page a person.

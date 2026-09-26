@@ -273,9 +273,17 @@ only; the dashboard holds none.
 `EDGE_CALL_SECRET` is held by both projects or by neither: a dashboard that
 holds it signs every edge call and sends no key, and an edge without it
 refuses those calls. On an edge that holds it, `DIAG_KEY` opens only
-`GET /api/diag`, `/api/admin/eval` and the sending-domains lift;
-`admin_door_key_only` in the edge log names every door the key alone still
-knocks on, and whether it came in.
+`GET /api/diag` and the sending-domains lift of a domain held twice
+(`op: resume`, `by: platform`); `admin_door_key_only` in the edge log names
+every door the key alone still knocks on, and whether it came in. The eval
+harness (`tooling/scripts/eval-brain.mjs`) mints a token for its door from
+`EDGE_CALL_SECRET`, as the dashboard does; there is no raw key knock to make.
+
+Before setting `RETELL_DOORS_SIGNED=1`, read `voice_door_auth` in the edge log
+for `sig: true` on each of the three voice doors. The verifier tries one key,
+`RETELL_WEBHOOK_KEY` (`RETELL_API_KEY` when it is unset): `sig: false` on the
+fn and availability doors while the webhook shows `true` can mean the wrong
+key, not an unsigned delivery.
 
 ## Turn on cold email
 

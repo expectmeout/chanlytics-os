@@ -4,11 +4,10 @@
  *
  * The dashboard carried DIAG_KEY beside its token on every call, and the key alone opened every door on an edge that
  * could have verified a token -- so the token bought nothing while the key rode with it, and a key that leaked opened
- * twenty-two doors for any workspace. On an edge with the secret the key now opens only a door that names the
- * platform's key as its credential (the diagnostic and the eval harness, which nothing mints a token for, and the
- * sending-domains lift the runbook reserves for the platform), and every key-only knock on such an edge logs
- * admin_door_key_only, so what still relies on the key can be read off the log. An edge without the secret (a
- * preview) still lets the key decide.
+ * twenty-two doors for any workspace. On an edge with the secret the key now opens only a knock the door names as
+ * the platform's (the diagnostic, which nothing mints a token for, and the sending-domains lift the runbook reserves
+ * for the platform), and every key-only knock on such an edge logs admin_door_key_only, so what still relies on the
+ * key can be read off the log. An edge without the secret (a preview) still lets the key decide.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

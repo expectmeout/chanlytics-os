@@ -9,11 +9,12 @@
  *   - the edge has the secret and a token is presented: the token must
  *     verify; there is no falling back from a bad token to the key;
  *   - the edge has the secret and no token: the key opens nothing, unless
- *     the door names the platform's key as its credential (`platformKey`:
- *     the diagnostic and the eval door, which nothing mints a token for, and
- *     the sending-domains lift the runbook reserves for the platform). Either
- *     way the knock logs `admin_door_key_only` with the door and whether it
- *     came in, so what still relies on the key can be read off the log;
+ *     the door names the platform's key as its credential for this knock
+ *     (`platformKey`: the diagnostic, which nothing mints a token for, and
+ *     the one sending-domains op the runbook reserves for the platform, the
+ *     lift of a domain held twice). Either way the knock logs
+ *     `admin_door_key_only` with the door and whether it came in, so what
+ *     still relies on the key can be read off the log;
  *   - the edge has no secret (a preview): a token is ignored and the key
  *     decides.
  *
@@ -49,7 +50,10 @@ export function authorizeAdmin(
   request: Request,
   aud: string,
   opts: {
-    /** This door is the platform's: the key opens it on an edge that holds the secret too. Say why at the call. */
+    /**
+     * This knock is the platform's: the key opens it on an edge that holds the secret too. Say why at the call, and
+     * decide it per knock where only one op is the platform's (sending-domains reads the body first).
+     */
     platformKey?: boolean;
   } = {},
 ): AdminAuth {

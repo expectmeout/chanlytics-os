@@ -20,7 +20,9 @@
  * every knock that comes in logs `voice_door_auth` with what it carried (sig, secret), and the secret still opens a
  * door that lists itself in KEY_READ_FROM below, compared in constant time: a door absent there opens for the
  * signature alone. Take a door out once its log shows sig: true; RETELL_DOORS_SIGNED=1 takes all three out at once,
- * and then a refusal is logged too, since it may be Retell's.
+ * and then a refusal is logged too, since it may be Retell's. Read that log knowing the verifier tries ONE key, the
+ * badged one: sig: false on the fn and availability doors while the webhook shows true can mean the wrong key, not
+ * an unsigned delivery (voice-door-auth.test.mjs pins that a signature under the API key is refused).
  */
 import crypto from "node:crypto";
 import { verifyRetellSignature } from "../packages/channels.js";

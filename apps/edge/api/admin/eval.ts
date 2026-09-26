@@ -50,9 +50,9 @@ export interface BrainPort {
 
 export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
   const ask = brain?.generateReply ?? generateReply;
-  // The platform's door: the harness (tooling/scripts/eval-brain.mjs) knocks with the key and nothing mints a token
-  // for it, so the key stays its credential on an edge that holds the secret too.
-  const auth = authorizeAdmin(request, "/api/admin/eval", { platformKey: true });
+  // A door for one workspace: the harness (tooling/scripts/eval-brain.mjs) mints a token for it and that workspace,
+  // as the dashboard mints one; the key opens it only on an edge without the secret.
+  const auth = authorizeAdmin(request, "/api/admin/eval");
   if (!auth.ok) return auth.response;
   if (!env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
 
