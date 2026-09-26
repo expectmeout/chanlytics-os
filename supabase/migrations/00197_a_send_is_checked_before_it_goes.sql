@@ -1,4 +1,4 @@
--- 00191 · A send is checked before it goes.
+-- 00197 · A send is checked before it goes.
 --
 -- Reach out, Part 4 (docs/superpowers/plans/2026-09-26-reach-out-part-4-the-words-and-pages.md, PRs 2 and 3, with the
 -- review round's R1–R11). The database side of the check; the edge's check clock (apps/edge/api/cron/reach-out-check.ts)
@@ -193,7 +193,7 @@ revoke execute on function public.reach_out_due_domains(timestamptz, int, uuid, 
   from public, anon, authenticated;
 grant execute on function public.reach_out_due_domains(timestamptz, int, uuid, uuid[], uuid[]) to service_role;
 comment on function public.reach_out_due_domains(timestamptz, int, uuid, uuid[], uuid[]) is
-  'The verified, clean domains with a checked reach-out send due in a run that goes ahead on a running chain, longest waiting first, past the workspaces and domains the caller has done with this tick (00187, 00191). Service role only.';
+  'The verified, clean domains with a checked reach-out send due in a run that goes ahead on a running chain, longest waiting first, past the workspaces and domains the caller has done with this tick (00187, 00197). Service role only.';
 
 /* ------------------------------------------------------------ the clock's reads -- */
 
@@ -444,7 +444,7 @@ end $$;
 revoke execute on function public.reach_out_unchecked(int, int, int, uuid) from public, anon, authenticated;
 grant execute on function public.reach_out_unchecked(int, int, int, uuid) to service_role;
 comment on function public.reach_out_unchecked(int, int, int, uuid) is
-  'The sends the check clock takes this tick (Reach out, Part 4), leased under their row locks, round-robin by workspace, each with its words'' step, the name its chain signs with, the holds its owner included it past and its business''s record (00191). Service role only.';
+  'The sends the check clock takes this tick (Reach out, Part 4), leased under their row locks, round-robin by workspace, each with its words'' step, the name its chain signs with, the holds its owner included it past and its business''s record (00197). Service role only.';
 
 /* ------------------------------------------------------------ the check's spend -- */
 

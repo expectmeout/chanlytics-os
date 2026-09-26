@@ -295,7 +295,7 @@ const record = (name, over = {}) => ({
 });
 
 /**
- * 00191's lease over the tables, as the SQL makes it: planned, unchecked, past its backoff, not leased in the last two
+ * 00197's lease over the tables, as the SQL makes it: planned, unchecked, past its backoff, not leased in the last two
  * minutes; stamped as it is handed over, with its step, its chain's name and its record. The SQL's round-robin, its
  * horizon and its joins are proved on a stack (reach-out-checked.db.test.mjs).
  */
@@ -321,7 +321,7 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, sp
       },
     ],
     reach_out_sends: sends,
-    // What the workspace's model attempts spent this UTC day (00191), counted against its ceiling.
+    // What the workspace's model attempts spent this UTC day (00197), counted against its ceiling.
     reach_out_check_spend: [{ tenant_id: T, day: new Date().toISOString().slice(0, 10), attempts: spentToday }],
   };
   const leased = [];
@@ -360,7 +360,7 @@ function world({ sends = [], records = {}, billing = "active", monthSent = 0, sp
         }));
       },
       reach_out_month_sent: () => monthSent,
-      // 00191's spend and release, as the SQL makes them (proved on a stack, reach-out-checked.db.test.mjs).
+      // 00197's spend and release, as the SQL makes them (proved on a stack, reach-out-checked.db.test.mjs).
       reach_out_check_take: (a) => {
         const day = a.p_at.slice(0, 10);
         let row = tables.reach_out_check_spend.find((x) => x.tenant_id === a.p_tenant_id && x.day === day);

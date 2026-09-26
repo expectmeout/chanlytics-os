@@ -270,6 +270,21 @@ Each project's variables are listed in its `.env.example`, and a test fails
 when the code reads one the file does not list. Provider keys live on the edge
 only; the dashboard holds none.
 
+`EDGE_CALL_SECRET` is held by both projects or by neither: a dashboard that
+holds it signs every edge call and sends no key, and an edge without it
+refuses those calls. On an edge that holds it, `DIAG_KEY` opens only
+`GET /api/diag` and the sending-domains lift of a domain held twice
+(`op: resume`, `by: platform`); `admin_door_key_only` in the edge log names
+every door the key alone still knocks on, and whether it came in. The eval
+harness (`tooling/scripts/eval-brain.mjs`) mints a token for its door from
+`EDGE_CALL_SECRET`, as the dashboard does; there is no raw key knock to make.
+
+Before setting `RETELL_DOORS_SIGNED=1`, read `voice_door_auth` in the edge log
+for `sig: true` on each of the three voice doors. The verifier tries one key,
+`RETELL_WEBHOOK_KEY` (`RETELL_API_KEY` when it is unset): `sig: false` on the
+fn and availability doors while the webhook shows `true` can mean the wrong
+key, not an unsigned delivery.
+
 ## Turn on cold email
 
 Reach out sends from a workspace's own domains through a second Resend
@@ -416,6 +431,23 @@ Nothing sends until a build carries push credentials, and nothing is signed unti
    variable first is harmless, the switch first refuses every send until the variable lands.
 3. **Watch** `push_send` and `push_receipts` on the jobs ledger: a `push_rejected 401` is the token; a phone the
    receipts say is gone is forgotten by the job, never by hand.
+
+## Turn on the call in progress on phones
+
+A call the receptionist is on appears on the workspace's iPhones as a Live Activity (PR 7 of the phone app): the edge
+starts it with a push straight to Apple's service, since Expo's push service does not carry `liveactivity` pushes
+(`apps/edge/lib/ops/apns.ts`; the rule is `apps/edge/lib/voice/call-activity.ts`). Nothing is sent until the four
+keys are set; a phone hands out its push-to-start token on iOS 17.2 and later, and the site keeps it on the device's
+row (00191).
+
+1. **A key**, once: Apple Developer, Certificates, Identifiers & Profiles → Keys, a key with Apple Push Notifications
+   service (APNs). Keep the `.p8` it downloads once. The same key may be the one EAS holds for push.
+2. **On the edge** (Vercel, the messaging project): `APNS_TEAM_ID` (the account's team id), `APNS_KEY_ID` (the key's
+   id), `APNS_KEY_P8` (the `.p8` file's contents; a base64 of it is accepted, since a one-line value is what a
+   dashboard takes), `APNS_BUNDLE_ID=com.chanlytics.app`. `APNS_SANDBOX=on` only for a development build's tokens.
+3. **Watch** `call_activity_started`, `call_activity_refused` and `call_activity_failed` on the edge's logs: a 403 is
+   the key or the team, a 400 `BadDeviceToken` a sandbox token against production (or the reverse), a 410 a phone
+   that no longer has the app.
 
 ## Turn on native sign-in
 

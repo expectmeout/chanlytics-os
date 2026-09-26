@@ -29,6 +29,8 @@ interface BridgeWindow {
   __notifs?: { unread(): number; onChange(cb: () => void): () => void };
   /** Today's view model, as the surface seam publishes it (surface-data.ts): what the widget shows. */
   TODAY_DATA?: TodayVM;
+  /** The Live page's view model: how many calls are in progress ends, or keeps, the phone's call activity. */
+  __LIVE?: { now: unknown[] };
   addEventListener(type: string, fn: (e: Event) => void): void;
   removeEventListener(type: string, fn: (e: Event) => void): void;
   dispatchEvent(e: Event): boolean;
@@ -36,7 +38,12 @@ interface BridgeWindow {
 
 /** The two account writes the shell asks for, through the page's own client; injectable so the rule runs in a test. */
 export interface DeviceDoors {
-  register(device: { token: string; platform: "ios" | "android"; app_version?: string }): Promise<boolean>;
+  register(device: {
+    token: string;
+    platform: "ios" | "android";
+    app_version?: string;
+    activity_token?: string;
+  }): Promise<boolean>;
   forget(token: string): Promise<boolean>;
 }
 export const deviceDoors: DeviceDoors = {
@@ -89,6 +96,12 @@ export function installAppBridge(
   win.addEventListener("inbox:counts", counts);
   win.addEventListener("workspace:changed", workspace);
   win.addEventListener("surface:today", today);
+  // The calls in progress, for the Lock Screen's activity: none means the phone may end what it shows.
+  const calls = () => {
+    const live = win.__LIVE?.now;
+    if (Array.isArray(live)) post({ t: "calls", live: live.length });
+  };
+  win.addEventListener("surface:live", calls);
   win.__appBridge = {
     receive(raw: string) {
       let v: unknown;
@@ -105,7 +118,12 @@ export function installAppBridge(
       else if (m.t === "device") {
         // The phone registers through the page: the cookie, the same-origin rule and the rate bucket are the page's.
         void doors
-          .register({ token: m.token, platform: m.platform, ...(m.version ? { app_version: m.version } : {}) })
+          .register({
+            token: m.token,
+            platform: m.platform,
+            ...(m.version ? { app_version: m.version } : {}),
+            ...(m.activity ? { activity_token: m.activity } : {}),
+          })
           .then((ok) => post({ t: "device", state: ok ? "registered" : "refused" }))
           .catch(() => post({ t: "device", state: "refused" }));
       } else if (m.t === "forget") {
@@ -132,6 +150,7 @@ export function installAppBridge(
     win.removeEventListener("inbox:counts", counts);
     win.removeEventListener("workspace:changed", workspace);
     win.removeEventListener("surface:today", today);
+    win.removeEventListener("surface:live", calls);
     offBell();
     delete win.__appBridge;
   };

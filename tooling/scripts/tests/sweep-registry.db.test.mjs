@@ -87,7 +87,7 @@ const EVERY_CLOCK = {
   // The reach-out clock (00186): every minute, asking the edge only when a send is due, one is claimed or queued, a
   // closed run keeps open sends, or a run is ready to finish, and recording that it looked otherwise.
   reach_out: "reach-out-sweep",
-  // The reach-out check (00191): its own clock, every minute, asking the edge only when a send waits to be checked or a
+  // The reach-out check (00197): its own clock, every minute, asking the edge only when a send waits to be checked or a
   // check_unavailable hold is an hour old, and recording that it looked otherwise.
   reach_out_check: "reach-out-check-sweep",
 };

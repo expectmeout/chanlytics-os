@@ -86,9 +86,9 @@ export function availabilityAnswer(
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  // The third Retell door, guarded like the other two (voice-door-auth.ts): the signature, or the header until the
-  // signature is required.
-  if (!voiceDoorAuth("availability", request, raw, request.headers.get("x-fn-secret")).ok) {
+  // The third Retell door, guarded like the other two (voice-door-auth.ts): the signature, or the x-fn-secret header
+  // while this door still reads one.
+  if (!voiceDoorAuth("availability", request, raw).ok) {
     return json(401, { ok: false, error: "bad_secret" });
   }
   let body: {

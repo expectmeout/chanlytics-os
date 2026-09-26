@@ -1180,6 +1180,7 @@ function dealSentence(d, nowMs, tz = "UTC", opts = {}) {
       return `A former client${svc}: the engagement ended${on}. Treat them as any customer.`;
   }
 }
+var CARRIER_CONSENT_SOURCE = "carrier";
 var DAY_MS4 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS4;
 var MONTH_MS = 30 * DAY_MS4;
@@ -2621,6 +2622,7 @@ var OPENING_SCHEMA = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
@@ -2670,6 +2672,19 @@ async function ingestInbound(db, p) {
     }
   }
   return out;
+}
+async function recordCarrierOptOut(db, p) {
+  const { data, error } = await db.from("contacts").update({
+    consent: "opted_out",
+    dnc: true,
+    consent_source: CARRIER_CONSENT_SOURCE,
+    consent_updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }).eq("id", p.contactId).eq("tenant_id", p.tenantId).neq("consent", "opted_out").select("id");
+  if (error) throw new Error(`recording the carrier's opt-out for contact ${p.contactId}: ${error.message}`);
+  if (!data || data.length === 0) return false;
+  const change = { consent: "opted_out", previous: p.previous, source: CARRIER_CONSENT_SOURCE, channel: p.channel };
+  await emitEvent(db, p.tenantId, "contact.consent_changed", "contact", "contact", p.contactId, change);
+  return true;
 }
 async function markProcessed(db, tenantId, messageId) {
   const { error } = await db.rpc("mark_processed", {
@@ -3786,6 +3801,41 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   return bits.join(" ");
 }
 
+// src/repositories/idempotency.ts
+var HOLD_COLUMNS = "response, created_at, request_hash";
+async function claimIdempotencyKey(db, p) {
+  const claimed = await db.from("idempotency_keys").upsert(
+    {
+      tenant_id: p.tenantId,
+      key: p.key,
+      route: p.route,
+      request_hash: p.requestHash,
+      response: null,
+      created_at: p.nowIso
+    },
+    { onConflict: "tenant_id,key", ignoreDuplicates: true }
+  ).select("key");
+  if (claimed.error) throw new Error(`idempotency claim: ${claimed.error.message}`);
+  if ((claimed.data ?? []).length > 0) return { won: true };
+  const held = await db.from("idempotency_keys").select(HOLD_COLUMNS).eq("tenant_id", p.tenantId).eq("key", p.key).maybeSingle();
+  if (held.error) throw new Error(`idempotency lookup: ${held.error.message}`);
+  return { won: false, held: held.data };
+}
+async function takeIdempotencyKey(db, p) {
+  const taken = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: null, created_at: p.nowIso }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.from).select("key");
+  if (taken.error) throw new Error(`idempotency take: ${taken.error.message}`);
+  return (taken.data ?? []).length > 0;
+}
+async function releaseIdempotencyKey(db, p) {
+  const released = await db.from("idempotency_keys").delete().eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.nowIso);
+  if (released.error) throw new Error(`idempotency release: ${released.error.message}`);
+}
+async function keepIdempotencyReceipt(db, p) {
+  const kept = await db.from("idempotency_keys").update({ request_hash: p.requestHash, response: p.response }).eq("tenant_id", p.tenantId).eq("key", p.key).eq("created_at", p.stamp).select("key");
+  if (kept.error) throw new Error(`idempotency receipt: ${kept.error.message}`);
+  return (kept.data ?? []).length > 0;
+}
+
 // src/repositories/control.ts
 var CALL_CONTROL_S = 15 * 60;
 async function claimControl(db, p) {
@@ -4212,6 +4262,7 @@ export {
   checkResetPatch,
   claimCallNotification,
   claimControl,
+  claimIdempotencyKey,
   claimSends,
   closedRunSends,
   coldReceiptsOwed,
@@ -4240,6 +4291,7 @@ export {
   ingestInbound,
   ingestInboundEmail,
   insertQueuedEmail,
+  keepIdempotencyReceipt,
   lastInboundEmail,
   leadAddressBounced,
   leadSlotsOf,
@@ -4273,6 +4325,7 @@ export {
   readLeadContext,
   readThreadState,
   recordCallNote,
+  recordCarrierOptOut,
   recordCheck,
   recordEchoAndPause,
   recordEmailNo,
@@ -4281,6 +4334,7 @@ export {
   recordProviderDomain,
   recordStatusByExternalId,
   releaseControl,
+  releaseIdempotencyKey,
   releaseUnavailableHolds,
   renameList,
   reputationHoldsSince,
@@ -4313,6 +4367,7 @@ export {
   subscribeMessagesInserts,
   suppressEmailOf,
   takeCheckAttempt,
+  takeIdempotencyKey,
   templatesFor,
   touchIndex,
   touchSendingDomain,

@@ -7026,6 +7026,7 @@ var CONSENT_SOURCES = [
   { id: "customer_message", label: "Their own message" }
 ];
 var CONSENT_RESET_SOURCE = "operator";
+var CARRIER_CONSENT_SOURCE = "carrier";
 var OFFERS_YES_SOURCES = ["form", "customer_message"];
 function offersYesRefusal(source) {
   if (source && OFFERS_YES_SOURCES.includes(source)) return null;
@@ -7051,6 +7052,7 @@ function consentSourceLabel(source) {
   if (!source) return null;
   const known = CONSENT_SOURCES.find((s) => s.id === source);
   if (known) return known.label;
+  if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
   return source === CONSENT_RESET_SOURCE ? null : source;
 }
 function mayReceive(r2, purpose) {
@@ -15725,7 +15727,10 @@ function parseDevice(body) {
   const platform = PUSH_PLATFORMS.includes(String(b.platform)) ? b.platform : null;
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
   const version = typeof b.app_version === "string" && b.app_version.trim() ? b.app_version.trim().slice(0, VERSION_MAX) : null;
-  return { ok: true, device: { token: token2, platform, app_version: version } };
+  const activity = typeof b.activity_token === "string" && b.activity_token.trim() ? b.activity_token.trim() : null;
+  if (activity && activity.length > TOKEN_MAX)
+    return { ok: false, reason: "That activity token is longer than any we know." };
+  return { ok: true, device: { token: token2, platform, app_version: version, activity_token: activity } };
 }
 var PUSH_KINDS = [
   "handoff",
@@ -18651,6 +18656,8 @@ function consentChangeWords(c) {
     sub = `In their own words ${where}${c.words ? `: \u201C${c.words}\u201D` : ""}`;
   } else if (c.source === CONSENT_RESET_SOURCE || !c.source) {
     sub = "Reset by staff";
+  } else if (c.source === CARRIER_CONSENT_SOURCE) {
+    sub = "Reported by the carrier: they had texted STOP to your number, so a text to them was not sent";
   } else {
     sub = `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` \xB7 ${c.note}` : ""}`;
   }
@@ -22314,6 +22321,7 @@ var SCHEMA_SETS = {
     "unpaid",
     "paused"
   ],
+  "billing_events.state": ["claimed", "applied"],
   "broadcast_recipients.state": ["queued", "sent", "skipped", "failed"],
   "broadcasts.state": ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"],
   "business_records.business_type": [
@@ -24131,6 +24139,8 @@ function parsePageMessage(raw) {
       const snapshot = parseTodayWidgetSnapshot(v.snapshot);
       return snapshot ? { t: "today", snapshot } : null;
     }
+    case "calls":
+      return typeof v.live === "number" && Number.isInteger(v.live) && v.live >= 0 ? { t: "calls", live: v.live } : null;
     default:
       return null;
   }
@@ -24149,7 +24159,8 @@ function parseShellMessage(v) {
       const tok = token(v.token);
       const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;
       const version = typeof v.version === "string" ? v.version.trim().slice(0, 40) : "";
-      return tok && platform ? { t: "device", token: tok, platform, version } : null;
+      const activity = token(v.activity);
+      return tok && platform ? { t: "device", token: tok, platform, version, ...activity ? { activity } : {} } : null;
     }
     case "forget": {
       const tok = token(v.token);
@@ -24158,6 +24169,32 @@ function parseShellMessage(v) {
     default:
       return null;
   }
+}
+
+// src/live-activity.ts
+var CALL_ACTIVITY_NAME = "CallActivity";
+var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
+function callActivityStart(props, now) {
+  const seconds = Math.floor(now.getTime() / 1e3);
+  return {
+    aps: {
+      timestamp: seconds,
+      event: "start",
+      "attributes-type": "LiveActivityAttributes",
+      attributes: {},
+      "content-state": { name: CALL_ACTIVITY_NAME, props: JSON.stringify(props) },
+      "stale-date": seconds + Math.floor(CALL_ACTIVITY_STALE_MS / 1e3),
+      alert: { title: "Call in progress", body: `${props.who} is on the line.` }
+    }
+  };
+}
+function callActivityPropsOf(call) {
+  const who = (call.who ?? "").trim() || (call.from_e164 ?? "").trim() || (call.from_raw ?? "").trim() || "Someone";
+  return {
+    who,
+    line: (call.to_e164 ?? "").trim() || "your line",
+    startedAt: call.started_at ?? (/* @__PURE__ */ new Date(0)).toISOString()
+  };
 }
 export {
   ABANDONED_MS,
@@ -24229,6 +24266,8 @@ export {
   BusinessLineSchema,
   BusinessProfileSchema,
   CALENDAR_FEED_WORDS,
+  CALL_ACTIVITY_NAME,
+  CALL_ACTIVITY_STALE_MS,
   CALL_HEARTBEAT_MS,
   CALL_KEY_PREFIX,
   CALL_OUTCOMES,
@@ -24236,6 +24275,7 @@ export {
   CAMPAIGN_REPORT_RANGES,
   CAPABILITY_KINDS,
   CARRIERS,
+  CARRIER_CONSENT_SOURCE,
   CARRIER_WORDS,
   CHAIN_MIN_LISTINGS,
   CHANNEL_ANSWERED,
@@ -24826,6 +24866,8 @@ export {
   cacheHitOf,
   calendarOwnerOf,
   calendarPeekDeal,
+  callActivityPropsOf,
+  callActivityStart,
   callMoodTone,
   callOfKey,
   callOutcomeOf,

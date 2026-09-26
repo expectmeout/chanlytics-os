@@ -188,19 +188,25 @@ export type Database = {
       billing_events: {
         Row: {
           id: string
+          lease_until: string | null
           received_at: string
+          state: string
           tenant_id: string | null
           type: string
         }
         Insert: {
           id: string
+          lease_until?: string | null
           received_at?: string
+          state?: string
           tenant_id?: string | null
           type: string
         }
         Update: {
           id?: string
+          lease_until?: string | null
           received_at?: string
+          state?: string
           tenant_id?: string | null
           type?: string
         }
@@ -3611,6 +3617,7 @@ export type Database = {
       }
       push_devices: {
         Row: {
+          activity_token: string | null
           app_version: string | null
           created_at: string
           id: string
@@ -3620,6 +3627,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          activity_token?: string | null
           app_version?: string | null
           created_at?: string
           id?: string
@@ -3629,6 +3637,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          activity_token?: string | null
           app_version?: string | null
           created_at?: string
           id?: string
@@ -5150,7 +5159,12 @@ export type Database = {
       purge_notifications: { Args: { p_keep?: string }; Returns: number }
       push_device_forget: { Args: { p_token: string }; Returns: Json }
       push_device_register: {
-        Args: { p_app_version?: string; p_platform: string; p_token: string }
+        Args: {
+          p_activity_token?: string
+          p_app_version?: string
+          p_platform: string
+          p_token: string
+        }
         Returns: Json
       }
       put_channel_credentials: {

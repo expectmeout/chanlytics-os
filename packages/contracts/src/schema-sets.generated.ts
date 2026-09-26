@@ -13,6 +13,7 @@ export const SCHEMA_SETS = {
     "none", "incomplete", "incomplete_expired", "trialing", "active", "past_due", "canceled", "unpaid",
     "paused",
   ],
+  "billing_events.state": ["claimed", "applied"],
   "broadcast_recipients.state": ["queued", "sent", "skipped", "failed"],
   "broadcasts.state": ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"],
   "business_records.business_type": [

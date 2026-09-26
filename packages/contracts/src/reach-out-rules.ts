@@ -50,7 +50,7 @@ export const REACH_OUT_MONTH_EMAILS = 2000;
 
 /**
  * The most attempts of the check before each send that one workspace may spend on the model in a UTC day (R12):
- * counted in reach_out_check_spend (00191) as each attempt is taken, a rewrite in it and a failure counted, so neither a
+ * counted in reach_out_check_spend (00197) as each attempt is taken, a rewrite in it and a failure counted, so neither a
  * run's size nor a reset of a send's check lets it spend more.
  */
 export const REACH_OUT_CHECKS_PER_DAY = 400;

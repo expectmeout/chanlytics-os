@@ -16,9 +16,9 @@
  * as check_unavailable (R4); such a hold is put back to be checked an hour on.
  *
  * What the model costs is bounded where it is spent (R2, R12): a few sends of each workspace a tick, only a workspace
- * that may spend and has room in its month, at most REACH_OUT_CHECKS_PER_DAY attempts a UTC day (00191
+ * that may spend and has room in its month, at most REACH_OUT_CHECKS_PER_DAY attempts a UTC day (00197
  * reach_out_check_spend, taken before each attempt that asks the model, so no reset gives one back), and never a call
- * after the tick's budget. The sends are leased (00191 reach_out_unchecked), and a check writes only onto the send and the words'
+ * after the tick's budget. The sends are leased (00197 reach_out_unchecked), and a check writes only onto the send and the words'
  * version it read (R3, R5), so two ticks never pay for one send and a check never stamps words that changed under it.
  *
  * The rules are contracts' (reach-out-words.ts, reach-out-opening.ts). This file asks the model and writes the answers.
@@ -335,7 +335,7 @@ export async function checkWorkspaceOf(db: Db, tenantId: string): Promise<CheckW
 }
 
 /**
- * What a written opening stores, within the columns' bounds (00191), or null when it does not fit them. checkOpening
+ * What a written opening stores, within the columns' bounds (00197), or null when it does not fit them. checkOpening
  * refuses an opening past OPENING_CHARS_MAX, so this is the last guard, never a pass: a sendable opening that cannot be
  * stored is a failed check, and a held one is kept without its words.
  */

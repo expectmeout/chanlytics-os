@@ -79,7 +79,7 @@ const send = async (over = {}) => {
       lead_id: await lead(),
       domain_id: domain,
       send_at: new Date().toISOString(),
-      // Checked (00191): a claim takes a checked send only.
+      // Checked (00197): a claim takes a checked send only.
       checked_at: new Date().toISOString(),
       ...over,
     }),
@@ -465,7 +465,7 @@ test(
       .select("id");
     assert.ok(sendUpdate.error || sendUpdate.data.length === 0, "no session moves a send");
     // A step under another workspace's root: the composite key refuses it, whoever writes it.
-    // Over a search of its own: a search has one chain (00191).
+    // Over a search of its own: a search has one chain (00197).
     const another = ok(
       await db
         .from("lead_searches")
