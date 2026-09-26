@@ -30,6 +30,8 @@ The claim takes checked sends only. The sheet, the approval sheet, Playbooks and
 | 9 | `reach-out-4i-leads-doors` | Leads' five dead doors, carried from Part 1 | 00191 |
 | 10 | `reach-out-4j-proof` | The proof end to end on a stack, and the docs | — |
 
+**Order, after the review round (R19):** 1, 2, 3, 4, 5, 8, 6, 7, 9, 10. Playbooks' row ships before the door that makes a chain. §0.5 overrides the task code below wherever they disagree.
+
 Each PR runs this sequence:
 1. Branch from `main` after the one before it merges.
 2. Implement, then run the gate.
@@ -56,12 +58,12 @@ Migration numbers are the plan's; a PR that needs a migration the plan did not f
 
 ### 0.2 This plan's own (F1–F16), with why
 
-- **F1. The check runs in the reach-out clock, not a job.**
+- **F1. The check runs in the reach-out clock, not a job.** *Amended by R1–R4: a clock of its own, not a phase before the claim.*
   - It is a phase between the clock's reconcile and its claim, over planned sends not yet checked, in any live run. That includes a run waiting for its owner, so the approval sheet has the check's tally.
   - The claim takes only checked sends (`checked_at is not null`), and the guard refuses a claim of an unchecked one.
   - The sweep's due check gains "a planned send not yet checked".
   - No new job kind: the same reasons as E2. There is no `jobs.kind` CHECK, `JOB_WORK` or handler pin to move, and the clock already holds the time budget, the bounded reads and the per-workspace reads this needs.
-- **F2. The opening is two calls to Haiku 4.5 (`claude-haiku-4-5-20251001`, the id the notes sweep already uses): the writer and the reader.**
+- **F2.** *(Spend amended by R12.)* **The opening is two calls to Haiku 4.5 (`claude-haiku-4-5-20251001`, the id the notes sweep already uses): the writer and the reader.**
   - **They run only for a step whose words name `{{opening}}`.** Words without one cost no call, only the code rules.
   - **The writer** answers `{opening ≤ 40 words, angle ≤ 3 words, facts_used[]}` from the business's record: the listing, the finder's reason, what the owner asked the finder for, the workspace's own words and tone, and the owner's email.
   - **Code reads the opening:** its length, no link, no brace, no shouting, every number one the record holds, and every named fact one the record has.
@@ -88,7 +90,7 @@ Migration numbers are the plan's; a PR that needs a migration the plan did not f
 - **F6. A customer's domain is a hold, not a skip.**
   - When a person in People writes from the lead's email domain, and that domain is not free mail, the send is held `customer_domain`, with the doors Skip and Include.
   - An exact address or number shared with a person stays Part 3's skip (`already_yours`, the audience and `reach_out_person`).
-- **F7. A chain is saved whole through one member door, `reach_out_save` (security definer; an acting member: owner or operator).**
+- **F7. A chain is saved whole through one member door, `reach_out_save` (security definer; an acting member: owner or operator).** *Amended by R15: granted to the service role, called by the route.*
   - It writes the chain's email templates (`channel = 'email'`, `source = 'chanlytics'`, `category = 'marketing'`, `meta_status = 'approved'`) and its playbook rows in one transaction.
   - Contracts' `validateReachOutChain` runs first in the route, and the door repeats what the database can hold.
   - Sessions still insert only moments (00183), so no chain exists that the door did not validate.
@@ -101,7 +103,7 @@ Migration numbers are the plan's; a PR that needs a migration the plan did not f
 - **F10. A lead is written to by one chain.**
   - The audience leaves out a lead that any chain of the workspace has planned, held, written or sent. Two chains over two searches that share a lead would otherwise write to it twice.
   - A search has at most one chain (a partial unique index). The Leads door opens the search's chain when there is one.
-- **F11. Start plans the first run now.**
+- **F11. Start plans the first run now.** *Amended by R13–R14: through `playbooks-run.ts`, with its reason.*
   - The save route asks the edge to run the root at once (`POST /api/admin/reach-out-run`, the playbooks sweep's own loop body), so the first run waits on the owner within a minute, not at tomorrow's run hour.
   - A save that cannot reach the edge still stands: the sweep plans it within the hour, and the sheet says so.
   - The chain's rows take `cap_per_run = 200` and `run_hour = 9`. The domains' room within the timetable's seven-day horizon (`TIMETABLE_HORIZON_DAYS`) bounds a day, not the run.
@@ -110,14 +112,14 @@ Migration numbers are the plan's; a PR that needs a migration the plan did not f
   - The owner has Previous and Next and Rewrite the opening.
   - "Checked · ready · held" for the whole run is on the approval sheet a minute after Start. Canvas board 04 draws the tally in the sheet, but that would call the model about ninety times per edit before anything is saved.
   - "Skip this one" is on the approval sheet's list, where each business of the run is.
-- **F13. The approval sheet reads the run's sends.**
+- **F13. The approval sheet reads the run's sends.** *Extended by R20–R22.*
   - `GET broadcasts/[id]` gains a `reach_out` block: today's share and the rest, the held with their reasons and doors, the skipped by reason, how many are still being checked, and the first ready business's email as it reads.
   - Approve is offered on any day, because `approveReachOut` releases a run whatever its day. Its label names the first send's time.
 - **F14. Playbooks lists a chain as one row, its steps in the open row.**
   - The steps table shows what the database holds today: written, delivered, wrote back, said no, bounced.
   - "Interested" and "booked" need a reply's intent read, and they come with Part 5.
   - Delete is offered until the first email leaves; after that, Pause, and its history stays.
-- **F15. Templates lists a chain's email rows.**
+- **F15. Templates lists a chain's email rows.** *Amended by R19: no disabled switches, a global of their own.*
   - Each shows the Email chip, "What sends it", and the version switch: WhatsApp · **Email** · Text, the other two off, with "a reach-out sends the email version only".
   - Their words are edited in the chain's sheet ("Edit in its reach-out"). They have no Delete of their own: a step's words go with the step.
 - **F16. What moves out of Part 4, and where it goes.**
@@ -139,6 +141,100 @@ Migration numbers are the plan's; a PR that needs a migration the plan did not f
 - The bulk door and your own list (Part 7).
 - A template in a second language for a reach-out (Templates' "Add a language": after Part 7).
 - Open PR #1106 ("Veto is one rule") edits Autonomy's modes. PR 6 adds the outreach row there, and whichever lands second rebases over the other.
+
+### 0.5 The review round (26 Sep 2026): what changes in PRs 2–10
+
+Three reviews ran against the plan at `dd859526`, each checked against the code: PR 1's code, PRs 2–3's design, and PRs 4–10 with the product. What follows **overrides the task code below wherever they disagree**. Each PR's implementer applies it, and its "As built" note says how. R1–R11 answer PRs 2–3; R12–R24 answer PRs 4–10.
+
+**The check (PRs 2–3)**
+
+- **R1. The check is its own clock, not a phase before the claim** (supersedes F1's "a phase between the clock's reconcile and its claim" and Task 3.3's `CHECK_YIELD_AT_MS`).
+  - **Why:** `claimAndWrite` measures its 40 s from the tick's start (`sender.ts:69, 441`), and the door has 60 s (`vercel.json`). A 25 s check phase leaves the claim 15 s at best. When Anthropic is slow, it leaves nothing, and the function is killed past `maxDuration`.
+  - **Build:** `apps/edge/api/cron/reach-out-check.ts`, a cron sweep in the shape of `deadman.ts`:
+    - its own `sweep_status` row (`reach_out_check`) and trigger;
+    - `maxDuration` 60 in `vercel.json`;
+    - a watch on the sweep. The reach-out clock and its claim stay as Part 3 built them.
+  - **Each model call** has an `AbortSignal` deadline of min(8 s, time left), `maxRetries: 0`, and `late()` asked before every call. The sweep starts no call after 40 s.
+- **R2. What the check reads, and how much.**
+  - `reach_out_unchecked` takes sends round-robin by workspace, at most `CHECK_PER_WORKSPACE_PER_TICK` each, ordered by `check_after`.
+  - It takes only sends in a run waiting for approval, or due within `CHECK_AHEAD_MS` (2 h).
+  - It takes only workspaces that may spend (`maySpend`) and have room in the month (`reach_out_month_sent` under `REACH_OUT_MONTH_EMAILS`).
+  - The sweep does nothing while `coldLane()` is not ok, since nothing checked could leave. That is production today.
+- **R3. A lease, so two ticks never pay for one send.**
+  - `reach_out_unchecked` is plpgsql. It stamps `check_started_at` under `for update skip locked`, and passes over a row started less than 2 min ago.
+  - `recordCheck` matches the row's `check_gen` (R5) as it was read.
+- **R4. When the model fails** (supersedes Task 3.3's `CHECK_TRIES` and its catch).
+  - **Every failed attempt counts,** thrown or empty. It raises `check_tries` and sets `check_after` with backoff (1, 2, 4, 8, then 15 min), so one send that always throws never blocks the queue.
+  - **A send is held `check_unavailable` (detail null)** only after `CHECK_GIVE_UP_MS` (60 min) of tries, and the sweep logs a warn `reach_out_check_held`.
+  - **Once an hour, the sweep puts such holds back to planned.** Holds for a code rule (a detail) stay held.
+  - **No `ANTHROPIC_API_KEY`:** the sweep touches nothing, logs `reach_out_check_unset`, and answers 503 while unchecked sends exist, as `cold_lane_unset` does.
+  - **A tick where every call failed answers 503,** so the sweep turns red and pages. `sweep_health` judges the status.
+- **R5. The words' version** (supersedes the guards at Task 3.1 and Task 4.1's reset).
+  - Each send carries `check_gen int`. Every reset (a save that changes the step's words, `signed_by` or the booking link; a Rewrite) bumps it and clears `checked_at`.
+  - `recordCheck` writes only when `check_gen` is still what it read.
+  - The send also stamps `checked_words`, a hash of the step's components with `signed_by` and whether a booking link exists.
+  - **In the sender,** changed words, or words naming `{{opening}}` with a null opening, send the row back to unchecked, never to `missing_value`.
+- **R6. A workspace's fault holds; it never skips the lead.**
+  - `no_booking_link` and `no_signed_by` join the sender's `HOLDS`.
+  - `request.ts` fills every slot with `reachOutSlots`' real values. The `"x"` stubs in `EVERY_SLOT` go.
+- **R7. A reset keeps the owner's decisions.** A send the owner Included carries `included_for` (the hold reason it was included past). A reset keeps it, and the check never holds that send, or a later step's send to the same lead, for that reason again. This covers `chain` and `customer_domain` on follow-ups.
+- **R8. The claim's reads skip unchecked sends.** 00189 re-creates `reach_out_due_domains` (00187:25-50) with `s.checked_at is not null`, and the cold-lane "due" test does the same.
+- **R9. Either deploy order.** 00189 keeps the four-argument `reach_out_audience` as a wrapper over the new one, and a later migration drops it. The "no planned sends" read-back runs before the push.
+- **R10. The fourteen days are one clock.** A held send gives up `kept_waiting` 14 days from `created_at`, as `replan.ts:122` measures. The decide door refuses Include past that, in words.
+- **R11. One transport, one assembly.**
+  - The JSON-model transport moves from `lib/notes/suggest.ts:51-105` to `apps/edge/lib/model.ts`, which takes a deadline. The notes and the check both use it.
+  - The preview builds its email through `reachOutWords` and `reachOutRequest`, so it holds what the sender holds (`unknown_slot`, `no_subject`, `words_unsendable`).
+  - Its `index` is capped at 199, and its language is the step's `template_language`.
+  - `check.ts` imports `WrittenOpening`.
+
+**Spend (PRs 3–5)**
+
+- **R12. The model's spend is bounded where it is spent** (supersedes F2's "the month's allowance bounds the calls").
+  - R2's gates apply.
+  - `REACH_OUT_CHECKS_PER_DAY` (contracts, 400 sends per workspace, counted from `checked_at`) is a ceiling a day.
+  - The preview route declares `spend: true` and a bucket of its own (`reach_out_preview`, 10 a minute), counted in Ask's daily budget as `leads/[id]/draft` is.
+
+**Doors and routes (PRs 4–5)**
+
+- **R13. No second run-now door** (supersedes F11's `POST /api/admin/reach-out-run` and Task 4.3). `playbooks-run.ts` branches to `runReachOutStep` for a reach-out root instead of refusing it with 409. It keeps its full-path audience (`authorizeAdmin(request, "/api/admin/playbooks-run")`) and its `user_id`.
+  - **Every new edge door** uses the full path as its token's audience: `"/api/admin/reach-out-preview"`. The short names in Tasks 3.5 and 4.3 would never authorise.
+- **R14. Start says what really happened.** The run-now answer carries `runReachOutStep`'s reason (`billing`, `never`, `no_domain`, `no_room`, `nobody`), and each reason has its own words in contracts. "Planned within the hour" is said only when the edge could not be reached.
+- **R15. `reach_out_save` is the service role's** (supersedes F7's grant). It is granted to `service_role` only and called by the route after its role check, with the member's id. The route runs `validateReachOutChain`.
+  - **The database keeps only its CHECKs,** not a third copy of the length rules. The gap is one of `REACH_OUT_GAP_MINUTES`, a CHECK in 00190.
+- **R16. A chain's history is never deleted.**
+  - 00190 narrows `playbooks_acting_delete` to `kind = 'moment'`. `DELETE playbooks/[id]` refuses a reach-out, since `reach_out_sends.root_id` cascades.
+  - A chain is removed only through `reach_out_remove`, and only before its first email leaves. After that it is Paused.
+  - The report exposes one `can_remove`, which the page reads.
+- **R17. A step dropped in an edit takes its work with it.** Before the delete, the save cancels the dropped steps' live runs and skips their planned and held sends (`step_removed`). Their FKs are `on delete set null`.
+- **R18. The decide route** declares `row(reachOutSendScope)`.
+  - `not_a_fit` is one SQL door, atomic.
+  - A run-level "Check the held again" puts every `check_unavailable` hold of a run back to planned in one call, so 200 holds are never 200 clicks.
+
+**What the owner sees (PRs 6–8)**
+
+- **R19. PR order: the chain's row before the door that makes one** (supersedes the table's order).
+  - PR 8's Playbooks row, with Pause, Resume and Remove, ships before PR 6's Leads door. **The order is 4d, 4e, 4h (rows), 4f (sheet and door), 4g, 4i, 4j.**
+  - Templates' email rows publish under their own global (`__TEMPLATES_EMAIL`). `__TEMPLATES_ALL` stays WhatsApp's for its three readers (`business-can.jsx:141`, `broadcasts-real.jsx:492`, `playbook-composer.jsx:109`).
+  - F15's disabled WhatsApp and Text switches are dropped. The row says "a reach-out sends email only".
+- **R20. A held email is never out of reach** (extends F13).
+  - PR 7 draws the reach-out block, with its held list and doors, for any live reach-out run, not only one waiting for approval.
+  - Playbooks' "N wait for your say" opens that run.
+  - The check sends one notice per run, the first time it holds a send in a run that is not waiting.
+- **R21. The approval sheet is live.**
+  - While `checking > 0`, the bridge re-reads the run's detail every 15 s.
+  - Approve counts and names only checked, ready sends, and says so while some are still being checked.
+  - For a run from an earlier day, Approve says "goes from now, re-timed in their hours", never a time already past.
+- **R22. The sheet's sentences are facts.**
+  - The run's domains come from its sends.
+  - A domain's days come from the days it has sent (`GET setup`, the ramp's own measure).
+  - "Each has a checked address" is said only when unconfirmed addresses are not included.
+- **R23. The report counts what happened, once.**
+  - **Bounced** is the send's message failed with provider `bounced` (00184:248-250's predicate), not `state = 'failed'`.
+  - **Wrote back** and **Said no** are distinct leads per chain, counted in SQL.
+  - `GET reach-outs` lists chains without their report. The report is read when a row is opened.
+  - "Next run" says a waiting run, a paused chain, billing and `never` as they are.
+- **R24. Stopping one business is said.** The sheet and the open row say how to stop writing to one business: Said no or Not a fit on the lead, which `outreachRefusalOf` already reads.
+  - PR 9 is unrelated to reach-outs and may ship at any point. Its Erase is owner-only (`DELETE leads/[id]`). Its fifth fix widens `LeadCheck.key` and `LEAD_CHECK_WORDS` as well.
 
 ---
 
@@ -264,8 +360,32 @@ This PR is contracts only, plus the one predicate moved out of channels. Nothing
 > - **`Opening` is `WrittenOpening`.** Contracts already exports an `Opening` (`availability.ts:576`, a free window).
 > - **PR 1 adds no language map.** `holdWords` names a language with `template-languages.ts`'s `languageName`, which knows every template language and asks `Intl.DisplayNames` for the rest. One list, not two.
 > - **A mark left alone is no word.** `emailWordCount` counts a token only when it holds a letter or a digit, so the comma a slot leaves behind ("{{business}}, see you") does not count.
+> - **The review round (26 Sep 2026), fixed in this PR.** Three reviews ran against the pushed branch: PR 1's code, PRs 2–3's design, and PRs 4–10 with the product. PR 1's code changed as follows (tests for each in `reach-out-step-words.test.mjs` and `reach-out-opening.test.mjs`):
+>   - **One rule for a business's own site.** `siteKeyOf` and `PLATFORM_HOSTS` are gone. `chainOf` asks lead-search's `siteHost`, the finder's own rule. `LEAD_PLATFORM_HOSTS` gains the hosts a business's page sits on by path: fb.com, TikTok, YouTube, X, Twitter, LinkedIn, linkin.bio and g.page. Otherwise forty TikTok pages read as one chain. A new lead whose only site is one of those now has no site of its own.
+>   - **One price rule.** `checkOpening` asks `violatesNoPrices` (`price`, a pitch).
+>   - **One slot rule.** `reachOutSlots` fills over `slotsNamed` and `replaceSlots`, keyed by `ReachOutSlot`. A lone brace (`{business}`, `{{{business}}}`) is refused at the save (`stray_brace`) and holds the send.
+>   - **One link rule.** `linksIn` covers a scheme, a www., and a bare lower-case `name.tld`. An email address, "St.Louis" and a rating's "4.9" are not links.
+>     - The body's "one link at most", the subject (`link_in_subject`, new) and the opening all ask it.
+>     - The opening is asked with the business's own name and city taken out first.
+>   - **One word counter**, `wordCount`, for the email and the opening.
+>   - **Languages by their base.** `languageBase` (template-languages.ts): "en_US" is "en". A reader's answer that names no language ("english", "und") holds nothing. The reader judges from the about text, never the name.
+>     - **Departs from spec §4.4:** no finder field holds a site's language, so the about text is the evidence.
+>   - **`what_you_asked` is the owner's, not the business's.**
+>     - It is out of `OPENING_FACT_KEYS` and out of the numbers that back an opening.
+>     - The writer is told it outside the record ("not about this business"). The reader never sees it.
+>   - **The record is fenced** in `<record>` with one line per field, so an about text cannot forge a line of the prompt.
+>   - **A held opening stores the rule it broke** (`detail`, an `OpeningProblem`).
+>     - Empty, too long, a brace, or an angle out of bounds holds as `check_unavailable` ("the opening couldn't be written to the rules: …"), never "a pitch".
+>     - A rating's scale ("4.9 out of 5") is backed.
+>   - **Parsing never loses information.**
+>     - An unknown `facts_used` name is kept, and code refuses it.
+>     - The angle keeps its case.
+>     - A reading without its language is no reading (it fails closed).
+>   - **Capitals shout across lines** ("FREE / TRIAL / TODAY"), with any line ending.
+>   - **`customerDomainOf`** reads a real address (`normalizeEmail`).
+>   - **Until PR 3,** `request.ts`'s `EVERY_SLOT` still refuses `{{opening}}`, `{{your name}}` and `{{booking link}}` as `unknown_slot`. No chain can name them before PR 4's door exists, so nothing changes for a customer.
 >
-> Later PRs use these names.
+> Later PRs use these names. §0.5 records what the review changed in PRs 2–10.
 
 ### Task 1.1: One rule for a first email's subject
 
