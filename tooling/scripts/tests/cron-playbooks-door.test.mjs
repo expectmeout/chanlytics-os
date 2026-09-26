@@ -491,6 +491,75 @@ test("a playbook that already ran today, or is not yet at its hour, is neither r
   );
 });
 
+test("a zone nobody knows does not take the tick down: the workspace with it is judged in UTC, and the others run on their own clocks as ever", async () => {
+  // tenants.timezone is owner-settable text; a name Postgres does not know would fail the page for every workspace,
+  // every tick, so the page judges such a row in UTC (00193 safe_zone), as the edge itself falls back to UTC.
+  const now = new Date();
+  const utcHour = localHour("UTC", now);
+  // Set for the hour it is in UTC right now, within the sending hours: due there when UTC's clock is inside them.
+  const marsDue = utcHour >= 9 && utcHour <= 20;
+  const M = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+  const w = world({ people: { [A]: [person("c1")], [M]: [person("c2")] } });
+  workspace(w.tables, A, OPEN, "auto");
+  workspace(w.tables, M, "Mars/Olympus", "auto");
+  w.tables.playbooks.push(playbook(A, "pb-a"));
+  w.tables.playbooks.push(playbook(M, "pb-m", { run_hour: Math.min(20, Math.max(9, utcHour)) }));
+
+  const [status, body] = await answer(await w.tick());
+  assert.equal(status, 200, "one bad name never fails the tick");
+  assert.deepEqual(body, counts(marsDue ? { tenants: 2, due: 2, sent: 2 } : { tenants: 1, due: 1, sent: 1 }));
+  const ran = Object.fromEntries(w.tables.playbooks.map((p) => [p.id, p.last_run_for]));
+  assert.equal(ran["pb-a"], localDate(OPEN, now), "the sound workspace ran on its own clock");
+  assert.equal(
+    ran["pb-m"],
+    marsDue ? localDate("UTC", now) : null,
+    "the workspace with the unknown zone is judged in UTC, and its day is UTC's",
+  );
+  assert.deepEqual(w.backlog, [{ p_sweep: "playbooks", p_remaining: 0 }]);
+});
+
+test("a due moment that could not run (its workspace paused) keeps its day open and moves to the back of the page, so a paused workspace's twenty-five never starve the two due behind them", async () => {
+  const w = world({ people: { [A]: [person("c1")], [P]: [person("c2")] } });
+  workspace(w.tables, P, OPEN, "auto", "paused");
+  workspace(w.tables, A, OPEN, "auto");
+  const today = localDate(OPEN, new Date());
+  const yesterday = localDate(OPEN, new Date(Date.now() - D));
+  // The paused workspace's twenty-five, never run: they sort first.
+  for (let i = 0; i < PLAYBOOKS_PER_TICK; i++)
+    w.tables.playbooks.push(playbook(P, `pb-p-${String(i).padStart(2, "0")}`));
+  // The sound workspace's two, run yesterday: they sort after.
+  w.tables.playbooks.push(playbook(A, "pb-a1", { last_run_for: yesterday, last_run_at: iso(D) }));
+  w.tables.playbooks.push(playbook(A, "pb-a2", { last_run_for: yesterday, last_run_at: iso(D - H) }));
+
+  const [, first] = await answer(await w.tick());
+  assert.deepEqual(
+    first,
+    counts({ tenants: 1, due: PLAYBOOKS_PER_TICK, off: PLAYBOOKS_PER_TICK, remaining: 2 }),
+    "the first tick: the paused twenty-five fill the page and are counted off; the two wait",
+  );
+  const paused = w.tables.playbooks.filter((p) => p.tenant_id === P);
+  assert.ok(
+    paused.every((p) => p.last_run_for === null && Date.parse(p.last_run_at) > Date.now() - 60_000),
+    "each keeps its day open (it runs the day billing resumes) and moves to the back of the page",
+  );
+  nothingMade(w);
+
+  const [, second] = await answer(await w.tick());
+  assert.deepEqual(
+    second,
+    counts({ tenants: 2, due: PLAYBOOKS_PER_TICK, sent: 2, off: PLAYBOOKS_PER_TICK - 2, remaining: 2 }),
+    "the second tick: the two run, ahead of the paused ones, which are still due and still counted",
+  );
+  assert.deepEqual(
+    w.tables.playbooks
+      .filter((p) => p.last_run_for === today)
+      .map((p) => p.id)
+      .sort(),
+    ["pb-a1", "pb-a2"],
+  );
+  assert.equal(w.tables.broadcasts.length, 2);
+});
+
 /* ------------------------------------------------------- cannot be read */
 
 test("playbooks that cannot be read are a 500 that says so, and nothing is noted: a database without the page's function included, so the edge deployed ahead of its migration is loud, never quiet", async () => {

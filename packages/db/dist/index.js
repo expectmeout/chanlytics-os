@@ -4018,7 +4018,10 @@ async function dueCalendars(db, p) {
   });
   if (error) throw new Error(`cannot read the calendars due: ${error.message}`);
   const rows = data ?? [];
-  return { rows: rows.map((r2) => ({ tenant_id: r2.tenant_id, config: r2.config })), remaining: remainingOf(rows) };
+  return {
+    rows: rows.map((r2) => ({ tenant_id: r2.tenant_id, config: r2.config, timezone: r2.timezone })),
+    remaining: remainingOf(rows)
+  };
 }
 
 // src/realtime.ts

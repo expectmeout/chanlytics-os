@@ -61,6 +61,18 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const out = { tenants: 0, due: 0, sent: 0, held: 0, empty: 0, off: 0, failed: 0, remaining: page.remaining };
+  // A due moment that could not run (its workspace paused, its context unreadable) keeps its day open, so the next
+  // hour tries it again, but moves to the back of the page, as a reach-out step does: it never holds a place a moment
+  // that can run is waiting for. A page is at most PLAYBOOKS_PER_TICK ids, so the workspace's ride in one call.
+  const tried = (tenantId: string, rows: PlaybookRow[]) =>
+    db
+      .from("playbooks")
+      .update({ last_run_at: now.toISOString() })
+      .eq("tenant_id", tenantId)
+      .in(
+        "id",
+        rows.map((p) => p.id),
+      );
   for (const [tenantId, { tz, rows }] of byTenant) {
     // The page's word is the database's; the run keeps the same rule (runDueNow) at the moment it runs, as "Run now" does.
     const due = rows.filter((p) => runDueNow(p as unknown as PlaybookDto, tz, now));
@@ -71,11 +83,13 @@ export async function POST(request: Request): Promise<Response> {
     if ("error" in ctx && ctx.error === "paused") {
       L.info("playbooks_skip_paused", { tenant_id: tenantId, due: due.length });
       out.off += due.length;
+      await tried(tenantId, due);
       continue;
     }
     if ("error" in ctx) {
       L.error("playbooks_context_failed", { tenant_id: tenantId, error: ctx.error });
       out.failed += due.length;
+      await tried(tenantId, due);
       continue;
     }
     const runFor = localDate(tz, now);

@@ -4278,6 +4278,7 @@ export type Database = {
           config: Json
           due_total: number
           tenant_id: string
+          timezone: string
         }[]
       }
       call_status_rank: { Args: { p_status: string }; Returns: number }
@@ -5282,6 +5283,7 @@ export type Database = {
         Returns: number
       }
       runtime_stamp: { Args: { p_tenant_id: string }; Returns: string }
+      safe_zone: { Args: { p: string }; Returns: string }
       scrub_ask_for_contact: {
         Args: { p_contact_id: string; p_needles: string[]; p_tenant_id: string }
         Returns: number

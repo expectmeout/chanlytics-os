@@ -136,6 +136,20 @@ function matches(row, filters) {
 }
 
 /**
+ * The zone a row is judged in, as 00193 safe_zone answers it: the workspace's own, the product's default when it has
+ * none, and UTC when the name is not a zone Intl knows -- the edge's own fallback (contracts parts()).
+ */
+function safeZone(name) {
+  const tz = String(name ?? "").trim() || "America/New_York";
+  try {
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    return tz;
+  } catch {
+    return "UTC";
+  }
+}
+
+/**
  * SQL's `order by a nulls first, b, c` over ISO timestamps and ids: the row that has waited longest first, a row that
  * never had its turn before any that had, ties broken by the columns after.
  */
@@ -168,6 +182,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
    * for every owner in production. Modelled from the same rows a fixture sets,
    * and a suite may still override it by name.
    */
+  // A row's workspace always exists in the database (a foreign key); a fixture that sets no workspace row is judged
+  // on the product's default zone, as one whose row is blank is.
+  const zoneOf = (tenantId) => safeZone((tables.tenants ?? []).find((x) => x.id === tenantId)?.timezone);
   const derived = {
     lead_month_used: ({ p_tenant_id, p_period }) => {
       const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
@@ -187,18 +204,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
      */
     playbooks_due: ({ p_kind, p_at, p_last_hour, p_limit, p_tenant_id }) => {
       const at = new Date(p_at);
-      const zoneOf = (tenantId) => {
-        const t = (tables.tenants ?? []).find((x) => x.id === tenantId);
-        return t ? String(t.timezone ?? "").trim() || "America/New_York" : null;
-      };
       const due = (tables.playbooks ?? [])
         .map((p) => ({ p, tz: zoneOf(p.tenant_id) }))
         .filter(
-          ({ p, tz }) =>
-            tz != null &&
-            p.state === "running" &&
-            p.kind === p_kind &&
-            (p_tenant_id == null || p.tenant_id === p_tenant_id),
+          ({ p }) => p.state === "running" && p.kind === p_kind && (p_tenant_id == null || p.tenant_id === p_tenant_id),
         )
         .filter(({ p, tz }) => {
           const hour = localHour(tz, at);
@@ -221,9 +230,12 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
           );
         })
         .sort((a, b) => byWaiting(a, b, "calendar_checked_at", "tenant_id"));
-      return due
-        .slice(0, Math.max(0, p_limit ?? 0))
-        .map((c) => ({ tenant_id: c.tenant_id, config: c.config, due_total: due.length }));
+      return due.slice(0, Math.max(0, p_limit ?? 0)).map((c) => ({
+        tenant_id: c.tenant_id,
+        config: c.config,
+        timezone: zoneOf(c.tenant_id),
+        due_total: due.length,
+      }));
     },
   };
 

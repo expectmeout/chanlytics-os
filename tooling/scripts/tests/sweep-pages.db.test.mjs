@@ -282,6 +282,37 @@ test("a reach-out step is on its own page, judged the same way, and never on the
   assert.deepEqual([read.rows.map((r) => r.playbook.id), read.remaining], [[root], 0]);
 });
 
+test(
+  "a zone the database does not know is judged in UTC (safe_zone), and one such workspace never fails the page for the others",
+  { skip },
+  async () => {
+    // tenants.timezone is owner-settable text, checked against pg_timezone_names only at creation: a name Postgres
+    // does not know can be stored, and `at time zone` on it raises.
+    const mars = await workspace("mars", "Mars/Olympus");
+    const due = await moment(mars, "On a clock nobody has");
+    assert.equal(ok(await db.rpc("safe_zone", { p: "Mars/Olympus" })), "UTC");
+    assert.equal(ok(await db.rpc("safe_zone", { p: "America/Chicago" })), "America/Chicago");
+    assert.equal(ok(await db.rpc("safe_zone", { p: "UTC" })), "UTC");
+    // Half past four in the afternoon, UTC: due at ten. One in the morning, UTC: not.
+    assert.deepEqual(
+      (await page(mars, "2026-09-26T16:30:00.000Z")).map((r) => [r.playbook.id, r.timezone, r.due_total]),
+      [[due, "UTC", 1]],
+      "judged in UTC, and the page says so",
+    );
+    assert.deepEqual(await page(mars, "2026-09-27T01:00:00.000Z"), []);
+    // Every workspace at once, the bad one among them: both pages still answer.
+    ok(
+      await db.rpc("playbooks_due", {
+        p_kind: "moment",
+        p_at: "2026-09-26T16:30:00.000Z",
+        p_last_hour: 20,
+        p_limit: 1,
+      }),
+    );
+    ok(await db.rpc("calendars_due", { p_before: iso(Date.now()), p_limit: 1 }));
+  },
+);
+
 /* ------------------------------------------------------------ calendars */
 
 test(
@@ -297,6 +328,7 @@ test(
     const half = await workspace("cal-half", "America/Chicago");
     const blank = await workspace("cal-blank", "America/Chicago");
     const none = await workspace("cal-none", "America/Chicago");
+    const mars = await workspace("cal-mars", "Mars/Olympus");
     const feed = (ws) => ({ calendar: { ical_url: `https://cal.example/${ws.id}.ics` } });
     // Every workspace has its config row from the tenants trigger (00017); these give some of them a calendar.
     const set = async (ws, config, checked) =>
@@ -317,12 +349,18 @@ test(
     await set(fresh, feed(fresh), iso(at - 10 * 60_000));
     await set(half, { calendar: {} }, null);
     await set(blank, { calendar: { ical_url: "  " } }, null);
+    await set(mars, feed(mars), null);
 
     const one = async (ws) => ok(await db.rpc("calendars_due", { p_before: before, p_limit: 10, p_tenant_id: ws.id }));
     assert.deepEqual(
-      (await one(never)).map((r) => [r.tenant_id, r.config, r.due_total]),
-      [[never.id, feed(never), 1]],
-      "never read: due, with its configuration as stored",
+      (await one(never)).map((r) => [r.tenant_id, r.config, r.timezone, r.due_total]),
+      [[never.id, feed(never), "America/Chicago", 1]],
+      "never read: due, with its configuration as stored and the zone its feed is read in",
+    );
+    assert.deepEqual(
+      (await one(mars)).map((r) => [r.tenant_id, r.timezone]),
+      [[mars.id, "UTC"]],
+      "a zone nobody knows: its feed is read in UTC, and the page still answers",
     );
     assert.deepEqual(
       (await one(old)).map((r) => r.tenant_id),
@@ -338,11 +376,12 @@ test(
       assert.deepEqual(await one(ws), [], `${why}: not in the page, not counted`);
 
     // Across every workspace, as the sweep asks: never read first, then the least recently read.
-    const mine = new Set([never, older, old, fresh, half, blank, none].map((w) => w.id));
+    const mine = new Set([never, older, old, fresh, half, blank, none, mars].map((w) => w.id));
     const all = ok(await db.rpc("calendars_due", { p_before: before, p_limit: 1000 }));
     assert.deepEqual(
       all.filter((r) => mine.has(r.tenant_id)).map((r) => r.tenant_id),
-      [never.id, older.id, old.id],
+      // Two never read, in the order of their ids (a uuid orders as its hex does); then the oldest read.
+      [...[never.id, mars.id].sort(), older.id, old.id],
       "never read first, then the oldest; the fresh one and the rows without an address are not the queue",
     );
     assert.ok(
@@ -356,7 +395,10 @@ test(
     assert.equal(first.rows.length, 1);
     assert.equal(first.remaining, all.length - 1);
     const kept = await dueCalendars(db, { before: new Date(before), limit: 1, tenantId: old.id });
-    assert.deepEqual(kept, { rows: [{ tenant_id: old.id, config: feed(old) }], remaining: 0 });
+    assert.deepEqual(kept, {
+      rows: [{ tenant_id: old.id, config: feed(old), timezone: "America/Chicago" }],
+      remaining: 0,
+    });
   },
 );
 

@@ -4280,6 +4280,7 @@ type Database = {
                     config: Json;
                     due_total: number;
                     tenant_id: string;
+                    timezone: string;
                 }[];
             };
             call_status_rank: {
@@ -5632,6 +5633,12 @@ type Database = {
             runtime_stamp: {
                 Args: {
                     p_tenant_id: string;
+                };
+                Returns: string;
+            };
+            safe_zone: {
+                Args: {
+                    p: string;
                 };
                 Returns: string;
             };
@@ -7254,11 +7261,13 @@ interface DueCalendar {
     tenant_id: string;
     /** The workspace's configuration as stored; its calendar's address is in it. */
     config: Json;
+    /** The zone its feed is read in: the workspace's own (tenants.timezone), UTC when that is a name nobody knows. */
+    timezone: string;
 }
 /**
  * The workspaces whose calendar is due before `before` (00193 calendars_due): a feed's address on the row, never read
- * or last read before then; never read first, then the least recently read, `limit` of them, with the exact count of
- * due calendars beyond the page. A row whose `calendar` has no address is not a feed, and is neither.
+ * or last read before then; never read first, then the least recently read, `limit` of them, each with its zone, with
+ * the exact count of due calendars beyond the page. A row whose `calendar` has no address is not a feed, and is neither.
  */
 declare function dueCalendars(db: Db, p: {
     before: Date;
