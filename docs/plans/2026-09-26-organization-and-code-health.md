@@ -131,7 +131,7 @@ the build holds.
   one home; the lead caps become data both the SQL and the dashboard read.
 - Global state: the globals ratchet holds the set of `window.__*` names and the number of
   publisher sites; each surface that goes real-only retires its `*_STORE`. The count reaches
-  zero only with the shell's exit (decision 0012, below), which is its own program.
+  zero only with the shell's exit (its decision, below), which is its own program.
 - `LOG_EVENTS` on the edge as a closed set with a test, the way `EVENT_KINDS` already is.
 - Branded `TenantId`, `ContactId`, `E164` in core commands and ports, after the moves.
 - Held by: the dead-exports, copies, globals, casts and tables ratchets; the `LOG_EVENTS` test.
@@ -152,8 +152,9 @@ re-derived from the register; and an exit path written for the largest item.
   (00156 made one).
 - The workarounds with an exit but no date get a retire-when in the register: the Retell `?key=`
   secret, `DIAG_KEY`, committed dist.
-- Decision 0012, the shell's exit path, surface by surface (0011 is taken by the open pricing
-  note). Written, not built, in this plan.
+- The shell's exit decision, surface by surface, under the next free number (0011 and 0012 went
+  to the bearer token and to partners while this plan ran; the open pricing note also claims
+  0011). Written, not built, in this plan.
 - Held by: the register test; `--max-warnings` falling to 0; the ratchets.
 
 ## 3. The order, and who does what
@@ -219,12 +220,12 @@ Dead exports deleted after a look at each; the copies moved to their one home; d
 
 ### Phase 4 · Debt docs
 
-`takeover.md` re-scored from the register; decision statuses and the glossary fixed; decision
-0012 written. Lifts 40 to 9.
+`takeover.md` re-scored from the register; decision statuses and the glossary fixed; the shell's
+exit decision written. Lifts 40 to 9.
 
 Roughly: Phase 0 today; Phase 1 two to three days of calendar because of the sequencing; Phase 2
 about a week with agents in parallel; Phases 3 and 4 three days together. The last point in each
-category is the shell's exit, which is decision 0012's program and not this plan's.
+category is the shell's exit, which is its own decision's program and not this plan's.
 
 ### Rules for the agents
 
@@ -248,7 +249,7 @@ scorecard's, ordered by what Phases 0 to 3 already carry.
   names; make it `use\w+Effect`, raise `exhaustive-deps` to an error under the warnings ratchet,
   add `no-undef` and `jsx-a11y` behind their own baselines (Phase 0's pattern). The demo split is
   Phase 1's third move. Then `legacy-globals.d.ts` generated from the publishers the globals
-  ratchet already lists, and `checkJs` on one surface at a time. The long step is decision 0012.
+  ratchet already lists, and `checkJs` on one surface at a time. The long step is the shell's exit decision.
 - **19 Performance.** A bundle budget on the `/w` route's JavaScript and CSS that may only fall
   (Phase 0's pattern, over `next build`'s output), and p75 LCP and INP sent to the logs. Then
   `setStatus` notifying only on a real change, a memoised page subtree, the LiveCallBar timer
