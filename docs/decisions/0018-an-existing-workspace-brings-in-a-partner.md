@@ -30,12 +30,12 @@ operator or viewer"), which gives access but not the partner role, and the partn
    nightly check judges it as any other. A workspace that was already paying seats the partner with no share: its
    standing is `disqualified` with the reason in words, a platform admin's to change in the back office, as for any
    other workspace (00207), when a case deserves it. _Already paying_ is billed directly, or a `last_paid_at` from
-   the trial's end on (`billing_accounts.trial_end`, Stripe's, kept after a cancel): Stripe sends `invoice.paid` for a
-   trial's $0 first invoice, which stamped `last_paid_at` at the trial's start until this change (the webhook now
-   stamps it only for an invoice that took money), so a workspace that trialed and never paid, whether still in its
-   trial, cancelled, or refused at the trial's end, has not paid whatever the column says. The rule's decision is
-   recorded as made when the partner joined (`checks.already_paying`, and `partner.standing_set` with `by: 'joining'`),
-   and the back office says so, never "the nightly check".
+   the trial's end on, and none while the trial runs (`billing_accounts.trial_end`, Stripe's, kept after a cancel):
+   Stripe sends `invoice.paid` for a trial's $0 first invoice, which stamped `last_paid_at` at the trial's start
+   until this change (the webhook now stamps it only for an invoice that took money), so a workspace that trialed and
+   never paid, whether still in its trial, cancelled, or refused at the trial's end, has not paid whatever the column
+   says. The rule's decision is recorded as made when the partner joined (`checks.already_paying`, and
+   `partner.standing_set` with `by: 'joining'`), and the back office says so, never "the nightly check".
 5. **The nightly check judges an invitation as it judges a handover.** Its same-domain hold compares the address of
    the owner who asked (`partner_tenants.invited_by`) with the partner's, as 0016's compares the owner who accepted.
 6. **Someone already on the team may be the one asked.** Joining makes them its partner, whatever they were, and the

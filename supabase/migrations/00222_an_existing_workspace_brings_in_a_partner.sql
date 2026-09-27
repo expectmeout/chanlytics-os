@@ -6,7 +6,7 @@
 -- Credit follows who brings the paying customer: a workspace that has never paid credits the partner who joins it as
 -- if they had brought it, and one that was already paying seats them with no share, recorded as the standing
 -- 'disqualified' with its reason in words, which a platform admin may change as for any other (00207). A payment is
--- a last_paid_at from the trial's end on: the edge stamped a trial's $0 first invoice until this change.
+-- a last_paid_at from the trial's end on, none while it runs: the edge stamped a trial's $0 first invoice until now.
 --
 --   partner_invitations          one open invitation per workspace: to which partner, by whom, open fourteen days,
 --                                declined when. Written only through the functions below.
@@ -294,11 +294,12 @@ begin
 
   -- Credit follows who brings the paying customer: a workspace that has paid for its plan, or pays outside Stripe,
   -- was not brought by this partner. The standing says so, marked as decided when they joined, and a platform admin
-  -- may change it. A payment is a last_paid_at from the trial's end on: until this change the edge stamped a trial's
-  -- $0 first invoice too, at the trial's start, before the trial_end Stripe keeps on the row after a cancel; a
-  -- workspace with no trial on record has no such stamp to discount.
+  -- may change it. A payment is a last_paid_at from the trial's end on, and none while the trial runs: until this
+  -- change the edge stamped a trial's $0 first invoice too, at the trial's start, before the trial_end Stripe keeps on
+  -- the row after a cancel; a workspace with no trial on record has no such stamp to discount.
   select coalesce(b.mode = 'direct'
                   or (b.last_paid_at is not null
+                      and b.status <> 'trialing'
                       and b.last_paid_at >= coalesce(b.trial_end, '-infinity'::timestamptz)), false)
     into v_paying
     from public.billing_accounts b where b.tenant_id = p_tenant;
