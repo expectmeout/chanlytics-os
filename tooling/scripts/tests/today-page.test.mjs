@@ -322,7 +322,13 @@ const run = (id, state, over = {}) => ({
   counts: { sent: 0, replied: 0 },
   ...over,
 });
-// The run that went out went out a minute ago: RunsDone keys on the business's day, and three hours ago is yesterday before 3 AM.
+// The run that went out went out a minute ago: RunsDone keys on the business's day, and three hours ago is yesterday before
+// 3 AM. A minute ago is yesterday too in the first minute after midnight, so then it went out a moment ago instead.
+const earlierToday = (ms) => {
+  const now = Date.now();
+  const at = zoneDayKey(now - ms, ZONE) === zoneDayKey(now, ZONE) ? now - ms : now - 1;
+  return new Date(at).toISOString();
+};
 const broadcasts = () => ({
   rows: [
     run("b-wait", "pending_approval"),
@@ -331,7 +337,7 @@ const broadcasts = () => ({
       name: "Save our number",
       playbook_id: null,
       audience: { label: "Everyone" },
-      started_at: iso(-60_000),
+      started_at: earlierToday(60_000),
       counts: { sent: 8, replied: 1 },
     }),
   ],

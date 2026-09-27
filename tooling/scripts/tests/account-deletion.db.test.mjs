@@ -195,28 +195,43 @@ test("a person with history goes, and the history stays without them (00208)", {
   assert.deepEqual(left.thread, { assignee_user_id: null, control_kind: null, control_by: null, control_until: null });
 });
 
-test("a partner whose record holds a workspace they brought is refused by name (00208)", { skip }, async () => {
-  const p = await person("partner");
-  const t = await workspace("brought");
-  await member(p.id, t, "owner");
-  const partner = (
-    await admin
-      .from("partners")
-      .insert({ user_id: p.id, code: `pt-${Date.now().toString(36)}` })
-      .select("id")
-      .single()
-  ).data;
-  assert.ok(partner, "a partner record");
-  const { error: brought } = await admin
-    .from("partner_tenants")
-    .insert({ tenant_id: t, partner_id: partner.id, code_used: "pt" });
-  assert.equal(brought, null, brought?.message);
-  const s = await sessionOf(p.email);
-  const { error } = await s.rpc("delete_my_account");
-  assert.ok(error, "refused");
-  assert.match(error.message, /partner_records/);
-  assert.ok(await userExists(p.id), "and the account stays");
-});
+test(
+  "a partner whose record holds a workspace they brought is refused by name (00208), and may go once the platform closes it (00210)",
+  { skip },
+  async () => {
+    const p = await person("partner");
+    const t = await workspace("brought");
+    await member(p.id, t, "owner");
+    const partner = (
+      await admin
+        .from("partners")
+        .insert({ user_id: p.id, code: `pt-${Date.now().toString(36)}` })
+        .select("id")
+        .single()
+    ).data;
+    assert.ok(partner, "a partner record");
+    const { error: brought } = await admin
+      .from("partner_tenants")
+      .insert({ tenant_id: t, partner_id: partner.id, code_used: "pt" });
+    assert.equal(brought, null, brought?.message);
+    const s = await sessionOf(p.email);
+    const { error } = await s.rpc("delete_my_account");
+    assert.ok(error, "refused");
+    assert.match(error.message, /partner_records/);
+    assert.ok(await userExists(p.id), "and the account stays");
+
+    // Closed by the platform, the record outlives the account (00207) and the person may go (00210).
+    const { error: closing } = await admin.from("partners").update({ status: "closed" }).eq("id", partner.id);
+    assert.equal(closing, null, closing?.message);
+    const again = await s.rpc("delete_my_account");
+    assert.equal(again.error, null, again.error?.message);
+    assert.equal(await userExists(p.id), false, "the account is gone");
+    const kept = (await admin.from("partners").select("user_id, status").eq("id", partner.id).single()).data;
+    assert.deepEqual(kept, { user_id: null, status: "closed" }, "the record stays, with nobody on it");
+    const link = (await admin.from("partner_tenants").select("tenant_id").eq("partner_id", partner.id)).data;
+    assert.deepEqual(link, [{ tenant_id: t }], "and the workspace it brought stays brought");
+  },
+);
 
 test("a member who is not the only owner simply goes", { skip }, async () => {
   const a = await person("a");

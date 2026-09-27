@@ -2,7 +2,7 @@
 
 **Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) merged (#1151); P4 (the partner's table)
 merged (#1156); P5 (standing and payouts, 00205), the pause the Risks promise (00206), and what a review of
-00201–00206 found (00207) merged (#1159). The first later step, email to a partner, is 0014 (00209). Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
+00201–00206 found (00207) merged (#1159). The first later step, email to a partner, is 0014 (00209). A closed partner may delete their account (00210, over 00208's door). Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
 at that commit, before P1, so the Context describes the code P1 to P3 changed: `memberships.role` admits `partner`,
 `has_permission()` and `ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, `requireRole`
 refuses a role it does not know (00201, `with-route.ts`); `partners` and `partner_tenants` exist, `create_workspace`
