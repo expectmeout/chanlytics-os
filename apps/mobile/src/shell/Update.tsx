@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
+import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts";
 
 /** The site no longer speaks to this version of the app: said plainly, over everything, until the store's update. */
 export function Update() {
@@ -18,8 +19,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 32,
-    backgroundColor: "#0c0d0f",
+    backgroundColor: THEME_COLORS.dark,
   },
-  title: { fontSize: 22, fontWeight: "600", color: "#fbfaf8", marginBottom: 8 },
+  title: { fontSize: 22, fontWeight: "600", color: THEME_INK.dark, marginBottom: 8 },
   body: { fontSize: 15, lineHeight: 22, color: "#a7a8ab", textAlign: "center" },
 });

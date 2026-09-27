@@ -16,6 +16,16 @@ the day on the server in the page's own words, and the app draws it. PRD tier 2,
 - [x] Ruben's: nothing to set. A new build carries the screen.
 - [x] Squash-merge (#1154).
 
+## Withdrawn (27 Sep 2026)
+
+The screen came off in the review after the app's first run. As built it showed fewer and different sentences than
+the page's Today (no insight cards, no "While you were away", no thirty-day line; a standing headline the page never
+draws; one sentence already drifted from the page's), in the device's theme while every page stood in the member's,
+and it saved nothing: the page's Today kept loading and refreshing underneath, and again in More. The Today tab is
+the page's own Today. `GET /api/v1/today` stays: Ask's route registry (`route-keys.generated.ts`, Phase 3.2) names
+it, and a native Today that returns would read it. A native Today returns only when the server composes the page's
+whole Today from the page's own contracts functions and the theme comes from the page, which it does now.
+
 ## As built (26 Sep 2026)
 
 - **The page stays under the screen.** The tab's WebView is what says the person is in, carries the badge, hands the

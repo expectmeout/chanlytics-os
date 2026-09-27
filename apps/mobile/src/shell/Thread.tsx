@@ -21,6 +21,8 @@ import { useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import {
+  THEME_COLORS,
+  THEME_INK,
   nativeThreadVM,
   type ConversationDto,
   type ConversationMessageVM,
@@ -33,8 +35,22 @@ type Answer = { conversation: Omit<ConversationDto, "messages">; messages: Messa
 
 const TEAL = "#3cb79e";
 const TONES = {
-  light: { paper: "#fbfaf8", ink: "#161616", muted: "#6b6c70", agent: "#eceae6", client: "#ffffff", line: "#e2e0db" },
-  dark: { paper: "#0c0d0f", ink: "#fbfaf8", muted: "#a7a8ab", agent: "#1c1e22", client: "#15171a", line: "#26282c" },
+  light: {
+    paper: THEME_COLORS.light,
+    ink: THEME_INK.light,
+    muted: "#6b6c70",
+    agent: "#eceae6",
+    client: "#ffffff",
+    line: "#e2e0db",
+  },
+  dark: {
+    paper: THEME_COLORS.dark,
+    ink: THEME_INK.dark,
+    muted: "#a7a8ab",
+    agent: "#1c1e22",
+    client: "#15171a",
+    line: "#26282c",
+  },
 };
 
 /** The phone's own zone: the workspace's is the page's, and the thread's times are read on this phone. */

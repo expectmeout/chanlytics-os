@@ -15229,6 +15229,7 @@ var DEFAULT_THEME_PREF = "dark";
 var themePrefOf = (stored) => isThemePref(stored) ? stored : DEFAULT_THEME_PREF;
 var DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 var THEME_COLORS = { light: "#fbfaf8", dark: "#0c0d0f" };
+var THEME_INK = { light: "#161616", dark: "#fbfaf8" };
 function themeColorOf(theme) {
   return THEME_COLORS[theme === "light" ? "light" : "dark"];
 }
@@ -18168,6 +18169,26 @@ function parseTodayWidgetSnapshot(v) {
 var APP_ROUTE_RE = /^[a-z][a-z0-9-]*(?:\/[A-Za-z0-9:_-]+)*$/;
 var PUSH_TOKEN_MAX = 200;
 var isRecord = (v) => typeof v === "object" && v !== null;
+var isCount = (n) => typeof n === "number" && Number.isInteger(n) && n >= 0;
+var PAGE_MESSAGES = {
+  route: (v) => typeof v.route === "string" && APP_ROUTE_RE.test(v.route) ? { t: "route", route: v.route } : null,
+  needs: (v) => isCount(v.inbox) ? { t: "needs", inbox: v.inbox } : null,
+  session: (v) => v.state === "in" || v.state === "out" ? { t: "session", state: v.state } : null,
+  workspace: (v) => typeof v.slug === "string" && v.slug.trim() ? { t: "workspace", slug: v.slug.trim() } : null,
+  badge: (v) => isCount(v.n) ? { t: "badge", n: v.n } : null,
+  device: (v) => v.state === "registered" || v.state === "forgotten" || v.state === "refused" ? { t: "device", state: v.state } : null,
+  today: (v) => {
+    const snapshot = parseTodayWidgetSnapshot(v.snapshot);
+    return snapshot ? { t: "today", snapshot } : null;
+  },
+  calls: (v) => isCount(v.live) ? { t: "calls", live: v.live } : null,
+  token: (v) => {
+    const access = typeof v.access === "string" && v.access.trim() ? v.access.trim() : null;
+    const expires = typeof v.expires === "number" && Number.isFinite(v.expires) && v.expires >= 0 ? v.expires : 0;
+    return { t: "token", access, expires };
+  },
+  theme: (v) => v.theme === "light" || v.theme === "dark" ? { t: "theme", theme: v.theme } : null
+};
 function parsePageMessage(raw) {
   let v;
   try {
@@ -18175,34 +18196,9 @@ function parsePageMessage(raw) {
   } catch {
     return null;
   }
-  if (!isRecord(v)) return null;
-  switch (v.t) {
-    case "route":
-      return typeof v.route === "string" && APP_ROUTE_RE.test(v.route) ? { t: "route", route: v.route } : null;
-    case "needs":
-      return typeof v.inbox === "number" && Number.isInteger(v.inbox) && v.inbox >= 0 ? { t: "needs", inbox: v.inbox } : null;
-    case "session":
-      return v.state === "in" || v.state === "out" ? { t: "session", state: v.state } : null;
-    case "workspace":
-      return typeof v.slug === "string" && v.slug.trim() ? { t: "workspace", slug: v.slug.trim() } : null;
-    case "badge":
-      return typeof v.n === "number" && Number.isInteger(v.n) && v.n >= 0 ? { t: "badge", n: v.n } : null;
-    case "device":
-      return v.state === "registered" || v.state === "forgotten" || v.state === "refused" ? { t: "device", state: v.state } : null;
-    case "today": {
-      const snapshot = parseTodayWidgetSnapshot(v.snapshot);
-      return snapshot ? { t: "today", snapshot } : null;
-    }
-    case "calls":
-      return typeof v.live === "number" && Number.isInteger(v.live) && v.live >= 0 ? { t: "calls", live: v.live } : null;
-    case "token": {
-      const access = typeof v.access === "string" && v.access.trim() ? v.access.trim() : null;
-      const expires = typeof v.expires === "number" && Number.isFinite(v.expires) && v.expires >= 0 ? v.expires : 0;
-      return { t: "token", access, expires };
-    }
-    default:
-      return null;
-  }
+  if (!isRecord(v) || typeof v.t !== "string") return null;
+  if (!Object.prototype.hasOwnProperty.call(PAGE_MESSAGES, v.t)) return null;
+  return PAGE_MESSAGES[v.t](v);
 }
 var token = (v) => typeof v === "string" && v.trim() && v.trim().length <= PUSH_TOKEN_MAX ? v.trim() : null;
 function parseShellMessage(v) {
@@ -26489,6 +26485,7 @@ export {
   TEXTING_NEEDS_RECORD_SENTENCE,
   THEME_COLORS,
   THEME_COLOR_META,
+  THEME_INK,
   THEME_OPTIONS,
   TIMELINE_FILTERS,
   TIMETABLE_HORIZON_DAYS,
