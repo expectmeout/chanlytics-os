@@ -39,8 +39,13 @@ const {
 const FIXTURE = JSON.parse(
   fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures/ask-tools-0c136563.json"), "utf8"),
 );
-/** What the loop sends per tool (loop.ts): the three fields, nothing else. */
-const sent = (d) => ({ name: d.name, description: d.description, input_schema: d.input_schema });
+/** What the loop sends per tool (loop.ts): the three fields, and the examples where a tool carries them. */
+const sent = (d) => ({
+  name: d.name,
+  description: d.description,
+  input_schema: d.input_schema,
+  ...(d.input_examples ? { input_examples: d.input_examples } : {}),
+});
 /** A schema without its per-property descriptions: the shape the fixture froze, whatever words a property gains. */
 const shapeOf = (node) => {
   if (Array.isArray(node)) return node.map(shapeOf);

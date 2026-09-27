@@ -180,6 +180,11 @@ export function blocksRefused(message: string): boolean {
   return /^400\b/.test(message) && /search_result|citation|cache_control/i.test(message);
 }
 
+/** A refusal of the request for its tools' `input_examples` (the Phase 3 plan, D9): asked once more without them. */
+export function examplesRefused(message: string): boolean {
+  return /^400\b/.test(message) && /input_examples/.test(message);
+}
+
 function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
   switch (r.kind) {
     case "preview":
@@ -355,6 +360,18 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const questionAt = messages.length - 1;
   let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
   const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS)];
+  // The tools as the API takes them: the three fields, and the examples where a tool carries them (D9). Built once
+  // for the turn, so every round sends the same bytes and the tools block stays the cache's first prefix; built once
+  // more without the examples when the API refuses them, and never with them again in that turn.
+  const toolsFor = (examples: boolean) =>
+    baseTools.map((d) => ({
+      name: d.name,
+      description: d.description,
+      input_schema: d.input_schema,
+      ...(examples && d.input_examples ? { input_examples: d.input_examples } : {}),
+    }));
+  let tools = toolsFor(true);
+  let examples = true;
   // The answer has its format until the API refuses it: then it is dropped and
   // the same round is asked again. No tool is strict: the API takes twenty
   // strict tools and twenty-four optional parameters across them (26 tools,
@@ -537,7 +554,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         max_tokens: ASK_MAX_TOKENS,
         system,
         messages,
-        tools: baseTools.map((d) => ({ name: d.name, description: d.description, input_schema: d.input_schema })),
+        tools,
         // The last round may call no tool: all that is left is the answer.
         tool_choice: last ? { type: "none" } : { type: "auto" },
         output_config: format
@@ -593,6 +610,15 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
                 .filter((b) => b.type !== "search_result")
                 .map((b) => (b === words ? bare : b)),
             };
+            round--;
+            continue;
+          }
+          // The examples refused (D9): a 400 that names input_examples is asked once more without them, after the
+          // page's data and before the answer's format is given up for it. The schemas and the descriptions stay.
+          if (m && examples && examplesRefused(m)) {
+            console.error("ask_examples_rejected", JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
+            examples = false;
+            tools = toolsFor(false);
             round--;
             continue;
           }
