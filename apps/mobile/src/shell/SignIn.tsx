@@ -63,7 +63,8 @@ export function SignIn() {
   const nativeDoors = apple || !!GOOGLE;
   return (
     <View style={styles.wrap}>
-      <Image source={require("../../assets/images/icon.png")} style={styles.mark} accessibilityIgnoresInvertColors />
+      {/* The three, Chanlytics' mark, on the paper: the app icon's own art is the store's, square and opaque. */}
+      <Image source={require("../../assets/images/mark.png")} style={styles.mark} accessibilityIgnoresInvertColors />
       <Text style={styles.title}>Sign in to your workspace.</Text>
       {apple && (
         <AppleAuthentication.AppleAuthenticationButton
@@ -103,7 +104,7 @@ export function SignIn() {
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32, backgroundColor: PAPER, gap: 12 },
-  mark: { width: 72, height: 72, borderRadius: 18, marginBottom: 8 },
+  mark: { width: 72, height: 72, marginBottom: 8 },
   title: { fontSize: 20, fontWeight: "600", color: INK, marginBottom: 16, textAlign: "center" },
   apple: { width: 280, height: 48 },
   button: { width: 280, height: 48, borderRadius: 999, alignItems: "center", justifyContent: "center" },
