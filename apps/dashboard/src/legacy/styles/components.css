@@ -2964,6 +2964,8 @@ html.legacy-on .bc-band .bc-band-part { position: relative; }
 .bc-person-words { flex: 1 1 auto; min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bc-person-door { flex: none; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--ink); white-space: nowrap; cursor: pointer; }
 .bc-person-door:hover { text-decoration: underline; text-underline-offset: 2px; }
+/* A held email's doors (Include, Rewrite, Skip, Not a fit): one group, so each keeps its own place and its own press. */
+.bc-person-doors { flex: none; display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .bc-person-at { width: 52px; flex: none; margin-left: auto; text-align: right; font-size: var(--text-xs); color: var(--ink-dim); }
 .bc-touched-none { padding: 18px 15px; font-size: var(--text-sm); color: var(--ink-dim); }
 /* The aside: why it stopped, and what came back. */
@@ -3088,6 +3090,10 @@ html.legacy-on .bc-nobody-door { position: relative; min-height: 0; }
   .bc-person-at { grid-area: at; width: auto; }
   .bc-person-words { grid-area: words; white-space: normal; }
   .bc-person-door { grid-area: door; }
+  /* A held email's doors are a line of their own under its reason, and what a door said under them. */
+  .bc-person:has(> .bc-person-doors) { grid-template-areas: "mark name pill at" "mark words words words" "mark door door door"; }
+  .bc-person-doors { grid-area: door; }
+  .bc-person-doors ~ .pb-warn { grid-column: 2 / -1; }
   .bc-touched-filters { margin-left: 0; }
 }
 @media (max-width: 720px) {

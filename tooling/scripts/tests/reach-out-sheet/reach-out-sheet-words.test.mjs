@@ -44,6 +44,9 @@ test("who gets it: the count, the held with its door, the phone-only kept for ca
     text: "44 unconfirmed addresses, included",
     door: "Leave them out",
   });
+  // One is one address, never "1 unconfirmed addresses" (seen on a real search, 27 Sep 2026).
+  assert.equal(reachLineOf({ ...REACH, with_unconfirmed: 45 }, false).why[0].text, "1 unconfirmed address, held");
+  assert.equal(reachLineOf({ ...REACH, with_unconfirmed: 45 }, true).why[0].text, "1 unconfirmed address, included");
   assert.equal(
     REACH_OUT_SHEET_WORDS.who,
     "Ready, with a checked address, never written to. Keeps itself current as the search grows.",
@@ -59,7 +62,7 @@ test("the pace: the domain's day and the gap, why it is recommended, and the foo
       "12 min",
       " or so, in each business's open hours. Never on their closed days.",
     ],
-    why: "Recommended for a new domain. Rises to 100 a day after 14 clean days.",
+    why: "The pace for a new domain. Rises to 100 a day after 14 clean days.",
   });
   assert.equal(paceWords({ share: 100, sentDays: 20, gapMinutes: 8 }).why, "Rises to 200 a day after 30 clean days.");
   assert.equal(paceWords({ share: 200, sentDays: 40, gapMinutes: 8 }).why, "The most a domain sends in a day.");
@@ -288,6 +291,42 @@ test("the approval sheet says who today, who later, what the check held, and nam
   assert.equal(past.approve, "Approve — 30 from now");
   assert.match(past.sub, /goes from now, in their hours, once you approve it/);
   assert.doesNotMatch(past.sub, /9:40/);
+  // Planned on a closed day (a Sunday): nothing today, the first on Monday. The time says its day, and Approve counts
+  // no "0", which would say none go then (seen in the real app, 27 Sep 2026).
+  const sunday = approvalWordsOf(RUN({ run_for: "2026-09-27", today: 0, later: 41 }), {
+    timezone: "America/Chicago",
+    share: 30,
+    today: "2026-09-27",
+    now: Date.parse("2026-09-27T17:00:00Z"),
+  });
+  assert.equal(flat(sunday.approve), "Approve — from tomorrow 9:40 AM");
+  assert.match(flat(sunday.sub), /goes from tomorrow 9:40 AM once you approve it/);
+  // And its flash says when they go, never "0 emails today".
+  assert.equal(
+    contracts.reachOutRunWordsOf(RUN({ run_for: "2026-09-27", today: 0, later: 41 }), {
+      state: "pending_approval",
+      timezone: "America/Chicago",
+      today: "2026-09-27",
+      now: Date.parse("2026-09-27T17:00:00Z"),
+    }).approved,
+    "Reach out · Personal trainers approved — 41 emails in the coming days, in their hours",
+  );
+  // Two days on, it says the date.
+  const friday = approvalWordsOf(RUN({ run_for: "2026-09-26", today: 0, later: 41 }), {
+    timezone: "America/Chicago",
+    share: 30,
+    today: "2026-09-26",
+    now: Date.parse("2026-09-26T23:00:00Z"),
+  });
+  assert.equal(flat(friday.approve), "Approve — from Sep 28 · 9:40 AM");
+  // Nothing today and no first time: the count stays, so Approve never ends on a dash.
+  const none = approvalWordsOf(RUN({ today: 0, later: 0, first_at: null }), {
+    timezone: "America/Chicago",
+    share: 30,
+    today: "2026-09-28",
+    now: MORNING,
+  });
+  assert.equal(none.approve, "Approve — 0");
 });
 
 const CHAIN = {
