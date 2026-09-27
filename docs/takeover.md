@@ -42,7 +42,7 @@ copies                              152   of 38 names
 as unknown as                       222
 table names outside packages/db     533
 unnamed durations                    78   in 34 files
-dead exports, types and modules     190
+dead exports, types and modules     189
 source-text reads in tests          832
 lint warnings                       130   in 36 files, 129 of them exhaustive-deps
 workspace route JS, KB gzipped     1006   the shell included
