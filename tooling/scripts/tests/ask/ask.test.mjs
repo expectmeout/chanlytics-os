@@ -848,6 +848,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     deal: "approve",
     note: "approve",
     person_details: "approve",
+    list: "approve",
+    run: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
