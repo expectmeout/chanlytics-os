@@ -2,7 +2,8 @@ import { LeadOneQuerySchema } from "@chanlytics/contracts";
 import { read, workspace, write } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
 import { eraseLead, leadScope } from "@/server/leads/leads";
-import { leadOne } from "@/server/leads/lead-page";
+import { load, readerContext } from "@/server/readers";
+import { lead } from "@/server/readers/leads";
 
 /**
  * GET /api/v1/leads/:id — one lead, as a row of the page (Reach out Part 4, PR 9).
@@ -13,12 +14,19 @@ import { leadOne } from "@/server/leads/lead-page";
  * (`?workspace=`), never the lead's own: a member of two workspaces opening one
  * workspace's lead id on the other's page is answered 404, so it is never drawn,
  * or acted on, where it does not belong. The row is built by the list's own
- * builder, in the view's search when `search` names one.
+ * builder, in the view's search when `search` names one. The body is its
+ * reader's (readers/leads.ts lead), which Ask reads one lead by too.
  */
 export const GET = read({
   scope: workspace,
   query: LeadOneQuerySchema,
-  handle: ({ ctx, member, input }) => leadOne(ctx, member.tenantId, requireUuid(ctx.params.id, "lead"), input.search),
+  handle: async ({ ctx, member, input }) =>
+    (
+      await load(readerContext(ctx, member), lead, {
+        id: requireUuid(ctx.params.id, "lead"),
+        ...(input.search ? { search: input.search } : {}),
+      })
+    ).data,
 });
 
 /**

@@ -51,6 +51,12 @@ const suggestions = await import(at("apps/dashboard/app/api/v1/lead-suggestions/
 const { setModelStream } = await import(at("apps/dashboard/src/server/model-json.ts"));
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
 const { leadMailto, planFacts, setSuggestionsWriter } = await import(at("apps/dashboard/src/server/leads/leads.ts"));
+const { load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
+const { lead: leadReader } = await import(at("apps/dashboard/src/server/readers/leads.ts"));
+const { search: searchReader, searches: searchesReader } = await import(
+  at("apps/dashboard/src/server/readers/searches.ts")
+);
+const { toSearchDto } = await import(at("apps/dashboard/src/server/leads/lead-searches.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -1168,99 +1174,103 @@ test("the checks read the judge's own keys: the kind and every criterion it answ
   assert.equal(out.rows[0].member.checks.filter((c) => c.key === "mailbox").length, 1, "the mailbox is the seen one");
 });
 
+/** GET leads/[id]'s world (PR 9): one lead, its two memberships, its places; and lead_member_of answering from them. */
+const OTHER_SEARCH = "aaaaaaaa-3333-4333-8333-aaaaaaaaaaaa";
+// The lead as `leads` holds it, and two memberships of it: an older one in another search, and this search's.
+const oneLeadTables = (over = {}) => {
+  const w = world({ role: "viewer" });
+  const page = pageRow();
+  w.leads = [
+    {
+      ...w.leads[0],
+      street: page.street,
+      postal_code: page.postal_code,
+      neighborhood: null,
+      lat: page.lat,
+      lng: page.lng,
+      mark_path: null,
+      instagram_url: null,
+      phone_e164: page.phone_e164,
+      phone_sources: 2,
+      phone_wrong: false,
+      email_alternates: page.email_alternates,
+      email_checked_at: page.email_checked_at,
+      last_outcome: null,
+      last_note: null,
+      about: null,
+      hours: [],
+      contacted_at: null,
+      converted_at: null,
+      exported_at: null,
+      found_at: page.found_at,
+      version: 3,
+      ...over.lead,
+    },
+  ];
+  w.lead_search_members = [
+    {
+      id: "m-0",
+      tenant_id: A,
+      lead_id: LEAD,
+      search_id: OTHER_SEARCH,
+      class: "review",
+      excluded_by: null,
+      fit: "look",
+      reason: "older",
+      distance_m: null,
+      counted: false,
+      judgment: {},
+      blanked_at: null,
+      created_at: "2026-09-10T00:00:00Z",
+    },
+    {
+      id: "m-1",
+      tenant_id: A,
+      lead_id: LEAD,
+      search_id: SEARCH,
+      class: page.class,
+      excluded_by: null,
+      fit: page.fit,
+      reason: page.reason,
+      distance_m: page.distance_m,
+      counted: true,
+      judgment: page.judgment,
+      blanked_at: null,
+      created_at: "2026-09-19T10:00:00Z",
+      ...over.member,
+    },
+  ];
+  w.lead_places = [
+    { id: "p1", lead_id: LEAD, tenant_id: A },
+    { id: "p2", lead_id: LEAD, tenant_id: A },
+  ];
+  return w;
+};
+// The membership the page would show is the database's to choose (00212 lead_member_of, over lead_member_shown, the
+// one rule leads_page asks): proved in leads.db.test.mjs. Here it answers from the table what the door is asked.
+const memberOf = (t) => (a) => {
+  calls.push({ name: "lead_member_of", args: a });
+  return (
+    t.lead_search_members
+      .filter(
+        (m) =>
+          m.tenant_id === a.p_tenant_id &&
+          m.lead_id === a.p_lead_id &&
+          (!a.p_search_id || m.search_id === a.p_search_id) &&
+          !m.blanked_at,
+      )
+      .sort((x, y) => (x.created_at < y.created_at ? 1 : -1))[0] ?? null
+  );
+};
+
 test("GET leads/[id] answers one lead as a row of the page, built by the list's own builder, for any member; a lead gone or not theirs is a 404 (PR 9)", async () => {
   assert.deepEqual(
     erase.GET.policy,
     { kind: "read", scope: "workspace", role: null, rate: null, spend: false },
     "the workspace the tab named, never the lead's own",
   );
-  const OTHER = "aaaaaaaa-3333-4333-8333-aaaaaaaaaaaa";
-  // The lead as `leads` holds it, and two memberships of it: an older one in another search, and this search's.
-  const tables = (over = {}) => {
-    const w = world({ role: "viewer" });
-    const page = pageRow();
-    w.leads = [
-      {
-        ...w.leads[0],
-        street: page.street,
-        postal_code: page.postal_code,
-        neighborhood: null,
-        lat: page.lat,
-        lng: page.lng,
-        mark_path: null,
-        instagram_url: null,
-        phone_e164: page.phone_e164,
-        phone_sources: 2,
-        phone_wrong: false,
-        email_alternates: page.email_alternates,
-        email_checked_at: page.email_checked_at,
-        last_outcome: null,
-        last_note: null,
-        about: null,
-        hours: [],
-        contacted_at: null,
-        converted_at: null,
-        exported_at: null,
-        found_at: page.found_at,
-        version: 3,
-        ...over.lead,
-      },
-    ];
-    w.lead_search_members = [
-      {
-        id: "m-0",
-        tenant_id: A,
-        lead_id: LEAD,
-        search_id: OTHER,
-        class: "review",
-        excluded_by: null,
-        fit: "look",
-        reason: "older",
-        distance_m: null,
-        counted: false,
-        judgment: {},
-        blanked_at: null,
-        created_at: "2026-09-10T00:00:00Z",
-      },
-      {
-        id: "m-1",
-        tenant_id: A,
-        lead_id: LEAD,
-        search_id: SEARCH,
-        class: page.class,
-        excluded_by: null,
-        fit: page.fit,
-        reason: page.reason,
-        distance_m: page.distance_m,
-        counted: true,
-        judgment: page.judgment,
-        blanked_at: null,
-        created_at: "2026-09-19T10:00:00Z",
-        ...over.member,
-      },
-    ];
-    w.lead_places = [
-      { id: "p1", lead_id: LEAD, tenant_id: A },
-      { id: "p2", lead_id: LEAD, tenant_id: A },
-    ];
-    return w;
-  };
-  // The membership the page would show is the database's to choose (00212 lead_member_of, over lead_member_shown, the
-  // one rule leads_page asks): proved in leads.db.test.mjs. Here it answers from the table what the door is asked.
-  const memberOf = (t) => (a) => {
-    calls.push({ name: "lead_member_of", args: a });
-    return (
-      t.lead_search_members
-        .filter(
-          (m) =>
-            m.tenant_id === a.p_tenant_id &&
-            m.lead_id === a.p_lead_id &&
-            (!a.p_search_id || m.search_id === a.p_search_id) &&
-            !m.blanked_at,
-        )
-        .sort((x, y) => (x.created_at < y.created_at ? 1 : -1))[0] ?? null
-    );
-  };
+  const OTHER = OTHER_SEARCH;
+  const tables = oneLeadTables;
   const one = (q, t = tables(), params = { id: LEAD }) =>
     erase.GET.run(get(`${inA}${q}`), ctxOf(t, params, { ...doors(), lead_member_of: memberOf(t) }));
   const listed = (await leads.GET.run(get(inA), ctxOf(world({ role: "viewer" }), {}, doors()))).rows[0];
@@ -1298,6 +1308,45 @@ test("GET leads/[id] answers one lead as a row of the page, built by the list's 
     ).row.id,
     LEAD,
     "and in B's own page it opens",
+  );
+});
+
+test("one lead and one search, for Ask and for the page (PR 4.3): GET leads/[id] and GET lead-searches/[id] answer their readers' payloads byte for byte, in the workspace the tab named; each reader's one row is what a citation names -- the lead at its peek on the view's search, the search on Leads at that search -- and the search, through the rail's own mapping, is the row GET lead-searches lists for it", async () => {
+  const t = oneLeadTables();
+  const doorsOf = (x) => ({ ...doors(), lead_member_of: memberOf(x) });
+  const rc = () => readerContext(ctxOf(t, {}, doorsOf(t)), { tenantId: A, role: "viewer" });
+  for (const q of [{}, { search: SEARCH }, { search: OTHER_SEARCH }]) {
+    const page = await erase.GET.run(
+      get(`${inA}${q.search ? `&search=${q.search}` : ""}`),
+      ctxOf(t, { id: LEAD }, doorsOf(t)),
+    );
+    const r = await load(rc(), leadReader, { id: LEAD, ...q });
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), `${JSON.stringify(q)}: the route's payload`);
+    assert.deepEqual(r.rows, [
+      {
+        kind: "lead",
+        id: LEAD,
+        route: q.search ? `clients/leads:s-${q.search}:p-${LEAD}` : `clients/leads:p-${LEAD}`,
+        label: NAME,
+      },
+    ]);
+  }
+  await refused(load(rc(), leadReader, { id: OTHER_SEARCH }), "not_found", 404);
+  // One search, as the route answers it, and through the rail's mapping the row the rail lists.
+  const s = world({ role: "viewer" });
+  s.lead_searches_view = [view({ emails_checked: 41, with_phone: 72 }), view({ id: OTHER_SEARCH, name: "Other" })];
+  const page = await search.GET.run(get(inA), ctxOf(s, { id: SEARCH }, doors()));
+  const one = await load(readerContext(ctxOf(s, {}, doors()), { tenantId: A, role: "viewer" }), searchReader, {
+    id: SEARCH,
+  });
+  assert.equal(JSON.stringify(one.data), JSON.stringify(page), "the route's payload");
+  assert.deepEqual(one.rows, [{ kind: "search", id: SEARCH, route: `clients/leads:s-${SEARCH}`, label: "Trainers" }]);
+  const rail = await load(readerContext(ctxOf(s, {}, doors()), { tenantId: A, role: "viewer" }), searchesReader);
+  assert.deepEqual(toSearchDto(one.data.search), rail.data.searches[0], "the rail's own row for it");
+  await refused(
+    load(readerContext(ctxOf(s, {}, doors()), { tenantId: A, role: "viewer" }), searchReader, { id: L1 }),
+    "not_found",
+    404,
   );
 });
 
