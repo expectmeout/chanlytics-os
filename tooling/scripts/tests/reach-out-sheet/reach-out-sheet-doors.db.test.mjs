@@ -15,6 +15,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { showSecondFactor } from "../_second-factor.mjs";
 import { REACH_OUT_REFUSALS } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -75,6 +76,8 @@ async function person(role) {
   ok(await db.from("memberships").insert({ tenant_id: A, user_id: made.data.user.id, role }));
   const c = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
   ok(await c.auth.signInWithPassword({ email, password }));
+  // A partner's seat acts only on a session that showed its second factor (0013, 00216).
+  if (role === "partner") await showSecondFactor(c);
   return { id: made.data.user.id, c };
 }
 const newSearch = (name) =>
