@@ -6,10 +6,10 @@
  * 3.4 consolidated them to nineteen (D11), sorted by name, each read family under an `action` and each act by its card
  * family, and offered each role the acts whose card it may approve (D12). PR 4.3 (the Phase 4 plan, D2) offers each role
  * the ACTIONS it may use, each tool built per role from them; PR 4.6 gave propose_person a note and a person's details
- * beside its mode, an operator's two beside an owner's one. What the model is sent is frozen per role in
- * fixtures/ask-tools-4-6.json, and every other tool reads to every role as fixtures/ask-tools-4-3.json froze it (which
- * PR 4.3 held to PR 3.4's for the tools it did not change); the rest is held as structure: the order, the four
- * prefixes, the flattened
+ * beside its mode, an operator's two beside an owner's one; PR 4.5 gave inbox its search. What the model is sent is
+ * frozen per role in fixtures/ask-tools-4-6.json, and every other tool reads to every role as
+ * fixtures/ask-tools-4-3.json froze it (which PR 4.3 held to PR 3.4's for the tools it did not change) -- inbox too,
+ * less its search; the rest is held as structure: the order, the four prefixes, the flattened
  * schema of a tool with actions, each action's fields the old tool's (read against the 3.1 fixture through
  * tooling/evals/tool-names.json), the words each description owes, the examples, and the parse, proven by running the
  * registry over the database in memory and watching what reached it. That every action answers what its old tool
@@ -48,6 +48,8 @@ const FROZEN = fixture("ask-tools-4-6.json");
 const TODAY = fixture("ask-tools-4-3.json");
 /** The tool whose actions PR 4.6 changed: its description, schema and examples moved on purpose, per role. */
 const CHANGED = ["propose_person"];
+/** The tool PR 4.5 gave an action, search: that action's words, fields and example are all that moved in it. */
+const SEARCHED = "inbox";
 /** The actions added since the rename (the Phase 4 plan, D1): no old tool was any of them. The eval's one list of them. */
 const { ADDED_SINCE: PHASE_4 } = await import(at("tooling/evals/rename-ask-tools.mjs"));
 /** The twenty-six tools as PR 3.1 froze them: each action's own fields are its old tool's. */
@@ -219,13 +221,13 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (PR 4.6): every tool but propose_person reads to every role byte for byte as PR 4.3 sent it -- per tool, per role, with its examples and without -- and every tool PR 4.3 offered a role is offered it still", () => {
+test("the invariant (PR 4.6, PR 4.5): every tool but propose_person and inbox reads to every role byte for byte as PR 4.3 sent it -- per tool, per role, with its examples and without -- and every tool PR 4.3 offered a role is offered it still", () => {
   const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
     for (const examples of [true, false])
       for (const t of toApiTools(role, examples)) {
-        if (CHANGED.includes(t.name)) continue;
+        if (CHANGED.includes(t.name) || t.name === SEARCHED) continue;
         const then = examples ? was.get(t.name) : bare(was.get(t.name));
         assert.equal(JSON.stringify(t), JSON.stringify(then), `${role} ${t.name}: PR 4.3's bytes`);
       }
@@ -249,7 +251,36 @@ test("the invariant (PR 4.6): every tool but propose_person reads to every role 
   );
 });
 
-test("the rename is a bijection: every old tool is one tool and action of the registry, every action but Phase 4's twelve one old tool, and each action takes exactly the fields its old tool took", () => {
+test("PR 4.5 gave inbox one action, search, and moved nothing else it says: less the search's words, its two fields and its one example, inbox reads to every role byte for byte as PR 4.3 sent it (which was PR 3.4's)", () => {
+  const d = DEFS.get(SEARCHED);
+  for (const role of ROLES) {
+    const t = toApiTools(role, true).find((x) => x.name === SEARCHED);
+    const was = TODAY[role].find((x) => x.name === SEARCHED);
+    assert.equal(
+      t.description,
+      was.description.replace(` ${d.tail}`, ` ${d.actions.search.words} ${d.tail}`),
+      `${role}: the search's words, between the thread's and the tail`,
+    );
+    const { words, days, ...rest } = t.input_schema.properties;
+    assert.deepEqual([words, days], [{ type: "string" }, { type: "number" }], `${role}: words and days, and no other`);
+    assert.deepEqual(rest.action.enum, ["list", "thread", "search"], `${role}: search last`);
+    assert.equal(
+      JSON.stringify({
+        ...t.input_schema,
+        properties: { ...rest, action: { type: "string", enum: ["list", "thread"] } },
+      }),
+      JSON.stringify(was.input_schema),
+      `${role}: every other field PR 4.3's, in its order`,
+    );
+    assert.deepEqual(
+      t.input_examples,
+      [...was.input_examples, { action: "search", words: "parking", days: 30 }],
+      `${role}: one example more`,
+    );
+  }
+});
+
+test("the rename is a bijection: every old tool is one tool and action of the registry, every action but those Phase 4 added one old tool, and each action takes exactly the fields its old tool took", () => {
   const pairs = Object.values(NAMES);
   const registry = [...DEFS.keys()].flatMap((name) =>
     actionsOf(name).length ? actionsOf(name).map((a) => `${name}.${a}`) : [name],
@@ -262,7 +293,7 @@ test("the rename is a bijection: every old tool is one tool and action of the re
   assert.deepEqual(
     registry.filter((n) => PHASE_4.includes(n)).sort(),
     PHASE_4,
-    "and Phase 4's twelve, each an action of a tool that was",
+    "and those Phase 4 added, each an action of a tool that was",
   );
   for (const [old, to] of Object.entries(NAMES)) {
     const [name, action = ""] = to.split(".");
@@ -420,11 +451,11 @@ test("an input a schema refuses comes back in the zod's words, under the tool's 
   });
   assert.equal(
     await words("inbox", { action: "delete" }),
-    "inbox: action Invalid discriminator value. Expected 'list' | 'thread'",
+    "inbox: action Invalid discriminator value. Expected 'list' | 'thread' | 'search'",
   );
   assert.equal(
     await words("inbox", { filter: "held" }),
-    "inbox: action Invalid discriminator value. Expected 'list' | 'thread'",
+    "inbox: action Invalid discriminator value. Expected 'list' | 'thread' | 'search'",
     "an action is required, even where the fields name one",
   );
   assert.equal(await words("report", { days: 8 }), "report: days Invalid option: expected one of 7|30|90");

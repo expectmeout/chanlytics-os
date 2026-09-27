@@ -23,6 +23,7 @@ import {
   ASK_MODEL,
   ASK_MODEL_PROFILES,
   answerForCards,
+  clockStamp,
   emptyReadSet,
   normalizeAnswer,
   EVERYONE_LABEL,
@@ -1034,7 +1035,7 @@ test("the round keeps a thinking block whole -- its words and its signature, or 
   );
 });
 
-test("the fourteen reads, each an action of the nine read tools, run against the database in memory: each answers in its shape or refuses in words, and a read that fails says so to the model rather than throwing; PR 4.3's ten run beside them (their answers are proven in their domains' suites)", async () => {
+test("the fourteen reads, each an action of the nine read tools, run against the database in memory: each answers in its shape or refuses in words, and a read that fails says so to the model rather than throwing; PR 4.3's ten and PR 4.5's search run beside them (their answers are proven in their domains' suites)", async () => {
   const t = tables({
     escalations: [
       {
@@ -1060,6 +1061,7 @@ test("the fourteen reads, each an action of the nine read tools, run against the
     call_id: K1,
     filter: "recent",
     query: "rosa",
+    words: "Saturday",
     days: 7,
     day: "today",
     service: "",
@@ -1081,6 +1083,7 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "campaigns.broadcasts",
       "campaigns.playbooks",
       "inbox.list",
+      "inbox.search",
       "inbox.thread",
       "leads.lead",
       "leads.leads",
@@ -1097,7 +1100,14 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "workspace.notifications",
       "workspace.settings",
     ],
-    "the reads the loop offers: the fourteen old tools, each an action now, and PR 4.3's ten",
+    "the reads the loop offers: the fourteen old tools, each an action now, PR 4.3's ten and PR 4.5's search",
+  );
+  const found = JSON.parse(out["inbox.search"].result);
+  assert.equal(out["inbox.search"].isError, false, out["inbox.search"].result);
+  assert.deepEqual(
+    [found.words, found.days, found.hits.map((h) => [h.kind, h.conversation_id, h.snippet])],
+    ["Saturday", 7, [["message", C1, "Are you open Saturday?"]]],
+    "the thread's message, found by its word within the week asked",
   );
   const threads = JSON.parse(out["inbox.list"].result);
   assert.equal(out["inbox.list"].isError, false, out["inbox.list"].result);
@@ -1204,6 +1214,112 @@ test("the caller who hung up in seconds: calls.list finds them under their own w
     undefined,
     "an ordinary call carries no flag at all, so the block costs nothing on a normal day",
   );
+});
+
+test("inbox.search in a turn (PR 4.5): the model searches for a word, reads a message hit and a call hit, and cites both -- the message as its thread (inbox/th-), the call as the call (conversations/cv-); nothing found says so, and that park is not parking; blank words are refused before anything is read", async () => {
+  const M2 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee6";
+  const said = iso(NOW.getTime() - 2 * 3600_000);
+  const rang = iso(NOW.getTime() - 26 * 3600_000);
+  const ctx = ctxFor(
+    tables({
+      messages: [
+        message(M1, C1, { contact_id: P1 }),
+        message(M2, C1, {
+          contact_id: P1,
+          body: "Is there parking behind the shop?",
+          created_at: said,
+          channel_ts: said,
+        }),
+      ],
+      calls: [
+        call(K1, {
+          started_at: rang,
+          ended_at: rang,
+          transcript: "Agent: Thanks for calling.\nUser: Where do I leave the van? Is there parking nearby?",
+        }),
+      ],
+    }),
+  );
+  const rosaThread = { kind: "thread", id: C1, label: "Rosa" };
+  const rosaCall = { kind: "call", id: K1, label: "Rosa" };
+  const s = scripted([
+    ROUND([tool("inbox", { action: "search", words: "parking" })]),
+    ROUND([
+      answer("Rosa asked about parking twice, on WhatsApp and on a call.", {
+        show: {
+          items: [
+            { title: "Rosa", meta: "WhatsApp", line: "Is there parking behind the shop?", source: rosaThread },
+            { title: "Rosa", meta: "Call", line: "Is there parking nearby?", source: rosaCall },
+          ],
+        },
+      }),
+    ]),
+  ]);
+  const { input, events } = turn(ctx, { text: "did anyone mention parking this month?" });
+  const r = await runAskTurn(input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.deepEqual([r.rounds, r.tools], [2, ["inbox.search"]]);
+  assert.ok(
+    events.some((e) => e.t === "trace" && e.text === "Searching what was said"),
+    "the palette says what runs",
+  );
+  const result = s.requests[1].messages.at(-1).content[0];
+  assert.deepEqual([result.tool_use_id, result.is_error], ["t-inbox.search", false]);
+  assert.deepEqual(JSON.parse(result.content), {
+    words: "parking",
+    days: 30,
+    shown: 2,
+    more_available: false,
+    hits: [
+      {
+        kind: "message",
+        who: "Rosa",
+        at: clockStamp(Date.parse(said), TZ, NOW.getTime()),
+        channel: "WhatsApp",
+        from: "customer",
+        status: "delivered",
+        conversation_id: C1,
+        snippet: "Is there parking behind the shop?",
+        route: `inbox/th-${C1}`,
+      },
+      {
+        kind: "call",
+        who: "Rosa",
+        at: clockStamp(Date.parse(rang), TZ, NOW.getTime()),
+        called_by: "customer",
+        call_id: K1,
+        snippet: "Agent: Thanks for calling. User: Where do I leave the van? Is there parking nearby?",
+        route: `conversations/cv-${K1}`,
+      },
+    ],
+  });
+  assert.deepEqual(
+    r.answer.show.items.map((i) => [i.source.kind, i.source.id, i.source.to]),
+    [
+      ["thread", C1, `inbox/th-${C1}`],
+      ["call", K1, `conversations/cv-${K1}`],
+    ],
+    "both hits are cited, each opening where its page opens it",
+  );
+  assert.equal(r.ungrounded, false);
+  assert.equal(
+    ctx.supabase.seen.filter((q) => q.table === "contacts").length,
+    1,
+    "the names are read once for both hits",
+  );
+
+  // Nothing found is said, with the other form to try; blank words are refused before anything is read.
+  const tc = newToolContext(ctx, A, "viewer", TZ, NOW);
+  const none = JSON.parse((await runTool(tc, { name: "inbox", input: { action: "search", words: "park" } })).result);
+  assert.deepEqual([none.shown, none.hits, none.more_available], [0, [], false]);
+  assert.match(none.note, /^Nothing in the last 30 days holds these words\. .*park does not find parking/);
+  const reads = ctx.supabase.seen.length;
+  assert.deepEqual(await runTool(tc, { name: "inbox", input: { action: "search", words: "  " } }), {
+    result: JSON.stringify({ error: "words must say what to look for" }),
+    isError: true,
+    label: "Searching what was said",
+  });
+  assert.equal(ctx.supabase.seen.length, reads, "blank words read nothing");
 });
 
 test("the proposal builders run against the database in memory: each kind is a card with its door and its undo, or a refusal in the model's words", async () => {

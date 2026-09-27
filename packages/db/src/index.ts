@@ -136,6 +136,7 @@ export type { RoutedChannel, ChannelLookup } from "./repositories/routing";
 export {
   ingestCall,
   linkCallMessage,
+  callersOf,
   setCallRecording,
   recordCallNote,
   claimCallNotification,
@@ -152,8 +153,9 @@ export {
   describeLead,
   HISTORY_COLUMNS,
   searchMessages,
+  messageSenders,
 } from "./repositories/thread";
-export type { ThreadTurn, PgThreadState, LeadContext, MessageHit } from "./repositories/thread";
+export type { ThreadTurn, PgThreadState, LeadContext, MessageHit, MessageSender } from "./repositories/thread";
 export {
   claimIdempotencyKey,
   takeIdempotencyKey,
@@ -174,7 +176,7 @@ export {
   setPersonReplyMode,
 } from "./repositories/control-plane";
 export type { TenantConfigRow, PutTenantConfigResult, PolicyRecord } from "./repositories/control-plane";
-export { peoplePage, everyoneIn, PEOPLE_PAGE } from "./repositories/people";
+export { PEOPLE_PAGE, IDS_PER_READ, namesOfPeople, peoplePage, everyoneIn } from "./repositories/people";
 export {
   savedListsFor,
   listMemberIds,
