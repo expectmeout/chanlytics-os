@@ -35,7 +35,7 @@ const LEAD_CSV_COLUMNS: ReadonlyArray<readonly [string, (r: LeadRowDto) => strin
   ["Found", (r) => r.found_at],
 ];
 
-export function leadsCsv(rows: LeadRowDto[]): string {
+function leadsCsv(rows: LeadRowDto[]): string {
   const head = LEAD_CSV_COLUMNS.map(([name]) => name).join(",");
   const body = rows.map((r) => LEAD_CSV_COLUMNS.map(([, pick]) => csvCell(pick(r))).join(","));
   return `\uFEFF${[head, ...body].join("\r\n")}\r\n`;

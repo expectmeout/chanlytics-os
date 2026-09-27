@@ -26,7 +26,7 @@ function serviceDb(): SupabaseClient<Database> {
   return svc;
 }
 
-export interface ConsentPageRow {
+interface ConsentPageRow {
   businessName: string;
   /** The workspace's slug, for the links to its own privacy page and terms. */
   slug: string;

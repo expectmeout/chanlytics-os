@@ -27,20 +27,20 @@ import { recordDecision } from "@/server/verbs";
  * back as skipped rather than as a failure -- it is not an error to have
  * selected a row that changed underneath you.
  */
-export interface ConsentInput {
+interface ConsentInput {
   consent: string;
   source?: string;
   note?: string;
 }
 
-export interface ManyOutcome {
+interface ManyOutcome {
   done: number;
   failed: { id: string; message: string }[];
   skipped: string[];
 }
 
 /** The four sources, the reset with none: the rule the two single routes apply, shared with the batch. */
-export function consentSourceOf(consent: string, source: string | undefined, purpose: AskedPurpose): string {
+function consentSourceOf(consent: string, source: string | undefined, purpose: AskedPurpose): string {
   const s = consent === "unknown" ? CONSENT_RESET_SOURCE : source;
   if (typeof s !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((k) => k.id === s))) {
     throw new AppError(
@@ -62,7 +62,7 @@ export function consentSourceOf(consent: string, source: string | undefined, pur
 }
 
 /** The note, trimmed to what the door takes, or nothing. */
-export function noteOf(note: unknown): string | null {
+function noteOf(note: unknown): string | null {
   return typeof note === "string" && note.trim() ? note.trim().slice(0, 200) : null;
 }
 

@@ -24,13 +24,13 @@ export function bearerOf(req: Request): string | null {
   return m && JWT.test(m[1]) ? m[1] : null;
 }
 
-export interface BearerVerdict {
+interface BearerVerdict {
   supabase: SupabaseClient<Database>;
   claims: Record<string, unknown> | null;
   error: { status?: number; name?: string; message?: string } | null;
 }
 
-export type BearerVerifier = (token: string) => Promise<BearerVerdict>;
+type BearerVerifier = (token: string) => Promise<BearerVerdict>;
 
 const real: BearerVerifier = async (token) => {
   const supabase = createBearerClient(token);

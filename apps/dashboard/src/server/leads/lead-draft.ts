@@ -26,7 +26,7 @@ import type { RouteContext } from "../with-route";
  * are NOT Claude's to write -- code adds them (`leadDraftFooter`), so a model
  * that forgets them cannot produce an email without them.
  */
-export const DRAFT_SYSTEM = [
+const DRAFT_SYSTEM = [
   "You write one short email from a small business to another small business it would like to work with.",
   "The rules, all of them:",
   "- Say who is writing and why in the first two lines. Never pretend to be a customer.",
@@ -71,7 +71,7 @@ async function draftFacts(ctx: Pick<RouteContext, "supabase">, lead: LeadRow): P
   return out;
 }
 
-export interface DraftAnswer {
+interface DraftAnswer {
   to: string;
   subject: string;
   body: string;

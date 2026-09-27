@@ -53,7 +53,7 @@ import { feedItemsFor } from "./calendar/availability.js";
 
 type Db = SupabaseClient<Database>;
 
-export type { PlaybookRow, RunOutcome };
+export type { PlaybookRow };
 
 /** The run's context, with the client and the tenant the ports close over. */
 /**
@@ -74,7 +74,7 @@ export async function allPeople(
   );
 }
 
-export interface TenantRunContext extends RunContext {
+interface TenantRunContext extends RunContext {
   db: Db;
   tenantId: string;
 }
@@ -229,7 +229,7 @@ export async function loadTenantRunContext(
   };
 }
 
-export interface RunRequest {
+interface RunRequest {
   /** The local day the run is for; one run per playbook per day. */
   runFor?: string;
   /** Who asked: the sweep (system) or a person (their decision, sends now unless the class is never). */

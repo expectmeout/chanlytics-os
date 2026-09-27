@@ -38,24 +38,24 @@ export interface LeadWires {
 }
 
 /** This deployment's origin, where the provider's webhook lands: LEAD_WEBHOOK_BASE, else EDGE_ORIGIN, else the address the edge has always had. */
-export function leadWebhookBase(): string {
+function leadWebhookBase(): string {
   const o = env.LEAD_WEBHOOK_BASE || env.EDGE_ORIGIN;
   return o && /^https:\/\/[a-z0-9.-]+$/i.test(o) ? o : DEFAULT_ORIGIN;
 }
 
-export async function leadWebhookToken(runRowId: string): Promise<string> {
+async function leadWebhookToken(runRowId: string): Promise<string> {
   const key = env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key) throw new Error("lead webhook: no key to derive a token from");
   return createHmac("sha256", key).update(`lead-webhook:${runRowId}`).digest("base64url");
 }
 
 /** One constant (PRD decision 3), overridable by the env to another Claude model; anything else is the default. */
-export function leadJudgeModel(v: string | undefined = env.LEAD_JUDGE_MODEL): string {
+function leadJudgeModel(v: string | undefined = env.LEAD_JUDGE_MODEL): string {
   return v && /^claude-[a-z0-9.-]+$/.test(v) ? v : LEAD_JUDGE_DEFAULT_MODEL;
 }
 
 /** The server-side fallback (decision 14): on unless the env says off. */
-export function leadJudgeFallbacks(v: string | undefined = env.LEAD_JUDGE_FALLBACKS): boolean {
+function leadJudgeFallbacks(v: string | undefined = env.LEAD_JUDGE_FALLBACKS): boolean {
   return !(v === "off" || v === "0" || v === "false");
 }
 
@@ -65,18 +65,13 @@ export function leadJudgeFallbacks(v: string | undefined = env.LEAD_JUDGE_FALLBA
 // the client's inside a job that is about to be killed.
 const realJudgeClient = (): LeadJudgeClient =>
   new Anthropic({ timeout: JUDGE_TIMEOUT_MS, maxRetries: 0 }) as unknown as LeadJudgeClient;
-let judgeClientFor: () => LeadJudgeClient = realJudgeClient;
-/** Tests hand in their own; null restores the real one. */
-export function setLeadJudgeClient(f: (() => LeadJudgeClient) | null): void {
-  judgeClientFor = f ?? realJudgeClient;
-}
 
 export function leadWires(fetchImpl: typeof fetch = fetch): LeadWires | undefined {
   const token = env.APIFY_TOKEN;
   if (!token || !env.ANTHROPIC_API_KEY) return undefined;
   return {
     apify: apifyClient(fetchImpl, token),
-    judge: leadJudge(judgeClientFor(), leadJudgeModel(), leadJudgeFallbacks()),
+    judge: leadJudge(realJudgeClient(), leadJudgeModel(), leadJudgeFallbacks()),
     webhookBase: leadWebhookBase(),
     webhookToken: leadWebhookToken,
     fetchText: (url, timeoutMs) => pageText(fetchImpl, url, timeoutMs),

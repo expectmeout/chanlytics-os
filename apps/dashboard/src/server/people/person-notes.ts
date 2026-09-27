@@ -24,7 +24,7 @@ const NOTE_COLUMNS =
   "id, contact_id, body, author_kind, author_user_id, for_user_id, team_only, state, source, version, created_at, updated_at, due_on, done_at, done_by, deal_id";
 
 /** A stored note as the page reads it, with the names of who wrote it and who it is for (0007). */
-export function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): PersonNoteDto {
+function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): PersonNoteDto {
   return {
     id: n.id,
     body: n.body,
@@ -50,7 +50,7 @@ export function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): P
 }
 
 /** The team by name: who wrote a note and who it is for. A member without a name is called by their address's name. */
-export async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNoteTeamDto[] | null> {
+async function teamNames(ctx: RouteContext, tenantId: string): Promise<PersonNoteTeamDto[] | null> {
   const { data, error } = await Promise.resolve()
     .then(() => ctx.supabase.rpc("team_roster", { p_tenant_id: tenantId }))
     .then(

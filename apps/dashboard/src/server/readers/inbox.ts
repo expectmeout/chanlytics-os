@@ -4,7 +4,7 @@ import { load, stamp, type Reader, type RowRef } from "./index";
 import { conversations, whoOf } from "./conversations";
 import { escalations } from "./escalations";
 
-export interface InboxRead {
+interface InboxRead {
   /** The escalated threads outside the newest hundred first, then the hundred: the Inbox's order. */
   conversations: ConversationDto[];
   /** The open escalations, newest first, as GET escalations answers them. */

@@ -59,17 +59,17 @@ type Db = SupabaseClient<Database>;
 const INLINE_INTAKE = ["whatsapp", "sms"] as const;
 
 /** A customer's message older than this with no processed_at stamp was never finished with. */
-export const UNANSWERED_INBOUND_AFTER_MS = 3 * 60_000;
+const UNANSWERED_INBOUND_AFTER_MS = 3 * 60_000;
 /** A queued reply older than this with no live job is nobody's. */
-export const ORPHAN_QUEUED_AFTER_MS = 10 * 60_000;
+const ORPHAN_QUEUED_AFTER_MS = 10 * 60_000;
 /** Older than this is not this sweep's to raise. */
 const LOOKBACK_MS = 24 * 3_600_000;
 const BATCH = 100;
 
-export const ORPHAN_NOTE = "no job was left to send this";
+const ORPHAN_NOTE = "no job was left to send this";
 
 /** The deadman endpoint's own collaborators, passed in so the sweep is one function over ports. */
-export interface UnfinishedPorts {
+interface UnfinishedPorts {
   db: Db;
   L: ReturnType<typeof logger>;
   upsertEscalation: (
@@ -86,7 +86,7 @@ export interface UnfinishedPorts {
   now?: () => number;
 }
 
-export interface UnfinishedSummary {
+interface UnfinishedSummary {
   /** Customer messages found unfinished and flagged. */
   unanswered: number;
   /** Queued replies found with no job and failed. */

@@ -32,7 +32,7 @@ export function setModelStream(s: typeof streamModel | null): void {
   stream = s ?? streamModel;
 }
 
-export type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
+type ModelJsonCall = Omit<GatewayCall, "request" | "purpose"> & {
   purpose: "lead_draft" | "lead_suggest" | "list_draft";
   request: Omit<GatewayCall["request"], "output_config" | "model"> & { schema: Record<string, unknown> };
 };

@@ -149,7 +149,7 @@ export async function reviewReplyMode(db: Db, tenantId: string): Promise<ReviewR
 }
 
 /** What the receptionist knows about the business when it writes under a review: the name, the tone, the languages, the services — from the same profile the WhatsApp brain speaks from. */
-export async function reviewFacts(db: Db, tenantId: string): Promise<ReviewReplyFacts> {
+async function reviewFacts(db: Db, tenantId: string): Promise<ReviewReplyFacts> {
   const [t, c] = await Promise.all([
     db.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
@@ -264,7 +264,7 @@ async function answerNewReviews(
  * website is the one it was found on: the sweep reads its listings one after another inside its function's time
  * (vercel.json), with no room for a site each.
  */
-export type SiteRead = "read" | "keep";
+type SiteRead = "read" | "keep";
 
 /**
  * Read the public listing, decide what changed, write it, tell the bell. A
@@ -391,7 +391,7 @@ export async function checkListing(
 }
 
 /** How long a listing or a profile rests between reads: once a day, with room for the sweep's own drift. */
-export const CHECK_EVERY_MS = 20 * 3600 * 1000;
+const CHECK_EVERY_MS = 20 * 3600 * 1000;
 
 /** The listings the sweep reads this tick: never read first, then the oldest. */
 export async function listingsDue(db: Db, now: Date, limit: number): Promise<ListingRow[]> {
@@ -472,7 +472,7 @@ async function grantFrom(req: ReturnType<typeof tokenExchangeRequest>, net: Plac
  * An access token for the workspace's profile: the stored one while it
  * lasts, else a fresh one from the refresh token, kept for next time.
  */
-export async function tokenFor(
+async function tokenFor(
   db: Db,
   tenantId: string,
   now = Date.now(),

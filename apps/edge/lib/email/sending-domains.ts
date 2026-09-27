@@ -143,13 +143,13 @@ async function heldTwice(
 /** A day: an owner hears of a domain's holds at most once in one. */
 const HOLD_NOTICE_COOLDOWN_MS = 24 * 3600_000;
 
-export type DoorAnswer =
+type DoorAnswer =
   { ok: true; domain: SendingDomainDto } | { ok: false; status: number; error: string; message: string };
 
 const say = (status: number, error: string, message: string): DoorAnswer => ({ ok: false, status, error, message });
 
 /** A host another workspace reserved and never verified is theirs this long: the provider's own verification window. */
-export const UNVERIFIED_HOLD_MS = 72 * 3600_000;
+const UNVERIFIED_HOLD_MS = 72 * 3600_000;
 
 /**
  * An owner adds a domain: judged here first, held for this workspace, then created at the provider.
@@ -325,7 +325,7 @@ async function adoptByName(
   return again.ok ? again.value : null;
 }
 
-export interface CheckOutcome {
+interface CheckOutcome {
   /** The row as written; null when another writer changed it first, or it is gone. */
   row: SendingDomainRow | null;
   change: "verified" | "held" | "released" | null;

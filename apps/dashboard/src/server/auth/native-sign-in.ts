@@ -11,15 +11,15 @@ import { safeNext } from "./oauth-callback";
  */
 export const NATIVE_FAILED = "/login?error=native";
 export const NATIVE_PROVIDERS = ["apple", "google"] as const;
-export type NativeProvider = (typeof NATIVE_PROVIDERS)[number];
+type NativeProvider = (typeof NATIVE_PROVIDERS)[number];
 const TOKEN_MAX = 8192;
 
-export interface NativeSignIn {
+interface NativeSignIn {
   provider: NativeProvider;
   token: string;
   nonce: string | undefined;
 }
-export interface NativePlan {
+interface NativePlan {
   signIn: NativeSignIn | null;
   to: string;
   refused: string | null;

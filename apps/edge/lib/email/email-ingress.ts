@@ -36,7 +36,7 @@ import type { LogEvent } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
-export interface ResendIngressInput {
+interface ResendIngressInput {
   rawBody: string;
   headers: SvixHeaders;
   /**
@@ -52,7 +52,7 @@ export interface ResendIngressInput {
   nowMs: number;
 }
 
-export type ResendVerdict =
+type ResendVerdict =
   | { kind: "refuse"; status: 401 | 400; log: LogEvent }
   /** An event this door has no work for (a domain event, a contact event), or a received email that names no address of ours. */
   | { kind: "ignore"; log: LogEvent; unroutable: number }

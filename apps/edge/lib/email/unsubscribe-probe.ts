@@ -23,15 +23,15 @@ import { signUnsubscribeToken, unsubscribeUrl } from "../packages/channels.js";
 import { UNSUBSCRIBE_PAGE_HEADER } from "../packages/contracts.js";
 import { errField, type Logger } from "../log.js";
 
-export const UNSUBSCRIBE_PROBE_PAGE = "email_unsubscribe_links_broken";
+const UNSUBSCRIBE_PROBE_PAGE = "email_unsubscribe_links_broken";
 /** How long each ask waits. Both asks and the pause between them count in the sweep's time budget. */
-export const PROBE_TIMEOUT_MS = 4_000;
-export const PROBE_RETRY_AFTER_MS = 1_000;
+const PROBE_TIMEOUT_MS = 4_000;
+const PROBE_RETRY_AFTER_MS = 1_000;
 const NOBODY = "00000000-0000-0000-0000-000000000000";
 
-export type ProbeOutcome = "no_secret" | "opens" | "key_differs" | "page_cannot_open" | "redirects" | "unreachable";
+type ProbeOutcome = "no_secret" | "opens" | "key_differs" | "page_cannot_open" | "redirects" | "unreachable";
 
-export interface ProbePorts {
+interface ProbePorts {
   /** The edge's UNSUBSCRIBE_SECRET; null when unset. */
   secret: string | null;
   /** The origin the links name, where the page answers: UNSUBSCRIBE_ORIGIN, or the dashboard's (dashboard-origin.ts). */
