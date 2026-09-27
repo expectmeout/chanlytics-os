@@ -261,7 +261,9 @@ export default [
     },
   },
 
-  // The ported mockup: hooks correctness only.
+  // The ported mockup: hooks correctness only. Its bare names are checked by
+  // repo/shell-names-are-published.test.mjs against what the shell publishes on
+  // the window; no-undef here would believe the files' `/* global */` headers.
   {
     files: ["apps/dashboard/src/legacy/**/*.jsx"],
     languageOptions: {
