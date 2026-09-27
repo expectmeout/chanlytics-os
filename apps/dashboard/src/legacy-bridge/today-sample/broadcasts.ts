@@ -1,8 +1,8 @@
 /** Broadcasts: a run waiting for a word, one under the veto window, one that went out this morning; two more when busy. */
 import { toBroadcastVM, type BroadcastDto, type BroadcastVM } from "@chanlytics/contracts";
-import { ZONE, type SampleClock } from "./clock";
+import { ZONE, type SampleClock, type SampleDay } from "./clock";
 
-function broadcastDtos({ ago, today }: SampleClock, busy: boolean): BroadcastDto[] {
+function broadcastDtos({ ago, today }: SampleClock, day: SampleDay): BroadcastDto[] {
   const broadcast = (
     id: string,
     name: string,
@@ -48,7 +48,7 @@ function broadcastDtos({ ago, today }: SampleClock, busy: boolean): BroadcastDto
       finished_at: ago(178),
       counts: { queued: 0, sent: 8, skipped: 0, failed: 0, delivered: 8, read: 5, replied: 1 },
     }),
-    ...(busy
+    ...(day === "busy"
       ? [
           broadcast("b-birthday", `Birthday offer · ${today}`, "Birthday offer", "pending_approval", 4, {
             playbook_id: "pb-birthday",
@@ -65,6 +65,6 @@ function broadcastDtos({ ago, today }: SampleClock, busy: boolean): BroadcastDto
 }
 
 /** The Broadcasts surface as the page reads it: each run through its view model. */
-export function sampleBroadcasts(clock: SampleClock, busy: boolean): { rows: BroadcastVM[] } {
-  return { rows: broadcastDtos(clock, busy).map((b) => toBroadcastVM(b, ZONE, clock.now)) };
+export function sampleBroadcasts(clock: SampleClock, day: SampleDay): { rows: BroadcastVM[] } {
+  return { rows: broadcastDtos(clock, day).map((b) => toBroadcastVM(b, ZONE, clock.now)) };
 }

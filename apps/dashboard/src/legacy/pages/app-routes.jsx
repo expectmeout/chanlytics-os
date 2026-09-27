@@ -2,7 +2,8 @@
 // Chanlytics — The route table
 // One row per route the shell draws (SHELL_ROUTES, at the foot), in the order the shell's router matched them, each
 // naming what it draws (its page component and props), which addresses of its page it takes (`when`: the param's
-// shape, or a fact about the workspace) and what it reads to name its crumbs and its primary act; the landings a
+// shape, or a fact about the workspace), what its view is mounted under (`mount`) and what it reads to name its crumbs
+// and its primary act; the landings a
 // route can end at (ComingSoon, NotFound, ClientNotFound); and the honesty gate's one interception (routeGated),
 // applied to every row's answer by drawRoute. app-shell.jsx's ChanlyticsApp reads the table through drawRoute and
 // draws the chrome around the answer; the hooks (the gate's clocks, the navigation, the listeners) stay there.
@@ -125,6 +126,14 @@ const drawInbox = ({ param, navigate, inboxDensity, showInboxAgentRail }) => {
   };
 };
 
+// ---- People's rows: the view they draw in, their crumb, and a row's press ---------------------------------------
+// Every People route lights People in the nav and draws a surface with its own panes (inPeople), names People as its
+// first crumb (PEOPLE_CRUMB, a person's with the page's own Back), and hands the page the door a row's press opens
+// the person by (personDoor).
+const inPeople = (drawn) => ({ activeNav: "clients", pane: true, ...drawn });
+const PEOPLE_CRUMB = { label: "People", to: "clients" };
+const personDoor = (navigate) => ({ onOpenProfile: (id) => navigate(`clients/${id}`) });
+
 const drawLeads = ({ param, navigate }) => {
   // People › Leads: the same page, its other scope. The address carries the view (clients/leads:s-<search>:l-<list>:c-<class>),
   // and `key` remounts the page when the scope changes, so its state starts from the view it is showing rather
@@ -132,14 +141,10 @@ const drawLeads = ({ param, navigate }) => {
   const search = window.__LEADS && window.__leadsRouteParse
     ? (window.__LEADS.searches || []).find((s) => s.id === (window.__leadsRouteParse(param) || {}).searchId)
     : null;
-  return {
-    activeNav: "clients",
-    crumbs: search
-      ? [{ label: "People", to: "clients" }, { label: "Leads", to: "clients/leads" }, search.name]
-      : [{ label: "People", to: "clients" }, "Leads"],
-    pane: true,
-    content: <ClientsA key="leads" scope="leads" leadsRoute={param} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />,
-  };
+  return inPeople({
+    crumbs: search ? [PEOPLE_CRUMB, { label: "Leads", to: "clients/leads" }, search.name] : [PEOPLE_CRUMB, "Leads"],
+    content: <ClientsA key="leads" scope="leads" leadsRoute={param} onNavigate={navigate} {...personDoor(navigate)} />,
+  });
 };
 
 const drawPipeline = ({ param, navigate }) => {
@@ -147,28 +152,24 @@ const drawPipeline = ({ param, navigate }) => {
   // on, by the People surface's answer (contracts dealsAreOn): anywhere else the address draws People, whose switch
   // offers no Pipeline there. The retired demo board keeps its own address, #/pipeline, which lands on People.
   // The rest of the address is the Pipeline's own (contracts pipelineRoute): the view the rail picked, and the person
-  // open over it. The page follows it as a prop, so every one of them is one mount (app-shell.jsx shellMountKey).
+  // open over it. The page follows it as a prop, so every one of them is one mount (its row's `mount`, below).
   const dealsOn = !!(window.__PEOPLE && window.__PEOPLE.dealsOn);
   const pv = dealsOn && window.__pipeline && window.__pipeline.parse ? window.__pipeline.parse(param) : null;
-  return {
-    activeNav: "clients",
+  return inPeople({
     crumbs: !dealsOn
       ? ["People"]
       : pv && pv.view !== "all"
-        ? [{ label: "People", to: "clients" }, { label: "Pipeline", to: "clients/pipeline" }, window.__pipeline.viewLabel(pv.view, (window.__PEOPLE && window.__PEOPLE.dealPace) || null)]
-        : [{ label: "People", to: "clients" }, "Pipeline"],
-    pane: true,
-    content: <ClientsA key={dealsOn ? "pipeline" : "people"} scope={dealsOn ? "pipeline" : "people"} pipelineRoute={dealsOn ? param : null} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />,
-  };
+        ? [PEOPLE_CRUMB, { label: "Pipeline", to: "clients/pipeline" }, window.__pipeline.viewLabel(pv.view, (window.__PEOPLE && window.__PEOPLE.dealPace) || null)]
+        : [PEOPLE_CRUMB, "Pipeline"],
+    content: <ClientsA key={dealsOn ? "pipeline" : "people"} scope={dealsOn ? "pipeline" : "people"} pipelineRoute={dealsOn ? param : null} onNavigate={navigate} {...personDoor(navigate)} />,
+  });
 };
 
-const drawNewList = ({ navigate }) => ({
+const drawNewList = ({ navigate }) => inPeople({
   // People with the New list box open: a door elsewhere (a profile's "Make one on People") says where it goes in
   // the address, rather than navigating and then firing segments:new on a timer it hoped the page had loaded by.
-  activeNav: "clients",
-  crumbs: [{ label: "People", to: "clients" }, "New list"],
-  pane: true,
-  content: <ClientsA key="people" scope="people" newList onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />,
+  crumbs: [PEOPLE_CRUMB, "New list"],
+  content: <ClientsA key="people" scope="people" newList onNavigate={navigate} {...personDoor(navigate)} />,
 });
 
 const drawPeopleView = ({ param, navigate }) => {
@@ -182,12 +183,10 @@ const drawPeopleView = ({ param, navigate }) => {
   const segMeta = segId && !window.__PEOPLE && (window.CLIENT_SEGMENTS || []).find(s => s.id === segId);
   const surfaceList = segId && window.__PEOPLE && (window.__PEOPLE.lists || []).find(l => l.id === segId);
   const savedMeta = savedId && window.__PEOPLE && (window.__PEOPLE.saved || []).find(l => l.id === savedId);
-  return {
-    activeNav: "clients",
-    crumbs: [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : segMeta ? segMeta.label : savedMeta ? savedMeta.name : stateId ? stateId.replace(/_/g, " ") : window.__PEOPLE ? "List" : "Segment"],
-    pane: true,
-    content: <ClientsA key="people" scope="people" initialSegment={segId} initialSaved={savedId} initialState={stateId} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />,
-  };
+  return inPeople({
+    crumbs: [PEOPLE_CRUMB, surfaceList ? surfaceList.label : segMeta ? segMeta.label : savedMeta ? savedMeta.name : stateId ? stateId.replace(/_/g, " ") : window.__PEOPLE ? "List" : "Segment"],
+    content: <ClientsA key="people" scope="people" initialSegment={segId} initialSaved={savedId} initialState={stateId} onNavigate={navigate} {...personDoor(navigate)} />,
+  });
 };
 
 const drawPerson = ({ param, navigate, backToPeople }) => {
@@ -198,21 +197,17 @@ const drawPerson = ({ param, navigate, backToPeople }) => {
   const client = people ? people.rows.find(c => c.id === param) : (window.CLIENTS || []).find(c => c.id === param);
   const held = !client && window.__peekPerson ? window.__peekPerson(param) : null;
   const real = realWorkspace();
-  return {
-    activeNav: "clients",
+  return inPeople({
     // Its People is the profile's own Back (on a phone the only one: the crumb says ‹ People and the page draws none).
-    crumbs: [{ label: "People", to: "clients", go: backToPeople }, client ? client.name : held ? held.name : "Profile"],
-    pane: true,
+    crumbs: [{ ...PEOPLE_CRUMB, go: backToPeople }, client ? client.name : held ? held.name : "Profile"],
     content: client || people || real
       ? <ClientProfile id={param} onBack={backToPeople} real={real} />
       : <ClientNotFound onNavigate={navigate} />,
-  };
+  });
 };
 
-const drawPeople = ({ navigate, openAsk }) => ({
-  activeNav: "clients",
+const drawPeople = ({ navigate, openAsk }) => inPeople({
   crumbs: ["People"],
-  pane: true,
   // "Add client" opens the Ask overlay, which is demo theater; a real
   // workspace gains people when they write or phone.
   primaryAction: window.__DEMO_MODE ? (
@@ -220,7 +215,7 @@ const drawPeople = ({ navigate, openAsk }) => ({
       <Icon name="plus" size={12} /> Add client
     </button>
   ) : null,
-  content: <ClientsA key="people" scope="people" onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />,
+  content: <ClientsA key="people" scope="people" onNavigate={navigate} {...personDoor(navigate)} />,
 });
 
 const drawListsAsPeople = ({ param, navigate }) => {
@@ -235,12 +230,10 @@ const drawListsAsPeople = ({ param, navigate }) => {
   const listId = kind ? to.slice(to.indexOf(":") + 1) : null;
   const surfaceList = kind === "seg" ? (P.lists || []).find((l) => l.id === listId) : null;
   const savedMeta = kind === "list" ? (P.saved || []).find((s) => s.id === listId) : null;
-  return {
-    activeNav: "clients",
-    crumbs: surfaceList || savedMeta ? [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : savedMeta.name] : ["People"],
-    pane: true,
-    content: <ClientsA initialSegment={kind === "seg" ? listId : null} initialSaved={kind === "list" ? listId : null} onOpenProfile={(id) => navigate(`clients/${id}`)} />,
-  };
+  return inPeople({
+    crumbs: surfaceList || savedMeta ? [PEOPLE_CRUMB, surfaceList ? surfaceList.label : savedMeta.name] : ["People"],
+    content: <ClientsA initialSegment={kind === "seg" ? listId : null} initialSaved={kind === "list" ? listId : null} {...personDoor(navigate)} />,
+  });
 };
 
 const drawSegments = ({ param }) => {
@@ -509,29 +502,41 @@ const routeGated = (drawn, { page, navigate }) => ({
 // reaches these rows), a demo page keeps its landing, and a name it does not know is not found (the wiring audit's
 // N16: #/soon/calendar said the Calendar was not in this release). The standalone mockup has no registry and keeps
 // every landing.
+//
+// `mount` is what the row's view is mounted under, where the page follows its address as a prop: every address the row
+// takes is then the page already there. Absent, the view is mounted under its whole route, so a new param is a new
+// mount. The route itself was the key once, and a surface's own param tore the surface down and built it again: a
+// second Settings tab, a second Inbox thread, two 240ms route-in fades compounding (the shell's on .route-view and the
+// pane's own), and the surface's state, scroll and fetches thrown away on a move that never left it. A row takes a
+// `mount` only once its page FOLLOWS the param: Settings derives its tab on every draw, the Inbox follows
+// initialThreadId ("Deep-link follows later navigations too"), Live and Conversations write the call or the row they
+// open to the address (replaced), Leads reads `leadsRoute` on every draw and keys its one read by it, and the Pipeline
+// follows its view and the person open over it (0008). A page that seeds state from the param and never looks again
+// would show the wrong entity, so a row without one costs the improvement, never correctness. People's own views and a
+// person keep their whole route: only the leads and pipeline routes, not an id that starts with the word.
 const SHELL_ROUTES = [
-  { page: "inbox", draw: drawInbox },
-  { page: "clients", when: (param) => param && /^leads(:|$)/.test(param), draw: drawLeads },
-  { page: "clients", when: (param) => param && /^pipeline(:|$)/.test(param), draw: drawPipeline },
+  { page: "inbox", mount: "inbox", draw: drawInbox },
+  { page: "clients", when: (param) => param && /^leads(:|$)/.test(param), mount: "clients/leads", draw: drawLeads },
+  { page: "clients", when: (param) => param && /^pipeline(:|$)/.test(param), mount: "clients/pipeline", draw: drawPipeline },
   { page: "clients", when: (param) => param === "new-list", draw: drawNewList },
   { page: "clients", when: (param) => param && /^(seg|list|state):/.test(param), draw: drawPeopleView },
   { page: "clients", when: (param) => !!param, draw: drawPerson },
   { page: "clients", draw: drawPeople },
   { page: "segments", when: () => !!(window.__PEOPLE || realWorkspace()), draw: drawListsAsPeople },
   { page: "segments", draw: drawSegments },
-  { page: "start", draw: drawStart },
-  { page: "admin", draw: drawSettings },
+  { page: "start", mount: "start", draw: drawStart },
+  { page: "admin", mount: "admin", draw: drawSettings },
   { page: "tasks", draw: drawTasks },
   { page: "reports", draw: drawReports },
   { page: "calendar", draw: drawCalendar },
-  { page: "live", draw: drawLive },
-  { page: "conversations", draw: drawConversations },
+  { page: "live", mount: "live", draw: drawLive },
+  { page: "conversations", mount: "conversations", draw: drawConversations },
   { page: "pipeline", draw: drawDealBoard },
   { page: "fleet", draw: drawFleet },
   { page: "outbound", draw: drawPlaybooks },
   { page: "messages", draw: drawTemplates },
   { page: "content", draw: drawContent },
-  { page: "broadcasts", draw: drawBroadcasts },
+  { page: "broadcasts", mount: "broadcasts", draw: drawBroadcasts },
   { page: "studio", draw: drawStudio },
   { page: "store", draw: drawStore },
   { page: "soon", when: (param, r) => !!param && r.soonState === "unknown", draw: drawSoonUnknown },
@@ -543,11 +548,11 @@ const SHELL_ROUTES = [
  * What an address draws: the first row that takes it, else not found, then the honesty gate. `r` is the route as the
  * shell resolved it, with the shell's doors and the Inbox's preferences (see the rows). Every route lands here, and
  * the answer is the shell's view: `activeNav`, `crumbs`, `pane` (false unless the row says), `primaryAction` (null
- * unless the row says) and `content`.
+ * unless the row says), `content`, and `mountKey`, what the view is mounted under (the row's `mount`, else the route).
  */
 const drawRoute = (r) => {
   const row = SHELL_ROUTES.find((x) => x.page === r.page && (!x.when || x.when(r.param, r)));
-  const drawn = { pane: false, primaryAction: null, ...(row ? row.draw(r) : drawNotFound(r)) };
+  const drawn = { pane: false, primaryAction: null, ...(row ? row.draw(r) : drawNotFound(r)), mountKey: (row && row.mount) || `${r.page}/${r.param || ""}` };
   return r.demoGated ? routeGated(drawn, r) : drawn;
 };
 

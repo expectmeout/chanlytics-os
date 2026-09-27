@@ -199,7 +199,7 @@ export function runMoves(st: Core): Core {
   for (const b of st.bodies) {
     b.ox = 0;
     b.oy = 0;
-    b.osc = 0;
+    b.oscale = 0;
     b.orot = 0;
     b.olift = 0;
     b.obreath = 0;

@@ -51,7 +51,7 @@
     "react-hooks/exhaustive-deps": 2
   },
   "apps/dashboard/src/legacy/pages/app-shell.jsx": {
-    "react-hooks/exhaustive-deps": 7
+    "react-hooks/exhaustive-deps": 6
   },
   "apps/dashboard/src/legacy/pages/ask-hooks.jsx": {
     "react-hooks/exhaustive-deps": 2
