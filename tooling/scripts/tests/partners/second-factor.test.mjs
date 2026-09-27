@@ -1,10 +1,13 @@
 /**
- * A partner signs in with a second factor (decision 0013), M1 and M2, run: the words; the browser's half over a
- * stand-in of Supabase Auth's MFA API (where the first factor lands, the second step, enrolment and its leftovers); and
- * the back office's reset, recorded by the database before the factor is removed through the Auth admin API.
+ * A partner signs in with a second factor (decision 0013), run: the words; the browser's half over a stand-in of
+ * Supabase Auth's MFA API (where the first factor lands, what the second step's page shows, enrolment and its
+ * leftovers); the back office's reset (M2), recorded by the database before the factor is removed through the Auth
+ * admin API; and the enforcement (M3): a partner's seat, the partner account's doors and the boot refuse a session
+ * that has not shown its code with `mfa_required`, which sends the tab to the second step. Every other role is
+ * unchanged.
  *
- * Who may reset is the database's decision, proved against the stack in second-factor.db.test.mjs. Nothing here
- * enforces a factor: that is M3.
+ * Who may reset, and the database's own refusal of the seat (00216), are proved against the stack in
+ * second-factor.db.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -14,12 +17,16 @@ import { fakeDb } from "../_fake-db.mjs";
 import {
   PartnerSecondFactorResetSchema,
   SECOND_FACTOR_PATH,
+  SECOND_FACTOR_REQUIRED_PATH,
   SECOND_FACTOR_WORDS,
   cleanFactorCode,
   enrolRefusalWords,
   factorCodeWords,
   factorStepNeeded,
+  refusalOf,
+  seatNeedsSecondFactor,
   secondFactorResetWords,
+  secondFactorShown,
 } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -31,6 +38,13 @@ const auth = await import(at("apps/dashboard/src/auth/second-factor.ts"));
 const { platformPartnerSecondFactorReset } = await import(at("apps/dashboard/src/server/platform/platform.ts"));
 const reset = await import(at("apps/dashboard/app/api/v1/platform/partners/second-factor/route.ts"));
 const { RATE } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
+const { memberContext, requireSecondFactor } = await import(at("apps/dashboard/src/server/with-route.ts"));
+const { read, write, workspace } = await import(at("apps/dashboard/src/server/route.ts"));
+const partnerDoor = await import(at("apps/dashboard/app/api/v1/partner/route.ts"));
+const handoverDoor = await import(at("apps/dashboard/app/api/v1/partner/workspaces/route.ts"));
+const resendDoor = await import(at("apps/dashboard/app/api/v1/partner/workspaces/[id]/resend/route.ts"));
+const boot = await import(at("apps/dashboard/app/api/v1/workspaces/route.ts"));
+const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 
 /* ------------------------------------------------------------ the words */
 
@@ -109,6 +123,16 @@ function stand({ factors = [], current = "aal1", enrollError = null, verifyError
   return { client: { auth: { mfa } }, asked };
 }
 const verified = { id: "f1", factor_type: "totp", status: "verified" };
+
+test("the second step's page: the code when one is owed; the setup when a refusal said one is required and there is none", async () => {
+  assert.equal(await auth.secondStep(stand({ factors: [verified] }).client, false), "code");
+  assert.equal(await auth.secondStep(stand({ factors: [verified] }).client, true), "code");
+  assert.equal(await auth.secondStep(stand({ factors: [verified], current: "aal2" }).client, true), "in", "shown");
+  assert.equal(await auth.secondStep(stand({ factors: [] }).client, false), "in", "nothing asked of this account");
+  assert.equal(await auth.secondStep(stand({ factors: [] }).client, true), "enrol", "a partner without one");
+  assert.equal(await auth.secondStep(stand({ throwsOn: "aal" }).client, true), "code", "unknown never loops back in");
+  assert.equal(await auth.secondStep(stand({ throwsOn: "aal" }).client, false), "in");
+});
 
 test("where the first factor lands: the second step when the account has an authenticator, else in", async () => {
   assert.equal(await auth.pathAfterSignIn(stand({ factors: [verified] }).client), "/verify");
@@ -247,4 +271,122 @@ test("the reset's door: the platform's, counted, and its input judged before any
     spend: false,
   });
   assert.equal(RATE.platform_partner_second_factor.limit, 10);
+});
+
+/* ------------------------------------------------------------ M3: the seat asks for it */
+
+test("the rule: a partner's seat alone asks for the second factor, and only aal2 is shown; the refusal reads as ours", () => {
+  assert.deepEqual(["owner", "operator", "partner", "viewer", null].map(seatNeedsSecondFactor), [
+    false,
+    false,
+    true,
+    false,
+    false,
+  ]);
+  assert.equal(secondFactorShown("aal2"), true);
+  for (const aal of ["aal1", "", undefined, null, "AAL2"]) assert.equal(secondFactorShown(aal), false, String(aal));
+  assert.equal(SECOND_FACTOR_REQUIRED_PATH, "/verify?for=partner");
+  const r = refusalOf({ code: "mfa_required", status: 403, message: SECOND_FACTOR_WORDS.required });
+  assert.equal(r.title, "Two-step sign-in");
+  assert.equal(r.message, SECOND_FACTOR_WORDS.required);
+});
+
+const U = "u1";
+const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const seat = (tenant_id, role, slug, created_at) => ({ user_id: U, tenant_id, role, tenants: { slug }, created_at });
+const world = (extra = {}) => ({
+  memberships: [
+    seat(A, "owner", "harbor", "2026-01-01T00:00:00Z"),
+    seat(B, "partner", "bayside", "2026-02-01T00:00:00Z"),
+  ],
+  tenants: [
+    { id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" },
+    { id: B, slug: "bayside", name: "Bayside", status: "active", timezone: "America/New_York" },
+  ],
+  profiles: [],
+  ...extra,
+});
+const session = (aal, tables = world(), rpcs = {}) => ({
+  supabase: fakeDb(tables, {}, { is_platform_admin: () => false, ...rpcs }),
+  userId: U,
+  email: "ada@example.com",
+  ...(aal ? { aal } : {}),
+  params: {},
+});
+const mfa = (e) => e.code === "mfa_required" && e.status === 403 && e.message === SECOND_FACTOR_WORDS.required;
+const at_ = (tenant, method = "GET", body) =>
+  new Request(`http://localhost/api/v1/x?workspace=${tenant}`, {
+    method,
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
+test("the door: a partner's seat on a session without the code is refused, read or write; with it, or as an owner, it opens", async () => {
+  const looked = read({ scope: workspace, handle: async ({ member }) => member.role });
+  const changed = write({ scope: workspace, role: "partner", rate: null, handle: async ({ member }) => member.role });
+  for (const aal of ["aal1", undefined]) {
+    await assert.rejects(memberContext(session(aal), B), mfa, `memberContext, ${aal}`);
+    await assert.rejects(looked.run(at_(B), session(aal)), mfa, "a read");
+    await assert.rejects(changed.run(at_(B, "POST", {}), session(aal)), mfa, "a write");
+    assert.equal(await looked.run(at_(A), session(aal)), "owner", "their own workspace, unchanged");
+    assert.equal(await changed.run(at_(A, "POST", {}), session(aal)), "owner");
+  }
+  assert.equal(await looked.run(at_(B), session("aal2")), "partner");
+  assert.equal(await changed.run(at_(B, "POST", {}), session("aal2")), "partner");
+  assert.throws(() => requireSecondFactor({ aal: "aal1" }), mfa);
+  assert.doesNotThrow(() => requireSecondFactor({ aal: "aal2" }));
+});
+
+test("the partner account's doors and the boot: refused without the code, before the database is asked", async () => {
+  const asked = [];
+  const rpcs = Object.fromEntries(
+    ["partner_become", "create_workspace_for_business", "partner_handover_resend"].map((n) => [
+      n,
+      () => {
+        asked.push(n);
+        throw new Error("never reached");
+      },
+    ]),
+  );
+  const body = (b) => new Request("http://localhost/api/v1/x", { method: "POST", body: JSON.stringify(b) });
+  await assert.rejects(partnerDoor.POST.run(body({ code: "ada", terms: true }), session("aal1", world(), rpcs)), mfa);
+  await assert.rejects(
+    handoverDoor.POST.run(body({ name: "Luna Studio", email: "owner@example.com" }), session("aal1", world(), rpcs)),
+    mfa,
+  );
+  const resend = { ...session("aal1", world(), rpcs), params: { id: B } };
+  await assert.rejects(resendDoor.POST.run(body({ email: "owner@example.com" }), resend), mfa);
+  assert.deepEqual(asked, [], "nothing asked of the database");
+
+  // The boot: a partner account opens the app past its second factor; anyone else, as ever.
+  const partnerRow = { id: "p1", user_id: U, code: "ada", status: "active" };
+  const home = new Request(`http://localhost/api/v1/workspaces?workspace=${A}`);
+  await assert.rejects(boot.GET.run(home, session("aal1", world({ partners: [partnerRow] }))), mfa);
+  const opened = await boot.GET.run(home, session("aal2", world({ partners: [partnerRow] })));
+  assert.equal(opened.user.partner.code, "ada");
+  const owner = {
+    memberships: [seat(A, "owner", "harbor", "2026-01-01T00:00:00Z")],
+    tenants: world().tenants.slice(0, 1),
+  };
+  assert.equal((await boot.GET.run(home, session("aal1", { ...owner, profiles: [] }))).activeWorkspaceId, A);
+});
+
+test("the client: an mfa_required sends the tab to the second step, and says so in our words", async () => {
+  const events = [];
+  const api = createApi({
+    fetch: async () =>
+      new Response(
+        JSON.stringify({ ok: false, error: { code: "mfa_required", message: SECOND_FACTOR_WORDS.required } }),
+        { status: 403 },
+      ),
+    workspace: () => A,
+    onSignedOut: () => events.push("signed-out"),
+    onChooseWorkspace: () => events.push("choose-workspace"),
+    onSecondFactor: () => events.push("second-factor"),
+    refresh: async () => {},
+  });
+  const r = await api("GET workspaces");
+  assert.equal(r.ok, false);
+  assert.equal(r.code, "mfa_required");
+  assert.deepEqual(events, ["second-factor"]);
 });

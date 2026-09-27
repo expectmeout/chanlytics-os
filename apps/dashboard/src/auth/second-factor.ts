@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
   cleanFactorCode,
   enrolRefusalWords,
@@ -30,13 +31,19 @@ export async function pathAfterSignIn(supabase: Client): Promise<string> {
   }
 }
 
-/** Whether this session still owes its code; false when it cannot be read. */
-export async function owesFactor(supabase: Client): Promise<boolean> {
+/**
+ * What the second step's page shows (0013): the code, for an account with an authenticator the session has not shown;
+ * the setup, for an account a refusal said must have one (`required`, M3) and has none; else in. A read that fails
+ * shows the code when one is required (the page can always sign out) and goes in otherwise, where the doors ask again.
+ */
+export async function secondStep(supabase: Client, required: boolean): Promise<"code" | "enrol" | "in"> {
   try {
     const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    return factorStepNeeded(data);
+    if (factorStepNeeded(data)) return "code";
+    if (data?.currentLevel === SECOND_FACTOR_LEVEL || !required) return "in";
+    return "enrol";
   } catch {
-    return false;
+    return required ? "code" : "in";
   }
 }
 
