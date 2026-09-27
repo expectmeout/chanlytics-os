@@ -116,7 +116,7 @@ memory by a test.
 | Email    | `apps/edge/api/resend-webhook.ts`                                                                | `apps/edge/lib/email/email-ingress.ts` | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist does not draft email replies yet |
 
 The receptionist itself: `apps/edge/lib/tenant-runtime.ts` reads the
-workspace's config through one door; `packages/contracts/src/config/config.ts`
+workspace's config through one door; `packages/contracts/src/config/workspace-config/compose.ts`
 composes the system prompt from the business's facts; `apps/edge/lib/receptionist/brain.ts`
 asks the model and reads a structured answer (`packages/contracts/src/config/brain.ts`);
 `packages/core/src/inbound/reply-posture.ts` is the truth table of whether it may speak at
@@ -265,7 +265,7 @@ and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 
 | To change                              | Look in                                                                                                                                                  |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| What the receptionist says             | `packages/contracts/src/config/config.ts` (the composer), `apps/edge/lib/receptionist/brain.ts`, the Business tab in Settings                            |
+| What the receptionist says             | `packages/contracts/src/config/workspace-config/compose.ts` (the composer), `apps/edge/lib/receptionist/brain.ts`, the Business tab in Settings          |
 | Whether it speaks at all               | `packages/core/src/inbound/reply-posture.ts`, `policies` and `packages/contracts/src/config/policy.ts`                                                   |
 | Who may be messaged                    | `packages/contracts/src/consent/consent.ts` (`mayMessageFor`), `packages/core/src/deliver.ts`                                                            |
 | A new channel                          | An adapter in `packages/channels`, a door under `apps/edge/api`, a `tenant_channels.kind`, a wire in `deliver.ts`                                        |

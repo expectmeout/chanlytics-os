@@ -3,7 +3,7 @@
  * nobody. Moved whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
 import { audienceMembers } from "../broadcasts/broadcasts";
-import { POLICY_CLASS_WORDS } from "../config/config";
+import { POLICY_CLASS_WORDS } from "../config/workspace-config/policy-classes";
 import { purposeOfPlaybook } from "../consent/consent";
 import type { DealPaceVM } from "../deals/deals";
 import { GET_YES_ROUTE, type PersonRowVM, saidYesTo, saidYesWords, whyNotReceive } from "../people/people";

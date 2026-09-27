@@ -2,7 +2,7 @@
  * The role ladder, read one way (decision 0012 added the partner's rung). Beside config.ts, which names the roles and
  * what each may do per permission; this is the order of them, for a door that names the least role it takes.
  */
-import type { Role } from "./config";
+import type { Role } from "./workspace-config/role-perms";
 
 /**
  * The ladder a route's `role` names a rung of. A partner (decision 0012) sits
