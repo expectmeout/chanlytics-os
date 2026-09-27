@@ -4005,6 +4005,39 @@ async function resolveChannel(db, kind, externalId) {
   return (await resolveChannelDetailed(db, kind, externalId)).channel;
 }
 
+// src/repositories/people.ts
+var PEOPLE_PAGE = 1e3;
+var IDS_PER_READ = 100;
+async function namesOfPeople(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`namesOfPeople: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
+}
+async function peoplePage(db, tenantId, page = {}) {
+  const offset = page.offset ?? 0;
+  const limit = page.limit ?? PEOPLE_PAGE;
+  const { data, error } = await db.rpc("people_list", {
+    p_tenant_id: tenantId,
+    ...page.q ? { p_query: page.q } : {},
+    ...offset > 0 ? { p_offset: offset } : {},
+    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {}
+  });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  return data ?? [];
+}
+async function everyoneIn(db, tenantId) {
+  const all = [];
+  for (let offset = 0; ; offset += PEOPLE_PAGE) {
+    const page = await peoplePage(db, tenantId, { offset });
+    all.push(...page);
+    if (page.length < PEOPLE_PAGE) return all;
+  }
+}
+
 // src/repositories/calls.ts
 async function ingestCall(db, tenantId, n, raw) {
   const { data, error } = await db.rpc("ingest_call", {
@@ -4046,6 +4079,15 @@ async function linkCallMessage(db, tenantId, callId, messageId) {
   if (error) console.error("link_call_message_failed", error.message);
   else if (!data || data.length === 0)
     console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+}
+async function callersOf(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("calls").select("id, from_e164, from_raw").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`callersOf: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
 }
 async function setCallRecording(db, tenantId, callId, recording) {
   const { data, error } = await db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId).select("id");
@@ -4279,6 +4321,15 @@ async function searchMessages(db, tenantId, words2, since, limit) {
     snippet: r2.snippet ?? ""
   }));
 }
+async function messageSenders(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("messages").select("id, sender, status, type").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`messageSenders: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
+}
 
 // src/repositories/idempotency.ts
 var HOLD_COLUMNS = "response, created_at, request_hash";
@@ -4392,29 +4443,6 @@ async function setPersonReplyMode(db, tenantId, contactId, mode) {
     { onConflict: "tenant_id,class,subject_type,subject_id" }
   );
   if (error) throw new Error(error.message);
-}
-
-// src/repositories/people.ts
-var PEOPLE_PAGE = 1e3;
-async function peoplePage(db, tenantId, page = {}) {
-  const offset = page.offset ?? 0;
-  const limit = page.limit ?? PEOPLE_PAGE;
-  const { data, error } = await db.rpc("people_list", {
-    p_tenant_id: tenantId,
-    ...page.q ? { p_query: page.q } : {},
-    ...offset > 0 ? { p_offset: offset } : {},
-    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {}
-  });
-  if (error) throw Object.assign(new Error(error.message), { code: error.code });
-  return data ?? [];
-}
-async function everyoneIn(db, tenantId) {
-  const all = [];
-  for (let offset = 0; ; offset += PEOPLE_PAGE) {
-    const page = await peoplePage(db, tenantId, { offset });
-    all.push(...page);
-    if (page.length < PEOPLE_PAGE) return all;
-  }
 }
 
 // src/paged.ts
@@ -5060,6 +5088,7 @@ export {
   CALL_CONTROL_S,
   DEFAULT_ROW_CAP,
   HISTORY_COLUMNS,
+  IDS_PER_READ,
   MAX_ROWS,
   PEOPLE_PAGE,
   acceptHandover,
@@ -5072,6 +5101,7 @@ export {
   assembleHistory,
   becomePartner,
   callerNameOf,
+  callersOf,
   claimCallActivity,
   claimCallNotification,
   claimControl,
@@ -5140,8 +5170,10 @@ export {
   markHeldNotice,
   markPartnerPaid,
   markProcessed,
+  messageSenders,
   monthSent,
   moveSend,
+  namesOfPeople,
   notesForReceptionist,
   outreachFactsOf,
   outreachModeOf,
