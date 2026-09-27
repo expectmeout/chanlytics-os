@@ -57,10 +57,14 @@ export interface LockInput {
   launch: boolean;
 }
 
-/** Whether the lock stands in front of the pages now. Default on where the phone can lock, until the person says otherwise. */
+/** Whether this phone locks the app at all: on where it can lock, until the person says otherwise. */
+export function mayLock(i: Pick<LockInput, "enabled" | "canLock">): boolean {
+  return i.canLock && (i.enabled ?? true);
+}
+
+/** Whether the lock stands in front of the pages now: at launch, or on a return after the grace. */
 export function shouldLock(i: LockInput): boolean {
-  const enabled = i.enabled ?? i.canLock;
-  if (!enabled || !i.canLock) return false;
+  if (!mayLock(i)) return false;
   if (i.launch) return true;
   if (i.backgroundedAt === null) return false;
   return i.now - i.backgroundedAt >= LOCK_GRACE_MS;

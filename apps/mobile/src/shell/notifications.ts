@@ -5,14 +5,14 @@
  * - asking permission and a token, on a device only, after the Android channel exists (a 13+ rule), and handing the
  *   token to the page over the bridge, which registers it through the account route (the page's transport rule);
  * - a tap, cold or warm, becoming a pending route the owning tab's page is asked to open once it is ready;
- * - the icon's number, set from the page's bell and from the push's own badge field.
+ * - the icon's number, set from the page's bell (iOS applies a push's own badge field itself).
  */
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 import { routeOfData } from "./notifications-pure";
-export { tabOf, routeOfData, badgeOfData } from "./notifications-pure";
+export { tabOf, routeOfData } from "./notifications-pure";
 
 /** In the foreground a push is shown as a banner and kept in the list, with its sound and its badge. */
 export function installForegroundHandler(): void {
