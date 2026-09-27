@@ -3543,6 +3543,7 @@ export type Database = {
           handover_email: string | null
           handover_expires_at: string | null
           handover_sent_at: string | null
+          invited_by: string | null
           origin: string
           partner_id: string
           seat_held_at: string | null
@@ -3562,6 +3563,7 @@ export type Database = {
           handover_email?: string | null
           handover_expires_at?: string | null
           handover_sent_at?: string | null
+          invited_by?: string | null
           origin?: string
           partner_id: string
           seat_held_at?: string | null
@@ -3581,6 +3583,7 @@ export type Database = {
           handover_email?: string | null
           handover_expires_at?: string | null
           handover_sent_at?: string | null
+          invited_by?: string | null
           origin?: string
           partner_id?: string
           seat_held_at?: string | null

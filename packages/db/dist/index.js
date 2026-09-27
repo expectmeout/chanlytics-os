@@ -2917,12 +2917,11 @@ var PARTNER_INVITE_WORDS = {
   inviting: "Asking\u2026",
   withdraw: "Take it back",
   withdrawing: "Taking it back\u2026",
-  askAgain: "Ask again",
-  askSomeone: "Ask someone else",
   failed: "your partner",
   failedAnswer: "the invitation",
   /** Settings › Partner, the partner's pane. */
   invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
   accept: "Join",
   accepting: "Joining\u2026",
   decline: "Decline",
@@ -4623,7 +4622,7 @@ async function getOwnPartner(db) {
 }
 async function getPartnerBroughtCount(db, partnerId) {
   const of = () => db.from("partner_tenants").select("tenant_id", { count: "exact", head: true }).eq("partner_id", partnerId);
-  const r2 = await of().or("origin.eq.link,handover_accepted_at.not.is.null");
+  const r2 = await of().or("origin.eq.link,origin.eq.invite,handover_accepted_at.not.is.null");
   if (!r2.error) return r2.count ?? 0;
   if (!/\b(origin|handover_accepted_at)\b/.test(r2.error.message)) return null;
   const older = await of();

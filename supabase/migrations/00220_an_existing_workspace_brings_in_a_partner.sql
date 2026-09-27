@@ -16,6 +16,8 @@
 --   partner_invitations_mine     the partner's open invitations, for their pane.
 --   partner_invite_accept        the partner joins: the seat, the credit (or none) and the event, in one transaction.
 --   partner_invite_decline       the partner says no; the owner sees it and may ask another.
+--   partner_earnings_sweep       holds for review an invitation asked from the partner's own company domain, as
+--                                00214 holds a handover accepted from it; partner_tenants.invited_by keeps who asked.
 
 -- ------------------------------------------------------------------------------------------- the invitations
 
@@ -45,6 +47,11 @@ create policy partner_invitations_read on public.partner_invitations
 alter table public.partner_tenants drop constraint if exists partner_tenants_origin_check;
 alter table public.partner_tenants
   add constraint partner_tenants_origin_check check (origin in ('link', 'handover', 'invite'));
+-- Who asked for the partner, on an invitation's row: the nightly check compares their address's domain with the
+-- partner's, as it does the owner who accepted a handover (00214).
+alter table public.partner_tenants
+  add column if not exists invited_by uuid references auth.users (id) on delete set null;
+
 -- An invitation carries no handover, as a link does not (00214's check, with invite beside link).
 alter table public.partner_tenants drop constraint if exists partner_tenants_handover_check;
 alter table public.partner_tenants add constraint partner_tenants_handover_check check (
@@ -73,8 +80,7 @@ begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
-  if not exists (select 1 from public.memberships m
-                  where m.tenant_id = p_tenant and m.user_id = v_user and m.role = 'owner') then
+  if not public.is_workspace_owner(p_tenant) then
     raise exception 'Only an owner can bring in a partner.' using errcode = '42501';
   end if;
   if exists (select 1 from public.partner_tenants pt where pt.tenant_id = p_tenant) then
@@ -129,8 +135,7 @@ begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
   end if;
-  if not exists (select 1 from public.memberships m
-                  where m.tenant_id = p_tenant and m.user_id = v_user and m.role = 'owner') then
+  if not public.is_workspace_owner(p_tenant) then
     raise exception 'Only an owner can take back an invitation.' using errcode = '42501';
   end if;
   delete from public.partner_invitations i where i.tenant_id = p_tenant returning * into v_row;
@@ -161,8 +166,7 @@ declare
   v_link record;
   v_open record;
 begin
-  if v_user is null or not exists (select 1 from public.memberships m
-                                    where m.tenant_id = p_tenant and m.user_id = v_user and m.role = 'owner') then
+  if v_user is null or not public.is_workspace_owner(p_tenant) then
     raise exception 'Only an owner can see this.' using errcode = '42501';
   end if;
   select pt.code_used as code, pt.origin, pt.attributed_at as since,
@@ -229,6 +233,7 @@ declare
   v_partner public.partners;
   v_row     public.partner_invitations;
   v_paying  boolean;
+  v_was     text;
 begin
   if v_user is null then
     raise exception 'Sign in required.' using errcode = '28000';
@@ -256,29 +261,37 @@ begin
   if exists (select 1 from public.partner_tenants pt where pt.tenant_id = p_tenant) then
     raise exception 'This workspace already has a partner.' using errcode = '55000';
   end if;
-  if exists (select 1 from public.memberships m
-              where m.tenant_id = p_tenant and m.user_id = v_user and m.role = 'owner') then
+  if public.is_workspace_owner(p_tenant) then
     raise exception 'You own this workspace, so you cannot be its partner.' using errcode = '55000';
   end if;
 
   -- Credit follows who brings the paying customer: a workspace that has paid before, or pays outside Stripe, was not
   -- brought by this partner. The standing says so, as a person's decision would, and a platform admin may change it.
-  select coalesce(b.mode = 'direct' or b.last_paid_at is not null, false) into v_paying
+  -- last_paid_at alone is not proof: before the edge stopped stamping it for a $0 invoice, a trial's first invoice
+  -- set it too, so a workspace still in its trial (or never subscribed) has not paid, whatever it says.
+  select coalesce(b.mode = 'direct'
+                  or (b.last_paid_at is not null
+                      and b.status not in ('none', 'trialing', 'incomplete', 'incomplete_expired')), false)
+    into v_paying
     from public.billing_accounts b where b.tenant_id = p_tenant;
   v_paying := coalesce(v_paying, false);
 
+  -- Someone already on the team (an operator, a viewer) becomes its partner: the owner asked for exactly them, and the
+  -- event keeps the role they had.
+  select m.role into v_was from public.memberships m where m.tenant_id = p_tenant and m.user_id = v_user;
   insert into public.memberships (tenant_id, user_id, role)
   values (p_tenant, v_user, 'partner')
   on conflict (user_id, tenant_id) do update set role = 'partner';
-  insert into public.partner_tenants (tenant_id, partner_id, code_used, origin, standing, standing_why, standing_at)
-  values (p_tenant, v_partner.id, v_partner.code, 'invite',
+  insert into public.partner_tenants
+    (tenant_id, partner_id, code_used, origin, invited_by, standing, standing_why, standing_at)
+  values (p_tenant, v_partner.id, v_partner.code, 'invite', v_row.invited_by,
           case when v_paying then 'disqualified' end,
           case when v_paying then 'It was already paying for its plan when the partner joined, so it earns no share.' end,
           case when v_paying then now() end);
   delete from public.partner_invitations i where i.tenant_id = p_tenant;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant, 'partner.invite_accepted', 'workspace', 'tenant', p_tenant,
-          jsonb_build_object('partner_id', v_partner.id, 'by', v_user, 'earns', not v_paying));
+          jsonb_build_object('partner_id', v_partner.id, 'by', v_user, 'earns', not v_paying, 'was', v_was));
 
   return query select t.id, t.slug, t.name, not v_paying from public.tenants t where t.id = p_tenant;
 end $$;
@@ -325,3 +338,119 @@ comment on function public.partner_invite_decline(uuid) is
 
 revoke execute on function public.partner_invite_decline(uuid) from public, anon;
 grant execute on function public.partner_invite_decline(uuid) to authenticated;
+
+-- ------------------------------------------------------------------------------------------------- the sweep
+
+-- 00214's sweep, with the invitation beside the handover at judgement: an owner who asked for a partner from the
+-- partner's own company domain is held for a person to review, as one who accepted a handover from it is.
+create or replace function public.partner_earnings_sweep(p_now timestamptz default now())
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_link        record;
+  v_same_card   boolean;
+  v_same_list   boolean;
+  v_same_domain boolean;
+  v_held        boolean;
+  v_judged      int := 0;
+  v_review      int := 0;
+  v_payable     int := 0;
+  v_void        int := 0;
+  v_forgot      int := 0;
+begin
+  -- 1. Standing, once a workspace has paid (00203).
+  for v_link in
+    select pt.tenant_id, pt.partner_id, p.user_id as partner_user, t.created_at as made_at,
+           pt.origin, pt.handover_accepted_by, pt.invited_by
+      from public.partner_tenants pt
+      join public.partners p on p.id = pt.partner_id
+      join public.tenants t on t.id = pt.tenant_id
+     where pt.standing is null
+       and exists (select 1 from public.partner_earnings e
+                    where e.tenant_id = pt.tenant_id and e.kind = 'share'
+                      and (e.paid_at <= p_now - interval '7 days'
+                           or exists (select 1 from public.billing_card_marks m where m.tenant_id = pt.tenant_id)))
+     for update of pt skip locked
+  loop
+    select exists (
+      select 1 from public.billing_card_marks mine
+        join public.billing_card_marks theirs on theirs.card_fingerprint = mine.card_fingerprint
+        join public.memberships m on m.tenant_id = theirs.tenant_id
+       where mine.tenant_id = v_link.tenant_id
+         and theirs.tenant_id <> v_link.tenant_id
+         and m.user_id = v_link.partner_user and m.role = 'owner'
+    ) into v_same_card;
+    select exists (
+      select 1 from public.google_listings mine
+        join public.google_listings theirs on theirs.place_id = mine.place_id
+        join public.tenants t on t.id = theirs.tenant_id
+       where mine.tenant_id = v_link.tenant_id
+         and theirs.tenant_id <> v_link.tenant_id
+         and t.created_at < v_link.made_at
+    ) into v_same_list;
+    -- A public mailbox's domain says nothing about who is behind it; a company's says they work together.
+    -- The owner who took the workspace from the partner (a handover), or who asked for the partner (an invitation).
+    select coalesce(v_link.origin in ('handover', 'invite') and exists (
+      select 1 from auth.users owner_u
+        join auth.users partner_u on partner_u.id = v_link.partner_user
+       where owner_u.id = case v_link.origin when 'handover' then v_link.handover_accepted_by
+                                            else v_link.invited_by end
+         and split_part(lower(owner_u.email), '@', 2) = split_part(lower(partner_u.email), '@', 2)
+         and split_part(lower(partner_u.email), '@', 2) not in (
+           'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com', 'msn.com', 'yahoo.com',
+           'ymail.com', 'icloud.com', 'me.com', 'mac.com', 'aol.com', 'proton.me', 'protonmail.com', 'pm.me',
+           'gmx.com', 'gmx.net', 'mail.com', 'zoho.com', 'yandex.com', 'fastmail.com', 'hey.com')
+    ), false) into v_same_domain;
+    v_held := v_same_card or v_same_list or v_same_domain;
+    update public.partner_tenants
+       set standing = case when v_held then 'review' else 'qualified' end,
+           standing_why = case
+             when v_same_card then 'The card that pays for it also pays for a workspace the partner owns.'
+             when v_same_list then 'Its Google listing belongs to an older workspace.'
+             when v_same_domain and v_link.origin = 'invite'
+               then 'Its owner asked for the partner from the partner''s own email domain.'
+             when v_same_domain then 'Its owner accepted it from the partner''s own email domain.'
+             else null end,
+           standing_at = p_now,
+           standing_by = null,
+           checks = jsonb_build_object('same_card', v_same_card, 'same_listing', v_same_list,
+                                       'same_domain', v_same_domain)
+     where tenant_id = v_link.tenant_id;
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (v_link.tenant_id, 'partner.standing_set', 'billing', 'tenant', v_link.tenant_id,
+            jsonb_build_object('partner_id', v_link.partner_id,
+                               'standing', case when v_held then 'review' else 'qualified' end,
+                               'by', 'sweep'));
+    v_judged := v_judged + 1;
+    if v_held then v_review := v_review + 1; end if;
+  end loop;
+
+  -- 2. What is due matures, for an active partner: on a qualified workspace, or on one deleted since it paid (its
+  --    standing went with it; a refund still reverses it).
+  update public.partner_earnings e
+     set state = 'payable'
+    from public.partners p
+   where e.state = 'held' and e.payable_at <= p_now
+     and p.id = e.partner_id and p.status = 'active'
+     and (e.tenant_id is null
+          or exists (select 1 from public.partner_tenants pt
+                      where pt.tenant_id = e.tenant_id and pt.standing = 'qualified'));
+  get diagnostics v_payable = row_count;
+
+  -- 3. What a disqualified workspace still held is void.
+  update public.partner_earnings e
+     set state = 'void'
+    from public.partner_tenants pt
+   where e.state = 'held' and pt.tenant_id = e.tenant_id and pt.standing = 'disqualified';
+  get diagnostics v_void = row_count;
+
+  -- 4. A reversal that waited 120 days for a share that never came is not coming.
+  delete from public.partner_reversals_waiting where created_at < p_now - interval '120 days';
+  get diagnostics v_forgot = row_count;
+
+  return jsonb_build_object('judged', v_judged, 'review', v_review, 'payable', v_payable, 'void', v_void,
+                            'forgot', v_forgot);
+end $$;

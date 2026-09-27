@@ -175,7 +175,14 @@ test("invoice.paid that earns nothing: a one-time payment, a zero, and a payment
   const d = doors();
   setPg(fakeDb(tables(true), {}, d.rpcs));
   assert.deepEqual((await deliver("invoice.paid", invoice({ parent: null }))).body, { ok: true });
+  const zero = fakeDb(tables(true), {}, d.rpcs);
+  setPg(zero);
   assert.deepEqual((await deliver("invoice.paid", invoice({ id: "in_2", amount_paid: 0 }))).body, { ok: true });
+  assert.equal(
+    zero.seen.some((s) => s.table === "billing_accounts" && s.op === "update"),
+    false,
+    "a $0 invoice (a trial's first) is not a payment: last_paid_at stays as it was (0018 reads it)",
+  );
   assert.deepEqual((await deliver("invoice.payment_failed", invoice({ id: "in_3" }))).body, { ok: true });
   assert.deepEqual(d.calls, []);
 });

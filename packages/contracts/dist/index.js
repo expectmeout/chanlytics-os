@@ -26831,7 +26831,12 @@ var PARTNER_INVITE_DAYS = 14;
 function partnerCodeFrom(raw) {
   const typed = raw.trim();
   const inLink = /\/p\/([^/?#\s]+)/i.exec(typed);
-  return (inLink ? decodeURIComponent(inLink[1]) : typed).toLowerCase();
+  if (!inLink) return typed.toLowerCase();
+  try {
+    return decodeURIComponent(inLink[1]).toLowerCase();
+  } catch {
+    return inLink[1].toLowerCase();
+  }
 }
 var PartnerInviteSchema = z17.object({
   code: z17.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
@@ -26846,12 +26851,11 @@ var PARTNER_INVITE_WORDS = {
   inviting: "Asking\u2026",
   withdraw: "Take it back",
   withdrawing: "Taking it back\u2026",
-  askAgain: "Ask again",
-  askSomeone: "Ask someone else",
   failed: "your partner",
   failedAnswer: "the invitation",
   /** Settings › Partner, the partner's pane. */
   invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
   accept: "Join",
   accepting: "Joining\u2026",
   decline: "Decline",

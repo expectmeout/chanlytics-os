@@ -27,10 +27,17 @@ operator or viewer"), which gives access but not the partner role, and the partn
    does the route.
 4. **Credit follows who brings the paying customer.** A workspace that has never paid for a plan credits the partner
    who joins it, exactly as if they had brought it: its first invoice after they join earns their share, and the
-   nightly check judges it as any other. A workspace that was already paying (`billing_accounts.last_paid_at`, or
-   billed directly) seats the partner with no share: its standing is `disqualified` with the reason in words. That is
-   a platform admin's to change in the back office, as for any other workspace (00207), when a case deserves it.
-5. **One partner per workspace, as before.** `partner_tenants` is keyed by workspace; a workspace that has a partner,
+   nightly check judges it as any other. A workspace that was already paying seats the partner with no share: its
+   standing is `disqualified` with the reason in words, a platform admin's to change in the back office, as for any
+   other workspace (00207), when a case deserves it. _Already paying_ is billed directly, or a `last_paid_at` on a
+   subscription past its trial: Stripe sends `invoice.paid` for a trial's $0 first invoice, which stamped
+   `last_paid_at` until this change (the webhook now stamps it only for an invoice that took money), so a workspace
+   still `trialing`, or never subscribed, has not paid whatever the column says.
+5. **The nightly check judges an invitation as it judges a handover.** Its same-domain hold compares the address of
+   the owner who asked (`partner_tenants.invited_by`) with the partner's, as 0016's compares the owner who accepted.
+6. **Someone already on the team may be the one asked.** Joining makes them its partner, whatever they were, and the
+   event keeps the role they had (`was`).
+7. **One partner per workspace, as before.** `partner_tenants` is keyed by workspace; a workspace that has a partner,
    however it came, asks no second.
 
 ## Shape
@@ -38,8 +45,11 @@ operator or viewer"), which gives access but not the partner role, and the partn
 - **00220:** `partner_invitations` (one row per workspace; RLS: its owner and the partner it names read it; written only
   by the functions); `partner_tenants.origin` admits `invite`; `partner_invite`, `partner_invite_withdraw`,
   `workspace_partner` (the owner's card), `partner_invitations_mine` (the partner's list), `partner_invite_accept` and
-  `partner_invite_decline`, each a definer function that checks the caller. Events: `partner.invited`,
-  `partner.invite_withdrawn`, `partner.invite_accepted` (with `earns`) and `partner.invite_declined`.
+  `partner_invite_decline`, each a definer function that checks the caller through `is_workspace_owner` or the
+  partner's own row; `partner_tenants.invited_by`; 00214's `partner_earnings_sweep` with the invitation beside the
+  handover. Events: `partner.invited`, `partner.invite_withdrawn`, `partner.invite_accepted` (with `earns` and `was`)
+  and `partner.invite_declined`.
+- **Edge webhook:** `invoice.paid` for an invoice that took no money no longer stamps `last_paid_at`.
 - **Routes:** `GET/POST/DELETE team/partner` (workspace, owner, rate `partner_invite`); `GET partner/invitations`,
   `POST partner/invitations/[id]/accept|decline` (account, rate `partner_invite_answer`).
 - **Email:** `POST /api/admin/partner-invite` on the edge writes to the partner's account's address, read there, never
@@ -66,7 +76,8 @@ fails and says so, and the partner's list is empty ("no function" reads as none)
 ## Risks
 
 - **An owner and a partner who are the same person with two accounts** get the 25% as a discount. The nightly check's
-  same-card and same-domain holds apply as for a link (0012, 0016), and the workspace must be one that has not paid.
+  same-card hold applies as for a link (0012), its same-domain hold as for a handover (0016), and the workspace must
+  be one that has not paid.
 - **A partner removed from the team keeps what they earned**, and the workspace cannot take another partner, as for a
   link. Letting a workspace change partners is a later note if it is asked for.
 - **The daily letter (0014) does not mention invitations.** The email and the pane do; the letter can add them later.

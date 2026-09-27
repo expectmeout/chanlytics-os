@@ -301,6 +301,7 @@ const PanePartner = ({ flash }) => {
   const [copied, setCopied] = React.useState(false);
   const [factorOn, setFactorOn] = React.useState(false);
   const factorIsOn = React.useCallback(() => setFactorOn(true), []);
+  const [joined, setJoined] = React.useState(0);
   const api = window.__partner;
   const P = window.__PARTNER;
   if (!api) return null;
@@ -428,46 +429,53 @@ const PanePartner = ({ flash }) => {
       <PartnerLettersRow W={W} api={api} letters={P.dto.letters} flash={flash} />
       {api.secondFactor ? <PartnerSecondFactor api={api} flash={flash} /> : null}
     </section>
-    <PartnerInvitations api={api} flash={flash} />
-    <PartnerWorkspaces W={W} api={api} flash={flash} active={P.dto.status === "active"} />
+    <PartnerInvitations api={api} flash={flash} onJoined={() => setJoined((n) => n + 1)} />
+    <PartnerWorkspaces key={joined} W={W} api={api} flash={flash} active={P.dto.status === "active"} />
     </>
   );
 };
 
-// The workspaces asking this partner to join them (0018): each says who asked and until when; Join goes into it.
-const PartnerInvitations = ({ api, flash }) => {
+// The workspaces asking this partner to join them (0018): each says who asked and until when. Joining says whether it
+// earns a share, here on the pane, and the partner's workspaces are read again so it is there to open.
+const PartnerInvitations = ({ api, flash, onJoined }) => {
   const W = api.inviteWords;
-  const [rows, setRows] = React.useState([]);
+  const [state, setState] = React.useState({ rows: [], problem: null });
   const [busy, setBusy] = React.useState(null);
   const [again, setAgain] = React.useState(0);
   React.useEffect(() => {
     let live = true;
-    api.invitations().then((r) => { if (live) setRows(r.ok ? r.rows : []); });
+    api.invitations().then((r) => { if (live) setState(r.ok ? { rows: r.rows, problem: null } : { rows: [], problem: r.message }); });
     return () => { live = false; };
   }, [api, again]);
-  if (!rows.length) return null;
-  const answer = async (tenantId, join) => {
+  if (state.problem) {
+    return <window.FailedRead kind="card" what={W.failedInvitations} why={state.problem} onRetry={() => setAgain((n) => n + 1)} testid="partner-invitations-failed" />;
+  }
+  if (!state.rows.length) return null;
+  const answer = async (workspaceId, join) => {
     if (busy) return;
-    setBusy(tenantId);
-    const r = await api.answer(tenantId, join);
+    setBusy({ id: workspaceId, join });
+    const r = await api.answer(workspaceId, join);
     setBusy(null);
     if (!r.ok) { flash({ tone: "warn", msg: <>Couldn't answer {W.failedAnswer}: {r.message}</> }); return; }
-    if (r.message) flash({ tone: "ok", msg: <>{r.message}</> });
+    if (join) { flash({ tone: "ok", msg: <>{r.message}</> }); onJoined(); }
     setAgain((n) => n + 1);
   };
+  const pressing = (id, join) => !!busy && busy.id === id && busy.join === join;
   return (
     <section className="rec-card set-card" data-testid="partner-invitations" aria-labelledby="partner-invitations-title">
       <div className="rec-card-head">
         <h2 className="rec-card-title" id="partner-invitations-title">{W.invitationsTitle}</h2>
       </div>
-      {rows.map((i) => (
-        <div className="set-row" key={i.tenantId} data-testid={`partner-invitation-${i.tenantId}`}>
+      {state.rows.map((i) => (
+        <div className="set-row" key={i.workspaceId} data-testid={`partner-invitation-${i.workspaceId}`}>
           <div className="set-row-info"><span className="set-row-hint">{i.sentence}</span></div>
           <div className="set-form-actions">
-            <button type="button" className="btn btn-sm" onClick={() => answer(i.tenantId, true)} disabled={!!busy} aria-busy={busy === i.tenantId || undefined} data-testid={`partner-invitation-join-${i.tenantId}`}>
-              {busy === i.tenantId ? W.accepting : W.accept}
+            <button type="button" className="btn btn-sm" onClick={() => answer(i.workspaceId, true)} disabled={!!busy} aria-busy={pressing(i.workspaceId, true) || undefined} data-testid={`partner-invitation-join-${i.workspaceId}`}>
+              {pressing(i.workspaceId, true) ? W.accepting : W.accept}
             </button>
-            <button type="button" className="btn btn-sm btn-ghost" onClick={() => answer(i.tenantId, false)} disabled={!!busy} data-testid={`partner-invitation-decline-${i.tenantId}`}>{W.decline}</button>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => answer(i.workspaceId, false)} disabled={!!busy} aria-busy={pressing(i.workspaceId, false) || undefined} data-testid={`partner-invitation-decline-${i.workspaceId}`}>
+              {pressing(i.workspaceId, false) ? W.declining : W.decline}
+            </button>
           </div>
         </div>
       ))}
@@ -543,7 +551,7 @@ const TeamPartnerCard = ({ flash }) => {
           </label>
           {error ? <p className="set-error" role="alert" data-testid="team-partner-error">{error}</p> : null}
           <button type="submit" className="btn" disabled={busy || !code.trim()} aria-busy={busy || undefined} data-testid="team-partner-ask">
-            {busy ? W.inviting : vm.state === "none" ? W.invite : W.askSomeone}
+            {busy ? W.inviting : W.invite}
           </button>
         </form>
       ) : null}

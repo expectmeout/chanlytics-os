@@ -36,6 +36,7 @@ let owner;
 let operator;
 let fresh; // a workspace that has never paid
 let paying; // a workspace that already pays
+let trial; // a workspace in its trial, whose $0 first invoice was once stamped as a payment
 
 async function signIn(email, password) {
   const client = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -71,7 +72,17 @@ before(async () => {
   partner.id = ok(await partner.client.rpc("partner_become", { p_code: partner.code })).id;
   fresh = await workspace("Fresh Shop");
   paying = await workspace("Paying Shop");
-  ok(await db.from("billing_accounts").upsert({ tenant_id: paying, last_paid_at: new Date().toISOString() }));
+  ok(
+    await db
+      .from("billing_accounts")
+      .upsert({ tenant_id: paying, status: "active", last_paid_at: new Date().toISOString() }),
+  );
+  trial = await workspace("Trial Shop");
+  ok(
+    await db
+      .from("billing_accounts")
+      .upsert({ tenant_id: trial, status: "trialing", last_paid_at: new Date().toISOString() }),
+  );
   ok(await db.from("memberships").insert({ tenant_id: fresh, user_id: operator.userId, role: "operator" }));
 });
 
@@ -185,5 +196,17 @@ test(
     });
     assert.equal(none.error, null, none.error?.message);
     assert.equal(none.data, null, "nothing earned");
+  },
+);
+
+test(
+  "a workspace still in its trial has not paid, whatever its first $0 invoice stamped: joining it earns",
+  { skip },
+  async () => {
+    ok(await owner.client.rpc("partner_invite", { p_tenant: trial, p_code: partner.code }));
+    const [joined] = ok(await partner.client.rpc("partner_invite_accept", { p_tenant: trial }));
+    assert.equal(joined.earns, true);
+    const [link] = ok(await db.from("partner_tenants").select("standing, invited_by").eq("tenant_id", trial));
+    assert.deepEqual(link, { standing: null, invited_by: owner.userId }, "judged by the nightly check, who asked kept");
   },
 );

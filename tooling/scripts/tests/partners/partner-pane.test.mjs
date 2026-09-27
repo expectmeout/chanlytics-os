@@ -444,14 +444,14 @@ test("the partner's pane: the workspaces asking for them, Join goes in and says 
   workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
   globalThis.window.__partner.secondFactor = factorStub({ state: async () => ({ ok: true, on: true }) }).api;
   let rows = [
-    { tenantId: "t1", sentence: "Harbor asks you to be its partner. Open until Oct 11." },
-    { tenantId: "t2", sentence: "Bayside asks you to be its partner. Open until Oct 12." },
+    { workspaceId: "t1", sentence: "Harbor asks you to be its partner. Open until Oct 11." },
+    { workspaceId: "t2", sentence: "Bayside asks you to be its partner. Open until Oct 12." },
   ];
   const answered = [];
   globalThis.window.__partner.invitations = async () => ({ ok: true, rows });
   globalThis.window.__partner.answer = async (id, join) => {
     answered.push([id, join]);
-    rows = rows.filter((r) => r.tenantId !== id);
+    rows = rows.filter((r) => r.workspaceId !== id);
     return { ok: true, message: join ? "You're Harbor's partner." : "" };
   };
   draw();
@@ -470,6 +470,23 @@ test("the partner's pane: the workspaces asking for them, Join goes in and says 
     ["t2", false],
   ]);
   assert.equal(byTestId(tree, "partner-invitations"), null, "none asking: no card");
+});
+
+test("the partner's pane: a read of who is asking that failed says so with a retry, never an empty list", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
+  let fails = true;
+  globalThis.window.__partner.invitations = async () =>
+    fails ? { ok: false, message: "offline" } : { ok: true, rows: [{ workspaceId: "t3", sentence: "Harbor asks." }] };
+  draw();
+  await settle();
+  let tree = redraw();
+  assert.ok(byTestId(tree, "partner-invitations-failed"));
+  fails = false;
+  press(byTestId(tree, "partner-invitations-failed-retry"));
+  tree = await reread(redraw);
+  assert.equal(byTestId(tree, "partner-invitations-failed"), null);
+  assert.ok(byTestId(tree, "partner-invitation-t3"), "read again: who is asking");
 });
 
 test("Team: the owner asks a partner by code and may take it back; anyone else sees no card", async () => {

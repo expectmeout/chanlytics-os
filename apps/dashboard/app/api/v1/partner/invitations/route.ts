@@ -9,6 +9,11 @@ import { getPartnerInvitations } from "@chanlytics/db";
 export const GET = read({
   scope: account,
   handle: async ({ ctx }): Promise<{ invitations: PartnerInvitationDto[] }> => ({
-    invitations: await getPartnerInvitations(ctx.supabase),
+    invitations: (await getPartnerInvitations(ctx.supabase)).map((i) => ({
+      workspaceId: i.tenantId,
+      workspace: i.workspace,
+      sentAt: i.sentAt,
+      expiresAt: i.expiresAt,
+    })),
   }),
 });

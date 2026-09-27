@@ -89,6 +89,7 @@ test("a partner's code, typed or inside their link, lower-cased; the form takes 
   assert.equal(partnerCodeFrom("https://app.chanlytics.com/p/Ada-Co"), "ada-co");
   assert.equal(partnerCodeFrom("app.chanlytics.com/p/ada-co?utm=x#y"), "ada-co");
   assert.equal(partnerCodeFrom("not a code"), "not a code", "passed on, for the database to say it names nobody");
+  assert.equal(partnerCodeFrom("https://example.com/p/abc%E0"), "abc%e0", "a link cut mid-escape never throws");
   assert.equal(PartnerInviteSchema.safeParse({ code: "ada-co" }).success, true);
   assert.equal(PartnerInviteSchema.safeParse({ code: "  " }).success, false);
   assert.equal(PartnerInviteSchema.safeParse({ code: "ada-co", role: "owner" }).success, false);
@@ -139,7 +140,12 @@ test("the owner's card, state by state: none asks, waiting takes back, declined 
 });
 
 test("what the partner is shown and sent: who asked and until when; whether joining earns a share", () => {
-  const row = { tenantId: A, workspace: "Harbor", sentAt: "2026-09-27T12:00:00Z", expiresAt: "2026-10-11T12:00:00Z" };
+  const row = {
+    workspaceId: A,
+    workspace: "Harbor",
+    sentAt: "2026-09-27T12:00:00Z",
+    expiresAt: "2026-10-11T12:00:00Z",
+  };
   assert.match(partnerInvitationWords(row), /^Harbor asks you to be its partner\. Open until /);
   assert.match(partnerJoinedWords("Harbor", true), /your share is written as for a workspace you brought/);
   assert.match(partnerJoinedWords("Harbor", false), /already paying when you joined, so it earns you no share/);
@@ -167,7 +173,7 @@ test("the owner's routes: the workspace's, the owner's, counted; the code taken 
   const rpcs = {
     partner_invite: (a) => {
       asked.push(a);
-      if (a.p_code === "nobody") throw Object.assign(new Error("No partner has that code."), { code: "P0002" });
+      if (a.p_code.startsWith("nobody")) throw Object.assign(new Error("No partner has that code."), { code: "P0002" });
       return { code: a.p_code, sent_at: "2026-09-28T00:00:00Z", expires_at: "2026-10-12T00:00:00Z" };
     },
     partner_invite_withdraw: (a) => {
@@ -180,6 +186,12 @@ test("the owner's routes: the workspace's, the owner's, counted; the code taken 
   assert.deepEqual(r, { code: "ada-co", expiresAt: "2026-10-12T00:00:00Z", sent: false }, "off production, no email");
   assert.deepEqual(asked[0], { p_tenant: A, p_code: "ada-co" });
   await refused(team.POST.run(inA("POST", { code: "nobody" }), ctxFor(rpcs)), "not_found", 404, /No partner/);
+  await refused(
+    team.POST.run(inA("POST", { code: "https://app.chanlytics.com/p/nobody%E0" }), ctxFor(rpcs)),
+    "not_found",
+    404,
+    /No partner/,
+  );
   assert.deepEqual(await team.DELETE.run(inA("DELETE"), ctxFor(rpcs)), { withdrawn: true });
   assert.deepEqual(asked.at(-1), ["withdraw", { p_tenant: A }]);
   const card = await team.GET.run(inA(), ctxFor(rpcs));
@@ -230,7 +242,7 @@ test("the partner's routes: on the account, counted; joining asks for the second
     },
   };
   assert.deepEqual(await invitations.GET.run(new Request("http://localhost/api/v1/x"), ctxFor(rpcs)), {
-    invitations: [{ tenantId: A, workspace: "Harbor", sentAt: "s", expiresAt: "e" }],
+    invitations: [{ workspaceId: A, workspace: "Harbor", sentAt: "s", expiresAt: "e" }],
   });
   await refused(accept.POST.run(post(), ctxFor(rpcs, { aal: "aal1", params: { id: A } })), "mfa_required", 403);
   assert.deepEqual(asked, [], "nothing asked of the database without the second factor");

@@ -2982,12 +2982,11 @@ var PARTNER_INVITE_WORDS = {
   inviting: "Asking\u2026",
   withdraw: "Take it back",
   withdrawing: "Taking it back\u2026",
-  askAgain: "Ask again",
-  askSomeone: "Ask someone else",
   failed: "your partner",
   failedAnswer: "the invitation",
   /** Settings › Partner, the partner's pane. */
   invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
   accept: "Join",
   accepting: "Joining\u2026",
   decline: "Decline",

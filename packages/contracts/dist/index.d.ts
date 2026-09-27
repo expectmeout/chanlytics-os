@@ -22822,7 +22822,7 @@ interface WorkspacePartnerDto {
 }
 /** A workspace asking the partner to join it, as `GET partner/invitations` carries it. */
 interface PartnerInvitationDto {
-    tenantId: string;
+    workspaceId: string;
     workspace: string;
     sentAt: string;
     expiresAt: string;
@@ -22837,12 +22837,11 @@ declare const PARTNER_INVITE_WORDS: {
     readonly inviting: "Asking…";
     readonly withdraw: "Take it back";
     readonly withdrawing: "Taking it back…";
-    readonly askAgain: "Ask again";
-    readonly askSomeone: "Ask someone else";
     readonly failed: "your partner";
     readonly failedAnswer: "the invitation";
     /** Settings › Partner, the partner's pane. */
     readonly invitationsTitle: "Workspaces asking for you";
+    readonly failedInvitations: "the workspaces asking for you";
     readonly accept: "Join";
     readonly accepting: "Joining…";
     readonly decline: "Decline";

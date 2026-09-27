@@ -18,7 +18,13 @@ export const PARTNER_INVITE_DAYS = 14;
 export function partnerCodeFrom(raw: string): string {
   const typed = raw.trim();
   const inLink = /\/p\/([^/?#\s]+)/i.exec(typed);
-  return (inLink ? decodeURIComponent(inLink[1]) : typed).toLowerCase();
+  if (!inLink) return typed.toLowerCase();
+  try {
+    return decodeURIComponent(inLink[1]).toLowerCase();
+  } catch {
+    // A link cut short mid-escape: its segment as it stands, for the database to say it names nobody.
+    return inLink[1].toLowerCase();
+  }
 }
 
 /** `POST team/partner`: the partner's code, or their link. */
@@ -41,7 +47,7 @@ export interface WorkspacePartnerDto {
 
 /** A workspace asking the partner to join it, as `GET partner/invitations` carries it. */
 export interface PartnerInvitationDto {
-  tenantId: string;
+  workspaceId: string;
   workspace: string;
   sentAt: string;
   expiresAt: string;
@@ -57,12 +63,11 @@ export const PARTNER_INVITE_WORDS = {
   inviting: "Asking…",
   withdraw: "Take it back",
   withdrawing: "Taking it back…",
-  askAgain: "Ask again",
-  askSomeone: "Ask someone else",
   failed: "your partner",
   failedAnswer: "the invitation",
   /** Settings › Partner, the partner's pane. */
   invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
   accept: "Join",
   accepting: "Joining…",
   decline: "Decline",
