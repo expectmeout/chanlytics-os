@@ -45,8 +45,10 @@ test("while it reads, it says so; a read that failed says so with a retry, never
   assert.ok(byTestId(draw(), "partner-failed"));
 });
 
-test("the offer: the share every new account starts with, the terms, and a press that waits for the agreement", async () => {
+test("the offer: the share every new account starts with, the terms, and a press that waits for the agreement and the second factor", async () => {
   globalThis.window.__PARTNER = { dto: null, balance: [], fetchedAt: 0 };
+  const factor = factorStub();
+  globalThis.window.__partner.secondFactor = factor.api;
   const asked = [];
   globalThis.window.__partner.become = async (code) => {
     asked.push(code);
@@ -54,7 +56,9 @@ test("the offer: the share every new account starts with, the terms, and a press
     globalThis.window.__PARTNER = { dto: { ...ROW, code }, balance: [], fetchedAt: 1 };
     return { ok: true, message: "" };
   };
-  let tree = draw();
+  draw();
+  await settle();
+  let tree = redraw();
   assert.match(textOf(byTestId(tree, "partner-offer")), /The share is 25% of what it pays for its plan\.$/);
   assert.equal(textOf(byTestId(tree, "partner-terms")), PARTNER_WORDS.terms);
   assert.equal(byTestId(tree, "partner-become").props.disabled, true, "nothing to send before a code and a yes");
@@ -62,6 +66,19 @@ test("the offer: the share every new account starts with, the terms, and a press
   byTestId(tree, "partner-code").props.onChange({ target: { value: "taken" } });
   byTestId(redraw(), "partner-agree").props.onChange({ target: { checked: true } });
   tree = redraw();
+  // Two-step sign-in first (0013, M3): partner_become asks for a session that showed a code.
+  assert.equal(textOf(byTestId(tree, "partner-factor-first")), SECOND_FACTOR_WORDS.becomeFirst);
+  assert.equal(byTestId(tree, "partner-become").props.disabled, true, "not before the second factor is on");
+  await byTestId(tree, "partner-become-form").props.onSubmit({ preventDefault() {} });
+  assert.deepEqual(asked, [], "a press before it sends nothing");
+  press(byTestId(redraw(), "partner-second-factor-start"));
+  await settle();
+  byTestId(redraw(), "partner-second-factor-code").props.onChange({ target: { value: "123456" } });
+  await byTestId(redraw(), "partner-second-factor-setup").props.onSubmit({ preventDefault() {} });
+  await settle();
+  redraw(); // the row says it is on, and tells the offer
+  tree = redraw();
+  assert.equal(byTestId(tree, "partner-factor-first"), null);
   assert.equal(byTestId(tree, "partner-become").props.disabled, false);
   await byTestId(tree, "partner-become-form").props.onSubmit({ preventDefault() {} });
   await settle();

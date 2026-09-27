@@ -105,6 +105,8 @@ const ctxFor = (role, rpcs = {}, params = {}, tables = {}) => ({
   ),
   userId: USER,
   email: "ada@example.com",
+  // Past the second factor (0013, M3): a partner's seat asks for it; second-factor.test.mjs proves the refusal.
+  aal: "aal2",
   params,
 });
 const get = (q = "") => new Request(`http://localhost/api/v1/x${q}`);
@@ -477,6 +479,8 @@ const ctxOf = (tables, params = {}, rpcs = {}) => ({
   supabase: fakeDb(tables, {}, rpcs),
   userId: USER,
   email: "ada@example.com",
+  // Past the second factor (0013, M3): a partner's seat asks for it; second-factor.test.mjs proves the refusal.
+  aal: "aal2",
   params,
 });
 const req = (method, body, q = inA) =>

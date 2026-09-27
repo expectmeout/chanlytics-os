@@ -1,8 +1,7 @@
 # 0013 · A partner signs in with a second factor
 
-**Status:** decided. M1 and M2 built on the branch this note ships with (00215), on `ef81c14a` (main, after #1177);
-M3 is the next pull request and ships only once TOTP is switched on in the hosted project (M0). Written against
-commit `c1cce84a` (main, 27 September 2026). Ruben answered the open questions: no grace (M3 refuses from its first
+**Status:** decided. M1 and M2 built (00215, #1192); M3 built (00216) on `76d28c6d` (main, after #1192), and merged
+only once TOTP is switched on in the hosted project (M0). Written against commit `c1cce84a` (main, 27 September 2026). Ruben answered the open questions: no grace (M3 refuses from its first
 day), and partners only (owners are not offered a factor here). Where this note and the code disagree, the code wins.
 
 ## Context
@@ -76,6 +75,35 @@ Each shippable on its own, in either deploy order.
 - `partner_become` does not require `aal2` yet: until M0, nobody could become a partner. It moves to M3 with the rest
   of the enforcement.
 
+## As built (M3)
+
+- **One reading of the claim, on each side.** contracts `seatNeedsSecondFactor(role)` (a partner's seat alone) and
+  `secondFactorShown(aal)` (`aal2` alone); SQL `session_shows_second_factor()`, over `auth.jwt() ->> 'aal'`.
+  `second-factor.db.test.mjs` holds the two together, role by role.
+- **The door is `memberContext`**, which every workspace request passes, read or write: a partner's seat on a session
+  that has not shown its code is refused with `mfa_required` (403, its own code in `ERROR_CODES`). The partner
+  account's own doors (becoming one, setting a workspace up for a business, sending that again) ask the same with
+  `requireSecondFactor`, and so does the boot (`GET workspaces`) for a partner account: a partner opens the app only
+  past the second step, so no tab is ever shown the workspaces its seat cannot open. Their own workspaces, as an owner,
+  answer as ever at every other door.
+- **The floor is wider than decision 2 said, and on purpose.** Beside `is_acting_member` and `caller_has_permission`,
+  00216 adds a restrictive read policy on `memberships`: a caller's own partner seat is not visible until the session
+  shows its code. Every row policy that reads "the caller's workspaces" through `memberships` (47 of them on 27
+  September 2026: the tenants, threads, people and the rest) stops seeing that workspace with it, so a stolen password
+  cannot read the businesses a partner brought through the database's own API either. `is_acting_member` says so
+  itself as well, because it is read inside definer functions, where a policy does not apply. `partner_become`,
+  `create_workspace_for_business` and `partner_handover_resend` refuse a session without it (42501).
+- **The client** sends an `mfa_required` answer to `/verify?for=partner` (the bridge's `onSecondFactor`), dropping what
+  the tab had read, as a sign-out does. `/verify` shows the code for an account with an authenticator and, for a
+  partner account without one, the setup (scan, then the first code), after which the session is `aal2` and goes in.
+  There is no later: no grace, Ruben's answer. Sign out stays on the page.
+- **Settings › Partner** offers two-step sign-in above the offer, and "Become a partner" waits until it is on.
+- `supabase/config.toml` turns TOTP enrol and verify on, so the replayed stack in CI enrols real authenticators
+  (`_second-factor.mjs` computes the codes as an app would) for the suites that act as a partner.
+- **Not covered:** the partner account's own reads (`partner_overview`, the balance, the letters toggle) answer on a
+  password alone; they say what a partner brought and earned, and change nothing in any workspace. The native app's
+  sign-in has no second step yet (Risks), so a partner is refused there until it does.
+
 ## Tests
 
 - contracts: `seatNeedsSecondFactor` for each role; the refusal's words.
@@ -92,7 +120,10 @@ Each shippable on its own, in either deploy order.
 - **Google sign-in is `aal1`.** A second factor is asked after Google as after a password; nothing about Google
   counts as the second factor.
 - **The native app.** Its bearer tokens (0011) carry the same `aal`; its sign-in needs the same challenge before a
-  partner's seat works there. Until it has one, a partner acts from the web.
+  partner's seat works there. Until it has one, a partner acts from the web: from M3 the app's boot answers a partner
+  account with `mfa_required`.
+- **Merged before M0, M3 locks every partner out:** the setup on `/verify` would say two-step sign-in is not switched
+  on, and nothing else lets them in. Switch TOTP on in the hosted project first.
 
 ## Open questions, answered
 
