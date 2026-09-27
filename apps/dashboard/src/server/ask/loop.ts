@@ -616,15 +616,21 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
             continue;
           }
           // The examples refused (D9): a 400 that names input_examples is asked once more without them, after the
-          // page's data and before the answer's format is given up for it. The schemas and the descriptions stay.
-          if (m && examples && examplesRefused(m)) {
-            console.error("ask_examples_rejected", JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
-            examples = false;
-            tools = toolsFor(false);
-            round--;
-            continue;
-          }
-          if (m && format && featureRejected(m)) {
+          // page's data and before the answer's format is given up for it; the schemas and the descriptions stay. A
+          // second such refusal, with them already gone, is the turn's -- never the format's, whose predicate would
+          // match the "input_schema" the real refusal names.
+          if (m && examplesRefused(m)) {
+            if (examples) {
+              console.error(
+                "ask_examples_rejected",
+                JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }),
+              );
+              examples = false;
+              tools = toolsFor(false);
+              round--;
+              continue;
+            }
+          } else if (m && format && featureRejected(m)) {
             console.error("ask_format_rejected", JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
             format = false;
             round--;

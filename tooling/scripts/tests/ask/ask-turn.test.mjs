@@ -4374,15 +4374,18 @@ test("a request refused for its input_examples is asked once more without them: 
   assert.ok(JSON.stringify(retry.messages).includes("search_result"), "the page's data kept");
   assert.equal(JSON.stringify(retry.messages), JSON.stringify(first.messages), "the same round");
   assert.equal(once.r.shape.context_dropped, false);
+  // The real refusal names input_schema, which the format's predicate also matches: a second one, with the examples
+  // already gone, is the turn's and never the format's.
   const twice = await refusing([
-    "400 tools.0.input_examples: not permitted",
-    "400 tools.0.input_examples: not permitted",
+    "400 tools.3.input_examples.0: does not match the tool's input_schema",
+    "400 tools.3.input_examples.0: does not match the tool's input_schema",
   ]);
   assert.deepEqual(
     [twice.r.failure, twice.requests.length, twice.said],
     ["bad_request", 2, 1],
     "with the examples already gone, the refusal is the turn's",
   );
+  assert.ok(twice.requests[1].output_config.format, "the format was never given up for it");
   const other = await refusing(["500 input_examples upstream"]);
   assert.deepEqual([other.r.failure, other.requests.length, other.said], ["bad_request", 1, 0], "a 400 only");
   assert.equal(examplesRefused("400 tools.3.input_examples.0: does not match input_schema"), true);
@@ -4396,7 +4399,7 @@ test("the three retries run in their order, each once: the page's data, then the
   const requests = [];
   const refusals = [
     "400 messages.0.content.0: search_result is not supported here",
-    "400 tools.3.input_examples: not permitted",
+    "400 tools.3.input_examples.0: does not match the tool's input_schema",
     "400 output_config.format.schema: too many properties",
   ];
   const round = async (c) => {

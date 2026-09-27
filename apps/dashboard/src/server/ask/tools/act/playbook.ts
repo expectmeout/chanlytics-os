@@ -42,6 +42,13 @@ const MODE_WORDS: Record<string, string> = {
   never: "nothing runs until the class is changed",
 };
 
+/**
+ * The moments a playbook may be proposed on: every moment but the two that follow the calendar; a proposal's is
+ * refused where deals are off, and a reach-out's steps are not moments (MOMENT_TRIGGERS). The zod's enum and the
+ * refusal's list, one derivation.
+ */
+const PROPOSABLE_TRIGGERS = MOMENT_TRIGGERS.filter((t) => t.kind !== "visit").map((t) => t.id) as [string, ...string[]];
+
 async function proposePlaybook(
   t: ToolContext,
   input: {
@@ -56,7 +63,7 @@ async function proposePlaybook(
   },
 ): Promise<ProposalOutcome> {
   const trig = triggerOf(str(input.trigger, 30));
-  if (!trig) return refuse("trigger must be quiet_30, new_week, phoned_only, everyone_monthly or saved_list");
+  if (!trig) return refuse(`trigger must be one of ${PROPOSABLE_TRIGGERS.join(", ")}`);
   if (trig.kind === "reach_out") return refuse(REACH_OUT_IS_NOT_A_MOMENT);
   // A playbook on a list names it by its token (decision 0009): one of People's, or one of the workspace's own.
   const listRef = trig.kind === "saved" ? parseListToken(str(input.list, 60)) : null;
@@ -231,9 +238,7 @@ export const propose_playbook = defineAct({
   description:
     "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger is quiet_30 (win-back), new_week (welcome), phoned_only (save our number), lapsed (no visit in 45 days), everyone_monthly (the month's offer), saved_list (on any list: its token from list_audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link). template_id is an approved template, or omitted for the trigger's starter when the workspace holds it; params are the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10) and cap_per_run defaults to 25. Read list_playbooks first, for what runs and who each moment reaches; propose_broadcast is the sibling for one message sent once. It becomes a card the person approves and then runs under its class's autonomy mode; a starter the workspace does not hold, or a typed value left blank, is refused in words.",
   input: z.object({
-    // Every moment except the two that follow the calendar; a proposal's is refused where deals are off. A
-    // reach-out's steps are not moments (MOMENT_TRIGGERS).
-    trigger: z.enum(MOMENT_TRIGGERS.filter((t) => t.kind !== "visit").map((t) => t.id) as [string, ...string[]]),
+    trigger: z.enum(PROPOSABLE_TRIGGERS),
     // On a list (saved_list): the list's token from list_audiences, and what it sends.
     list: z.string().optional(),
     policy_class: z.enum(LIST_PLAYBOOK_CLASSES).optional(),

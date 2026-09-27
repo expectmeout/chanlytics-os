@@ -149,12 +149,15 @@ export function newToolContext(
 }
 
 /**
- * Who may approve a card of this kind, for its tool's description: read from the spec's `needs` (contracts
- * ask-proposals/), the same role the builder refuses below (proposalBelowNeeds), so a description never says a second
- * thing about who may approve. A partner's door is the owner's and the partner's; an owner's is the owner's alone.
+ * Who may approve a card of this kind, and what to tell a member who may not, for its tool's description: one whole
+ * clause, read from the spec's `needs` (contracts ask-proposals/), the same role the builder refuses below
+ * (proposalBelowNeeds), so a description never says a second thing about who may approve. A partner's door is the
+ * owner's and the partner's; an owner's is the owner's alone.
  */
-export function approverOf(kind: ProposalKindAboveOperator): string {
-  return PROPOSAL_SPECS[kind].needs === "partner" ? "an owner or a partner" : "an owner";
+export function approvalWords(kind: ProposalKindAboveOperator): string {
+  return PROPOSAL_SPECS[kind].needs === "partner"
+    ? "Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask"
+    : "Only an owner can approve it: for anyone else, say so and that an owner can ask";
 }
 
 let seq = 0;

@@ -90,7 +90,7 @@ async function getCall(t: ToolContext, input: { call_id: string }): Promise<unkn
 
 export const list_calls = defineRead({
   name: "list_calls",
-  description: `Phone calls as the Calls page lists them, newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person. filter: missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first). Call it to count or find calls, and to find a live call before proposing a whisper; call get_call instead for one call's transcript and full summary. It returns at most ${ASK_CAPS.calls} calls from the newest hundred; nothing changes because it was read.`,
+  description: `Phone calls as the Calls page lists them, newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person. filter: missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first). Call it to find calls, and a live call before proposing a whisper; a count of calls is get_today's or the page's own, since the rows here are capped. Call get_call instead for one call's transcript and full summary. It returns at most ${ASK_CAPS.calls} calls from the newest hundred; nothing changes because it was read.`,
   input: z.object({ filter: z.enum(["missed", "abandoned", "today", "live", "recent"]) }),
   label: "Reading the calls",
   run: listCalls,

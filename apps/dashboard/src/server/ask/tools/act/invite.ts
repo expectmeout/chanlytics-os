@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { PROPOSAL_SPECS, SCHEMA_SETS, proposalBelowNeeds } from "@chanlytics/contracts";
 import { roleAtLeast } from "../../../with-route";
-import { approverOf, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import { approvalWords, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
 async function proposeInvite(t: ToolContext, input: { email: string; role: string }): Promise<ProposalOutcome> {
   if (!roleAtLeast(t.role, PROPOSAL_SPECS.invite.needs)) return refuse(proposalBelowNeeds("invite"));
@@ -20,7 +20,7 @@ async function proposeInvite(t: ToolContext, input: { email: string; role: strin
 
 export const propose_invite = defineAct({
   name: "propose_invite",
-  description: `Propose an invitation to the workspace by email, as operator (replies and handles threads; no settings or team) or viewer (reads everything, changes nothing). Call it when they want to add someone to the team; a role not offered here, such as owner, is answered in words. It becomes a card the person approves, and nothing is sent before that. Only ${approverOf("invite")} can approve it: for anyone else, say so and that an owner can ask.`,
+  description: `Propose an invitation to the workspace by email, as operator (replies and handles threads; no settings or team) or viewer (reads everything, changes nothing). Call it when they want to add someone to the team; a role not offered here, such as owner, is answered in words. It becomes a card the person approves, and nothing is sent before that. ${approvalWords("invite")}.`,
   input: z.object({ email: z.string(), role: z.enum(SCHEMA_SETS["invitations.role"]) }),
   label: "Preparing an invitation",
   build: proposeInvite,

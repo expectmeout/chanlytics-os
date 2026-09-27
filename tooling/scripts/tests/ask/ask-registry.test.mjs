@@ -152,11 +152,18 @@ test("an act description names who may approve its card as the card's spec says 
   for (const t of ACT_TOOLS) {
     const needs = PROPOSAL_SPECS[KIND_OF[t.name]].needs;
     assert.ok(!/owner-only/i.test(t.description), `${t.name}: the role is said in the spec's words`);
+    // The whole clause, head and tail, per `needs`: one derivation in the registry (tools/context.ts approvalWords).
     if (needs === "partner")
-      assert.ok(t.description.includes("Only an owner or a partner can approve it"), `${t.name} needs a partner`);
+      assert.ok(
+        t.description.includes(
+          "Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+        ),
+        `${t.name} needs a partner`,
+      );
     else if (needs === "owner")
       assert.ok(
-        t.description.includes("Only an owner can approve it") && !/partner/i.test(t.description),
+        t.description.includes("Only an owner can approve it: for anyone else, say so and that an owner can ask.") &&
+          !/partner/i.test(t.description),
         `${t.name} needs an owner`,
       );
     else assert.ok(!/\b(owners?|partners?)\b/i.test(t.description), `${t.name} needs an operator: no role named`);

@@ -88,7 +88,7 @@ async function getToday(t: ToolContext): Promise<unknown> {
 export const get_today = defineRead({
   name: "get_today",
   description:
-    "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. It holds no drafts: list_threads with filter held has them, and get_thread has a whole conversation. Its lists are capped, its counts are not; nothing changes because it was read.",
+    "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. It holds no drafts: list_threads with filter held has them, and get_thread has a whole conversation. needs_you and calls are capped, the counts are not; nothing changes because it was read.",
   input: z.object({}),
   label: "Reading Today",
   run: getToday,
