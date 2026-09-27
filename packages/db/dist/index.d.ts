@@ -6549,6 +6549,10 @@ type Database = {
                 };
                 Returns: Json;
             };
+            session_shows_second_factor: {
+                Args: never;
+                Returns: boolean;
+            };
             set_contact_consent: {
                 Args: {
                     p_consent: string;

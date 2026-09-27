@@ -8549,6 +8549,7 @@ var DEFAULT_STATUS = {
   not_found: 404,
   validation: 400,
   choose_workspace: 400,
+  mfa_required: 403,
   conflict: 409,
   rate_limited: 429,
   payment_required: 402,

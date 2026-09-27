@@ -1,6 +1,6 @@
 import "server-only";
 import { leadsRoute } from "@chanlytics/contracts";
-import { searchesOf } from "../leads/lead-searches";
+import { searchRow, searchesOf } from "../leads/lead-searches";
 import { stamp, type Reader } from "./index";
 
 /**
@@ -20,6 +20,23 @@ export const searches: Reader<undefined, Awaited<ReturnType<typeof searchesOf>>>
         route: leadsRoute({ searchId: s.id }),
         label: s.name,
       })),
+      stamp: stamp(),
+    };
+  },
+};
+
+/**
+ * GET lead-searches/:id, as the route answers it: one search of the workspace with its latest round, as
+ * lead_searches_view says it (server/leads/lead-searches.ts searchRow), removed from the rail or not; one this
+ * workspace does not hold is the route's 404. The search is the row a citation names, opened on Leads at that search.
+ */
+export const search: Reader<{ id: string }, { search: Awaited<ReturnType<typeof searchRow>> }> = {
+  name: "search",
+  async read(rc, { id }) {
+    const row = await searchRow(rc.ctx, rc.tenantId, id);
+    return {
+      data: { search: row },
+      rows: [{ kind: "search", id: row.id, route: leadsRoute({ searchId: row.id }), label: row.name }],
       stamp: stamp(),
     };
   },

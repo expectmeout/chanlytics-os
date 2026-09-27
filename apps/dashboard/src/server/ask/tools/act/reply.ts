@@ -97,8 +97,8 @@ async function proposeSteer(
 /** A reply (D11): a new one (draft, once draft_reply) and a rewrite of one held (steer, once propose_steer). */
 export const propose_reply = defineActions({
   name: "propose_reply",
-  description:
-    "Propose a reply to a customer, as a card the person approves before anything is sent. Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for the receptionist's voice, and proposes a new reply on a thread, on the wire the thread runs on. Action steer takes message_id, the held draft's id from inbox (with action list or thread), never a conversation id, and instruction, a rewrite in words ('shorter', 'mention Saturday is full', 'in Spanish') of a reply the receptionist is holding; the rewrite waits its turn like the first draft. Call action draft when they ask to reply, answer or write to someone, and action steer when they want a held draft changed. draft refuses a person who opted out and marks a closed reply window on the card; never quote or confirm a price in the text. steer refuses in words a reply that is no longer waiting, so read the thread first when in doubt.",
+  description: "Propose a reply to a customer, as a card the person approves before anything is sent.",
+  tail: "Call action draft when they ask to reply, answer or write to someone, and action steer when they want a held draft changed. draft refuses a person who opted out and marks a closed reply window on the card; never quote or confirm a price in the text. steer refuses in words a reply that is no longer waiting, so read the thread first when in doubt.",
   actions: {
     draft: actAction({
       kind: "reply",
@@ -111,6 +111,8 @@ export const propose_reply = defineActions({
         { conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f", text: "Yes, Saturday at ten works.", voice: "you" },
       ],
       label: "Drafting a reply",
+      words:
+        "Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for the receptionist's voice, and proposes a new reply on a thread, on the wire the thread runs on.",
       build: draftReply,
     }),
     steer: actAction({
@@ -118,6 +120,8 @@ export const propose_reply = defineActions({
       input: z.object({ message_id: z.string(), instruction: z.string() }),
       examples: [{ message_id: "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b", instruction: "shorter, and in Spanish" }],
       label: "Preparing a rewrite",
+      words:
+        "Action steer takes message_id, the held draft's id from inbox (with action list or thread), never a conversation id, and instruction, a rewrite in words ('shorter', 'mention Saturday is full', 'in Spanish') of a reply the receptionist is holding; the rewrite waits its turn like the first draft.",
       build: proposeSteer,
     }),
   },

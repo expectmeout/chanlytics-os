@@ -22743,6 +22743,12 @@ var ERROR_CODES = [
    * once read the generic 400 as a billing bug and a phone-number bug for a day.
    */
   "choose_workspace",
+  /**
+   * The request acts from a partner's seat (0012) on a session that has not shown its second factor (0013). Its own
+   * code, not `forbidden`, because the fix is a code from the person's authenticator rather than a different role:
+   * the client sends the tab to the second step.
+   */
+  "mfa_required",
   "conflict",
   "rate_limited",
   /**
@@ -22780,6 +22786,7 @@ var DEFAULT_STATUS = {
   not_found: 404,
   validation: 400,
   choose_workspace: 400,
+  mfa_required: 403,
   conflict: 409,
   rate_limited: 429,
   payment_required: 402,
@@ -23430,6 +23437,7 @@ var TITLES = /* @__PURE__ */ new Map([
   ["not_found", "Not found"],
   ["validation", "Check the details"],
   ["choose_workspace", "Choose a workspace"],
+  ["mfa_required", "Two-step sign-in"],
   ["conflict", "Not possible right now"],
   ["rate_limited", "Too many at once"],
   ["payment_required", "Needs a subscription"],
@@ -23449,6 +23457,7 @@ var SAID = /* @__PURE__ */ new Map([
   ["not_found", "That isn't here any more."],
   ["validation", "Something in this form wasn't accepted."],
   ["choose_workspace", "Choose which workspace first."],
+  ["mfa_required", "Enter the code from your authenticator app first."],
   ["conflict", "That isn't possible right now."],
   ["payment_required", "This needs a subscription \u2014 see Billing."],
   ["window_closed", "WhatsApp's 24 hours have passed \u2014 send an approved message instead."],
@@ -25813,6 +25822,7 @@ function platformQueue(q, nowMs = Date.now()) {
 
 // src/workspace/activity.ts
 var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
+var isActivityMoney = (row2) => row2.category === "billing";
 var WORDS = {
   // decisions
   approve: "Approved a reply",
@@ -26684,6 +26694,14 @@ function factorStepNeeded(aal) {
   return !!aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
 }
 var SECOND_FACTOR_PATH = "/verify";
+var SECOND_FACTOR_REQUIRED_PATH = "/verify?for=partner";
+var SECOND_FACTOR_LEVEL = "aal2";
+function secondFactorShown(aal) {
+  return aal === SECOND_FACTOR_LEVEL;
+}
+function seatNeedsSecondFactor(role) {
+  return role === "partner";
+}
 var SECOND_FACTOR_WORDS = {
   /** Settings › Partner. */
   title: "Protect your partner account",
@@ -26714,7 +26732,14 @@ var SECOND_FACTOR_WORDS = {
   resetQuestion: (code2) => `Remove ${code2}'s authenticator?`,
   resetDetail: "They can sign in with their password or an email code, and set up a new authenticator on their partner pane. Check it's them before you do this.",
   resetYes: "Yes, reset it",
-  resetTyped: "why, and how you checked it's them"
+  resetTyped: "why, and how you checked it's them",
+  /** The refusal (M3): a partner's seat, or the partner account itself, on a session that has not shown its code. */
+  required: "Your partner account asks for a code from your authenticator app. Enter it, or set the app up, and try again.",
+  /** The second step's page, for a partner account with no authenticator yet. */
+  enrolTitle: "Set up two-step sign-in",
+  enrolBody: "Your partner account can change the receptionist of every business you brought, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue.",
+  /** Settings › Partner, before becoming one. */
+  becomeFirst: "First, protect your account: a partner signs in with a code from an authenticator app."
 };
 function enrolRefusalWords(message) {
   const m = String(message ?? "");
@@ -27319,7 +27344,9 @@ export {
   RenameLeadSearchSchema,
   SAME_SITTING_MS,
   SCHEMA_SETS,
+  SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
+  SECOND_FACTOR_REQUIRED_PATH,
   SECOND_FACTOR_WORDS,
   SELF_LIFTING_HOLDS,
   SELLS_BY,
@@ -27751,6 +27778,7 @@ export {
   instructionsWords,
   inviteState,
   invoiceStatusWords,
+  isActivityMoney,
   isActivityNoise,
   isBaselinePrompt,
   isCampaignEmail,
@@ -28201,7 +28229,9 @@ export {
   scheduleLine,
   scopeFromRoute,
   seasonHorizon,
+  seatNeedsSecondFactor,
   secondFactorResetWords,
+  secondFactorShown,
   sellsBySaved,
   sellsByVM,
   sendFailureIsOurs,

@@ -6076,6 +6076,7 @@ export type Database = {
         Args: { p_host: string; p_since: string; p_tenant_id: string }
         Returns: Json
       }
+      session_shows_second_factor: { Args: never; Returns: boolean }
       set_contact_consent: {
         Args: {
           p_consent: string

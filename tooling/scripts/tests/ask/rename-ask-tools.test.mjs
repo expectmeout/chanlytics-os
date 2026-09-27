@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { TOOL_NAMES, renameCases, toolNow, usedAny } from "../../../evals/rename-ask-tools.mjs";
+import { RECORDED, renameCases, toolNow, usedAny } from "../../../evals/rename-ask-tools.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const CASES = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/evals/ask-cases.json"), "utf8"));
@@ -20,7 +20,7 @@ test("the committed cases say the new names: the rewrite was run, and running it
   assert.deepEqual(again.cases, CASES);
   const named = CASES.flatMap((c) => [...(c.expect?.tools_any ?? []), ...(c.expect?.tools_also_any ?? [])]);
   assert.ok(named.length > 0, "the cases name tools");
-  for (const n of named) assert.ok(Object.values(TOOL_NAMES).includes(n), `${n} is a name the registry records`);
+  for (const n of named) assert.ok(RECORDED.has(n), `${n} is a name the registry records`);
 });
 
 test("an old name is rewritten to its tool and action, once; a name neither old nor new is refused by case and name", () => {

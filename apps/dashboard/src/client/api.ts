@@ -91,6 +91,11 @@ interface ApiDeps {
    * bridge forgets its choice and boots again, asking /workspaces first.
    */
   onChooseWorkspace?: () => void;
+  /**
+   * An mfa_required (0013): the request acted from a partner's seat, or as the partner account, on a session that has
+   * not shown its second factor. The bridge sends the tab to the second step.
+   */
+  onSecondFactor?: () => void;
   /** After a 2xx write: which surfaces to re-read, by the refresh map. */
   refresh: (key: RouteKey) => Promise<void>;
   now?: () => number;
@@ -112,6 +117,12 @@ const INFLIGHT_MS = 2_000;
 const PREFETCH_SHARE_MS = 10_000;
 const READ_TIMEOUT_MS = 15_000;
 const WRITE_TIMEOUT_MS = 30_000;
+
+/** A refusal whose fix is somewhere else in the app: which workspace (choose_workspace), or the second step. */
+function heard(deps: ApiDeps, code: string | undefined): void {
+  if (code === "choose_workspace") deps.onChooseWorkspace?.();
+  if (code === "mfa_required") deps.onSecondFactor?.();
+}
 
 export function createApi(deps: ApiDeps) {
   const now = deps.now ?? (() => Date.now());
@@ -180,7 +191,7 @@ export function createApi(deps: ApiDeps) {
       const j = (await res.json().catch(() => null)) as Envelope | null;
       if (!j || !j.ok) {
         const e = j && !j.ok ? j.error : undefined;
-        if (e?.code === "choose_workspace") deps.onChooseWorkspace?.();
+        heard(deps, e?.code);
         // The server's code, sentence and details, and the header a limit sets:
         // what a page shows and when it may try again, in the owner's words.
         return {

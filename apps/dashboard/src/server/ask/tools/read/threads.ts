@@ -150,18 +150,24 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
 /** The Inbox (D11): threads by state (list, once list_threads) and one whole conversation (thread, once get_thread). */
 export const inboxTool = defineActions({
   name: "inbox",
-  description: `The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most ${ASK_CAPS.threads} threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest ${ASK_CAPS.messages} messages, or ${ASK_CAPS.messagesMore} with more true; a conversation the workspace does not hold is an error, said in words.`,
+  description:
+    "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel).",
+  tail: `Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most ${ASK_CAPS.threads} threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest ${ASK_CAPS.messages} messages, or ${ASK_CAPS.messagesMore} with more true; a conversation the workspace does not hold is an error, said in words.`,
   actions: {
     list: readAction({
       input: z.object({ filter: z.enum(["needs_you", "held", "waiting", "snoozed", "recent"]) }),
       examples: [{ filter: "held" }],
       label: "Reading the Inbox",
+      words:
+        "Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them.",
       run: listThreads,
     }),
     thread: readAction({
       input: z.object({ conversation_id: z.string(), more: z.boolean().optional() }),
       examples: [{ conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f" }],
       label: "Reading the conversation",
+      words:
+        "Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did.",
       run: getThread,
     }),
   },
