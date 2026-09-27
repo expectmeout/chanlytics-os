@@ -171,5 +171,7 @@ export const broadcastAction = actAction({
     },
   ],
   label: "Preparing a broadcast",
+  words:
+    "Action broadcast takes template_id, one approved WhatsApp template, and proposes sending it to an audience, everyone who said yes or any list campaigns with action audiences names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the template's values in order (typed text, or @first_name, @business_name or @booking_link to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), and an optional name.",
   build: proposeBroadcast,
 });

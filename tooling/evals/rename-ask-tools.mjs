@@ -16,7 +16,25 @@ import { pathToFileURL } from "node:url";
 
 /** Old tool name -> `name.action`, or `name` for a tool with no action. */
 export const TOOL_NAMES = JSON.parse(readFileSync(new URL("./tool-names.json", import.meta.url), "utf8"));
-const NOW = new Set(Object.values(TOOL_NAMES));
+/**
+ * The actions added since the rename (Ask Rewired, PR 4.3, the Phase 4 plan's D1): no old tool was any of them, so the
+ * table has no row for them, and a case may name them as they are.
+ */
+export const ADDED_SINCE = [
+  "campaigns.broadcast",
+  "campaigns.broadcasts",
+  "leads.lead",
+  "leads.leads",
+  "leads.search",
+  "people.lists",
+  "people.pipeline",
+  "workspace.activity",
+  "workspace.connections",
+  "workspace.notifications",
+];
+/** Every name a turn records today: the renamed, and the added since. */
+export const RECORDED = new Set([...Object.values(TOOL_NAMES), ...ADDED_SINCE]);
+const NOW = RECORDED;
 
 /** A tool name as the registry records it today: an old one through the table, any other as it is. */
 export function toolNow(name) {

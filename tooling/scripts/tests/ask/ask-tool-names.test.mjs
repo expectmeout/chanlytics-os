@@ -30,9 +30,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { runTool, buildProposal, newToolContext, ACT_TOOL_NAMES } = await import(
+const { runTool, buildProposal, newToolContext, ACT_TOOL_NAMES, ACT_DEFS } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
+const { PROPOSAL_SPECS, roleAtLeast } = await import("@chanlytics/contracts");
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 beforeEach(() => readerCache.clear());
 
@@ -475,6 +476,9 @@ function renamed(old, input) {
   return { name, input: action ? { action, ...input } : input };
 }
 
+/** Whose an action is, in the registry's refusal (tools/context.ts WHOSE). */
+const WHOSE = { owner: "an owner's", partner: "an owner's or a partner's" };
+
 /** An old name as a refusal now says it: the tool, and its action in words. */
 const inWords = (to) => (to.includes(".") ? to.replace(".", " with action ") : to);
 
@@ -505,6 +509,12 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     let result = want.result;
     for (const [from, to] of Object.entries(NAMES))
       result = result.replace(new RegExp(`\\b${from}\\b`, "g"), inWords(to));
+    // An action above the caller is refused by the registry first since PR 4.3 (the Phase 4 plan, D2), in its words,
+    // before anything is read, as its builder refused it: the other change to these bytes.
+    const act = ACT_DEFS.find((x) => x.name === call.name)?.actions[call.input.action ?? ""];
+    const needs = act && call.input.action ? PROPOSAL_SPECS[act.kind].needs : null;
+    if (needs && !roleAtLeast(role, needs))
+      result = JSON.stringify({ error: `${call.name}: action ${call.input.action} is ${WHOSE[needs]}` });
     assert.deepEqual(got, { ...want, result }, `${old} -> ${NAMES[old]} ${JSON.stringify(input)}`);
   }
 });

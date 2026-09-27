@@ -282,7 +282,7 @@ export interface TurnFacts {
   context?: boolean;
   /** Reads made for this question, of another page, rode in before these words (cross-page.ts). */
   crossPage?: boolean;
-  /** The scope's row was read for this question and rode in before these words (loop.ts scopedRead). */
+  /** The scope's row was read for this question and rode in before these words (cross-page.ts scopedRead). */
   scopeRead?: boolean;
 }
 
@@ -317,17 +317,11 @@ export function turnWords(t: TurnFacts): string {
       'They are on the Leads page, where the businesses Claude found for them are listed. Words that describe businesses (a kind, a place, a count) are a search to propose: read leads with action searches, then propose_lead_search; ask only when the kind or the place is missing. If a search on this page is waiting for an answer, words that answer its question amend it (amends), and "this search" is the one the scope names.',
     );
   else if (t.surface) lines.push(`They are on the ${t.surface} page.`);
-  // A row a page opens that no tool reads by its id until Phase 4 is never one the model is sent to read: a lead or a
-  // run is said to be unread, and a search is found in leads.searches, which lists every one with its id.
-  const k = t.scope?.kind;
-  const read =
-    k === "lead" || k === "run"
-      ? "No tool reads it by its id yet: say what you can from the reads you have, and say so rather than guess."
-      : k === "search"
-        ? "Read leads with action searches, which lists it by that id, before answering about it."
-        : t.scopeRead
-          ? "It was read for this question and is in the search results before these words (read://): answer from it, and read again only for what it does not hold."
-          : "Read it before answering about it.";
+  // Every row a scope names is read by its id (cross-page.ts scopedRead) and rides in with the question; one whose read
+  // failed, like a page, is read by the model.
+  const read = t.scopeRead
+    ? "It was read for this question and is in the search results before these words (read://): answer from it, and read again only for what it does not hold."
+    : "Read it before answering about it.";
   if (t.scope)
     lines.push(
       `They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. ${read}`,
