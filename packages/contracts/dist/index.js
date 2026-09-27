@@ -12563,9 +12563,28 @@ var FOLLOWUP_ECHO = [
 ];
 
 // src/ask/citations.ts
-var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
+var ASK_CITATION_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "deal",
+  "list",
+  "broadcast",
+  "playbook",
+  "template",
+  "domain"
+];
 function emptyReadSet() {
-  return { thread: /* @__PURE__ */ new Set(), conversation: /* @__PURE__ */ new Set(), call: /* @__PURE__ */ new Set(), person: /* @__PURE__ */ new Set() };
+  return Object.fromEntries(
+    ASK_CITATION_KINDS.filter((k) => k !== "page").map((k) => [k, /* @__PURE__ */ new Map()])
+  );
+}
+function noteRows(read, refs) {
+  for (const r2 of refs) if (r2.kind !== "page") read[r2.kind].set(r2.id, r2);
 }
 var ASK_PAGE_ROUTES = [
   "today",
@@ -12590,7 +12609,7 @@ var ASK_PAGE_ROUTES = [
   "admin/activity",
   "admin/profile"
 ];
-var PAGE_PREFIX = /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
+var PAGE_PREFIX = /^(?!clients\/list:)(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
 function groundCitations(citations, read) {
   const kept = [];
   let dropped = 0;
@@ -12607,19 +12626,15 @@ function groundCitations(citations, read) {
   }
   return { kept, dropped };
 }
-function citationRoute(c) {
-  switch (c.kind) {
-    case "thread":
-      return `inbox/th-${c.id}`;
-    case "conversation":
-      return `conversations/${c.id}`;
-    case "call":
-      return `conversations/cv-${c.id}`;
-    case "person":
-      return `clients/${c.id}`;
-    default:
-      return c.id;
-  }
+var OWN_ROUTES = {
+  thread: (id) => `inbox/th-${id}`,
+  conversation: (id) => `conversations/${id}`,
+  call: (id) => `conversations/cv-${id}`,
+  person: (id) => `clients/${id}`
+};
+function citationRoute(c, read) {
+  if (c.kind === "page") return c.id;
+  return read?.[c.kind].get(c.id)?.route ?? OWN_ROUTES[c.kind]?.(c.id) ?? "";
 }
 
 // src/ask/ask-shape.ts
@@ -13124,8 +13139,36 @@ function oneDoor(a, cards = []) {
   };
 }
 var KIND_WORDS = {
-  en: { thread: "Thread", conversation: "Conversation", call: "Call", person: "Profile", page: "Page" },
-  es: { thread: "Hilo", conversation: "Conversaci\xF3n", call: "Llamada", person: "Perfil", page: "P\xE1gina" }
+  en: {
+    thread: "Thread",
+    conversation: "Conversation",
+    call: "Call",
+    person: "Profile",
+    page: "Page",
+    lead: "Lead",
+    search: "Search",
+    deal: "Deal",
+    list: "List",
+    broadcast: "Broadcast",
+    playbook: "Playbook",
+    template: "Template",
+    domain: "Domain"
+  },
+  es: {
+    thread: "Hilo",
+    conversation: "Conversaci\xF3n",
+    call: "Llamada",
+    person: "Perfil",
+    page: "P\xE1gina",
+    lead: "Lead",
+    search: "B\xFAsqueda",
+    deal: "Trato",
+    list: "Lista",
+    broadcast: "Difusi\xF3n",
+    playbook: "Playbook",
+    template: "Plantilla",
+    domain: "Dominio"
+  }
 };
 function answerFromV1(m) {
   const language = m.language ?? "en";
@@ -13279,8 +13322,8 @@ var asArr = (v) => Array.isArray(v) ? v : [];
 var words2 = (v, n) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
 var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
 var UUID2 = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-var ROW_KINDS = ["call", "thread", "conversation", "person"];
-var ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|clients\/(?!leads(?:[/:]|$)|seg:|list:))/;
+var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
+var ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|outbound\/|broadcasts\/run:|clients\/leads.*:[sp]-|clients\/(?!leads(?:[/:]|$)|seg:))/;
 function groundRef(v, read) {
   const r2 = asObj(v);
   const kind = typeof r2.kind === "string" ? r2.kind : "none";
@@ -13288,13 +13331,13 @@ function groundRef(v, read) {
   if (!spelled || !ASK_CITATION_KINDS.includes(kind)) return null;
   const label = words2(r2.label, C.label) || spelled;
   const row2 = UUID2.exec(spelled)?.[0].toLowerCase();
-  const tries = row2 ? [kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k, id: row2, label })) : [
-    ...kind === "page" ? [] : [{ kind, id: spelled, label }],
+  const tries = [
+    ...[kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k, id: row2 ?? spelled, label })),
     // A row's route with an id cut short or misspelled names no row read, and is no page either.
-    ...ROW_ROUTE.test(spelled) ? [] : [{ kind: "page", id: spelled, label }]
+    ...row2 || ROW_ROUTE.test(spelled) ? [] : [{ kind: "page", id: spelled, label }]
   ];
   const kept = groundCitations(tries, read).kept[0];
-  return kept ? { ...kept, to: citationRoute(kept), door: true } : null;
+  return kept ? { ...kept, to: citationRoute(kept, read), door: true } : null;
 }
 function normalizeAnswer(raw, read, fallback) {
   let json = raw;
@@ -13459,7 +13502,7 @@ function v1FromAnswer(a) {
 // src/ask/answer-format.ts
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -27464,6 +27507,7 @@ export {
   normalizeLocalPart,
   normalizePhone,
   notFoundPageMetadata,
+  noteRows,
   noteSuggestSystemPrompt,
   noteSuggestUserContent,
   notesWords,

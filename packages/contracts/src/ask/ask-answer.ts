@@ -177,10 +177,38 @@ export function oneDoor(
 
 /* ------------------------------------------------------------- old answers */
 
-const KIND_WORDS = {
-  en: { thread: "Thread", conversation: "Conversation", call: "Call", person: "Profile", page: "Page" },
-  es: { thread: "Hilo", conversation: "Conversación", call: "Llamada", person: "Perfil", page: "Página" },
-} as const;
+const KIND_WORDS: Record<"en" | "es", Record<AskCitationKind, string>> = {
+  en: {
+    thread: "Thread",
+    conversation: "Conversation",
+    call: "Call",
+    person: "Profile",
+    page: "Page",
+    lead: "Lead",
+    search: "Search",
+    deal: "Deal",
+    list: "List",
+    broadcast: "Broadcast",
+    playbook: "Playbook",
+    template: "Template",
+    domain: "Domain",
+  },
+  es: {
+    thread: "Hilo",
+    conversation: "Conversación",
+    call: "Llamada",
+    person: "Perfil",
+    page: "Página",
+    lead: "Lead",
+    search: "Búsqueda",
+    deal: "Trato",
+    list: "Lista",
+    broadcast: "Difusión",
+    playbook: "Playbook",
+    template: "Plantilla",
+    domain: "Dominio",
+  },
+};
 
 /**
  * Every answer made before the Line (prose, sources, a navigate door, follow-ups) as the Line draws it: the prose form.
@@ -460,16 +488,22 @@ const words = (v: unknown, n: number) => clip(cleanAnswer(typeof v === "string" 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number.NaN);
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-const ROW_KINDS = ["call", "thread", "conversation", "person"] as const;
-/** A route that names a row -- a thread, a call, a person -- whatever id it carries: never a page. */
-const ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|clients\/(?!leads(?:[/:]|$)|seg:|list:))/;
+/** The twelve kinds of row, in the grammar's order: a row not read as the kind written is looked for under each. */
+const ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
+/**
+ * A route that names a row -- a thread, a call, a person, a list of the workspace's own, a playbook, a broadcast, a
+ * lead or a search -- whatever id it carries: never a page.
+ */
+const ROW_ROUTE =
+  /^(inbox\/th-|conversations\/cv-|outbound\/|broadcasts\/run:|clients\/leads.*:[sp]-|clients\/(?!leads(?:[/:]|$)|seg:))/;
 
 /**
- * A source grounded in this turn's reads, with the route the app gives it; null for kind none or a row not read.
- * The model names a row by the id a tool gave, but also by its route ("inbox/th-<id>", "conversations/cv-<id>") and
- * now and then under another kind, and dropping a real row over its spelling left "Opening the call…" opening nothing:
- * any spelling of a row read this turn is that row, as the kind written if that kind read it, else the kind that did.
- * A page is a route that names no row: an id inside one is a row, and must have been read.
+ * A source grounded in this turn's reads, opened where its reader said (the read set's RowRef); null for kind none or a
+ * row not read. The model names a row by the id a tool gave, but also by its route ("inbox/th-<id>",
+ * "conversations/cv-<id>") and now and then under another kind, and dropping a real row over its spelling left
+ * "Opening the call…" opening nothing: any spelling of a row read this turn is that row -- by the id inside it, or as
+ * spelled when its id is a name (a People list's, `quiet`) -- as the kind written if that kind read it, else the kind
+ * that did. A page is a route that names no row: an id inside one is a row, and must have been read.
  */
 function groundRef(v: unknown, read: AskReadSet): AskSource | null {
   const r = asObj(v);
@@ -478,15 +512,15 @@ function groundRef(v: unknown, read: AskReadSet): AskSource | null {
   if (!spelled || !(ASK_CITATION_KINDS as readonly string[]).includes(kind)) return null;
   const label = words(r.label, C.label) || spelled;
   const row = UUID.exec(spelled)?.[0].toLowerCase();
-  const tries: AskCitation[] = row
-    ? [kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k as AskCitationKind, id: row, label }))
-    : [
-        ...(kind === "page" ? [] : [{ kind: kind as AskCitationKind, id: spelled, label }]),
-        // A row's route with an id cut short or misspelled names no row read, and is no page either.
-        ...(ROW_ROUTE.test(spelled) ? [] : [{ kind: "page" as const, id: spelled, label }]),
-      ];
+  const tries: AskCitation[] = [
+    ...[kind, ...ROW_KINDS]
+      .filter((k) => k !== "page")
+      .map((k) => ({ kind: k as AskCitationKind, id: row ?? spelled, label })),
+    // A row's route with an id cut short or misspelled names no row read, and is no page either.
+    ...(row || ROW_ROUTE.test(spelled) ? [] : [{ kind: "page" as const, id: spelled, label }]),
+  ];
   const kept = groundCitations(tries, read).kept[0];
-  return kept ? { ...kept, to: citationRoute(kept), door: true } : null;
+  return kept ? { ...kept, to: citationRoute(kept, read), door: true } : null;
 }
 
 export type AskAnswerRead = { ok: true; answer: AskAnswer; dropped: number } | { ok: false; error: string };

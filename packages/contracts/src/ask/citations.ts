@@ -1,28 +1,65 @@
 /**
- * Ask's citation grammar: the kinds a citation may name, the rule that keeps one honest (a row the tools returned this
+ * Ask's citation grammar: the kinds a citation may name, the rule that keeps one honest (a row a reader returned this
  * turn, or a page) and where each opens. Read by ask.ts's message, the answer's normaliser (ask-answer.ts) and the
  * format the model writes (answer-format.ts). Pure; it imports nothing.
  */
 
 /* ----------------------------------------------------------- the citation */
 
-export const ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"] as const;
+/**
+ * Thirteen names (the spec, 5.7): a page, and the twelve kinds of row a reader returns. A Broadcasts row cites as a
+ * broadcast: `run` is the word its address and a scope spell (ask.ts ASK_SCOPE_KINDS), never a citation's.
+ */
+export const ASK_CITATION_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "deal",
+  "list",
+  "broadcast",
+  "playbook",
+  "template",
+  "domain",
+] as const;
 export type AskCitationKind = (typeof ASK_CITATION_KINDS)[number];
 
 export interface AskCitation {
   kind: AskCitationKind;
-  /** A conversation, call or contact id; for a page, its route. */
+  /** A row's id as its reader gave it (a People list's is its name, `quiet`); for a page, its route. */
   id: string;
   label: string;
 }
 
 /* --------------------------------------------------------------- grounding */
 
-/** What the tools returned this turn, by kind: the only rows a citation may name. */
-export type AskReadSet = Record<Exclude<AskCitationKind, "page">, Set<string>>;
+/**
+ * A row a reader returned: its kind and id, where it opens as its page opens it -- a deal at its person's page, a
+ * template on the page it came from, a list at `clients/list:<id>` or `clients/seg:<id>`, a domain on Connections --
+ * and its name. The server's readers return these (server/readers RowRef), and the read set keeps them.
+ */
+export interface AskRowRef {
+  kind: AskCitationKind;
+  id: string;
+  route: string;
+  label: string;
+}
+
+/** What the tools and the page returned this turn, by kind and id, each with its RowRef: the rows a citation may name. */
+export type AskReadSet = Record<Exclude<AskCitationKind, "page">, Map<string, AskRowRef>>;
 
 export function emptyReadSet(): AskReadSet {
-  return { thread: new Set(), conversation: new Set(), call: new Set(), person: new Set() };
+  return Object.fromEntries(
+    ASK_CITATION_KINDS.filter((k) => k !== "page").map((k) => [k, new Map<string, AskRowRef>()]),
+  ) as AskReadSet;
+}
+
+/** Rows read, into the read set by kind and id as their readers gave them. A page needs no read, and is not kept. */
+export function noteRows(read: AskReadSet, refs: Iterable<AskRowRef>): void {
+  for (const r of refs) if (r.kind !== "page") read[r.kind].set(r.id, r);
 }
 
 /** The pages a citation or a navigate target may point at without a read. */
@@ -50,8 +87,10 @@ export const ASK_PAGE_ROUTES = [
   "admin/profile",
 ] as const;
 
+// A list of the workspace's own is a row (`clients/list:<id>`, its reader's route), so its address is no page; a People
+// list's `clients/seg:<id>` is People's own view, and stays one.
 const PAGE_PREFIX =
-  /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
+  /^(?!clients\/list:)(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
 
 /**
  * Drop every citation that names a row the tools did not return this turn.
@@ -76,18 +115,21 @@ export function groundCitations(citations: AskCitation[], read: AskReadSet): { k
   return { kept, dropped };
 }
 
-/** Where a citation opens. The same routes the pages use for the same rows. */
-export function citationRoute(c: AskCitation): string {
-  switch (c.kind) {
-    case "thread":
-      return `inbox/th-${c.id}`;
-    case "conversation":
-      return `conversations/${c.id}`;
-    case "call":
-      return `conversations/cv-${c.id}`;
-    case "person":
-      return `clients/${c.id}`;
-    default:
-      return c.id;
-  }
+/** The rows that open at one route whoever read them: the kinds a citation named before the read set held routes. */
+const OWN_ROUTES: Partial<Record<AskCitationKind, (id: string) => string>> = {
+  thread: (id) => `inbox/th-${id}`,
+  conversation: (id) => `conversations/${id}`,
+  call: (id) => `conversations/cv-${id}`,
+  person: (id) => `clients/${id}`,
+};
+
+/**
+ * Where a citation opens: a page at its route; a row at the route its reader gave it, the RowRef the read set holds,
+ * never one derived here (a deal opens its person's page, a template the page it came from). A citation stored
+ * without its `to` was made before answers kept one, when a row was a thread, a conversation, a call or a person: it
+ * opens where the pages open those. A row of another kind the read set does not hold opens nowhere: "".
+ */
+export function citationRoute(c: AskCitation, read?: AskReadSet): string {
+  if (c.kind === "page") return c.id;
+  return read?.[c.kind].get(c.id)?.route ?? OWN_ROUTES[c.kind]?.(c.id) ?? "";
 }
