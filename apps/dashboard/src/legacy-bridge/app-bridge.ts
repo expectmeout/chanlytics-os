@@ -121,8 +121,10 @@ export function installAppBridge(
   win.addEventListener("surface:live", calls);
   // The phone this page registered for the person signed in, so a sign-out can forget it (shell.ts signOut).
   const phone: Phone = { token: null };
+  const shell = shellEvents(win);
+  const answering: Answering = { win, doors, post, phone, shell };
   win.__appBridge = {
-    receive: (raw: string) => answerShell(win, doors, post, raw, phone),
+    receive: (raw: string) => answerShell(answering, raw),
     forgetPhone: () => forgetPhone(doors, post, phone),
   };
   // The bell's number is the icon's: said at install and on every change of the feed or the marks.
@@ -144,6 +146,7 @@ export function installAppBridge(
     win.removeEventListener("surface:today", today);
     win.removeEventListener("surface:live", calls);
     stopTheme();
+    shell.stop();
     offBell();
     delete win.__appBridge;
   };
@@ -176,7 +179,16 @@ function watchTheme(win: BridgeWindow, post: Post): () => void {
 }
 
 /** One ask from the shell, parsed and answered; a message that does not parse does nothing. */
-function answerShell(win: BridgeWindow, doors: DeviceDoors, post: Post, raw: string, phone: Phone): void {
+/** What answering the shell needs: the page, its doors, its voice, its phone and its shell's events. */
+interface Answering {
+  win: BridgeWindow;
+  doors: DeviceDoors;
+  post: Post;
+  phone: Phone;
+  shell: ShellEvents;
+}
+
+function answerShell({ win, doors, post, phone, shell }: Answering, raw: string): void {
   let v: unknown;
   try {
     v = JSON.parse(raw);
@@ -194,7 +206,7 @@ function answerShell(win: BridgeWindow, doors: DeviceDoors, post: Post, raw: str
     return;
   }
   if (m.t === "menu" || m.t === "top") {
-    win.dispatchEvent(new CustomEvent(`shell:${m.t}`));
+    shell.say(m.t);
     return;
   }
   if (m.t === "device") {
@@ -217,6 +229,35 @@ function answerShell(win: BridgeWindow, doors: DeviceDoors, post: Post, raw: str
     .token()
     .then((t) => post({ t: "token", access: t?.access ?? null, expires: t?.expires ?? 0 }))
     .catch(() => post({ t: "token", access: null, expires: 0 }));
+}
+
+interface ShellEvents {
+  say(kind: "menu" | "top"): void;
+  stop(): void;
+}
+
+/**
+ * The shell's own events (`shell:menu`, `shell:top`), heard by app-shell.jsx once it has mounted. The bridge is
+ * installed as the page's script loads, seconds before the shell compiles and mounts, so the app's More tab asked for
+ * the drawer before anything listened and the drawer never opened. An ask that arrives before the shell says
+ * `shell:ready` waits: the last menu ask is replayed then; a scroll to the top of a page not yet drawn is dropped.
+ */
+function shellEvents(win: BridgeWindow): ShellEvents {
+  let ready = false;
+  let menuWaiting = false;
+  const onReady = () => {
+    ready = true;
+    if (menuWaiting) win.dispatchEvent(new CustomEvent("shell:menu"));
+    menuWaiting = false;
+  };
+  win.addEventListener("shell:ready", onReady);
+  return {
+    say(kind) {
+      if (ready) win.dispatchEvent(new CustomEvent(`shell:${kind}`));
+      else if (kind === "menu") menuWaiting = true;
+    },
+    stop: () => win.removeEventListener("shell:ready", onReady),
+  };
 }
 
 /** What became of a device door, said to the shell: done, or refused, and a door that throws is a refusal. */

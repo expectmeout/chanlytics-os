@@ -638,6 +638,10 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   // A route change: the drawer closes, and the gate's clocks start for the new route.
   useShellEffect(() => { setNavOpen(false); return gate.arm(); }, [at.routeKey]);
   const fade = useViewFade(at, gate.routeLoading);
+  // The shell is mounted and listening (useNavDrawer above): the native app's bridge replays a menu ask that arrived
+  // while this was still compiling (legacy-bridge/app-bridge.ts). After the route effect, so the first route's close
+  // runs before the replayed open.
+  useShellEffect(() => { window.dispatchEvent(new CustomEvent("shell:ready")); }, []);
 
   // The two full-screen pages, after all hooks so the hook order stays identical on every route.
   if (page === "shared" && !demoGated) return sharedViewer({ theme, navigate });

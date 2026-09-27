@@ -105,13 +105,31 @@ test("the shell's navigate sets the hash and back steps the history; menu and to
   assert.equal(win.location.hash, "/inbox");
   win.__appBridge.receive('{"t":"back"}');
   assert.equal(posted.at(-1), "history.back", "the page's own history, one step: no entry is added");
+  fire("shell:ready");
   win.__appBridge.receive('{"t":"menu"}');
   win.__appBridge.receive('{"t":"top"}');
   win.__appBridge.receive('{"t":"navigate","route":"https://example.com/x"}');
   win.__appBridge.receive("nope");
   assert.deepEqual(heard, ["menu", "top"]);
   assert.equal(win.location.hash, "/inbox");
-  void fire;
+});
+
+test("a menu ask that arrives before the shell has mounted waits for it; a scroll to the top of nothing is dropped", () => {
+  // The bridge is installed as the page's script loads, seconds before app-shell.jsx mounts and listens: the More
+  // tab's one ask used to arrive with nobody listening, and the drawer never opened.
+  const { win, fire } = windowOf();
+  const off = installAppBridge(win);
+  const heard = [];
+  win.addEventListener("shell:menu", () => heard.push("menu"));
+  win.addEventListener("shell:top", () => heard.push("top"));
+  win.__appBridge.receive('{"t":"menu"}');
+  win.__appBridge.receive('{"t":"top"}');
+  assert.deepEqual(heard, [], "nothing is said before the shell is ready");
+  fire("shell:ready");
+  assert.deepEqual(heard, ["menu"], "the menu ask is replayed once the shell listens; the early top is dropped");
+  win.__appBridge.receive('{"t":"menu"}');
+  assert.deepEqual(heard, ["menu", "menu"], "after that, at once");
+  off();
 });
 
 const doors = (answer = true) => {
