@@ -494,8 +494,6 @@ export function textingWords(
   }
 }
 
-export const display = (e164: string | null | undefined): string | null => (e164 ? formatPhoneDisplay(e164) : null);
-
 /**
  * The third claim a capability row makes, beside readiness and evidence: the
  * owner's own act, in words. A row says "Answering" (ready), "Tested" (a real
@@ -516,9 +514,9 @@ export function rowContextOf(i: SetupInputs, nowMs: number): SetupRowContext {
   const voiceReady = voice.present && voice.active;
   const answering = waReady || voiceReady;
   // A channel row without a number is still a channel: never read "null" aloud.
-  const waNum = display(wa.number) ?? "your number";
-  const voiceNum = display(voice.number) ?? "your line";
-  const handoffNum = display(i.business.handoff);
+  const waNum = formatPhoneDisplay(wa.number) ?? "your number";
+  const voiceNum = formatPhoneDisplay(voice.number) ?? "your line";
+  const handoffNum = formatPhoneDisplay(i.business.handoff);
   const lines = i.lines ?? { rows: [], ready: false, provider: null, costs: { local_number_month_usd: 1.15 } };
   // Whether this workspace may put a charge on Chanlytics' account. The same
   // rule the routes enforce (maySpend), read here so the page never offers a
@@ -526,7 +524,7 @@ export function rowContextOf(i: SetupInputs, nowMs: number): SetupRowContext {
   const canSpend = !i.billing || maySpend(i.billing.mode, i.billing.status);
   const ownLine = lines.rows.find((l) => l.voice_state !== "none") ?? null;
   const texting = textingWords(ownLine);
-  const lineNum = ownLine?.e164 ? (display(ownLine.e164) ?? ownLine.e164) : "your number";
+  const lineNum = ownLine?.e164 ? (formatPhoneDisplay(ownLine.e164) ?? ownLine.e164) : "your number";
   return {
     nowMs,
     wa,

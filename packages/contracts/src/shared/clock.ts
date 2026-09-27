@@ -22,7 +22,8 @@
  * wallClockAt, tomorrowAtIn (a snooze target), and a datetime-local box read and
  * written in the zone (fromZonedInput, zonedInputValue).
  *
- * And a length on a clock face, which has no zone: mmss, "2:05", a call's length or a line's minute within it.
+ * And a length on a clock face, which has no zone: mmss, "2:05", a call's length or a line's minute within it, and
+ * callLength, the one rule for a call with no length.
  *
  * The formatters are built once per zone, and an instant's calendar parts are
  * remembered for a while: view models format every message on every refresh, and
@@ -255,11 +256,21 @@ export function fromZonedInput(value: string | null | undefined, tz: string): nu
 }
 
 /**
- * "2:05": a length in minutes and seconds, rounded to the second, never below "0:00". The call views that print
- * nothing for a call with no length say so where they call this, each its own way, because they do not agree on
- * what "no length" is.
+ * "2:05": a length in minutes and seconds, rounded to the second, never below "0:00": a length below zero reads
+ * "0:00", and so does one that is not a number at all (NaN printed "NaN:NaN"). A view that prints nothing for a call
+ * with no length asks callLength instead.
  */
 export function mmss(ms: number): string {
-  const total = Math.max(0, Math.round(ms / 1000));
+  const total = Math.max(0, Math.round(ms / 1000) || 0);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/**
+ * A call's length on a clock face, "2:05", or nothing for a call with no length on record: none, zero, below zero, or
+ * not a number. The one rule for "no length": the call card (toCallVM) and a person's timeline both ask it, so a
+ * missing or NaN length reads the same on each. They were two guards that disagreed on NaN, which the timeline
+ * printed as "NaN:NaN".
+ */
+export function callLength(ms: number | null | undefined): string | undefined {
+  return ms != null && ms > 0 ? mmss(ms) : undefined;
 }

@@ -3,7 +3,7 @@
  * helpers (a contact, a message, a thread) over the sample's clock.
  */
 import type { ConversationDto } from "@chanlytics/contracts";
-import { phone, type SampleClock } from "./clock";
+import { phone, type SampleClock, type SampleDay } from "./clock";
 
 const contact = (id: string, name: string | null, last4: string, over: Partial<ConversationDto["contact"]> = {}) => ({
   id,
@@ -209,8 +209,8 @@ function busyThreads({ ago, at }: SampleClock): ConversationDto[] {
 }
 
 /** The day's threads: the usual eight, and on a busy day the eight more after them. */
-export function sampleConversations(clock: SampleClock, busy: boolean): ConversationDto[] {
+export function sampleConversations(clock: SampleClock, day: SampleDay): ConversationDto[] {
   const conversations = usualThreads(clock);
-  if (busy) conversations.push(...busyThreads(clock));
+  if (day === "busy") conversations.push(...busyThreads(clock));
   return conversations;
 }

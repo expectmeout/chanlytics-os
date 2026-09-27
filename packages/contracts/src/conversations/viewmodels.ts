@@ -1,5 +1,5 @@
 import { waitedLabel, MIN_MS } from "../shared/time";
-import { clockShort, clockStamp, mmss } from "../shared/clock";
+import { callLength, clockShort, clockStamp } from "../shared/clock";
 import { standingOf } from "./standing";
 /**
  * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
@@ -1279,9 +1279,6 @@ export interface CallVM {
    *  card's one quiet line. */
   facts: string[];
 }
-
-/** A call's length on its card, "2:05"; nothing for a call with no length on record (none, zero or below). */
-const callLength = (ms: number | null | undefined): string | undefined => (ms && ms > 0 ? mmss(ms) : undefined);
 
 /** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
 export function spokenDuration(ms: number | null): string {
