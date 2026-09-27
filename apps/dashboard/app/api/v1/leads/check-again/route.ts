@@ -1,6 +1,6 @@
 import { LeadsCheckAgainSchema, SPEND_LEADS } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { checkAgain } from "@/server/leads";
+import { checkAgain } from "@/server/leads/leads";
 
 /**
  * POST /api/v1/leads/check-again — the mailbox check once more, for the leads

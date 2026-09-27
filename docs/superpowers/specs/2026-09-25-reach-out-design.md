@@ -55,7 +55,7 @@ WhatsApp template rows can be created, edited or sent (`templates-create.ts:100-
 
 **What already fits.** The judge's reason, the four checks and the checked address per lead (`lead_search_members`,
 00140:262-292; bounceverify, `cards.ts:209-231`); the 72-hour reply rule; the ask/veto/auto approval sheet
-(`broadcasts-real.jsx:98-195`); Today's queue and Steps due; one thread per person; the email intake's classification of
+(`broadcasts.jsx:98-195`); Today's queue and Steps due; one thread per person; the email intake's classification of
 reports and auto-replies (`channels email.ts:443-481`); `lead_suppressions`; the Business record's address; Resend's
 idempotency key (`email-resend.ts:9-13`); the `templates.channel` column.
 

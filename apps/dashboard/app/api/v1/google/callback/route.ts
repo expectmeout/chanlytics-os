@@ -2,7 +2,7 @@ import { read, account } from "@/server/route";
 import { memberContext } from "@/server/with-route";
 import { ROLE_PERMS } from "@chanlytics/contracts";
 import { verifyState } from "@chanlytics/channels";
-import { afterGoogle, edgeGoogle, stateSecret } from "@/server/google";
+import { afterGoogle, edgeGoogle, stateSecret } from "@/server/connections/google";
 
 /**
  * GET /api/v1/google/callback — back from Google with a code and the state.

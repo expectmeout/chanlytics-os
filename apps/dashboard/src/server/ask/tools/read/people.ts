@@ -13,7 +13,7 @@ import {
   type PersonRowVM,
   visitLine,
 } from "@chanlytics/contracts";
-import { poolList, type AudiencePool } from "../../../audience";
+import { poolList, type AudiencePool } from "../../../people/audience";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { lists as listsReader } from "../../../readers/lists";

@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { AppError, CAPABILITY_KINDS, capabilityStatus, type CapabilityKind } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { setupDtoFor } from "@/server/setup";
-import { tellOwnerLive } from "@/server/service";
+import { setupDtoFor } from "@/server/workspace/setup";
+import { tellOwnerLive } from "@/server/workspace/tell";
 
 const Body = z.object({
   note: z.string().trim().max(200, "Two hundred characters at most.").optional(),

@@ -14,6 +14,10 @@
  * The secret key lives here and nowhere else. Without it, and the price and
  * the webhook secret, the ops say "not_ready" and the dashboard draws
  * nothing it cannot do.
+ *
+ * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. The routines are lib/billing.ts's;
+ * what each op logs and answers with is lib/billing-ops.ts's; what is left
+ * here is the knock, the workspace's row and slug, and the dispatch.
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
@@ -30,109 +34,127 @@ import {
   syncFor,
   trialDays,
 } from "../../lib/billing.js";
-import { logger } from "../../lib/log.js";
-import { isCheckoutReturn } from "../../lib/packages/contracts.js";
+import { logger, type Logger } from "../../lib/log.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "../../lib/packages/db.js";
+import {
+  type BillingBody,
+  type BillingOp,
+  type BillingOutcome,
+  UNKNOWN_BILLING_OP,
+  billingStatusOf,
+  billingLogOf,
+  checkoutRequest,
+} from "../../lib/billing-ops.js";
 
-interface Body {
-  op?: string;
-  tenant_id?: string;
-  email?: string;
-  /** Where Checkout comes back to: a place on contracts' closed list, or Billing. */
-  return?: unknown;
-}
+type Db = SupabaseClient<Database>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const STATUS_OF: Record<string, number> = {
-  not_ready: 503,
-  no_account: 404,
-  direct: 409,
-  already_subscribed: 409,
-  no_customer: 409,
-  no_subscription: 409,
-  not_paused: 409,
-  not_trialing: 409,
-  stripe_refused: 502,
+/** An op's call past the knock: a database, the workspace named by id, and the log. */
+interface BillingCall {
+  body: BillingBody;
+  db: Db;
+  tenantId: string;
+  L: Logger;
+}
+
+/** Every op past status, over one call: each asks billing.ts, and the outcome is logged and answered as billing-ops.ts says. */
+const OPS: Record<BillingOp, (c: BillingCall) => Promise<Response>> = {
+  checkout,
+  portal,
+  invoices,
+  sync,
+  resume,
+  start_now: startNow,
 };
 
 /** The slug a tenant read answered with, or null when the read did not. */
 const slugOf = (r: { data: { slug?: string | null } | null }): string | null => r.data?.slug ?? null;
 
+/** The body as sent; not JSON is an empty body, validated below like any other. */
+async function readBody(request: Request): Promise<BillingBody> {
+  try {
+    return JSON.parse(await request.text());
+  } catch {
+    return {};
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/billing");
   if (!auth.ok) return auth.response;
-  let body: Body = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* validated below */
-  }
+  const body = await readBody(request);
   const op = typeof body.op === "string" ? body.op : "";
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
 
-  if (op === "status") {
-    const ready = billingReadiness();
-    return json(200, {
-      ok: true,
-      ready: ready.ready,
-      livemode: stripeLivemode(),
-      doors: ready,
-      price: ready.ready ? await priceForClient() : null,
-      trial_days: trialDays(),
-    });
-  }
+  if (op === "status") return status();
 
+  const call = workspaceCall(body);
+  if (!call.ok) return call.response;
+  const run = Object.hasOwn(OPS, op) ? OPS[op as BillingOp] : null;
+  return run ? run(call.value) : json(UNKNOWN_BILLING_OP.status, UNKNOWN_BILLING_OP.body);
+}
+
+/** What this deployment can do, and the plan as Stripe states it -- no amount is shown for a button that cannot charge. */
+async function status(): Promise<Response> {
+  const ready = billingReadiness();
+  return json(200, {
+    ok: true,
+    ready: ready.ready,
+    livemode: stripeLivemode(),
+    doors: ready,
+    price: ready.ready ? await priceForClient() : null,
+    trial_days: trialDays(),
+  });
+}
+
+/** Past status every op needs a database and a workspace id. */
+function workspaceCall(body: BillingBody): { ok: true; value: BillingCall } | { ok: false; response: Response } {
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return { ok: false, response: json(503, { ok: false, error: "no_database" }) };
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
-  if (!UUID.test(tenantId)) return json(400, { ok: false, error: "tenant_id (a workspace id) is required" });
-  const L = logger({ tenant: tenantId });
+  if (!UUID.test(tenantId)) {
+    return { ok: false, response: json(400, { ok: false, error: "tenant_id (a workspace id) is required" }) };
+  }
+  return { ok: true, value: { body, db, tenantId, L: logger({ tenant: tenantId }) } };
+}
 
-  if (op === "checkout") {
-    const tenant = await db.from("tenants").select("name, slug").eq("id", tenantId).maybeSingle();
-    if (tenant.error) return json(503, { ok: false, error: tenant.error.message });
-    if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
-    const email = typeof body.email === "string" && body.email.includes("@") ? body.email.trim().slice(0, 254) : null;
-    // A place on the closed list, or Billing: never a path taken on the caller's word.
-    const back = isCheckoutReturn(body.return) ? body.return : "billing";
-    const r = await checkoutFor(db, tenantId, tenant.data.name, email, tenant.data.slug ?? null, back);
-    L.info(
-      r.ok ? "billing_checkout_opened" : "billing_checkout_refused",
-      r.ok ? {} : { error: r.error, detail: r.detail?.slice(0, 200) },
-    );
-    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
-  }
-  if (op === "portal") {
-    const r = await portalFor(
-      db,
-      tenantId,
-      slugOf(await db.from("tenants").select("slug").eq("id", tenantId).maybeSingle()),
-    );
-    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
-  }
-  if (op === "invoices") {
-    const r = await invoicesFor(db, tenantId);
-    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
-  }
-  if (op === "sync") {
-    const r = await syncFor(db, tenantId);
-    L.info(r.ok ? "billing_synced" : "billing_sync_refused", r.ok ? { status: r.status } : { error: r.error });
-    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
-  }
-  if (op === "resume") {
-    const r = await resumeFor(db, tenantId);
-    L.info(r.ok ? "billing_resumed" : "billing_resume_refused", r.ok ? { status: r.status } : { error: r.error });
-    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
-  }
-  if (op === "start_now") {
-    const r = await startPlanNowFor(db, tenantId);
-    L.info(
-      r.ok ? "billing_started_now" : "billing_start_now_refused",
-      r.ok ? { status: r.status } : { error: r.error },
-    );
-    return json(r.ok ? 200 : (STATUS_OF[r.error] ?? 500), r);
-  }
-  return json(400, { ok: false, error: "op must be status, checkout, portal, invoices, sync, resume or start_now" });
+/** The outcome on the wire: logged as the op says, answered with the status its refusal earns, the body as billing.ts stated it. */
+function answered(c: BillingCall, op: BillingOp, r: BillingOutcome): Response {
+  const log = billingLogOf(op, r);
+  if (log) c.L.info(log.event, log.fields);
+  return json(billingStatusOf(r), r);
+}
+
+async function checkout(c: BillingCall): Promise<Response> {
+  const tenant = await c.db.from("tenants").select("name, slug").eq("id", c.tenantId).maybeSingle();
+  if (tenant.error) return json(503, { ok: false, error: tenant.error.message });
+  if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
+  const { email, back } = checkoutRequest(c.body.email, c.body.return);
+  const r = await checkoutFor(c.db, c.tenantId, tenant.data.name, email, tenant.data.slug ?? null, back);
+  return answered(c, "checkout", r);
+}
+
+async function portal(c: BillingCall): Promise<Response> {
+  const slug = slugOf(await c.db.from("tenants").select("slug").eq("id", c.tenantId).maybeSingle());
+  return answered(c, "portal", await portalFor(c.db, c.tenantId, slug));
+}
+
+async function invoices(c: BillingCall): Promise<Response> {
+  return answered(c, "invoices", await invoicesFor(c.db, c.tenantId));
+}
+
+async function sync(c: BillingCall): Promise<Response> {
+  return answered(c, "sync", await syncFor(c.db, c.tenantId));
+}
+
+async function resume(c: BillingCall): Promise<Response> {
+  return answered(c, "resume", await resumeFor(c.db, c.tenantId));
+}
+
+async function startNow(c: BillingCall): Promise<Response> {
+  return answered(c, "start_now", await startPlanNowFor(c.db, c.tenantId));
 }

@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { platformPartnerStanding } from "@/server/platform";
+import { platformPartnerStanding } from "@/server/platform/platform";
 import { AppError, PARTNER_STANDINGS } from "@chanlytics/contracts";
 
 /**

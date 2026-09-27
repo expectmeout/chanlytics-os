@@ -1,5 +1,5 @@
 import { write } from "@/server/route";
-import { eraseLead, leadScope } from "@/server/leads";
+import { eraseLead, leadScope } from "@/server/leads/leads";
 
 /**
  * DELETE /api/v1/leads/:id — erase one lead, and never find it again (§0.4).

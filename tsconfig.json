@@ -6,7 +6,7 @@
     "This exists so the NODE TEST RUNNER can import the dashboard's server layer.",
     "tsx resolves `paths` from the tsconfig at the working directory, and the",
     "tests run from the repo root -- so without this, `import { setupDtoFor } from",
-    "'apps/dashboard/src/server/setup.ts'` dies on the first `@/server/...` it",
+    "'apps/dashboard/src/server/workspace/setup.ts'` dies on the first `@/server/...` it",
     "meets, and every module under src/server is untestable by anything except a",
     "regex over its source.",
     "",

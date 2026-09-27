@@ -1,10 +1,10 @@
 /**
  * A person's cards: how the receptionist treats them, and a deal recorded on them with its next step.
  */
-import type { AskProposal } from "../ask";
-import { DEAL_STAGE_WORDS } from "../deals";
-import { PERSON_MODE_WORDS } from "../people";
-import { NOTE_WORDS } from "../person-notes";
+import type { AskProposal } from "../ask/ask";
+import { DEAL_STAGE_WORDS } from "../deals/deals";
+import { PERSON_MODE_WORDS } from "../people/people";
+import { NOTE_WORDS } from "../notes/person-notes";
 import {
   PEOPLE_CHANGED,
   asText,

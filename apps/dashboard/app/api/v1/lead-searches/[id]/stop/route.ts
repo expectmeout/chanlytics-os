@@ -1,6 +1,6 @@
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { answerOf, refusalOf, searchRow } from "@/server/leads";
+import { answerOf, refusalOf, searchRow } from "@/server/leads/leads";
 
 /**
  * POST /api/v1/lead-searches/:id/stop: an operator may stop a search. The

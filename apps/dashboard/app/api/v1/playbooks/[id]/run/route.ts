@@ -1,8 +1,8 @@
 import { AppError, FOLLOW_UP_NEEDS_DEALS, REACH_OUT_IS_NOT_A_MOMENT, triggerOf } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { playbookScope } from "@/server/verbs";
-import { runPlaybookNow } from "@/server/service";
-import { refuseOnArchivedList } from "@/server/playbooks";
+import { runPlaybookNow } from "@/server/campaigns/playbook-run";
+import { refuseOnArchivedList } from "@/server/campaigns/playbooks";
 
 /**
  * POST /api/v1/playbooks/:id/run — run it now, at this person's request.

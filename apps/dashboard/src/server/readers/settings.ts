@@ -11,8 +11,8 @@ import {
   type TenantConfig,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
-import { promptPreview, type PromptPreviewDto } from "../prompt-preview";
-import { linesFor } from "../lines";
+import { promptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
+import { linesFor } from "../connections/lines";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
 import * as readers from "./facts";
 

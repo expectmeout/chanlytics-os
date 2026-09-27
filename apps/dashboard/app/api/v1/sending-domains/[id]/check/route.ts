@@ -1,5 +1,5 @@
 import { write, workspace } from "@/server/route";
-import { checkSendingDomain } from "@/server/sending-domains";
+import { checkSendingDomain } from "@/server/connections/sending-domains";
 
 /**
  * POST /api/v1/sending-domains/:id/check

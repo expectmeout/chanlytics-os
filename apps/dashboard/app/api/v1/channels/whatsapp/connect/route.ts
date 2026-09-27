@@ -1,7 +1,7 @@
 import { AppError } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { recordDecision } from "@/server/verbs";
-import { connectWhatsApp } from "@/server/service";
+import { connectWhatsApp } from "@/server/connections/whatsapp";
 
 /**
  * POST /api/v1/channels/whatsapp/connect — the owner's number becomes a

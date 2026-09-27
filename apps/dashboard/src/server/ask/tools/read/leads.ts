@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { LEAD_ENDING_WORDS } from "@chanlytics/contracts";
-import { waitingQuestionOf } from "../../../leads";
+import { waitingQuestionOf } from "../../../leads/leads";
 import { load } from "../../../readers";
 import { searches } from "../../../readers/searches";
 import { defineRead, type ToolContext } from "../context";

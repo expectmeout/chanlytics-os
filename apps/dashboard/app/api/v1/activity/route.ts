@@ -36,7 +36,7 @@ const Query = z.object({
  * a hundred at a time with ?cursor= (the page before hands one back). Owners:
  * it is the whole record of the workspace, including what every member did.
  * The evidence families are left out unless asked for by name
- * (server/activity.ts). The body is its reader's (readers/activity.ts), which
+ * (server/metrics/activity.ts). The body is its reader's (readers/activity.ts), which
  * trusts this door: the owner's role and the query's checks stay here.
  */
 export const GET = read({

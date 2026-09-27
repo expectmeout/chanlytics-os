@@ -1,7 +1,7 @@
 /**
  * The Inbox's cards and the call's: a reply, a rewrite of a held reply, a verb on a thread, a whisper on a live call.
  */
-import { ASK_THREAD_VERBS, type AskProposal, type AskThreadVerb } from "../ask";
+import { ASK_THREAD_VERBS, type AskProposal, type AskThreadVerb } from "../ask/ask";
 import type { ApiRouteKey } from "../route-keys.generated";
 import {
   PROPOSAL_WORDS,

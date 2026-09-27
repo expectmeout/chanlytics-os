@@ -9,7 +9,7 @@ import {
 } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
-import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/settings-write";
+import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/workspace/settings-write";
 import { load, readerContext } from "@/server/readers";
 import { feedVisibleTo, knownFacts, settings, withHiddenFeed } from "@/server/readers/settings";
 

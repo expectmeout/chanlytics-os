@@ -1,6 +1,6 @@
 import "server-only";
 import type { SetupDto } from "@chanlytics/contracts";
-import { setupDtoFor } from "../setup";
+import { setupDtoFor } from "../workspace/setup";
 import { stamp, type Reader, type ReaderContext } from "./index";
 
 /**

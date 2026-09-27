@@ -9,7 +9,7 @@ import {
   proposalBelowNeeds,
   type LeadSearchPlan,
 } from "@chanlytics/contracts";
-import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../../../leads";
+import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../../../leads/leads";
 import { requireUuid } from "../../../request-guards";
 import { roleAtLeast } from "../../../with-route";
 import { defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";

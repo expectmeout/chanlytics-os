@@ -43,7 +43,7 @@ import {
   type RouteContext,
 } from "./with-route";
 import { takeRate, type RateBucket } from "./rate-limit";
-import { backOffice, type BackOffice } from "./platform";
+import { backOffice, type BackOffice } from "./platform/platform";
 
 export type Role = MemberContext["role"];
 export type Params = Record<string, string | string[] | undefined>;

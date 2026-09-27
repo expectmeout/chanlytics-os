@@ -1,8 +1,8 @@
 import "server-only";
 import { dealsAreOn, parseTenantConfig } from "@chanlytics/contracts";
-import { connectionFor } from "../google";
-import { emailSetupFor } from "../email";
-import { listPlaybooks } from "../playbooks";
+import { connectionFor } from "../connections/google";
+import { emailSetupFor } from "../connections/email";
+import { listPlaybooks } from "../campaigns/playbooks";
 import { load, stamp, type Reader } from "./index";
 import * as facts from "./facts";
 import { channels } from "./channels";

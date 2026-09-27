@@ -10,9 +10,9 @@ import {
   signupPosture,
   type SellsBy,
 } from "@chanlytics/contracts";
-import { acceptOpenInvites } from "@/server/service";
+import { acceptOpenInvites } from "@/server/workspace/team";
 import { getOwnPartner } from "@chanlytics/db";
-import { isPlatformAdmin } from "@/server/platform";
+import { isPlatformAdmin } from "@/server/platform/platform";
 import { isSameOrigin } from "@/server/request-guards";
 
 /** A workspace as the list says it: its zone, and how its customers buy (0008), null when it was never asked. */

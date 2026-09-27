@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
-import { addSendingDomain } from "@/server/sending-domains";
+import { addSendingDomain } from "@/server/connections/sending-domains";
 
 const Body = z
   .object({

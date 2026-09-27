@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CONSENT_STATES } from "@chanlytics/contracts";
 import { workspace, write } from "@/server/route";
-import { recordConsentMany } from "@/server/consent";
+import { recordConsentMany } from "@/server/people/consent";
 
 const Body = z.object({
   ids: z.array(z.string().uuid()).min(1, "Pick at least one person.").max(50, "Fifty at a time."),

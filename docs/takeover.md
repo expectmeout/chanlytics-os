@@ -47,7 +47,7 @@ exists but is not universal or not written down. **Gap** means it is missing.
 ## The takeover test, answered
 
 1. **Authentication**: `apps/dashboard/proxy.ts` (the gate and the pinned public list), `src/lib/supabase/server.ts`, `src/server/auth-cookies.ts`, `app/auth/*`.
-2. **Authorization**: `src/server/route.ts` (`role` and `scope`), `ROLE_PERMS` in `packages/contracts/src/config.ts`, RLS in `supabase/migrations`, SECURITY DEFINER doors.
+2. **Authorization**: `src/server/route.ts` (`role` and `scope`), `ROLE_PERMS` in `packages/contracts/src/config/config.ts`, RLS in `supabase/migrations`, SECURITY DEFINER doors.
 3. **Database client**: the session client in `src/lib/supabase`; the service role in `packages/db/src/service-client.ts` and six named dashboard modules; the edge's `apps/edge/lib/pg.ts`.
 4. **API calls**: a page calls the bridge (`src/legacy-bridge/api.ts`), which calls the typed client (`src/client/api.ts` over `routes.generated.ts`), which calls `app/api/v1`. The dashboard reaches the edge through `src/server/edge.ts` with a per-call token.
 5. **Business logic**: `packages/core` verbs; the receptionist's decisions in `apps/edge/lib`; privileged writes in SQL doors. Booking logic lives nowhere, by charter: the receptionist never books.
@@ -55,13 +55,13 @@ exists but is not universal or not written down. **Gap** means it is missing.
 7. **Feature components**: `src/legacy/pages/<surface>*.jsx`, fed through `src/legacy-bridge`.
 8. **Global state**: `docs/architecture.md`, The shell; the session stores are named `*_STORE` and each belongs to one surface.
 9. **Server state cache**: `surface-cache.ts`, `read-cache.ts`, `surface-runner.ts`, `surface-realtime.ts`, `refresh-map.ts`.
-10. **Errors**: `AppError` and the envelope in `route.ts`, `refusalOf` in `packages/contracts/src/refusal.ts`, `FailedRead` and `EmptyState` in `data-bits.jsx`; the edge's logger in `apps/edge/lib/log.ts` and the pager in `page-operator.ts`.
+10. **Errors**: `AppError` and the envelope in `route.ts`, `refusalOf` in `packages/contracts/src/shell/refusal.ts`, `FailedRead` and `EmptyState` in `data-bits.jsx`; the edge's logger in `apps/edge/lib/log.ts` and the pager in `page-operator.ts`.
 11. **Form validation**: the zod `input` on every route; field-level problems come from contracts. There is no form library, by design.
 12. **Permissions**: `ROLE_PERMS`, `route()`, `roleGate` in the UI.
 13. **Multi-tenancy**: `docs/architecture.md`, Tenancy; `docs/glossary.md` for the tenant and workspace rule.
 14. **Integrations**: `packages/channels` adapters; doors under `apps/edge/api`; Stripe in `apps/edge/lib/billing.ts`.
 15. **Background jobs**: `packages/jobs`, `apps/edge/api/jobs/tick.ts`, the sweeps under `apps/edge/api/cron`.
-16. **AI**: one receptionist (`apps/edge/lib/receptionist/brain.ts`, the composer in `packages/contracts/src/config.ts`, the structured answer in `contracts/brain.ts`); Ask under `src/server/ask`; the lead judge in `packages/channels/src/lead-judge.ts` and `core/leads`. The mockup's agent fleet is not built, by decision.
+16. **AI**: one receptionist (`apps/edge/lib/receptionist/brain.ts`, the composer in `packages/contracts/src/config/config.ts`, the structured answer in `contracts/config/brain.ts`); Ask under `src/server/ask`; the lead judge in `packages/channels/src/lead-judge.ts` and `core/leads`. The mockup's agent fleet is not built, by decision.
 17. **Adding a feature**: `CLAUDE.md`, Where new code goes, and the canonical example table.
 18. **Reusing a component**: `src/legacy/components`, and the `btn`, `set-input`, `record-*` classes the pages already use.
 19. **A new endpoint**: copy the snooze route; add its row to `route-policy.json` (the test prints what it expects); run `gen-route-types`.

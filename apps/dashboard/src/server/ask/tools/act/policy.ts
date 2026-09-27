@@ -7,7 +7,7 @@ import {
   dealsAreOn,
   policyClassOffered,
 } from "@chanlytics/contracts";
-import { sellsByOf } from "../../../deals";
+import { sellsByOf } from "../../../people/deals";
 import { defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
 async function proposePolicy(

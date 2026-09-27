@@ -1,6 +1,6 @@
 import "server-only";
 import type { ActivityPageDto } from "@chanlytics/contracts";
-import { activityLog, type ActivityFilter } from "../activity";
+import { activityLog, type ActivityFilter } from "../metrics/activity";
 import { stamp, type Reader } from "./index";
 
 /**

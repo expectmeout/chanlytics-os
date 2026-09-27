@@ -1,9 +1,9 @@
 import { AppError, PeopleExportQuerySchema, parseListToken } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
-import { everyone } from "@/server/people";
+import { everyone } from "@/server/people/people";
 import { tenantFacts } from "@/server/tenant";
-import { audiencePool, poolList } from "@/server/audience";
-import { attachment, dateTag, peopleCsv, safeName } from "@/server/export";
+import { audiencePool, poolList } from "@/server/people/audience";
+import { attachment, dateTag, peopleCsv, safeName } from "@/server/export/export";
 import { recordDecision } from "@/server/verbs";
 
 /**

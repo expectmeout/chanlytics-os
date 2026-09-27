@@ -97,7 +97,7 @@ What was measured: more than forty different looks doing five jobs. The house pi
 | People | Rail counts `.cl-rail-row.smart .count` | coral on every smart list | `--ink-dim`; the needs-you list `--warn-ink` | clients.css (+ the rail's JSX for the needs-you marker) |
 | People | Next visit `.cl-row-next`, `.pl-card-visit` | raw `--ok` 3.28:1 / `--ok-ink` | `--ink-muted`, the calendar icon stays | clients.css |
 | People | Offers "No" `.cl-row-offers.no` | raw `--danger` | `--ink-muted` | clients.css |
-| People | Active state filter `.cl-seg-filter` | 10.5px, raw `--info` | chip with × | clients-a.jsx |
+| People | Active state filter `.cl-seg-filter` | 10.5px, raw `--info` | chip with × | people.jsx |
 | Person | Lists `.seg-chip` (and smart lists) | 17px, 10px, raw `--info` 3.36:1 | chip with × | client-profile.jsx, people.css |
 | Person | Campaign outcome `.cl-prof-run-out[data-tone]` | ok words green | ok words `--ink-muted`; warn and danger keep their ink | clients.css |
 | Person | Head standing `.cl-prof-now .pill` | quiet already, ok words green | unchanged: a dot and the word in the standing's ink for every tone (the Quiet record, #915) | clients.css |
@@ -106,7 +106,7 @@ What was measured: more than forty different looks doing five jobs. The house pi
 | Leads | "Not a fit" beside the name | a second pill for Stage's fact | removed | leads-finder.jsx |
 | Leads | Fit in the table vs the peek | text vs green pill | no change: under B the peek's pill is the quiet state, so the two read alike (a dot is the only difference) | — |
 | Leads | Placeholder initials `.ld-tile-initials` | tone inks by hash | `--ink-muted` | leads.css |
-| Calendar | `.cal-today-chip` | 15.5px, 9px/600, uppercase, coral | removed (the date already wears the accent) | calendar-real.jsx, calendar.css |
+| Calendar | `.cal-today-chip` | 15.5px, 9px/600, uppercase, coral | removed (the date already wears the accent) | calendar.jsx, calendar.css |
 | Campaigns | Tab counts `.stabs-campaigns .stabs-badge` | mono, 11px/400 | the one count (amber when waiting on you) | components.css |
 | Campaigns | Head flag `.cm-flag` | 28px, 12.5px, dot | amber pill | components.css |
 | Campaigns | Playbook card mark `.pb-tile-mark` | 30px, toned | mark | components.css |
@@ -117,7 +117,7 @@ What was measured: more than forty different looks doing five jobs. The house pi
 | Campaigns | Template source `.msg-tag` | 18px, 11px/400, grey fill | chip (toned `msg-tag`s become pills) | components.css |
 | Campaigns | More languages `.lp-more` | 16px, 10.5px | total count | components.css |
 | Campaigns | Recipients `.bc-person-pill` | ~19px, its own tone family | pill / quiet by tone | components.css |
-| Campaigns | Run mark `.bc-run-mark` | 34px, amber or coral by state | mark (the run's pill says its state) | broadcasts-real.jsx, components.css |
+| Campaigns | Run mark `.bc-run-mark` | 34px, amber or coral by state | mark (the run's pill says its state) | broadcasts.jsx, components.css |
 | Reports | Fact marks `.rpt-fact-icon` | 24px, radius 7, toned | mark | reports.css |
 | Settings | `.settings .pill` | 22px, 11.5px | the one pill (quiet for ok) | settings.css |
 | Settings | Connections inner `.dot` in ok pills | a second dot under B | removed | integrations-real.jsx |

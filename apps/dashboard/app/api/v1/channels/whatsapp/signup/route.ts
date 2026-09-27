@@ -1,5 +1,5 @@
 import { read, workspace } from "@/server/route";
-import { whatsappSignupConfig } from "@/server/service";
+import { whatsappSignupConfig } from "@/server/connections/whatsapp";
 import { ROLE_PERMS } from "@chanlytics/contracts";
 
 /**

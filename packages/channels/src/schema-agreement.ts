@@ -1,6 +1,6 @@
 /**
  * This package's own copies of database sets, held to the database the same way
- * packages/contracts/src/schema-sets.ts holds the rest. No runtime: if this file
+ * packages/contracts/src/shared/schema-sets.ts holds the rest. No runtime: if this file
  * stops compiling, a list here and its column disagree.
  */
 import type { Exactly, Holds, SchemaSet, Within } from "@chanlytics/contracts";
