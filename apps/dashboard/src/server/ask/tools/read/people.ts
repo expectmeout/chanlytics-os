@@ -184,6 +184,11 @@ export const search_people = defineRead({
   // The lists are named from the one table of them (contracts lists.ts), never typed beside it.
   description: `Find people (customers and callers) by name, WhatsApp name, address or the last digits of a phone number, as the People page searches them. Each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token list_audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone, or to see who is on a list; call get_person instead for one person's whole profile, timeline and notes, with the contact_id a row here gives. It returns at most ${ASK_CAPS.people} people, with matches counted before the cap; a list that cannot be counted here says why.`,
   input: z.object({ query: z.string(), list: z.string().optional() }),
+  examples: [
+    { query: "Rosa" },
+    { query: "", list: "quiet" },
+    { query: "", list: "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
+  ],
   label: "Looking through People",
   run: searchPeople,
 });

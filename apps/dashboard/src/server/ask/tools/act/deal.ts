@@ -155,6 +155,20 @@ export const propose_deal = defineAct({
     next_step: z.string().optional(),
     next_step_due: z.string().optional(),
   }),
+  examples: [
+    {
+      contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      stage: "proposed",
+      service: "Deep clean",
+      amount_cents: 25000,
+      per: "once",
+      proposal_url: "https://example.com/quotes/42",
+      valid_until: "2026-10-15",
+      next_step: "Call to walk through the quote",
+      next_step_due: "2026-10-05",
+    },
+    { contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", stage: "lost", lost_reason: "price" },
+  ],
   label: "Preparing a deal",
   build: proposeDeal,
 });

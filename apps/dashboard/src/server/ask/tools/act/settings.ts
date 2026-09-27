@@ -60,6 +60,11 @@ export const propose_settings = defineAct({
       duration_min: z.number().int().optional(),
     }),
   }),
+  examples: [
+    { change: { op: "add_closure", date: "2026-12-24", until: "2026-12-26", note: "Holidays" } },
+    { change: { op: "set_hours", day: "sat", open: "10:00", close: "14:00" } },
+    { change: { op: "add_service", name: "Deep clean", duration_min: 90 } },
+  ],
   label: "Preparing a settings change",
   build: proposeSettings,
 });

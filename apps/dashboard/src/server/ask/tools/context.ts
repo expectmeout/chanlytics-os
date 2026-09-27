@@ -25,6 +25,8 @@ export interface ToolDef {
   name: string;
   description: string;
   input_schema: Record<string, unknown>;
+  /** The definition's examples, where it has them (D9): sent beside the schema, dropped once if the API refuses them. */
+  input_examples?: Array<Record<string, unknown>>;
 }
 
 export interface ToolRun {
@@ -69,11 +71,17 @@ export interface ProposalOutcome {
  * One read tool: its name and description as the model sees them, the zod its input is parsed by before it runs
  * (the JSON schema the model is shown is generated from it, registry.ts toolSchema), the trace line the palette
  * shows while it runs, and the handler, which takes the parsed input.
+ *
+ * `examples` (D9): two or three inputs, typed by the zod so a wrong one fails to compile, on a tool whose input has
+ * a shape a sentence does not pin (a day, a window, a list token, a change, a plan). They ride as the API's
+ * `input_examples`; ask-registry.test.mjs parses each with the tool's own zod, since the API refuses a request whose
+ * example does not fit its schema.
  */
 export interface ReadTool<S extends z.ZodObject = z.ZodObject> {
   name: string;
   description: string;
   input: S;
+  examples?: z.input<S>[];
   label: string;
   run(t: ToolContext, input: z.output<S>): Promise<unknown>;
 }
@@ -83,6 +91,7 @@ export interface ActTool<S extends z.ZodObject = z.ZodObject> {
   name: string;
   description: string;
   input: S;
+  examples?: z.input<S>[];
   label: string;
   build(t: ToolContext, input: z.output<S>): Promise<ProposalOutcome>;
 }

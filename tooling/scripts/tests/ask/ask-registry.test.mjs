@@ -158,9 +158,64 @@ test("an act description names who may approve its card as the card's spec says 
   }
 });
 
+/** The tools whose inputs have a shape a sentence does not pin (D9), in the registry's order: a list token, a day, a window, a change, a plan. */
+const SHAPED = [
+  "search_people",
+  "get_openings",
+  "get_calendar",
+  "propose_thread_verb",
+  "propose_deal",
+  "propose_policy",
+  "propose_settings",
+  "propose_broadcast",
+  "propose_playbook",
+  "propose_lead_search",
+];
+
+test("input_examples ride on the shaped tools, two or three each, and every one parses with its tool's own zod unchanged, as the registry parses an input; a settings example makes its card, and a lead plan plans", async () => {
+  const { ProposeLeadSearchSchema, planLeadSearch } = await import("@chanlytics/contracts");
+  const defs = [...READ_DEFS, ...ACT_DEFS];
+  const tools = [...READ_TOOLS, ...ACT_TOOLS];
+  assert.deepEqual(
+    tools.filter((t) => t.input_examples).map((t) => t.name),
+    SHAPED,
+    "the shaped tools carry examples, and no other",
+  );
+  for (const name of SHAPED) {
+    const def = defs.find((d) => d.name === name);
+    const tool = tools.find((t) => t.name === name);
+    assert.deepEqual(tool.input_examples, def.examples, `${name}: the examples the definition holds, in its order`);
+    assert.ok(def.examples.length >= 2 && def.examples.length <= 3, `${name}: ${def.examples.length} examples`);
+    for (const ex of def.examples) {
+      // An example the schema refuses would be a 400 on every turn until the retry drops them (D9).
+      const r = def.input.safeParse(ex);
+      assert.ok(r.success, `${name}: ${JSON.stringify(ex)} ${r.success ? "" : r.error.message}`);
+      assert.deepEqual(r.data, ex, `${name}: nothing stripped or defaulted, so the API's own check sees the same`);
+    }
+  }
+  // The settings changes pass the change's own schema too: each makes its card, with nothing read.
+  const { supabase, t } = contextFor("owner");
+  for (const ex of defs.find((d) => d.name === "propose_settings").examples) {
+    const out = await buildProposal(t, "propose_settings", ex);
+    assert.equal(out.isError, false, out.result);
+    assert.deepEqual(out.proposal.payload.change, ex.change);
+  }
+  assert.deepEqual(supabase.seen, [], "a settings card reads nothing");
+  // The lead plans pass the plan's own schema and the planner: a US search of businesses, with a card to make.
+  for (const ex of defs.find((d) => d.name === "propose_lead_search").examples) {
+    const planned = planLeadSearch(ProposeLeadSearchSchema.parse(ex));
+    assert.ok(planned.ok, `${ex.asked}: ${planned.ok ? "" : planned.refusal.text}`);
+  }
+});
+
 test("the schemas are deterministic: built twice they are the same bytes, and every tool's is toolSchema of its own zod", () => {
   const build = (defs) =>
-    defs.map((d) => ({ name: d.name, description: d.description, input_schema: toolSchema(d.input) }));
+    defs.map((d) => ({
+      name: d.name,
+      description: d.description,
+      input_schema: toolSchema(d.input),
+      ...(d.examples?.length ? { input_examples: d.examples } : {}),
+    }));
   assert.equal(JSON.stringify(build(READ_DEFS)), JSON.stringify(build(READ_DEFS)), "the reads, twice");
   assert.equal(JSON.stringify(build(ACT_DEFS)), JSON.stringify(build(ACT_DEFS)), "the acts, twice");
   assert.equal(JSON.stringify(build(READ_DEFS)), JSON.stringify(READ_TOOLS), "and the array the loop holds");

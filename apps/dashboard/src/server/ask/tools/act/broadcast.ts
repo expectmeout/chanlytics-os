@@ -146,6 +146,22 @@ export const propose_broadcast = defineAct({
     scheduled_for: z.string().optional(),
     name: z.string().optional(),
   }),
+  examples: [
+    {
+      template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+      audience_kind: "everyone",
+      params: ["@first_name", "20% off until Friday"],
+    },
+    { template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70", audience_kind: "list", audience_id: "quiet", params: [] },
+    {
+      template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+      audience_kind: "saved",
+      audience_id: "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b",
+      params: ["@first_name"],
+      scheduled_for: "2026-10-03T15:00:00-04:00",
+      name: "October offer",
+    },
+  ],
   label: "Preparing a broadcast",
   build: proposeBroadcast,
 });

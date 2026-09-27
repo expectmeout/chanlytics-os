@@ -243,6 +243,17 @@ export const propose_playbook = defineAct({
     cap_per_run: z.number().optional(),
     name: z.string().optional(),
   }),
+  examples: [
+    { trigger: "quiet_30" },
+    {
+      trigger: "saved_list",
+      list: "seg:booked_week",
+      policy_class: "campaign",
+      template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+      params: ["@first_name", "@booking_link"],
+      run_hour: 10,
+    },
+  ],
   label: "Preparing a playbook",
   build: proposePlaybook,
 });

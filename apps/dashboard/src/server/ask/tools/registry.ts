@@ -146,6 +146,8 @@ const defOf = (t: ReadTool | ActTool): ToolDef => ({
   name: t.name,
   description: t.description,
   input_schema: toolSchema(t.input),
+  // The examples as written, in their order: the same bytes every build, after the schema in the tool's keys.
+  ...(t.examples?.length ? { input_examples: t.examples as Array<Record<string, unknown>> } : {}),
 });
 
 export const READ_TOOLS: ToolDef[] = READ_DEFS.map(defOf);

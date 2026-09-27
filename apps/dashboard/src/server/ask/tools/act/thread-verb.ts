@@ -96,6 +96,10 @@ export const propose_thread_verb = defineAct({
     verb: z.enum(THREAD_VERBS),
     until: z.string().optional(),
   }),
+  examples: [
+    { conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f", verb: "snooze", until: "2026-10-03T10:00:00-04:00" },
+    { conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f", verb: "take_over" },
+  ],
   label: "Preparing an Inbox action",
   build: proposeThreadVerb,
 });

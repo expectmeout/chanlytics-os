@@ -75,6 +75,11 @@ export const propose_policy = defineAct({
     mode: z.enum(["", ...POLICY_MODES]),
     min_confidence: z.number().optional(),
   }),
+  // The dial alone is asked with mode empty: the one shape a sentence does not pin.
+  examples: [
+    { class: "reply", mode: "veto" },
+    { class: "reply", mode: "", min_confidence: 0.8 },
+  ],
   label: "Preparing an autonomy change",
   build: proposePolicy,
 });
