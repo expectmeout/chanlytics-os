@@ -283,7 +283,11 @@ test(
     // Paid 1 Aug, no card mark: a week later it is judged, and nothing is due until 31 Aug.
     const link = ok(await db.from("partner_tenants").select("standing, checks").eq("tenant_id", brought).single());
     assert.equal(link.standing, "qualified");
-    assert.deepEqual(link.checks, { same_card: false, same_listing: false });
+    assert.deepEqual(
+      link.checks,
+      { same_card: false, same_listing: false, same_domain: false },
+      "a link's workspace has no handover to judge (00214)",
+    );
     assert.ok(out.judged >= 1);
     assert.ok(
       (await rows("in_led_1")).every((r) => r.state === "held"),
