@@ -2051,7 +2051,6 @@ var PLAYBOOK_CLASS_LABEL = {
   follow_up: POLICY_CLASS_WORDS.follow_up.short,
   outreach: POLICY_CLASS_WORDS.outreach.short
 };
-var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES = ["en", "es", "other"];
 var ASK_UNDO_MS = 10 * 6e4;
 var AskProposalOutcomeSchema = z8.object({
@@ -2096,6 +2095,7 @@ var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
     duration_min: z8.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -2111,14 +2111,13 @@ var ASK_ANSWER_CAPS = {
   line: 160,
   question: 90
 };
-var C = ASK_ANSWER_CAPS;
 var SOURCE = {
   type: "object",
   description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C.label} characters.` }
+    label: { type: "string", description: `A short name for it, at most ${ASK_ANSWER_CAPS.label} characters.` }
   },
   required: ["kind", "id", "label"],
   additionalProperties: false
@@ -2131,11 +2130,11 @@ var ASK_ANSWER_FORMAT = {
       properties: {
         headline: {
           type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C.headline} characters.`
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${ASK_ANSWER_CAPS.headline} characters.`
         },
         detail: {
           type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C.detail} characters.`
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${ASK_ANSWER_CAPS.detail} characters.`
         }
       },
       required: ["headline", "detail"],
@@ -2146,18 +2145,18 @@ var ASK_ANSWER_FORMAT = {
       properties: {
         figures: {
           type: "array",
-          description: `The numbers the headline rests on, at most ${C.figures}; empty when there is none.`,
+          description: `The numbers the headline rests on, at most ${ASK_ANSWER_CAPS.figures}; empty when there is none.`,
           items: {
             type: "object",
             properties: {
               value: {
                 type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C.value} characters.`
+                description: `The number as said: "5", "44%", "1 min"; at most ${ASK_ANSWER_CAPS.value} characters.`
               },
-              label: { type: "string", description: `What it counts, at most ${C.label} characters.` },
+              label: { type: "string", description: `What it counts, at most ${ASK_ANSWER_CAPS.label} characters.` },
               note: {
                 type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C.note} characters.`
+                description: `How it compares ("up from 1"), or empty; at most ${ASK_ANSWER_CAPS.note} characters.`
               },
               source: SOURCE
             },
@@ -2167,16 +2166,16 @@ var ASK_ANSWER_FORMAT = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C.title} characters.` },
+              title: { type: "string", description: `Who or what it is, at most ${ASK_ANSWER_CAPS.title} characters.` },
               meta: {
                 type: "string",
-                description: `The channel and how long, or empty; at most ${C.meta} characters.`
+                description: `The channel and how long, or empty; at most ${ASK_ANSWER_CAPS.meta} characters.`
               },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C.line} characters.` },
+              line: { type: "string", description: `Why it matters, in one line of at most ${ASK_ANSWER_CAPS.line} characters.` },
               source: SOURCE
             },
             required: ["title", "meta", "line", "source"],
@@ -2185,11 +2184,11 @@ var ASK_ANSWER_FORMAT = {
         },
         breakdown: {
           type: "object",
-          description: `One whole in its parts, at most ${C.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          description: `One whole in its parts, at most ${ASK_ANSWER_CAPS.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
           properties: {
             label: {
               type: "string",
-              description: `What the whole is ("customer messages"), at most ${C.label} characters.`
+              description: `What the whole is ("customer messages"), at most ${ASK_ANSWER_CAPS.label} characters.`
             },
             total: { type: "number" },
             parts: {
@@ -2197,7 +2196,7 @@ var ASK_ANSWER_FORMAT = {
               items: {
                 type: "object",
                 properties: {
-                  label: { type: "string", description: `At most ${C.label} characters.` },
+                  label: { type: "string", description: `At most ${ASK_ANSWER_CAPS.label} characters.` },
                   value: { type: "number" },
                   warn: { type: "boolean", description: "True for the one part that needs attention." }
                 },
@@ -2222,7 +2221,7 @@ var ASK_ANSWER_FORMAT = {
           description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
           properties: {
             source: SOURCE,
-            label: { type: "string", description: `The button's words, at most ${C.label} characters.` },
+            label: { type: "string", description: `The button's words, at most ${ASK_ANSWER_CAPS.label} characters.` },
             now: {
               type: "boolean",
               description: "True when they asked to open, show or see it: the app goes there as the answer lands."
@@ -2233,7 +2232,7 @@ var ASK_ANSWER_FORMAT = {
         },
         next: {
           type: "array",
-          description: `Up to ${C.next} short questions they might ask next, at most ${C.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          description: `Up to ${ASK_ANSWER_CAPS.next} short questions they might ask next, at most ${ASK_ANSWER_CAPS.question} characters each, never one about a place already offered; empty when nothing follows.`,
           items: { type: "string" }
         }
       },
@@ -9685,7 +9684,6 @@ var PLAYBOOK_CLASS_LABEL2 = {
   follow_up: POLICY_CLASS_WORDS2.follow_up.short,
   outreach: POLICY_CLASS_WORDS2.outreach.short
 };
-var ASK_CITATION_KINDS2 = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES2 = ["en", "es", "other"];
 var ASK_UNDO_MS2 = 10 * 6e4;
 var AskProposalOutcomeSchema2 = z82.object({
@@ -9730,6 +9728,7 @@ var AskSettingsChangeSchema2 = z82.discriminatedUnion("op", [
     duration_min: z82.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CITATION_KINDS2 = ["thread", "conversation", "call", "person", "page"];
 var ASK_ANSWER_CAPS2 = {
   headline: 160,
   detail: 700,
@@ -9745,14 +9744,13 @@ var ASK_ANSWER_CAPS2 = {
   line: 160,
   question: 90
 };
-var C2 = ASK_ANSWER_CAPS2;
 var SOURCE2 = {
   type: "object",
   description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS2, "none"] },
     id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C2.label} characters.` }
+    label: { type: "string", description: `A short name for it, at most ${ASK_ANSWER_CAPS2.label} characters.` }
   },
   required: ["kind", "id", "label"],
   additionalProperties: false
@@ -9765,11 +9763,11 @@ var ASK_ANSWER_FORMAT2 = {
       properties: {
         headline: {
           type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C2.headline} characters.`
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${ASK_ANSWER_CAPS2.headline} characters.`
         },
         detail: {
           type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C2.detail} characters.`
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${ASK_ANSWER_CAPS2.detail} characters.`
         }
       },
       required: ["headline", "detail"],
@@ -9780,18 +9778,18 @@ var ASK_ANSWER_FORMAT2 = {
       properties: {
         figures: {
           type: "array",
-          description: `The numbers the headline rests on, at most ${C2.figures}; empty when there is none.`,
+          description: `The numbers the headline rests on, at most ${ASK_ANSWER_CAPS2.figures}; empty when there is none.`,
           items: {
             type: "object",
             properties: {
               value: {
                 type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C2.value} characters.`
+                description: `The number as said: "5", "44%", "1 min"; at most ${ASK_ANSWER_CAPS2.value} characters.`
               },
-              label: { type: "string", description: `What it counts, at most ${C2.label} characters.` },
+              label: { type: "string", description: `What it counts, at most ${ASK_ANSWER_CAPS2.label} characters.` },
               note: {
                 type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C2.note} characters.`
+                description: `How it compares ("up from 1"), or empty; at most ${ASK_ANSWER_CAPS2.note} characters.`
               },
               source: SOURCE2
             },
@@ -9801,16 +9799,16 @@ var ASK_ANSWER_FORMAT2 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C2.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS2.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C2.title} characters.` },
+              title: { type: "string", description: `Who or what it is, at most ${ASK_ANSWER_CAPS2.title} characters.` },
               meta: {
                 type: "string",
-                description: `The channel and how long, or empty; at most ${C2.meta} characters.`
+                description: `The channel and how long, or empty; at most ${ASK_ANSWER_CAPS2.meta} characters.`
               },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C2.line} characters.` },
+              line: { type: "string", description: `Why it matters, in one line of at most ${ASK_ANSWER_CAPS2.line} characters.` },
               source: SOURCE2
             },
             required: ["title", "meta", "line", "source"],
@@ -9819,11 +9817,11 @@ var ASK_ANSWER_FORMAT2 = {
         },
         breakdown: {
           type: "object",
-          description: `One whole in its parts, at most ${C2.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          description: `One whole in its parts, at most ${ASK_ANSWER_CAPS2.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
           properties: {
             label: {
               type: "string",
-              description: `What the whole is ("customer messages"), at most ${C2.label} characters.`
+              description: `What the whole is ("customer messages"), at most ${ASK_ANSWER_CAPS2.label} characters.`
             },
             total: { type: "number" },
             parts: {
@@ -9831,7 +9829,7 @@ var ASK_ANSWER_FORMAT2 = {
               items: {
                 type: "object",
                 properties: {
-                  label: { type: "string", description: `At most ${C2.label} characters.` },
+                  label: { type: "string", description: `At most ${ASK_ANSWER_CAPS2.label} characters.` },
                   value: { type: "number" },
                   warn: { type: "boolean", description: "True for the one part that needs attention." }
                 },
@@ -9856,7 +9854,7 @@ var ASK_ANSWER_FORMAT2 = {
           description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
           properties: {
             source: SOURCE2,
-            label: { type: "string", description: `The button's words, at most ${C2.label} characters.` },
+            label: { type: "string", description: `The button's words, at most ${ASK_ANSWER_CAPS2.label} characters.` },
             now: {
               type: "boolean",
               description: "True when they asked to open, show or see it: the app goes there as the answer lands."
@@ -9867,7 +9865,7 @@ var ASK_ANSWER_FORMAT2 = {
         },
         next: {
           type: "array",
-          description: `Up to ${C2.next} short questions they might ask next, at most ${C2.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          description: `Up to ${ASK_ANSWER_CAPS2.next} short questions they might ask next, at most ${ASK_ANSWER_CAPS2.question} characters each, never one about a place already offered; empty when nothing follows.`,
           items: { type: "string" }
         }
       },
@@ -13389,7 +13387,6 @@ var PLAYBOOK_CLASS_LABEL3 = {
   follow_up: POLICY_CLASS_WORDS3.follow_up.short,
   outreach: POLICY_CLASS_WORDS3.outreach.short
 };
-var ASK_CITATION_KINDS3 = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES3 = ["en", "es", "other"];
 var ASK_UNDO_MS3 = 10 * 6e4;
 var AskProposalOutcomeSchema3 = z83.object({
@@ -13434,6 +13431,7 @@ var AskSettingsChangeSchema3 = z83.discriminatedUnion("op", [
     duration_min: z83.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CITATION_KINDS3 = ["thread", "conversation", "call", "person", "page"];
 var ASK_ANSWER_CAPS3 = {
   headline: 160,
   detail: 700,
@@ -13449,14 +13447,13 @@ var ASK_ANSWER_CAPS3 = {
   line: 160,
   question: 90
 };
-var C3 = ASK_ANSWER_CAPS3;
 var SOURCE3 = {
   type: "object",
   description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS3, "none"] },
     id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C3.label} characters.` }
+    label: { type: "string", description: `A short name for it, at most ${ASK_ANSWER_CAPS3.label} characters.` }
   },
   required: ["kind", "id", "label"],
   additionalProperties: false
@@ -13469,11 +13466,11 @@ var ASK_ANSWER_FORMAT3 = {
       properties: {
         headline: {
           type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C3.headline} characters.`
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${ASK_ANSWER_CAPS3.headline} characters.`
         },
         detail: {
           type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C3.detail} characters.`
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${ASK_ANSWER_CAPS3.detail} characters.`
         }
       },
       required: ["headline", "detail"],
@@ -13484,18 +13481,18 @@ var ASK_ANSWER_FORMAT3 = {
       properties: {
         figures: {
           type: "array",
-          description: `The numbers the headline rests on, at most ${C3.figures}; empty when there is none.`,
+          description: `The numbers the headline rests on, at most ${ASK_ANSWER_CAPS3.figures}; empty when there is none.`,
           items: {
             type: "object",
             properties: {
               value: {
                 type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C3.value} characters.`
+                description: `The number as said: "5", "44%", "1 min"; at most ${ASK_ANSWER_CAPS3.value} characters.`
               },
-              label: { type: "string", description: `What it counts, at most ${C3.label} characters.` },
+              label: { type: "string", description: `What it counts, at most ${ASK_ANSWER_CAPS3.label} characters.` },
               note: {
                 type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C3.note} characters.`
+                description: `How it compares ("up from 1"), or empty; at most ${ASK_ANSWER_CAPS3.note} characters.`
               },
               source: SOURCE3
             },
@@ -13505,16 +13502,16 @@ var ASK_ANSWER_FORMAT3 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C3.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS3.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C3.title} characters.` },
+              title: { type: "string", description: `Who or what it is, at most ${ASK_ANSWER_CAPS3.title} characters.` },
               meta: {
                 type: "string",
-                description: `The channel and how long, or empty; at most ${C3.meta} characters.`
+                description: `The channel and how long, or empty; at most ${ASK_ANSWER_CAPS3.meta} characters.`
               },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C3.line} characters.` },
+              line: { type: "string", description: `Why it matters, in one line of at most ${ASK_ANSWER_CAPS3.line} characters.` },
               source: SOURCE3
             },
             required: ["title", "meta", "line", "source"],
@@ -13523,11 +13520,11 @@ var ASK_ANSWER_FORMAT3 = {
         },
         breakdown: {
           type: "object",
-          description: `One whole in its parts, at most ${C3.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          description: `One whole in its parts, at most ${ASK_ANSWER_CAPS3.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
           properties: {
             label: {
               type: "string",
-              description: `What the whole is ("customer messages"), at most ${C3.label} characters.`
+              description: `What the whole is ("customer messages"), at most ${ASK_ANSWER_CAPS3.label} characters.`
             },
             total: { type: "number" },
             parts: {
@@ -13535,7 +13532,7 @@ var ASK_ANSWER_FORMAT3 = {
               items: {
                 type: "object",
                 properties: {
-                  label: { type: "string", description: `At most ${C3.label} characters.` },
+                  label: { type: "string", description: `At most ${ASK_ANSWER_CAPS3.label} characters.` },
                   value: { type: "number" },
                   warn: { type: "boolean", description: "True for the one part that needs attention." }
                 },
@@ -13560,7 +13557,7 @@ var ASK_ANSWER_FORMAT3 = {
           description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
           properties: {
             source: SOURCE3,
-            label: { type: "string", description: `The button's words, at most ${C3.label} characters.` },
+            label: { type: "string", description: `The button's words, at most ${ASK_ANSWER_CAPS3.label} characters.` },
             now: {
               type: "boolean",
               description: "True when they asked to open, show or see it: the app goes there as the answer lands."
@@ -13571,7 +13568,7 @@ var ASK_ANSWER_FORMAT3 = {
         },
         next: {
           type: "array",
-          description: `Up to ${C3.next} short questions they might ask next, at most ${C3.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          description: `Up to ${ASK_ANSWER_CAPS3.next} short questions they might ask next, at most ${ASK_ANSWER_CAPS3.question} characters each, never one about a place already offered; empty when nothing follows.`,
           items: { type: "string" }
         }
       },
@@ -16189,7 +16186,6 @@ var PLAYBOOK_CLASS_LABEL22 = {
   follow_up: POLICY_CLASS_WORDS22.follow_up.short,
   outreach: POLICY_CLASS_WORDS22.outreach.short
 };
-var ASK_CITATION_KINDS22 = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES22 = ["en", "es", "other"];
 var ASK_UNDO_MS22 = 10 * 6e4;
 var AskProposalOutcomeSchema22 = z822.object({
@@ -16234,6 +16230,7 @@ var AskSettingsChangeSchema22 = z822.discriminatedUnion("op", [
     duration_min: z822.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CITATION_KINDS22 = ["thread", "conversation", "call", "person", "page"];
 var ASK_ANSWER_CAPS22 = {
   headline: 160,
   detail: 700,
@@ -16249,14 +16246,13 @@ var ASK_ANSWER_CAPS22 = {
   line: 160,
   question: 90
 };
-var C22 = ASK_ANSWER_CAPS22;
 var SOURCE22 = {
   type: "object",
   description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS22, "none"] },
     id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C22.label} characters.` }
+    label: { type: "string", description: `A short name for it, at most ${ASK_ANSWER_CAPS22.label} characters.` }
   },
   required: ["kind", "id", "label"],
   additionalProperties: false
@@ -16269,11 +16265,11 @@ var ASK_ANSWER_FORMAT22 = {
       properties: {
         headline: {
           type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C22.headline} characters.`
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${ASK_ANSWER_CAPS22.headline} characters.`
         },
         detail: {
           type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C22.detail} characters.`
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${ASK_ANSWER_CAPS22.detail} characters.`
         }
       },
       required: ["headline", "detail"],
@@ -16284,18 +16280,18 @@ var ASK_ANSWER_FORMAT22 = {
       properties: {
         figures: {
           type: "array",
-          description: `The numbers the headline rests on, at most ${C22.figures}; empty when there is none.`,
+          description: `The numbers the headline rests on, at most ${ASK_ANSWER_CAPS22.figures}; empty when there is none.`,
           items: {
             type: "object",
             properties: {
               value: {
                 type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C22.value} characters.`
+                description: `The number as said: "5", "44%", "1 min"; at most ${ASK_ANSWER_CAPS22.value} characters.`
               },
-              label: { type: "string", description: `What it counts, at most ${C22.label} characters.` },
+              label: { type: "string", description: `What it counts, at most ${ASK_ANSWER_CAPS22.label} characters.` },
               note: {
                 type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C22.note} characters.`
+                description: `How it compares ("up from 1"), or empty; at most ${ASK_ANSWER_CAPS22.note} characters.`
               },
               source: SOURCE22
             },
@@ -16305,16 +16301,16 @@ var ASK_ANSWER_FORMAT22 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C22.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS22.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C22.title} characters.` },
+              title: { type: "string", description: `Who or what it is, at most ${ASK_ANSWER_CAPS22.title} characters.` },
               meta: {
                 type: "string",
-                description: `The channel and how long, or empty; at most ${C22.meta} characters.`
+                description: `The channel and how long, or empty; at most ${ASK_ANSWER_CAPS22.meta} characters.`
               },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C22.line} characters.` },
+              line: { type: "string", description: `Why it matters, in one line of at most ${ASK_ANSWER_CAPS22.line} characters.` },
               source: SOURCE22
             },
             required: ["title", "meta", "line", "source"],
@@ -16323,11 +16319,11 @@ var ASK_ANSWER_FORMAT22 = {
         },
         breakdown: {
           type: "object",
-          description: `One whole in its parts, at most ${C22.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          description: `One whole in its parts, at most ${ASK_ANSWER_CAPS22.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
           properties: {
             label: {
               type: "string",
-              description: `What the whole is ("customer messages"), at most ${C22.label} characters.`
+              description: `What the whole is ("customer messages"), at most ${ASK_ANSWER_CAPS22.label} characters.`
             },
             total: { type: "number" },
             parts: {
@@ -16335,7 +16331,7 @@ var ASK_ANSWER_FORMAT22 = {
               items: {
                 type: "object",
                 properties: {
-                  label: { type: "string", description: `At most ${C22.label} characters.` },
+                  label: { type: "string", description: `At most ${ASK_ANSWER_CAPS22.label} characters.` },
                   value: { type: "number" },
                   warn: { type: "boolean", description: "True for the one part that needs attention." }
                 },
@@ -16360,7 +16356,7 @@ var ASK_ANSWER_FORMAT22 = {
           description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
           properties: {
             source: SOURCE22,
-            label: { type: "string", description: `The button's words, at most ${C22.label} characters.` },
+            label: { type: "string", description: `The button's words, at most ${ASK_ANSWER_CAPS22.label} characters.` },
             now: {
               type: "boolean",
               description: "True when they asked to open, show or see it: the app goes there as the answer lands."
@@ -16371,7 +16367,7 @@ var ASK_ANSWER_FORMAT22 = {
         },
         next: {
           type: "array",
-          description: `Up to ${C22.next} short questions they might ask next, at most ${C22.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          description: `Up to ${ASK_ANSWER_CAPS22.next} short questions they might ask next, at most ${ASK_ANSWER_CAPS22.question} characters each, never one about a place already offered; empty when nothing follows.`,
           items: { type: "string" }
         }
       },
@@ -18843,7 +18839,6 @@ var PLAYBOOK_CLASS_LABEL32 = {
   follow_up: POLICY_CLASS_WORDS32.follow_up.short,
   outreach: POLICY_CLASS_WORDS32.outreach.short
 };
-var ASK_CITATION_KINDS32 = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES32 = ["en", "es", "other"];
 var ASK_UNDO_MS32 = 10 * 6e4;
 var AskProposalOutcomeSchema32 = z832.object({
@@ -18888,6 +18883,7 @@ var AskSettingsChangeSchema32 = z832.discriminatedUnion("op", [
     duration_min: z832.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CITATION_KINDS32 = ["thread", "conversation", "call", "person", "page"];
 var ASK_ANSWER_CAPS32 = {
   headline: 160,
   detail: 700,
@@ -18903,14 +18899,13 @@ var ASK_ANSWER_CAPS32 = {
   line: 160,
   question: 90
 };
-var C32 = ASK_ANSWER_CAPS32;
 var SOURCE32 = {
   type: "object",
   description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS32, "none"] },
     id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C32.label} characters.` }
+    label: { type: "string", description: `A short name for it, at most ${ASK_ANSWER_CAPS32.label} characters.` }
   },
   required: ["kind", "id", "label"],
   additionalProperties: false
@@ -18923,11 +18918,11 @@ var ASK_ANSWER_FORMAT32 = {
       properties: {
         headline: {
           type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C32.headline} characters.`
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${ASK_ANSWER_CAPS32.headline} characters.`
         },
         detail: {
           type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C32.detail} characters.`
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${ASK_ANSWER_CAPS32.detail} characters.`
         }
       },
       required: ["headline", "detail"],
@@ -18938,18 +18933,18 @@ var ASK_ANSWER_FORMAT32 = {
       properties: {
         figures: {
           type: "array",
-          description: `The numbers the headline rests on, at most ${C32.figures}; empty when there is none.`,
+          description: `The numbers the headline rests on, at most ${ASK_ANSWER_CAPS32.figures}; empty when there is none.`,
           items: {
             type: "object",
             properties: {
               value: {
                 type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C32.value} characters.`
+                description: `The number as said: "5", "44%", "1 min"; at most ${ASK_ANSWER_CAPS32.value} characters.`
               },
-              label: { type: "string", description: `What it counts, at most ${C32.label} characters.` },
+              label: { type: "string", description: `What it counts, at most ${ASK_ANSWER_CAPS32.label} characters.` },
               note: {
                 type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C32.note} characters.`
+                description: `How it compares ("up from 1"), or empty; at most ${ASK_ANSWER_CAPS32.note} characters.`
               },
               source: SOURCE32
             },
@@ -18959,16 +18954,16 @@ var ASK_ANSWER_FORMAT32 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C32.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS32.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C32.title} characters.` },
+              title: { type: "string", description: `Who or what it is, at most ${ASK_ANSWER_CAPS32.title} characters.` },
               meta: {
                 type: "string",
-                description: `The channel and how long, or empty; at most ${C32.meta} characters.`
+                description: `The channel and how long, or empty; at most ${ASK_ANSWER_CAPS32.meta} characters.`
               },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C32.line} characters.` },
+              line: { type: "string", description: `Why it matters, in one line of at most ${ASK_ANSWER_CAPS32.line} characters.` },
               source: SOURCE32
             },
             required: ["title", "meta", "line", "source"],
@@ -18977,11 +18972,11 @@ var ASK_ANSWER_FORMAT32 = {
         },
         breakdown: {
           type: "object",
-          description: `One whole in its parts, at most ${C32.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          description: `One whole in its parts, at most ${ASK_ANSWER_CAPS32.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
           properties: {
             label: {
               type: "string",
-              description: `What the whole is ("customer messages"), at most ${C32.label} characters.`
+              description: `What the whole is ("customer messages"), at most ${ASK_ANSWER_CAPS32.label} characters.`
             },
             total: { type: "number" },
             parts: {
@@ -18989,7 +18984,7 @@ var ASK_ANSWER_FORMAT32 = {
               items: {
                 type: "object",
                 properties: {
-                  label: { type: "string", description: `At most ${C32.label} characters.` },
+                  label: { type: "string", description: `At most ${ASK_ANSWER_CAPS32.label} characters.` },
                   value: { type: "number" },
                   warn: { type: "boolean", description: "True for the one part that needs attention." }
                 },
@@ -19014,7 +19009,7 @@ var ASK_ANSWER_FORMAT32 = {
           description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
           properties: {
             source: SOURCE32,
-            label: { type: "string", description: `The button's words, at most ${C32.label} characters.` },
+            label: { type: "string", description: `The button's words, at most ${ASK_ANSWER_CAPS32.label} characters.` },
             now: {
               type: "boolean",
               description: "True when they asked to open, show or see it: the app goes there as the answer lands."
@@ -19025,7 +19020,7 @@ var ASK_ANSWER_FORMAT32 = {
         },
         next: {
           type: "array",
-          description: `Up to ${C32.next} short questions they might ask next, at most ${C32.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          description: `Up to ${ASK_ANSWER_CAPS32.next} short questions they might ask next, at most ${ASK_ANSWER_CAPS32.question} characters each, never one about a place already offered; empty when nothing follows.`,
           items: { type: "string" }
         }
       },
@@ -22204,7 +22199,6 @@ var PLAYBOOK_CLASS_LABEL4 = {
   follow_up: POLICY_CLASS_WORDS4.follow_up.short,
   outreach: POLICY_CLASS_WORDS4.outreach.short
 };
-var ASK_CITATION_KINDS4 = ["thread", "conversation", "call", "person", "page"];
 var ASK_LANGUAGES4 = ["en", "es", "other"];
 var ASK_UNDO_MS4 = 10 * 6e4;
 var AskProposalOutcomeSchema4 = z84.object({
@@ -22249,6 +22243,7 @@ var AskSettingsChangeSchema4 = z84.discriminatedUnion("op", [
     duration_min: z84.number().int().min(1).max(1440).optional()
   })
 ]);
+var ASK_CITATION_KINDS4 = ["thread", "conversation", "call", "person", "page"];
 var ASK_ANSWER_CAPS4 = {
   headline: 160,
   detail: 700,
@@ -22264,14 +22259,13 @@ var ASK_ANSWER_CAPS4 = {
   line: 160,
   question: 90
 };
-var C4 = ASK_ANSWER_CAPS4;
 var SOURCE4 = {
   type: "object",
   description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS4, "none"] },
     id: { type: "string" },
-    label: { type: "string", description: `A short name for it, at most ${C4.label} characters.` }
+    label: { type: "string", description: `A short name for it, at most ${ASK_ANSWER_CAPS4.label} characters.` }
   },
   required: ["kind", "id", "label"],
   additionalProperties: false
@@ -22284,11 +22278,11 @@ var ASK_ANSWER_FORMAT4 = {
       properties: {
         headline: {
           type: "string",
-          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${C4.headline} characters.`
+          description: `The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most ${ASK_ANSWER_CAPS4.headline} characters.`
         },
         detail: {
           type: "string",
-          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${C4.detail} characters.`
+          description: `Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most ${ASK_ANSWER_CAPS4.detail} characters.`
         }
       },
       required: ["headline", "detail"],
@@ -22299,18 +22293,18 @@ var ASK_ANSWER_FORMAT4 = {
       properties: {
         figures: {
           type: "array",
-          description: `The numbers the headline rests on, at most ${C4.figures}; empty when there is none.`,
+          description: `The numbers the headline rests on, at most ${ASK_ANSWER_CAPS4.figures}; empty when there is none.`,
           items: {
             type: "object",
             properties: {
               value: {
                 type: "string",
-                description: `The number as said: "5", "44%", "1 min"; at most ${C4.value} characters.`
+                description: `The number as said: "5", "44%", "1 min"; at most ${ASK_ANSWER_CAPS4.value} characters.`
               },
-              label: { type: "string", description: `What it counts, at most ${C4.label} characters.` },
+              label: { type: "string", description: `What it counts, at most ${ASK_ANSWER_CAPS4.label} characters.` },
               note: {
                 type: "string",
-                description: `How it compares ("up from 1"), or empty; at most ${C4.note} characters.`
+                description: `How it compares ("up from 1"), or empty; at most ${ASK_ANSWER_CAPS4.note} characters.`
               },
               source: SOURCE4
             },
@@ -22320,16 +22314,16 @@ var ASK_ANSWER_FORMAT4 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C4.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS4.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
-              title: { type: "string", description: `Who or what it is, at most ${C4.title} characters.` },
+              title: { type: "string", description: `Who or what it is, at most ${ASK_ANSWER_CAPS4.title} characters.` },
               meta: {
                 type: "string",
-                description: `The channel and how long, or empty; at most ${C4.meta} characters.`
+                description: `The channel and how long, or empty; at most ${ASK_ANSWER_CAPS4.meta} characters.`
               },
-              line: { type: "string", description: `Why it matters, in one line of at most ${C4.line} characters.` },
+              line: { type: "string", description: `Why it matters, in one line of at most ${ASK_ANSWER_CAPS4.line} characters.` },
               source: SOURCE4
             },
             required: ["title", "meta", "line", "source"],
@@ -22338,11 +22332,11 @@ var ASK_ANSWER_FORMAT4 = {
         },
         breakdown: {
           type: "object",
-          description: `One whole in its parts, at most ${C4.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
+          description: `One whole in its parts, at most ${ASK_ANSWER_CAPS4.parts} parts whose values add up exactly to total; parts empty when nothing splits.`,
           properties: {
             label: {
               type: "string",
-              description: `What the whole is ("customer messages"), at most ${C4.label} characters.`
+              description: `What the whole is ("customer messages"), at most ${ASK_ANSWER_CAPS4.label} characters.`
             },
             total: { type: "number" },
             parts: {
@@ -22350,7 +22344,7 @@ var ASK_ANSWER_FORMAT4 = {
               items: {
                 type: "object",
                 properties: {
-                  label: { type: "string", description: `At most ${C4.label} characters.` },
+                  label: { type: "string", description: `At most ${ASK_ANSWER_CAPS4.label} characters.` },
                   value: { type: "number" },
                   warn: { type: "boolean", description: "True for the one part that needs attention." }
                 },
@@ -22375,7 +22369,7 @@ var ASK_ANSWER_FORMAT4 = {
           description: "The one place to open, when it helps: its source, kind none when nothing needs opening.",
           properties: {
             source: SOURCE4,
-            label: { type: "string", description: `The button's words, at most ${C4.label} characters.` },
+            label: { type: "string", description: `The button's words, at most ${ASK_ANSWER_CAPS4.label} characters.` },
             now: {
               type: "boolean",
               description: "True when they asked to open, show or see it: the app goes there as the answer lands."
@@ -22386,7 +22380,7 @@ var ASK_ANSWER_FORMAT4 = {
         },
         next: {
           type: "array",
-          description: `Up to ${C4.next} short questions they might ask next, at most ${C4.question} characters each, never one about a place already offered; empty when nothing follows.`,
+          description: `Up to ${ASK_ANSWER_CAPS4.next} short questions they might ask next, at most ${ASK_ANSWER_CAPS4.question} characters each, never one about a place already offered; empty when nothing follows.`,
           items: { type: "string" }
         }
       },
