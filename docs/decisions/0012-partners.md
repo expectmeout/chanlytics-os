@@ -58,6 +58,10 @@ standing` (`tenant_id`, `standing`, `why`) and `POST platform/partners/payout` (
   - A restore gives back only seats made before the pause.
   - Who, when and why of a partner's status is kept on the row.
   - The standing event no longer carries which check tripped: every member reads events.
+- **The same-card check needs every card marked.** `billing_card_marks` is written as a subscription is applied, so a
+  subscription from before 00203 has none until it changes. `tooling/scripts/partner-card-marks-backfill.mjs`
+  (dry-run by default, a backup first, `--apply`) marks them through the webhook's own door, and `--rejudge` puts the
+  sweep's own qualified decisions back to be judged with the marks in place. Run it once 00203 is applied.
 
 ## Context
 
