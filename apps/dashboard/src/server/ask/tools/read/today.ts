@@ -61,9 +61,11 @@ async function getToday(t: ToolContext): Promise<unknown> {
     calls: vm.calls
       ? {
           line: vm.calls.line,
+          // Today's call row is keyed by the bare call id (contracts today.ts), and a call opens where the Today page,
+          // list_calls and get_call open it: conversations/cv-<id>. This said conversations/<id>, which opens nothing.
           rows: vm.calls.rows.slice(0, 5).map((r) => ({
-            call_id: r.id.replace(/^cv-/, ""),
-            route: `conversations/${r.id}`,
+            call_id: r.id,
+            route: `conversations/cv-${r.id}`,
             who: r.who,
             at: r.at,
             duration: r.duration,

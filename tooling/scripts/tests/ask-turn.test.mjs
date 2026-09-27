@@ -2413,6 +2413,31 @@ const METRICS = {
   },
 };
 
+test("REGRESSION: a call on Today opens where the Today page opens it -- get_today said conversations/<id> where the call is conversations/cv-<id>", async () => {
+  // A caller gone in six seconds with nothing: the simplest call worth an ear (contracts today.ts, abandonedCall).
+  const quick = call(K2, {
+    retell_call_id: "r2",
+    started_at: iso(NOW.getTime() - 3600_000),
+    ended_at: iso(NOW.getTime() - 3594_000),
+    duration_ms: 6_000,
+    summary: null,
+  });
+  const ctx = ctxFor(tables({ calls: [quick] }), { ...RPCS, metrics_summary: () => METRICS });
+  const out = await runTool(newToolContext(ctx, A, "operator", TZ, NOW), { name: "get_today", input: {} });
+  assert.equal(out.isError, false, out.result);
+  const [row] = JSON.parse(out.result).calls.rows;
+  assert.deepEqual(
+    [row.call_id, row.route],
+    [K2, `conversations/cv-${K2}`],
+    "the call's own id, and the route list_calls and get_call give it",
+  );
+  const listed = JSON.parse(
+    (await runTool(newToolContext(ctx, A, "operator", TZ, NOW), { name: "list_calls", input: { filter: "today" } }))
+      .result,
+  );
+  assert.equal(listed.calls.find((c) => c.call_id === K2)?.route, row.route, "one route for one call, whichever tool");
+});
+
 test("REGRESSION: Today's reply-window rows are the opposite of drafts -- the customer spoke last and nobody has written back", async () => {
   // The field was `drafts_about_to_send`. The prompt's glossary tells the model
   // a held draft "sends itself when the window ends", so under that name the
