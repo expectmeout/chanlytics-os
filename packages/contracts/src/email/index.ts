@@ -14,6 +14,7 @@ export {
 export type { MailboxDto, EmailSetupDto } from "./mailbox";
 export {
   domainDailyCap,
+  reachOutSendsFrom,
   normalizeHost,
   whyNotASendingHost,
   normalizeFromLocal,

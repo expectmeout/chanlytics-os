@@ -4,7 +4,7 @@
  * numbers in; a count the database does not hold is never said (interested and booked are Part 5's).
  */
 import { clockTime } from "../shared/clock";
-import { DOMAIN_RAMP } from "../email/sending-domains";
+import { DOMAIN_RAMP, domainDailyCap } from "../email/sending-domains";
 import { nextRunLabel } from "../playbooks/playbook-schedule";
 // The one "3 emails" (shared/words.ts), not an eleventh copy of it.
 import { plural } from "../shared/words";
@@ -289,6 +289,46 @@ const runDayWords = (runFor: string): string =>
     new Date(`${runFor}T12:00:00Z`),
   );
 
+/**
+ * A chain's pace as its domains allow it: how many a day across them (each domain's ramp, D15), and the one domain's
+ * name when it sends from one. Nothing to send from is a share of 0 and no host.
+ */
+export function chainPaceOf(c: Pick<ReachOutChainDto, "domains">): { host: string | null; share: number } {
+  return {
+    host: c.domains.length === 1 ? c.domains[0]!.host : null,
+    share: c.domains.reduce((t, d) => t + domainDailyCap(d.sent_days), 0),
+  };
+}
+
+/** The chain drawn as its steps, each after the one before by its days, and what stops it (the open row's first line). */
+export function chainPathWords(c: Pick<ReachOutChainDto, "steps">) {
+  return {
+    steps: c.steps.map((s) => ({
+      id: s.id,
+      label: stepLabel(s.n),
+      after: s.n === 0 ? null : `after ${s.after_days ?? "?"} days, nothing back`,
+    })),
+    stops: "Stops for anyone who writes back, books or says no.",
+  };
+}
+
+/** What Playbooks' chain row says around its acts (PR 8). */
+export const REACH_OUT_ROW_WORDS = {
+  reading: "Reading how it is doing…",
+  failed: "how this reach-out is doing",
+  pause: "Pause",
+  resume: "Resume",
+  remove: "Remove",
+  removeAsk: (name: string) => `Remove “${name}”?`,
+  removeYes: "Yes, remove",
+  paused: (name: string) => `${name} is paused — nothing more is planned until you resume it`,
+  resumed: (name: string) => `${name} is running — its next run is on its row`,
+  removed: (name: string) => `${name} is removed, and its words with it`,
+  runs: (n: number) => (n === 1 ? "1 run" : `${n} runs`),
+  noRun: "No run yet",
+  edit: "Its words and its pace are changed on its sheet, which comes with the reach-out sheet.",
+} as const;
+
 /** Playbooks' row for a chain (F14; canvas board 07): what the list says before the row is opened. */
 export function chainHintOf(c: ReachOutChainDto, host: string | null): string {
   const labels = c.steps.map((s) => stepLabel(s.n).toLowerCase());
@@ -332,8 +372,12 @@ export function chainReportWordsOf(
       String(s.bounced),
     ]),
     sentence:
-      `${p.share} a day${p.host ? ` from ${p.host}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.` +
-      (held > 0 ? ` ${held} wait for your say.` : ""),
+      p.share > 0
+        ? `${p.share} a day${p.host ? ` from ${p.host}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.`
+        : `${REACH_OUT_SHEET_WORDS.noDomain} ${clauses.join("; ")}.`,
+    // The held wait for their owner in their run (R20): the newest run that holds some opens them.
+    waiting:
+      held > 0 ? { text: `${held} wait for your say`, run_id: report.runs.find((r) => r.held > 0)?.id ?? null } : null,
     history: report.runs.map((r) => ({
       id: r.id,
       text: `${r.run_for ? runDayWords(r.run_for) : "A run"} · ${r.written} written${r.held > 0 ? ` · ${r.held} held` : ""}`,
@@ -360,3 +404,56 @@ export function emailTemplateWords(p: { chainName: string; stepN: number; afterD
     edit: "Edit in its reach-out",
   };
 }
+
+/** One email of a reach-out as Templates lists it (R19): its words, and the chain and step that send it. */
+interface EmailTemplateRowVM {
+  template_id: string;
+  step_id: string;
+  subject: string | null;
+  body: string;
+  root_id: string;
+  chain_name: string;
+  step_n: number;
+  after_days: number | null;
+}
+
+/**
+ * Templates' email rows (R19), from the chains as `GET reach-outs` lists them: each step with words is one row, in its
+ * chain's order. How many each has written is its chain's report, read when the row opens (R23), never here: the list
+ * costs no count.
+ */
+export function emailTemplateRowsOf(chains: readonly ReachOutChainDto[]): EmailTemplateRowVM[] {
+  return chains.flatMap((c) =>
+    c.steps.flatMap((s) =>
+      s.template_id
+        ? [
+            {
+              template_id: s.template_id,
+              step_id: s.id,
+              subject: s.subject,
+              body: s.body,
+              root_id: c.root_id,
+              chain_name: c.name,
+              step_n: s.n,
+              after_days: s.after_days,
+            },
+          ]
+        : [],
+    ),
+  );
+}
+
+/** What an email row has written, from its chain's report as read (R23); null when that report says nothing of it. */
+export function emailRowWrittenOf(report: ReachOutChainReportDto | null, stepId: string): number | null {
+  return report?.steps.find((x) => x.id === stepId)?.written ?? null;
+}
+
+/** What Templates says of its email rows as a list (R19): the head's hover beside WhatsApp's, and a read that failed. */
+export const EMAIL_TEMPLATE_LIST_WORDS = {
+  /** Said after WhatsApp's hover when the head's count takes email rows too. */
+  headTip: (emails: number): string =>
+    emails > 0
+      ? `The count takes ${plural(emails, "email")} of your reach-outs too: their own words, sent by email, with no review.`
+      : "",
+  failed: "your reach-outs' emails",
+} as const;

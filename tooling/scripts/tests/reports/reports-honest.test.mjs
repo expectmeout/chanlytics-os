@@ -599,6 +599,8 @@ test("REGRESSION (C13): Playbooks opened on a playbook marks its card and brings
     );
     assert.deepEqual(scrolled, ["pb-pb-2"], "brought into view");
     fresh();
+    // Gone is said once the reach-outs were read too, and none is it (a link may name a chain: Part 4 PR 8).
+    globalThis.window.__REACH_OUTS = [];
     const gone = globalThis.window.OutboundPage({ initialPlaybook: "pb-deleted" });
     assert.ok(
       textOf(byTestId(gone, "pb-gone")).includes("isn't here any more"),
@@ -607,6 +609,7 @@ test("REGRESSION (C13): Playbooks opened on a playbook marks its card and brings
     assert.equal(all(gone, (n) => n.props?.["data-testid"] === "pb-card").length, 2);
   } finally {
     globalThis.document.getElementById = keep;
+    delete globalThis.window.__REACH_OUTS;
   }
 });
 
