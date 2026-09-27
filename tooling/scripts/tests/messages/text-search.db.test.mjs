@@ -1,12 +1,14 @@
 /**
  * A word a customer wrote or said is found -- on a real database, as the person.
  *
- * 00218 indexes messages.body and calls.transcript (to_tsvector('simple', ...)) and reads them through
- * search_messages, which runs as its caller, so RLS decides what it answers. What reading the SQL cannot prove, this
- * does: a member finds a word in a message and in a call's transcript, each as its kind, newest first, with the words
- * around it and no markup; a Spanish word is found as it was written; the day bound, the cap and blank words hold; a
- * quoted phrase, `or` and `-word` mean what websearch_to_tsquery says; a member of another workspace finds nothing of
- * this one even naming it; anon cannot call it; and the plan the function runs reads both indexes.
+ * 00219 indexes messages.body and calls.transcript (to_tsvector('simple', ...)) and answers through search_messages,
+ * which runs as its caller, so RLS decides what it answers. What reading the SQL cannot prove, this does: a member finds
+ * a word in a message and in a call's transcript, each as its kind, newest first, with the words around it and no
+ * markup; a call that never said when it started is found, and bounded, by when it was recorded; a Spanish word is found
+ * as it was written; the day bound, the cap, blank words, words a row holding none of them could match, and a null
+ * argument hold; a quoted phrase, `or` and `-word` mean what websearch_to_tsquery says; a member of another workspace
+ * finds nothing of this one even naming it; anon cannot call it; and each of the function's predicates spells its
+ * index's expression, so the index is usable.
  *
  * The sessions are real, as tenancy.db.test.mjs makes them: users made with the admin API sign in with a password
  * through the anon key. The plan is read inside one transaction through the CLI that never commits, as
@@ -36,7 +38,10 @@ const skip =
 
 /**
  * A transaction on this machine's database that never commits. `body` runs inside a DO block that ends by raising
- * what it `seen`, so everything the block did goes with it. No other suite ever reads any of it.
+ * what it `seen`, so every row, grant and setting the block made goes with it, and no other suite ever reads any of
+ * them. One thing stays: an ANALYZE inside the block writes the tables' row and page counts (pg_class.reltuples,
+ * relpages) in place, outside the transaction, so they keep counting the rows that were rolled back until the next
+ * analyze. Only the planner's estimates read them; no answer does.
  */
 function rolledBack(body) {
   // What the block saw leaves as hex: however the CLI dresses a database error
@@ -137,6 +142,17 @@ before(async () => {
     transcript:
       "Agent: Thanks for calling, how can I help? User: Hi, I am coming by car on Friday. Is there parking on the street near the salon? Agent: Yes, right outside.",
   });
+  // A call that never said when it started (a registered call the provider dropped): it is when it was recorded.
+  ids.unstartedAt = ago(10);
+  ids.unstarted = await seed("calls", {
+    tenant_id: A,
+    retell_call_id: `call_text_search_unstarted_${Date.now()}`,
+    contact_id: ids.contact,
+    status: "registered",
+    started_at: null,
+    created_at: ids.unstartedAt,
+    transcript: "User: I left my umbrella by the door yesterday, did anyone find it?",
+  });
   ids.valet = await seed("messages", said("Do you offer valet parking on Saturdays?", 2, { channel: "sms" }));
   ids.ask = await seed("messages", said("Hi! Is there parking near the salon? I will come by car.", 3));
   ids.summary = await seed(
@@ -236,6 +252,15 @@ test(
   },
 );
 
+test("a call that never said when it started is found at, and bounded by, when it was recorded", { skip }, async () => {
+  const [hit, ...rest] = await search(member, "umbrella");
+  assert.deepEqual(rest, []);
+  assert.equal(hit.id, ids.unstarted);
+  assert.equal(hit.kind, "call");
+  assert.equal(Date.parse(hit.at), Date.parse(ids.unstartedAt), "its created_at, where started_at is null");
+  assert.deepEqual(await search(member, "umbrella", { since: ago(5) }), [], "ten days ago is outside five");
+});
+
 test("a Spanish word with an accent is found as it was written", { skip }, async () => {
   const rows = await search(member, "mañana");
   assert.deepEqual(idsOf(rows), [ids.spanish]);
@@ -261,11 +286,29 @@ test("the limit caps: the newest few, at least one, at most fifty", { skip }, as
   );
 });
 
-test("blank words, or words that only exclude, answer nothing", { skip }, async () => {
+test("blank words, and words a message holding none of them could match, answer nothing", { skip }, async () => {
   assert.deepEqual(await search(member, ""), []);
   assert.deepEqual(await search(member, "   "), []);
-  assert.deepEqual(await search(member, "-parking"), [], "nothing to find, not everything without the word");
   assert.deepEqual(await search(member, "!!!"), [], "punctuation is no word");
+  assert.deepEqual(await search(member, "-parking"), [], "nothing to find, not everything without the word");
+  // An `or` with an exclusion matches a row that holds neither word: nothing to look for either.
+  assert.deepEqual(await search(member, "valet or -parking"), []);
+  assert.deepEqual(await search(member, "-valet or parking"), []);
+});
+
+test("a null argument answers nothing: the function is strict", { skip }, async () => {
+  const call = (args) =>
+    member.rpc("search_messages", { p_tenant: A, p_words: "parking", p_since: ago(30), p_limit: 50, ...args });
+  assert.equal((await call({})).data.length, 5, "the words find five with every argument given");
+  for (const blank of ["p_limit", "p_words", "p_since", "p_tenant"]) {
+    const r = await call({ [blank]: null });
+    assert.equal(r.error, null, r.error?.message);
+    assert.deepEqual(r.data, [], `${blank} null`);
+  }
+  // A limit that is no number reaches the database as null (JSON has no NaN): nothing, never one row.
+  const nan = await member.rpc("search_messages", { p_tenant: A, p_words: "parking", p_since: ago(30), p_limit: NaN });
+  assert.equal(nan.error, null, nan.error?.message);
+  assert.deepEqual(nan.data, []);
 });
 
 test("a quoted phrase, `or` and -word mean what websearch_to_tsquery says", { skip }, async () => {
@@ -296,14 +339,15 @@ test("anon cannot call it", { skip }, async () => {
   assert.match(r.error?.message ?? "", /permission denied for function search_messages/);
 });
 
-test("the function's own query reads both indexes for a rare word in a busy workspace", { skip }, () => {
-  // The function is not inlined (its search_path is set), so no outer query's plan shows its tables. This plans the
-  // function's own text, as the database holds it, with a workspace, a day bound, a rare word and the cap in place of
-  // its parameters, sequential scans off. Two thousand messages and calls in that workspace, analyzed inside the block,
-  // so the plan is chosen against tables that hold something: on empty ones the workspace's (tenant_id, created_at)
-  // index wins by a hair. What this proves is that each predicate spells its index's expression, so the index is there
-  // to be chosen. Planned without its words (Postgres 17 plans a SQL function's statements that way), the planner may
-  // still walk the workspace's newest rows instead and stop at the cap: its call, by cost.
+test("each of the function's predicates spells its index's expression, so the index is usable", { skip }, () => {
+  // What this proves is usability, not the plan a member gets. The function is not inlined (its search_path is set),
+  // so no outer query's plan shows its tables; this plans the function's own text, as the database holds it, with a
+  // workspace, a day bound, a word and the cap in place of its parameters, sequential scans off, over two thousand
+  // messages and calls analyzed inside the block (on empty tables the workspace's (tenant_id, created_at) index wins by
+  // a hair). A predicate that did not spell the index's expression -- a dropped coalesce, another configuration --
+  // could not use the index at all and would fail here. The function a member calls is planned without its arguments
+  // (Postgres 17 plans a SQL function's statements so), and there the planner walks the workspace's newest rows in the
+  // window whenever it judges that cheaper, as it does at today's sizes.
   const seen = rolledBack(`
     declare
       t uuid;
