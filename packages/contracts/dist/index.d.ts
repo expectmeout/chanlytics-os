@@ -20492,6 +20492,8 @@ declare class AppError extends Error {
     readonly status: number;
     readonly details?: unknown;
     constructor(code: ErrorCode, message: string, status?: number, details?: unknown);
+    /** `e instanceof AppError` is true for an AppError made by any copy of this class (see APP_ERROR). */
+    static [Symbol.hasInstance](value: unknown): value is AppError;
 }
 
 /** API envelope (Blueprint §4): success {ok:true,data} / error {ok:false,error:{code,...}}. */

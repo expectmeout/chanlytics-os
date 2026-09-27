@@ -8370,6 +8370,7 @@ var REACH_OUT_REFUSALS2 = {
 };
 var REFUSAL_SET2 = new Set(Object.values(REACH_OUT_REFUSALS2));
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var APP_ERROR = /* @__PURE__ */ Symbol.for("@chanlytics/contracts:AppError");
 var AppError = class extends Error {
   code;
   status;
@@ -8380,6 +8381,11 @@ var AppError = class extends Error {
     this.code = code2;
     this.status = status ?? DEFAULT_STATUS[code2];
     this.details = details;
+    Object.defineProperty(this, APP_ERROR, { value: true });
+  }
+  /** `e instanceof AppError` is true for an AppError made by any copy of this class (see APP_ERROR). */
+  static [Symbol.hasInstance](value) {
+    return typeof value === "object" && value !== null && value[APP_ERROR] === true;
   }
 };
 var DEFAULT_STATUS = {
