@@ -9,7 +9,7 @@ import { NativeTabs } from "expo-router/unstable-native-tabs";
 import type { ComponentProps } from "react";
 import { useColorScheme } from "react-native";
 import { THEME_INK } from "@chanlytics/contracts";
-import { setState, useShell, type Tab } from "@/shell/state";
+import { useShell, type Tab } from "@/shell/state";
 import { front } from "@/shell/front";
 
 type IconProps = ComponentProps<typeof NativeTabs.Trigger.Icon>;
@@ -35,7 +35,6 @@ export default function TabsLayout() {
             tabPress: () => {
               // Pressed while in front: the page's top (or, for More, the drawer again). Else the tab just comes.
               if (front.tab === t.name) front.ask(t.name === "more" ? { t: "menu" } : { t: "top" });
-              setState({ activeTab: t.name });
             },
           }}
         >
