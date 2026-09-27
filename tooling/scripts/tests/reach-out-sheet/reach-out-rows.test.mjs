@@ -8,9 +8,10 @@
  *   first, and presses the chain's own door; the held open their run (R20); stopping one business is said (R24);
  *   a report that could not be read says so and reads again on Retry; a refusal is said as every refusal is; a
  *   viewer's acts are inert (the real gate); the head counts the chains; a link to a chain opens its row and is
- *   "gone" only once the chains were read.
+ *   "gone" only once the chains were read; Edit opens the reach-out sheet over the chain, for a role that may change it.
  * - Templates: a chain's emails are their own rows (contracts emailTemplateRowsOf over __REACH_OUTS, R19), with the
- *   Email chip and what sends them (their chain's row); how many one wrote is read when it opens, never before; no
+ *   Email chip and what sends them (their chain's row); Edit in its reach-out opens the sheet over its chain (its
+ *   Playbooks row for a role that may not change it); how many one wrote is read when it opens, never before; no
  *   WhatsApp or Text switch and no delete; the page counts them and says so in its hover; an email-only workspace is
  *   not "nothing on file", and a reach-outs read that failed is said.
  * - The bridge: the verbs press the doors they name, and the surface reads the chains and nothing more.
@@ -37,6 +38,7 @@ Object.assign(W, {
 const L = "../../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
 await import(`${L}/components/record-fold.jsx`);
+await import(`${L}/components/record-sheet.jsx`);
 await import(`${L}/components/message-preview.jsx`);
 await import(`${L}/components/template-chips.jsx`);
 await import(`${L}/components/campaign-bits.jsx`);
@@ -44,6 +46,7 @@ await import(`${L}/pages/templates-real.jsx`);
 await import(`${L}/pages/playbook-bits.jsx`);
 await import(`${L}/pages/playbook-card.jsx`);
 await import(`${L}/pages/playbook-composer.jsx`);
+await import(`${L}/pages/reach-out/reach-out-sheet.jsx`);
 await import(`${L}/pages/reach-out/reach-out-row.jsx`);
 await import(`${L}/pages/outbound.jsx`);
 await import(`${L}/pages/reach-out/email-template-row.jsx`);
@@ -106,6 +109,11 @@ const verbs = (report = REPORT(), ok = true) => {
     pause: async (id) => (pressed.push(["pause", id]), { ok: true, data: {} }),
     resume: async (id) => (pressed.push(["resume", id]), { ok: true, data: {} }),
     remove: async (id) => (pressed.push(["remove", id]), { ok: true, data: {} }),
+    reach: async (id) => (pressed.push(["reach", id]), { ...REACH, ready: 44, with_unconfirmed: 44 }),
+    update: async (id, body) => (
+      pressed.push(["update", id, body]),
+      { ok: true, data: { root_id: id, step_ids: [], rechecked: 0, start: null } }
+    ),
   };
   return pressed;
 };
@@ -535,8 +543,35 @@ test("an open email row: email only, its slots as chips, the check and the foot,
     0,
     "no delete of its own",
   );
+  // Edit in its reach-out: the sheet over its chain as the reach_outs surface read it.
   press(byTestId(body, "template-email-edit"));
-  assert.deepEqual(went, [`outbound/${ROOT}`], "until the sheet comes, its Playbooks row");
+  tree = again(() => W.MessagesPage());
+  assert.deepEqual(went, [], "no page change");
+  assert.equal(byTestId(tree, "ro-name").props.value, templatesChain().name);
+  assert.equal(textOf(byTestId(tree, "ro-start")), "Save");
+});
+
+test("an email row's Edit, for a role that may not change the chain, opens its Playbooks row instead", () => {
+  went.length = 0;
+  verbs();
+  const keep = W.ST_STORE;
+  W.ST_STORE = { can: (a) => !!contracts.ROLE_PERMS.viewer[a], myRole: () => "viewer" };
+  try {
+    let tree = templatesPage();
+    press(byTestId(all(tree, (n) => n.props?.["data-testid"] === "template-email")[1], "template-email-open"));
+    tree = again(() => W.MessagesPage());
+    press(byTestId(byTestId(tree, "template-email-body"), "template-email-edit"));
+    assert.deepEqual(went, [`outbound/${ROOT}`]);
+    assert.equal(
+      byTestId(
+        again(() => W.MessagesPage()),
+        "ro-sheet",
+      ),
+      null,
+    );
+  } finally {
+    W.ST_STORE = keep;
+  }
 });
 
 /* ------------------------------ the bridge ------------------------------ */
@@ -628,9 +663,75 @@ test("who may press is the role store's one answer: a viewer is told by it, and 
   await settle();
   assert.equal(
     textOf(byTestId(draw(false), "ro-role")),
-    W.gateTitle("approve", "pause, resume or remove a reach-out"),
+    W.gateTitle("approve", "change, pause, resume or remove a reach-out"),
     "the gate's own words, never the row's",
   );
   assert.equal(byTestId(draw(true), "ro-role"), null);
   assert.equal(contracts.ROLE_PERMS.partner.approve, true, "a partner may approve, and so press a chain's acts");
+});
+
+test("Edit opens the reach-out sheet over the chain as read, saves through its own door, and is out of a viewer's sight", async () => {
+  const pressed = verbs();
+  W.__SETTINGS = { config: { brain: { business_name: "Harbor" } } };
+  W.__SETUP = {
+    dto: {
+      email: {
+        mailbox: null,
+        sending: {
+          domains: [
+            {
+              id: "d1",
+              host: "harbor-mail.example",
+              from_name: "Sam",
+              address: "sam@harbor-mail.example",
+              state: "verified",
+              sent_days: 0,
+            },
+          ],
+        },
+      },
+    },
+  };
+  fresh();
+  const state = { open: true };
+  const r = row(chainOf(), state);
+  r.redraw();
+  await settle();
+  let tree = r.redraw();
+  assert.equal(byTestId(tree, "ro-edit-note"), null, "no note that it can't be changed");
+  press(byTestId(tree, "ro-edit"));
+  r.redraw();
+  await settle();
+  tree = r.redraw();
+  assert.equal(byTestId(tree, "ro-name").props.value, "Reach out · Personal trainers");
+  assert.equal(byTestId(tree, "ro-signed").props.value, "Sam");
+  press(byTestId(tree, "ro-start"));
+  await settle();
+  const [, id, body] = pressed.find((p) => p[0] === "update");
+  assert.equal(id, ROOT);
+  assert.deepEqual(
+    body.steps.map((x) => x.id),
+    [ROOT, "n1"],
+  );
+  assert.equal(textOf(byTestId(r.redraw(), "ro-saved")), "Saved. Its next run writes these words.");
+  press(byTestId(r.redraw(), "ro-close"));
+  assert.equal(byTestId(r.redraw(), "ro-sheet"), null);
+  // A chain whose search is gone has nothing to write to: no Edit.
+  fresh();
+  const gone = row(chainOf({ search: null }), { open: true });
+  gone.redraw();
+  await settle();
+  assert.equal(byTestId(gone.redraw(), "ro-edit"), null);
+  // A viewer: out of sight (a secondary act), and the row says why once.
+  const keep = W.ST_STORE;
+  W.ST_STORE = { can: (a) => !!contracts.ROLE_PERMS.viewer[a], myRole: () => "viewer" };
+  try {
+    fresh();
+    const v = row(chainOf(), { open: true });
+    v.redraw();
+    await settle();
+    assert.equal(byTestId(v.redraw(), "ro-edit"), null);
+  } finally {
+    W.ST_STORE = keep;
+  }
 });
