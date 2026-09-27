@@ -1,7 +1,7 @@
 import "server-only";
 import { dealPaceOf, dealsAreOn } from "@chanlytics/contracts";
-import { listPlaybooks, recentTouches, triggerPools, type PlaybookListRow } from "../playbooks";
-import { dealPaceRead } from "../deals";
+import { listPlaybooks, recentTouches, triggerPools, type PlaybookListRow } from "../campaigns/playbooks";
+import { dealPaceRead } from "../people/deals";
 import { load, stamp, type Reader } from "./index";
 import * as readers from "./facts";
 import { everyone } from "./everyone";

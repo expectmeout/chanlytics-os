@@ -15,7 +15,7 @@ import {
   renderTemplate,
   type ParamSpec,
 } from "@chanlytics/contracts";
-import { archivedListWords, poolList } from "../../../audience";
+import { archivedListWords, poolList } from "../../../people/audience";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { lists as listsReader } from "../../../readers/lists";

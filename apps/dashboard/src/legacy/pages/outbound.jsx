@@ -1,267 +1,242 @@
-/* global React, Icon, StatStrip, StatCell */
-// Chanlytics — Campaigns › Outbound
-// The offers your agents run: audience (smart segments), schedule, live results.
-// Segment-backed audiences link to People › Segments and pull live counts.
-// Every campaign is agent-executed; approvals route through the Inbox.
 
-const { useState: useObState, useMemo: useObMemo } = React;
+// playbook-bits.jsx, which loads before this file.
+const { PB_NONE, pbReach, pbSpell } = window;
+// playbook-card.jsx, which loads before this file.
+const { PlaybookTile, PlaybookSlot } = window;
+// playbook-composer.jsx, which loads before this file.
+const { PlaybookComposer } = window;/* global React, Icon, PolicyChip, Confirm, EmptyState, FailedRead */
+// Campaigns › Playbooks, real: a standing rule that sends one approved
+// template to newly eligible people who said yes, under the workspace's
+// autonomy mode. Same chrome as the seeded Outbound page (outbound.jsx);
+// every number is a run's. Nothing here scores, estimates or invents.
+//
+// Its moments: People lists that keep themselves current -- win-back (quiet
+// 30 days), welcome (new this week), save our number (phoned only), lapsed --
+// the month's offer (everyone who said yes, on a cadence), a visit tomorrow or
+// yesterday, and one of the workspace's own lists (00155). Each runs under
+// one of the two Autonomy rows — auto sends, veto sends after a stop window,
+// ask leaves the run waiting here and on Today, never does nothing. Every
+// verb goes through window.__playbooks and the surface is re-fetched, so the
+// cards are the server's.
 
-const obSegment = (id) => window.CHANLY.seg(id);
-
-const OB_CAMPAIGNS = [
-  { id: "ob-birthday", name: "Birthday offer — April", status: "approval",
-    agent: { glyph: "S", name: "SMS Agent" }, channels: ["chat"],
-    audience: { label: "Birthday this week", count: 8, held: 1, to: "clients" },
-    schedule: "Today 5:00 PM · one send",
-    note: "20% off · queued — you review offer batches over 5 people",
-    results: null },
-  { id: "ob-winback", name: "Win-back · 30% return offer", status: "running",
-    agent: { glyph: "X", name: "Recovery Agent" }, channels: ["chat", "mail"],
-    audience: { label: "Lapsed 60+ days", count: 23, to: "clients", segId: "lapsed-60" },
-    schedule: "Drip · max 3 touches · quiet hours respected",
-    progress: 68,
-    results: { sent: 41, replies: 12, booked: 9, revenue: 2740 } },
-  { id: "ob-pkg", name: "Package-expiry nudges", status: "running",
-    agent: { glyph: "S", name: "SMS Agent" }, channels: ["chat"],
-    audience: { label: "Package ending soon", count: 18, to: "clients", segId: "pkg-ending" },
-    schedule: "Evergreen · 14 days before expiry",
-    progress: 100,
-    results: { sent: 26, replies: 14, booked: 11, revenue: 3150 } },
-  { id: "ob-review", name: "Review capture", status: "running",
-    agent: { glyph: "R", name: "Review Bot" }, channels: ["chat", "mail"],
-    audience: { label: "After a 5★ visit", count: null, to: "clients" },
-    schedule: "Evergreen · next morning, 10:00 AM",
-    progress: 100,
-    results: { sent: 34, replies: 19, booked: null, revenue: null, extra: "19 reviews · 4.9 avg" } },
-  { id: "ob-referral", name: "Referral thank-you flow", status: "draft",
-    agent: { glyph: "E", name: "Email Agent" }, channels: ["mail"],
-    audience: { label: "Advocates", count: 14, to: "clients", segId: "advocates" },
-    schedule: "Draft — triggers when a referral books",
-    note: "Drafted after Maya → Jordan · reward both sides",
-    results: null },
-  { id: "ob-spring", name: "Spring couples promo", status: "ended",
-    agent: { glyph: "S", name: "SMS Agent" }, channels: ["chat", "instagram"],
-    audience: { label: "All active clients", count: 120, to: "clients" },
-    schedule: "Ended Apr 14",
-    results: { sent: 120, replies: 22, booked: 9, revenue: 3060 } },
-];
-
-const OB_FILTERS = [
-  { id: "all", label: "All" },
-  { id: "running", label: "Running" },
-  { id: "approval", label: "Needs you" },
-  { id: "scheduled", label: "Scheduled" },
-  { id: "draft", label: "Drafts" },
-  { id: "ended", label: "Ended" },
-];
-
-const ObPill = ({ s }) =>
-  s === "running" ? <span className="pill pill-accent"><span className="live-dot" style={{ width: 5, height: 5 }} />Running</span>
-  : s === "approval" ? <span className="pill pill-accent">Needs you</span>
-  : s === "scheduled" ? <span className="pill">Scheduled</span>
-  : s === "draft" ? <span className="pill">Draft</span>
-  : <span className="pill">Ended</span>;
-
-const OB_CH_ICON = { chat: "chat", mail: "mail", instagram: "instagram", phone: "phone" };
-
-const OutboundPage = () => {
-  const [filter, setFilter] = useObState("all");
-  const [paused, setPaused] = useObState({});
-  const [approved, setApproved] = useObState({});   // campaignId -> true (session)
-  const [toastNode, ppFlash] = window.usePPToast();
-  const [, setObTick] = useObState(0);
+const usePlaybooks = () => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
-    const bump = () => setObTick(n => n + 1);
-    window.addEventListener("guardrails:changed", bump);
-    return () => window.removeEventListener("guardrails:changed", bump);
+    window.addEventListener("surface:playbooks", bump);
+    return () => window.removeEventListener("surface:playbooks", bump);
   }, []);
+  return window.__PLAYBOOKS;
+};
 
-  const flash = (msg, undo = null) => ppFlash({ msg, undo });
+const PlaybooksReal = ({ initialPlaybook = null }) => {
+  const data = usePlaybooks();
+  const [toastNode, flash] = window.usePPToast();
+  // Who may start, change or run a playbook: the role store's answer, View-as included.
+  const canAct = !!(window.canDo && window.canDo("approve"));
+  // A playbook half-written when the page was left opens again as the page does: the tab kept its words
+  // (useUnsavedWork), a new one under "new" and a change under the playbook's id.
+  const draftOf = (key) => !!(window.tabDraft && window.tabDraft("playbook", key));
+  const [composing, setComposing] = React.useState(() => draftOf("new"));
+  const [editing, setEditing] = React.useState(() => (data.rows || PB_NONE).find((p) => draftOf(p.id)) || null);
+  // The moment an empty slot was pressed for, so the composer opens on it rather
+  // than on whichever trigger happens to be first.
+  const [slot, setSlot] = React.useState(null);
+  // The one playbook open in place across the grid: the link's, when a link named
+  // one (Templates' "Win-back playbook", Today's run), else none.
+  const [openId, setOpenId] = React.useState(initialPlaybook);
+  const followed = React.useRef(initialPlaybook);
+  React.useEffect(() => {
+    if (followed.current === initialPlaybook) return;
+    followed.current = initialPlaybook;
+    setOpenId(initialPlaybook);
+  }, [initialPlaybook]);
+  React.useEffect(() => {
+    const open = () => { setEditing(null); setSlot(null); setComposing(true); };
+    window.addEventListener("playbooks:new", open);
+    return () => window.removeEventListener("playbooks:new", open);
+  }, []);
+  // A link to one playbook lands on its card: marked, and brought into view when it is out of it.
+  React.useEffect(() => {
+    const el = initialPlaybook && typeof document !== "undefined" && document.getElementById ? document.getElementById(`pb-${initialPlaybook}`) : null;
+    if (!el || !el.getBoundingClientRect || !el.scrollIntoView) return;
+    const at = el.getBoundingClientRect();
+    if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
+  }, [initialPlaybook]);
 
-  // Session overlay: approved batches become scheduled
-  const campaigns = OB_CAMPAIGNS.map(c => approved[c.id]
-    ? { ...c, status: "scheduled", note: "Approved — sends today 5:00 PM · SMS Agent handles replies" }
-    : c);
-
-  const statusOf = (c) => paused[c.id] ? "paused" : c.status;
-  const visible = filter === "all" ? campaigns : campaigns.filter(c =>
-    filter === "scheduled" ? (c.status === "approval" || c.status === "scheduled") : c.status === filter);
-
-  const running = campaigns.filter(c => statusOf(c) === "running").length;
-  const revenue = campaigns.reduce((a, c) => a + (c.results?.revenue || 0), 0);
-  const sent = campaigns.reduce((a, c) => a + (c.results?.sent || 0), 0);
-  const channelCount = new Set(campaigns.flatMap(c => c.channels)).size;
-
-  const approveBirthday = (c) => {
-    if (!window.canDo("approve")) return;
-    setApproved(a => ({ ...a, [c.id]: true }));
-    window.dispatchEvent(new CustomEvent("outbound:approved", { detail: { id: c.id, name: c.name || "Birthday batch", count: c.audience.count } }));
-    flash(
-      <><b>{c.name}</b> approved — {c.audience.count} sends queued for 5:00 PM{c.audience.held ? ` · ${c.audience.held} held — DNC` : ""}</>,
-      () => setApproved(a => { const n = { ...a }; delete n[c.id]; return n; })
-    );
-  };
-
-  const togglePause = (c) => {
-    const wasPaused = !!paused[c.id];
-    setPaused(p => ({ ...p, [c.id]: !wasPaused }));
-    flash(
-      <><b>{c.name}</b> {wasPaused ? "resumed — drip continues" : "paused — in-flight touches hold"}</>,
-      () => setPaused(p => ({ ...p, [c.id]: wasPaused }))
-    );
-  };
+  const rows = data.rows || PB_NONE;
+  // Every moment, in its own order: the playbooks doing one, as rows, and under
+  // them the moments nothing is doing yet, as a compact group -- so a first day
+  // still names every moment it could act on, and a busy one shows which is idle
+  // without an idle moment taking a working playbook's room.
+  const triggers = data.triggers || PB_NONE;
+  const known = new Set(triggers.map((t) => t.id));
+  const usedTriggers = new Set(rows.map((p) => p.trigger));
+  const unused = triggers.filter((t) => !usedTriggers.has(t.id));
+  const cards = [];
+  for (const t of triggers) rows.filter((p) => p.trigger === t.id).forEach((p) => cards.push(p));
+  rows.filter((p) => !known.has(p.trigger)).forEach((p) => cards.push(p));
+  const runningN = rows.filter((p) => p.state === "running" && !p.totals.waiting).length;
+  const waitingN = rows.filter((p) => p.totals.waiting).length;
+  const pausedN = rows.filter((p) => p.state === "paused").length;
+  const nobody = rows.filter((p) => pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting }) === "nobody");
+  const reachesNobody = nobody.length;
+  const closeComposer = () => { setComposing(false); setEditing(null); setSlot(null); };
+  const startAt = (id) => { setEditing(null); setSlot(id); setComposing(true); };
+  const startNew = () => { setEditing(null); setSlot(null); setComposing(true); };
+  // How the moments stand, as the head's one line: the numbers the rows below add up to.
+  const tally = [
+    { n: runningN, k: "running", tone: "plain" },
+    waitingN > 0 && { n: waitingN, k: "waiting on you", tone: "warn" },
+    pausedN > 0 && { n: pausedN, k: "paused", tone: "plain" },
+    unused.length > 0 && { n: unused.length, k: "not set up", tone: "dim" },
+  ].filter(Boolean);
+  // What the three rules that shape every run are, said once under the cards: the
+  // sending hours, the weekly breath across playbooks, and the gap before the same
+  // playbook reaches the same person again -- the one number a playbook sets itself.
+  const hours = window.__clock && window.__clock.hours;
+  const gaps = [...new Set(rows.map((p) => p.gap_days))];
 
   return (
-    <div className="reports">
-      <div className="cl-head">
-        <div className="cl-head-titles">
-          <div className="cl-page-title">Outbound</div>
-          <div className="cl-page-sub">
-            The offers your agents run — audiences come from your smart segments, sends respect quiet hours, batches over 5 ask you first.
-          </div>
-        </div>
-        <StatStrip className="cl-head-stats">
-          <StatCell label="Running" value={running} meta="agent-executed" />
-          <StatCell label="Sent this season" value={sent} meta={`across ${channelCount} channels`} />
-          <StatCell label="Attributed" tip="Revenue from bookings that started from an outbound touch · this season" value={`$${revenue.toLocaleString()}`} meta="booked from outbound" metaTone="pos" />
-        </StatStrip>
-      </div>
-
-      <div className="cl-controls">
-        <div className="cl-controls-right" style={{ marginLeft: 0 }}>
-          <div className="fleet-filter">
-            {OB_FILTERS.map(f => (
-              <button key={f.id} className={`fleet-filter-chip ${filter === f.id ? "active" : ""}`} onClick={() => setFilter(f.id)}>
-                {f.label}
-                <span className="fleet-filter-count tally">
-                  {f.id === "all" ? campaigns.length
-                    : f.id === "scheduled" ? campaigns.filter(c => c.status === "approval" || c.status === "scheduled").length
-                    : campaigns.filter(c => c.status === f.id).length}
-                </span>
-              </button>
+    <div className="reports pb-page" data-testid="playbooks-real">
+      <div className="rp-body cm-page pb-body">
+        {/* One line, the way every Campaigns tab opens: the tab says "Playbooks", so
+            the name is a screen reader's alone (CmHead quiet). The line is how the
+            moments stand -- running, waiting on you, paused, not set up -- in the
+            numbers the rows below add up to; it was a headline, a two-line sentence
+            and a tally of big figures saying them twice. A running playbook with
+            nobody to send to is the one thing the rows alone would not say at a
+            glance, and on a workspace whose list has emptied it is true of every one
+            of them: it rides the line, in the tone of something to look at. The act
+            is at the right, where Broadcasts and Templates keep theirs; it was the
+            top bar's. */}
+        <window.CmHead
+          title="Playbooks"
+          quiet
+          testid="pb-standing"
+          sub={(
+            <span className="pb-standing" data-tip="Standing rules your receptionist runs — one approved template to newly eligible people who said yes, on your clock, under Settings › Autonomy. Replies land in the Inbox.">
+              {rows.length === 0
+                ? <span>{triggers.length > 0 ? `${pbSpell(triggers.length, true)} moments, none set up yet` : "No playbook yet"}</span>
+                : tally.map((t, i) => (
+                    <React.Fragment key={t.k}>
+                      {i > 0 && <window.CmDot />}
+                      <span className="pb-tally-cell" data-tone={t.tone}>
+                        <span className="pb-tally-n tabular">{t.n}</span>
+                        <span className="pb-tally-k">{t.k}</span>
+                      </span>
+                    </React.Fragment>
+                  ))}
+              {reachesNobody > 0 && (
+                <>
+                  {/* In its tone and a step apart, with no dot before it: where the line wraps, a dot was left at
+                      the end of the numbers pointing at nothing. One is named -- "Welcome has nobody to send to"
+                      says which row to open, where "One running with nobody to send to" left the owner to find it. */}
+                  <span className="pb-standing-warn" data-testid="pb-reaches-nobody">{reachesNobody === 1 ? `${nobody[0].name} has nobody to send to` : reachesNobody === runningN + waitingN ? "None of them has anyone to send to" : `${pbSpell(reachesNobody, true)} have nobody to send to`}</span>
+                </>
+              )}
+            </span>
+          )}
+          right={<button className="btn btn-primary" onClick={startNew} data-testid="pb-new" {...window.gate("approve", "start a playbook")}><Icon name="plus" size={12} /> <span>New<span className="cm-act-noun"> playbook</span></span></button>}
+        />
+        {initialPlaybook && !rows.some((p) => p.id === initialPlaybook) && (
+          <EmptyState kind="line" title="That playbook isn't here any more." body="Its runs stay in Broadcasts, with their numbers." testid="pb-gone" />
+        )}
+        {rows.length > 0 && data.templates === null && (
+          <FailedRead kind="line" what="your templates" body="The cards show what they send once they read. Everything else here is current." surface="playbooks" testid="pb-cards-templates-failed" />
+        )}
+        {/* The server could not count who a moment reaches: said once, here, and no card draws a zero it never
+            counted -- it drew "0 of 0", "nobody to send to" and the QR over a People read that failed. */}
+        {(cards.length > 0 || unused.length > 0) && data.countsRead === false && (
+          <FailedRead kind="line" what="who each moment reaches" body="The cards show who they reach once it reads. Everything else here is current." surface="playbooks" testid="pb-counts-failed" />
+        )}
+        {/* The playbooks, as People's table: the columns named once above the rows. */}
+        {cards.length > 0 && (
+          <div className="pb-list">
+            <div className="pb-list-head" aria-hidden="true">
+              <span>Playbook</span>
+              <span>State</span>
+              <span>Reaches</span>
+              <span>Next run</span>
+              <span className="pb-list-head-runs">Runs</span>
+            </div>
+            {cards.map((p) => (
+              <PlaybookTile key={p.id} p={p} canAct={canAct} flash={flash} open={openId === p.id} onOpen={() => setOpenId((o) => (o === p.id ? null : p.id))} focus={p.id === initialPlaybook} onEdit={(e) => { setComposing(false); setEditing(e); }} />
             ))}
           </div>
-        </div>
+        )}
+        {/* The moments nothing is doing yet, in their own order. They stay where they
+            are while the composer is open: it opens beside the page, and the page
+            does not move under it. */}
+        {unused.length > 0 && (
+          <section className="pb-more" aria-label="Not set up">
+            <div className="pb-more-head" aria-hidden="true">
+              <span className="pb-more-k">Not set up</span>
+              <span className="tally">{unused.length}</span>
+            </div>
+            <div className="pb-more-list">
+              {unused.map((t) => <PlaybookSlot key={`slot:${t.id}`} t={t} onStart={startAt} />)}
+            </div>
+          </section>
+        )}
+        {rows.length === 0 && unused.length === 0 && !composing && (
+          <EmptyState
+            kind="card"
+            glyph="bolt"
+            title="No playbook yet"
+            body="Win-back for anyone quiet 30 days, welcome for anyone new this week, save our number for anyone who only ever phoned, or the month's offer for everyone who said yes."
+            action={{ label: "New playbook", onClick: () => window.dispatchEvent(new CustomEvent("playbooks:new")), gate: window.gate ? window.gate("approve", "start a playbook") : null }}
+            testid="pb-empty"
+          />
+        )}
+        {/* The three rules that quietly shape every run, under the rows they shape: one
+            quiet line, each rule's longer words its hover. They were a 78px card of
+            three headed columns. */}
+        {(cards.length > 0 || unused.length > 0) && (
+          <p className="pb-rules" data-testid="pb-always">
+            <span className="pb-rules-k">Always on</span>
+            {/* Each rule's longer words are its hover, and a focus's: reachable from a keyboard and read to a screen
+                reader (aria-description), as the composer's Guardrails are. */}
+            {[
+              { icon: "clock", words: `Sends ${hours ? hours.range : "9:00–20:59"}`, more: "A run that would land outside them waits for the morning" },
+              { icon: "wave", words: "One a week, per person", more: "Across every playbook, not per playbook" },
+              {
+                icon: "refresh",
+                words: gaps.length === 1 ? `${gaps[0]} days between repeats` : "Days between repeats",
+                more: gaps.length === 1 ? "The same playbook will not reach the same person sooner" : "Each playbook keeps its own gap before reaching the same person again",
+              },
+            ].map((r) => (
+              <span key={r.icon} className="pb-rule" tabIndex={0} data-tip={r.more} aria-description={r.more}>
+                <Icon name={r.icon} size={12} />
+                {r.words}
+              </span>
+            ))}
+          </p>
+        )}
+        {!canAct && rows.length > 0 && <div className="bc-excl-hint" data-testid="pb-role">{window.gateTitle("approve", "pause, run, change or delete a playbook")}</div>}
       </div>
 
-      <div className="rp-body">
-        {visible.map(c => {
-          const isPaused = paused[c.id];
-          return (
-            <section key={c.id} className={`fl-card ob-card ${c.status === "approval" ? "is-approval" : ""}`}>
-              <div className="ob-head">
-                <div className="ob-titles">
-                  <span className="ob-name">{c.name}</span>
-                  <span className="ob-meta">
-                    <span className="agent-avatar" style={{ width: 16, height: 16, fontSize: 8.5 }}>{c.agent.glyph}</span>
-                    {c.agent.name}
-                    <span className="fl-head-dot" />
-                    {c.channels.map(ch => <Icon key={ch} name={OB_CH_ICON[ch]} size={11} />)}
-                    <span className="fl-head-dot" />
-                    <span>{c.schedule}</span>
-                  </span>
-                </div>
-                {isPaused ? <span className="pill pill-warn">Paused</span> : <ObPill s={c.status} />}
-              </div>
-
-              <div className="ob-row">
-                {(() => {
-                  const seg = c.audience.segId && obSegment(c.audience.segId);
-                  const obHeld = seg ? (window.CHANLY.membersOf(seg.id) || []).filter((m) => !window.CHANLY.canMessage(m.id)).length : (c.audience.held || 0);
-                  const count = seg ? Math.max(0, seg.count - obHeld) : c.audience.count;
-                  const label = seg ? seg.label : c.audience.label;
-                  // Event-based audiences aren't lists — render as plain chips
-                  if (!c.audience.segId) return (
-                    <span className="ob-audience ob-audience-event" data-tip="Event-triggered — fires per person when the moment happens, not from a saved list">
-                      <Icon name="bolt" size={12} />
-                      {label}{count ? ` · ${count}` : ""}
-                    </span>
-                  );
-                  const obGuard = (window.SEG_GUARDRAILS || []).find(g => g.segId === c.audience.segId);
-                  return (
-                    <>
-                    <button
-                      className="ob-audience"
-                      data-tip="Smart segment — the agent keeps this list fresh · click to open"
-                      onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(c.audience.segId))}
-                    >
-                      <Icon name="sparkle" size={12} />
-                      {label}{count ? ` · ${count}` : ""}
-                      <Icon name="arrow-right" size={10} />
-                    </button>
-                    {obGuard && (
-                      <button className="fl-guard-link" data-tip={`${obGuard.hint} — binds this campaign · set in Settings › Autonomy`} onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("autonomy"))}>
-                        <Icon name="shield" size={9} /> {obGuard.label}: {obGuard.value}
-                      </button>
-                    )}
-                    </>
-                  );
-                })()}
-                {c.note && <span className="ob-note">{c.note}</span>}
-              </div>
-
-              {c.results && (
-                <div className="ob-results">
-                  <span className="ob-stat"><strong className="tabular">{c.results.sent}</strong> sent</span>
-                  <span className="fl-head-dot" />
-                  <span className="ob-stat" data-tip={`${Math.round((c.results.replies / Math.max(1, c.results.sent)) * 100)}% reply rate`}><strong className="tabular">{c.results.replies}</strong> replies</span>
-                  {c.results.booked != null && <><span className="fl-head-dot" /><span className="ob-stat" data-tip={`${Math.round((c.results.booked / Math.max(1, c.results.replies)) * 100)}% of replies booked`}><strong className="tabular">{c.results.booked}</strong> booked</span></>}
-                  {c.results.revenue != null && <><span className="fl-head-dot" /><span className="ob-stat ok"><strong className="tabular">+${c.results.revenue.toLocaleString()}</strong></span></>}
-                  {c.results.extra && <><span className="fl-head-dot" /><span className="ob-stat">{c.results.extra}</span></>}
-                  {c.progress != null && c.progress < 100 && (
-                    <span className="ob-progress"><span className="ob-progress-fill" style={{ width: `${c.progress}%` }} /></span>
-                  )}
-                </div>
-              )}
-
-              <div className="ob-actions">
-                {c.status === "approval" && (
-                  <>
-                    <button className="btn btn-primary btn-sm" onClick={() => approveBirthday(c)} {...window.gate("approve")}>
-                      <Icon name="check" size={12} /> Approve batch · {c.audience.count} sends
-                    </button>
-                    <PolicyChip cls="campaign" />
-                    <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav("tasks")}>
-                      In Tasks <Icon name="arrow-right" size={10} />
-                    </button>
-                  </>
-                )}
-                {c.status === "scheduled" && approved[c.id] && (
-                  <span className="ct-done-note"><Icon name="check" size={11} /> Approved — SMS Agent sends at 5:00 PM and handles replies</span>
-                )}
-                {c.status === "running" && (
-                  <button className="btn btn-sm" onClick={() => togglePause(c)}>
-                    <Icon name={isPaused ? "play" : "pause"} size={12} /> {isPaused ? "Resume" : "Pause"}
-                  </button>
-                )}
-                {c.status === "draft" && (
-                  <button className="btn btn-sm" onClick={() => window.askAbout({
-                    prompt: "Finish the “" + c.name + "” draft",
-                    answer: "It targets " + c.audience.label + " (" + c.audience.count + " people). I'll tighten the copy in " + c.agent.name + "'s voice and queue it ask-first — you approve the final send.",
-                    links: c.audience.segId ? [{ label: "Open the audience", to: "segments/" + c.audience.segId }] : [{ label: "Open Segments", to: "segments" }],
-                  })}>
-                    <Icon name="sparkle" size={12} /> Finish with Chanlytics
-                  </button>
-                )}
-                {c.status === "ended" && (
-                  <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav("reports")}>
-                    Full results in Reports <Icon name="arrow-right" size={11} />
-                  </button>
-                )}
-                {c.results && c.status !== "ended" && (
-                  <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(CHANLY.R.conversation("chats"))}>Threads</button>
-                )}
-              </div>
-            </section>
-          );
-        })}
-        {visible.length === 0 && <div className="cv-empty">Nothing here — agents will list campaigns as they're created.</div>}
-      </div>
+      {/* The composer, in a sheet beside the page: last, so the page's own
+          parts keep their place whether it is open or not. */}
+      {(composing || editing) && (
+        <PlaybookComposer
+          key={editing ? editing.id : slot || "new"}
+          data={data}
+          editing={editing}
+          initialTrigger={slot}
+          onCancel={closeComposer}
+          onDone={(d, changed) => {
+            closeComposer();
+            flash({ msg: changed ? <><b>{d.name}</b> changed</> : <><b>{d.name}</b> is running — its next run is on the card, by your clock</> });
+          }}
+        />
+      )}
 
       {toastNode}
     </div>
   );
 };
-
-// A real workspace renders its playbooks (outbound-real.jsx); the seeded page keeps the demo.
-window.OutboundSeed = OutboundPage;
+window.OutboundPage = (props) => {
+  const Seed = window.OutboundSeed;
+  if (window.__PLAYBOOKS) return <PlaybooksReal {...props} />;
+  return Seed ? <Seed {...props} /> : null;
+};

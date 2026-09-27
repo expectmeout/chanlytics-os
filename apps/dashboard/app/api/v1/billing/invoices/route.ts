@@ -1,6 +1,6 @@
 import { read, workspace } from "@/server/route";
 import { AppError, type BillingInvoiceDto } from "@chanlytics/contracts";
-import { BILLING_SAID, edgeBilling } from "@/server/billing";
+import { BILLING_SAID, edgeBilling } from "@/server/workspace/billing";
 
 /** GET /api/v1/billing/invoices — the last twelve invoices as Stripe lists them, each with its own page. Owners only, counted as a read: pressing it never locks Checkout for the hour. */
 export const GET = read({

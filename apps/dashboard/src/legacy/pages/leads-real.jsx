@@ -56,15 +56,13 @@ const useLeads = () => {
 
 /* ------------------------------------------------------------------------------- Leads */
 // The Leads scope's state lives here: every component of the scope is hookless, from its rail to its bulk bar
-// (leads-scope.jsx), and everything it needs is a prop.
-const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = null }) => {
-  // The workspace's copy of every view rides with the People surface (usePlControls), and so do the first day's
-  // facts about the calendar and the people.
-  const people = usePeople();
-  const leads = useLeads();
-  const nav = onNavigate || ((to) => window.CHANLY.nav(to));
-  // Which search, which list and which class this address names (contracts parseLeadsRoute, through the courier).
-  // The address is the one place the Leads view's list lives, so the rail, the table and the saved view agree.
+// (leads-scope.jsx), and everything it needs is a prop. LeadsReal holds it through the hooks below, one concern each,
+// called in the order it always called its hooks; its acts are plain functions over the draw's state; and what it hands
+// LeadsScope comes from the five builders at the foot of the file, in the order it always handed it over.
+
+// Which search, which list and which class this address names (contracts parseLeadsRoute, through the courier).
+// The address is the one place the Leads view's list lives, so the rail, the table and the saved view agree.
+const leadsViewAt = (leadsRoute) => {
   const leadView = window.__leadsRouteParse ? (window.__leadsRouteParse(leadsRoute || "clients/leads") || { searchId: null, list: "all", cls: null, chips: {}, peek: null }) : null;
   // The view's own route, with no lead open over it, and the lead the address names. The page stays mounted across
   // its views (app-shell.jsx shellMountKey), so what belongs to a view follows `viewRoute`, never `leadsRoute`: a
@@ -74,10 +72,11 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   // The rail's row, as a name of its own: what a saved view carries and what a read is keyed by, and a name a
   // dependency array can be checked against (an expression in one cannot).
   const leadList = leadView ? leadView.list : null;
-  const hasCenter = leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center);
-  // The columns this scope draws with: the Leads scope's (LEAD_COLUMNS, leads-cells.jsx).
-  const controls = usePlControls({ scope: "leads", cols: LEAD_COLUMNS, phoneCols: LEAD_PHONE_COLUMNS, colCtx: { hasCenter }, people, sortFirst: { by: "fit", dir: "asc" }, railRow: leadList });
-  const { phone, searchOpen, setSearchOpen, bulkSheet, setBulkSheet, canExport, toastNode, plFlash, sel, setSel, toggleSel, allMatching, setAllMatching, clearSelection, sortBy, setSortBy, sortDir, setSortDir, onSort, colsOpen, setColsOpen, scrolledX, setScrolledX, columns, colOptions, pickColumn, colsButton, q, setQ, searchRef, scrollRef } = controls;
+  return { leadView, viewRoute, addrPeek, leadList };
+};
+
+// The page's own state, every cell in the order the page has always made them.
+const useLeadsState = () => {
   // The phone's list picker: the rail, as a sheet.
   const [listsOpen, setListsOpen] = useState(false);
   const [peekId, setPeekId] = useState(null);
@@ -125,9 +124,19 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   const [removing, setRemoving] = useState(null);
   const [leadBusy, setLeadBusy] = useState(false);
   const [removeError, setRemoveError] = useState(null);
-  // One read per view (PRD 0.5, the review's E8): the address says which search, list and class, and this
-  // member's own view says the sort. Every key goes at once, and the surface drops an answer a newer ask
-  // supersedes, so a slow page of the old view never lands on the new one.
+  return {
+    listsOpen, setListsOpen, peekId, setPeekId, finderOpen, setFinderOpen, finderStage, setFinderStage, finderWords, setFinderWords,
+    finderProposal, setFinderProposal, finderRefusal, setFinderRefusal, leadLine, setLeadLine, finderPlan, setFinderPlan, finderTrace,
+    setFinderTrace, finderPick, setFinderPick, finderMore, setFinderMore, bulkWhy, setBulkWhy, peekMode, setPeekMode, draft, setDraft,
+    armed, setArmed, values, setValues, lightboxId, setLightboxId, fitChip, setFitChip, benchGroup, setBenchGroup, mapOpen, setMapOpen,
+    mapPick, setMapPick, chip, setChip, renaming, setRenaming, removing, setRemoving, leadBusy, setLeadBusy, removeError, setRemoveError,
+  };
+};
+
+// One read per view (PRD 0.5, the review's E8): the address says which search, list and class, and this
+// member's own view says the sort. Every key goes at once, and the surface drops an answer a newer ask
+// supersedes, so a slow page of the old view never lands on the new one.
+const useLeadsRead = ({ leadView, viewRoute, sortBy, sortDir, plFlash }) => {
   React.useEffect(() => {
     if (!window.__leadsView) return;
     window.__leadsView({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, chips: leadView.chips, sort: sortBy, dir: sortDir });
@@ -140,8 +149,12 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     setLeadsMoreBusy(true);
     try { await window.__leadsMore(); } catch (e) { plFlash(window.refusalToast({ message: e && e.message }, "No more leads loaded")); } finally { setLeadsMoreBusy(false); }
   };
-  // The leads loaded, filtered at once by the box (their name, their kind and their area) and by one criterion
-  // of the Excluded view. A sentence is not sent anywhere: words to chips is release C.
+  return { leadsMoreBusy, leadsMore };
+};
+
+// The leads loaded, filtered at once by the box (their name, their kind and their area) and by one criterion
+// of the Excluded view. A sentence is not sent anywhere: words to chips is release C.
+const useLeadRows = ({ leads, q, chip, fitChip, leadView, viewRoute, sortBy, sortDir }) => {
   const leadShown = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     let list = leads.rows;
@@ -155,16 +168,12 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   // The surface holds the view the address names, in the order this page asked for: a sort is a read too (never the
   // page's to re-order; leads_page's order is the one rule), and the rows on screen are the old order until it lands.
   const viewLanded = leads.route === viewRoute && leads.view.sort === sortBy && leads.view.dir === sortDir;
-  // Each view keeps its place by the address's view (viewRoute), its map with it. A view opened after the first starts
-  // with none of the last one's filters.
-  const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({
-    controls, page: "leads", view: viewRoute, ids: shownIds, noun: "lead", landed: viewLanded, selectionOf: `${viewRoute}|${chip}`,
-    extra: { map: mapOpen },
-    onPlace: (p, again) => {
-      setMapOpen(!!p.map);
-      if (again) { setChip(null); setFitChip(null); setBenchGroup(null); setMapPick(null); setLightboxId(null); setBulkWhy(false); }
-    },
-  });
+  return { leadShown, filtered, shownIds, viewLanded };
+};
+
+// The peek (D5, Task 12): its deck, the photos either side of it, the cursor it follows, the question it asks once the
+// owner is back, and where focus goes as it opens and closes.
+const useLeadPeek = ({ peekId, setPeekId, shownIds, leadShown, cursor, setCursor, peekMode, armed, setArmed }) => {
   // The peek's deck (D5): the lead before or after the one open, by the order on screen. It moves the cursor too,
   // so the rows behind it follow and the keyboard carries on from where the thumb left off.
   const deckMove = (step) => {
@@ -196,12 +205,16 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   // The dialog's focus rule (leadPeekFocus): focus moves into the peek when it opens and back to the row when it
   // closes, and the row is the cursor, so Tab carries on from where the owner was.
   React.useEffect(() => { leadPeekFocus(peekId, cursor); }, [peekId]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The lead that is open is part of the address (contracts leadsRoute, `p-`): a refresh keeps it, Back closes it, and
-  // it can be sent to someone. The page's own state still draws the peek; this keeps the two saying one thing.
-  // When the ADDRESS moved -- a link, Back or Forward, a rail pick, the first draw -- the page follows it, and a view
-  // that changed under an open lead closes it. When the PAGE moved, it says so: opening pushes an entry, the cursor
-  // walking the peek on replaces it, and closing goes back to the entry the opening made. A lead that came with the
-  // address has no entry of the page's behind it, so it closes by replacing: going back would leave Leads.
+  return deckMove;
+};
+
+// The lead that is open is part of the address (contracts leadsRoute, `p-`): a refresh keeps it, Back closes it, and
+// it can be sent to someone. The page's own state still draws the peek; this keeps the two saying one thing.
+// When the ADDRESS moved -- a link, Back or Forward, a rail pick, the first draw -- the page follows it, and a view
+// that changed under an open lead closes it. When the PAGE moved, it says so: opening pushes an entry, the cursor
+// walking the peek on replaces it, and closing goes back to the entry the opening made. A lead that came with the
+// address has no entry of the page's behind it, so it closes by replacing: going back would leave Leads.
+const useLeadPeekAddress = ({ leadView, viewRoute, addrPeek, peekId, setPeekId, setCursor, setPeekMode, setArmed, setDraft, nav }) => {
   const peekAddr = React.useRef({ view: undefined, peek: undefined, asked: null, pushed: false });
   React.useEffect(() => {
     if (!window.__leadsRouteOf) return;
@@ -225,11 +238,13 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     else if (!peekId && a.pushed && window.history && window.history.back) { a.pushed = false; window.history.back(); }
     else nav(want, { replace: true });
   }, [viewRoute, addrPeek, peekId]); // eslint-disable-line react-hooks/exhaustive-deps
+};
 
-  /* ---------------------------------------------------- the Leads scope's acts */
-  // Every one goes through the courier the bridge installed (legacy-bridge/leads.ts): the route, then the
-  // surface patched in place. A toast says what happened and offers Undo through the operation the door
-  // answered, which is the only thing an undo names (the review's E9).
+/* ---------------------------------------------------- the Leads scope's acts */
+// Every one goes through the courier the bridge installed (legacy-bridge/leads.ts): the route, then the
+// surface patched in place. A toast says what happened and offers Undo through the operation the door
+// answered, which is the only thing an undo names (the review's E9).
+const leadActs = ({ leads, leadView, leadBusy, setLeadBusy, plFlash, setSel, setAllMatching, setArmed, setPeekMode, setPeekId, setBulkWhy }) => {
   const canFind = !window.canDo || window.canDo("find");
   const leadById = (id) => leads.rows.find((l) => l.id === id) || null;
   const searchById = (id) => leads.searches.find((s) => s.id === id) || null;
@@ -313,7 +328,11 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     // records not_a_fit for every row it touched, and release C reads the why.
     return leadAct(() => window.__leadsBulk(body), <>Not a fit.</>);
   };
-  /* ---------------------------------------- the plan panel (Tasks 9, 10; spec F5) */
+  return { canFind, searchById, leadUndo, leadAct, leadSaid, keepLead, excludeLead, putBackLead, callLead, copyLead, logLeadCall, copyPhone, copyEmails, bulkLeads, bulkNotAFit };
+};
+
+/* ---------------------------------------- the plan panel (Tasks 9, 10; spec F5) */
+const leadFinderActs = ({ leadView, nav, plFlash, finderMore, setFinderMore, finderProposal, setFinderOpen, setFinderStage, setFinderWords, setFinderTrace, setFinderRefusal, setFinderProposal, setFinderPlan, setFinderPick }) => {
   // The setters leadAnswerPlan and leadFinderApprove take (leads-finder.jsx), and `more`, which says whose round
   // an approval belongs to when the plan was opened from a strip, and whether it answers that round's question.
   const finderSet = {
@@ -368,6 +387,11 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     setFinderStage("plan");
     setFinderOpen(true);
   };
+  return { finderAnswer, finderApprove, answerOf, openFind, openPlanFor };
+};
+
+// A kept search's own acts, and the first day's line: each through its door, the toast saying what happened.
+const leadSearchActs = ({ leads, nav, plFlash, leadBusy, setLeadBusy, leadUndo, leadAct, searchById, setRenaming, setRemoving, setRemoveError, leadLine, setLeadLine, setFinderWords, setFinderMore, setFinderProposal, setFinderPlan, setFinderPick, setFinderRefusal, setFinderStage, setFinderOpen }) => {
   // Undo removes the leads nobody has touched and gives their month back; the toast says both numbers and offers
   // the operation the door answered, which is the only thing an undo names (E9).
   const undoRound = async (searchId) => {
@@ -437,41 +461,13 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   };
   const searchWordsFor = (id) => (window.__leadSearchWords ? window.__leadSearchWords(searchById(id), leads.tz) : { askedLine: "", keepsLine: "" });
   const exportHrefFor = (s) => (window.__href ? window.__href("GET leads/export", undefined, { search: s.id, list: "all", sort: "fit", dir: "asc" }) : null);
+  return { undoRound, renameSearch, removeSearch, saveBusinessLine, findNewOnes, searchAgain, searchWordsFor, exportHrefFor };
+};
 
-  // The Leads cells' doors (see cellCtxLeads below): the latest closures, behind one context that holds still.
-  const leadCellActs = React.useRef({});
-  const leadCellKept = React.useRef(null);
-  // What the keyboard's one listener reads (usePlPlace): Enter peeks the lead, and the Leads scope's own overlays.
-  keysWith({
-    open: setPeekId,
-    canSelect: canFind || canExport,
-    // The selection's sheet is a phone's (drawn only there): a window widened past 900px with it open holds no keys.
-    sheetOpen: listsOpen || (phone && !!bulkSheet),
-    closeSheet: phone && bulkSheet ? () => setBulkSheet(null) : null,
-    peekOpen: !!peekId || !!lightboxId,
-    // One press backs out one step: the question the peek asked, then the pane it opened, then the peek itself
-    // (leadPeekEscape, leads-peek.jsx, Task 12). The order OUT here is the page's: the peek, the plan panel, the
-    // Columns menu, the selection.
-    closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
-    finderOpen,
-    // Esc lets an answer go as the close button does.
-    closeFinder: () => { setFinderOpen(false); setFinderMore(null); },
-    canFind,
-    find: openFind,
-    call: callLead,
-  });
-
-  const rail = window.__leadRail ? window.__leadRail(leads.counts, leads.searches) : { lists: [], searches: [] };
-  const standing = window.__leadsStanding ? window.__leadsStanding(leads.counts, leads.searches) : { total: "", parts: [], needsYou: null };
-  const openSearch = searchById(leadView.searchId);
-  // The band (D5): the search's whole shape, and whether its fits differ (which is when a row wears its fit).
-  const band = window.__LEAD_VM && window.__LEAD_VM.leadBand ? window.__LEAD_VM.leadBand(openSearch) : null;
-  // What a cell needs. The acts are this draw's closures (over the view, the busy flag), so the ref holds the
-  // latest and the context hands out doors to it: the context itself changes only when a value a cell draws from
-  // changes, and a memoised row is left alone otherwise.
-  // A lead's band photo, asked for as its row is rested on, touched or reached by Tab (leads-peek.jsx leadPhotoWarm).
-  // After a beat and only the last row: a pointer swept down the list passes over every row, and asking for each
-  // photo it crossed would be a burst Google's photo service answers with refusals.
+// A lead's band photo, asked for as its row is rested on, touched or reached by Tab (leads-peek.jsx leadPhotoWarm).
+// After a beat and only the last row: a pointer swept down the list passes over every row, and asking for each
+// photo it crossed would be a burst Google's photo service answers with refusals.
+const useLeadPhotoWarm = (leadShown) => {
   const warmRest = React.useRef(null);
   const warmLeadPhoto = (id) => {
     if (warmRest.current) clearTimeout(warmRest.current);
@@ -482,10 +478,11 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     }, 120);
   };
   React.useEffect(() => () => { if (warmRest.current) clearTimeout(warmRest.current); }, []);
-  leadCellActs.current = { onWarm: warmLeadPhoto, onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: copyLead, onCopyPhone: copyPhone, onLogCall: logLeadCall, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead };
-  // Whether the Stage column is drawn: then it says each lead's state, and the name's tag does not say it again.
-  const stageShown = columns.some((c) => c.key === "stage");
-  const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows, stageShown);
+  return warmLeadPhoto;
+};
+
+// Where the rail's rows and the view's own controls go: the address of the view with one thing changed.
+const leadRailRoutes = ({ leadView, nav, searchById }) => {
   const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
   // Where a rail row's press goes (railToggle: one row at a time; the picked row pressed again shows all leads). On a
   // phone the rail is a sheet, and a press opens the row and nothing else: the sheet closes on it (below), so a press
@@ -501,9 +498,13 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     const to = open ? id : railToggle(leadView.searchId, id);
     return window.__leadsRouteOf({ searchId: to, list: "all", cls: to && waitsOn(to) ? "excluded" : null });
   };
-  // What each strip control does (Task 10 step 6). Every act goes out through its route; the six that would
-  // make a new round open the plan card instead, because nothing that counts against the month may start
-  // without the owner approving what runs.
+  return { goto, pickListRoute, waitsOn, pickSearchRoute };
+};
+
+// What each strip control does (Task 10 step 6). Every act goes out through its route; the six that would
+// make a new round open the plan card instead, because nothing that counts against the month may start
+// without the owner approving what runs.
+const leadStripActs = ({ openSearch, leadAct, answerOf, openPlanFor, goto, undoRound, setSortBy, setSortDir, setFinderWords, setFinderProposal, setFinderPlan, setFinderRefusal, setFinderPick, setFinderMore, setFinderStage, setFinderOpen }) => {
   // The strip's view model: contracts' where contracts has it (Task 10 step 7a puts `leadStrip` in the
   // derivations bag), and until then the page's own file, published beside the component that draws it.
   const ldStrip = (window.__LEAD_VM && window.__LEAD_VM.leadStrip) || window.leadStrip;
@@ -545,235 +546,247 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     if (id === "take_offered") return takeOffered();
     return undefined;
   };
+  return { ldStrip, takeOffered, onStripAction };
+};
+
+const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = null }) => {
+  // The workspace's copy of every view rides with the People surface (usePlControls), and so do the first day's
+  // facts about the calendar and the people.
+  const people = usePeople();
+  const leads = useLeads();
+  const nav = onNavigate || ((to) => window.CHANLY.nav(to));
+  const { leadView, viewRoute, addrPeek, leadList } = leadsViewAt(leadsRoute);
+  const hasCenter = leads.searches.some((s) => s.plan && s.plan.area && !!s.plan.area.center);
+  // The columns this scope draws with: the Leads scope's (LEAD_COLUMNS, leads-cells.jsx).
+  const controls = usePlControls({ scope: "leads", cols: LEAD_COLUMNS, phoneCols: LEAD_PHONE_COLUMNS, colCtx: { hasCenter }, people, sortFirst: { by: "fit", dir: "asc" }, railRow: leadList });
+  const { phone, bulkSheet, setBulkSheet, canExport, plFlash, setSel, setAllMatching, sortBy, setSortBy, sortDir, setSortDir, columns, q } = controls;
+  const st = useLeadsState();
+  const { listsOpen, peekId, setPeekId, finderOpen, setFinderOpen, setFinderMore, peekMode, setPeekMode, armed, setArmed, values, lightboxId, setLightboxId, chip, setChip, fitChip, setFitChip, setBenchGroup, mapOpen, setMapOpen, setMapPick, setBulkWhy } = st;
+  const { leadsMoreBusy, leadsMore } = useLeadsRead({ leadView, viewRoute, sortBy, sortDir, plFlash });
+  const { leadShown, filtered, shownIds, viewLanded } = useLeadRows({ leads, q, chip, fitChip, leadView, viewRoute, sortBy, sortDir });
+  // Each view keeps its place by the address's view (viewRoute), its map with it. A view opened after the first starts
+  // with none of the last one's filters.
+  const { cursor, setCursor, rowBudget, keysWith, toggleAll } = usePlPlace({
+    controls, page: "leads", view: viewRoute, ids: shownIds, noun: "lead", landed: viewLanded, selectionOf: `${viewRoute}|${chip}`,
+    extra: { map: mapOpen },
+    onPlace: (p, again) => {
+      setMapOpen(!!p.map);
+      if (again) { setChip(null); setFitChip(null); setBenchGroup(null); setMapPick(null); setLightboxId(null); setBulkWhy(false); }
+    },
+  });
+  const deckMove = useLeadPeek({ peekId, setPeekId, shownIds, leadShown, cursor, setCursor, peekMode, armed, setArmed });
+  useLeadPeekAddress({ leadView, viewRoute, addrPeek, peekId, setPeekId, setCursor, setPeekMode, setArmed, setDraft: st.setDraft, nav });
+  const acts = leadActs({ leads, leadView, plFlash, setSel, setAllMatching, ...st });
+  const { canFind, callLead } = acts;
+  const finder = leadFinderActs({ leadView, nav, plFlash, ...st });
+  const { openFind } = finder;
+  const searches = leadSearchActs({ leads, nav, plFlash, ...acts, ...st });
+
+  // The Leads cells' doors (see cellCtxLeads below): the latest closures, behind one context that holds still.
+  const leadCellActs = React.useRef({});
+  const leadCellKept = React.useRef(null);
+  // What the keyboard's one listener reads (usePlPlace): Enter peeks the lead, and the Leads scope's own overlays.
+  keysWith({
+    open: setPeekId,
+    canSelect: canFind || canExport,
+    // The selection's sheet is a phone's (drawn only there): a window widened past 900px with it open holds no keys.
+    sheetOpen: listsOpen || (phone && !!bulkSheet),
+    closeSheet: phone && bulkSheet ? () => setBulkSheet(null) : null,
+    peekOpen: !!peekId || !!lightboxId,
+    // One press backs out one step: the question the peek asked, then the pane it opened, then the peek itself
+    // (leadPeekEscape, leads-peek.jsx, Task 12). The order OUT here is the page's: the peek, the plan panel, the
+    // Columns menu, the selection.
+    closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
+    finderOpen,
+    // Esc lets an answer go as the close button does.
+    closeFinder: () => { setFinderOpen(false); setFinderMore(null); },
+    canFind,
+    find: openFind,
+    call: callLead,
+  });
+
+  const rail = window.__leadRail ? window.__leadRail(leads.counts, leads.searches) : { lists: [], searches: [] };
+  const standing = window.__leadsStanding ? window.__leadsStanding(leads.counts, leads.searches) : { total: "", parts: [], needsYou: null };
+  const openSearch = acts.searchById(leadView.searchId);
+  // The band (D5): the search's whole shape, and whether its fits differ (which is when a row wears its fit).
+  const band = window.__LEAD_VM && window.__LEAD_VM.leadBand ? window.__LEAD_VM.leadBand(openSearch) : null;
+  // What a cell needs. The acts are this draw's closures (over the view, the busy flag), so the ref holds the
+  // latest and the context hands out doors to it: the context itself changes only when a value a cell draws from
+  // changes, and a memoised row is left alone otherwise.
+  const warmLeadPhoto = useLeadPhotoWarm(leadShown);
+  leadCellActs.current = { onWarm: warmLeadPhoto, onOpen: setPeekId, onExpand: setLightboxId, onCall: callLead, onCopy: acts.copyLead, onCopyPhone: acts.copyPhone, onLogCall: acts.logLeadCall, onKeep: acts.keepLead, onExclude: acts.excludeLead, onPutBack: acts.putBackLead };
+  // Whether the Stage column is drawn: then it says each lead's state, and the name's tag does not say it again.
+  const stageShown = columns.some((c) => c.key === "stage");
+  const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows, stageShown);
+  const routes = leadRailRoutes({ leadView, nav, searchById: acts.searchById });
+  const strip = leadStripActs({ openSearch, ...acts, ...finder, ...searches, ...routes, setSortBy, setSortDir, ...st });
+  const p = { ...controls, ...st, ...acts, ...finder, ...searches, ...routes, ...strip, people, leads, nav, onOpenProfile, leadView, leadShown, filtered, shownIds, viewLanded, cursor, setCursor, rowBudget, toggleAll, deckMove, leadsMore, leadsMoreBusy, rail, standing, openSearch, band, cellCtxLeads };
+  return <LeadsScope {...leadsListProps(p)} {...leadsBandProps(p)} {...leadsBulkProps(p)} {...leadsPeekProps(p)} {...leadsFootProps(p)} />;
+};
+
+/* ---------------------------------------------------- what LeadsScope is handed, in its order */
+// The rail, the list's head and the table.
+const leadsListProps = (p) => {
+  const { leads, rail, listsOpen, setListsOpen, standing, leadView, openSearch, ldStrip, leadShown, rowBudget, phone, viewLanded, columns, colOptions, colsOpen, colsButton, setColsOpen, pickColumn, cellCtxLeads, sortBy, sortDir, onSort, q, setQ, searchRef, searchOpen, setSearchOpen, scrollRef, scrolledX, setScrolledX, filtered, setChip, setFitChip, goto } = p;
   // What the phone's bar says it is showing: the search that is open, or the list, and its count apart, which the
   // bar never shortens (Task 18; PeoplePhoneBar's listCount).
   const openList = rail.lists.find((l) => l.id === leadView.list);
   const railLabel = openSearch ? openSearch.name : openList ? openList.label : "All leads";
   const railCount = openSearch ? openSearch.round.counted : openList ? openList.count : null;
-  return (
-    <LeadsScope
-      surface={leads}
-      rail={rail}
-      railLabel={railLabel}
-      railCount={railCount}
-      listTitle={openList ? openList.label : "All leads"}
-      listsOpen={listsOpen}
-      onLists={() => setListsOpen(true)}
-      onCloseLists={() => setListsOpen(false)}
-      standing={standing}
-      view={leadView}
-      search={openSearch}
-      strip={ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null}
-      rows={leadShown}
-      rowBudget={rowBudget}
-      phone={phone}
-      // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in
-      // the order asked (a view read before paints at once; one not yet read is on its way): said, not left looking
-      // right and being wrong.
-      loading={!viewLanded}
-      total={leads.counts[leadView.list] ?? leads.counts.all}
-      columns={columns}
-      colOptions={colOptions}
-      colsOpen={colsOpen}
-      colsButton={colsButton}
-      onColsOpen={setColsOpen}
-      onPickColumn={pickColumn}
-      cellCtx={cellCtxLeads}
-      sortBy={sortBy}
-      sortDir={sortDir}
-      onSort={onSort}
-      q={q}
-      onQ={setQ}
-      searchRef={searchRef}
-      searchOpen={searchOpen}
-      onSearchOpen={setSearchOpen}
-      scrollRef={scrollRef}
-      scrolled={scrolledX}
-      onScrolled={setScrolledX}
-      filtered={filtered}
-      onClearFilters={() => { setQ(""); setChip(null); setFitChip(null); goto({ list: "all", cls: null }); }}
-      band={band}
-      // Needs review, as a workbench (D5): the groups are contracts', the pile is the rows this view loaded, and
-      // the month is the surface's, so what a press costs is a number the owner can see.
-      // The same leads, on the ground (D5): the plot is contracts', from the points the door returned and the
-      // area the search asked for. A view whose leads the source placed nowhere has no map to draw.
-      mapOpen={mapOpen}
-      onMap={setMapOpen}
-      // The phone's bar shows the map's pin only where the rows the source placed give it something to draw.
-      canMap={leadShown.some((l) => !!l.point)}
-      mapPick={mapPick}
-      onMapPick={setMapPick}
-      plot={mapOpen && window.__LEAD_VM && window.__LEAD_VM.leadMapPlot ? window.__LEAD_VM.leadMapPlot(leadShown, (openSearch && openSearch.plan && openSearch.plan.area) || null) : null}
-      onWiden={() => { if (!openSearch) return; const a = openSearch.plan.area; onStripAction("nearby", { ...openSearch.plan, area: { ...a, radius_m: Math.min(60000, Math.round((a.radius_m || 8000) * 2)) } }); }}
-      benchGroups={leadView.cls === "review" && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups ? window.__LEAD_VM.leadReviewGroups(leads.rows, openSearch) : []}
-      benchGroup={benchGroup}
-      onBenchGroup={setBenchGroup}
-      month={leads.month}
-      onNearby={(area) => onStripAction("nearby", { ...openSearch.plan, area })}
-      fit={fitChip}
-      onPickFit={setFitChip}
-      values={values}
-      onValues={(v) => { setValues(v); try { if (window.localStorage) window.localStorage.setItem("leads.values", v ? "1" : "0"); } catch (e) { /* a private window: the choice lives for the page */ } }}
-      empty={leadView.cls === "review"
-        ? { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null }
-        : !leadView.cls && waitsOn(leadView.searchId)
-        ? { title: "Nothing is counted yet.", body: "It is waiting for your answer above.", action: null }
-        : { title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: openFind } : null }}
-      sel={sel}
-      onToggle={toggleSel}
-      onToggleAll={toggleAll}
-      onClearSel={clearSelection}
-      onSelectIds={(ids) => { setSel(new Set(ids)); setAllMatching(false); }}
-      // Needs review's resolvers (D3). Keep and Exclude go through the bulk door (00145), which takes the member's
-      // own door once per lead; Check again through its own. Find an email draws only once its courier exists, so
-      // the bar never offers what no door can do.
-      review={{
-        actsFor: (ids) => {
-          const V = window.__LEAD_VM || {};
-          const groups = V.leadReviewGroups ? V.leadReviewGroups(leads.rows.filter((l) => ids.indexOf(l.id) >= 0), openSearch) : [];
-          return [...new Set(groups.flatMap((g) => g.acts))];
-        },
-        canCheckAgain: typeof window.__leadCheckAgain === "function",
-        canFindEmail: typeof window.__leadFindEmail === "function",
-        onCheckAgain: (ids) => window.__leadCheckAgain && leadSaid(() => window.__leadCheckAgain(ids)),
-        onFindEmail: (ids) => window.__leadFindEmail && leadAct(() => window.__leadFindEmail(ids), <>Looking for {ids.length === 1 ? "an email" : `${ids.length} emails`}.</>),
-        onKeep: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "keep", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
-        onExclude: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "exclude", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
-      }}
-      allMatching={allMatching}
-      onSelectAllMatching={() => setAllMatching(true)}
-      bulkView={{ list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }}
-      bulkBusy={leadBusy}
-      onBulk={bulkLeads}
-      bulkWhy={bulkWhy}
-      onBulkWhy={setBulkWhy}
-      bulkSheet={phone ? bulkSheet : null}
-      onBulkSheet={setBulkSheet}
-      onBulkNotAFit={bulkNotAFit}
-      onCopyEmails={copyEmails}
-      cursor={cursor}
-      onCursor={setCursor}
-      canFind={canFind}
-      canExport={canExport}
-      exportHref={window.__href ? window.__href("GET leads/export", undefined, { list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }) : null}
-      onScope={(to) => nav(plScopeRoute(to))}
-      // The Pipeline is in the switch where deals are on (0008): People's surface says so, and it lands after Leads' on a
-      // cold load of Leads, when the switch gains its third tab.
-      dealsOn={!!people.dealsOn}
-      // The rail picks as People's does (railToggle): a list or a search, one at a time. A list pressed while a
-      // search was open used to keep the search and narrow inside it, and the rail lit neither; a search picked
-      // kept the list, and showed fewer of its leads than its count said. The class and the chip start over.
-      // On a phone the press is in the Lists sheet: it opens the row and the sheet closes, so the page it opened is
-      // what the owner sees next. It stood open over the page, and a second press on the row took them back out.
-      onPickList={(id) => { setChip(null); nav(pickListRoute(id, phone)); if (phone) setListsOpen(false); }}
-      onPickSearch={(id) => { setChip(null); nav(pickSearchRoute(id, phone)); if (phone) setListsOpen(false); }}
-      // The row under the pointer reads its view ahead of the press (the surface holds it; leads.ts warmLeadsView).
-      onWarmList={(id) => window.__leadsWarm && window.__leadsWarm(pickListRoute(id))}
-      onWarmSearch={(id) => window.__leadsWarm && window.__leadsWarm(pickSearchRoute(id))}
-      onPickClass={(cls) => { setChip(null); goto({ cls }); }}
-      chip={chip}
-      onPickChip={setChip}
-      onNeedsYou={(id) => nav(window.__leadsRouteOf({ searchId: id, list: "all", cls: "excluded" }))}
-      exportHrefFor={exportHrefFor}
-      searchWordsFor={searchWordsFor}
-      renaming={renaming}
-      onRename={setRenaming}
-      onRenameSave={renameSearch}
-      onRenameCancel={() => setRenaming(null)}
-      removing={removing}
-      onRemoveAsk={(s) => { setRemoveError(null); setRemoving(s); }}
-      onUndo={(s) => undoRound(s.id)}
-      onRemoveYes={removeSearch}
-      onRemoveNo={() => { setRemoving(null); setRemoveError(null); }}
-      removeBusy={leadBusy}
-      removeError={removeError}
-      onFindNewOnes={findNewOnes}
-      onSearchAgain={searchAgain}
-      onFind={openFind}
-      finderOpen={finderOpen}
-      finderStage={finderStage}
-      finderWords={finderWords}
-      finderProposal={finderProposal}
-      finderRefusal={finderRefusal}
-      finderBusy={leadBusy}
-      finderPlan={finderPlan}
-      finderTrace={finderTrace}
-      finderPick={finderPick}
-      onFinderWords={setFinderWords}
-      onFinderAnswer={finderAnswer}
-      onFinderApprove={finderApprove}
-      onFinderChangePlan={setFinderPlan}
-      onFinderPick={setFinderPick}
-      // Change what I asked: under a question it is the answer row; on a plan born from the strip it is Ask, with
-      // what the search asked for in the field (the panel composes nothing, spec F5).
-      onFinderBack={() => {
-        if (finderMore && finderMore.answer) { setFinderStage("compose"); return; }
-        setFinderOpen(false);
-        setFinderMore(null);
-        openFind(finderWords);
-      }}
-      onCloseFinder={() => { setFinderOpen(false); setFinderMore(null); }}
-      finderAnswering={finderMore && finderMore.answer ? finderMore : null}
-      peek={peekId && window.__leadPeekVM ? window.__leadPeekVM(peekId) : null}
-      // Where this lead sits in the pile, and the two ways through it (D5). Moving the deck moves the page's own
-      // cursor as J and K do, so the rows behind the peek move with it.
-      deck={peekId && shownIds.indexOf(peekId) >= 0
-        ? {
-          at: shownIds.indexOf(peekId) + 1,
-          of: shownIds.length,
-          onPrev: () => deckMove(-1),
-          onNext: () => deckMove(1),
-        }
-        : null}
-      peekMode={peekMode}
-      onPeekMode={setPeekMode}
-      armed={armed}
-      onArmed={setArmed}
-      draft={draft}
-      onDraftState={setDraft}
-      // On a phone, while anyone is selected a tap on a row selects it, as on People (the face is the checkbox).
-      onPeek={phone && leadShown.some((l) => sel.has(l.id)) ? toggleSel : setPeekId}
-      onPeekId={setPeekId}
-      onOpenPerson={onOpenProfile}
-      flash={plFlash}
-      onClosePeek={() => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId })}
-      onExpandPhoto={setLightboxId}
-      lightbox={lightboxId && window.__leadPeekVM ? window.__leadPeekVM(lightboxId) : null}
-      onCloseLightbox={() => setLightboxId(null)}
-      onCall={callLead}
-      onKeep={keepLead}
-      onExclude={excludeLead}
-      onPutBack={putBackLead}
-      onCopy={copyLead}
-      onCopyPhone={copyPhone}
-      onLogCall={logLeadCall}
-      onStripAction={onStripAction}
-      onTakeOffered={takeOffered}
-      onMore={leadsMore}
-      loadingMore={leadsMoreBusy}
-      firstDay={leads.searches.length === 0 && !leads.readFailed}
-      // The three ways claim only what THIS tab has read: the line is the setup
-      // surface's, which this route does not load on a cold open, so it is passed
-      // only when the owner came from Setup in this tab (Task 17, decision 2).
-      ways={window.__leadWays ? window.__leadWays({
-        voice: window.__SETUP && window.__SETUP.dto ? window.__SETUP.dto.channels.voice : null,
-        whatsapp: window.__SETUP && window.__SETUP.dto ? window.__SETUP.dto.channels.whatsapp : null,
-        calendar: (people.calendar && people.calendar.state) || "none",
-        people: (people.aggregates && people.aggregates.total) || 0,
-      }) : []}
-      lineOpen={!!leadLine}
-      lineDraft={leadLine ? leadLine.draft : ""}
-      lineError={leadLine ? leadLine.error : null}
-      lineBusy={!!(leadLine && leadLine.busy)}
-      onOpenLine={() => setLeadLine({ draft: leads.suggestions ? leads.suggestions.business_line : "", error: null, busy: false })}
-      onLineDraft={(draft) => setLeadLine((l) => ({ ...l, draft, error: null }))}
-      onSaveLine={saveBusinessLine}
-      onCancelLine={() => setLeadLine(null)}
-      onGo={(to) => nav(to)}
-      onBusinessLine={(line) => window.__leadBusinessLine && window.__leadBusinessLine(line)}
-      toastNode={toastNode}
-    />
-  );
+  return {
+    surface: leads, rail, railLabel, railCount, listTitle: openList ? openList.label : "All leads",
+    listsOpen, onLists: () => setListsOpen(true), onCloseLists: () => setListsOpen(false),
+    standing, view: leadView, search: openSearch, strip: ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null,
+    rows: leadShown, rowBudget, phone,
+    // The rows drawn are the last view's, or its last order, until the surface holds the one the address names in
+    // the order asked (a view read before paints at once; one not yet read is on its way): said, not left looking
+    // right and being wrong.
+    loading: !viewLanded,
+    total: leads.counts[leadView.list] ?? leads.counts.all,
+    columns, colOptions, colsOpen, colsButton, onColsOpen: setColsOpen, onPickColumn: pickColumn, cellCtx: cellCtxLeads,
+    sortBy, sortDir, onSort, q, onQ: setQ, searchRef, searchOpen, onSearchOpen: setSearchOpen,
+    scrollRef, scrolled: scrolledX, onScrolled: setScrolledX, filtered,
+    onClearFilters: () => { setQ(""); setChip(null); setFitChip(null); goto({ list: "all", cls: null }); },
+  };
+};
+
+// The band, the map, the bench and the list's empty state.
+const leadsBandProps = (p) => {
+  const { band, mapOpen, setMapOpen, leadShown, mapPick, setMapPick, openSearch, onStripAction, leadView, leads, benchGroup, setBenchGroup, fitChip, setFitChip, values, setValues, waitsOn, canFind, openFind } = p;
+  return {
+    band,
+    // Needs review, as a workbench (D5): the groups are contracts', the pile is the rows this view loaded, and
+    // the month is the surface's, so what a press costs is a number the owner can see.
+    // The same leads, on the ground (D5): the plot is contracts', from the points the door returned and the
+    // area the search asked for. A view whose leads the source placed nowhere has no map to draw.
+    mapOpen, onMap: setMapOpen,
+    // The phone's bar shows the map's pin only where the rows the source placed give it something to draw.
+    canMap: leadShown.some((l) => !!l.point),
+    mapPick, onMapPick: setMapPick,
+    plot: mapOpen && window.__LEAD_VM && window.__LEAD_VM.leadMapPlot ? window.__LEAD_VM.leadMapPlot(leadShown, (openSearch && openSearch.plan && openSearch.plan.area) || null) : null,
+    onWiden: () => { if (!openSearch) return; const a = openSearch.plan.area; onStripAction("nearby", { ...openSearch.plan, area: { ...a, radius_m: Math.min(60000, Math.round((a.radius_m || 8000) * 2)) } }); },
+    benchGroups: leadView.cls === "review" && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups ? window.__LEAD_VM.leadReviewGroups(leads.rows, openSearch) : [],
+    benchGroup, onBenchGroup: setBenchGroup, month: leads.month,
+    onNearby: (area) => onStripAction("nearby", { ...openSearch.plan, area }),
+    fit: fitChip, onPickFit: setFitChip, values,
+    onValues: (v) => { setValues(v); try { if (window.localStorage) window.localStorage.setItem("leads.values", v ? "1" : "0"); } catch (e) { /* a private window: the choice lives for the page */ } },
+    empty: leadView.cls === "review"
+      ? { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null }
+      : !leadView.cls && waitsOn(leadView.searchId)
+      ? { title: "Nothing is counted yet.", body: "It is waiting for your answer above.", action: null }
+      : { title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: openFind } : null },
+  };
+};
+
+// The selection and its bulk bar, and the rail's doors.
+const leadsBulkProps = (p) => {
+  const { sel, toggleSel, toggleAll, clearSelection, setSel, setAllMatching, leads, openSearch, leadSaid, leadAct, leadView, allMatching, sortBy, sortDir, leadBusy, bulkLeads, bulkWhy, setBulkWhy, phone, bulkSheet, setBulkSheet, bulkNotAFit, copyEmails, cursor, setCursor, canFind, canExport, nav, people, setChip, pickListRoute, pickSearchRoute, setListsOpen, goto, chip, exportHrefFor, searchWordsFor } = p;
+  return {
+    sel, onToggle: toggleSel, onToggleAll: toggleAll, onClearSel: clearSelection,
+    onSelectIds: (ids) => { setSel(new Set(ids)); setAllMatching(false); },
+    // Needs review's resolvers (D3). Keep and Exclude go through the bulk door (00145), which takes the member's
+    // own door once per lead; Check again through its own. Find an email draws only once its courier exists, so
+    // the bar never offers what no door can do.
+    review: {
+      actsFor: (ids) => {
+        const V = window.__LEAD_VM || {};
+        const groups = V.leadReviewGroups ? V.leadReviewGroups(leads.rows.filter((l) => ids.indexOf(l.id) >= 0), openSearch) : [];
+        return [...new Set(groups.flatMap((g) => g.acts))];
+      },
+      canCheckAgain: typeof window.__leadCheckAgain === "function",
+      canFindEmail: typeof window.__leadFindEmail === "function",
+      onCheckAgain: (ids) => window.__leadCheckAgain && leadSaid(() => window.__leadCheckAgain(ids)),
+      onFindEmail: (ids) => window.__leadFindEmail && leadAct(() => window.__leadFindEmail(ids), <>Looking for {ids.length === 1 ? "an email" : `${ids.length} emails`}.</>),
+      onKeep: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "keep", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
+      onExclude: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "exclude", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
+    },
+    allMatching, onSelectAllMatching: () => setAllMatching(true),
+    bulkView: { list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir },
+    bulkBusy: leadBusy, onBulk: bulkLeads, bulkWhy, onBulkWhy: setBulkWhy, bulkSheet: phone ? bulkSheet : null, onBulkSheet: setBulkSheet,
+    onBulkNotAFit: bulkNotAFit, onCopyEmails: copyEmails, cursor, onCursor: setCursor, canFind, canExport,
+    exportHref: window.__href ? window.__href("GET leads/export", undefined, { list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }) : null,
+    onScope: (to) => nav(plScopeRoute(to)),
+    // The Pipeline is in the switch where deals are on (0008): People's surface says so, and it lands after Leads' on a
+    // cold load of Leads, when the switch gains its third tab.
+    dealsOn: !!people.dealsOn,
+    // The rail picks as People's does (railToggle): a list or a search, one at a time. A list pressed while a
+    // search was open used to keep the search and narrow inside it, and the rail lit neither; a search picked
+    // kept the list, and showed fewer of its leads than its count said. The class and the chip start over.
+    // On a phone the press is in the Lists sheet: it opens the row and the sheet closes, so the page it opened is
+    // what the owner sees next. It stood open over the page, and a second press on the row took them back out.
+    onPickList: (id) => { setChip(null); nav(pickListRoute(id, phone)); if (phone) setListsOpen(false); },
+    onPickSearch: (id) => { setChip(null); nav(pickSearchRoute(id, phone)); if (phone) setListsOpen(false); },
+    // The row under the pointer reads its view ahead of the press (the surface holds it; leads.ts warmLeadsView).
+    onWarmList: (id) => window.__leadsWarm && window.__leadsWarm(pickListRoute(id)),
+    onWarmSearch: (id) => window.__leadsWarm && window.__leadsWarm(pickSearchRoute(id)),
+    onPickClass: (cls) => { setChip(null); goto({ cls }); },
+    chip, onPickChip: setChip,
+    onNeedsYou: (id) => nav(window.__leadsRouteOf({ searchId: id, list: "all", cls: "excluded" })),
+    exportHrefFor, searchWordsFor,
+  };
+};
+
+// A kept search's acts, the plan panel, and the peek.
+const leadsPeekProps = (p) => {
+  const { renaming, setRenaming, renameSearch, removing, setRemoveError, setRemoving, undoRound, removeSearch, leadBusy, removeError, findNewOnes, searchAgain, openFind, finderOpen, finderStage, finderWords, finderProposal, finderRefusal, finderPlan, finderTrace, finderPick, setFinderWords, finderAnswer, finderApprove, setFinderPlan, setFinderPick, finderMore, setFinderStage, setFinderOpen, setFinderMore, peekId, shownIds, deckMove, peekMode, setPeekMode, armed, setArmed, draft, setDraft, phone, leadShown, sel, toggleSel, setPeekId, onOpenProfile, plFlash, lightboxId, setLightboxId, callLead, keepLead, excludeLead, putBackLead, copyLead, copyPhone, logLeadCall } = p;
+  return {
+    renaming, onRename: setRenaming, onRenameSave: renameSearch, onRenameCancel: () => setRenaming(null),
+    removing, onRemoveAsk: (s) => { setRemoveError(null); setRemoving(s); }, onUndo: (s) => undoRound(s.id), onRemoveYes: removeSearch,
+    onRemoveNo: () => { setRemoving(null); setRemoveError(null); }, removeBusy: leadBusy, removeError,
+    onFindNewOnes: findNewOnes, onSearchAgain: searchAgain, onFind: openFind,
+    finderOpen, finderStage, finderWords, finderProposal, finderRefusal, finderBusy: leadBusy, finderPlan, finderTrace, finderPick,
+    onFinderWords: setFinderWords, onFinderAnswer: finderAnswer, onFinderApprove: finderApprove, onFinderChangePlan: setFinderPlan, onFinderPick: setFinderPick,
+    // Change what I asked: under a question it is the answer row; on a plan born from the strip it is Ask, with
+    // what the search asked for in the field (the panel composes nothing, spec F5).
+    onFinderBack: () => {
+      if (finderMore && finderMore.answer) { setFinderStage("compose"); return; }
+      setFinderOpen(false);
+      setFinderMore(null);
+      openFind(finderWords);
+    },
+    onCloseFinder: () => { setFinderOpen(false); setFinderMore(null); },
+    finderAnswering: finderMore && finderMore.answer ? finderMore : null,
+    peek: peekId && window.__leadPeekVM ? window.__leadPeekVM(peekId) : null,
+    // Where this lead sits in the pile, and the two ways through it (D5). Moving the deck moves the page's own
+    // cursor as J and K do, so the rows behind the peek move with it.
+    deck: peekId && shownIds.indexOf(peekId) >= 0
+      ? { at: shownIds.indexOf(peekId) + 1, of: shownIds.length, onPrev: () => deckMove(-1), onNext: () => deckMove(1) }
+      : null,
+    peekMode, onPeekMode: setPeekMode, armed, onArmed: setArmed, draft, onDraftState: setDraft,
+    // On a phone, while anyone is selected a tap on a row selects it, as on People (the face is the checkbox).
+    onPeek: phone && leadShown.some((l) => sel.has(l.id)) ? toggleSel : setPeekId,
+    onPeekId: setPeekId, onOpenPerson: onOpenProfile, flash: plFlash,
+    onClosePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
+    onExpandPhoto: setLightboxId,
+    lightbox: lightboxId && window.__leadPeekVM ? window.__leadPeekVM(lightboxId) : null,
+    onCloseLightbox: () => setLightboxId(null),
+    onCall: callLead, onKeep: keepLead, onExclude: excludeLead, onPutBack: putBackLead, onCopy: copyLead, onCopyPhone: copyPhone, onLogCall: logLeadCall,
+  };
+};
+
+// The strip, the next page, and the first day.
+const leadsFootProps = (p) => {
+  const { onStripAction, takeOffered, leadsMore, leadsMoreBusy, leads, people, leadLine, setLeadLine, saveBusinessLine, nav, toastNode } = p;
+  return {
+    onStripAction, onTakeOffered: takeOffered, onMore: leadsMore, loadingMore: leadsMoreBusy,
+    firstDay: leads.searches.length === 0 && !leads.readFailed,
+    // The three ways claim only what THIS tab has read: the line is the setup
+    // surface's, which this route does not load on a cold open, so it is passed
+    // only when the owner came from Setup in this tab (Task 17, decision 2).
+    ways: window.__leadWays ? window.__leadWays({
+      voice: window.__SETUP && window.__SETUP.dto ? window.__SETUP.dto.channels.voice : null,
+      whatsapp: window.__SETUP && window.__SETUP.dto ? window.__SETUP.dto.channels.whatsapp : null,
+      calendar: (people.calendar && people.calendar.state) || "none",
+      people: (people.aggregates && people.aggregates.total) || 0,
+    }) : [],
+    lineOpen: !!leadLine, lineDraft: leadLine ? leadLine.draft : "", lineError: leadLine ? leadLine.error : null, lineBusy: !!(leadLine && leadLine.busy),
+    onOpenLine: () => setLeadLine({ draft: leads.suggestions ? leads.suggestions.business_line : "", error: null, busy: false }),
+    onLineDraft: (draft) => setLeadLine((l) => ({ ...l, draft, error: null })),
+    onSaveLine: saveBusinessLine, onCancelLine: () => setLeadLine(null),
+    onGo: (to) => nav(to),
+    onBusinessLine: (line) => window.__leadBusinessLine && window.__leadBusinessLine(line),
+    toastNode,
+  };
 };
 
 Object.assign(window, { LeadsReal });

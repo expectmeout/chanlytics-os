@@ -77,7 +77,7 @@ import {
   type ProfileCrossing,
   type BusinessProfile,
 } from "@chanlytics/contracts";
-import type { PromptPreviewDto } from "../server/prompt-preview";
+import type { PromptPreviewDto } from "../server/receptionist/prompt-preview";
 
 /**
  * The prompt block each fold and inline row writes into, named for the keys it
@@ -128,7 +128,7 @@ export const FOLD_BLOCK = {
   // can be resolved here. The hours and closures folds show the zone as saved.
   timezone: null,
   // The create fold of a workspace with no receptionist: the settings read composes no preview where there is no
-  // brain (server/prompt-preview.ts), so there are no inputs to resolve its draft with.
+  // brain (server/receptionist/prompt-preview.ts), so there are no inputs to resolve its draft with.
   receptionist: null,
   // How customers buy (0008): the workspace's (tenants.sells_by, saved through its own route as the zone is), and not
   // in the prompt at all. It decides whether deals exist here; the receptionist hears a person's deal only where they
@@ -153,7 +153,7 @@ export interface ConsequenceWindow {
  * for every WhatsApp message (whatsapp/inbound.ts) and at the start of every
  * call (lib/call-start.ts), with the inputs the settings read resolved the
  * preview with -- the zone, the Autonomy rows and what the platform knows
- * (server/prompt-preview.ts). Composing the
+ * (server/receptionist/prompt-preview.ts). Composing the
  * draft instead, as this first did, drew rules, a notice period and a
  * hand-off token for a record the edge answers with its stored prompt, left
  * out the Autonomy tab's rules and the provisioned number, and lost the stored

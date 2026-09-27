@@ -26,7 +26,7 @@ import {
   workspaceFacts,
   type SearchAnswering,
 } from "@/server/ask/prompt";
-import { searchRow } from "@/server/leads";
+import { searchRow } from "@/server/leads/leads";
 import { appendMessage, createThread, readThread, touchThread } from "@/server/ask/store";
 
 /**

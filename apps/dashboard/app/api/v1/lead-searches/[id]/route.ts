@@ -1,7 +1,7 @@
 import { RenameLeadSearchSchema } from "@chanlytics/contracts";
 import { read, workspace, write } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { leadSearchScope, removeSearch, renameSearch, searchRow } from "@/server/leads";
+import { leadSearchScope, removeSearch, renameSearch, searchRow } from "@/server/leads/leads";
 
 /** GET /api/v1/lead-searches/:id: one search with its latest round, as lead_searches_view says it. */
 export const GET = read({

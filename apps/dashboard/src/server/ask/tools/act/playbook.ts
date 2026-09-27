@@ -26,9 +26,9 @@ import {
   type ParamSpec,
 } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
-import { archivedListWords, poolList } from "../../../audience";
-import { dealPaceRead, sellsByOf } from "../../../deals";
-import { checkPlaybookInput, proposalFollowUps } from "../../../playbooks";
+import { archivedListWords, poolList } from "../../../people/audience";
+import { dealPaceRead, sellsByOf } from "../../../people/deals";
+import { checkPlaybookInput, proposalFollowUps } from "../../../campaigns/playbooks";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { lists as listsReader } from "../../../readers/lists";

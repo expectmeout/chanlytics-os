@@ -1,6 +1,6 @@
 import { AppError } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { syncTemplates } from "@/server/service";
+import { syncTemplates } from "@/server/campaigns/meta-templates";
 
 /**
  * POST /api/v1/templates/sync — this workspace's templates, as Meta holds

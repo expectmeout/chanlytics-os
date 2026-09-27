@@ -87,9 +87,82 @@ const ixRefusedWords = (refused) => {
 
 Object.assign(window, { ixHoldAll, ixSending, ixBucketOf, ixWaitsOnYou, ixRank, ixRouteThread, ixRefusedWords });
 
-const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => {}, initialThreadId = null }) => {
-  const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, INBOX_BASELINE } = window.INBOX_DATA;
+// ---- The page, in parts ----
+// Inbox is one record of the page (`ix`), made in the order the page always made it, each part reading what the parts
+// above it made: its state and the effects that keep it true (useInboxState), the moves every verb shares (inboxMoves),
+// the verdict (inboxVerdict), the veto window (useInboxVeto, useInboxAutoSend), a seeded thread's verbs (inboxDecide,
+// inboxThreadActs, inboxReply), the bulk acts (inboxRealBulk, inboxBulkActs), what is on screen (inboxOnScreen), the keys
+// (useInboxKeys), a bucket picked (inboxBucketMoves), the counts (inboxCounts) and the page drawn (inboxPage). The hooks
+// are called in the order the page always called them, so every hook keeps its cell.
 
+// The bucket a thread is IN, never the state it holds: one whose own reply is on its way out is in Needs you.
+const firstBucketWithThreads = (list) => {
+  for (const s of ["escalated", "needs", "snoozed", "done"]) {
+    if (list.some((x) => ixBucketOf(x) === s)) return s;
+  }
+  return "escalated";
+};
+
+// The bucket the member had (the Inbox's place, inbox-list.jsx ixPlace) comes back with a refresh; a thread the
+// address names opens in it when it lists that thread, and in its own bucket when it does not.
+const ixOpeningBucket = (THREADS, initialThreadId) => {
+  const t = initialThreadId && THREADS.find((x) => x.id === initialThreadId);
+  const had = typeof window.ixPlace === "function" ? window.ixPlace().bucket : null;
+  if (t) return had && (had === "all" || ixBucketOf(t) === had) ? had : ixBucketOf(t);
+  return typeof had === "string" && had ? had : firstBucketWithThreads(THREADS);
+};
+
+// SurfaceData seam: a real-data swap replaces window.INBOX_DATA.THREADS —
+// reseed local state (real threads never live in IX_STORE).
+const ixFollowReads = ({ setThreads, setKeepOpenId, setActiveBucket, setActiveThreadId, shownRef, routeThreadRef }) => {
+  const reseed = () => setThreads(((window.INBOX_DATA || {}).THREADS || []).map((t) => {
+    const d = window.IX_STORE ? window.IX_STORE.get(t.id) : null;
+    if (!d || t.real) return { ...t };
+    if (d.kind === "snoozed") return { ...t, state: "snoozed", wake: d.wake, unread: false };
+    return { ...t, state: "done", unread: false, resolution: d };
+  }));
+  const onSwap = () => {
+    const list = (window.INBOX_DATA || {}).THREADS || [];
+    // The thread on screen stays open though this read moves it out of its bucket. What happened to it is said by
+    // the pane, where the thread lives (ThreadPane).
+    const shown = shownRef.current;
+    if (shown && shown.real && list.some((x) => x.id === shown.id)) setKeepOpenId(shown.id);
+    reseed();
+    if (!list.length) return;
+    // A bucket the member picked stays picked, even when this read empties it: an empty list says so, where being
+    // moved somewhere else a moment after the tap looked like the tap had failed. Nothing picked yet is the other
+    // case -- the first read of a workspace whose threads are all Handled opens on Handled, not on an empty Needs
+    // you. Asked by the list's own rule (ixBucketOf), not by a thread's state: a reply counting down holds "done"
+    // while it stands in Needs you, and a bucket of only those read as empty.
+    setActiveBucket((b) => {
+      const picked = typeof window.ixPlace === "function" ? window.ixPlace().bucket : null;
+      if (picked) return b;
+      return list.some((x) => ixBucketOf(x) === b) ? b : firstBucketWithThreads(list);
+    });
+    // A thread the route still names stays selected though the list does not hold it: the pane keeps
+    // saying it is missing, where clearing it let the refresh open the first thread in its place.
+    setActiveThreadId((id) => (list.some((x) => x.id === id) || (id !== null && id === routeThreadRef.current) ? id : null));
+  };
+  window.addEventListener("surface:inbox", onSwap);
+  return () => window.removeEventListener("surface:inbox", onSwap);
+};
+
+// A key the page leaves alone: a chord, one another listener took or one pressed in a dialog, or one typed in a field.
+const ixKeyLeft = (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return true;
+  // Not a key something else took, and not one pressed inside a dialog over the page (the deal sheet, any
+  // aria-modal): an arrow on its select moved the thread behind it, and A on its buttons approved.
+  if (e.defaultPrevented || (e.target && e.target.closest && e.target.closest('[aria-modal="true"]'))) return true;
+  const tag = (e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return true;
+  return false;
+};
+
+/**
+ * The page's state, in the order the page always declared it, and the effects that keep it true: the address
+ * followed, a re-read landing (ixFollowReads), the mockup's scripted concurrent change, and the sidebar's count.
+ */
+const useInboxState = (THREADS, initialThreadId) => {
   const [threads, setThreads] = React.useState(() => THREADS.map((t) => {
     // Overlay session decisions (made here or from Tasks) so state survives navigation
     const d = window.IX_STORE ? window.IX_STORE.get(t.id) : null;
@@ -97,21 +170,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (d.kind === "snoozed") return { ...t, state: "snoozed", wake: d.wake, unread: false };
     return { ...t, state: "done", unread: false, resolution: d };
   }));
-  // The bucket a thread is IN, never the state it holds: one whose own reply is on its way out is in Needs you.
-  const firstBucketWithThreads = (list) => {
-    for (const s of ["escalated", "needs", "snoozed", "done"]) {
-      if (list.some((x) => ixBucketOf(x) === s)) return s;
-    }
-    return "escalated";
-  };
-  // The bucket the member had (the Inbox's place, inbox-list.jsx ixPlace) comes back with a refresh; a thread the
-  // address names opens in it when it lists that thread, and in its own bucket when it does not.
-  const [activeBucket, setActiveBucket] = React.useState(() => {
-    const t = initialThreadId && THREADS.find((x) => x.id === initialThreadId);
-    const had = typeof window.ixPlace === "function" ? window.ixPlace().bucket : null;
-    if (t) return had && (had === "all" || ixBucketOf(t) === had) ? had : ixBucketOf(t);
-    return typeof had === "string" && had ? had : firstBucketWithThreads(THREADS);
-  });
+  const [activeBucket, setActiveBucket] = React.useState(() => ixOpeningBucket(THREADS, initialThreadId));
   const [activeThreadId, setActiveThreadId] = React.useState(
     // The bucket's first row opens first, in the list's own order (ixRank): a reply about to send, then a thread that
     // needs you. A teammate's thread opened in its place (I2).
@@ -176,44 +235,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // about to send waits on you too, by the one rule above (ixWaitsOnYou).
   const needsCount = threads.filter((t) => ixWaitsOnYou(t)).length;
 
-  // SurfaceData seam: a real-data swap replaces window.INBOX_DATA.THREADS —
-  // reseed local state (real threads never live in IX_STORE).
-  React.useEffect(() => {
-    const reseed = () => setThreads(((window.INBOX_DATA || {}).THREADS || []).map((t) => {
-      const d = window.IX_STORE ? window.IX_STORE.get(t.id) : null;
-      if (!d || t.real) return { ...t };
-      if (d.kind === "snoozed") return { ...t, state: "snoozed", wake: d.wake, unread: false };
-      return { ...t, state: "done", unread: false, resolution: d };
-    }));
-    const onSwap = () => {
-      const list = (window.INBOX_DATA || {}).THREADS || [];
-      // The thread on screen stays open though this read moves it out of its bucket. What happened to it is said by
-      // the pane, where the thread lives (ThreadPane).
-      const shown = shownRef.current;
-      if (shown && shown.real && list.some((x) => x.id === shown.id)) setKeepOpenId(shown.id);
-      reseed();
-      if (!list.length) return;
-      // A bucket the member picked stays picked, even when this read empties it: an empty list says so, where being
-      // moved somewhere else a moment after the tap looked like the tap had failed. Nothing picked yet is the other
-      // case -- the first read of a workspace whose threads are all Handled opens on Handled, not on an empty Needs
-      // you. Asked by the list's own rule (ixBucketOf), not by a thread's state: a reply counting down holds "done"
-      // while it stands in Needs you, and a bucket of only those read as empty.
-      setActiveBucket((b) => {
-        const picked = typeof window.ixPlace === "function" ? window.ixPlace().bucket : null;
-        if (picked) return b;
-        return list.some((x) => ixBucketOf(x) === b) ? b : firstBucketWithThreads(list);
-      });
-      // A thread the route still names stays selected though the list does not hold it: the pane keeps
-      // saying it is missing, where clearing it let the refresh open the first thread in its place.
-      setActiveThreadId((id) => (list.some((x) => x.id === id) || (id !== null && id === routeThreadRef.current) ? id : null));
-    };
-    window.addEventListener("surface:inbox", onSwap);
-    return () => window.removeEventListener("surface:inbox", onSwap);
-  }, []);
-
-  // Real-thread verbs commit through the API and the re-read repaints: no local mutation, no IX_STORE -- the server
-  // owns state. They are the one thread's (threadVerbs), so a verb means the same here and in Conversations.
-  const { verb: realVerb, hold: realHold } = threadVerbs(ppFlash);
+  React.useEffect(() => ixFollowReads({ setThreads, setKeepOpenId, setActiveBucket, setActiveThreadId, shownRef, routeThreadRef }), []);
 
   // Concurrent change: while you READ a scripted thread, something lands on it.
   // Arm on open, fire once, clear if you navigate away first — never a silent
@@ -228,6 +250,24 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     return () => clearTimeout(timer);
   }, [activeThreadId]);
 
+  // Sidebar badge sync
+  React.useEffect(() => {
+    window.dispatchEvent(new CustomEvent("inbox:counts", { detail: { needs: needsCount } }));
+  }, [needsCount]);
+
+  return {
+    threads, setThreads, activeBucket, setActiveBucket, activeThreadId, setActiveThreadId, selected, setSelected,
+    bulkBusy, setBulkBusy, bulkRunRef, phoneThreadOpen, setPhoneThreadOpen, activeView, setActiveView, listedHere,
+    stale, setStale, keepOpenId, setKeepOpenId, shownRef, toastNode, ppFlash, planParams, setPlanParams, goTo,
+  };
+};
+
+/** The moves every verb shares: a real thread's verbs, the stale change merged, the toast, the queue, a thread opened. */
+const inboxMoves = ({ threads, setThreads, listedHere, setActiveBucket, setActiveView, setActiveThreadId, setPhoneThreadOpen, setKeepOpenId, stale, setStale, ppFlash, goTo }) => {
+  // Real-thread verbs commit through the API and the re-read repaints: no local mutation, no IX_STORE -- the server
+  // owns state. They are the one thread's (threadVerbs), so a verb means the same here and in Conversations.
+  const { verb: realVerb, hold: realHold } = threadVerbs(ppFlash);
+
   const reconcile = () => {
     if (!stale) return;
     const { threadId, update } = stale;
@@ -235,11 +275,6 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     setStale(null);
     ppFlash({ msg: <><b>{update.by}</b>'s reply is now in view — you were {update.append.filter(e => e.type === "msg").length} message behind</> });
   };
-
-  // Sidebar badge sync
-  React.useEffect(() => {
-    window.dispatchEvent(new CustomEvent("inbox:counts", { detail: { needs: needsCount } }));
-  }, [needsCount]);
 
   const flash = (msg, prev = null) => ppFlash({
     msg,
@@ -274,7 +309,11 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     goTo(id);
   };
   const markUnread = (id) => { mutate(id, (x) => ({ ...x, unread: true })); ppFlash({ msg: <><b>Marked unread</b> — bumped to the top of your list</> }); };
+  return { realVerb, realHold, reconcile, flash, nextNeedsAfter, mutate, selectThread, markUnread };
+};
 
+/** The verdict after a meeting, on the thread it spawned. */
+const inboxVerdict = ({ threads, activeBucket, setActiveThreadId, ppFlash, nextNeedsAfter, mutate }) => {
   // ---- Verdict gate: the ONE post-meeting human decision (closed set) ----
   const verdictDecide = (id, opt) => {
     if (!window.canDo("approve")) return;
@@ -318,7 +357,11 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       if (nxt && activeBucket === "needs") setActiveThreadId(nxt);
     }
   };
+  return { verdictDecide };
+};
 
+/** The veto window: its store, the countdown drawn again, and a hold, edit or keystroke on a draft. */
+const useInboxVeto = ({ threads, ppFlash, realHold }) => {
   // ---- Veto window: third autonomy mode — safe drafts auto-send unless held ----
   const VW = window.VW_STORE = window.VW_STORE || { state: {} };
   const [vetoTick, setVetoTick] = React.useState(0);
@@ -366,6 +409,11 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (act === "hold") ppFlash({ msg: <>Held — the draft won't send until you act</> });
     setVetoTick((n) => n + 1);
   };
+  return { VW, vetoTick, setVetoTick, vetoRemaining, vetoAct };
+};
+
+/** A draft whose window has passed: a seeded one sends; a real one is read again, never invented. */
+const useInboxAutoSend = ({ threads, VW, vetoTick, mutate, ppFlash }) => {
   React.useEffect(() => {
     threads.forEach((t) => {
       // A real draft is fired by a job, not by this browser. Inventing the
@@ -402,7 +450,10 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       });
     });
   }, [vetoTick]);
+};
 
+/** Approve or decline a seeded thread's plan, and snooze one: each records, says so with an Undo, and moves the queue on. */
+const inboxDecide = ({ threads, activeBucket, setActiveThreadId, realVerb, flash, nextNeedsAfter, mutate }) => {
   const decide = (id, action, meta = {}) => {
     // The role first, for a real thread too: its hand-back used to skip this check and reach the server.
     if (!window.canDo("approve")) return;
@@ -445,7 +496,11 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     }
     return prev;
   };
+  return { decide, snooze };
+};
 
+/** Wake, archive, take over and hand back: a real thread's go to the server, a seeded thread's change it here. */
+const inboxThreadActs = ({ threads, setActiveBucket, setActiveThreadId, realVerb, flash, mutate, ppFlash, VW }) => {
   const wake = (id) => {
     if (!window.canDo("approve")) return;
     const t = threads.find((x) => x.id === id);
@@ -477,6 +532,39 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     return prev;
   };
 
+  const takeOver = (id) => {
+    if (!window.canDo("approve")) return;
+    const tReal = threads.find((x) => x.id === id);
+    if (tReal && tReal.real) { realVerb(tReal, "take-over", undefined, "you have it — the receptionist is paused"); return; }
+    if (VW.state[id] && !VW.state[id].sent) VW.state[id].held = true; // one voice — agent timer dies
+    mutate(id, (x) => ({
+      ...x,
+      takenOver: true,
+      timeline: [...x.timeline, { type: "event", kind: "takeover", at: IX_NOW, body: "You took this thread \u2014 agents stand down" }],
+    }));
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent("inbox:focus-composer")), 60);
+  };
+
+  const handBack = (id) => {
+    if (!window.canDo("approve")) return;
+    const t = threads.find((x) => x.id === id);
+    if (!t || !t.takenOver) return;
+    if (t.real) { realVerb(t, "hand-back", undefined, "handed back — the receptionist resumes"); return; }
+    mutate(id, (x) => ({
+      ...x,
+      takenOver: false,
+      timeline: [...x.timeline, { type: "event", kind: "takeover", at: IX_NOW, body: `Handed back \u2014 ${x.agent.name} resumes with your replies as context` }],
+    }));
+    ppFlash({
+      msg: <>Handed back to <b>{t.agent.name}</b> — it resumes with your replies as context</>,
+      undo: () => mutate(id, (x) => ({ ...x, takenOver: true, timeline: x.timeline.slice(0, -1) })),
+    });
+  };
+  return { wake, archiveThread, takeOver, handBack };
+};
+
+/** A reply sent: a real thread's through the one thread's verb, a seeded thread's into its timeline. */
+const inboxReply = ({ threads, VW, realVerb, mutate, ppFlash }) => {
   const sendReply = (id, text, viaApproval) => {
     if (!window.canDo("approve")) return;
     if (VW.state[id] && !VW.state[id].sent) VW.state[id].held = true; // your reply replaces the queued draft
@@ -516,55 +604,11 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       links: convo ? [{ label: "View conversation", to: `conversations/${convo.id}` }] : [],
     });
   };
+  return { sendReply };
+};
 
-  const takeOver = (id) => {
-    if (!window.canDo("approve")) return;
-    const tReal = threads.find((x) => x.id === id);
-    if (tReal && tReal.real) { realVerb(tReal, "take-over", undefined, "you have it — the receptionist is paused"); return; }
-    if (VW.state[id] && !VW.state[id].sent) VW.state[id].held = true; // one voice — agent timer dies
-    mutate(id, (x) => ({
-      ...x,
-      takenOver: true,
-      timeline: [...x.timeline, { type: "event", kind: "takeover", at: IX_NOW, body: "You took this thread \u2014 agents stand down" }],
-    }));
-    window.setTimeout(() => window.dispatchEvent(new CustomEvent("inbox:focus-composer")), 60);
-  };
-
-  const handBack = (id) => {
-    if (!window.canDo("approve")) return;
-    const t = threads.find((x) => x.id === id);
-    if (!t || !t.takenOver) return;
-    if (t.real) { realVerb(t, "hand-back", undefined, "handed back — the receptionist resumes"); return; }
-    mutate(id, (x) => ({
-      ...x,
-      takenOver: false,
-      timeline: [...x.timeline, { type: "event", kind: "takeover", at: IX_NOW, body: `Handed back \u2014 ${x.agent.name} resumes with your replies as context` }],
-    }));
-    ppFlash({
-      msg: <>Handed back to <b>{t.agent.name}</b> — it resumes with your replies as context</>,
-      undo: () => mutate(id, (x) => ({ ...x, takenOver: true, timeline: x.timeline.slice(0, -1) })),
-    });
-  };
-
-
-  // Bulk actions
-  const bulkApproveSafe = () => {
-    const picks = selected.map((id) => threads.find((t) => t.id === id)).filter(Boolean);
-    if (!window.canDo("approve")) return;
-    const safe = picks.filter((t) => t.approval && t.confidence >= window.CHANLY.CONF.SAFE && t.state !== "done");
-    safe.forEach((t) => {
-      if (window.IX_STORE) window.IX_STORE.set(t.id, { action: t.approval.recommended, at: IX_NOW, kind: "decided" });
-      mutate(t.id, (x) => ({
-        ...x, state: "done", unread: false,
-        resolution: { action: x.approval.recommended, at: IX_NOW },
-        timeline: [...x.timeline, { type: "event", kind: "decision", at: IX_NOW, body: `You approved \u201c${(x.approval.plan || {}).label || x.approval.recommended}\u201d (bulk) \u2014 ${x.agent.name} is executing` }],
-      }));
-    });
-    flash(safe.length === 0
-      ? "None are safe to bulk-approve \u2014 all below 80% confidence"
-      : `${safe.length} approved \u00b7 ${picks.length - safe.length} need${picks.length - safe.length === 1 ? "s" : ""} individual review`);
-    setSelected([]);
-  };
+/** A bulk act on real threads, as one act through the bulk courier: its busy state, its count, its refusals, its Undo. */
+const inboxRealBulk = ({ threads, selected, setSelected, setBulkBusy, bulkRunRef, ppFlash }) => {
   // A bulk act on real threads is one act. Each thread went through the single verb: a toast apiece on a
   // stack that keeps three, a re-read of three surfaces apiece, no count, no busy state and no Undo (the
   // wiring audit's A19). Now one ask per thread through the bulk courier and one re-read at its end, one
@@ -613,6 +657,29 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     }
   };
   const isRealPick = () => selected.some((id) => (threads.find((t) => t.id === id) || {}).real);
+  return { bulkReal, isRealPick };
+};
+
+/** The bulk bar's three acts: Approve all safe, Snooze and Archive, each over the selection. */
+const inboxBulkActs = ({ threads, selected, setSelected, flash, mutate, ppFlash, snooze, archiveThread, bulkReal, isRealPick }) => {
+  // Bulk actions
+  const bulkApproveSafe = () => {
+    const picks = selected.map((id) => threads.find((t) => t.id === id)).filter(Boolean);
+    if (!window.canDo("approve")) return;
+    const safe = picks.filter((t) => t.approval && t.confidence >= window.CHANLY.CONF.SAFE && t.state !== "done");
+    safe.forEach((t) => {
+      if (window.IX_STORE) window.IX_STORE.set(t.id, { action: t.approval.recommended, at: IX_NOW, kind: "decided" });
+      mutate(t.id, (x) => ({
+        ...x, state: "done", unread: false,
+        resolution: { action: x.approval.recommended, at: IX_NOW },
+        timeline: [...x.timeline, { type: "event", kind: "decision", at: IX_NOW, body: `You approved \u201c${(x.approval.plan || {}).label || x.approval.recommended}\u201d (bulk) \u2014 ${x.agent.name} is executing` }],
+      }));
+    });
+    flash(safe.length === 0
+      ? "None are safe to bulk-approve \u2014 all below 80% confidence"
+      : `${safe.length} approved \u00b7 ${picks.length - safe.length} need${picks.length - safe.length === 1 ? "s" : ""} individual review`);
+    setSelected([]);
+  };
   const bulkSnooze = () => {
     if (isRealPick()) return bulkReal("snooze");
     const prevs = selected.map((id) => snooze(id, "tomorrow 10:00", { silent: true })).filter(Boolean);
@@ -637,7 +704,11 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     });
     setSelected([]);
   };
+  return { bulkApproveSafe, bulkSnooze, bulkArchive };
+};
 
+/** What is on screen: the bucket's rows, the thread open beside them, and whether the one a link asked for is missing. */
+const inboxOnScreen = ({ threads, listedHere, activeThreadId, keepOpenId, shownRef }, initialThreadId) => {
   // The bucket's rows, in the one order (ixRank): a reply about to send, then what needs you, then the threads you
   // have, then a teammate's. A thread whose own reply is on its way out stands in Needs you while it counts down.
   const visible = threads.filter(listedHere).sort((a, b) => ixRank(a) - ixRank(b));
@@ -655,16 +726,15 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   const requestedMissing = !!initialThreadId && activeThreadId === initialThreadId && visible.length > 0 && !threads.some((t) => t.id === initialThreadId);
   // The thread on screen, for the next re-read to compare with; none while a link's notice stands.
   shownRef.current = requestedMissing ? null : activeThread || null;
+  return { visible, activeThread, requestedMissing };
+};
 
+/** Keyboard: J/K or the arrows walk the list; A approves the plan, D declines it, E goes to the composer. */
+const useInboxKeys = ({ threads, activeThreadId, visible, planParams, selectThread, decide }) => {
   // Keyboard: A approve recommended · D decline · E focus composer
   React.useEffect(() => {
     const onKey = (e) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      // Not a key something else took, and not one pressed inside a dialog over the page (the deal sheet, any
-      // aria-modal): an arrow on its select moved the thread behind it, and A on its buttons approved.
-      if (e.defaultPrevented || (e.target && e.target.closest && e.target.closest('[aria-modal="true"]'))) return;
-      const tag = (e.target.tagName || "").toLowerCase();
-      if (tag === "input" || tag === "textarea" || e.target.isContentEditable) return;
+      if (ixKeyLeft(e)) return;
       const k = e.key.toLowerCase();
       if (k === "j" || k === "k" || e.key === "ArrowDown" || e.key === "ArrowUp") {
         if (!visible.length) return;
@@ -684,7 +754,10 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [threads, activeThreadId, visible, planParams]);
+};
 
+/** A bucket picked, and a row's box ticked. */
+const inboxBucketMoves = ({ threads, activeThread, setActiveBucket, setActiveView, setSelected, setKeepOpenId, setPhoneThreadOpen, setActiveThreadId, goTo }) => {
   const handleBucket = (id) => {
     setActiveBucket(id);
     window.ixKeepPlace({ bucket: id });
@@ -710,7 +783,11 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   const toggleSelect = (id) => {
     setSelected((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id]);
   };
+  return { handleBucket, toggleSelect };
+};
 
+/** The buckets' and the views' counts, and the Needs bucket's stake. */
+const inboxCounts = (threads, { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE }) => {
   // Live bucket counts (done keeps its archive baseline of 48 resolved this week)
   // The Needs you chip counts what needs you, the badge's number (needsCount): it counted every flagged thread, yours
   // and a teammate's too, and a thread you have just answered stays flagged for the whole pause (I2). A reply about
@@ -733,7 +810,18 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     dollars: needsThreads.reduce((a, t) => a + (t.value || 0), 0),
     oldest: needsThreads.reduce((a, t) => Math.max(a, t.waitingMin || 0), 0),
   };
+  return { bucketsWithCounts, viewsWithCounts, stake };
+};
 
+/** The page drawn: the list, the thread (or the missing link's notice), the agent rail, the sending strip, the toasts. */
+const inboxPage = (ix, { density, showAgentRail, onOpenClient }) => {
+  const {
+    threads, visible, bucketsWithCounts, viewsWithCounts, activeView, setActiveView, setSelected, activeBucket, handleBucket,
+    activeThread, selectThread, selected, toggleSelect, bulkApproveSafe, bulkSnooze, bulkArchive, bulkBusy, stake,
+    vetoRemaining, requestedMissing, setActiveThreadId, phoneThreadOpen, setPhoneThreadOpen, ppFlash, stale, reconcile,
+    setStale, decide, verdictDecide, vetoAct, snooze, sendReply, takeOver, wake, handBack, markUnread, archiveThread,
+    planParams, setPlanParams, VW, setVetoTick, toastNode,
+  } = ix;
   // The agent rail is the mockup's, drawn for a seeded thread only. On a real one it invented the
   // receptionist -- an autonomy line and a voice nobody set, an Ask box answering with canned text, a
   // menu to a page this release hides (D11; the wiring audit's A3 and A17) -- and with no thread to show
@@ -839,6 +927,26 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       {toastNode}
     </div>
   );
+};
+
+const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => {}, initialThreadId = null }) => {
+  const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, INBOX_BASELINE } = window.INBOX_DATA;
+  // One record of the page, made in the order the page always made it: each part reads what the parts above it made.
+  const ix = useInboxState(THREADS, initialThreadId);
+  Object.assign(ix, inboxMoves(ix));
+  Object.assign(ix, inboxVerdict(ix));
+  Object.assign(ix, useInboxVeto(ix));
+  useInboxAutoSend(ix);
+  Object.assign(ix, inboxDecide(ix));
+  Object.assign(ix, inboxThreadActs(ix));
+  Object.assign(ix, inboxReply(ix));
+  Object.assign(ix, inboxRealBulk(ix));
+  Object.assign(ix, inboxBulkActs(ix));
+  Object.assign(ix, inboxOnScreen(ix, initialThreadId));
+  useInboxKeys(ix);
+  Object.assign(ix, inboxBucketMoves(ix));
+  Object.assign(ix, inboxCounts(ix.threads, { INBOX_BUCKETS, INBOX_VIEWS, INBOX_BASELINE }));
+  return inboxPage(ix, { density, showAgentRail, onOpenClient });
 };
 
 window.Inbox = Inbox;

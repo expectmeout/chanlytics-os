@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
-import { renameMailbox } from "@/server/email";
+import { renameMailbox } from "@/server/connections/email";
 
 const Body = z.object({ from_name: z.string().max(200) }).strict();
 

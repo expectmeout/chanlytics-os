@@ -1,6 +1,6 @@
 import "server-only";
 import { savedListsFor } from "@chanlytics/db";
-import type { SavedListDto } from "../lists";
+import type { SavedListDto } from "../people/lists";
 import { stamp, type Reader } from "./index";
 
 /**

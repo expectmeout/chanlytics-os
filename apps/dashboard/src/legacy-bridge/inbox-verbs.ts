@@ -32,7 +32,7 @@ import {
 } from "@chanlytics/contracts";
 import { workspaceZone } from "./zone";
 import type { Api } from "../client/api";
-import type { PromptPreviewDto } from "../server/prompt-preview";
+import type { PromptPreviewDto } from "../server/receptionist/prompt-preview";
 
 interface RealThread {
   conversationId: string;
@@ -309,7 +309,7 @@ export async function refreshInbox(): Promise<void> {
  * could not see the Autonomy rows, the platform's own facts, the closures or
  * the calendar's openings, so the card showed a prompt missing its rules under
  * the words "word for word". The settings read composes it now
- * (server/prompt-preview.ts) with every input the edge has; this only reads
+ * (server/receptionist/prompt-preview.ts) with every input the edge has; this only reads
  * what it composed. Null when there is no receptionist to compose for.
  *
  * `now` is separate because the edge sends it separately — an uncached block,

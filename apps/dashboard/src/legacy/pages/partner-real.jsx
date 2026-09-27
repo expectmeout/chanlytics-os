@@ -63,6 +63,34 @@ const PartnerWorkspaces = ({ W, api }) => {
   );
 };
 
+// The daily letter (0014): shown only when the server says where it stands, so an older database shows no switch.
+const PartnerLettersRow = ({ W, api, letters, flash }) => {
+  const [busy, setBusy] = React.useState(false);
+  if (typeof letters !== "boolean") return null;
+  const toggle = async (on) => {
+    if (busy) return;
+    setBusy(true);
+    const r = await api.setLetters(on);
+    setBusy(false);
+    if (!r.ok) flash({ tone: "warn", msg: <>Couldn't change {W.lettersFailed}: {r.message}</> });
+  };
+  return (
+    <div className="set-row" data-testid="partner-letters-row">
+      <label className="set-check">
+        <input
+          type="checkbox"
+          checked={letters}
+          disabled={busy}
+          aria-busy={busy || undefined}
+          onChange={(e) => toggle(e.target.checked)}
+          data-testid="partner-letters"
+        />
+        <span>{W.letters}</span>
+      </label>
+    </div>
+  );
+};
+
 const PanePartner = ({ flash }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
@@ -74,7 +102,6 @@ const PanePartner = ({ flash }) => {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
   const [copied, setCopied] = React.useState(false);
-  const [lettersBusy, setLettersBusy] = React.useState(false);
   const api = window.__partner;
   const P = window.__PARTNER;
   if (!api) return null;
@@ -149,15 +176,6 @@ const PanePartner = ({ flash }) => {
       flash({ tone: "warn", msg: <>Couldn't copy — select the link and copy it yourself.</> });
     }
   };
-  // The daily letter (0014): shown only when the server says where it stands, so an older database shows no switch.
-  const letters = P.dto.letters;
-  const toggleLetters = async (on) => {
-    if (lettersBusy) return;
-    setLettersBusy(true);
-    const r = await api.setLetters(on);
-    setLettersBusy(false);
-    if (!r.ok) flash({ tone: "warn", msg: <>Couldn't change {W.lettersFailed}: {r.message}</> });
-  };
   return (
     <>
     <section className="rec-card set-card" data-testid="set-partner" aria-labelledby="set-partner-title">
@@ -200,21 +218,7 @@ const PanePartner = ({ flash }) => {
           <span className="set-row-hint" data-testid="partner-since">{vm.since}</span>
         </div>
       </div>
-      {typeof letters === "boolean" ? (
-        <div className="set-row" data-testid="partner-letters-row">
-          <label className="set-check">
-            <input
-              type="checkbox"
-              checked={letters}
-              disabled={lettersBusy}
-              aria-busy={lettersBusy || undefined}
-              onChange={(e) => toggleLetters(e.target.checked)}
-              data-testid="partner-letters"
-            />
-            <span>{W.letters}</span>
-          </label>
-        </div>
-      ) : null}
+      <PartnerLettersRow W={W} api={api} letters={P.dto.letters} flash={flash} />
     </section>
     <PartnerWorkspaces W={W} api={api} />
     </>

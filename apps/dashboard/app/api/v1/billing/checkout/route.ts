@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError, CHECKOUT_RETURNS } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { BILLING_SAID, edgeBilling } from "@/server/billing";
+import { BILLING_SAID, edgeBilling } from "@/server/workspace/billing";
 
 /**
  * POST /api/v1/billing/checkout — the way to Stripe Checkout for this

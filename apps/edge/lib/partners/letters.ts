@@ -11,7 +11,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
-import { partnerLetter, type PartnerLetterNews } from "../packages/contracts.js";
+import { PartnerLetterNewsSchema, partnerLetter } from "../packages/contracts.js";
 import { dashboardOrigin } from "../dashboard-origin.js";
 import { platformFrom, post, NOTIFY_TIMEOUT_MS } from "../ops/notify.js";
 import { logger, errField } from "../log.js";
@@ -66,11 +66,14 @@ export async function sendPartnerLetters(db: Db, now: Date, ports: LetterPorts =
         out.deferred += 1;
         continue;
       }
-      const letter = partnerLetter(d.news as unknown as PartnerLetterNews, {
-        origin,
-        since: d.since,
-        nowMs: now.getTime(),
-      });
+      // The function's answer, parsed: a shape it does not answer is said and skipped, never written from.
+      const news = PartnerLetterNewsSchema.safeParse(d.news);
+      if (!news.success) {
+        out.failed += 1;
+        L.error("partner_letter_unreadable", { partner_id: d.partner_id, error: news.error.message.slice(0, 200) });
+        continue;
+      }
+      const letter = partnerLetter(news.data, { origin, since: d.since, nowMs: now.getTime() });
       const went = await send(from, [d.email], letter.subject, letter.body);
       if (!went) {
         out.failed += 1;

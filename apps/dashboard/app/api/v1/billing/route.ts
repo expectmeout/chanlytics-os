@@ -1,6 +1,6 @@
 import type { BillingDto } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
-import { billingFor, billingReadiness } from "@/server/billing";
+import { billingFor, billingReadiness } from "@/server/workspace/billing";
 
 /**
  * GET /api/v1/billing — the workspace's billing row as a member may read it

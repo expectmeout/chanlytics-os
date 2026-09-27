@@ -15,7 +15,7 @@ import {
   type FeedFailure,
   type Opening,
 } from "@chanlytics/contracts";
-import { fillerFeedFor } from "../filler-calendar";
+import { fillerFeedFor } from "../calendar/filler-calendar";
 
 /**
  * Openings for the assistant and the palette's fast path, computed the way

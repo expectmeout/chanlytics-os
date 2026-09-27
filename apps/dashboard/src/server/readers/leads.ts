@@ -1,6 +1,6 @@
 import "server-only";
 import type { LeadsQuery } from "@chanlytics/contracts";
-import { leadsPage } from "../lead-page";
+import { leadsPage } from "../leads/lead-page";
 import { stamp, type Reader } from "./index";
 
 /**

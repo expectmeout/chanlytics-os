@@ -1,6 +1,6 @@
 import { LeadDraftInputSchema } from "@chanlytics/contracts";
 import { write } from "@/server/route";
-import { draftFor, leadScope } from "@/server/leads";
+import { draftFor, leadScope } from "@/server/leads/leads";
 
 /**
  * POST /api/v1/leads/:id/draft — one email to one business, written here and

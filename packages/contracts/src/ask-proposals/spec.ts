@@ -2,7 +2,7 @@
  * What a card's spec is (Ask Rewired, Phase 3, D6), and the few helpers every family of specs shares. The specs
  * themselves are one file per family beside this one; index.ts puts them together and derives the readings.
  */
-import type { AskProposal, AskProposalOutcome } from "../ask";
+import type { AskProposal, AskProposalOutcome } from "../ask/ask";
 import type { ApiRouteKey } from "../route-keys.generated";
 
 /** The lowest role that may commit a card: its commit route's policy role. A viewer commits nothing. */

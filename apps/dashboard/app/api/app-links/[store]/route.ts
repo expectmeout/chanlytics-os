@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { appLinksFor } from "@/server/app-links";
+import { appLinksFor } from "@/server/public/app-links";
 
 /**
  * GET /.well-known/apple-app-site-association and /.well-known/assetlinks.json (next.config rewrites both here;

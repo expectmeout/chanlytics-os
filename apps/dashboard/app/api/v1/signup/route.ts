@@ -12,7 +12,7 @@ import {
 import { isSameOrigin } from "@/server/request-guards";
 import { takeRate } from "@/server/rate-limit";
 import { ipOf, hashKey as hash } from "@/server/request-ip";
-import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/signup";
+import { inviteCodeMatches, joinWaitlist, signUp } from "@/server/platform/signup";
 
 /**
  * /api/v1/signup — the one door a stranger may use.

@@ -13,7 +13,7 @@ import {
 } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope, recordDecision } from "@/server/verbs";
-import { currentDealOf } from "@/server/deals";
+import { currentDealOf } from "@/server/people/deals";
 
 const Body = z
   .object({

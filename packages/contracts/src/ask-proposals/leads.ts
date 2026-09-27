@@ -1,7 +1,7 @@
 /**
  * The lead finder's card: a search planned in Ask, or the answer to a search that stopped to ask.
  */
-import { leadQuestionRoute, leadsRoute } from "../leads";
+import { leadQuestionRoute, leadsRoute } from "../leads/leads";
 import { asText, idIn, rec, type ProposalSpecAboveOperator } from "./spec";
 
 /** The search a lead card answers (spec G4), when it answers one rather than starting its own. */

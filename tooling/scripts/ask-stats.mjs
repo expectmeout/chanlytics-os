@@ -2,7 +2,7 @@
  * The arithmetic the Ask scripts share (eval-ask.mjs, ask-day.mjs): a spread
  * over a list of timings, and a Wilson interval on a pass rate, so a run of
  * twenty-eight cases says "27 of 28 (95%: 82–99%)" and not "96%". Pure;
- * executed in tooling/scripts/tests/ask-stats.test.mjs.
+ * executed in tooling/scripts/tests/ask/ask-stats.test.mjs.
  */
 
 /** The median and the slowest tenth of the numbers that exist in `xs`. */

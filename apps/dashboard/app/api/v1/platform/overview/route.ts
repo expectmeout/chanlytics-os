@@ -1,5 +1,5 @@
 import { read, platform } from "@/server/route";
-import { platformHealth, platformOverview, platformPartners, platformWaitlist } from "@/server/platform";
+import { platformHealth, platformOverview, platformPartners, platformWaitlist } from "@/server/platform/platform";
 
 /**
  * GET /api/v1/platform/overview — every workspace, for the back office.

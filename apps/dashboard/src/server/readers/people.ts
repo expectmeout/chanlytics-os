@@ -6,11 +6,11 @@ import {
   type FollowUpFactsDto,
   type PersonRowDto,
 } from "@chanlytics/contracts";
-import { PEOPLE_PAGE, countPeople, listPeople } from "../people";
-import { withVisits, type PeopleVisits } from "../calendar";
-import { dealPaceRead } from "../deals";
-import { stepNamer } from "../person-notes";
-import { followUpFacts } from "../playbooks";
+import { PEOPLE_PAGE, countPeople, listPeople } from "../people/people";
+import { withVisits, type PeopleVisits } from "../calendar/calendar";
+import { dealPaceRead } from "../people/deals";
+import { stepNamer } from "../people/person-notes";
+import { followUpFacts } from "../campaigns/playbooks";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import * as facts from "./facts";
 

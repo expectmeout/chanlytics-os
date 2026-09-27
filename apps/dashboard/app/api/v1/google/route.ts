@@ -1,7 +1,7 @@
 import { read, workspace } from "@/server/route";
 import { reviewReplyModeOf, type GoogleDto } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
-import { googleFor, googleReadiness } from "@/server/google";
+import { googleFor, googleReadiness } from "@/server/connections/google";
 
 /**
  * GET /api/v1/google — the business on Google as the workspace has it: the
