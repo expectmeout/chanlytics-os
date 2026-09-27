@@ -1,7 +1,9 @@
 # 0015 · The shell leaves, one surface at a time
 
-**Status:** proposed, not built; Ruben's to accept. Written against commit `519724e9c` (main, 27 September 2026, after
-the organization program merged in #1161), and every file and line below was read at it. Where this note and the code
+**Status:** decided, not built. Ruben left the open questions to be settled by analysis (27 September); the answers
+close the note. The address, the first step, waits until no open pull request holds a page that reads its own `#/`
+address (the fourth answer). Written against commit `519724e9c` (main, 27 September 2026, after the organization
+program merged in #1161), and every file and line below was read at it. Where this note and the code
 disagree, the code wins. It is the exit the plan `docs/plans/2026-09-26-organization-and-code-health.md` asks for
 (§2, 40 · Technical debt: "an exit path written for the largest item") and the register names in its shell rows
 (`docs/debt.md`). The next free number was 0014, which #1165 took for a partner who hears what changed, so this
@@ -261,13 +263,20 @@ open pull request holds its files.
 - **Pace.** Thirteen steps over 53k lines is weeks of work, and nothing forces it to finish. The two numbers say how
   far it has come; each step stands on its own, so stopping halfway leaves a smaller shell, not a broken one.
 
-## Open questions for the owner
+## Answers (27 September)
 
-1. **The program and its order.** Accept the address first, Reports as the pilot, then Inbox, Today and People as the
-   register already says, and the frame last?
-2. **The route names.** Rename the five the glossary lists as each surface moves (People, Lists, Playbooks,
-   Templates, Settings), the old names redirecting? This note says yes.
-3. **The demo surfaces at the frame's step.** Deleted from the app with the frame (git keeps them), or kept as a
-   standalone mockup outside `apps/dashboard`, where no ratchet counts them?
-4. **When.** The address and the pilot are small and could go beside Phase 3; after that, one surface at a time, never
-   two in flight. Now, or after the launch work?
+Ruben left the note's open questions to be settled by analysis. They are:
+
+1. **The program and its order: as written.** The address first, Reports as the pilot, then Inbox, Today and People,
+   and the frame last. The order is what each surface reads, so no step has to move a store twice.
+2. **The route names: yes.** Each of the five takes the product's word as its surface moves, and the old name
+   redirects for ever, like the hash.
+3. **The demo surfaces: a standalone mockup outside `apps/dashboard`.** Ruben chose on 11 September to keep them until
+   the product is at 100%; moved out of the app at the frame's step, they keep that choice without holding the frame
+   back, and no ratchet counts them there.
+4. **When: the address once no open pull request holds a page that reads its own `#/` address, and the pilot right
+   after it; then one surface at a time, never two in flight.** The address is not the frame alone. Five files listen
+   for `hashchange` (`legacy-bridge/arrival.ts`, `legacy-bridge/app-bridge.ts`, `pages/app-shell.jsx`,
+   `pages/pipeline-scope.jsx`, `pages/leads-real.jsx`), and the last two parse their own part of the address. On 27
+   September the Reach out program holds the Leads page, with ten of its twelve pull requests to come, so the address
+   would move under it. The lint steps and the ledger's (0018) go first, since they hold no page.

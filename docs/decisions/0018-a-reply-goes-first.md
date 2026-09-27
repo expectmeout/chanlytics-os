@@ -1,8 +1,10 @@
 # 0018 · A reply goes first, and each workspace takes its turn
 
-**Status:** proposed, not built; Ruben's to accept. Written against commit `d1ae74ff` (main, 27 September 2026, after
-#1175 merged), and every file and line below was read at it. Where this note and the code disagree, the code wins. It
-is the design the plan `docs/plans/2026-09-27-frontend-performance-scale.md` asks for before any code (§2, 36 ·
+**Status:** decided, and step 1 built with the note; steps 2 and 3 follow, and step 4 only if step 1's numbers ask for
+it. Written against commit `d1ae74ff` (main, 27 September 2026, after #1175 merged), and every file and line below was
+read at it. Ruben left the three open questions to be settled by analysis; the answers close the note, and the third
+turned Decision 4 from an exclusion into an order. Where this note and the code disagree, the code wins. It is the
+design the plan `docs/plans/2026-09-27-frontend-performance-scale.md` asks for before any code (§2, 36 ·
 Scalability: "Lanes and fairness … A design note first: it is the ledger every send goes through"). The next free
 number was 0017, which #1197 took for a lead's reply, so this note takes 0018.
 
@@ -69,8 +71,9 @@ The ledger's indexes follow the one order: `jobs_due_scheduled` on `due_at` wher
 
 ## Decision
 
-1. **Measure first.** Every claim knows how late it is: now, less the row's `due_at`. The runner keeps the worst per
-   lane in its heartbeat's counts, so `jobs_tick` says how long replies waited before any claim order changes.
+1. **Measure first.** Every first claim knows how late it is: now, less the row's `due_at`. The runner keeps the worst
+   per kind in its heartbeat's counts, so `jobs_tick` says how long replies waited before any claim order changes. A
+   row's later claim is a retry or a lease that ran out, not a wait in the queue, and is not counted.
 2. **Three lanes, decided in one place.** A job's lane follows from its kind and, for `outbound_send`, its purpose:
    - **reply**: `outbound_send` that is not outreach, `email_ingest`, `push_send`: someone is waiting on it;
    - **setup**: `line_provision`: an owner is waiting, but not a customer;
@@ -83,11 +86,13 @@ The ledger's indexes follow the one order: `jobs_due_scheduled` on `due_at` wher
 3. **The claim takes the earliest-due reply first**, then setup, then bulk: `order by lane, due_at`. A reply waits
    only for replies due before it, and for a runner to be free: when every running one is busy, the next heartbeat
    starts one within ten seconds, and its first claim is the reply.
-4. **No workspace runs two bulk jobs at once.** The claim passes over a bulk row whose workspace already has a bulk job
-   running, so a second workspace's broadcast is claimed before the first workspace's second one. Running means
-   claimed within the last lease and not finished. A job that threw and is kept for a later try (`deferJob`) counts
-   until its claim's lease would have ended, at most 90 seconds (`LEASE_SECONDS`): the wait falls on the workspace
-   whose job failed, and on no other.
+4. **A workspace's second bulk job goes after everyone else's first.** Within bulk, the claim takes a row whose
+   workspace has no bulk job running before one whose workspace has, and only then by due time. So a second
+   workspace's broadcast is claimed before the first workspace's second batch, and when no other workspace's bulk work
+   is due, a workspace's own jobs still run side by side: fairness is an order, never a wait. Running means claimed
+   within the last lease and not finished. A job that threw and is kept for a later try (`deferJob`) counts until its
+   claim's lease would have ended, at most 90 seconds (`LEASE_SECONDS`): it lowers its own workspace's place, and no
+   other's.
 5. **The runner keeps one job at a time.** More runners at once, or several jobs per runner, is a later step, taken
    only if step 1's numbers show replies still waiting once they go first.
 
@@ -111,22 +116,23 @@ A kind the `case` does not name has no lane (null). The claim orders nulls last 
 and a database test holds the `case` to the `jobs.kind` CHECK: every kind in the one is named in the other, so a new
 kind without a lane fails the build, not the queue.
 
-The claim, with the lane order and the fairness condition:
+The claim, with the lane order and, within bulk, the fairness order (false sorts before true):
 
 ```sql
 with due as (
   select c.id
     from public.jobs c
-   where ((c.state = 'scheduled' and c.due_at <= now())
-       or (c.state = 'fired' and c.lease_until < now()))
-     and (c.lane is distinct from 2 or not exists (
-           select 1 from public.jobs r
-            where r.tenant_id = c.tenant_id
-              and r.lane = 2
-              and r.state = 'fired'
-              and r.fired_at > now() - make_interval(secs => p_lease_seconds)
-              and r.id <> c.id))
-   order by c.lane nulls last, c.due_at
+   where (c.state = 'scheduled' and c.due_at <= now())
+      or (c.state = 'fired' and c.lease_until < now())
+   order by c.lane nulls last,
+            c.lane = 2 and exists (
+              select 1 from public.jobs r
+               where r.tenant_id = c.tenant_id
+                 and r.lane = 2
+                 and r.state = 'fired'
+                 and r.fired_at > now() - make_interval(secs => p_lease_seconds)
+                 and r.id <> c.id),
+            c.due_at
    limit p_limit
    for update of c skip locked
 )
@@ -140,37 +146,46 @@ The indexes the new order reads: `(lane, due_at) where state = 'scheduled'` besi
 `(tenant_id, fired_at) where state = 'fired' and lane = 2` for the fairness look-up. The table they index is small:
 00215 deletes a finished job a week after it ends.
 
-The runner's counts gain the worst lateness per lane, read from the claimed row's `lane` (the claim already returns
-`j.*`), so the TypeScript side never decides a lane, it reports one.
+The runner's counts carry the worst lateness per kind (`TickCounts.lateMs`, step 1), and the heartbeat's line one
+field per kind, `late_ms_<kind>`. Kinds, not lanes, so the TypeScript side never decides a lane: the lane stays SQL's
+alone. `outbound_send` is both a reply and outreach, so its number is the worse of the two; the lane column lets the
+line split it, if that ever matters.
 
 ## Steps
 
 The two apps deploy independently, so each step is correct whichever goes first.
 
-**1 · Measure.** `runTick` records `now - due_at` for each claim and keeps the worst per lane in `TickCounts`; the
-edge's `jobs_tick` line carries the new fields (its event name does not change). Before step 2 the row has no lane, and
-lateness is reported as one number. _Both orders:_ an edge without it logs as today.
+**1 · Measure (built with this note).** `runTick` records `now - due_at` for each first claim and keeps the worst per
+kind in `TickCounts.lateMs`; the edge's `jobs_tick` line carries each as `late_ms_<kind>` (its event name does not
+change), and its answer to pg_net keeps the counts alone. _Both orders:_ only the edge's runner changes; the database
+is untouched.
 
 **2 · Lanes.** A migration adds the column, its index, and `claim_due_jobs` ordered by lane. _Both orders:_ the
 column is generated, so an old writer's row gets its lane; an old runner calls the same function and gets its rows in
 the new order.
 
-**3 · Fairness.** A migration replaces `claim_due_jobs` with the bulk condition, and adds its index. _Both orders:_
-SQL alone.
+**3 · Fairness.** A migration replaces `claim_due_jobs` with the bulk order, and adds its index. _Both orders:_ SQL
+alone.
 
 **4 · Only if step 1 says so.** Several jobs per runner, or a runner for replies alone. A note of its own if taken.
 
 ## Tests
 
-- **The runner** (`jobs/jobs-tick.test.mjs`, fakes for the ports): a claim ten seconds late is counted ten seconds
-  late, in its lane; a claim with no lane is counted as lane-less, not dropped.
+- **The runner** (built with step 1):
+  - `jobs/jobs-tick.test.mjs`, fakes for the ports: a first claim ten seconds late is counted ten seconds late under
+    its kind, the worst of a kind is kept, a claim before its due time waited none, a row's second claim is not
+    counted, and a due time that cannot be read is no wait rather than NaN;
+  - `jobs/jobs-tick-door.test.mjs`, the real door over the fake ledger: a reply due thirty seconds ago puts about
+    thirty seconds on the heartbeat's line as `late_ms_outbound_send`, and the answer to pg_net keeps its counts
+    alone.
 - **The claim** (`jobs/jobs-lanes.db.test.mjs`, against the replayed stack):
   - a reply due now is claimed before a broadcast batch due a minute ago, and a setup job before a lead job;
   - outreach is bulk and a member's reply is a reply, both `outbound_send`;
   - every kind in the `jobs.kind` CHECK has a lane, read from the catalogue, not from a list in the test;
-  - workspace A with three due bulk jobs and B with one due later: with A's first running, the next claim is B's;
-  - a kept row (deferred, lease in the future) holds its workspace's bulk lane until its claim's lease would have
-    ended, and no longer;
+  - workspace A with three due bulk jobs and B with one due later: with A's first running, the next claim is B's,
+    and the one after is A's second, since the order never leaves a runner idle;
+  - a kept row (deferred, lease in the future) lowers its workspace's place until its claim's lease would have ended,
+    and no longer;
   - a lease that ran out is still taken back, in its lane's order.
 - **The contract** (`repo/ops-hygiene.test.mjs` already holds `LEASE_SECONDS` to the ceiling): the fairness window is
   the lease the runner passes, so the two cannot drift.
@@ -180,20 +195,27 @@ SQL alone.
 - **Bulk waits while replies are due.** Replies are paced by people and each is one send; a flood of them is the case
   the lanes exist for. Step 1's numbers show whether bulk lateness grows, and an aging rule (bulk more than N minutes
   late ranks as setup) is the answer if it does.
-- **Fairness is not serialized.** Two runners claiming at the same instant can each take one bulk job of the same
-  workspace: the look-up is not locked. It softens fairness for one claim and changes nothing else; every job is
+- **Fairness is not serialized.** Two runners claiming at the same instant can each take a bulk job of the same
+  workspace: the look-up is not locked. It softens the order for one claim and changes nothing else; every job is
   still claimed once.
+- **The order costs a look-up per due bulk row.** The claim asks, for each bulk row that is due, whether its workspace
+  has one running: one probe of the partial index each. With a week of rows (00215) and bulk work paced as it is, that
+  is tens of probes a claim; a backlog of thousands would make it thousands, and step 1's numbers would show it
+  first.
 - **The column rewrites the table.** Adding a stored generated column rewrites `jobs` under an exclusive lock. After
   00215 the table holds about a week of finished rows, so the rewrite is short. The migration says to apply it
   off-peak, and sets a lock timeout: if a claim holds the table, the migration fails and is run again, rather than
   queueing every claim behind it.
-- **One idle workspace runs one bulk job at a time.** When nobody else is due, a workspace's broadcast and its lead
-  round alternate instead of running side by side. Whether that costs anything is a step 1 number.
 
-## Open questions for the owner
+## Answers (27 September)
 
-1. Is `push_send` a reply? It is a member's phone told that a customer waits, so this note puts it with replies.
-2. Does outreach belong with broadcasts? It is paced per domain already (`CLAIM_PER_DOMAIN_PER_TICK`), so it rarely
-   has more than a few jobs due; this note puts it in bulk so a cold email never goes before a reply.
-3. Should fairness hold only when another workspace's bulk work is due (so an idle platform runs one workspace's bulk
-   jobs side by side)? It is a harder claim to write and to test; this note starts with the simple rule and measures.
+Ruben left the note's open questions to be settled by analysis. They are:
+
+1. **`push_send` is a reply.** It tells a member that a customer is waiting, and it is one quick call; a minute behind a
+   broadcast is a minute more the customer waits for a person.
+2. **Outreach is bulk.** Nobody waits on a cold email, and it is already paced per sending domain
+   (`CLAIM_PER_DOMAIN_PER_TICK`). Put with replies, a burst of it could hold one up.
+3. **Fairness holds only while another workspace's bulk work is due.** Written as an order rather than an exclusion
+   (Decision 4), it is no harder to write or to test: a workspace's second bulk job sorts after every other
+   workspace's first, and still runs when nothing else is due, so the rule never leaves a runner idle. The proposal's
+   exclusion did, and its risk that one busy workspace's broadcast and lead round would alternate is gone with it.

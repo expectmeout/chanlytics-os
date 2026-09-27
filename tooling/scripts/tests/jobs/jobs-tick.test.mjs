@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { runTick } from "../../../../packages/jobs/src/tick.ts";
+import { runTick, lateFields } from "../../../../packages/jobs/src/tick.ts";
 import { RUN_INTERRUPTED, MAX_ATTEMPTS } from "../../../../packages/jobs/src/ledger.ts";
 
 const job = (id, kind = "line_provision", attempts = 1) => ({
@@ -87,7 +87,7 @@ test("every due job runs once, in order, and is recorded done; the tick ends whe
   );
   assert.deepEqual(calls.complete, ["a", "b", "c"]);
   assert.deepEqual(calls.claim, [90, 90, 90, 90], "each claim carries the lease; the fourth finds nothing");
-  assert.deepEqual(counts, { claimed: 3, done: 3, failed: 0, gaveUp: 0, deferred: 0 });
+  assert.deepEqual(counts, { claimed: 3, done: 3, failed: 0, gaveUp: 0, deferred: 0, lateMs: { line_provision: 0 } });
 });
 
 test("a job is claimed only when it is about to run", async () => {
@@ -121,7 +121,7 @@ test("a handler that throws is failed, settled as an unknown outcome and reporte
     /marked failed, so it is no longer shown as on its way/,
     "and what became of the message",
   );
-  assert.deepEqual(counts, { claimed: 3, done: 2, failed: 1, gaveUp: 0, deferred: 0 });
+  assert.deepEqual(counts, { claimed: 3, done: 2, failed: 1, gaveUp: 0, deferred: 0, lateMs: { outbound_send: 0 } });
   assert.deepEqual(calls.defer, [], "a send is never kept to be tried again: a second try could reach a person twice");
 });
 
@@ -151,7 +151,7 @@ test("an email intake that throws is kept and tried again later, not failed: its
     "not failed, so nothing to settle and nobody to tell yet",
   );
   assert.ok(logged("warn", "job_deferred"));
-  assert.deepEqual(counts, { claimed: 2, done: 0, failed: 0, gaveUp: 0, deferred: 2 });
+  assert.deepEqual(counts, { claimed: 2, done: 0, failed: 0, gaveUp: 0, deferred: 2, lateMs: { email_ingest: 0 } });
 });
 
 test("the last try of an intake fails it for good and tells the owner how many tries it took", async () => {
@@ -169,7 +169,7 @@ test("the last try of an intake fails it for good and tells the owner how many t
     new RegExp(`^It stopped after ${MAX_ATTEMPTS} tries and will not start again on its own`),
   );
   assert.equal(calls.alert[0].subject, "An email could not be taken in");
-  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 1, gaveUp: 0, deferred: 0 });
+  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 1, gaveUp: 0, deferred: 0, lateMs: {} });
 });
 
 test("an intake that could not be kept is not failed either: the claim's own lease brings it back", async () => {
@@ -288,7 +288,7 @@ test("a completion that could not be written is not reported as the job failing"
   assert.deepEqual(calls.fail, []);
   assert.deepEqual(calls.alert, []);
   assert.ok(logged("error", "job_complete_write_failed"));
-  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 0, gaveUp: 0, deferred: 0 });
+  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 0, gaveUp: 0, deferred: 0, lateMs: { outbound_send: 0 } });
 });
 
 test("a failure another run already recorded is not settled or announced twice", async () => {
@@ -336,4 +336,42 @@ test("a ledger that cannot be claimed from ends the tick with the error", async 
     throw new Error("claim_due_jobs: connection refused");
   };
   await assert.rejects(runTick(ports, OPTS), /connection refused/, "the route answers 503, which sweep_health() reads");
+});
+
+/* ------------------------------------------------ how late a claim came (0018) */
+
+test("how late each kind's first claim came is kept at its worst; a claim before its due time waited none, and a row claimed again waited none either", async () => {
+  // The clock reads ten seconds past midnight throughout. Two replies were due
+  // ten and five seconds earlier; a broadcast batch is not due for another ten;
+  // a line setup comes back for its second try (a lease that ran out), which is
+  // a run that died, not a wait in the queue.
+  const at = (id, kind, dueAt, attempts = 1) => ({ ...job(id, kind, attempts), due_at: dueAt });
+  const { ports } = fakes(
+    [
+      at("a", "outbound_send", "2026-01-01T00:00:00Z"),
+      at("b", "outbound_send", "2026-01-01T00:00:05Z"),
+      at("c", "broadcast_send", "2026-01-01T00:00:20Z"),
+      at("d", "line_provision", "2025-12-31T23:00:00Z", 2),
+    ],
+    { clock: () => Date.parse("2026-01-01T00:00:10Z") },
+  );
+  const counts = await runTick(ports, OPTS);
+  assert.equal(counts.claimed, 4, "all four were claimed and run");
+  assert.deepEqual(counts.lateMs, { outbound_send: 10_000, broadcast_send: 0 });
+});
+
+test("a due time that cannot be read is no wait at all, rather than a line that says NaN", async () => {
+  const { ports } = fakes([{ ...job("a", "outbound_send"), due_at: "not a time" }], {
+    clock: () => Date.parse("2026-01-01T00:00:10Z"),
+  });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(counts.lateMs, {});
+});
+
+test("the heartbeat's line carries each kind's worst wait as a field of its own, since a log line is flat", () => {
+  assert.deepEqual(lateFields({ outbound_send: 10_000, broadcast_send: 0 }), {
+    late_ms_outbound_send: 10_000,
+    late_ms_broadcast_send: 0,
+  });
+  assert.deepEqual(lateFields({}), {});
 });

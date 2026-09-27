@@ -45,7 +45,9 @@ may only fall; one set of breakpoints, as tokens.
   `exhaustive-deps` becomes an error for new code.
 - **The shell's names.** `no-undef` over the shell, with `/* global */` headers as the declarations, behind
   the same baseline: a misspelt global is a runtime `ReferenceError` today.
-- **Accessibility.** `eslint-plugin-jsx-a11y` behind the baseline. A new dev dependency, so it waits for a yes.
+- **Accessibility.** The jsx-a11y rules behind the baseline. `eslint-plugin-jsx-a11y` supports ESLint 9 at most, and
+  its last release was October 2024; its maintained fork, `eslint-plugin-jsx-a11y-x`, supports the ESLint 10 the
+  repository runs, so the fork it is (decided 27 September).
 - **The exit.** 0015's steps: Inbox, Today, People first; each surface's seed twin deleted as it moves, which
   lets `legacy/demo/` leave the real manifest.
 - Held by: the lint baseline, the harness test, the surface registry test, and the ratchets that already
@@ -81,9 +83,9 @@ that backs off when the provider says so; replies never queued behind bulk work.
 - **Backpressure.** A 429 or a tier refusal stops and reschedules a broadcast instead of failing each
   remaining recipient (verify the current path first: only the workspace pause is read in the batch).
 - **Lanes and fairness.** Replies first, round-robin between workspaces, a few claims in parallel per
-  tick. A design note first: it is the ledger every send goes through. That note is 0018, proposed: it measures
-  how late each job starts, puts replies ahead of bulk work, lets no workspace run two bulk jobs at once, and
-  claims in parallel only if the numbers still ask for it.
+  tick. A design note first: it is the ledger every send goes through. That note is 0018, decided: it measures
+  how late each job starts (built with the note), puts replies ahead of bulk work, puts every other workspace's bulk
+  work before a workspace's second job, and claims in parallel only if the numbers still ask for it.
 - **Rollups.** Per-workspace daily rollups behind `metrics_summary` and `people_list`, with keyset paging.
 - **Realtime.** A channel per surface instead of one subscription carrying 24 tables to every tab.
 
@@ -91,7 +93,8 @@ that backs off when the provider says so; replies never queued behind bulk work.
 
 1. **Instrument** (one pull request, after #1172 lands, since both touch `docs/debt.md`): the per-file
    lint baseline with the wider effect alias, and the bundle budget. Nothing a customer sees changes.
-2. **Frontend**: `no-undef` over the shell, then `jsx-a11y` on a yes, then 0015's first surfaces.
+2. **Frontend**: `no-undef` over the shell, then the jsx-a11y rules, then 0015's first surfaces once no open pull
+   request holds a page the address would move.
 3. **Performance**: the per-surface data signal with the first surface that moves in 0015. Contracts
    tree-shaking was measured and dropped (§2).
 4. **Scale**: the purge clock (00215), then backpressure (00216), then the ledger's design note (0018).
