@@ -2,6 +2,7 @@ import "server-only";
 import type { RouteContext } from "@/server/with-route";
 import { yesesSince } from "@chanlytics/db";
 import {
+  DAY_MS,
   DEAL_LOST_REASONS,
   PERSON_CAME_FROM_WORDS,
   cameFromOf,
@@ -85,8 +86,6 @@ export async function currentDealOf(
     return null;
   }
 }
-
-const DAY_MS = 86_400_000;
 
 /** Nothing to draw: deals are off, or none was ever recorded. A new object each time, since its lists are its own. */
 const none = (): DealReportDto => ({

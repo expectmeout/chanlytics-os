@@ -57,7 +57,7 @@ async function getSettings(t: ToolContext): Promise<unknown> {
 export const get_settings = defineRead({
   name: "get_settings",
   description:
-    "The workspace's settings as the receptionist runs on them: hours, closures, services, notes, guardrails, booking rules, the reply policy and its dials, which channels are connected, notifications.",
+    "The workspace's settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications, the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels. Nothing changes because it was read; propose_settings is what changes a setting.",
   input: z.object({}),
   label: "Reading Settings",
   run: getSettings,

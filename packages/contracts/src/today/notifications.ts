@@ -1,4 +1,4 @@
-import { agoShort as spanAgo } from "../shared/time";
+import { agoShort as spanAgo, DAY_MS } from "../shared/time";
 import { FINISH_SETTING_UP } from "../setup/first-run";
 import { firstLine } from "./push";
 import type { JobKind } from "../shared/enums";
@@ -78,8 +78,6 @@ export interface FeedInput {
   invites?: FeedInvite[] | null;
   now: number;
 }
-
-const DAY_MS = 24 * 3600 * 1000;
 
 /** Everything that needs the owner right now, newest first. */
 export function buildNotificationFeed(input: FeedInput): NotificationItem[] {

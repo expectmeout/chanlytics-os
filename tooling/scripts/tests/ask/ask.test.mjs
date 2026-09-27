@@ -15,6 +15,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ASK_CITATION_KINDS,
+  ASK_MAX_TOKENS,
   ASK_PAGES,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
@@ -44,9 +45,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 // The assistant's tools as the registry offers them (server/ask/tools): data, read from no source file.
-const { READ_TOOLS, ACT_TOOLS } = await import(
+const { toApiTools } = await import(
   pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/tools/index.ts")).href
 );
+const READ_TOOLS = toApiTools("viewer", true);
+const ACT_TOOLS = toApiTools("owner", true).slice(READ_TOOLS.length);
 const NOW = Date.parse("2026-09-05T15:00:00Z");
 const ID = "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c";
 const ID2 = "9f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5d";
@@ -683,8 +686,8 @@ test("the gateway's usage tee reads the counts out of a passing stream and repor
   assert.equal(bad.ok, false);
   const ok = mod.validateGatewayRequest({ max_tokens: 99999, messages: [{ role: "user", content: "hi" }], tools: [] });
   assert.ok(
-    ok.ok && ok.request.max_tokens === 2000 && ok.request.model === mod.GATEWAY_FALLBACK_MODEL,
-    "a request that names no model gets the fallback every older caller expects; Ask's profile moves Ask alone",
+    ok.ok && ok.request.max_tokens === ASK_MAX_TOKENS && ok.request.model === mod.GATEWAY_FALLBACK_MODEL,
+    "a request that names no model gets the fallback every older caller expects and Ask's ceiling; Ask's profile moves Ask alone",
   );
 });
 

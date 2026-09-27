@@ -12,7 +12,7 @@
  * nothing. The edge runs these plans against the tables and the bell; the
  * tests run them against fixtures.
  */
-import { ratingWords, reviewSnippet, starsOf, type GoogleListingFacts } from "@chanlytics/contracts";
+import { plural, ratingWords, reviewSnippet, starsOf, type GoogleListingFacts } from "@chanlytics/contracts";
 import type { PlaceDetails, PlaceReview } from "./google-places";
 import type { GbpReview, GbpReviewsPage } from "./google-profile";
 
@@ -34,8 +34,6 @@ export interface ReviewBell {
 export const REVIEW_BELL_MAX = 3;
 /** A review dated up to this long before the previous check still counts as written since it: Google's clock and ours differ, and a review can be dated by its visit. */
 export const FRESH_SLACK_MS = 2 * 86_400_000;
-
-const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 function overall(rating: number | null, count: number | null): string {
   return `${ratingWords(rating)} overall${typeof count === "number" ? ` · ${plural(count, "review")}` : ""}`;

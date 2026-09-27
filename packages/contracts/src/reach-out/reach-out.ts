@@ -2,6 +2,7 @@
  * Reach out's words that more than one layer says: the foot every campaign email carries, and the unsubscribe
  * page. Pure (docs/superpowers/specs/2026-09-25-reach-out-design.md §4.3, §4.8).
  */
+import { escapeHtml } from "../shared/html";
 
 /** Why a business the finder found is hearing from this one: the first line of the foot. */
 export const WHY_FROM_MAPS = "I found your business on Google Maps.";
@@ -10,9 +11,6 @@ export const WHY_FROM_MAPS = "I found your business on Google Maps.";
 export function whyFrom(source: string | null | undefined): string {
   return source === "maps" ? WHY_FROM_MAPS : "I came across your business online.";
 }
-
-const escapeHtml = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 /**
  * What the email is, said plainly: CAN-SPAM asks a commercial email to identify itself as one. True of every step of a

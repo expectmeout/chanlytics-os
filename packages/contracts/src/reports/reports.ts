@@ -14,6 +14,8 @@
  * page composes no sentence of its own.
  */
 import { reasonShort } from "../people/people";
+import { DATE_FMT } from "../shared/time";
+import { capitalize } from "../shared/words";
 
 export interface ReportDayDto {
   day: string;
@@ -224,8 +226,6 @@ export interface ReportVM {
   table: { columns: string[]; rows: (string | number)[][] };
 }
 
-const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-
 /** A calendar day ("2026-09-04") as a local date, without the UTC shift that
  *  `new Date("2026-09-04")` would apply. */
 export function dayDate(day: string): Date {
@@ -313,7 +313,6 @@ function bars(entries: [string, string, number][]): ReportBarVM[] {
 }
 
 const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
-const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /**
  * The period before, day for day beside the current one: the n days before them, newest last, and null where the

@@ -5,6 +5,7 @@
  * exported from index.ts directly, since it reads people.ts's row view model.
  */
 import { clockDate } from "../shared/clock";
+import { plural } from "../shared/words";
 import { DEAL_ACT_WORDS, dealPaceOf, type DealPaceVM, type DealVM } from "../deals/deals";
 import {
   mayReach,
@@ -239,10 +240,6 @@ function ownMessagesOf(d: PersonDetailDto, stamp: (t: number) => { time: string;
     .sort((a, b) => b.t - a.t)
     .slice(0, OWN_MESSAGE_CHOICES)
     .map((f) => f.vm);
-}
-
-function plural(n: number, one: string, many = `${one}s`): string {
-  return `${n} ${n === 1 ? one : many}`;
 }
 
 /**
