@@ -266,6 +266,13 @@ const K = ts.SyntaxKind;
 const UNIT_MS = new Set([60_000, 3_600_000, 86_400_000, 604_800_000]);
 /** A name that says it holds milliseconds (`LEASE_MS`, `ttlMs`, `max_call_duration_ms`) or is a unit (`MIN`, `DAY`). */
 const SAYS_MS = /(^|[a-z0-9])Ms$|(^|_)(MS|ms)$|^(MIN|MINUTE|HOUR|DAY|WEEK)S?$/;
+/** The words of a name that say its value is in another unit: metres, characters, bytes, tokens, cents, seconds. */
+const OTHER_UNITS = new Set(
+  "m km meters metres chars characters bytes kb mb tokens cents s sec secs seconds".split(" "),
+);
+/** A name with such a word anywhere (`RADIUS_MAX_M`, `TAB_TOTAL_CHARS`, `ASK_TOKENS_DAY`, `maxBytes`): not a time. */
+const saysOtherUnit = (name) =>
+  name.split(/[^A-Za-z0-9]+|(?<=[a-z0-9])(?=[A-Z])/).some((w) => OTHER_UNITS.has(w.toLowerCase()));
 const OFFSET_OPS = new Set([
   K.PlusToken,
   K.MinusToken,
@@ -388,13 +395,18 @@ function durationOf(top) {
   const allNumbers = numbers.length === factors.length;
   if (allNumbers && inTimerSlot(top)) return "a timer's delay";
   if (v >= 60_000 && v % 60_000 === 0) {
+    // A name that says another unit wins: RADIUS_MAX_M = 60_000 is metres, not a minute.
+    const slot = allNumbers ? slotNameOf(top) : null;
+    if (slot !== null && saysOtherUnit(slot)) return null;
+    // Then the spelling, whatever the name: time's own factors, or a unit's own value.
     const spelled =
       (values.includes(1000) && values.some((x) => x === 60 || x === 3600 || x === 24 || x === 86_400)) ||
       (numbers.length > 1 && values.some((x) => UNIT_MS.has(x)));
-    const slot = allNumbers ? slotNameOf(top) : null;
-    if (slot !== null) return SAYS_MS.test(slot) ? `${slot}, spelled by hand` : null;
     if (spelled) return "a unit spelled by hand";
     if (numbers.length === 1 && UNIT_MS.has(v)) return "a unit's value";
+    // Then a bare whole number of minutes (300_000): as the value of a name that says no other unit, a time, so
+    // dropping `_MS` from the name hides nothing; inside an expression, only when the name holding it says so.
+    if (slot !== null) return `the value of ${slot}`;
     const holder = holderNameOf(top);
     return holder && SAYS_MS.test(holder) ? `a length of time in ${holder}` : null;
   }
@@ -414,10 +426,14 @@ function durationOf(top) {
  *
  *   - a timer's delay: setTimeout's and setInterval's, AbortSignal.timeout's, a `timeout:` option handed to a call,
  *     or a floor, cap, default or branch of one (`Math.max(500, …)`, `?? 400`); a zero is not a delay;
- *   - a whole number of minutes in milliseconds, spelled by hand: as the value of a name that says milliseconds
- *     (`LEASE_MS = 300_000`, `ttlMs: 5 * 60_000`), and in an expression, in time's own factors (`[5 * 60_000]`,
- *     `hours * 3600 * 1000`) or as a unit's own value (`days * 86_400_000`, `/ 60000`). The value of any other
- *     name is judged by that name: `RADIUS_MAX_M = 60_000` is metres, `TAB_TOTAL_CHARS = 600_000` characters;
+ *   - a whole number of minutes in milliseconds, spelled by hand, judged in this order. A name that says another
+ *     unit wins: `RADIUS_MAX_M = 60_000` is metres, `TAB_TOTAL_CHARS = 600_000` characters, `ASK_TOKENS_DAY`
+ *     tokens. Then the spelling, wherever it stands and whatever the name: time's own factors
+ *     (`LEASE = 5 * 60 * 1000`, `[5 * 60_000]`, `hours * 3600 * 1000`) or a unit's own value (`WINDOW = 60_000`,
+ *     `days * 86_400_000`, `/ 60000`). Then a bare whole number of minutes (`300_000`), which is the value of any
+ *     other name (`TIMEOUT = 300_000`, `ttlMs: 300_000`), so dropping the unit from a name hides nothing, and
+ *     inside an expression counts only when the name holding it says milliseconds
+ *     (`reply_delay_ms: z.number().max(600000)`);
  *   - a number of at least 100 added to, taken from or compared with a value in milliseconds (`now + 50_000`).
  *
  * Not counted, on purpose: seconds (`24 * 60 * 60`, a max-age), which stay in their unit; `* 1000` and `/ 1000`,

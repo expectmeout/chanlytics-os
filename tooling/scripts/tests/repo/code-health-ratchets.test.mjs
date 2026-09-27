@@ -40,7 +40,8 @@ test("the measure sees the shell's JSX and the packages' TypeScript", () => {
 
 // The duration measure on a module written for it: each line marked `yes` holds one length of time written as a
 // bare number per mark, and nothing else in it is one: a count, a size, seconds, metres, a change of unit, a nudge,
-// an index, a zero delay, or a minute already named.
+// an index, a zero delay, or a minute already named. A name without its unit hides no length of time (LEASE,
+// TIMEOUT, WINDOW), and a name that says another unit keeps a round number out (metres, characters, tokens).
 test("the duration measure counts lengths of time and nothing else", () => {
   const lines = [
     "setTimeout(go, 800); // yes",
@@ -58,12 +59,17 @@ test("the duration measure counts lengths of time and nothing else", () => {
     "const deadline = now + 50_000; // yes",
     "const left = budgetMs - 8_000; // yes",
     "const rule = { reply_delay_ms: z.number().max(600000) }; // yes",
+    "const LEASE = 5 * 60 * 1000; // yes",
+    "const TIMEOUT = 300_000; // yes",
+    "const WINDOW = 3_600_000; // yes",
     "setTimeout(go, 0);",
     "setTimeout(go, RETRY_MS);",
     "const RETRY_MS = 800;",
     "const NAMED_MS = 5 * MIN_MS;",
     "const RADIUS_MAX_M = 60_000;",
     "const TAB_TOTAL_CHARS = 600_000;",
+    "const ASK_TOKENS_DAY = 1_500_000;",
+    "const limits = { radiusM: 60 * 1000 };",
     "const PAGE = 1000;",
     "const s = Math.floor(Date.now() / 1000);",
     "const ms = seconds * 1000;",
