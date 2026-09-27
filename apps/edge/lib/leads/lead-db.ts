@@ -6,7 +6,7 @@
  * Nothing here decides anything: the rules are in core and in SQL.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "../packages/db.js";
+import { addressesSuppressed, type Database, type Json } from "../packages/db.js";
 import {
   asContactId,
   asTenantId,
@@ -288,35 +288,26 @@ export function leadDb(db: Db): LeadDb {
       return out;
     },
     async suppressed(tenantId, keys) {
-      const emails = new Set<string>();
-      const placeIds = new Set<string>();
-      const wanted = [
-        ...keys.emails.map((e) => ["email", e] as const),
-        ...keys.placeIds.map((p) => ["place", p] as const),
-      ];
-      if (!wanted.length) return { emails, placeIds };
-      // The same keyed digest 00140's lead_suppression_hash writes (contracts erasure.ts).
-      const hashed = await Promise.all(
-        wanted.map(async ([kind, v]) => [kind, v, await leadSuppressionHash(tenantId, v)] as const),
+      // An address asks the one predicate (00217: its own row, or its business's domain after a no), which answers the
+      // stored form; each key is handed back as it was asked. A place is not an address: its own row, by the keyed
+      // digest 00140's lead_suppression_hash writes (contracts erasure.ts). The two reads run together.
+      const byHash = new Map(
+        await Promise.all(keys.placeIds.map(async (p) => [await leadSuppressionHash(tenantId, p), p] as const)),
       );
-      const byHash = new Map(hashed.map(([kind, v, h]) => [`${kind}:${h}`, v]));
-      const rows = must<{ kind: string; hash: string }[]>(
-        "lead_suppressions read",
-        await db
-          .from("lead_suppressions")
-          .select("kind, hash")
-          .eq("tenant_id", tenantId)
-          .in(
-            "hash",
-            hashed.map(([, , h]) => h),
-          ),
-      );
-      for (const r of rows) {
-        const v = byHash.get(`${r.kind}:${r.hash}`);
-        if (!v) continue;
-        if (r.kind === "email") emails.add(v);
-        else placeIds.add(v);
-      }
+      const [held, rows] = await Promise.all([
+        addressesSuppressed(db, tenantId, keys.emails),
+        byHash.size
+          ? db
+              .from("lead_suppressions")
+              .select("hash")
+              .eq("tenant_id", tenantId)
+              .eq("kind", "place")
+              .in("hash", [...byHash.keys()])
+              .then((r) => must<{ hash: string }[]>("lead_suppressions read", r))
+          : [],
+      ]);
+      const emails = new Set(keys.emails.filter((e) => held.has(e.trim().toLowerCase())));
+      const placeIds = new Set(rows.flatMap((r) => byHash.get(r.hash) ?? []));
       return { emails, placeIds };
     },
     async zoneOf(tenantId) {

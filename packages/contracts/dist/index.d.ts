@@ -52,8 +52,8 @@ declare const SCHEMA_SETS: {
     readonly "lead_search_members.class": readonly ["qualified", "review", "excluded"];
     readonly "lead_search_members.fit": readonly ["strong", "look", "long"];
     readonly "lead_searches.via": readonly ["people", "ask"];
-    readonly "lead_suppressions.kind": readonly ["email", "place", "phone"];
-    readonly "lead_suppressions.what": readonly ["email_opt_out", "customer", "erased"];
+    readonly "lead_suppressions.kind": readonly ["email", "place", "phone", "domain"];
+    readonly "lead_suppressions.what": readonly ["email_opt_out", "customer", "erased", "said_no"];
     readonly "leads.closed_reason": readonly ["said_no", "not_a_fit", "customer", "stale", "search_removed"];
     readonly "leads.email_state": readonly ["none", "checking", "ok", "catch_all", "unknown", "invalid"];
     readonly "leads.stage": readonly ["ready", "nurture", "converted", "archived"];
@@ -81,7 +81,7 @@ declare const SCHEMA_SETS: {
     readonly "partner_tenants.standing": readonly ["qualified", "review", "disqualified"];
     readonly "partners.status": readonly ["active", "paused", "closed"];
     readonly "person_notes.author_kind": readonly ["member", "receptionist"];
-    readonly "person_notes.source": readonly ["page", "bulk", "moved", "call", "thread"];
+    readonly "person_notes.source": readonly ["page", "bulk", "moved", "call", "thread", "reach_out"];
     readonly "person_notes.state": readonly ["kept", "suggested"];
     readonly "playbooks.kind": readonly ["moment", "reach_out"];
     readonly "playbooks.policy_class": readonly ["reengage", "campaign", "booking", "follow_up", "outreach"];
@@ -10344,8 +10344,8 @@ declare const LEAD_COUNTER_KINDS: readonly ["allowance", "budget", "day"];
 /** A's six, and release B's two: a lead's stage, and many at once. */
 declare const LEAD_OPERATION_KINDS: readonly ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk"];
 declare const LEAD_PREFERENCE_KINDS: readonly ["chain", "wrong_kind", "too_far"];
-declare const LEAD_SUPPRESSION_KINDS: readonly ["email", "place", "phone"];
-declare const LEAD_SUPPRESSION_WHATS: readonly ["email_opt_out", "customer", "erased"];
+declare const LEAD_SUPPRESSION_KINDS: readonly ["email", "place", "phone", "domain"];
+declare const LEAD_SUPPRESSION_WHATS: readonly ["email_opt_out", "customer", "erased", "said_no"];
 /** §16.7, 18: Qualified leads a month, by the workspace's calendar month. */
 declare const LEAD_MONTHLY_ALLOWANCE = 500;
 /** §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. */

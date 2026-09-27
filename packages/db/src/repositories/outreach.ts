@@ -4,6 +4,7 @@
  * because "we could not check" is not "yes".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { leadSuppressionHash } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -71,4 +72,41 @@ export async function outreachFactsOf(
         : null,
     sent_since: Number(f.sent_since ?? 0) || 0,
   };
+}
+
+/**
+ * Which of these addresses the workspace's never-again list holds (00217 lead_addresses_suppressed): an address's own
+ * row, or its business's own domain after a no (N6). The one predicate the finder asks, as the send door's facts and
+ * the audience ask it in SQL. Each answer is the address as it is stored, lower-cased and trimmed. A read that fails
+ * throws: "we could not check" is not "no".
+ *
+ * A database before 00217 has no such door, and no domain row either: there the address's own row is the whole rule,
+ * read as the finder read it before (the keyed digest 00140's lead_suppression_hash writes), so the edge may deploy
+ * first.
+ */
+export async function addressesSuppressed(db: Db, tenantId: string, addresses: string[]): Promise<Set<string>> {
+  const asked = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter((a) => a !== ""))];
+  if (!asked.length) return new Set();
+  const { data, error } = await db.rpc("lead_addresses_suppressed", { p_tenant_id: tenantId, p_addresses: asked });
+  if (error && missingDoor(error)) return addressesHeldBefore00217(db, tenantId, asked);
+  if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
+  return new Set((data ?? []).filter((a): a is string => typeof a === "string"));
+}
+
+const missingDoor = (e: { code?: string | null; message: string }): boolean =>
+  e.code === "PGRST202" || e.code === "42883" || /could not find the function/i.test(e.message);
+
+/** The list as a database before 00217 holds it for addresses: each one's own email row. */
+async function addressesHeldBefore00217(db: Db, tenantId: string, asked: string[]): Promise<Set<string>> {
+  const byHash = new Map(
+    await Promise.all(asked.map(async (a) => [await leadSuppressionHash(tenantId, a), a] as const)),
+  );
+  const { data, error } = await db
+    .from("lead_suppressions")
+    .select("hash")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "email")
+    .in("hash", [...byHash.keys()]);
+  if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
+  return new Set((data ?? []).flatMap((r) => byHash.get(r.hash) ?? []));
 }

@@ -990,8 +990,8 @@
     "depth": 2
   },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {
-    "lines": 282,
-    "branches": 37,
+    "lines": 273,
+    "branches": 35,
     "depth": 2
   },
   "apps/edge/lib/lines/a2p.ts::campaignFactsFor#1": {

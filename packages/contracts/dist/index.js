@@ -2361,8 +2361,8 @@ var LEAD_OPERATION_KINDS = [
   "bulk"
 ];
 var LEAD_PREFERENCE_KINDS = ["chain", "wrong_kind", "too_far"];
-var LEAD_SUPPRESSION_KINDS = ["email", "place", "phone"];
-var LEAD_SUPPRESSION_WHATS = ["email_opt_out", "customer", "erased"];
+var LEAD_SUPPRESSION_KINDS = ["email", "place", "phone", "domain"];
+var LEAD_SUPPRESSION_WHATS = ["email_opt_out", "customer", "erased", "said_no"];
 var LEAD_MONTHLY_ALLOWANCE = 500;
 var LEAD_MONTHLY_BUDGET_USD = 25;
 var LEAD_DAY_CAP_USD = 10;
@@ -18844,8 +18844,8 @@ function consentChangeWords(c) {
   if (c.purpose === "email_marketing")
     return {
       who: "Email",
-      text: c.consent === "opted_out" ? "Unsubscribed from your emails" : "Marketing email: back to not asked",
-      ...c.source === "unsubscribe" ? { sub: "Pressed Unsubscribe in an email" } : {}
+      text: c.consent === "opted_out" ? c.source === "reply" ? "Said no in a reply to your reach-out" : "Unsubscribed from your emails" : c.consent === "opted_in" ? "Marketing email: back to yes" : "Marketing email: back to not asked",
+      ...c.source === "unsubscribe" ? { sub: "Pressed Unsubscribe in an email" } : c.source === "reply_undone" ? { sub: "A reply read as no, undone" } : {}
     };
   const offers = c.purpose === "marketing";
   const text = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages about their visit" : c.consent === "opted_out" ? offers ? "Said no to offers" : "Said stop \u2014 nothing goes out to them" : offers ? "Offers: back to not asked" : "Back to not asked";
@@ -23117,8 +23117,8 @@ var SCHEMA_SETS = {
   "lead_search_members.class": ["qualified", "review", "excluded"],
   "lead_search_members.fit": ["strong", "look", "long"],
   "lead_searches.via": ["people", "ask"],
-  "lead_suppressions.kind": ["email", "place", "phone"],
-  "lead_suppressions.what": ["email_opt_out", "customer", "erased"],
+  "lead_suppressions.kind": ["email", "place", "phone", "domain"],
+  "lead_suppressions.what": ["email_opt_out", "customer", "erased", "said_no"],
   "leads.closed_reason": ["said_no", "not_a_fit", "customer", "stale", "search_removed"],
   "leads.email_state": ["none", "checking", "ok", "catch_all", "unknown", "invalid"],
   "leads.stage": ["ready", "nurture", "converted", "archived"],
@@ -23186,7 +23186,7 @@ var SCHEMA_SETS = {
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],
-  "person_notes.source": ["page", "bulk", "moved", "call", "thread"],
+  "person_notes.source": ["page", "bulk", "moved", "call", "thread", "reach_out"],
   "person_notes.state": ["kept", "suggested"],
   "playbooks.kind": ["moment", "reach_out"],
   "playbooks.policy_class": ["reengage", "campaign", "booking", "follow_up", "outreach"],
