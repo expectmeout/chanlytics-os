@@ -41,6 +41,11 @@ export interface ReachOutChainDto {
   domain_ids: string[];
   signed_by: string | null;
   steps: ReachOutStepDto[];
+  /**
+   * The domains its run sends from (contracts reachOutSendsFrom: its own, or every one when it names none, verified and
+   * clean), with the days each has sent.
+   */
+  domains: Array<{ host: string; sent_days: number }>;
   next: ReachOutNextFacts;
   created_at: string;
 }

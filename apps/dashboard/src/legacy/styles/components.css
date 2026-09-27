@@ -2555,6 +2555,15 @@ button.pb-tile-next:focus-visible { outline: none; box-shadow: var(--focus-ring)
 /* Open, the detail sits under the row's words: the message beside its sentence, its runs, its verbs. */
 .pb-row-open { padding: 2px 14px 16px 50px; }
 .pb-row-open .ob-card-detail { display: flex; flex-direction: column; gap: var(--space-3); container-type: inline-size; }
+/* A reach-out's chain as one row (Reach out Part 4 PR 8): its steps in a line, their counts in a quiet table. */
+.ro-open { display: flex; flex-direction: column; gap: var(--space-3); }
+.ro-chain { margin: 0; color: var(--ink); }
+.ro-chain-gap, .ro-chain-stops { color: var(--ink-muted); }
+.ro-steps { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ro-steps th, .ro-steps td { padding: 6px 10px 6px 0; text-align: left; border-bottom: 1px solid var(--line); font-weight: 400; }
+.ro-steps thead th { color: var(--ink-muted); font-size: var(--text-xs); }
+.ro-history { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.ro-acts { display: flex; align-items: center; gap: var(--space-3); }
 .ob-head-bare { justify-content: flex-start; }
 /* The moments nothing is doing yet: two lines each -- the moment, what starts it and who it would reach today --
    and Set up. What each is for is its hover. */
@@ -2692,6 +2701,33 @@ button.pb-tile-next::after,
 .pb-empty-line > .icon { flex: none; margin-top: 3px; color: var(--ink-dim); }
 .pb-empty-line.is-warn { color: var(--warn-ink); }
 .pb-warn { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--warn-ink); }
+/* The reach-out sheet (Reach out Part 4 PR 6): the composer's parts, with a chain of steps and a preview of one email. */
+.pb-note { margin: 0; font-size: var(--text-xs); line-height: 1.5; color: var(--ink-dim); }
+.ro-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ro-field-k { font-size: var(--text-xs); color: var(--ink-dim); }
+.ro-body { width: 100%; min-height: 96px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg); font: inherit; font-size: var(--text-sm); line-height: 1.5; color: var(--ink); resize: vertical; }
+.ro-body:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.ro-issues { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.ro-issue { font-size: var(--text-xs); color: var(--warn-ink); }
+.ro-words { display: flex; flex-direction: column; gap: 10px; }
+.em-slots { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.em-slots-hint { font-size: var(--text-xs); color: var(--ink-dim); }
+.pb-chain { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
+.pb-chain-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 13px; font-size: var(--text-sm); color: var(--ink-muted); }
+.pb-chain-row + .pb-chain-row, .pb-chain-add { border-top: 1px solid var(--line); }
+.pb-chain-k { font-weight: var(--weight-medium); color: var(--ink); }
+.pb-chain-add { display: flex; align-items: center; gap: 6px; padding: 10px 13px; border-width: 1px 0 0; border-style: solid; border-color: var(--line); background: none; font: inherit; font-size: var(--text-sm); color: var(--ink); text-align: left; cursor: pointer; }
+.pb-chain-add:hover { background: var(--bg-hover); }
+.ro-domain { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--ink); }
+.em-preview { display: flex; flex-direction: column; gap: 8px; }
+.em-reader { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.em-frame { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg); }
+.em-frame-head { margin: 0; font-size: var(--text-xs); color: var(--ink-muted); }
+.em-frame-head > span { color: var(--ink-dim); margin-right: 6px; }
+.em-frame-body { margin: 6px 0 0; font-size: var(--text-sm); line-height: 1.55; color: var(--ink); white-space: pre-wrap; }
+/* The Leads door: beside it, Find leads steps back from primary; on a phone it is the full-width button above the tab bar. */
+.cl-controls-right:has(> .ro-door) > .btn-primary[data-testid="leads-find"] { background: var(--bg); color: var(--ink); border-color: var(--line-strong); }
+.ro-door-phone { position: sticky; top: 0; z-index: 2; width: 100%; justify-content: center; border-radius: 0; }
 .pb-foot { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .pb-foot-say { flex: 1 1 auto; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 .pb-foot-say[data-tone="danger"] { color: var(--danger-ink); }
@@ -3229,6 +3265,11 @@ html.legacy-on .msg-use-link { position: relative; }
 .msg-new-sent .icon { color: var(--ok-ink); }
 /* The message itself, under the row it belongs to and in line with its words. */
 .msg-row-open { padding: 0 14px 14px 54px; display: flex; flex-direction: column; gap: 10px; }
+/* A reach-out's email (Part 4 PR 8): its words with their slots as quiet chips, read-only. */
+.em-words { display: flex; flex-direction: column; gap: 6px; }
+.em-subject { margin: 0; font-weight: 600; }
+.em-body { margin: 0; white-space: pre-wrap; }
+.em-slot { vertical-align: baseline; }
 .msg-row-open .mp-frame { max-width: none; }
 .msg-row-open .mp-bubble { max-width: 300px; }
 .msg-card-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-dim); margin-top: auto; }

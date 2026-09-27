@@ -200,70 +200,77 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
 // 721px to 900px the controls row is gone and the shell draws no ✦, so the mark is the page's one door. The same
 // top on every scope, and nothing else sits above the rows -- no title, no sub-headline, no stat cards and no
 // second control row (legacy/CLAUDE.md, the phone shows the work first).
-const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind = () => {}, canFind = false, mapOn = false, onMap = () => {}, canMap = false }) => {
+// A search's reach-out (Reach out Part 4 PR 6): its sheet, or its chain (reach-out-door.jsx); Find leads steps back
+// beside it on a desk, and on a phone it is the sticky full-width button over the rows.
+const LeadsReachOutDoor = ({ search, phone = false }) => (window.ReachOutDoor ? <window.ReachOutDoor search={search} phone={phone} /> : null);
+
+const LeadsPhoneBar = ({ scope, onScope, dealsOn = false, listLabel, listCount = null, onLists, listsOpen, q, onQ, searchRef, searchOpen = false, onSearchOpen = () => {}, onFind = () => {}, canFind = false, mapOn = false, onMap = () => {}, canMap = false, search = null }) => {
   const Bar = window.PeoplePhoneBar;
   return (
-    <Bar
-      scope={scope}
-      onScope={onScope}
-      dealsOn={dealsOn}
-      listLabel={listLabel}
-      listCount={listCount}
-      onLists={onLists}
-      listsOpen={listsOpen}
-      q={q}
-      onQ={onQ}
-      searchRef={searchRef}
-      searchOpen={searchOpen}
-      onSearchOpen={onSearchOpen}
-      searchLabel="Search leads"
-      testid="leads"
-      trailing={(
-        <>
-          {/* The map, from the bar (Ruben, 25 Sep): the desktop's toggle stood in the controls row, which a phone never
-              draws, so the streets had no door here. It is a switch of two, the rows and the places, the one shown
-              pressed: a lone push-pin said neither which view this was nor what it would open (Ruben: it read as a
-              hammer). Drawn only where the rows have places to draw. */}
-          {canMap ? (
-            <span className="ld-bar-view" role="group" aria-label="Show the leads as" data-testid="leads-view-switch">
-              <button
-                type="button"
-                className={`ld-bar-view-opt${mapOn ? "" : " on"}`}
-                aria-pressed={!mapOn}
-                aria-label="The list"
-                title="The list"
-                data-testid="leads-list-toggle"
-                onClick={() => onMap(false)}
-              >
-                <Icon name="list" size={15} />
-              </button>
-              <button
-                type="button"
-                className={`ld-bar-view-opt${mapOn ? " on" : ""}`}
-                aria-pressed={mapOn}
-                aria-label="The map"
-                title="The map"
-                data-testid="leads-map-toggle"
-                onClick={() => onMap(true)}
-              >
-                <Icon name="map" size={15} />
-              </button>
-            </span>
-          ) : null}
-          <button
-            type="button"
-            className="pp-bar-icon ld-bar-find"
-            aria-label="Find leads"
-            title="Find leads"
-            data-testid="leads-bar-find"
-            onClick={() => onFind()}
-            {...(canFind ? {} : window.gate("find", "find businesses for you"))}
-          >
-            <Icon name="three" size={16} />
-          </button>
-        </>
-      )}
-    />
+    <>
+      <Bar
+        scope={scope}
+        onScope={onScope}
+        dealsOn={dealsOn}
+        listLabel={listLabel}
+        listCount={listCount}
+        onLists={onLists}
+        listsOpen={listsOpen}
+        q={q}
+        onQ={onQ}
+        searchRef={searchRef}
+        searchOpen={searchOpen}
+        onSearchOpen={onSearchOpen}
+        searchLabel="Search leads"
+        testid="leads"
+        trailing={(
+          <>
+            {/* The map, from the bar (Ruben, 25 Sep): the desktop's toggle stood in the controls row, which a phone never
+                draws, so the streets had no door here. It is a switch of two, the rows and the places, the one shown
+                pressed: a lone push-pin said neither which view this was nor what it would open (Ruben: it read as a
+                hammer). Drawn only where the rows have places to draw. */}
+            {canMap ? (
+              <span className="ld-bar-view" role="group" aria-label="Show the leads as" data-testid="leads-view-switch">
+                <button
+                  type="button"
+                  className={`ld-bar-view-opt${mapOn ? "" : " on"}`}
+                  aria-pressed={!mapOn}
+                  aria-label="The list"
+                  title="The list"
+                  data-testid="leads-list-toggle"
+                  onClick={() => onMap(false)}
+                >
+                  <Icon name="list" size={15} />
+                </button>
+                <button
+                  type="button"
+                  className={`ld-bar-view-opt${mapOn ? " on" : ""}`}
+                  aria-pressed={mapOn}
+                  aria-label="The map"
+                  title="The map"
+                  data-testid="leads-map-toggle"
+                  onClick={() => onMap(true)}
+                >
+                  <Icon name="map" size={15} />
+                </button>
+              </span>
+            ) : null}
+            <button
+              type="button"
+              className="pp-bar-icon ld-bar-find"
+              aria-label="Find leads"
+              title="Find leads"
+              data-testid="leads-bar-find"
+              onClick={() => onFind()}
+              {...(canFind ? {} : window.gate("find", "find businesses for you"))}
+            >
+              <Icon name="three" size={16} />
+            </button>
+          </>
+        )}
+      />
+      <LeadsReachOutDoor search={search} phone />
+    </>
   );
 };
 
@@ -415,6 +422,7 @@ const LeadsScope = (p) => {
             onSearchOpen={p.onSearchOpen}
             onFind={p.onFind}
             canFind={p.canFind}
+            search={search}
           />
         )}
         <div className="cl-main-scroll pl-main" ref={p.scrollRef}>
@@ -437,6 +445,7 @@ const LeadsScope = (p) => {
                   {p.canExport
                     ? <a className="btn btn-ghost btn-sm" href={p.exportHref} download title="Download these leads as a CSV file" data-testid="leads-export"><Icon name="external" size={12} /> Export</a>
                     : <button type="button" className="btn btn-ghost btn-sm" {...window.gate("export", "export these leads")} data-testid="leads-export"><Icon name="external" size={12} /> Export</button>}
+                  <LeadsReachOutDoor search={search} />
                   {/* Ask's door on a desktop (spec F1): the three's still mark, never a second live canvas. */}
                   <button type="button" className="btn btn-primary btn-sm" onClick={p.onFind} data-testid="leads-find" {...(p.canFind ? {} : window.gate("find", "find leads"))}>
                     <Icon name="three" size={12} /> Find leads <span className="kbd">F</span>

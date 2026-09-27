@@ -331,14 +331,35 @@ order, and a reach-out exists (step 8).
    `List-Unsubscribe` and `List-Unsubscribe-Post` among the signed headers:
    Gmail and Yahoo honour a one-click unsubscribe only when DKIM signs both
    (RFC 8058 §4).
-8. **The first reach-out.** Made on Part 4's sheet: a chain over a lead
-   search, its words and its domains. Until the sheet ships there is no door
-   that makes one; `tooling/scripts/tests/reach-out/reach-out.integration.db.test.mjs`
-   seeds one on a local stack and runs it end to end. Its first run waits for
-   its owner on Broadcasts; the `reach-out-check-sweep` clock (every minute)
-   checks each email before it may go, and the `reach-out-sweep` clock (every
-   minute) sends what is due and checked from then on, each email through the
-   jobs tick and the door.
+8. **The first reach-out, made from the sheet.** On Leads, open a search
+   and press **Write to the N ready** (an owner, an operator or a partner).
+   The sheet takes who gets it, the email with its slots, the nudge after it,
+   the pace and the domains; **Before it goes** shows the email as the first
+   business would read it, its opening written by the check. A booking link
+   in the words needs one on Settings › Business, and the sheet says so
+   before Start. **Start** saves the chain and plans its first run at once,
+   which waits for its owner on Broadcasts: the reach-out block there counts
+   what is ready today, what the check still reads, and what it held, each
+   with its doors. The `reach-out-check-sweep` clock (every minute) checks
+   each email before it may go, and after Approve the `reach-out-sweep` clock
+   (every minute) sends what is due and checked, each email through the jobs
+   tick and the door. `tooling/scripts/tests/reach-out/reach-out.integration.db.test.mjs`
+   runs the same path on a local stack, from the save to two emails sent.
+
+**The model the check needs.** The check writes and reads each opening with
+Haiku through `ANTHROPIC_API_KEY` on the edge, the key the notes sweep already
+uses, so there is nothing new to set. Words that name no `{{opening}}` ask no
+model at all. The sheet's preview asks the same model through the edge's
+`/api/admin/reach-out-preview`, and counts in the workspace's Ask budget
+(`ask_budget_spent` once the last 24 hours' is spent).
+
+**What `check_unavailable` means.** The model did not answer one email's
+check for an hour of tries, so the email waits, held, and never sends
+unchecked. It is not about the business, and it needs nothing from anyone:
+the check puts such a hold back to be checked an hour on, and **Check the
+held again** on the run's block does it at once. A hold that names a rule
+(a link, a price, a line in capitals) is the opening's own, and waits for
+its owner's Rewrite, Include, Skip or Not a fit.
 
 **What the reach-out clock's 503 means.** `POST /api/cron/reach-out` answers
 `503 cold_lane_unset` with the variables it lacks (`RESEND_API_KEY`,

@@ -5,6 +5,7 @@
  * 72 by phone, 30 a day, 12 minutes.
  */
 import { test } from "node:test";
+import * as contracts from "@chanlytics/contracts";
 import assert from "node:assert/strict";
 import {
   REACH_OUT_REFUSALS,
@@ -204,8 +205,11 @@ const RUN = (over = {}) => ({
   ...over,
 });
 
+/** 8:00 AM in Chicago on the run's day, before its first send at 9:40. */
+const MORNING = Date.parse("2026-09-28T13:00:00Z");
+
 test("the approval sheet says who today, who later, what the check held, and names the first send's time (R21, R22)", () => {
-  const w = approvalWordsOf(RUN(), { timezone: "America/Chicago", share: 30, today: "2026-09-28" });
+  const w = approvalWordsOf(RUN(), { timezone: "America/Chicago", share: 30, today: "2026-09-28", now: MORNING });
   assert.equal(
     flat(w.sub),
     "Reach-out · step 1, your email · goes from 9:40 AM once you approve it, one every 12 minutes as each business opens",
@@ -245,6 +249,7 @@ test("the approval sheet says who today, who later, what the check held, and nam
     timezone: "America/Chicago",
     share: 30,
     today: "2026-09-28",
+    now: MORNING,
   });
   assert.equal(later.approve, "Approve — 30 from now");
   assert.equal(later.approveNote, "5 more are being checked; they go once they pass.");
@@ -254,6 +259,7 @@ test("the approval sheet says who today, who later, what the check held, and nam
     timezone: "America/Chicago",
     share: 30,
     today: "2026-09-28",
+    now: MORNING,
   });
   assert.equal(unconfirmed.rules.includes("each has a checked address"), false);
   // A hold the check could not answer offers the run's one "check the held again" (R18).
@@ -261,6 +267,7 @@ test("the approval sheet says who today, who later, what the check held, and nam
     timezone: "America/Chicago",
     share: 30,
     today: "2026-09-28",
+    now: MORNING,
   });
   assert.equal(down.recheck, "Check the held again");
   // A run whose step was dropped from its chain since says so, never another step's name (R17).
@@ -268,8 +275,19 @@ test("the approval sheet says who today, who later, what the check held, and nam
     timezone: "America/Chicago",
     share: 30,
     today: "2026-09-28",
+    now: MORNING,
   });
   assert.match(dropped.sub, /^Reach-out · a step since removed · goes from/);
+  // Today's run whose first time has passed goes from now, never at 9:40 once it is 10 (R21).
+  const past = approvalWordsOf(RUN(), {
+    timezone: "America/Chicago",
+    share: 30,
+    today: "2026-09-28",
+    now: Date.parse("2026-09-28T15:00:00Z"),
+  });
+  assert.equal(past.approve, "Approve — 30 from now");
+  assert.match(past.sub, /goes from now, in their hours, once you approve it/);
+  assert.doesNotMatch(past.sub, /9:40/);
 });
 
 const CHAIN = {
@@ -361,4 +379,53 @@ test("the doors' refusals are one set of sentences, the ones the database raises
     "Lead not found.",
   ])
     assert.equal(isReachOutRefusal(w), true, w);
+});
+
+test("the chain row's own words: its pace from its domains, its path, the held with their run, its slots as parts (PR 8)", () => {
+  const { chainPaceOf, chainPathWords, chainReportWordsOf: report, slotParts, REACH_OUT_ROW_WORDS } = contracts;
+  assert.deepEqual(chainPaceOf({ domains: [{ host: "a.example", sent_days: 0 }] }), { host: "a.example", share: 30 });
+  assert.deepEqual(
+    chainPaceOf({
+      domains: [
+        { host: "a.example", sent_days: 20 },
+        { host: "b.example", sent_days: 40 },
+      ],
+    }),
+    { host: null, share: 300 },
+    "two domains: their days summed, no one host",
+  );
+  assert.deepEqual(chainPaceOf({ domains: [] }), { host: null, share: 0 });
+  assert.deepEqual(chainPathWords(CHAIN), {
+    steps: [
+      { id: "r", label: "Your email", after: null },
+      { id: "n", label: "A short nudge", after: "after 4 days, nothing back" },
+    ],
+    stops: "Stops for anyone who writes back, books or says no.",
+  });
+  const held = {
+    ...REPORT,
+    steps: REPORT.steps.map((s, i) => ({ ...s, held: i === 1 ? 3 : 0 })),
+    runs: [
+      { id: "b3", step_id: "n", run_for: "2026-09-26", state: "sending", planned: 3, written: 0, held: 3 },
+      ...REPORT.runs,
+    ],
+  };
+  assert.deepEqual(report(CHAIN, held, REACH, { host: null, share: 30 }).waiting, {
+    text: "3 wait for your say",
+    run_id: "b3",
+  });
+  assert.equal(report(CHAIN, REPORT, REACH, { host: null, share: 30 }).waiting, null);
+  assert.match(
+    report(CHAIN, REPORT, REACH, { host: null, share: 0 }).sentence,
+    /^Add a domain you send from in Settings › Connections › Email first\. 72 written/,
+    "no domain: never a pace of 0 a day",
+  );
+  assert.deepEqual(slotParts("Hi {{ Business }}, {{opening}}!"), [
+    { text: "Hi ", slot: false },
+    { text: "business", slot: true },
+    { text: ", ", slot: false },
+    { text: "opening", slot: true },
+    { text: "!", slot: false },
+  ]);
+  assert.equal(REACH_OUT_ROW_WORDS.paused("Movers"), "Movers is paused — nothing more is planned until you resume it");
 });
