@@ -859,33 +859,19 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.ok(m.includes("create policy ask_messages_own_update on public.ask_messages"));
   const route = readCode("apps/dashboard/app/api/v1/ask/messages/[id]/proposals/[pid]/route.ts");
   assert.ok(route.includes("AskProposalOutcomeSchema.safeParse(body)"));
-  const bridge = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/ask/api.ts").includes('via: "ask"'),
     "a card's commit is marked in the ledger: the client sends x-via (typed-client.test.mjs)",
   );
-  for (const path of [
-    '"POST conversations/[id]/reply"',
-    '"POST messages/[id]/steer"',
-    'take_over: "POST conversations/[id]/take-over"',
-    '"PUT contacts/[id]/receptionist"',
-    '"PUT policies"',
-    '"PUT settings"',
-    '"POST calls/[id]/whisper"',
-    '"POST team/invite"',
-  ])
-    assert.ok(bridge.includes(path), path);
-  assert.ok(bridge.includes('"POST messages/[id]/cancel-send"'), "a sent reply's undo is the cancel window");
-  assert.ok(
-    /applySettingsChange\(\s*before\b/.test(bridge),
-    "a settings card applies the change to the loaded config, with its version",
-  );
+  // The route each card commits and undoes through -- the reply, the steer, the thread verbs, a person's mode, a
+  // policy, the settings (applied to the loaded config, with its version), a whisper, an invite, and a sent reply's
+  // undo through the cancel window -- was pinned here as commit.ts's text. It is each kind's spec now, and it runs:
+  // ask-commit.test.mjs, "every kind, committed and undone" and the case per kind, over the typed client; and
+  // ask-specs.test.mjs holds every route a spec names to the app's routes and to the card's role.
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
   assert.ok(ui.includes('data-testid="ask-card"') && ui.includes('data-testid="ask-card-approve"'));
-  assert.ok(
-    ui.includes("const gated = window.canDo ? !window.canDo(gateKey) : false;"),
-    "the card checks the role gate; the route re-checks",
-  );
+  // The card checks the role gate before Approve (the route re-checks): executed in ask-palette.test.mjs, "a card's
+  // Approve is gated by the shell's rule".
   assert.ok(ui.includes("A.outcome(messageId, p.id, o)"), "what became of the card is kept on the turn");
   assert.ok(ui.includes('p.outcome ? p.outcome.state : "idle"'), "a thread reads back with the card's outcome");
   const thread = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");

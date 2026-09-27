@@ -643,17 +643,9 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   const pending = await buildProposal(t, "propose_broadcast", { template_id: PENDING, audience_kind: "everyone" });
   assert.deepEqual([pending.proposal, pending.isError], [null, true]);
   assert.match(JSON.parse(pending.result).error, /that template is not approved by WhatsApp/);
-  const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
-  assert.ok(
-    c.includes('const r = await viaAsk(client, "POST broadcasts", {'),
-    "the card commits through the broadcast route, the same door the page uses",
-  );
-  assert.ok(
-    c.includes(
-      'const r = await viaAsk(client, "POST broadcasts/[id]/cancel", { params: { id: s(u.broadcast_id) } }, undoOf);',
-    ),
-    "undo is the cancel route",
-  );
+  // The card commits through the broadcast route, the same door the page uses, and its undo is the cancel route:
+  // executed in ask-commit.test.mjs ("a broadcast and a playbook", "an undo names the decision it reverses"), over
+  // the typed client, from the broadcast's spec (contracts ask-proposals/campaigns.ts).
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(
     prompt.includes('"said yes":') && /\n\s+"?broadcast"?:\s*\n/.test(prompt) && prompt.includes('"held back":'),

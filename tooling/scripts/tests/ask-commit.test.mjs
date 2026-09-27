@@ -2,17 +2,20 @@
  * A card's commit and its undo, executed.
  *
  * Every proposal the assistant makes lands in commit.ts when the person
- * approves it, and every undo comes back through it. Until now a test read
- * its text for the route names; here the committer runs against the typed
- * client bound to a fake fetch, so what is proved is what leaves the tab:
- * the route, the body, the card's mark on every call, the decision id an
- * undo names, the receipt, and what undo is handed.
+ * approves it, and every undo comes back through it: the walk over the
+ * card's spec (contracts ask-proposals/), which says the route, the body,
+ * the second call, the events, the receipt and what undo keeps and sends.
+ * Until the specs a test read commit.ts's text for the route names; here the
+ * walk runs every kind's spec against the typed client bound to a fake
+ * fetch, so what is proved is what leaves the tab: the route, the body, the
+ * card's mark on every call, the reply's idempotency key, the decision id an
+ * undo names, the surfaces read again, the receipt, and what undo is handed.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ASK_THREAD_VERBS, applySettingsChange } from "@chanlytics/contracts";
+import { ASK_THREAD_ROUTES, ASK_THREAD_VERBS, PROPOSAL_SPECS, applySettingsChange } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -20,9 +23,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
-const { commitProposal, undoProposal, editReply, THREAD_ROUTE } = await import(
-  at("apps/dashboard/src/legacy-bridge/ask/commit.ts")
-);
+const { commitProposal, undoProposal, editReply } = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
 const { recordDecision } = await import(at("apps/dashboard/src/server/verbs.ts"));
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -103,8 +104,10 @@ function tab(answer = null) {
         body: init.body ? JSON.parse(init.body) : undefined,
         via: init.headers["x-via"],
         undoOf: init.headers["x-undo-of"],
+        // Only the reply sends one (D8); every other call is held to having none by the deep-equals below.
+        ...(init.headers["idempotency-key"] ? { idem: init.headers["idempotency-key"] } : {}),
       });
-      if (answer) return answer(key);
+      if (answer) return answer(key, init);
       const data = ANSWERS[key];
       if (!data) throw new Error(`the card reached a route this test does not answer: ${key}`);
       return envelope(data);
@@ -151,7 +154,7 @@ const one = (t) => {
 
 test("every thread verb the assistant may propose is one the committer can send, and resolve closes the escalation instead", () => {
   assert.deepEqual(
-    Object.keys(THREAD_ROUTE).sort(),
+    Object.keys(ASK_THREAD_ROUTES).sort(),
     ASK_THREAD_VERBS.filter((v) => v !== "resolve").sort(),
     "one list on both sides",
   );
@@ -174,11 +177,43 @@ test("a reply: the words to the thread's reply route, marked as a card's; the re
     body: { text: "On our way." },
     via: "ask",
     undoOf: undefined,
+    idem: "p-1",
   });
   assert.ok(
     t.events.includes(`refresh:POST conversations/[id]/reply`),
     "the surfaces the map names are re-read, as after the page's own button",
   );
+});
+
+test("a double press on a reply card sends one idempotency key twice, the card's id, and the route answers the first: one message queued, one receipt", async () => {
+  // The reply route as core runs it (replyToConversation): a key it holds a receipt for is answered with that
+  // receipt, and nothing is queued again. The Inbox composer sends a key the same way (inbox-verbs.ts).
+  const receipts = new Map();
+  let queued = 0;
+  const t = tab((key, init) => {
+    const k = init.headers["idempotency-key"];
+    if (!receipts.has(k)) {
+      queued += 1;
+      receipts.set(k, { ...ANSWERS[key], message_id: `m-${queued}` });
+    }
+    return envelope(receipts.get(k));
+  });
+  const p = card("reply", { conversation_id: C1, text: "On our way.", who: "Rosa" });
+  const [first, second] = await Promise.all([commitProposal(t.win, p, t.client), commitProposal(t.win, p, t.client)]);
+  assert.deepEqual(
+    t.sent.map((s) => [s.key, s.idem]),
+    [
+      [`POST /api/v1/conversations/${C1}/reply`, "p-1"],
+      [`POST /api/v1/conversations/${C1}/reply`, "p-1"],
+    ],
+    "both presses carry the card's id as the key",
+  );
+  assert.equal(queued, 1, "REGRESSION: a second press queued a second message");
+  assert.deepEqual(first, second, "the second press is answered with the first's receipt, its message and window");
+  assert.equal(first.undo.message_id, "m-1");
+  // Another card is another message: its own key.
+  await commitProposal(t.win, { ...p, id: "p-2" }, t.client);
+  assert.deepEqual([t.sent.at(-1).idem, queued], ["p-2", 2]);
 });
 
 test("a steer, a whisper and an invite: each to its route, each with a receipt and no undo", async () => {
@@ -237,11 +272,14 @@ test("thread verbs: each to its Inbox route; the snooze carries its until; the r
       undo: { verb: "take_over", conversation_id: C1, until: null, decision_id: D(3) },
     },
   );
+  // A wake has no undo (D8). It kept { verb: "snooze", until: null } and offered it for ten minutes, and the snooze it
+  // sent carried no `until`, which core's snooze refuses (NEEDS_UNTIL): the undo always failed. Its card offers none.
   assert.deepEqual(await commitProposal(t.win, card("thread_verb", { verb: "wake", conversation_id: C1 }), t.client), {
     ok: true,
     receipt: "Back in the Inbox",
-    undo: { verb: "snooze", conversation_id: C1, until: null, decision_id: D(5) },
+    undo: null,
   });
+  assert.equal(PROPOSAL_SPECS.thread_verb.undo.label({ payload: { verb: "wake" } }), null, "and no undo words");
   assert.deepEqual(
     await commitProposal(t.win, card("thread_verb", { verb: "archive", conversation_id: C1 }), t.client),
     { ok: true, receipt: "Archived", undo: null },
@@ -428,6 +466,20 @@ test("a deal with its next step: the deal first, then the step as a note of the 
   const no = tab(() => refusal(409, "conflict", "Someone moved this deal."));
   assert.equal((await commitProposal(no.win, withStep, no.client)).ok, false);
   assert.equal(no.sent.length, 1);
+  // A deal the door took whose answer names no deal writes no step either: a note tied to no deal is not the step the
+  // card said. The deal stands, and the receipt says the step was not saved, as for a step the door refused.
+  const bare = tab((key) => (key === deal ? envelope({ from: "proposed", decision_id: "x" }) : null));
+  assert.deepEqual(await commitProposal(bare.win, withStep, bare.client), {
+    ok: true,
+    receipt: "Maria · Client · the next step was not saved: the deal came back without its id; set it on their page",
+    undo: null,
+  });
+  assert.deepEqual(
+    bare.sent.map((s) => s.key),
+    [deal],
+    "no notes request",
+  );
+  assert.ok(bare.events.includes("event:surface:clients") && !bare.events.includes("event:note:saved"));
 });
 
 test("the step's write answers as the door takes it: People is read again behind it, after the deal's own read", async () => {
@@ -641,11 +693,12 @@ test("an undo names the decision it reverses: the inverse call carries the commi
     ),
     { ok: true, receipt: "Undone", undo: null },
   );
+  // What a snooze card keeps: the wake that undoes it, which sends no body.
   assert.deepEqual(
     await undoProposal(
       t.win,
       card("thread_verb", {}),
-      o({ verb: "snooze", conversation_id: C1, until: "2026-09-13T10:00:00.000Z", decision_id: D(5) }),
+      o({ verb: "wake", conversation_id: C1, until: "2026-09-13T10:00:00.000Z", decision_id: D(4) }),
       t.client,
     ),
     { ok: true, receipt: "Undone", undo: null },
@@ -672,18 +725,27 @@ test("an undo names the decision it reverses: the inverse call carries the commi
     [
       ["POST /api/v1/messages/m-9/cancel-send", D(1), "ask"],
       [`POST /api/v1/conversations/${C1}/hand-back`, D(2), "ask"],
-      [`POST /api/v1/conversations/${C1}/snooze`, D(5), "ask"],
+      [`POST /api/v1/conversations/${C1}/wake`, D(4), "ask"],
       [`PUT /api/v1/contacts/${P1}/receptionist`, D(8), "ask"],
       [`POST /api/v1/broadcasts/${B1}/cancel`, D(9), "ask"],
       [`DELETE /api/v1/playbooks/${PB1}`, D(0), "ask"],
     ],
   );
-  assert.deepEqual(
-    t.sent[2].body,
-    { until: "2026-09-13T10:00:00.000Z" },
-    "the snooze undone by a wake, or here a wake by a snooze, carries its until",
-  );
+  assert.equal(t.sent[2].body, undefined, "a wake takes no body, whatever the snooze it undoes was until");
   assert.deepEqual(t.sent[3].body, { mode: "auto" });
+  assert.ok(t.events.includes("event:surface:clients"), "a person's mode set back repaints People, as its commit does");
+  // A record a wake card kept before D8 names a snooze: it is still sent as the snooze it names, with its until.
+  const kept = tab();
+  await undoProposal(
+    kept.win,
+    card("thread_verb", {}),
+    o({ verb: "snooze", conversation_id: C1, until: "2026-09-13T10:00:00.000Z", decision_id: D(5) }),
+    kept.client,
+  );
+  assert.deepEqual(
+    [one(kept).key, one(kept).body, one(kept).undoOf],
+    [`POST /api/v1/conversations/${C1}/snooze`, { until: "2026-09-13T10:00:00.000Z" }, D(5)],
+  );
   // A commit whose route answered no row (an older receipt): the undo still goes, unlinked.
   const old = tab();
   await undoProposal(old.win, card("reply", {}), o({ message_id: "m-9", cancelable_until: "x" }), old.client);
@@ -696,6 +758,85 @@ test("an undo names the decision it reverses: the inverse call carries the commi
     (await undoProposal(mid.win, card("broadcast", {}), o({ broadcast_id: B1 }), mid.client)).receipt,
     "Stopped — it ends after this batch",
   );
+});
+
+test("every kind, committed and undone: each call marked as a card's, each re-reading the surfaces of the route it reached, and the lead search's receipts and undo", async () => {
+  const { ROUTES } = await import(at("apps/dashboard/src/client/routes.generated.ts"));
+  // A request's route key, from its method and path, as the refresh map is keyed.
+  const keyOf = (sent) => {
+    const [method, url] = sent.split(" ");
+    return Object.entries(ROUTES).find(
+      ([, r]) => r.method === method && new RegExp(`^${r.path.replace(/\[\w+\]/g, "[^/]+")}$`).test(url),
+    )?.[0];
+  };
+  const S1 = "55555555-5555-4555-8555-555555555551";
+  const answers = {
+    ...ANSWERS,
+    [`POST /api/v1/contacts/${P1}/notes`]: { note: { id: "n1" } },
+    "POST /api/v1/lead-searches": { search_id: S1, round_id: "r1" },
+    [`POST /api/v1/lead-searches/${S1}/stop`]: { ok: true },
+    [`POST /api/v1/lead-searches/${S1}/answer`]: { round_id: "r2", answered: "include" },
+  };
+  const plan = { version: 1, count: 50, terms: ["dentists"] };
+  const cards = [
+    card("reply", { conversation_id: C1, text: "On our way.", who: "Rosa" }),
+    card("steer", { message_id: M1, instruction: "shorter" }),
+    ...["take_over", "hand_back", "snooze", "wake", "archive"].map((verb) =>
+      card("thread_verb", { verb, conversation_id: C1, until: "2026-09-13T10:00:00.000Z" }),
+    ),
+    card("thread_verb", { verb: "resolve", escalation_id: E1 }),
+    card("person_mode", { contact_id: P1, mode: "never", who: "Rosa", previous: "auto" }),
+    card("policy", { class: "reply", mode: "ask", previous: { mode: "auto" } }),
+    card("settings", { change: { op: "add_note", title: "Parking", text: "Round the back." } }),
+    card("whisper", { call_id: K1, text: "Saturday is full" }),
+    card("invite", { email: "ada@example.com", role: "viewer" }),
+    card("broadcast", { template_id: "tpl-1", audience_kind: "everyone", name: "Friday offer" }),
+    card("playbook", { name: "Win-back", trigger: "quiet_30", template_id: "tpl-2" }),
+    card("deal", { contact_id: P1, stage: "won", who: "Maria" }, { step: { body: "Call", due_on: "2026-09-18" } }),
+    card("lead_search", { plan }),
+    card("lead_search", { plan, amends: { search_id: S1, name: "Dentists" } }),
+  ];
+  const undone = [];
+  for (const p of cards) {
+    const t = tab((key) => (answers[key] ? envelope(answers[key]) : refusal(404, "not_found", key)));
+    const r = await commitProposal(t.win, p, t.client);
+    assert.equal(r.ok, true, `${p.kind} ${p.payload.verb ?? ""}: ${r.message}`);
+    if (r.undo) {
+      // Nobody saved the settings since this card did.
+      if (typeof r.undo.version_after === "number") t.win.__SETTINGS.version = r.undo.version_after;
+      const u = await undoProposal(t.win, p, { state: "done", receipt: r.receipt, atMs: 1, undo: r.undo }, t.client);
+      assert.equal(u.ok, true, `${p.kind} undo: ${u.message}`);
+      undone.push(`${p.kind}${p.payload.verb ? `:${p.payload.verb}` : ""}`);
+    }
+    assert.ok(
+      t.sent.every((s) => s.via === "ask"),
+      `${p.kind}: every call marked as a card's`,
+    );
+    assert.deepEqual(
+      t.events.filter((e) => e.startsWith("refresh:")).map((e) => e.slice("refresh:".length)),
+      t.sent.map((s) => keyOf(s.key)),
+      `${p.kind}: each call re-reads what its own route's button would`,
+    );
+    if (p.kind === "lead_search")
+      assert.deepEqual(
+        [r.receipt, r.undo, t.sent[0].body],
+        p.payload.amends
+          ? ["Answered. Dentists carries on with your answer; Leads shows it.", null, { answer: "include", plan }]
+          : ["Finding 50 dentists. It carries on if you leave; Leads shows it.", { search_id: S1 }, plan],
+      );
+  }
+  assert.deepEqual(undone, [
+    "reply",
+    "thread_verb:take_over",
+    "thread_verb:hand_back",
+    "thread_verb:snooze",
+    "person_mode",
+    "policy",
+    "settings",
+    "broadcast",
+    "playbook",
+    "lead_search",
+  ]);
 });
 
 test("no undo, an unknown inverse, and an unknown kind are each refused in words, and nothing leaves the tab", async () => {
