@@ -610,9 +610,9 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   // counts, and propose_broadcast as a card of kind broadcast that an operator may approve ("the proposal builders
   // run against the database in memory"), refused with the cause it has when nobody can receive it -- the same yes
   // the route asks for, from the template's own category ("a broadcast to nobody is refused with the cause it has").
-  const { READ_TOOLS, ACT_TOOLS, newToolContext, buildProposal } = await importSrc(
-    "apps/dashboard/src/server/ask/tools/index.ts",
-  );
+  const { toApiTools, newToolContext, buildProposal } = await importSrc("apps/dashboard/src/server/ask/tools/index.ts");
+  const READ_TOOLS = toApiTools("viewer", true);
+  const ACT_TOOLS = toApiTools("owner", true).slice(READ_TOOLS.length);
   assert.ok(READ_TOOLS.some((t) => t.name === "list_audiences"));
   // Only an approved template: a pending one is refused before anyone is counted.
   const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

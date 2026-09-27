@@ -11,7 +11,7 @@ import "server-only";
  */
 
 import { parseFrame, type GatewayEvent } from "./sse";
-export { featureRejected, parseFrame } from "./sse";
+export { parseFrame } from "./sse";
 export type { GatewayEvent } from "./sse";
 
 /** The edge deployment, as service.ts names it for steer and whisper. */

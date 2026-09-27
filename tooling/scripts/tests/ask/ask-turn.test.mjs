@@ -44,11 +44,14 @@ delete process.env.ASK_MODEL;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runAskTurn, foldHistory, askPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
-const { blocksRefused, examplesRefused, dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
+const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
-const { runTool, newToolContext, READ_TOOLS, buildProposal, ACT_TOOLS } = await import(
+const { runTool, newToolContext, buildProposal, toApiTools } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
+// The tools as the loop offers them: a viewer the reads; an owner the reads, then the acts.
+const READ_TOOLS = toApiTools("viewer", true);
+const ACT_TOOLS = toApiTools("owner", true).slice(READ_TOOLS.length);
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
@@ -4387,13 +4390,11 @@ test("a request refused for its input_examples is asked once more without them: 
   assert.ok(twice.requests[1].output_config.format, "the format was never given up for it");
   const other = await refusing(["500 input_examples upstream"]);
   assert.deepEqual([other.r.failure, other.requests.length, other.said], ["bad_request", 1, 0], "a 400 only");
-  assert.equal(examplesRefused("400 tools.3.input_examples.0: does not match input_schema"), true);
-  assert.equal(examplesRefused("400 tools.3.input_examples: Extra inputs are not permitted"), true);
-  assert.equal(examplesRefused("400 tools: too many"), false, "a refusal of the tools for something else");
-  assert.equal(examplesRefused("400 messages.0.content.0: search_result is not supported here"), false);
-  assert.equal(examplesRefused("500 input_examples"), false, "a 400 only");
   // The one decision the loop asks (refusals.ts): what to give up for this refusal, given what the turn still carries.
   const all = { context: true, examples: true, format: true };
+  assert.equal(dropFor("400 tools.3.input_examples: Extra inputs are not permitted", all), "examples");
+  assert.equal(dropFor("400 tools: too many", all), null, "a refusal of the tools for something else");
+  assert.equal(dropFor("500 input_examples", all), null, "a 400 only");
   const real = "400 tools.3.input_examples.0: does not match the tool's input_schema";
   assert.equal(dropFor(real, all), "examples");
   assert.equal(dropFor(real, { ...all, examples: false }), null, "a second is the turn's, never the format's");
@@ -4602,8 +4603,9 @@ test("only a refusal that names the data blocks drops them: the format's refusal
     assert.deepEqual([other.r.failure, other.requests.length], ["bad_request", 1], m);
     assert.equal(other.r.shape.context_dropped, false, m);
   }
-  assert.equal(blocksRefused("400 messages.0.content.1.cache_control: too many breakpoints"), true);
-  assert.equal(blocksRefused("500 search_result upstream"), false, "a 400 only");
+  const all = { context: true, examples: true, format: true };
+  assert.equal(dropFor("400 messages.0.content.1.cache_control: too many breakpoints", all), "context");
+  assert.equal(dropFor("500 search_result upstream", all), null, "a 400 only");
 });
 
 test("a page counts as a read only when something on it was read: not one whose read failed, nor the address alone of a page Ask does not draw", async () => {

@@ -22,9 +22,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { newToolContext, runTool, buildProposal, READ_TOOLS } = await import(
+const { newToolContext, runTool, buildProposal, toApiTools } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
+const READ_TOOLS = toApiTools("viewer", true);
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));

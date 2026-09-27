@@ -24,8 +24,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const {
-  READ_TOOLS,
-  ACT_TOOLS,
+  toApiTools,
   ACT_TOOL_NAMES,
   READ_DEFS,
   ACT_DEFS,
@@ -35,6 +34,9 @@ const {
   toolLabel,
   newToolContext,
 } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+// The tools as the loop offers them: a viewer the reads; an owner the reads, then the acts.
+const READ_TOOLS = toApiTools("viewer", true);
+const ACT_TOOLS = toApiTools("owner", true).slice(READ_TOOLS.length);
 
 const FIXTURE = JSON.parse(
   fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures/ask-tools-0c136563.json"), "utf8"),

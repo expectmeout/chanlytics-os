@@ -151,8 +151,8 @@ const defOf = (t: ReadTool | ActTool): ToolDef => ({
   ...(t.examples?.length ? { input_examples: t.examples as Array<Record<string, unknown>> } : {}),
 });
 
-export const READ_TOOLS: ToolDef[] = READ_DEFS.map(defOf);
-export const ACT_TOOLS: ToolDef[] = ACT_DEFS.map(defOf);
+const READ_TOOLS: ToolDef[] = READ_DEFS.map(defOf);
+const ACT_TOOLS: ToolDef[] = ACT_DEFS.map(defOf);
 export const ACT_TOOL_NAMES = new Set(ACT_TOOLS.map((t) => t.name));
 
 /**
