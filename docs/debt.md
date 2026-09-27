@@ -70,14 +70,14 @@ fails when this block and the baselines disagree.
 ```text
 functions over the limit            269   of which over 200 lines: 65
 files over 800 lines                 34
-directories over 20 modules           8
+directories over 20 modules           7
 window globals                      195   names
 window publishers                   394   sites in 147 files
-copies                              129   of 35 names
+copies                              125   of 34 names
 as unknown as                       223
 table names outside packages/db     535
-dead exports, types and modules     212
-source-text reads in tests          833
+dead exports, types and modules     206
+source-text reads in tests          832
 lint warnings                       130   in 36 files, 129 of them exhaustive-deps
 workspace route JS, KB gzipped     1006   the shell included
 workspace route CSS, KB gzipped     122

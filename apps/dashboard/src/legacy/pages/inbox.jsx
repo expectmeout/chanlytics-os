@@ -103,6 +103,9 @@ const firstBucketWithThreads = (list) => {
   return "escalated";
 };
 
+// The phone's width, where the list and the thread take turns on the screen (mobile.css, 720px).
+const ixOnPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+
 // The bucket the member had (the Inbox's place, inbox-list.jsx ixPlace) comes back with a refresh; a thread the
 // address names opens in it when it lists that thread, and in its own bucket when it does not.
 const ixOpeningBucket = (THREADS, initialThreadId) => {
@@ -159,6 +162,35 @@ const ixKeyLeft = (e) => {
 };
 
 /**
+ * The Inbox's one door to the address, and a record that the page moved it itself. A thread the address gains from
+ * OUTSIDE -- the bell, a link, a cold boot -- takes a phone's screen; one the page wrote itself does not. A desktop's
+ * read replaces the address, so Back leaves the Inbox rather than replaying every thread read. On a phone the address
+ * names a thread only while it is the screen (a bucket's first thread, written for the desktop's pane, opened it on a
+ * refresh), and a tap makes it an entry of its own: Back -- the browser's, Android's, the app's -- closes it to its
+ * list, and the thread's own Back is that same step. One the address brought closes to its list in place.
+ */
+const useInboxAddress = (initialThreadId, setPhoneThreadOpen) => {
+  const ownRouteRef = React.useRef(initialThreadId);
+  const phoneEntryRef = React.useRef(null);
+  const goTo = (id) => {
+    ownRouteRef.current = id && !ixOnPhone() ? id : null;
+    if (window.appNavigate) window.appNavigate(ownRouteRef.current ? `inbox/${id}` : "inbox", { replace: true });
+  };
+  const openThread = (id) => {
+    if (!ixOnPhone() || !window.appNavigate) return goTo(id);
+    ownRouteRef.current = id;
+    phoneEntryRef.current = `#/inbox/${id}`;
+    window.appNavigate(`inbox/${id}`);
+  };
+  const closeThread = () => {
+    if (phoneEntryRef.current === window.location.hash) return window.history.back();
+    setPhoneThreadOpen(false);
+    goTo(null);
+  };
+  return { ownRouteRef, goTo, openThread, closeThread };
+};
+
+/**
  * The page's state, in the order the page always declared it, and the effects that keep it true: the address
  * followed, a re-read landing (ixFollowReads), the mockup's scripted concurrent change, and the sidebar's count.
  */
@@ -202,21 +234,12 @@ const useInboxState = (THREADS, initialThreadId) => {
   // The thread the route names, as of this render, for the re-read below: its listener is bound once.
   const routeThreadRef = React.useRef(initialThreadId);
   routeThreadRef.current = initialThreadId;
-  // The Inbox's one door to the address, and a record that the page moved it itself. A thread the address gains
-  // from OUTSIDE -- the bell, a link from another page, a cold boot -- takes a phone's screen. One the page wrote
-  // while doing its own bookkeeping does not: picking a bucket writes the bucket's first thread there for the pane
-  // beside the list, and a phone read that as a thread being opened.
-  const ownRouteRef = React.useRef(initialThreadId);
-  const goTo = (id) => {
-    ownRouteRef.current = id;
-    // Replaced, never pushed: a refresh opens what is open, and Back leaves the Inbox rather than replaying every
-    // thread read.
-    if (window.appNavigate) window.appNavigate(id ? `inbox/${id}` : "inbox", { replace: true });
-  };
+  const { ownRouteRef, goTo, openThread, closeThread } = useInboxAddress(initialThreadId, setPhoneThreadOpen);
 
   // Deep-link follows later navigations too
   React.useEffect(() => {
-    if (!initialThreadId) return;
+    // An address naming no thread is the list: Back from a thread on a phone lands here, and the thread closes.
+    if (!initialThreadId) { ownRouteRef.current = null; setPhoneThreadOpen(false); return; }
     const t = threads.find((x) => x.id === initialThreadId);
     // The address follows every click now (selectThread), so a thread the bucket on screen lists keeps that bucket:
     // one picked in All stays in All.
@@ -259,11 +282,12 @@ const useInboxState = (THREADS, initialThreadId) => {
     threads, setThreads, activeBucket, setActiveBucket, activeThreadId, setActiveThreadId, selected, setSelected,
     bulkBusy, setBulkBusy, bulkRunRef, phoneThreadOpen, setPhoneThreadOpen, activeView, setActiveView, listedHere,
     stale, setStale, keepOpenId, setKeepOpenId, shownRef, toastNode, ppFlash, planParams, setPlanParams, goTo,
+    openThread, closeThread,
   };
 };
 
 /** The moves every verb shares: a real thread's verbs, the stale change merged, the toast, the queue, a thread opened. */
-const inboxMoves = ({ threads, setThreads, listedHere, setActiveBucket, setActiveView, setActiveThreadId, setPhoneThreadOpen, setKeepOpenId, stale, setStale, ppFlash, goTo }) => {
+const inboxMoves = ({ threads, setThreads, listedHere, setActiveBucket, setActiveView, setActiveThreadId, setPhoneThreadOpen, setKeepOpenId, stale, setStale, ppFlash, openThread }) => {
   // Real-thread verbs commit through the API and the re-read repaints: no local mutation, no IX_STORE -- the server
   // owns state. They are the one thread's (threadVerbs), so a verb means the same here and in Conversations.
   const { verb: realVerb, hold: realHold } = threadVerbs(ppFlash);
@@ -306,7 +330,7 @@ const inboxMoves = ({ threads, setThreads, listedHere, setActiveBucket, setActiv
     if (t && !listedHere(t)) { setActiveBucket(ixBucketOf(t)); setActiveView(null); window.ixKeepPlace({ bucket: ixBucketOf(t) }); }
     setActiveThreadId(id); setPhoneThreadOpen(true); setKeepOpenId(null); mutate(id, (x) => (x.unread && !x.real ? { ...x, unread: false } : x));
     // The thread open is the address's: a refresh opens it again and the crumbs name it.
-    goTo(id);
+    openThread(id);
   };
   const markUnread = (id) => { mutate(id, (x) => ({ ...x, unread: true })); ppFlash({ msg: <><b>Marked unread</b> — bumped to the top of your list</> }); };
   return { realVerb, realHold, reconcile, flash, nextNeedsAfter, mutate, selectThread, markUnread };
@@ -818,7 +842,7 @@ const inboxPage = (ix, { density, showAgentRail, onOpenClient }) => {
   const {
     threads, visible, bucketsWithCounts, viewsWithCounts, activeView, setActiveView, setSelected, activeBucket, handleBucket,
     activeThread, selectThread, selected, toggleSelect, bulkApproveSafe, bulkSnooze, bulkArchive, bulkBusy, stake,
-    vetoRemaining, requestedMissing, setActiveThreadId, phoneThreadOpen, setPhoneThreadOpen, ppFlash, stale, reconcile,
+    vetoRemaining, requestedMissing, setActiveThreadId, phoneThreadOpen, setPhoneThreadOpen, closeThread, ppFlash, stale, reconcile,
     setStale, decide, verdictDecide, vetoAct, snooze, sendReply, takeOver, wake, handBack, markUnread, archiveThread,
     planParams, setPlanParams, VW, setVetoTick, toastNode,
   } = ix;
@@ -870,7 +894,7 @@ const inboxPage = (ix, { density, showAgentRail, onOpenClient }) => {
         <ThreadPane
           key={activeThread?.id}
           thread={activeThread}
-          onBack={() => setPhoneThreadOpen(false)}
+          onBack={closeThread}
           onOpenClient={onOpenClient}
           flash={ppFlash}
           mock={{

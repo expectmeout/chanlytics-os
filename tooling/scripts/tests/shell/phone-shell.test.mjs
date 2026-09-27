@@ -21,14 +21,7 @@ function pngSize(rel) {
 }
 
 test("the Inbox and Conversations take turns on a phone, with a Back that only a phone sees", () => {
-  const inbox = readRaw("apps/dashboard/src/legacy/pages/inbox.jsx");
-  assert.ok(
-    inbox.includes("const [phoneThreadOpen, setPhoneThreadOpen] = React.useState(!!initialThreadId);"),
-    "a deep link opens onto the thread",
-  );
-  assert.ok(inbox.includes("setActiveThreadId(id); setPhoneThreadOpen(true);"), "a tap opens it");
-  assert.ok(inbox.includes('${phoneThreadOpen ? "phone-thread" : ""}'));
-  assert.ok(inbox.includes("onBack={() => setPhoneThreadOpen(false)}"));
+  // The Inbox's turns and its Back run in inbox-place.test.mjs, on the page itself.
   const thread = readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
   assert.ok(thread.includes('data-testid="ix-back"'));
   assert.ok(thread.includes("{onBack && ("), "no Back on desktop's markup path when nobody asked for one");

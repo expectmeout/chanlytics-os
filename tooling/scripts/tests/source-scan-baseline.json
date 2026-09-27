@@ -82,7 +82,7 @@
     "shared/phone.test.mjs": 4,
     "shell/chrome.test.mjs": 14,
     "shell/layout-measure.test.mjs": 9,
-    "shell/phone-shell.test.mjs": 12,
+    "shell/phone-shell.test.mjs": 11,
     "shell/polish.test.mjs": 12,
     "shell/surfaces/surface-seam.test.mjs": 6,
     "shell/surfaces/truth-pass.test.mjs": 6,

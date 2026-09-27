@@ -6,6 +6,8 @@
  * ("ChanlyticsApp/1.2.0 (ios)"); the two are held to each other by test/site.test.mjs. A workspace page's address is
  * legacy-bridge/workspace.ts's: /w/<slug>, with the hash route after it.
  */
+import { APP_ROUTE_RE } from "@chanlytics/contracts";
+
 /** The product's one address, as the e2e suite and the env examples name it; an EAS environment may point elsewhere. */
 export const DEFAULT_SITE_ORIGIN = "https://app.chanlytics.com";
 export const SITE_ORIGIN = (process.env.EXPO_PUBLIC_SITE_ORIGIN || DEFAULT_SITE_ORIGIN).replace(/\/+$/, "");
@@ -44,4 +46,38 @@ export function isSignedOutUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * A link into the app, read back into the workspace and the page route it names: a universal link or an app link the
+ * site claims (`https://app.chanlytics.com/w/<slug>#/<route>`, what hrefFor builds), or the scheme's own
+ * (`chanlytics:///w/<slug>`). The app's routes are its tabs, not the site's paths, so src/app/+native-intent.tsx turns
+ * a link into the tab its route belongs to and leaves the route for that tab's page. Anything else is not a link into
+ * a workspace.
+ */
+interface WorkspaceLink {
+  slug: string;
+  /** The page's hash route, `today` when the link names none. */
+  route: string;
+}
+
+export function workspaceLinkOf(path: string): WorkspaceLink | null {
+  let url: URL;
+  try {
+    url = new URL(path, "https://link.invalid");
+  } catch {
+    return null;
+  }
+  const m = /^\/w\/([^/?#]+)/.exec(url.pathname);
+  if (!m) return null;
+  let slug: string;
+  try {
+    slug = decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+  if (!slug) return null;
+  const hash = url.hash.replace(/^#\/?/, "");
+  const route = hash && APP_ROUTE_RE.test(hash) ? hash : "today";
+  return { slug, route };
 }

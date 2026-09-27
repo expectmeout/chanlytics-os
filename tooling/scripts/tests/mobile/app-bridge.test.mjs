@@ -42,21 +42,8 @@ test("a page message is one of four shapes; anything else is null", () => {
   };
   assert.deepEqual(parsePageMessage(JSON.stringify({ t: "today", snapshot: snap })), { t: "today", snapshot: snap });
   assert.equal(parsePageMessage(JSON.stringify({ t: "today", snapshot: { headline: "h" } })), null);
-  assert.deepEqual(parsePageMessage('{"t":"token","access":" tok ","expires":1800000000}'), {
-    t: "token",
-    access: "tok",
-    expires: 1800000000,
-  });
-  assert.deepEqual(parsePageMessage('{"t":"token","access":null,"expires":0}'), {
-    t: "token",
-    access: null,
-    expires: 0,
-  });
-  assert.deepEqual(parsePageMessage('{"t":"token","access":"","expires":"x"}'), {
-    t: "token",
-    access: null,
-    expires: 0,
-  });
+  // The native thread's token went with it: an old page's answer is no shape.
+  assert.equal(parsePageMessage('{"t":"token","access":"tok","expires":1800000000}'), null);
   assert.deepEqual(parsePageMessage('{"t":"calls","live":0}'), { t: "calls", live: 0 });
   assert.deepEqual(parsePageMessage('{"t":"calls","live":2}'), { t: "calls", live: 2 });
   assert.equal(parsePageMessage('{"t":"calls","live":-1}'), null);
@@ -67,7 +54,9 @@ test("a shell message is navigate, menu or top; a route is a hash route's name, 
   assert.deepEqual(parseShellMessage({ t: "navigate", route: "clients" }), { t: "navigate", route: "clients" });
   assert.deepEqual(parseShellMessage({ t: "menu" }), { t: "menu" });
   assert.deepEqual(parseShellMessage({ t: "top" }), { t: "top" });
-  assert.deepEqual(parseShellMessage({ t: "token" }), { t: "token" });
+  // The native thread's asks went with it: an old app's are nothing the page answers.
+  assert.equal(parseShellMessage({ t: "token" }), null);
+  assert.equal(parseShellMessage({ t: "back" }), null);
   assert.equal(parseShellMessage({ t: "navigate", route: "https://example.com" }), null);
   assert.equal(parseShellMessage({ t: "navigate", route: "" }), null);
   assert.equal(parseShellMessage({ t: "reload" }), null);

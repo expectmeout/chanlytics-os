@@ -18183,11 +18183,6 @@ var PAGE_MESSAGES = {
     return snapshot ? { t: "today", snapshot } : null;
   },
   calls: (v) => isCount(v.live) ? { t: "calls", live: v.live } : null,
-  token: (v) => {
-    const access = typeof v.access === "string" && v.access.trim() ? v.access.trim() : null;
-    const expires = typeof v.expires === "number" && Number.isFinite(v.expires) && v.expires >= 0 ? v.expires : 0;
-    return { t: "token", access, expires };
-  },
   theme: (v) => v.theme === "light" || v.theme === "dark" ? { t: "theme", theme: v.theme } : null
 };
 function parsePageMessage(raw) {
@@ -18211,8 +18206,6 @@ function parseShellMessage(v) {
       return { t: "menu" };
     case "top":
       return { t: "top" };
-    case "token":
-      return { t: "token" };
     case "device": {
       const tok = token(v.token);
       const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;
@@ -18249,38 +18242,6 @@ function callActivityPropsOf(call) {
     line: (call.to_e164 ?? "").trim() || "your line",
     startedAt: call.started_at ?? (/* @__PURE__ */ new Date(0)).toISOString()
   };
-}
-
-// src/mobile/native-thread.ts
-var NATIVE_THREAD_WORDS = {
-  optedOut: "This person asked not to be messaged.",
-  windowClosed: "The WhatsApp window has closed. Send an approved template from the web to reopen it.",
-  archived: "This conversation is archived. Reopen it from the web to reply."
-};
-function nativeThreadVM(dto, tz, now = /* @__PURE__ */ new Date()) {
-  const vm = toConversationVM(dto, tz, now);
-  const channel = threadChannelOf(dto.messages);
-  const where = channel === "email" ? (dto.contact.email ?? "").trim() : formatPhoneDisplay(dto.contact.phone_e164) || (dto.contact.phone_e164 ?? "").trim();
-  const subtitle = [threadChannelWords(dto.messages), where].filter(Boolean).join(" \xB7 ");
-  const composer = composerOf(dto, channel, now);
-  const first = dto.messages[0];
-  return {
-    id: dto.id,
-    title: vm.who,
-    subtitle,
-    bubbles: vm.messages,
-    composer,
-    oldestAt: first ? first.created_at : null
-  };
-}
-function composerOf(dto, channel, now) {
-  if (dto.contact.dnc || dto.contact.consent === "opted_out")
-    return { kind: "closed", words: NATIVE_THREAD_WORDS.optedOut };
-  if (dto.state === "archived") return { kind: "closed", words: NATIVE_THREAD_WORDS.archived };
-  const wire = channel === "phone" ? "whatsapp" : channel;
-  const window = replyWindow(wire, dto.last_wa_inbound_at, now);
-  if (!window.open) return { kind: "closed", words: NATIVE_THREAD_WORDS.windowClosed };
-  return { kind: "text", placeholder: wire === "email" ? "Write an email\u2026" : "Write a message\u2026" };
 }
 
 // src/notes/note-suggest.ts
@@ -26598,7 +26559,6 @@ export {
   MOCK_TEXTING_SENTENCE,
   MODE_WORDS,
   MOMENT_TRIGGERS,
-  NATIVE_THREAD_WORDS,
   NEEDS_KEY_PREFIX,
   NEEDS_TITLE,
   NEW_WINDOW_DAYS,
@@ -27376,7 +27336,6 @@ export {
   monthLabelOf,
   monthSpan,
   nameKnownCustomers,
-  nativeThreadVM,
   navigateLabel,
   needsAnswer,
   needsConsultation,

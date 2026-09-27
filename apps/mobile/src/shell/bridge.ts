@@ -10,9 +10,7 @@ export type Effect = "nothing" | "sign-in" | "badge" | "today" | "calls-over" | 
 
 /**
  * The state once the person is out, whichever way the shell learns it (the page's message, or the signed-out address
- * a WebView lands on): nothing of theirs is kept for the next person on this phone. The access token above all, since
- * the site verifies it until it expires: it used to survive here, and the next person's native replies went out as
- * the one who had left.
+ * a WebView lands on): nothing of theirs is kept for the next person on this phone.
  */
 export function signedOut(state: ShellState): ShellState {
   return {
@@ -23,7 +21,6 @@ export function signedOut(state: ShellState): ShellState {
     badge: 0,
     registered: null,
     refused: null,
-    access: null,
     pendingRoute: null,
   };
 }
@@ -62,11 +59,6 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
       return { state, effect: "today" };
     case "route":
       return { state, effect: "nothing" };
-    case "token":
-      return {
-        state: { ...state, access: m.access ? { token: m.access, expires: m.expires } : null },
-        effect: "nothing",
-      };
     case "theme":
       return { state: { ...state, theme: m.theme }, effect: "theme" };
   }

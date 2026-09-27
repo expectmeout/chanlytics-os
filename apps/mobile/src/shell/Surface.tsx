@@ -15,14 +15,14 @@ import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTyp
 import * as Application from "expo-application";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused, useRouter } from "expo-router";
+import { useIsFocused } from "expo-router";
 import { parsePageMessage, THEME_COLORS, type PageMessage, type ShellMessage } from "@chanlytics/contracts";
 import { askPage, bottomInset, insetScript, onPageMessage, registrationKey, shouldRegister, signedOut } from "./bridge";
 import { getState, registerReloader, setState, useShell, type Tab } from "./state";
 import { setBadge, tabOf } from "./notifications";
 import { updateTodayWidget } from "./widget";
 import { endCallActivities } from "./live-activity";
-import { threadIdOf, tokenArrived } from "./api";
+import { front } from "./front";
 import { Offline } from "./Offline";
 import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
 
@@ -36,9 +36,12 @@ export interface SurfaceHandle {
 interface Props {
   /** The hash route this page shows; "login" is the sign-in page. */
   route: string;
-  /** The tab this page is in, so a tapped notification's route knows whether it is this page's to open. */
+  /**
+   * The tab this page is in: a tapped notification's route knows whether it is this page's to open, and whenever the
+   * tab is in front with its page ready, this page is the one a tab press reaches (front.ts).
+   */
   tab?: Tab;
-  /** Called once the page reports its route, each time this tab comes to the front. */
+  /** Called once, the first time the page reports its route. */
   onReady?: (h: SurfaceHandle) => void;
   /** A form body to POST to the site's native door instead of loading the route: a native token becoming the cookie. */
   post?: string;
@@ -47,7 +50,6 @@ interface Props {
 export function Surface({ route, tab, onReady, post }: Props) {
   const ref = useRef<WebView>(null);
   const focused = useIsFocused();
-  const router = useRouter();
   // Created the first time this tab is in front, kept afterwards: a latch set during render, not in an effect.
   const [mounted, setMounted] = useState(focused);
   if (focused && !mounted) setMounted(true);
@@ -85,19 +87,14 @@ export function Surface({ route, tab, onReady, post }: Props) {
     (e: WebViewMessageEvent) => {
       const m = actOnPageMessage(e.nativeEvent.data);
       if (m?.t === "route") {
+        if (!ready) onReady?.(handle);
         setReady(true);
-        if (focused) onReady?.(handle);
-        // A thread opened on the Inbox page is drawn natively over it (PR 8): the page goes back to its list, so the
-        // list is what stands under the thread and what the person returns to.
-        const thread = tab === "inbox" ? threadIdOf(m.route) : null;
-        if (thread) {
-          handle.ask({ t: "navigate", route: "inbox" });
-          router.push({ pathname: "/(tabs)/inbox/[id]", params: { id: thread } });
-        }
       }
     },
-    [focused, handle, onReady, router, tab],
+    [handle, onReady, ready],
   );
+
+  useFront(tab, ready && focused, handle);
 
   // The phone registers through the page in front: once per token pair per person (bridge.ts shouldRegister).
   useEffect(() => {
@@ -122,7 +119,9 @@ export function Surface({ route, tab, onReady, post }: Props) {
 
   // A signed-out address is the person gone: nothing of theirs stays in the shell, the icon wears no number, and a
   // call activity of theirs ends. The page itself has already forgotten the phone (shell.ts signOut).
+  const canGoBack = useRef(false);
   const onNavigation = useCallback((nav: WebViewNavigation) => {
+    canGoBack.current = nav.canGoBack;
     if (nav.loading || !isSignedOutUrl(nav.url) || getState().session === "out") return;
     setState(signedOut(getState()));
     void setBadge(0);
@@ -136,7 +135,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
     return false;
   }, []);
 
-  useAndroidBack(ref, focused);
+  useAndroidBack(ref, canGoBack, focused);
 
   // The page's paper, behind the WebView (the library's own is white) and in the strip under the status bar: the
   // shell pads the top itself, on both platforms, since the page's header draws to the top of its viewport.
@@ -177,8 +176,8 @@ export function Surface({ route, tab, onReady, post }: Props) {
 
 /**
  * What a page's message does beyond the one page that heard it: the shell's state moves (bridge.ts), and the icon,
- * the call activity, the theme, the widget and a waiting token call follow. Returns the message, parsed, for what
- * is the page's own (its route).
+ * the call activity, the theme and the widget follow. Returns the message, parsed, for what is the page's own (its
+ * route).
  */
 function actOnPageMessage(raw: string): PageMessage | null {
   const { state, effect } = onPageMessage(getState(), raw);
@@ -189,20 +188,39 @@ function actOnPageMessage(raw: string): PageMessage | null {
   if (effect === "theme") Appearance.setColorScheme(state.theme);
   const m = parsePageMessage(raw);
   if (m?.t === "today") updateTodayWidget(m.snapshot);
-  if (m?.t === "token") tokenArrived(m.access ? { token: m.access, expires: m.expires } : null);
   return m;
 }
 
-/** Android's hardware back walks the page's own history first, while its tab is in front. */
-function useAndroidBack(ref: RefObject<WebView | null>, focused: boolean): void {
+/**
+ * Android's Back walks the page's own history first, while its tab is in front; at the history's start, the system's
+ * own Back (the last tab, then the app left). It used to answer "handled" whatever the page's history held, so the
+ * app could not be left.
+ */
+function useAndroidBack(ref: RefObject<WebView | null>, canGoBack: RefObject<boolean>, focused: boolean): void {
   useEffect(() => {
     if (Platform.OS !== "android" || !focused) return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!canGoBack.current) return false;
       ref.current?.goBack();
       return true;
     });
     return () => sub.remove();
-  }, [focused, ref]);
+  }, [focused, ref, canGoBack]);
+}
+
+/**
+ * The page a tab press reaches (front.ts): this one, whenever its tab is in front and its page is ready, forgotten as
+ * it unmounts. It was set only as the page reported a route, and a tab already open reports none on its return, so
+ * the record went stale after the first switch and re-tap-to-top stopped working.
+ */
+function useFront(tab: Tab | undefined, inFront: boolean, handle: SurfaceHandle): void {
+  useEffect(() => {
+    if (tab && inFront) front.set(tab, handle);
+  }, [tab, inFront, handle]);
+  useEffect(() => {
+    if (!tab) return;
+    return () => front.forget(tab);
+  }, [tab]);
 }
 
 const styles = StyleSheet.create({

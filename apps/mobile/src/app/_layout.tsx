@@ -106,16 +106,21 @@ export default function RootLayout() {
     return () => sub.remove();
   }, []);
 
-  // A sign-out on the web is one on the phone too: Google's SDK forgets the account it chose.
+  // A sign-out on the web is one on the phone too: Google's SDK forgets the account it chose. A route that waited
+  // through the sign-in (a tapped notification, a link) opens as the person comes in.
   useEffect(() => {
     if (session === "out") void signOutNatively();
-  }, [session]);
+    const waiting = getState().pendingRoute;
+    if (session === "in" && waiting) router.navigate(`/(tabs)/${tabOf(waiting)}` as never);
+  }, [session, router]);
 
-  // The phone is told (shell/notifications.ts): the token once, every rotation, and every tap into its tab.
+  // The phone is told (shell/notifications.ts): the token once, every rotation, and every tap into its tab. While
+  // nobody is signed in there are no tabs to navigate (the sign-in screen stands in their place): the route waits,
+  // and the effect below opens it as the person comes in.
   useEffect(() => {
     const open = (route: string) => {
       setState({ pendingRoute: route });
-      router.navigate(`/(tabs)/${tabOf(route)}` as never);
+      if (getState().session !== "out") router.navigate(`/(tabs)/${tabOf(route)}` as never);
     };
     void askForToken().then((token) => {
       if (token) setState({ token });
