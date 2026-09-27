@@ -26,6 +26,7 @@ import * as Application from "expo-application";
 import { THEME_COLORS } from "@chanlytics/contracts";
 import { SITE_ORIGIN } from "@/site";
 import { Observe, ObserveRoot } from "expo-observe";
+import { front } from "@/shell/front";
 
 // The workspace and the theme the last launch kept, before any page is made: the first page opens at its workspace's
 // own address, in the member's own theme. Before any page has said one, the theme is the web's own default.
@@ -41,9 +42,12 @@ async function lookAtTheSite(): Promise<void> {
     if (min && isOlderThan(Application.nativeApplicationVersion ?? "0.0.0", min)) setState({ tooOld: true });
     const { siteSha, lastReloadAt } = getState();
     const now = Date.now();
+    // A new build of the site: every page out of sight is reloaded onto it. The one in front is not, since a reload there
+    // took the person's place and whatever they were typing; the site marks that page stale itself and offers the
+    // reload (LegacyApp's version check), and the next cold start loads the new build.
     if (decideReload({ lastSha: siteSha, sha, lastReloadAt, now }) === "reload") {
       setState({ siteSha: sha, lastReloadAt: now });
-      reloadEveryPage();
+      reloadEveryPage(front.page()?.reload);
     } else if (sha && !siteSha) setState({ siteSha: sha });
   } catch {
     /* no network, or the site is mid-deploy: the next foreground looks again */
@@ -108,9 +112,6 @@ function RootLayout() {
       setState({ pendingRoute: route, pendingWorkspace: workspace });
       if (getState().session !== "out") router.navigate(`/(tabs)/${tabOf(route)}` as never);
     };
-    void askForToken().then((token) => {
-      if (token) setState({ token });
-    });
     void coldStartTap().then((tap) => {
       if (tap) open(tap);
     });
@@ -122,6 +123,15 @@ function RootLayout() {
       offActivity();
     };
   }, [router]);
+
+  // The notification prompt comes once someone is signed in, not over the sign-in screen at first launch: a prompt
+  // before the person knows what the app will tell them is the one most often refused, and a refusal is for good.
+  useEffect(() => {
+    if (session !== "in") return;
+    void askForToken().then((token) => {
+      if (token) setState({ token });
+    });
+  }, [session]);
 
   const lockedNow = useRef(false);
   useEffect(() => {

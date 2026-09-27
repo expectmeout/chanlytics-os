@@ -15,7 +15,7 @@ import {
   registrationKey,
   signedOut,
 } from "../src/shell/bridge.ts";
-import { INITIAL, recalled } from "../src/shell/state.ts";
+import { INITIAL, recalled, registerReloader, reloadEveryPage } from "../src/shell/state.ts";
 
 test("a page's messages move the state; 'out' is the signed-out state the root layout draws the sign-in screen for", () => {
   let s = INITIAL;
@@ -161,4 +161,16 @@ test("a launch opens in what the last one kept: a workspace that reads as one, a
   const out = signedOut({ ...INITIAL, ...recalled("acme-plumbing", "light"), session: "in" });
   assert.equal(out.slug, null);
   assert.equal(out.theme, "light");
+});
+
+test("after a deploy every page out of sight reloads, and the page in front is left to the site's own notice", () => {
+  const reloaded = [];
+  const today = () => reloaded.push("today");
+  const inbox = () => reloaded.push("inbox");
+  const offs = [registerReloader(today), registerReloader(inbox)];
+  reloadEveryPage(today);
+  assert.deepEqual(reloaded, ["inbox"], "REGRESSION: the page in front reloaded under the person's typing");
+  reloadEveryPage();
+  assert.deepEqual(reloaded, ["inbox", "today", "inbox"], "a retry still reloads every page");
+  offs.forEach((off) => off());
 });

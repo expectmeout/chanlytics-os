@@ -21,4 +21,8 @@ export const front = {
   ask(m: ShellMessage) {
     handles.get(front.tab)?.ask(m);
   },
+  /** The page in front, when its tab has one ready. */
+  page(): SurfaceHandle | undefined {
+    return handles.get(front.tab);
+  },
 };

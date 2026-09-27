@@ -14,6 +14,11 @@
  *
  * And the tree's own rule: a domain is a folder of two modules or more, and the root holds the plumbing only.
  * A plain invariant, so no baseline (docs/debt.md names the numbers; this holds a shape).
+ *
+ * The same rule for every package, at the end: a barrel (`packages/<p>/src/index.ts`, and the `index.ts` of a folder
+ * under it) re-exports by name, so a new export is a line in a review and a name a module stops exporting is a build
+ * error at the barrel, not a quiet change to the package's surface. The one `export *` a barrel may write is a
+ * package root's re-export of a domain folder whose own barrel names its exports (contracts' and core's roots).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -139,4 +144,50 @@ test("a domain is a folder of two modules or more, and the root holds the plumbi
   assert.deepEqual(stray, [], `a module lives in its domain's folder; the root holds ${PLUMBING} only`);
   const thin = [...perFolder].filter(([, n]) => n < 2).map(([d, n]) => `${d} (${n})`);
   assert.deepEqual(thin, [], "a folder of one module is not a domain: put the module with its neighbours");
+});
+
+/* ---- Every package's barrels ---- */
+
+const packageFiles = repoFiles(["packages"], { drop: /(^|\/)(dist|node_modules)\// });
+const inPackages = new Set(packageFiles);
+const isPackageRoot = (f) => /^packages\/[^/]+\/src\/index\.ts$/.test(f);
+const packageBarrels = packageFiles.filter((f) => /^packages\/[^/]+\/src\/(.+\/)?index\.ts$/.test(f));
+const packageNames = packageBarrels.filter(isPackageRoot).map((f) => f.split("/")[1]);
+
+/** Whether `spec`, re-exported by the barrel `from`, is a folder beside it with a barrel of its own. */
+const isDomainFolder = (from, spec) => {
+  const m = /^\.\/([a-z0-9-]+)$/.exec(spec);
+  return Boolean(m && inPackages.has(`${path.posix.dirname(from)}/${m[1]}/index.ts`));
+};
+
+test("the measure sees every package's barrels", () => {
+  for (const p of ["channels", "contracts", "core", "db", "jobs"])
+    assert.ok(packageNames.includes(p), `${p}'s src/index.ts was found`);
+  assert.ok(
+    packageBarrels.length > packageNames.length,
+    `the domain barrels were found too (${packageBarrels.length})`,
+  );
+});
+
+test("a package barrel names what it re-exports; its one export * is a root's re-export of a domain folder", () => {
+  const bad = [];
+  for (const f of packageBarrels) {
+    for (const s of parse(f).statements) {
+      if (!ts.isExportDeclaration(s) || !s.moduleSpecifier) continue;
+      const spec = s.moduleSpecifier.text;
+      if (!s.exportClause) {
+        if (!(isPackageRoot(f) && isDomainFolder(f, spec))) bad.push(`${f}: export * from "${spec}"`);
+      } else if (ts.isNamespaceExport(s.exportClause)) {
+        bad.push(`${f}: export * as ${s.exportClause.name.text} from "${spec}" (a namespace hides its names too)`);
+      } else if (s.exportClause.elements.length === 0) {
+        bad.push(`${f}: an export {} from "${spec}" that names nothing`);
+      }
+    }
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    'name each export (export { a } from "./x", export type { T } from "./x"): an export * adds whatever the module ' +
+      "exports next to the package's surface, unseen. A root may re-export a domain folder whose own index names its exports.",
+  );
 });
