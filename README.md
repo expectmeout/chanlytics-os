@@ -119,8 +119,9 @@ a customer is new. The edge asks only for `SUPABASE_URL` and
 
 **Row Level Security is the floor, not the door.** RLS stops cross-tenant
 access. _Which member may do a thing_ is decided in the route with
-`requireRole` / `requireOperator`. Both are needed: the job that delivers a
-message runs as service role, so RLS is not even in that path.
+`requireRole`, which `route()` calls in the workspace of the row a route acts
+on. Both are needed: the job that delivers a message runs as service role, so
+RLS is not even in that path.
 
 **A forbidden `UPDATE` does not raise.** Postgres RLS makes it match zero rows
 and return success — only `INSERT` raises. Any permission-sensitive update must

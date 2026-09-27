@@ -222,7 +222,7 @@ test("the receptionist is made once, in the lib both line paths share: the shell
   assert.ok(!/key_[0-9a-f]{16}/.test(agent), "no literal provider key");
 });
 
-test("the laptop script is retired: the key lives on the edge and nowhere else", () => {
+test("the laptop script is retired: the key lives on the edge and nowhere else", async () => {
   assert.ok(
     !fs.existsSync(path.join(ROOT, "tooling/scripts/setup_voice.py")),
     "the Python provisioning script is gone",
@@ -238,6 +238,9 @@ test("the laptop script is retired: the key lives on the edge and nowhere else",
     adapter.includes('"/create-phone-number"') &&
       adapter.includes("/update-phone-number/${encodeURIComponent(number)}"),
   );
-  assert.ok(readCode("packages/channels/src/index.ts").includes('export * from "./voice-provision";'));
+  // The package hands the edge every value the provisioning module exports: its barrel names each one.
+  const channels = await import("@chanlytics/channels");
+  const provision = await import(new URL("../../../../packages/channels/src/voice-provision.ts", import.meta.url).href);
+  for (const name of Object.keys(provision)) assert.ok(name in channels, `voice-provision.ts: ${name}`);
   // The diagnostic saying which model each line runs is run in diag-door.test.mjs.
 });
