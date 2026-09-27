@@ -3,16 +3,19 @@ import { z } from "zod";
 import {
   ASK_CAPS,
   ESCALATION_REASON_LABELS,
+  PERSON_CHANNEL_WORDS,
   clockStamp,
   messageText,
   noteRows,
   replyWhy,
   toInboxThreadVM,
+  type PersonChannel,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { conversation } from "../../../readers/conversation";
 import { escalations as escalationsReader } from "../../../readers/escalations";
 import { inbox } from "../../../readers/inbox";
+import { messageSearch } from "../../../readers/messages";
 import { threadState } from "../../thread-state";
 import { UUID, defineActions, noteRow, readAction, str, unlessNotFound, type ToolContext } from "../context";
 
@@ -147,7 +150,62 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
   };
 }
 
-/** The Inbox (D11): threads by state (list, once list_threads) and one whole conversation (thread, once get_thread). */
+/** The most hits a search returns. */
+const SEARCH_HITS = 20;
+
+/** A message's wire in the pages' words (contracts PERSON_CHANNEL_WORDS: a call's note is Phone); none it does not name. */
+const wireOf = (channel: string | null): string | null =>
+  channel !== null && Object.hasOwn(PERSON_CHANNEL_WORDS, channel)
+    ? PERSON_CHANNEL_WORDS[channel as PersonChannel]
+    : null;
+
+/**
+ * Who wrote a message the search found: the customer, or the business -- the receptionist or the team, whom the search
+ * does not tell apart (it answers the direction, not the sender). A call's note in its thread is the Phone wire's only
+ * message, recorded as inbound whichever way the call went: it is the call's note, never the customer's words.
+ */
+const writtenBy = (h: { channel: string | null; direction: string }): string =>
+  h.channel === "voice" ? "call note" : h.direction === "inbound" ? "customer" : "business";
+
+async function searchSaid(t: ToolContext, input: { words: string; days?: number }): Promise<unknown> {
+  if (!input.words.trim()) return { error: "words must say what to look for" };
+  // The reader trims and cuts the words, bounds the window from the turn's clock and holds the cap (readers/messages.ts).
+  const { words, days, hits } = (
+    await load(t.rc, messageSearch, { words: input.words, days: input.days ?? null, limit: SEARCH_HITS })
+  ).data;
+  // Each hit's row as the reader gave it: a message's thread, or the call.
+  noteRows(
+    t.read,
+    hits.flatMap((h) => (h.ref ? [h.ref] : [])),
+  );
+  return {
+    words,
+    days,
+    shown: hits.length,
+    more_available: hits.length >= SEARCH_HITS,
+    hits: hits.map((h) => ({
+      kind: h.kind,
+      who: h.who,
+      // By the business's clock, as inbox.thread says a message's time.
+      at: clockStamp(Date.parse(h.at), t.timezone, t.now.getTime()),
+      ...(h.kind === "message"
+        ? { channel: wireOf(h.channel), from: writtenBy(h), conversation_id: h.conversationId }
+        : { called_by: h.direction === "inbound" ? "customer" : "business", call_id: h.id }),
+      snippet: h.snippet,
+      route: h.ref?.route ?? null,
+    })),
+    ...(hits.length
+      ? {}
+      : {
+          note: `Nothing in the last ${days === 1 ? "day" : `${days} days`} holds these words. A word is found only as it was written: park does not find parking, so try the other form, or another word.`,
+        }),
+  };
+}
+
+/**
+ * The Inbox (D11): threads by state (list, once list_threads), one whole conversation (thread, once get_thread), and
+ * what was said, found (search, the Phase 4 plan's D1: messages and call transcripts, readers/messages.ts).
+ */
 export const inboxTool = defineActions({
   name: "inbox",
   description:
@@ -169,6 +227,13 @@ export const inboxTool = defineActions({
       words:
         "Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did.",
       run: getThread,
+    }),
+    search: readAction({
+      input: z.object({ words: z.string(), days: z.number().optional() }),
+      examples: [{ words: "parking", days: 30 }],
+      label: "Searching what was said",
+      words: `Action search takes words, what to look for, and an optional days, and finds them in what was said: every message of the workspace (what customers wrote, what the business wrote to them, and a call's note in its thread) and every call's transcript, newest first, none older than days back from now (30 unless asked, at most 90). Call it for a word, the name of a thing or a phrase, such as did anyone mention parking this month; call action list for threads by their state, and action thread for one whole conversation, which a message hit's conversation_id opens (calls with action get opens a call hit's call_id). words are the customer's own words as they wrote or said them, in English or Spanish, never stemmed, so park does not find parking: when nothing is found, try the other form; "a phrase in quotes" finds the words together, -word leaves out what holds it, or finds either side, and words that only leave things out find nothing. It returns at most ${SEARCH_HITS} hits, with shown and more_available (true when the ${SEARCH_HITS} were reached), each a message or a call with who it is with, when, the words around the match and the id that opens it; a message says its wire and who wrote it (customer, business, or call note), a call who placed it (called_by). A person's notes are not searched: people with action get reads them.`,
+      run: searchSaid,
     }),
   },
 });

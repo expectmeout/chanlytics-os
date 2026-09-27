@@ -117,13 +117,13 @@
     },
     {
       "name": "inbox",
-      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
+      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Action search takes words, what to look for, and an optional days, and finds them in what was said: every message of the workspace (what customers wrote, what the business wrote to them, and a call's note in its thread) and every call's transcript, newest first, none older than days back from now (30 unless asked, at most 90). Call it for a word, the name of a thing or a phrase, such as did anyone mention parking this month; call action list for threads by their state, and action thread for one whole conversation, which a message hit's conversation_id opens (calls with action get opens a call hit's call_id). words are the customer's own words as they wrote or said them, in English or Spanish, never stemmed, so park does not find parking: when nothing is found, try the other form; \"a phrase in quotes\" finds the words together, -word leaves out what holds it, or finds either side, and words that only leave things out find nothing. It returns at most 20 hits, with shown and more_available (true when the 20 were reached), each a message or a call with who it is with, when, the words around the match and the id that opens it; a message says its wire and who wrote it (customer, business, or call note), a call who placed it (called_by). A person's notes are not searched: people with action get reads them. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["list", "thread"]
+            "enum": ["list", "thread", "search"]
           },
           "filter": {
             "type": "string",
@@ -134,6 +134,12 @@
           },
           "more": {
             "type": "boolean"
+          },
+          "words": {
+            "type": "string"
+          },
+          "days": {
+            "type": "number"
           }
         },
         "required": ["action"],
@@ -147,6 +153,11 @@
         {
           "action": "thread",
           "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f"
+        },
+        {
+          "action": "search",
+          "words": "parking",
+          "days": 30
         }
       ]
     },
@@ -432,13 +443,13 @@
     },
     {
       "name": "inbox",
-      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
+      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Action search takes words, what to look for, and an optional days, and finds them in what was said: every message of the workspace (what customers wrote, what the business wrote to them, and a call's note in its thread) and every call's transcript, newest first, none older than days back from now (30 unless asked, at most 90). Call it for a word, the name of a thing or a phrase, such as did anyone mention parking this month; call action list for threads by their state, and action thread for one whole conversation, which a message hit's conversation_id opens (calls with action get opens a call hit's call_id). words are the customer's own words as they wrote or said them, in English or Spanish, never stemmed, so park does not find parking: when nothing is found, try the other form; \"a phrase in quotes\" finds the words together, -word leaves out what holds it, or finds either side, and words that only leave things out find nothing. It returns at most 20 hits, with shown and more_available (true when the 20 were reached), each a message or a call with who it is with, when, the words around the match and the id that opens it; a message says its wire and who wrote it (customer, business, or call note), a call who placed it (called_by). A person's notes are not searched: people with action get reads them. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["list", "thread"]
+            "enum": ["list", "thread", "search"]
           },
           "filter": {
             "type": "string",
@@ -449,6 +460,12 @@
           },
           "more": {
             "type": "boolean"
+          },
+          "words": {
+            "type": "string"
+          },
+          "days": {
+            "type": "number"
           }
         },
         "required": ["action"],
@@ -462,6 +479,11 @@
         {
           "action": "thread",
           "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f"
+        },
+        {
+          "action": "search",
+          "words": "parking",
+          "days": 30
         }
       ]
     },
@@ -1082,13 +1104,13 @@
     },
     {
       "name": "inbox",
-      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
+      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Action search takes words, what to look for, and an optional days, and finds them in what was said: every message of the workspace (what customers wrote, what the business wrote to them, and a call's note in its thread) and every call's transcript, newest first, none older than days back from now (30 unless asked, at most 90). Call it for a word, the name of a thing or a phrase, such as did anyone mention parking this month; call action list for threads by their state, and action thread for one whole conversation, which a message hit's conversation_id opens (calls with action get opens a call hit's call_id). words are the customer's own words as they wrote or said them, in English or Spanish, never stemmed, so park does not find parking: when nothing is found, try the other form; \"a phrase in quotes\" finds the words together, -word leaves out what holds it, or finds either side, and words that only leave things out find nothing. It returns at most 20 hits, with shown and more_available (true when the 20 were reached), each a message or a call with who it is with, when, the words around the match and the id that opens it; a message says its wire and who wrote it (customer, business, or call note), a call who placed it (called_by). A person's notes are not searched: people with action get reads them. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["list", "thread"]
+            "enum": ["list", "thread", "search"]
           },
           "filter": {
             "type": "string",
@@ -1099,6 +1121,12 @@
           },
           "more": {
             "type": "boolean"
+          },
+          "words": {
+            "type": "string"
+          },
+          "days": {
+            "type": "number"
           }
         },
         "required": ["action"],
@@ -1112,6 +1140,11 @@
         {
           "action": "thread",
           "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f"
+        },
+        {
+          "action": "search",
+          "words": "parking",
+          "days": 30
         }
       ]
     },
@@ -1968,13 +2001,13 @@
     },
     {
       "name": "inbox",
-      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
+      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Action search takes words, what to look for, and an optional days, and finds them in what was said: every message of the workspace (what customers wrote, what the business wrote to them, and a call's note in its thread) and every call's transcript, newest first, none older than days back from now (30 unless asked, at most 90). Call it for a word, the name of a thing or a phrase, such as did anyone mention parking this month; call action list for threads by their state, and action thread for one whole conversation, which a message hit's conversation_id opens (calls with action get opens a call hit's call_id). words are the customer's own words as they wrote or said them, in English or Spanish, never stemmed, so park does not find parking: when nothing is found, try the other form; \"a phrase in quotes\" finds the words together, -word leaves out what holds it, or finds either side, and words that only leave things out find nothing. It returns at most 20 hits, with shown and more_available (true when the 20 were reached), each a message or a call with who it is with, when, the words around the match and the id that opens it; a message says its wire and who wrote it (customer, business, or call note), a call who placed it (called_by). A person's notes are not searched: people with action get reads them. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["list", "thread"]
+            "enum": ["list", "thread", "search"]
           },
           "filter": {
             "type": "string",
@@ -1985,6 +2018,12 @@
           },
           "more": {
             "type": "boolean"
+          },
+          "words": {
+            "type": "string"
+          },
+          "days": {
+            "type": "number"
           }
         },
         "required": ["action"],
@@ -1998,6 +2037,11 @@
         {
           "action": "thread",
           "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f"
+        },
+        {
+          "action": "search",
+          "words": "parking",
+          "days": 30
         }
       ]
     },
