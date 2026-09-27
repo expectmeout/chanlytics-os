@@ -537,8 +537,10 @@ export function platformPartnerStanding(w: PlatformPartnerWorkspaceDto): Platfor
 /** What partner_payout_mark answered, as the toast says it. */
 export function partnerPayoutOutcomeWords(
   code: string,
-  r: { paid: boolean; total_cents: number; currency: string; earnings?: number },
+  r: { paid: boolean; changed?: boolean; total_cents: number; currency: string; earnings?: number },
 ): string {
+  if (r.changed)
+    return `Nothing was recorded: what is payable to ${code} is now ${moneyWords(r.total_cents, r.currency)}, not what the card showed. Read the card again before you mark it.`;
   if (r.paid)
     return `Recorded: ${moneyWords(r.total_cents, r.currency)} paid to ${code}, settling ${r.earnings ?? 0} ledger ${r.earnings === 1 ? "line" : "lines"}.`;
   if (r.total_cents < 0)

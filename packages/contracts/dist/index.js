@@ -20447,6 +20447,8 @@ function platformPartnerStanding(w) {
   };
 }
 function partnerPayoutOutcomeWords(code2, r2) {
+  if (r2.changed)
+    return `Nothing was recorded: what is payable to ${code2} is now ${moneyWords(r2.total_cents, r2.currency)}, not what the card showed. Read the card again before you mark it.`;
   if (r2.paid)
     return `Recorded: ${moneyWords(r2.total_cents, r2.currency)} paid to ${code2}, settling ${r2.earnings ?? 0} ledger ${r2.earnings === 1 ? "line" : "lines"}.`;
   if (r2.total_cents < 0)

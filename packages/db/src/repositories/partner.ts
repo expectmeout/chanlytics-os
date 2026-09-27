@@ -158,28 +158,35 @@ export async function setPartnerStanding(
   };
 }
 
-/** A platform admin records a payout sent by hand (00205 partner_payout_mark). */
+/** What partner_payout_mark answers: paid, or not and why (changed: what is payable moved since it was read). */
+export type PartnerPayoutAnswer = {
+  paid: boolean;
+  changed?: boolean;
+  total_cents: number;
+  currency: string;
+  earnings?: number;
+  payout_id?: string;
+};
+
+/**
+ * A platform admin records a payout sent by hand (00205, 00207 partner_payout_mark). `expectedCents` is what the
+ * person saw and sent; the function records nothing when what is payable is no longer that.
+ */
 export async function markPartnerPaid(
   db: Db,
   partnerId: string,
   currency: string,
   reference: string,
-): Promise<
-  PartnerVerbResult<{ paid: boolean; total_cents: number; currency: string; earnings?: number; payout_id?: string }>
-> {
+  expectedCents?: number,
+): Promise<PartnerVerbResult<PartnerPayoutAnswer>> {
   const { data, error } = await db.rpc("partner_payout_mark", {
     p_partner: partnerId,
     p_currency: currency,
     p_reference: reference,
+    ...(expectedCents === undefined ? {} : { p_expected_cents: expectedCents }),
   });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
-  const v = data as unknown as {
-    paid: boolean;
-    total_cents: number;
-    currency: string;
-    earnings?: number;
-    payout_id?: string;
-  };
+  const v = data as unknown as PartnerPayoutAnswer;
   return { ok: true, value: { ...v, total_cents: Number(v.total_cents) } };
 }
 

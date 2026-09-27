@@ -313,11 +313,20 @@ test("partners: a payout names the partner, the currency and the reference; the 
     "reference",
   );
   assert.deepEqual(asked, []);
+  await refused(
+    payout.POST.run(
+      send("POST", { partner_id: P1, currency: "usd", reference: "r", expected_cents: "12500" }),
+      ctxFor(tables, {}, ok),
+    ),
+    "validation",
+    400,
+    "whole number of cents",
+  );
   const out = await payout.POST.run(
-    send("POST", { partner_id: P1, currency: "USD", reference: " bank-ref-1 " }),
+    send("POST", { partner_id: P1, currency: "USD", reference: " bank-ref-1 ", expected_cents: 12500 }),
     ctxFor(tables, {}, ok),
   );
-  assert.deepEqual(asked, [{ p_partner: P1, p_currency: "usd", p_reference: "bank-ref-1" }]);
+  assert.deepEqual(asked, [{ p_partner: P1, p_currency: "usd", p_reference: "bank-ref-1", p_expected_cents: 12500 }]);
   assert.equal(out.result.total_cents, 12500, "a bigint read as a number");
   await refused(
     payout.POST.run(

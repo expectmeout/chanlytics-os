@@ -2,7 +2,7 @@
 
 **Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) merged (#1151); P4 (the partner's table)
 merged (#1156); P5 (standing and payouts) built on the branch this note ships with (00205), with the pause the
-Risks promise (00206). Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
+Risks promise (00206), and what a review of 00201–00206 found fixed in 00207. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
 at that commit, before P1, so the Context describes the code P1 to P3 changed: `memberships.role` admits `partner`,
 `has_permission()` and `ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, `requireRole`
 refuses a role it does not know (00201, `with-route.ts`); `partners` and `partner_tenants` exist, `create_workspace`
@@ -43,6 +43,18 @@ standing` (`tenant_id`, `standing`, `why`) and `POST platform/partners/payout` (
   Risks and the terms promised it and nothing set `partners.status`. A pause or a close makes each partner seat a
   viewer's and releases what the partner held in those conversations, as a departure does (00132); the workspace keeps
   `seat_held_at`, and a restore gives back only those seats, where the owner has not removed the partner since.
+- **What a review found, fixed in 00207.**
+  - A partner may erase their account: `partners.user_id` is set null and the row closes itself, instead of erasure
+    failing on the ledger's keys.
+  - A refund that arrives before its share waits (`partner_reversals_waiting`) and is taken when the share is written.
+  - A partner who has become the owner earns nothing.
+  - A deleted workspace's shares mature for an active partner and write no event.
+  - Disqualifying voids payable shares too, never a reversal; a payout settles only a qualified workspace's shares
+    and every reversal, locks exactly the rows it totals, and refuses a total that is not the one the card showed.
+  - A close takes the partner off every team.
+  - A restore gives back only seats made before the pause.
+  - Who, when and why of a partner's status is kept on the row.
+  - The standing event no longer carries which check tripped: every member reads events.
 
 ## Context
 

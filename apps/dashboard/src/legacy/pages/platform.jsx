@@ -271,7 +271,7 @@ const PartnerRow = ({ row, P, onDone, flash }) => {
   const run = async () => {
     setBusy(true);
     const r = await Promise.resolve()
-      .then(() => P.markPaid(row.partnerId, row.code, row.currency, ref.trim()))
+      .then(() => P.markPaid(row.partnerId, row.code, row.currency, ref.trim(), row.payableCents))
       .catch(() => ({ ok: false, message: "That did not go through." }));
     setBusy(false);
     setArm(false);

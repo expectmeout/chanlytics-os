@@ -1908,8 +1908,8 @@ function partnerApi(tenants, partners, calls = []) {
     partnerRows: platformPartnerRows,
     partnerSummary: platformPartnerSummary,
     partnerStanding: platformPartnerStanding,
-    markPaid: async (partnerId, code, currency, reference) => {
-      calls.push(`paid:${partnerId}:${code}:${currency}:${reference}`);
+    markPaid: async (partnerId, code, currency, reference, expected) => {
+      calls.push(`paid:${partnerId}:${code}:${currency}:${reference}:${expected}`);
       return { ok: true, message: "Recorded." };
     },
     setStatus: async (partnerId, code, status, why) => {
@@ -1990,7 +1990,7 @@ test("recording a payout is never one click, sends nothing, and waits for the pa
   await view.press(byId(view.tree, "platform-partner-pay-ada-co-yes").props.onClick);
   assert.deepEqual(
     calls.filter((c) => c.startsWith("paid:")),
-    [`paid:${P1}:ada-co:usd:bank-ref-1`],
+    [`paid:${P1}:ada-co:usd:bank-ref-1:12500`],
   );
   assert.equal(reloaded, 1);
   assert.equal(said.length, 1);

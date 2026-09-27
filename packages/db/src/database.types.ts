@@ -3466,6 +3466,30 @@ export type Database = {
           },
         ]
       }
+      partner_reversals_waiting: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          kind: string
+          stripe_event_id: string
+          stripe_invoice_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          kind: string
+          stripe_event_id: string
+          stripe_invoice_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          kind?: string
+          stripe_event_id?: string
+          stripe_invoice_id?: string
+        }
+        Relationships: []
+      }
       partner_tenants: {
         Row: {
           attributed_at: string
@@ -3528,9 +3552,12 @@ export type Database = {
           payout_facts: Json
           share_bp: number
           status: string
+          status_at: string | null
+          status_by: string | null
+          status_why: string | null
           terms_accepted_at: string | null
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           code: string
@@ -3539,9 +3566,12 @@ export type Database = {
           payout_facts?: Json
           share_bp?: number
           status?: string
+          status_at?: string | null
+          status_by?: string | null
+          status_why?: string | null
           terms_accepted_at?: string | null
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           code?: string
@@ -3550,9 +3580,12 @@ export type Database = {
           payout_facts?: Json
           share_bp?: number
           status?: string
+          status_at?: string | null
+          status_by?: string | null
+          status_why?: string | null
           terms_accepted_at?: string | null
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -5277,7 +5310,12 @@ export type Database = {
         }[]
       }
       partner_payout_mark: {
-        Args: { p_currency: string; p_partner: string; p_reference: string }
+        Args: {
+          p_currency: string
+          p_expected_cents?: number
+          p_partner: string
+          p_reference: string
+        }
         Returns: Json
       }
       partner_reverse: {

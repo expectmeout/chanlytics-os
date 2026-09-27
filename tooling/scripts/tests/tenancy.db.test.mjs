@@ -340,6 +340,12 @@ before(async () => {
   probes.push(["partner_earnings", "partner_id", ctx.partner]);
   probes.push(["partner_tenants", "partner_id", ctx.partner]);
   probes.push(["partners", "id", ctx.partner]);
+  await seed(
+    "partner_reversals_waiting",
+    { stripe_event_id: `evt_${key}`, stripe_invoice_id: `in_${key}`, kind: "refund", amount_cents: 100 },
+    null,
+  );
+  probes.push(["partner_reversals_waiting", "stripe_event_id", `evt_${key}`]);
 });
 
 /** A partner's earning on A: one invoice's share, held. */
@@ -613,6 +619,7 @@ const OTHER_TABLES = {
   lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()
   partners: "own", // a partner's own row (0012): read by user_id; written only through partner_become
   partner_payouts: "own", // a partner's own payouts (0012, P5): read through their partner row; written only by partner_payout_mark
+  partner_reversals_waiting: "none", // a refund that came before its share (00207): the service role's alone
 };
 
 const seen = async (client, table, filter) => {

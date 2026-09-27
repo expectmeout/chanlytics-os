@@ -591,6 +591,10 @@ test("a person's decisions: never the standing it has; the outcome said in words
     "Nothing to pay: refunds since the last payout take $30.00, which comes off their next share.",
   );
   assert.equal(
+    partnerPayoutOutcomeWords("ada-co", { paid: false, changed: true, total_cents: 13000, currency: "usd" }),
+    "Nothing was recorded: what is payable to ada-co is now $130.00, not what the card showed. Read the card again before you mark it.",
+  );
+  assert.equal(
     partnerPayoutOutcomeWords("ada-co", { paid: false, total_cents: 0, currency: "usd" }),
     "Nothing is payable to them in that currency, so nothing was recorded.",
   );

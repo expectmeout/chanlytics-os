@@ -4378,6 +4378,7 @@ declare function platformPartnerStanding(w: PlatformPartnerWorkspaceDto): Platfo
 /** What partner_payout_mark answered, as the toast says it. */
 declare function partnerPayoutOutcomeWords(code: string, r: {
     paid: boolean;
+    changed?: boolean;
     total_cents: number;
     currency: string;
     earnings?: number;

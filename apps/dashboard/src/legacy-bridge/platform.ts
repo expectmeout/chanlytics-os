@@ -145,6 +145,8 @@ export interface PlatformApi {
     code: string,
     currency: string,
     reference: string,
+    /** The total the card showed: nothing is recorded when what is payable has moved since. */
+    expectedCents: number,
   ): Promise<{ ok: boolean; message: string }>;
   /** Pause, close or restore a partner, with why. A pause takes their seat on every workspace they brought. */
   setStatus(partnerId: string, code: string, status: string, why: string): Promise<{ ok: boolean; message: string }>;
@@ -236,9 +238,9 @@ export function installPlatform(win: Window = window): void {
       if (!r.ok) return { ok: false, message: r.message };
       return { ok: true, message: partnerStandingOutcomeWords(r.data.result) };
     },
-    async markPaid(partnerId, code, currency, reference) {
+    async markPaid(partnerId, code, currency, reference, expectedCents) {
       const r = await api()("POST platform/partners/payout", {
-        body: { partner_id: partnerId, currency, reference },
+        body: { partner_id: partnerId, currency, reference, expected_cents: expectedCents },
       });
       overviews.clear();
       if (!r.ok) return { ok: false, message: r.message };

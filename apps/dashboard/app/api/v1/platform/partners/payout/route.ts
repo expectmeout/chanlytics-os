@@ -23,6 +23,7 @@ export const POST = write({
       partner_id?: unknown;
       currency?: unknown;
       reference?: unknown;
+      expected_cents?: unknown;
     };
     const partnerId = requireUuid(body.partner_id, "partner");
     const currency = typeof body.currency === "string" ? body.currency.trim().toLowerCase() : "";
@@ -31,6 +32,10 @@ export const POST = write({
     const reference = typeof body.reference === "string" ? body.reference.trim() : "";
     if (!reference || reference.length > 200)
       throw new AppError("validation", "Give the payment's reference, so it can be found again.", 400);
-    return { result: await platformPartnerPayout(office, partnerId, currency, reference) };
+    // What the person saw on the card and sent: a total that moved since is refused, not recorded.
+    const expected = body.expected_cents;
+    if (expected !== undefined && !(typeof expected === "number" && Number.isSafeInteger(expected)))
+      throw new AppError("validation", "The expected amount must be a whole number of cents.", 400);
+    return { result: await platformPartnerPayout(office, partnerId, currency, reference, expected) };
   },
 });

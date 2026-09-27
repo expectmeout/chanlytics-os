@@ -30,6 +30,7 @@ import {
   markPartnerPaid,
   setPartnerStanding,
   setPartnerStatus,
+  type PartnerPayoutAnswer,
 } from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -374,8 +375,9 @@ export async function platformPartnerPayout(
   partnerId: string,
   currency: string,
   reference: string,
-): Promise<{ paid: boolean; total_cents: number; currency: string; earnings?: number; payout_id?: string }> {
-  const r = await markPartnerPaid(office.session, partnerId, currency, reference);
+  expectedCents?: number,
+): Promise<PartnerPayoutAnswer> {
+  const r = await markPartnerPaid(office.session, partnerId, currency, reference, expectedCents);
   if (!r.ok) throw partnerVerbError(r);
   return r.value;
 }

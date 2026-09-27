@@ -4288,11 +4288,12 @@ async function setPartnerStanding(db, tenantId, standing, why) {
     value: data
   };
 }
-async function markPartnerPaid(db, partnerId, currency, reference) {
+async function markPartnerPaid(db, partnerId, currency, reference, expectedCents) {
   const { data, error } = await db.rpc("partner_payout_mark", {
     p_partner: partnerId,
     p_currency: currency,
-    p_reference: reference
+    p_reference: reference,
+    ...expectedCents === void 0 ? {} : { p_expected_cents: expectedCents }
   });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   const v = data;
