@@ -44,8 +44,9 @@ function blockFrom(by, scanCounts) {
   const over200 = Object.values(complexity).filter((v) => v.lines > 200).length;
   const publishers = by["window-publishers.json"] ?? {};
   const copies = by["copies.json"] ?? {};
-  // knip's and ESLint's baselines are written by their own scripts, never by the suite, so the file is the truth in both modes.
+  // knip's, ESLint's and the bundle's baselines are written by their own scripts, never by the suite, so the file is the truth in both modes.
   const lint = readBaseline("lint-warnings.json") ?? {};
+  const budget = readBaseline("bundle-budget.json") ?? {};
   const effects = Object.values(lint).reduce((a, rules) => a + (rules["react-hooks/exhaustive-deps"] ?? 0), 0);
   const rows = [
     ["functions over the limit", keys(complexity), `of which over 200 lines: ${over200}`],
@@ -63,6 +64,8 @@ function blockFrom(by, scanCounts) {
       Object.values(lint).reduce((a, rules) => a + total(rules), 0),
       `in ${keys(lint)} files, ${effects} of them exhaustive-deps`,
     ],
+    ["workspace route JS, KB gzipped", Math.round(budget.js / 1024), "the shell included"],
+    ["workspace route CSS, KB gzipped", Math.round(budget.css / 1024), ""],
   ];
   const lines = rows.map(
     ([label, n, note]) => `${label.padEnd(34)}${String(n).padStart(5)}${note ? "   " + note : ""}`,

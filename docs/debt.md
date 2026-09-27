@@ -28,6 +28,7 @@ it is deleted in the same change. The plan that orders the work is
 | Dead exports, types and modules                                | `baselines/dead-exports.json`, `corepack pnpm check:dead-exports` | Zero                                                                                                                              | Phase 3: a look at each (a use knip cannot see is read through a string or a test double), then delete; `assertCanSend` and `schema-agreement.ts` first                                                                                 |
 | Source-text assertions in tests                                | `source-scan-baseline.json`                                       | Zero outside the eight repo-wide lints                                                                                            | A behaviour test replaces each pin as its module is touched                                                                                                                                                                             |
 | Lint warnings, by file and rule                                | `baselines/lint-warnings.json`                                    | Zero, with `exhaustive-deps` and unused names as errors                                                                           | Fix the effects and the unused names file by file; `corepack pnpm lint -- --update` banks each                                                                                                                                          |
+| What opening a workspace loads: JS and CSS, gzipped            | `baselines/bundle-budget.json`                                    | Kept as a guard; the debt it holds is the demo and seed code on the route                                                         | Declare contracts free of side effects (measured), then load the demo only in a demo session (0015)                                                                                                                                     |
 
 ## What is named and not yet measured
 
@@ -60,6 +61,8 @@ table names outside packages/db     535
 dead exports, types and modules     212
 source-text reads in tests          833
 lint warnings                       148   in 46 files, 129 of them exhaustive-deps
+workspace route JS, KB gzipped      988   the shell included
+workspace route CSS, KB gzipped     121
 ```
 
 <!-- measured:end -->

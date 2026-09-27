@@ -112,5 +112,9 @@ jobs:
           # build stops at /signup. Vercel builds with the real public values.
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-build-placeholder
+      # What a browser loads to open a workspace may only grow on purpose: the
+      # route's JavaScript and CSS, the shell included, gzipped, against
+      # baselines/bundle-budget.json within a 1% band (docs/debt.md).
+      - run: pnpm check:bundle
 
   # CI holds no live service secrets — tests run against fakes only (Blueprint §8).
