@@ -428,9 +428,136 @@ const PanePartner = ({ flash }) => {
       <PartnerLettersRow W={W} api={api} letters={P.dto.letters} flash={flash} />
       {api.secondFactor ? <PartnerSecondFactor api={api} flash={flash} /> : null}
     </section>
+    <PartnerInvitations api={api} flash={flash} />
     <PartnerWorkspaces W={W} api={api} flash={flash} active={P.dto.status === "active"} />
     </>
   );
 };
 
+// The workspaces asking this partner to join them (0018): each says who asked and until when; Join goes into it.
+const PartnerInvitations = ({ api, flash }) => {
+  const W = api.inviteWords;
+  const [rows, setRows] = React.useState([]);
+  const [busy, setBusy] = React.useState(null);
+  const [again, setAgain] = React.useState(0);
+  React.useEffect(() => {
+    let live = true;
+    api.invitations().then((r) => { if (live) setRows(r.ok ? r.rows : []); });
+    return () => { live = false; };
+  }, [api, again]);
+  if (!rows.length) return null;
+  const answer = async (tenantId, join) => {
+    if (busy) return;
+    setBusy(tenantId);
+    const r = await api.answer(tenantId, join);
+    setBusy(null);
+    if (!r.ok) { flash({ tone: "warn", msg: <>Couldn't answer {W.failedAnswer}: {r.message}</> }); return; }
+    if (r.message) flash({ tone: "ok", msg: <>{r.message}</> });
+    setAgain((n) => n + 1);
+  };
+  return (
+    <section className="rec-card set-card" data-testid="partner-invitations" aria-labelledby="partner-invitations-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="partner-invitations-title">{W.invitationsTitle}</h2>
+      </div>
+      {rows.map((i) => (
+        <div className="set-row" key={i.tenantId} data-testid={`partner-invitation-${i.tenantId}`}>
+          <div className="set-row-info"><span className="set-row-hint">{i.sentence}</span></div>
+          <div className="set-form-actions">
+            <button type="button" className="btn btn-sm" onClick={() => answer(i.tenantId, true)} disabled={!!busy} aria-busy={busy === i.tenantId || undefined} data-testid={`partner-invitation-join-${i.tenantId}`}>
+              {busy === i.tenantId ? W.accepting : W.accept}
+            </button>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => answer(i.tenantId, false)} disabled={!!busy} data-testid={`partner-invitation-decline-${i.tenantId}`}>{W.decline}</button>
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+};
+
+// Settings › Team, below the team (0018): the workspace's partner, or asking one by their code. The owner's alone: for
+// anyone else the read is refused and nothing is drawn.
+const TeamPartnerCard = ({ flash }) => {
+  const api = window.__partner;
+  const W = api && api.inviteWords;
+  const [state, setState] = React.useState({ vm: null, problem: null, hidden: false });
+  const [again, setAgain] = React.useState(0);
+  const [code, setCode] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  React.useEffect(() => {
+    if (!api) return undefined;
+    let live = true;
+    api.team.read().then((r) => {
+      if (!live) return;
+      if (r.ok) setState({ vm: r.vm, problem: null, hidden: false });
+      else setState({ vm: null, problem: r.message, hidden: r.code === "forbidden" });
+    });
+    return () => { live = false; };
+  }, [api, again]);
+  if (!api || state.hidden) return null;
+  if (state.problem) {
+    return <window.FailedRead kind="card" what={W.failed} why={state.problem} onRetry={() => setAgain((n) => n + 1)} testid="team-partner-failed" />;
+  }
+  if (!state.vm) return null;
+  const vm = state.vm;
+  const ask = async (e) => {
+    e.preventDefault();
+    if (busy || !code.trim()) return;
+    setBusy(true);
+    setError(null);
+    const r = await api.team.invite(code);
+    setBusy(false);
+    if (!r.ok) { setError(r.message); return; }
+    setCode("");
+    if (!r.sent) flash({ tone: "warn", msg: <>Asked. Their email didn't go: they'll see it on their Partner page.</> });
+    setAgain((n) => n + 1);
+  };
+  const withdraw = async () => {
+    if (busy) return;
+    setBusy(true);
+    const r = await api.team.withdraw();
+    setBusy(false);
+    if (!r.ok) { flash({ tone: "warn", msg: <>Couldn't take back {W.failedAnswer}: {r.message}</> }); return; }
+    setAgain((n) => n + 1);
+  };
+  return (
+    <section className="rec-card set-card" data-testid="team-partner" aria-labelledby="team-partner-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="team-partner-title">{W.title}</h2>
+      </div>
+      {vm.sentence ? <p className="set-row-hint" data-testid={`team-partner-${vm.state}`}>{vm.sentence}</p> : null}
+      {vm.canWithdraw ? (
+        <div className="set-form-actions">
+          <button type="button" className="btn btn-sm btn-ghost" onClick={withdraw} disabled={busy} aria-busy={busy || undefined} data-testid="team-partner-withdraw">
+            {busy ? W.withdrawing : W.withdraw}
+          </button>
+        </div>
+      ) : null}
+      {vm.canInvite ? (
+        <form onSubmit={ask} className="set-form" data-testid="team-partner-form">
+          {vm.state === "none" ? <p className="set-row-hint">{W.intro}</p> : null}
+          <label className="set-field">
+            <span className="set-field-label">{W.codeLabel}</span>
+            <input className="input" value={code} onChange={(e) => { setCode(e.target.value); setError(null); }} placeholder={W.codePlaceholder} autoComplete="off" spellCheck={false} data-testid="team-partner-code" />
+          </label>
+          {error ? <p className="set-error" role="alert" data-testid="team-partner-error">{error}</p> : null}
+          <button type="submit" className="btn" disabled={busy || !code.trim()} aria-busy={busy || undefined} data-testid="team-partner-ask">
+            {busy ? W.inviting : vm.state === "none" ? W.invite : W.askSomeone}
+          </button>
+        </form>
+      ) : null}
+    </section>
+  );
+};
+
+// Settings › Team: the team, then its partner card. Carried on the partner pane's own global, as its Team.
+const PaneTeam = ({ flash }) => (
+  <>
+    <window.TeamSection flash={flash} />
+    <TeamPartnerCard flash={flash} />
+  </>
+);
+
+PanePartner.Team = PaneTeam;
 window.PanePartner = PanePartner;

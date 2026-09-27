@@ -339,6 +339,9 @@ before(async () => {
   const code = `tenancy-${Date.now().toString(36)}`;
   ctx.partner = await seed("partners", { user_id: ctx.partnerUserId, code });
   await seed("partner_tenants", { tenant_id: A, partner_id: ctx.partner, code_used: code }, null);
+  // An owner's invitation to a partner (0018): read by the owner and the partner it names, written by functions.
+  await seed("partner_invitations", invitation(), null);
+  probes.push(["partner_invitations", "tenant_id", A]);
   await seed("partner_earnings", earning(`evt_tenancy_${key}`), null);
   await seed("billing_card_marks", { tenant_id: A, card_fingerprint: "fp_tenancy" }, null);
   probes.push(["partner_earnings", "partner_id", ctx.partner]);
@@ -350,6 +353,13 @@ before(async () => {
     null,
   );
   probes.push(["partner_reversals_waiting", "stripe_event_id", `evt_${key}`]);
+});
+
+/** An owner's invitation to the partner, open a day. */
+const invitation = () => ({
+  tenant_id: A,
+  partner_id: ctx.partner,
+  expires_at: new Date(Date.now() + 86_400_000).toISOString(),
 });
 
 /** A partner's earning on A: one invoice's share, held. */
@@ -601,6 +611,7 @@ const TENANT_TABLES = {
   // service role writes any of them; the partner themselves included.
   partner_tenants: ["brought", () => ({ tenant_id: A, partner_id: ctx.partner, code_used: "stranger" })],
   partner_earnings: ["partner", () => earning(`evt_stranger_${Date.now()}`)],
+  partner_invitations: ["brought", invitation],
   billing_card_marks: ["none", () => ({ tenant_id: A, card_fingerprint: "fp_stranger" })],
   lead_searches_view: [
     "member",

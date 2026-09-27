@@ -836,7 +836,7 @@
   },
   "apps/dashboard/src/legacy/pages/settings.jsx::SettingsPage#1": {
     "lines": 107,
-    "branches": 41,
+    "branches": 42,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/settings.jsx::TeamSection#1": {

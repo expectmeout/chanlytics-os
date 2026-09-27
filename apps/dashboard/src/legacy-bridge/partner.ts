@@ -10,16 +10,21 @@ import {
   HANDOVER_WORDS,
   handoverRoom,
   partnerHandoverVM,
+  PARTNER_INVITE_WORDS,
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_WORDS,
+  partnerInvitationWords,
+  partnerJoinedWords,
   partnerVM,
   partnerWorkspacesVM,
   shareWords,
+  workspacePartnerVM,
   type PartnerBalanceRow,
   type PartnerDto,
   type PartnerHandoverVM,
   type PartnerVM,
   type PartnerWorkspacesVM,
+  type WorkspacePartnerVM,
 } from "@chanlytics/contracts";
 import { switchWorkspace, type SurfaceOverride, type Workspace } from "./surface-data";
 import { api, read } from "./api";
@@ -75,6 +80,19 @@ export interface PartnerApi {
   };
   /** The daily letter on or off (0014). The surface is written from the answer, so the switch shows what is kept. */
   setLetters(on: boolean): Promise<{ ok: boolean; message: string }>;
+  inviteWords: typeof PARTNER_INVITE_WORDS;
+  /** The workspaces asking this partner to join them (0018), each as its row says it. */
+  invitations(): Promise<{ ok: true; rows: { tenantId: string; sentence: string }[] } | { ok: false; message: string }>;
+  /** Join a workspace that asked, and go into it; or decline. `message` is the flash for a join. */
+  answer(tenantId: string, join: boolean): Promise<{ ok: boolean; message: string }>;
+  /** The open workspace's partner, as its owner manages it on Team (0018). */
+  team: {
+    /** `code` is the refusal's: "forbidden" for anyone but an owner, whose Team shows no card. */
+    read(): Promise<{ ok: true; vm: WorkspacePartnerVM } | { ok: false; code: string; message: string }>;
+    /** Ask the partner with this code (or link). `sent` says whether their email went. */
+    invite(code: string): Promise<{ ok: true; sent: boolean } | { ok: false; message: string }>;
+    withdraw(): Promise<{ ok: boolean; message: string }>;
+  };
 }
 
 declare global {
@@ -179,6 +197,42 @@ export function installPartner(win: Window = window): void {
     open(tenantId) {
       const shell = (win as unknown as { __shell?: { switchWorkspace(id: string): void } }).__shell;
       if (shell) shell.switchWorkspace(tenantId);
+    },
+    inviteWords: PARTNER_INVITE_WORDS,
+    async invitations() {
+      const r = await api()("GET partner/invitations");
+      if (!r.ok) return { ok: false, message: r.message };
+      return {
+        ok: true,
+        rows: r.data.invitations.map((i) => ({ tenantId: i.tenantId, sentence: partnerInvitationWords(i) })),
+      };
+    },
+    async answer(tenantId, join) {
+      if (!join) {
+        const r = await api()("POST partner/invitations/[id]/decline", { params: { id: tenantId } });
+        return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+      }
+      const r = await api()("POST partner/invitations/[id]/accept", { params: { id: tenantId } });
+      if (!r.ok) return { ok: false, message: r.message };
+      // Into the workspace just joined, by its slug: it is not on the switcher's list until the next read of it.
+      switchWorkspace(r.data.workspace.id, r.data.workspace.slug);
+      return { ok: true, message: partnerJoinedWords(r.data.workspace.name, r.data.earns) };
+    },
+    team: {
+      async read() {
+        const r = await api()("GET team/partner");
+        if (!r.ok) return { ok: false, code: r.code, message: r.message };
+        return { ok: true, vm: workspacePartnerVM(r.data) };
+      },
+      async invite(code) {
+        const r = await api()("POST team/partner", { body: { code } });
+        if (!r.ok) return { ok: false, message: r.message };
+        return { ok: true, sent: r.data.sent };
+      },
+      async withdraw() {
+        const r = await api()("DELETE team/partner");
+        return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+      },
     },
     async setLetters(on) {
       const r = await api()("PATCH partner", { body: { letters: on } });

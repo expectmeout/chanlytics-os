@@ -884,6 +884,27 @@
       "rate": "partner_handover",
       "spend": false
     },
+    "GET partner/invitations": {
+      "kind": "read",
+      "scope": "account",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST partner/invitations/[id]/accept": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "partner_invite_answer",
+      "spend": false
+    },
+    "POST partner/invitations/[id]/decline": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "partner_invite_answer",
+      "spend": false
+    },
     "POST handovers/[id]/accept": {
       "kind": "write",
       "scope": "account",
@@ -1127,6 +1148,27 @@
       "scope": "workspace",
       "role": "owner",
       "rate": "invite",
+      "spend": false
+    },
+    "GET team/partner": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": null,
+      "spend": false
+    },
+    "POST team/partner": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "partner_invite",
+      "spend": false
+    },
+    "DELETE team/partner": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "partner_invite",
       "spend": false
     },
     "GET team": {

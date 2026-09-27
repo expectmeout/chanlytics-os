@@ -23,6 +23,7 @@ import { z as z13 } from "zod";
 import { z as z14 } from "zod";
 import { z as z15 } from "zod";
 import { z as z16 } from "zod";
+import { z as z17 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -205,7 +206,12 @@ var EVENT_KINDS = [
   // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
   "partner.handover_sent",
   "partner.handover_accepted",
-  "partner.handover_declined"
+  "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0018): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -2897,6 +2903,31 @@ var PartnerSecondFactorResetSchema = z16.object({
   partner_id: z16.string().uuid("That partner does not exist."),
   why: z16.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
+var PARTNER_INVITE_DAYS = 14;
+var PartnerInviteSchema = z17.object({
+  code: z17.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing, the team or exports. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  askAgain: "Ask again",
+  askSomeone: "Ask someone else",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
@@ -4748,6 +4779,86 @@ async function getHandoverInvite(db, tenantId) {
     expiresAt: data.handover_expires_at
   };
 }
+async function invitePartner(db, tenantId, code) {
+  const { data, error } = await db.rpc("partner_invite", { p_tenant: tenantId, p_code: code });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data ?? {};
+  return {
+    ok: true,
+    value: { code: String(v.code ?? code), sentAt: String(v.sent_at ?? ""), expiresAt: String(v.expires_at ?? "") }
+  };
+}
+async function withdrawPartnerInvite(db, tenantId) {
+  const { error } = await db.rpc("partner_invite_withdraw", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: null };
+}
+async function getWorkspacePartner(db, tenantId) {
+  const { data, error } = await db.rpc("workspace_partner", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data ?? {};
+  const p = v.partner ?? null;
+  const i = v.invitation ?? null;
+  return {
+    ok: true,
+    value: {
+      partner: p ? {
+        code: String(p.code ?? ""),
+        origin: String(p.origin ?? ""),
+        since: String(p.since ?? ""),
+        seated: p.seated === true
+      } : null,
+      invitation: i ? {
+        code: String(i.code ?? ""),
+        sentAt: String(i.sent_at ?? ""),
+        expiresAt: String(i.expires_at ?? ""),
+        declinedAt: i.declined_at ? String(i.declined_at) : null
+      } : null
+    }
+  };
+}
+async function getPartnerInvitations(db) {
+  const { data, error } = await db.rpc("partner_invitations_mine");
+  if (error) {
+    if (noFunction(error)) return [];
+    throw new Error(`getPartnerInvitations: ${error.message}`);
+  }
+  return (data ?? []).map((r2) => ({
+    tenantId: r2.tenant_id,
+    workspace: r2.workspace,
+    sentAt: r2.sent_at,
+    expiresAt: r2.expires_at
+  }));
+}
+async function acceptPartnerInvite(db, tenantId) {
+  const { data, error } = await db.rpc("partner_invite_accept", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const row = data?.[0];
+  if (!row) return { ok: false, code: "P0002", message: "There is no invitation for you there." };
+  return { ok: true, value: { id: row.id, slug: row.slug, name: row.name, earns: row.earns } };
+}
+async function declinePartnerInvite(db, tenantId) {
+  const { error } = await db.rpc("partner_invite_decline", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: null };
+}
+async function getPartnerInviteMail(db, tenantId) {
+  const { data, error } = await db.from("partner_invitations").select("expires_at, declined_at, tenants(name), partners(code, user_id)").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`getPartnerInviteMail: ${error.message}`);
+  if (!data || data.declined_at || Date.parse(data.expires_at) <= Date.now()) return null;
+  const userId = data.partners?.user_id;
+  if (!userId) return null;
+  const who = await db.auth.admin.getUserById(userId);
+  if (who.error) throw new Error(`getPartnerInviteMail: ${who.error.message}`);
+  const email = who.data.user?.email;
+  if (!email) return null;
+  return {
+    email,
+    workspace: data.tenants?.name ?? "",
+    partnerCode: data.partners?.code ?? "",
+    expiresAt: data.expires_at
+  };
+}
 
 // src/repositories/leads.ts
 var ONE_LEAD_COLUMNS = "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at";
@@ -4879,6 +4990,7 @@ export {
   MAX_ROWS,
   PEOPLE_PAGE,
   acceptHandover,
+  acceptPartnerInvite,
   addToList,
   applyDomainCheck,
   archiveList,
@@ -4897,6 +5009,7 @@ export {
   createServiceClient,
   createWorkspaceForBusiness,
   declineHandover,
+  declinePartnerInvite,
   deleteList,
   deleteSendingDomain,
   deleteSendingDomainAsRead,
@@ -4920,16 +5033,20 @@ export {
   getPartnerBalance,
   getPartnerBroughtCount,
   getPartnerHandovers,
+  getPartnerInvitations,
+  getPartnerInviteMail,
   getPartnerLetters,
   getPartnerWorkspaces,
   getPlatformPartners,
   getTenantConfig,
+  getWorkspacePartner,
   heldNoticeDue,
   heldStale,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
   insertQueuedEmail,
+  invitePartner,
   keepIdempotencyReceipt,
   lastInboundEmail,
   leadAddressBounced,
@@ -5034,6 +5151,7 @@ export {
   uncheckedWaiting,
   watchedTables,
   withdrawEmail,
+  withdrawPartnerInvite,
   workspaceAbout,
   workspaceMaySpend,
   workspaceNameAndConfig,

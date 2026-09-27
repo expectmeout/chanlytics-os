@@ -3414,6 +3414,48 @@ type Database = {
                     }
                 ];
             };
+            partner_invitations: {
+                Row: {
+                    declined_at: string | null;
+                    expires_at: string;
+                    invited_by: string | null;
+                    partner_id: string;
+                    sent_at: string;
+                    tenant_id: string;
+                };
+                Insert: {
+                    declined_at?: string | null;
+                    expires_at: string;
+                    invited_by?: string | null;
+                    partner_id: string;
+                    sent_at?: string;
+                    tenant_id: string;
+                };
+                Update: {
+                    declined_at?: string | null;
+                    expires_at?: string;
+                    invited_by?: string | null;
+                    partner_id?: string;
+                    sent_at?: string;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "partner_invitations_partner_id_fkey";
+                        columns: ["partner_id"];
+                        isOneToOne: false;
+                        referencedRelation: "partners";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "partner_invitations_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: true;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             partner_payouts: {
                 Row: {
                     created_at: string;
@@ -5659,6 +5701,45 @@ type Database = {
                 };
                 Returns: Json;
             };
+            partner_invitations_mine: {
+                Args: never;
+                Returns: {
+                    expires_at: string;
+                    sent_at: string;
+                    tenant_id: string;
+                    workspace: string;
+                }[];
+            };
+            partner_invite: {
+                Args: {
+                    p_code: string;
+                    p_tenant: string;
+                };
+                Returns: Json;
+            };
+            partner_invite_accept: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: {
+                    earns: boolean;
+                    id: string;
+                    name: string;
+                    slug: string;
+                }[];
+            };
+            partner_invite_decline: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: undefined;
+            };
+            partner_invite_withdraw: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: undefined;
+            };
             partner_letter_written: {
                 Args: {
                     p_partner: string;
@@ -6787,6 +6868,12 @@ type Database = {
             wake_stale_snoozes: {
                 Args: never;
                 Returns: number;
+            };
+            workspace_partner: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: Json;
             };
         };
         Enums: {
@@ -8677,6 +8764,69 @@ interface HandoverInvite {
  * caller passes, so the door that sends it can write to nobody else. Null when the workspace has no open handover.
  */
 declare function getHandoverInvite(db: Db$1, tenantId: string): Promise<HandoverInvite | null>;
+/**
+ * An existing workspace brings in a partner (decision 0018, 00219): its owner names them by code, and they accept.
+ * Every write is a function that checks the caller; the verbs below answer the value, or the function's own code and
+ * words, as the handover's do.
+ */
+/** The invitation as the owner's card says it. */
+interface PartnerInviteSent {
+    code: string;
+    sentAt: string;
+    expiresAt: string;
+}
+/** The owner asks the partner with this code to join the workspace (00219 partner_invite). */
+declare function invitePartner(db: Db$1, tenantId: string, code: string): Promise<HandoverResult<PartnerInviteSent>>;
+/** The owner takes the invitation back before it is answered (00219 partner_invite_withdraw). */
+declare function withdrawPartnerInvite(db: Db$1, tenantId: string): Promise<HandoverResult<null>>;
+/** The workspace's partner and the invitation waiting, as its owner reads them (00219 workspace_partner). */
+interface WorkspacePartner {
+    partner: {
+        code: string;
+        origin: string;
+        since: string;
+        seated: boolean;
+    } | null;
+    invitation: {
+        code: string;
+        sentAt: string;
+        expiresAt: string;
+        declinedAt: string | null;
+    } | null;
+}
+declare function getWorkspacePartner(db: Db$1, tenantId: string): Promise<HandoverResult<WorkspacePartner>>;
+/** A workspace asking the caller, a partner, to join it. */
+interface PartnerInvitation {
+    tenantId: string;
+    workspace: string;
+    sentAt: string;
+    expiresAt: string;
+}
+/**
+ * The open invitations to the calling partner (00219 partner_invitations_mine). None on a database 00219 has not
+ * reached, which is true there: nobody can have asked.
+ */
+declare function getPartnerInvitations(db: Db$1): Promise<PartnerInvitation[]>;
+/** The workspace the partner joined, and whether its plan earns them a share. */
+interface PartnerJoined extends HandoverWorkspace {
+    earns: boolean;
+}
+/** The caller, a partner, joins the workspace that asked (00219 partner_invite_accept). */
+declare function acceptPartnerInvite(db: Db$1, tenantId: string): Promise<HandoverResult<PartnerJoined>>;
+/** The caller, a partner, says no (00219 partner_invite_decline). */
+declare function declinePartnerInvite(db: Db$1, tenantId: string): Promise<HandoverResult<null>>;
+/** What the edge needs to tell a partner a workspace asked for them: to whom, which workspace, until when. */
+interface PartnerInviteMail {
+    email: string;
+    workspace: string;
+    partnerCode: string;
+    expiresAt: string;
+}
+/**
+ * An open invitation's facts, for the edge (service role): the address is the partner's own account's, read here,
+ * never one a caller passes. Null when the workspace has no open invitation, or the partner has no address left.
+ */
+declare function getPartnerInviteMail(db: Db$1, tenantId: string): Promise<PartnerInviteMail | null>;
 
 /**
  * One lead as the Leads page would show it (Reach out Part 4, PR 9): what GET leads/[id] reads for the peek of a lead
@@ -8798,4 +8948,4 @@ declare function readAllRows<T>(what: string, page: (from: number, to: number) =
  */
 declare function readAllRowsByKey<T>(what: string, key: (row: T) => string, page: (after: string | null, size: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageInsert, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WriteError, type WrittenEmail, type YesRow, acceptHandover, addToList, applyDomainCheck, archiveList, assembleHistory, becomePartner, claimCallNotification, claimControl, claimIdempotencyKey, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, monthSent, moveSend, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stampReachOutStep, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, watchedTables, withdrawEmail, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };
+export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageInsert, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerInvitation, type PartnerInviteMail, type PartnerInviteSent, type PartnerJoined, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WorkspacePartner, type WriteError, type WrittenEmail, type YesRow, acceptHandover, acceptPartnerInvite, addToList, applyDomainCheck, archiveList, assembleHistory, becomePartner, claimCallNotification, claimControl, claimIdempotencyKey, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, declinePartnerInvite, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerInvitations, getPartnerInviteMail, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, getWorkspacePartner, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, invitePartner, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, monthSent, moveSend, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stampReachOutStep, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, watchedTables, withdrawEmail, withdrawPartnerInvite, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

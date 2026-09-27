@@ -428,3 +428,96 @@ test("two-step sign-in: on says so; a project without it switched on says that; 
   assert.match(textOf(byTestId(tree, "partner-second-factor-failed")), /offline/);
   assert.equal(byTestId(tree, "partner-second-factor-start"), null, "never offered on a guess");
 });
+
+/* ------------------------------------------------------------ a workspace asks a partner (0018) */
+
+/** An answer, then the card's own read again: two turns of the stub React before the tree says what was read. */
+const reread = async (paint) => {
+  await settle();
+  paint();
+  await settle();
+  return paint();
+};
+
+test("the partner's pane: the workspaces asking for them, Join goes in and says what it earns, Decline takes it away", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
+  globalThis.window.__partner.secondFactor = factorStub({ state: async () => ({ ok: true, on: true }) }).api;
+  let rows = [
+    { tenantId: "t1", sentence: "Harbor asks you to be its partner. Open until Oct 11." },
+    { tenantId: "t2", sentence: "Bayside asks you to be its partner. Open until Oct 12." },
+  ];
+  const answered = [];
+  globalThis.window.__partner.invitations = async () => ({ ok: true, rows });
+  globalThis.window.__partner.answer = async (id, join) => {
+    answered.push([id, join]);
+    rows = rows.filter((r) => r.tenantId !== id);
+    return { ok: true, message: join ? "You're Harbor's partner." : "" };
+  };
+  draw();
+  await settle();
+  let tree = redraw();
+  assert.ok(byTestId(tree, "partner-invitations"));
+  assert.match(textOf(byTestId(tree, "partner-invitation-t1")), /Harbor asks you to be its partner/);
+  press(byTestId(tree, "partner-invitation-join-t1"));
+  tree = await reread(redraw);
+  assert.equal(flashes.at(-1).tone, "ok");
+  assert.equal(byTestId(tree, "partner-invitation-t1"), null, "read again: gone once answered");
+  press(byTestId(tree, "partner-invitation-decline-t2"));
+  tree = await reread(redraw);
+  assert.deepEqual(answered, [
+    ["t1", true],
+    ["t2", false],
+  ]);
+  assert.equal(byTestId(tree, "partner-invitations"), null, "none asking: no card");
+});
+
+test("Team: the owner asks a partner by code and may take it back; anyone else sees no card", async () => {
+  globalThis.window.TeamSection = () => null;
+  const W = globalThis.window.__partner.inviteWords;
+  let card = { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+  const asked = [];
+  globalThis.window.__partner.team = {
+    read: async () => ({ ok: true, vm: card }),
+    invite: async (code) => {
+      asked.push(code);
+      if (code === "nobody") return { ok: false, message: "No partner has that code." };
+      card = { state: "waiting", sentence: "Waiting for ada-co to accept.", canInvite: false, canWithdraw: true };
+      return { ok: true, sent: true };
+    },
+    withdraw: async () => {
+      asked.push("withdraw");
+      card = { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+      return { ok: true, message: "" };
+    },
+  };
+  const drawTeam = () => again(() => globalThis.React.createElement(globalThis.window.PanePartner.Team, { flash }));
+  fresh();
+  drawTeam();
+  await settle();
+  let tree = drawTeam();
+  assert.equal(textOf(byTestId(tree, "team-partner")).includes(W.intro), true);
+  assert.equal(byTestId(tree, "team-partner-ask").props.disabled, true, "nothing to send before a code");
+  byTestId(tree, "team-partner-code").props.onChange({ target: { value: "nobody" } });
+  await byTestId(drawTeam(), "team-partner-form").props.onSubmit({ preventDefault() {} });
+  tree = await reread(drawTeam);
+  assert.equal(textOf(byTestId(tree, "team-partner-error")), "No partner has that code.");
+  byTestId(tree, "team-partner-code").props.onChange({ target: { value: "https://app.chanlytics.com/p/ada-co" } });
+  await byTestId(drawTeam(), "team-partner-form").props.onSubmit({ preventDefault() {} });
+  tree = await reread(drawTeam);
+  assert.equal(textOf(byTestId(tree, "team-partner-waiting")), "Waiting for ada-co to accept.");
+  assert.equal(byTestId(tree, "team-partner-form"), null, "nobody else asked while one waits");
+  press(byTestId(tree, "team-partner-withdraw"));
+  tree = await reread(drawTeam);
+  assert.ok(byTestId(tree, "team-partner-form"));
+  assert.deepEqual(asked, ["nobody", "https://app.chanlytics.com/p/ada-co", "withdraw"]);
+
+  globalThis.window.__partner.team = {
+    ...globalThis.window.__partner.team,
+    read: async () => ({ ok: false, code: "forbidden", message: "Only an owner can do this." }),
+  };
+  fresh();
+  drawTeam();
+  await settle();
+  assert.equal(byTestId(drawTeam(), "team-partner"), null, "an operator's Team has no partner card");
+});

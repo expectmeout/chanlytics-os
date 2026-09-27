@@ -158,6 +158,8 @@ to sell to". A partner's own workspace, on a paid plan, is their sales desk; not
    for thirty days in a first-touch cookie and on the pending workspace; `create_workspace` takes it, and in the
    same transaction as the tenant writes the attribution row and the partner's membership. A workspace that exists
    is never attributed later; a partner who is the caller is never attributed to their own workspace.
+   _Since 0018: a workspace that exists may ask a partner to join it, and is credited to them only if it had never
+   paid for a plan._
 3. **The share is 25% of what Stripe collected on the workspace's plan invoices, for as long as it pays.** Computed
    on `amount_paid` of an invoice with a subscription, after discounts and credits, before Stripe's fees. One-time
    payments (lead packs, 0010) and pass-through costs earn nothing in this version. The rate is a column on the

@@ -111,6 +111,7 @@ const TABLES = [
   "notification_reads",
   "notifications",
   "partner_earnings",
+  "partner_invitations",
   "partner_tenants",
   "person_notes",
   "playbooks",

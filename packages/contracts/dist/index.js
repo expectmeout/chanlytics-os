@@ -126,8 +126,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z17] = m;
-  if (z17) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z18] = m;
+  if (z18) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -1188,7 +1188,12 @@ var EVENT_KINDS = [
   // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
   "partner.handover_sent",
   "partner.handover_accepted",
-  "partner.handover_declined"
+  "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0018): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -23231,7 +23236,7 @@ var SCHEMA_SETS = {
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
   "partner_reversals_waiting.kind": ["refund", "dispute", "dispute_won"],
-  "partner_tenants.origin": ["link", "handover"],
+  "partner_tenants.origin": ["link", "handover", "invite"],
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],
@@ -23299,6 +23304,7 @@ var ROUTE_KEYS = [
   "DELETE segments/[id]",
   "DELETE sending-domains/[id]",
   "DELETE team/[id]",
+  "DELETE team/partner",
   "DELETE templates/[id]",
   "GET activity",
   "GET ask/openings",
@@ -23338,6 +23344,7 @@ var ROUTE_KEYS = [
   "GET metrics",
   "GET notifications",
   "GET partner",
+  "GET partner/invitations",
   "GET partner/workspaces",
   "GET platform/overview",
   "GET platform/tenants/[id]",
@@ -23352,6 +23359,7 @@ var ROUTE_KEYS = [
   "GET settings",
   "GET setup",
   "GET team",
+  "GET team/partner",
   "GET templates",
   "GET today",
   "GET views",
@@ -23423,6 +23431,8 @@ var ROUTE_KEYS = [
   "POST messages/[id]/cancel-send",
   "POST messages/[id]/steer",
   "POST partner",
+  "POST partner/invitations/[id]/accept",
+  "POST partner/invitations/[id]/decline",
   "POST partner/workspaces",
   "POST partner/workspaces/[id]/resend",
   "POST platform/lines/refile",
@@ -23447,6 +23457,7 @@ var ROUTE_KEYS = [
   "POST settings/receptionist",
   "POST setup/request",
   "POST team/invite",
+  "POST team/partner",
   "POST templates",
   "POST templates/draft",
   "POST templates/starter",
@@ -26813,6 +26824,96 @@ var PartnerSecondFactorResetSchema = z16.object({
 function secondFactorResetWords(code2, removed) {
   return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
 }
+
+// src/workspace/partner-invite.ts
+import { z as z17 } from "zod";
+var PARTNER_INVITE_DAYS = 14;
+function partnerCodeFrom(raw) {
+  const typed = raw.trim();
+  const inLink = /\/p\/([^/?#\s]+)/i.exec(typed);
+  return (inLink ? decodeURIComponent(inLink[1]) : typed).toLowerCase();
+}
+var PartnerInviteSchema = z17.object({
+  code: z17.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing, the team or exports. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  askAgain: "Ask again",
+  askSomeone: "Ask someone else",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
+var ORIGIN_WORDS = {
+  link: "came to you through their link",
+  handover: "set this workspace up for you",
+  invite: "joined at your invitation"
+};
+function workspacePartnerVM(dto, nowMs = Date.now()) {
+  const p = dto.partner;
+  if (p)
+    return {
+      state: "partner",
+      sentence: p.seated ? `${p.code} is your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}. Remove them in the team above at any time.` : `${p.code} was your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}, and are no longer on your team. A workspace has one partner.`,
+      canInvite: false,
+      canWithdraw: false
+    };
+  const i = dto.invitation;
+  if (!i) return { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+  if (i.declinedAt)
+    return {
+      state: "declined",
+      sentence: `${i.code} declined on ${dayWords2(i.declinedAt)}.`,
+      canInvite: true,
+      canWithdraw: false
+    };
+  if (Date.parse(i.expiresAt) <= nowMs)
+    return {
+      state: "expired",
+      sentence: `Your invitation to ${i.code} expired on ${dayWords2(i.expiresAt)}.`,
+      canInvite: true,
+      canWithdraw: false
+    };
+  return {
+    state: "waiting",
+    sentence: `Waiting for ${i.code} to accept: asked on ${dayWords2(i.sentAt)}, open until ${dayWords2(i.expiresAt)}.`,
+    canInvite: false,
+    canWithdraw: true
+  };
+}
+var partnerInvitationWords = (i) => `${i.workspace.trim() || "A workspace"} asks you to be its partner. Open until ${dayWords2(i.expiresAt)}.`;
+function partnerJoinedWords(workspace, earns) {
+  const name = workspace.trim() || "The workspace";
+  return earns ? `You're ${name}'s partner. When it pays for its plan, your share is written as for a workspace you brought.` : `You're ${name}'s partner. It was already paying when you joined, so it earns you no share; the owner's team is yours to help run.`;
+}
+function partnerInviteEmail(i) {
+  const workspace = i.workspace.trim() || "A workspace";
+  return {
+    subject: `${workspace} asks you to be its partner on Chanlytics`,
+    body: [
+      `${workspace} asked you to join its team as its partner: you'd set up and run its receptionist with its owner, and never touch its billing, its team or its exports.`,
+      "",
+      "A workspace that has not paid for a plan yet earns you your share once it does, as one you brought. One that was already paying earns you none.",
+      "",
+      `Sign in and open Settings \u203A Partner to join or decline: ${i.signInUrl}`,
+      "",
+      `Open until ${dayWords2(i.expiresAt)}. If you weren't expecting this, you can ignore it: nothing changes unless you join.`
+    ].join("\n")
+  };
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -27223,6 +27324,8 @@ export {
   PARTNER_EARNING_KINDS,
   PARTNER_EARNING_STATES,
   PARTNER_HOLD_DAYS,
+  PARTNER_INVITE_DAYS,
+  PARTNER_INVITE_WORDS,
   PARTNER_REVERSAL_KINDS,
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_STANDINGS,
@@ -27294,6 +27397,7 @@ export {
   PUSH_TOKEN_MAX,
   PageContextSchema,
   PartnerBecomeSchema,
+  PartnerInviteSchema,
   PartnerLetterNewsSchema,
   PartnerLettersSchema,
   PartnerSecondFactorResetSchema,
@@ -28063,9 +28167,13 @@ export {
   parseTenantConfigResult,
   parseTodayWidgetSnapshot,
   partialSay,
+  partnerCodeFrom,
   partnerCodeFromCookie,
   partnerEarningsWords,
   partnerHandoverVM,
+  partnerInvitationWords,
+  partnerInviteEmail,
+  partnerJoinedWords,
   partnerLetter,
   partnerLinkFor,
   partnerPaneUrl,
@@ -28500,6 +28608,7 @@ export {
   wordsIssueWords,
   wordsNeedOpening,
   workspaceHotkey,
+  workspacePartnerVM,
   writtenChannelOf,
   writtenOutDetail,
   yesWaitWords,
