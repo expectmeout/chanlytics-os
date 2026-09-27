@@ -33,6 +33,10 @@ test("a page's messages move the state; 'out' is the signed-out state the root l
   r = onPageMessage(r.state, '{"t":"overlay","open":true}');
   assert.equal(r.state, held);
   assert.equal(r.effect, "nothing");
+  // A file is the Surface's to share (files.ts), never the shell's state.
+  r = onPageMessage(r.state, '{"t":"file","name":"a.csv","type":"text/csv","text":"x"}');
+  assert.equal(r.state, held);
+  assert.equal(r.effect, "nothing");
   const before = r.state;
   r = onPageMessage(r.state, "garbage");
   assert.equal(r.state, before, "unparsed: untouched");

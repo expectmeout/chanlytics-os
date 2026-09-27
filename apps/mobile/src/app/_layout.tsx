@@ -25,6 +25,7 @@ import { Update } from "@/shell/Update";
 import * as Application from "expo-application";
 import { THEME_COLORS } from "@chanlytics/contracts";
 import { SITE_ORIGIN } from "@/site";
+import { Observe, ObserveRoot } from "expo-observe";
 
 // The workspace and the theme the last launch kept, before any page is made: the first page opens at its workspace's
 // own address, in the member's own theme. Before any page has said one, the theme is the web's own default.
@@ -77,7 +78,11 @@ async function lookAtUpdates(locked: () => boolean): Promise<void> {
 
 installForegroundHandler();
 
-export default function RootLayout() {
+// EAS Observe: launch and per-tab timings from real phones (each tab's page marks itself interactive as it first
+// reports its route, Surface.tsx), and the app's crashes and unhandled errors. Nothing of a page's content is sent.
+Observe.configure({ integrations: { "expo-router": true } });
+
+function RootLayout() {
   const scheme = useColorScheme();
   const session = useShell((s) => s.session);
   const tooOld = useShell((s) => s.tooOld);
@@ -165,3 +170,5 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+export default ObserveRoot.wrap(RootLayout);
