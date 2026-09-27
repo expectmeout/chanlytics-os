@@ -428,7 +428,7 @@ export async function getHandoverInvite(db: Db, tenantId: string): Promise<Hando
 /* ------------------------------------------------------------------------ a workspace asks a partner (0018) */
 
 /**
- * An existing workspace brings in a partner (decision 0018, 00220): its owner names them by code, and they accept.
+ * An existing workspace brings in a partner (decision 0018, 00221): its owner names them by code, and they accept.
  * Every write is a function that checks the caller; the verbs below answer the value, or the function's own code and
  * words, as the handover's do.
  */
@@ -440,7 +440,7 @@ export interface PartnerInviteSent {
   expiresAt: string;
 }
 
-/** The owner asks the partner with this code to join the workspace (00220 partner_invite). */
+/** The owner asks the partner with this code to join the workspace (00221 partner_invite). */
 export async function invitePartner(
   db: Db,
   tenantId: string,
@@ -455,14 +455,14 @@ export async function invitePartner(
   };
 }
 
-/** The owner takes the invitation back before it is answered (00220 partner_invite_withdraw). */
+/** The owner takes the invitation back before it is answered (00221 partner_invite_withdraw). */
 export async function withdrawPartnerInvite(db: Db, tenantId: string): Promise<HandoverResult<null>> {
   const { error } = await db.rpc("partner_invite_withdraw", { p_tenant: tenantId });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   return { ok: true, value: null };
 }
 
-/** The workspace's partner and the invitation waiting, as its owner reads them (00220 workspace_partner). */
+/** The workspace's partner and the invitation waiting, as its owner reads them (00221 workspace_partner). */
 export interface WorkspacePartner {
   partner: { code: string; origin: string; since: string; seated: boolean } | null;
   invitation: { code: string; sentAt: string; expiresAt: string; declinedAt: string | null } | null;
@@ -506,7 +506,7 @@ export interface PartnerInvitation {
 }
 
 /**
- * The open invitations to the calling partner (00220 partner_invitations_mine). None on a database 00220 has not
+ * The open invitations to the calling partner (00221 partner_invitations_mine). None on a database 00221 has not
  * reached, which is true there: nobody can have asked.
  */
 export async function getPartnerInvitations(db: Db): Promise<PartnerInvitation[]> {
@@ -528,7 +528,7 @@ export interface PartnerJoined extends HandoverWorkspace {
   earns: boolean;
 }
 
-/** The caller, a partner, joins the workspace that asked (00220 partner_invite_accept). */
+/** The caller, a partner, joins the workspace that asked (00221 partner_invite_accept). */
 export async function acceptPartnerInvite(db: Db, tenantId: string): Promise<HandoverResult<PartnerJoined>> {
   const { data, error } = await db.rpc("partner_invite_accept", { p_tenant: tenantId });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
@@ -537,7 +537,7 @@ export async function acceptPartnerInvite(db: Db, tenantId: string): Promise<Han
   return { ok: true, value: { id: row.id, slug: row.slug, name: row.name, earns: row.earns } };
 }
 
-/** The caller, a partner, says no (00220 partner_invite_decline). */
+/** The caller, a partner, says no (00221 partner_invite_decline). */
 export async function declinePartnerInvite(db: Db, tenantId: string): Promise<HandoverResult<null>> {
   const { error } = await db.rpc("partner_invite_decline", { p_tenant: tenantId });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };

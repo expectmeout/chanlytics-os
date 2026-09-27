@@ -1,6 +1,6 @@
 # 0018 · An existing workspace brings in a partner
 
-**Status:** decided and built on the branch this note ships with (00220), on `6aba49b6` (main, 27 September 2026,
+**Status:** decided and built on the branch this note ships with (00221), on `6aba49b6` (main, 27 September 2026,
 after #1200). Ruben asked for it after trying it (a workspace he owned could not take on a partner) and left the
 shape to this note. Where this note and the code disagree, the code wins.
 
@@ -42,7 +42,7 @@ operator or viewer"), which gives access but not the partner role, and the partn
 
 ## Shape
 
-- **00220:** `partner_invitations` (one row per workspace; RLS: its owner and the partner it names read it; written only
+- **00221:** `partner_invitations` (one row per workspace; RLS: its owner and the partner it names read it; written only
   by the functions); `partner_tenants.origin` admits `invite`; `partner_invite`, `partner_invite_withdraw`,
   `workspace_partner` (the owner's card), `partner_invitations_mine` (the partner's list), `partner_invite_accept` and
   `partner_invite_decline`, each a definer function that checks the caller through `is_workspace_owner` or the
