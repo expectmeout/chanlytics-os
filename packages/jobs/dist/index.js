@@ -22733,7 +22733,10 @@ async function pushSend(ctx, job) {
   );
   const gone = receipts.filter((r6) => r6.status === "error" && r6.error === "DeviceNotRegistered").map((r6) => r6.to);
   if (gone.length) {
-    must("push_send: cannot forget a phone that is gone", await ctx.db.from("push_devices").delete().in("token", gone));
+    try {
+      await ctx.db.from("push_devices").delete().in("token", gone);
+    } catch {
+    }
   }
   const tickets = receipts.flatMap((r6) => r6.status === "ok" && r6.id ? [{ id: r6.id, to: r6.to }] : []);
   if (tickets.length) {
@@ -22745,23 +22748,35 @@ async function pushSend(ctx, job) {
     }
   }
 }
+var READ_PAGE = 1e3;
+var IN_BATCH = 100;
 async function badgesFor(ctx, tenantId, readers) {
   const since = new Date(Date.now() - BELL_WINDOW_DAYS * 864e5).toISOString();
-  const rows = must(
-    "push_send: cannot read the bell",
-    await ctx.db.from("notifications").select("id, created_at").eq("tenant_id", tenantId).gte("created_at", since)
-  ) ?? [];
+  const rows = [];
+  for (let from = 0; ; from += READ_PAGE) {
+    const page = must(
+      "push_send: cannot read the bell",
+      await ctx.db.from("notifications").select("id, created_at").eq("tenant_id", tenantId).gte("created_at", since).order("created_at", { ascending: true }).range(from, from + READ_PAGE - 1)
+    ) ?? [];
+    rows.push(...page);
+    if (page.length < READ_PAGE) break;
+  }
   const seen = must(
     "push_send: cannot read when the bell was opened",
     await ctx.db.from("notification_reads").select("user_id, seen_at").eq("tenant_id", tenantId).in("user_id", readers)
   ) ?? [];
-  const marks = rows.length ? must(
-    "push_send: cannot read the bell's marks",
-    await ctx.db.from("notification_marks").select("notification_id, user_id, read_at, dismissed_at").in("user_id", readers).in(
-      "notification_id",
-      rows.map((r6) => r6.id)
-    )
-  ) ?? [] : [];
+  const marks = [];
+  for (let i = 0; i < rows.length; i += IN_BATCH) {
+    marks.push(
+      ...must(
+        "push_send: cannot read the bell's marks",
+        await ctx.db.from("notification_marks").select("notification_id, user_id, read_at, dismissed_at").in("user_id", readers).in(
+          "notification_id",
+          rows.slice(i, i + IN_BATCH).map((r6) => r6.id)
+        )
+      ) ?? []
+    );
+  }
   const out = /* @__PURE__ */ new Map();
   for (const u of readers) {
     const mine = seen.find((s2) => s2.user_id === u);
