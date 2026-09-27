@@ -27,7 +27,7 @@ import { aggregateOf, idsOf, line, pageWithView, sourceOf, type ContextRow, type
 
 const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) => r.data.timezone);
 
-/** Reports: the period the page shows, its tiles and its lines, as get_report says them. */
+/** Reports: the period the page shows, its tiles and its lines, as the report tool says them. */
 export const reports: Provider = async (rc, ctx) => {
   const asked = Number(ctx.view);
   const days = REPORT_RANGES.some((r) => r.days === asked) ? asked : 30;
@@ -46,7 +46,7 @@ export const reports: Provider = async (rc, ctx) => {
   };
 };
 
-/** The playbooks the page drew, each as list_playbooks says one: its moment, its state, its next run, what runs earned. */
+/** The playbooks the page drew, each as campaigns.playbooks says one: its moment, state, next run, what runs earned. */
 async function playbookRows(rc: ReaderContext, ids: string[]) {
   const pb = (await load(rc, playbooksReader, undefined)).data;
   const byId = new Map(pb.playbooks.map((p) => [p.id, p]));

@@ -19,14 +19,14 @@ import { audiencePool } from "../../../readers/audience-pool";
 import { lists as listsReader } from "../../../readers/lists";
 import { people } from "../../../readers/people";
 import { person } from "../../../readers/person";
-import { UUID, defineRead, str, unlessNotFound, type ToolContext } from "../context";
+import { AUDIENCES_CALL, UUID, defineActions, readAction, str, unlessNotFound, type ToolContext } from "../context";
 
 function stepLine(r: PersonRowDto, tz: string, nowMs: number): string | null {
   const s = nextStepOf(r, tz, nowMs);
   return s ? `${s.words} · ${s.day.words}` : null;
 }
 
-/** A person as search_people says them: the People row's facts, and where they stand in the row's own words (`vm`). */
+/** A person as people.search says them: the People row's facts, and where they stand in the row's own words (`vm`). */
 function personLine(r: PersonRowDto, vm: PersonRowVM, tz: string, nowMs: number) {
   return {
     contact_id: r.id,
@@ -63,14 +63,14 @@ async function searchPeople(t: ToolContext, input: { query: string; list?: strin
   // The query as the People page's search sends it (contacts/route.ts): trimmed, eighty characters at most.
   const q = str(input.query, 80);
   const listIn = str(input.list, 60);
-  // Any list, one way (decision 0009): a token list_audiences gave, or a People list's bare id.
+  // Any list, one way (decision 0009): a token campaigns.audiences gave, or a People list's bare id.
   const ref = listIn
     ? (parseListToken(listIn) ?? parseListToken(`list:${listIn}`) ?? parseListToken(`seg:${listIn}`))
     : null;
-  if (listIn && !ref) return { error: "list must be a list token from list_audiences, or a People list's id" };
+  if (listIn && !ref) return { error: `list must be a list token from ${AUDIENCES_CALL}, or a People list's id` };
   // A list is counted over the audience pool (readers/audience-pool.ts, once a turn), everyone with their appointments,
   // as the People rail and the send count one (audience.ts poolList) -- never over one page. One of the workspace's own
-  // is counted from the lists the turn holds (readers/lists.ts, as list_audiences read them), never read again. One
+  // is counted from the lists the turn holds (readers/lists.ts, as campaigns.audiences read them), never read again. One
   // that can't be counted here says why, in the page's words, and names the condition that failed.
   let pool: AudiencePool | null = null;
   let members: Set<string> | null = null;
@@ -81,7 +81,7 @@ async function searchPeople(t: ToolContext, input: { query: string; list?: strin
     ]);
     pool = held;
     const found = await poolList(t.ctx, t.tenantId, pool, ref, kept);
-    if (!found) return { error: "no such list; list_audiences names them", people: [] };
+    if (!found) return { error: `no such list; ${AUDIENCES_CALL} names them`, people: [] };
     if ("unknown" in found) return { error: `${found.label}: ${found.unknown}`, people: [] };
     members = new Set(found.memberIds);
   }
@@ -179,25 +179,27 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
   };
 }
 
-export const search_people = defineRead({
-  name: "search_people",
+/** People (D11): finding them (search, once search_people) and one person's profile (get, once get_person). */
+export const peopleTool = defineActions({
+  name: "people",
   // The lists are named from the one table of them (contracts lists.ts), never typed beside it.
-  description: `Find people (customers and callers) by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them. Each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token list_audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone, or to see who is on a list; call get_person instead for one person's whole profile, timeline and notes, with the contact_id a row here gives. It returns at most ${ASK_CAPS.people} people, with matches counted before the cap; a list that cannot be counted here says why.`,
-  input: z.object({ query: z.string(), list: z.string().optional() }),
-  examples: [
-    { query: "Rosa" },
-    { query: "", list: "quiet" },
-    { query: "", list: "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
-  ],
-  label: "Looking through People",
-  run: searchPeople,
-});
-
-export const get_person = defineRead({
-  name: "get_person",
-  description:
-    "One person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; search_people is the sibling that finds people and lists them with their state. contact_id is the id search_people, get_thread, get_call or get_calendar returned. It returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
-  input: z.object({ contact_id: z.string() }),
-  label: "Reading the profile",
-  run: getPerson,
+  description: `People, the customers and callers, as the People page and a person's page read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call action search to find someone, or to see who is on a list; call action get when the profile, the timeline or the notes are needed and the page on screen holds only their row. search returns at most ${ASK_CAPS.people} people, with matches counted before the cap; a list that cannot be counted here says why. get returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.`,
+  actions: {
+    search: readAction({
+      input: z.object({ query: z.string(), list: z.string().optional() }),
+      examples: [
+        { query: "Rosa" },
+        { query: "", list: "quiet" },
+        { query: "", list: "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
+      ],
+      label: "Looking through People",
+      run: searchPeople,
+    }),
+    get: readAction({
+      input: z.object({ contact_id: z.string() }),
+      examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" }],
+      label: "Reading the profile",
+      run: getPerson,
+    }),
+  },
 });

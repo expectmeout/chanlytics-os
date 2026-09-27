@@ -2,17 +2,18 @@
  * Ask: the workspace assistant, as a contract.
  *
  * What lives here is everything about Ask that is pure and shared: its limits,
- * the rule that keeps a citation honest and where a row opens, the
- * cards (what each kind does is its spec, in ask-proposals/), the Line's
+ * the cards (what each kind does is its spec, in ask-proposals/), the Line's
  * jump index and suggestions, and the three questions answered without a
- * model. The answer itself -- its shape, the format the model writes it in
- * and how it is read back -- is ask-answer.ts's.
+ * model. A citation -- its kinds, the rule that keeps it honest, where a row
+ * opens -- is citations.ts's; the answer -- its shape and how it is read back
+ * -- ask-answer.ts's, and the format the model writes it in answer-format.ts's.
  * The route that runs the model lives in the dashboard; the Line that shows
  * the answer lives in the legacy pages; both read from here.
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import { z } from "zod";
 import type { AskAnswer } from "./ask-answer";
+import type { AskCitation } from "./citations";
 import type { ProposalNeeds } from "../ask-proposals/spec";
 import { dayPlusInZone } from "../calendar/availability";
 import { parseLeadsRoute } from "../leads/lead-plan";
@@ -61,16 +62,6 @@ export const ASK_CAPS = {
 
 /* ------------------------------------------------------------- the answer */
 
-export const ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"] as const;
-export type AskCitationKind = (typeof ASK_CITATION_KINDS)[number];
-
-export interface AskCitation {
-  kind: AskCitationKind;
-  /** A conversation, call or contact id; for a page, its route. */
-  id: string;
-  label: string;
-}
-
 export const ASK_LANGUAGES = ["en", "es", "other"] as const;
 export type AskLanguage = (typeof ASK_LANGUAGES)[number];
 
@@ -94,80 +85,6 @@ export function cleanAnswer(raw: string): string {
 }
 
 /* --------------------------------------------------------------- grounding */
-
-/** What the tools returned this turn, by kind: the only rows a citation may name. */
-export type AskReadSet = Record<Exclude<AskCitationKind, "page">, Set<string>>;
-
-export function emptyReadSet(): AskReadSet {
-  return { thread: new Set(), conversation: new Set(), call: new Set(), person: new Set() };
-}
-
-/** The pages a citation or a navigate target may point at without a read. */
-export const ASK_PAGE_ROUTES = [
-  "today",
-  "inbox",
-  "clients",
-  "clients/leads",
-  "segments",
-  "conversations",
-  "live",
-  "calendar",
-  "outbound",
-  "broadcasts",
-  "messages",
-  "reports",
-  "start",
-  "admin/workspace",
-  "admin/team",
-  "admin/autonomy",
-  "admin/notifications",
-  "admin/integrations",
-  "admin/billing",
-  "admin/activity",
-  "admin/profile",
-] as const;
-
-const PAGE_PREFIX =
-  /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
-
-/**
- * Drop every citation that names a row the tools did not return this turn.
- * A model that read nothing cannot cite anything; a model that read the
- * Inbox can cite only the threads it saw. Pages are always allowed, because
- * a page is not a claim.
- */
-export function groundCitations(citations: AskCitation[], read: AskReadSet): { kept: AskCitation[]; dropped: number } {
-  const kept: AskCitation[] = [];
-  let dropped = 0;
-  const seen = new Set<string>();
-  for (const c of citations) {
-    const ok = c.kind === "page" ? PAGE_PREFIX.test(c.id) : read[c.kind].has(c.id);
-    const key = `${c.kind}:${c.id}`;
-    if (!ok || seen.has(key)) {
-      dropped++;
-      continue;
-    }
-    seen.add(key);
-    kept.push(c);
-  }
-  return { kept, dropped };
-}
-
-/** Where a citation opens. The same routes the pages use for the same rows. */
-export function citationRoute(c: AskCitation): string {
-  switch (c.kind) {
-    case "thread":
-      return `inbox/th-${c.id}`;
-    case "conversation":
-      return `conversations/${c.id}`;
-    case "call":
-      return `conversations/cv-${c.id}`;
-    case "person":
-      return `clients/${c.id}`;
-    default:
-      return c.id;
-  }
-}
 
 /**
  * An answer that states a figure without having read anything is not from

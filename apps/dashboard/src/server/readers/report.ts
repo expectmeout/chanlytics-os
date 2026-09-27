@@ -9,7 +9,7 @@ import * as facts from "./facts";
 /**
  * GET reports, as the route answers it: the receptionist's numbers day by day for one of the three presets (the route
  * refuses any other), then the booking line and the deals beside them -- the route's body, moved here whole, so the
- * Reports page and Ask's get_report read the same rows the same way. One SECURITY INVOKER function computes the series
+ * Reports page and Ask's report tool read the same rows the same way. One SECURITY INVOKER function computes the series
  * in the tenant's own zone under the caller's RLS; a function that answers nothing is the route's 404, in its words,
  * before anything else is read. The calendar's zone and settings, and how the workspace's customers buy, come through
  * their readers, once in a turn. The page is the row a citation names.

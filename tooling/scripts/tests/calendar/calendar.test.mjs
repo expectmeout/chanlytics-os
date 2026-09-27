@@ -409,7 +409,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
       dayModule.includes('data-testid="today-day-unreadable"'),
     "Today shows the day on the calendar, without a feed only the steps due, and says so about a feed it has and could not read (today-unreadable.test.mjs walks it)",
   );
-  // get_calendar is the registry's, and runs in ask-turn.test.mjs ("get_calendar reads the people it names"), where
+  // calendar.week is the registry's, and runs in ask-turn.test.mjs ("calendar.week reads the people it names"), where
   // its result says that nothing is booked from here.
   assert.ok(
     /"?calendar"?:\s*"The owner's calendar as the receptionist reads it/.test(

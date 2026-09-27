@@ -30,7 +30,7 @@ interface TodayRead {
  * makes no such read, and toTodayVM already counts an open escalation whose
  * thread it was not handed as a customer waiting, named "Unknown": that is the
  * page's number, so it is Ask's. The Inbox's fetch by id lives in `inbox`, for
- * list_threads; when both run in a turn they share the hundred and the
+ * inbox.list; when both run in a turn they share the hundred and the
  * escalations through the turn cache. No route answers this; Ask is its only
  * server-side reader until the context plane (Phase 2) is.
  */

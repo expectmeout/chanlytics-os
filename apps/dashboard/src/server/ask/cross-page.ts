@@ -1,6 +1,6 @@
 import type { AskSurface } from "@chanlytics/contracts";
 import type { SearchResultBlock } from "./context";
-import type { ToolRun } from "./tools";
+import { calledName, type ToolRun } from "./tools";
 
 /**
  * Reads made before the model is asked, for what the question names on ANOTHER page (the Phase 2 plan, D12, D13).
@@ -50,18 +50,18 @@ const CALLS = /\btranscripts?\b|\brecordings?\b|\bcalls?\b|\bcalled\b|\bllam(ó|
 /** Drafts held for approval (D12): the snapshot carried them on every page; now one read carries them off the Inbox. */
 const HELD = /\bheld\b|\bdrafts?\b|\bwaiting (for|on) (my |your )?approval\b|\bborradores?\b|\bretenid[oa]s?\b/i;
 
-/** The reads each page's own rows already answer: on that page, the question is answered from its context. */
+/** The reads each page's own rows already answer, by tool and action: on that page, its context answers the question. */
 const ON_PAGE: Partial<Record<AskSurface, ReadonlySet<string>>> = {
-  calendar: new Set(["get_openings", "get_calendar"]),
-  campaigns: new Set(["list_playbooks", "list_audiences"]),
-  today: new Set(["list_calls"]),
-  conversations: new Set(["list_calls"]),
-  live: new Set(["list_calls"]),
-  inbox: new Set(["list_threads"]),
+  calendar: new Set(["calendar.openings", "calendar.week"]),
+  campaigns: new Set(["campaigns.playbooks", "campaigns.audiences"]),
+  today: new Set(["calls.list"]),
+  conversations: new Set(["calls.list"]),
+  live: new Set(["calls.list"]),
+  inbox: new Set(["inbox.list"]),
 };
 
 /**
- * The reads a question names on another page, at most CROSS_PAGE_MAX, in the order the tools are listed. On Reports a
+ * The reads a question names on another page, at most CROSS_PAGE_MAX, in the order below. On Reports a
  * report is read only for a period other than the one on screen (the context's view).
  */
 export function crossPagePlan(text: string, surface: string | null, view: string | null = null): ToolRun[] {
@@ -69,27 +69,31 @@ export function crossPagePlan(text: string, surface: string | null, view: string
   const own = ON_PAGE[surface as AskSurface] ?? new Set<string>();
   const out: ToolRun[] = [];
   const add = (name: string, input: Record<string, unknown>) => {
-    if (!own.has(name) && !out.some((r) => r.name === name)) out.push({ name, input });
+    const called = calledName(name, input);
+    if (!own.has(called) && !out.some((r) => calledName(r.name, r.input) === called)) out.push({ name, input });
   };
   if (REPORT.test(q)) {
     const days = daysOf(q);
-    if (surface !== "reports" || String(days) !== view) add("get_report", { days });
+    if (surface !== "reports" || String(days) !== view) add("report", { days });
   }
-  if (OPENINGS.test(q)) add("get_openings", { day: dayOf(q, ""), service: "" });
-  else if (CALENDAR.test(q)) add("get_calendar", { day: dayOf(q, "today") });
-  if (PLAYBOOKS.test(q)) add("list_playbooks", {});
-  if (AUDIENCES.test(q)) add("list_audiences", {});
-  if (MISSED.test(q)) add("list_calls", { filter: "missed" });
-  else if (CALLS.test(q)) add("list_calls", { filter: "recent" });
-  if (HELD.test(q)) add("list_threads", { filter: "held" });
+  if (OPENINGS.test(q)) add("calendar", { action: "openings", day: dayOf(q, ""), service: "" });
+  else if (CALENDAR.test(q)) add("calendar", { action: "week", day: dayOf(q, "today") });
+  if (PLAYBOOKS.test(q)) add("campaigns", { action: "playbooks" });
+  if (AUDIENCES.test(q)) add("campaigns", { action: "audiences" });
+  if (MISSED.test(q)) add("calls", { action: "list", filter: "missed" });
+  else if (CALLS.test(q)) add("calls", { action: "list", filter: "recent" });
+  if (HELD.test(q)) add("inbox", { action: "list", filter: "held" });
   return out.slice(0, CROSS_PAGE_MAX);
 }
 
-/** One read as the model reads it: data in a block of its own, never in `system` (customers' words are in it). */
+/**
+ * One read as the model reads it: data in a block of its own, never in `system` (customers' words are in it), its
+ * source the tool and action that read it (`read://calendar.week`), its title the call as it was made.
+ */
 export function readBlock(run: ToolRun, result: string): SearchResultBlock {
   return {
     type: "search_result",
-    source: `read://${run.name}`,
+    source: `read://${calledName(run.name, run.input)}`,
     title: `${run.name} ${JSON.stringify(run.input)}`,
     content: [{ type: "text", text: result }],
     citations: { enabled: false },

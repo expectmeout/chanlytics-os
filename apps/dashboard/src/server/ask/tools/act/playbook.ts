@@ -32,7 +32,16 @@ import { checkPlaybookInput, proposalFollowUps } from "../../../campaigns/playbo
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { lists as listsReader } from "../../../readers/lists";
-import { UUID, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import {
+  AUDIENCES_CALL,
+  UUID,
+  actAction,
+  propose,
+  refuse,
+  str,
+  type ProposalOutcome,
+  type ToolContext,
+} from "../context";
 
 /** What a run does under each mode, in the card's words. */
 const MODE_WORDS: Record<string, string> = {
@@ -68,7 +77,7 @@ async function proposePlaybook(
   // A playbook on a list names it by its token (decision 0009): one of People's, or one of the workspace's own.
   const listRef = trig.kind === "saved" ? parseListToken(str(input.list, 60)) : null;
   if (trig.kind === "saved" && !listRef)
-    return refuse("a playbook on a list needs list: the list's token from list_audiences (seg:<id> or list:<id>)");
+    return refuse(`a playbook on a list needs list: the list's token from ${AUDIENCES_CALL} (seg:<id> or list:<id>)`);
   // The proposal follow-up (0006): only where deals are on, and one per workspace (00167).
   if (trig.kind === "deal") {
     const [sellsBy, one] = await Promise.all([
@@ -86,7 +95,7 @@ async function proposePlaybook(
   }
   let templateId = str(input.template_id, 40);
   if (templateId && !UUID.test(templateId))
-    return refuse("template_id must be an id list_audiences returned, or omitted for the trigger's starter");
+    return refuse(`template_id must be an id ${AUDIENCES_CALL} returned, or omitted for the trigger's starter`);
   if (!templateId) {
     const s = starterForTrigger(trig.id);
     const { data: starter } = await t.ctx.supabase
@@ -102,7 +111,7 @@ async function proposePlaybook(
       .maybeSingle();
     if (!starter)
       return refuse(
-        `the “${s?.title ?? trig.label}” starter is not approved on this workspace yet; say so and suggest adding the starter set under Campaigns › Messages, or name an approved template from list_audiences`,
+        `the “${s?.title ?? trig.label}” starter is not approved on this workspace yet; say so and suggest adding the starter set under Campaigns › Messages, or name an approved template from ${AUDIENCES_CALL}`,
       );
     templateId = starter.id;
   }
@@ -115,7 +124,7 @@ async function proposePlaybook(
     .maybeSingle();
   if (!tpl || tpl.meta_status !== "approved" || tpl.hidden_at)
     return refuse(
-      "that template is not approved by WhatsApp, or the workspace keeps it out of the composers; list_audiences names the ones that may send",
+      `that template is not approved by WhatsApp, or the workspace keeps it out of the composers; ${AUDIENCES_CALL} names the ones that may send`,
     );
 
   // The values: the model's, or the template's own defaults — a starter's
@@ -188,7 +197,7 @@ async function proposePlaybook(
     // One of the workspace's own lists is counted from the lists the turn holds (readers/lists.ts), never read again.
     const kept = listRef.kind === "saved" ? (await load(t.rc, listsReader, undefined)).data.lists : undefined;
     const found = await poolList(t.ctx, t.tenantId, pool, listRef, kept);
-    if (!found) return refuse("no such list; list_audiences names them");
+    if (!found) return refuse(`no such list; ${AUDIENCES_CALL} names them`);
     if (found.archived) return refuse(archivedListWords(found.label, "run"));
     if ("unknown" in found) return refuse(`${found.label} can't be counted right now: ${found.unknown}`);
     listIds = new Set(found.memberIds);
@@ -233,13 +242,12 @@ async function proposePlaybook(
   });
 }
 
-export const propose_playbook = defineAct({
-  name: "propose_playbook",
-  description:
-    "Propose a playbook: a standing rule that sends one approved WhatsApp template to newly eligible people who said yes. trigger is quiet_30 (win-back), new_week (welcome), phoned_only (save our number), lapsed (no visit in 45 days), everyone_monthly (the month's offer), saved_list (on any list: its token from list_audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link). template_id is an approved template, or omitted for the trigger's starter when the workspace holds it; params are the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10) and cap_per_run defaults to 25. Read list_playbooks first, for what runs and who each moment reaches; propose_broadcast is the sibling for one message sent once. It becomes a card the person approves and then runs under its class's autonomy mode; a starter the workspace does not hold, or a typed value left blank, is refused in words.",
+/** A playbook, a standing rule: propose_campaign's action playbook (campaign.ts), once propose_playbook. */
+export const playbookAction = actAction({
+  kind: "playbook",
   input: z.object({
     trigger: z.enum(PROPOSABLE_TRIGGERS),
-    // On a list (saved_list): the list's token from list_audiences, and what it sends.
+    // On a list (saved_list): the list's token from campaigns.audiences, and what it sends.
     list: z.string().optional(),
     policy_class: z.enum(LIST_PLAYBOOK_CLASSES).optional(),
     template_id: z.string().optional(),

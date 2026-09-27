@@ -10774,10 +10774,41 @@ type SchemaAgreement = [
 ];
 
 /**
+ * Ask's citation grammar: the kinds a citation may name, the rule that keeps one honest (a row the tools returned this
+ * turn, or a page) and where each opens. Read by ask.ts's message, the answer's normaliser (ask-answer.ts) and the
+ * format the model writes (answer-format.ts). Pure; it imports nothing.
+ */
+declare const ASK_CITATION_KINDS: readonly ["thread", "conversation", "call", "person", "page"];
+type AskCitationKind = (typeof ASK_CITATION_KINDS)[number];
+interface AskCitation {
+    kind: AskCitationKind;
+    /** A conversation, call or contact id; for a page, its route. */
+    id: string;
+    label: string;
+}
+/** What the tools returned this turn, by kind: the only rows a citation may name. */
+type AskReadSet = Record<Exclude<AskCitationKind, "page">, Set<string>>;
+declare function emptyReadSet(): AskReadSet;
+/** The pages a citation or a navigate target may point at without a read. */
+declare const ASK_PAGE_ROUTES: readonly ["today", "inbox", "clients", "clients/leads", "segments", "conversations", "live", "calendar", "outbound", "broadcasts", "messages", "reports", "start", "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations", "admin/billing", "admin/activity", "admin/profile"];
+/**
+ * Drop every citation that names a row the tools did not return this turn.
+ * A model that read nothing cannot cite anything; a model that read the
+ * Inbox can cite only the threads it saw. Pages are always allowed, because
+ * a page is not a claim.
+ */
+declare function groundCitations(citations: AskCitation[], read: AskReadSet): {
+    kept: AskCitation[];
+    dropped: number;
+};
+/** Where a citation opens. The same routes the pages use for the same rows. */
+declare function citationRoute(c: AskCitation): string;
+
+/**
  * Ask's answer as the Line draws it (docs/superpowers/specs/2026-09-23-ask-the-line-design.md, section 5): Say, the
  * finding; Show, what it rests on; Do, the next step. One shape for every surface that answers -- the palette, Today's
- * band, the answers that need no model, and the model's own, which it writes as structured output (ASK_ANSWER_FORMAT)
- * and the server reads back through normalizeAnswer -- and one rule for the doors it offers. Pure.
+ * band, the answers that need no model, and the model's own, which it writes as structured output (ASK_ANSWER_FORMAT,
+ * answer-format.ts) and the server reads back through normalizeAnswer -- and one rule for the doors it offers. Pure.
  */
 
 /** A row or a page read this turn, with the route the app gives it and whether its door is drawn (oneDoor). */
@@ -10949,233 +10980,6 @@ interface AskSourceRef {
     id: string;
     label: string;
 }
-/**
- * The answer's shape as the model writes it, passed as `output_config.format` (spec 5.3). Every property is required
- * and nothing else is allowed, so "nothing" is an empty string, an empty array or kind none. Structured outputs take
- * no length limits, so each limit is said in its description, from ASK_ANSWER_CAPS and nowhere else the model reads
- * (D6). `say` comes first, so it streams first. Changing it resets the prompt cache for every conversation.
- */
-declare const ASK_ANSWER_FORMAT: {
-    readonly type: "object";
-    readonly properties: {
-        readonly say: {
-            readonly type: "object";
-            readonly properties: {
-                readonly headline: {
-                    readonly type: "string";
-                    readonly description: "The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most 160 characters.";
-                };
-                readonly detail: {
-                    readonly type: "string";
-                    readonly description: "Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most 700 characters.";
-                };
-            };
-            readonly required: readonly ["headline", "detail"];
-            readonly additionalProperties: false;
-        };
-        readonly show: {
-            readonly type: "object";
-            readonly properties: {
-                readonly figures: {
-                    readonly type: "array";
-                    readonly description: "The numbers the headline rests on, at most 4; empty when there is none.";
-                    readonly items: {
-                        readonly type: "object";
-                        readonly properties: {
-                            readonly value: {
-                                readonly type: "string";
-                                readonly description: "The number as said: \"5\", \"44%\", \"1 min\"; at most 24 characters.";
-                            };
-                            readonly label: {
-                                readonly type: "string";
-                                readonly description: "What it counts, at most 60 characters.";
-                            };
-                            readonly note: {
-                                readonly type: "string";
-                                readonly description: "How it compares (\"up from 1\"), or empty; at most 60 characters.";
-                            };
-                            readonly source: {
-                                readonly type: "object";
-                                readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
-                                readonly properties: {
-                                    readonly kind: {
-                                        readonly type: "string";
-                                        readonly enum: readonly ["thread", "conversation", "call", "person", "page", "none"];
-                                    };
-                                    readonly id: {
-                                        readonly type: "string";
-                                    };
-                                    readonly label: {
-                                        readonly type: "string";
-                                        readonly description: "A short name for it, at most 60 characters.";
-                                    };
-                                };
-                                readonly required: readonly ["kind", "id", "label"];
-                                readonly additionalProperties: false;
-                            };
-                        };
-                        readonly required: readonly ["value", "label", "note", "source"];
-                        readonly additionalProperties: false;
-                    };
-                };
-                readonly items: {
-                    readonly type: "array";
-                    readonly description: "The rows the answer names (people, threads, calls), at most 5; empty when it names none. Each opens its row.";
-                    readonly items: {
-                        readonly type: "object";
-                        readonly properties: {
-                            readonly title: {
-                                readonly type: "string";
-                                readonly description: "Who or what it is, at most 80 characters.";
-                            };
-                            readonly meta: {
-                                readonly type: "string";
-                                readonly description: "The channel and how long, or empty; at most 60 characters.";
-                            };
-                            readonly line: {
-                                readonly type: "string";
-                                readonly description: "Why it matters, in one line of at most 160 characters.";
-                            };
-                            readonly source: {
-                                readonly type: "object";
-                                readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
-                                readonly properties: {
-                                    readonly kind: {
-                                        readonly type: "string";
-                                        readonly enum: readonly ["thread", "conversation", "call", "person", "page", "none"];
-                                    };
-                                    readonly id: {
-                                        readonly type: "string";
-                                    };
-                                    readonly label: {
-                                        readonly type: "string";
-                                        readonly description: "A short name for it, at most 60 characters.";
-                                    };
-                                };
-                                readonly required: readonly ["kind", "id", "label"];
-                                readonly additionalProperties: false;
-                            };
-                        };
-                        readonly required: readonly ["title", "meta", "line", "source"];
-                        readonly additionalProperties: false;
-                    };
-                };
-                readonly breakdown: {
-                    readonly type: "object";
-                    readonly description: "One whole in its parts, at most 4 parts whose values add up exactly to total; parts empty when nothing splits.";
-                    readonly properties: {
-                        readonly label: {
-                            readonly type: "string";
-                            readonly description: "What the whole is (\"customer messages\"), at most 60 characters.";
-                        };
-                        readonly total: {
-                            readonly type: "number";
-                        };
-                        readonly parts: {
-                            readonly type: "array";
-                            readonly items: {
-                                readonly type: "object";
-                                readonly properties: {
-                                    readonly label: {
-                                        readonly type: "string";
-                                        readonly description: "At most 60 characters.";
-                                    };
-                                    readonly value: {
-                                        readonly type: "number";
-                                    };
-                                    readonly warn: {
-                                        readonly type: "boolean";
-                                        readonly description: "True for the one part that needs attention.";
-                                    };
-                                };
-                                readonly required: readonly ["label", "value", "warn"];
-                                readonly additionalProperties: false;
-                            };
-                        };
-                        readonly source: {
-                            readonly type: "object";
-                            readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
-                            readonly properties: {
-                                readonly kind: {
-                                    readonly type: "string";
-                                    readonly enum: readonly ["thread", "conversation", "call", "person", "page", "none"];
-                                };
-                                readonly id: {
-                                    readonly type: "string";
-                                };
-                                readonly label: {
-                                    readonly type: "string";
-                                    readonly description: "A short name for it, at most 60 characters.";
-                                };
-                            };
-                            readonly required: readonly ["kind", "id", "label"];
-                            readonly additionalProperties: false;
-                        };
-                    };
-                    readonly required: readonly ["label", "total", "parts", "source"];
-                    readonly additionalProperties: false;
-                };
-            };
-            readonly required: readonly ["figures", "items", "breakdown"];
-            readonly additionalProperties: false;
-        };
-        readonly do: {
-            readonly type: "object";
-            readonly properties: {
-                readonly open: {
-                    readonly type: "object";
-                    readonly description: "The one place to open, when it helps: its source, kind none when nothing needs opening.";
-                    readonly properties: {
-                        readonly source: {
-                            readonly type: "object";
-                            readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
-                            readonly properties: {
-                                readonly kind: {
-                                    readonly type: "string";
-                                    readonly enum: readonly ["thread", "conversation", "call", "person", "page", "none"];
-                                };
-                                readonly id: {
-                                    readonly type: "string";
-                                };
-                                readonly label: {
-                                    readonly type: "string";
-                                    readonly description: "A short name for it, at most 60 characters.";
-                                };
-                            };
-                            readonly required: readonly ["kind", "id", "label"];
-                            readonly additionalProperties: false;
-                        };
-                        readonly label: {
-                            readonly type: "string";
-                            readonly description: "The button's words, at most 60 characters.";
-                        };
-                        readonly now: {
-                            readonly type: "boolean";
-                            readonly description: "True when they asked to open, show or see it: the app goes there as the answer lands.";
-                        };
-                    };
-                    readonly required: readonly ["source", "label", "now"];
-                    readonly additionalProperties: false;
-                };
-                readonly next: {
-                    readonly type: "array";
-                    readonly description: "Up to 2 short questions they might ask next, at most 90 characters each, never one about a place already offered; empty when nothing follows.";
-                    readonly items: {
-                        readonly type: "string";
-                    };
-                };
-            };
-            readonly required: readonly ["open", "next"];
-            readonly additionalProperties: false;
-        };
-        readonly language: {
-            readonly type: "string";
-            readonly enum: readonly ["en", "es", "other"];
-        };
-    };
-    readonly required: readonly ["say", "show", "do", "language"];
-    readonly additionalProperties: false;
-};
 type AskAnswerRead = {
     ok: true;
     answer: AskAnswer;
@@ -11314,11 +11118,11 @@ declare const PROPOSAL_WORDS: {
  * Ask: the workspace assistant, as a contract.
  *
  * What lives here is everything about Ask that is pure and shared: its limits,
- * the rule that keeps a citation honest and where a row opens, the
- * cards (what each kind does is its spec, in ask-proposals/), the Line's
+ * the cards (what each kind does is its spec, in ask-proposals/), the Line's
  * jump index and suggestions, and the three questions answered without a
- * model. The answer itself -- its shape, the format the model writes it in
- * and how it is read back -- is ask-answer.ts's.
+ * model. A citation -- its kinds, the rule that keeps it honest, where a row
+ * opens -- is citations.ts's; the answer -- its shape and how it is read back
+ * -- ask-answer.ts's, and the format the model writes it in answer-format.ts's.
  * The route that runs the model lives in the dashboard; the Line that shows
  * the answer lives in the legacy pages; both read from here.
  */
@@ -11361,34 +11165,9 @@ declare const ASK_CAPS: {
     readonly followups: 3;
     readonly needsRows: 10;
 };
-declare const ASK_CITATION_KINDS: readonly ["thread", "conversation", "call", "person", "page"];
-type AskCitationKind = (typeof ASK_CITATION_KINDS)[number];
-interface AskCitation {
-    kind: AskCitationKind;
-    /** A conversation, call or contact id; for a page, its route. */
-    id: string;
-    label: string;
-}
 declare const ASK_LANGUAGES: readonly ["en", "es", "other"];
 type AskLanguage = (typeof ASK_LANGUAGES)[number];
 declare function cleanAnswer(raw: string): string;
-/** What the tools returned this turn, by kind: the only rows a citation may name. */
-type AskReadSet = Record<Exclude<AskCitationKind, "page">, Set<string>>;
-declare function emptyReadSet(): AskReadSet;
-/** The pages a citation or a navigate target may point at without a read. */
-declare const ASK_PAGE_ROUTES: readonly ["today", "inbox", "clients", "clients/leads", "segments", "conversations", "live", "calendar", "outbound", "broadcasts", "messages", "reports", "start", "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations", "admin/billing", "admin/activity", "admin/profile"];
-/**
- * Drop every citation that names a row the tools did not return this turn.
- * A model that read nothing cannot cite anything; a model that read the
- * Inbox can cite only the threads it saw. Pages are always allowed, because
- * a page is not a claim.
- */
-declare function groundCitations(citations: AskCitation[], read: AskReadSet): {
-    kept: AskCitation[];
-    dropped: number;
-};
-/** Where a citation opens. The same routes the pages use for the same rows. */
-declare function citationRoute(c: AskCitation): string;
 /**
  * An answer that states a figure without having read anything is not from
  * the workspace. Times, counts and money all carry digits; a turn with no
@@ -11813,6 +11592,234 @@ declare const ASK_MODEL_PROFILES: Record<AskModelId, AskModelProfile>;
 declare const ASK_MODEL: AskModelId;
 /** The profile a name picks: one of the list, else the default. Never a throw: a misspelt variable runs the default. */
 declare function askModelProfile(name: string | null | undefined): AskModelProfile;
+
+/**
+ * The answer's shape as the model writes it, passed as `output_config.format` (spec 5.3). Every property is required
+ * and nothing else is allowed, so "nothing" is an empty string, an empty array or kind none. Structured outputs take
+ * no length limits, so each limit is said in its description, from ASK_ANSWER_CAPS and nowhere else the model reads
+ * (D6). `say` comes first, so it streams first. Changing it resets the prompt cache for every conversation.
+ */
+declare const ASK_ANSWER_FORMAT: {
+    readonly type: "object";
+    readonly properties: {
+        readonly say: {
+            readonly type: "object";
+            readonly properties: {
+                readonly headline: {
+                    readonly type: "string";
+                    readonly description: "The answer itself in one sentence, the finding first and never a preamble; under 20 words and at most 160 characters.";
+                };
+                readonly detail: {
+                    readonly type: "string";
+                    readonly description: "Only what the headline needs: empty when the headline is enough; at most two short sentences, or five when they asked why, how, for a summary or for detail; at most 700 characters.";
+                };
+            };
+            readonly required: readonly ["headline", "detail"];
+            readonly additionalProperties: false;
+        };
+        readonly show: {
+            readonly type: "object";
+            readonly properties: {
+                readonly figures: {
+                    readonly type: "array";
+                    readonly description: "The numbers the headline rests on, at most 4; empty when there is none.";
+                    readonly items: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly value: {
+                                readonly type: "string";
+                                readonly description: "The number as said: \"5\", \"44%\", \"1 min\"; at most 24 characters.";
+                            };
+                            readonly label: {
+                                readonly type: "string";
+                                readonly description: "What it counts, at most 60 characters.";
+                            };
+                            readonly note: {
+                                readonly type: "string";
+                                readonly description: "How it compares (\"up from 1\"), or empty; at most 60 characters.";
+                            };
+                            readonly source: {
+                                readonly type: "object";
+                                readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly type: "string";
+                                        readonly enum: readonly ["thread", "conversation", "call", "person", "page", "none"];
+                                    };
+                                    readonly id: {
+                                        readonly type: "string";
+                                    };
+                                    readonly label: {
+                                        readonly type: "string";
+                                        readonly description: "A short name for it, at most 60 characters.";
+                                    };
+                                };
+                                readonly required: readonly ["kind", "id", "label"];
+                                readonly additionalProperties: false;
+                            };
+                        };
+                        readonly required: readonly ["value", "label", "note", "source"];
+                        readonly additionalProperties: false;
+                    };
+                };
+                readonly items: {
+                    readonly type: "array";
+                    readonly description: "The rows the answer names (people, threads, calls), at most 5; empty when it names none. Each opens its row.";
+                    readonly items: {
+                        readonly type: "object";
+                        readonly properties: {
+                            readonly title: {
+                                readonly type: "string";
+                                readonly description: "Who or what it is, at most 80 characters.";
+                            };
+                            readonly meta: {
+                                readonly type: "string";
+                                readonly description: "The channel and how long, or empty; at most 60 characters.";
+                            };
+                            readonly line: {
+                                readonly type: "string";
+                                readonly description: "Why it matters, in one line of at most 160 characters.";
+                            };
+                            readonly source: {
+                                readonly type: "object";
+                                readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
+                                readonly properties: {
+                                    readonly kind: {
+                                        readonly type: "string";
+                                        readonly enum: readonly ["thread", "conversation", "call", "person", "page", "none"];
+                                    };
+                                    readonly id: {
+                                        readonly type: "string";
+                                    };
+                                    readonly label: {
+                                        readonly type: "string";
+                                        readonly description: "A short name for it, at most 60 characters.";
+                                    };
+                                };
+                                readonly required: readonly ["kind", "id", "label"];
+                                readonly additionalProperties: false;
+                            };
+                        };
+                        readonly required: readonly ["title", "meta", "line", "source"];
+                        readonly additionalProperties: false;
+                    };
+                };
+                readonly breakdown: {
+                    readonly type: "object";
+                    readonly description: "One whole in its parts, at most 4 parts whose values add up exactly to total; parts empty when nothing splits.";
+                    readonly properties: {
+                        readonly label: {
+                            readonly type: "string";
+                            readonly description: "What the whole is (\"customer messages\"), at most 60 characters.";
+                        };
+                        readonly total: {
+                            readonly type: "number";
+                        };
+                        readonly parts: {
+                            readonly type: "array";
+                            readonly items: {
+                                readonly type: "object";
+                                readonly properties: {
+                                    readonly label: {
+                                        readonly type: "string";
+                                        readonly description: "At most 60 characters.";
+                                    };
+                                    readonly value: {
+                                        readonly type: "number";
+                                    };
+                                    readonly warn: {
+                                        readonly type: "boolean";
+                                        readonly description: "True for the one part that needs attention.";
+                                    };
+                                };
+                                readonly required: readonly ["label", "value", "warn"];
+                                readonly additionalProperties: false;
+                            };
+                        };
+                        readonly source: {
+                            readonly type: "object";
+                            readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
+                            readonly properties: {
+                                readonly kind: {
+                                    readonly type: "string";
+                                    readonly enum: readonly ["thread", "conversation", "call", "person", "page", "none"];
+                                };
+                                readonly id: {
+                                    readonly type: "string";
+                                };
+                                readonly label: {
+                                    readonly type: "string";
+                                    readonly description: "A short name for it, at most 60 characters.";
+                                };
+                            };
+                            readonly required: readonly ["kind", "id", "label"];
+                            readonly additionalProperties: false;
+                        };
+                    };
+                    readonly required: readonly ["label", "total", "parts", "source"];
+                    readonly additionalProperties: false;
+                };
+            };
+            readonly required: readonly ["figures", "items", "breakdown"];
+            readonly additionalProperties: false;
+        };
+        readonly do: {
+            readonly type: "object";
+            readonly properties: {
+                readonly open: {
+                    readonly type: "object";
+                    readonly description: "The one place to open, when it helps: its source, kind none when nothing needs opening.";
+                    readonly properties: {
+                        readonly source: {
+                            readonly type: "object";
+                            readonly description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.";
+                            readonly properties: {
+                                readonly kind: {
+                                    readonly type: "string";
+                                    readonly enum: readonly ["thread", "conversation", "call", "person", "page", "none"];
+                                };
+                                readonly id: {
+                                    readonly type: "string";
+                                };
+                                readonly label: {
+                                    readonly type: "string";
+                                    readonly description: "A short name for it, at most 60 characters.";
+                                };
+                            };
+                            readonly required: readonly ["kind", "id", "label"];
+                            readonly additionalProperties: false;
+                        };
+                        readonly label: {
+                            readonly type: "string";
+                            readonly description: "The button's words, at most 60 characters.";
+                        };
+                        readonly now: {
+                            readonly type: "boolean";
+                            readonly description: "True when they asked to open, show or see it: the app goes there as the answer lands.";
+                        };
+                    };
+                    readonly required: readonly ["source", "label", "now"];
+                    readonly additionalProperties: false;
+                };
+                readonly next: {
+                    readonly type: "array";
+                    readonly description: "Up to 2 short questions they might ask next, at most 90 characters each, never one about a place already offered; empty when nothing follows.";
+                    readonly items: {
+                        readonly type: "string";
+                    };
+                };
+            };
+            readonly required: readonly ["open", "next"];
+            readonly additionalProperties: false;
+        };
+        readonly language: {
+            readonly type: "string";
+            readonly enum: readonly ["en", "es", "other"];
+        };
+    };
+    readonly required: readonly ["say", "show", "do", "language"];
+    readonly additionalProperties: false;
+};
 
 /**
  * The page context: what the page a person is on sends with a question, and with the palette's warm (the spec, 5.2;
