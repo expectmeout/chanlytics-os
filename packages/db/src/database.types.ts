@@ -484,6 +484,7 @@ export type Database = {
       }
       calls: {
         Row: {
+          activity_started_at: string | null
           agent_id: string | null
           analysis: Json | null
           call_successful: boolean | null
@@ -524,6 +525,7 @@ export type Database = {
           wanted: string | null
         }
         Insert: {
+          activity_started_at?: string | null
           agent_id?: string | null
           analysis?: Json | null
           call_successful?: boolean | null
@@ -564,6 +566,7 @@ export type Database = {
           wanted?: string | null
         }
         Update: {
+          activity_started_at?: string | null
           agent_id?: string | null
           analysis?: Json | null
           call_successful?: boolean | null

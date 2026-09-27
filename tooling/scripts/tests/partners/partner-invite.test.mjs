@@ -267,7 +267,7 @@ test("the partner's routes: on the account, counted; joining asks for the second
     "not_found",
     404,
   );
-  // A database that never had 00221: nobody can have asked.
+  // A database that never had 00222: nobody can have asked.
   const older = {
     partner_invitations_mine: refusal("PGRST202", "Could not find the function public.partner_invitations_mine"),
   };

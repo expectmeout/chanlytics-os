@@ -1,5 +1,5 @@
 /**
- * An existing workspace brings in a partner (decision 0018, 00221), against the replayed stack: only the owner asks,
+ * An existing workspace brings in a partner (decision 0018, 00222), against the replayed stack: only the owner asks,
  * by a code that names an active partner who is someone else; the partner answers, joining only on a session that
  * showed its second factor; joining seats them as partner and credits them, earning from a workspace that had never
  * paid and not from one that was already paying; a declined or withdrawn invitation is the owner's to see and ask

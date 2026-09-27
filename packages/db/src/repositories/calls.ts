@@ -204,3 +204,31 @@ export async function claimCallNotification(db: Db, tenantId: string, callId: st
   if (error) throw new Error(`claim_call_notification: ${error.message}`);
   return (data?.length ?? 0) > 0;
 }
+
+/**
+ * Claim the one start of a call's Live Activity on the workspace's phones (00221). True for the first delivery of its
+ * call_started; false once claimed, so a redelivered one starts nothing twice. Throws on a database error.
+ */
+export async function claimCallActivity(db: Db, tenantId: string, callId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("calls")
+    .update({ activity_started_at: new Date().toISOString() })
+    .eq("id", callId)
+    .eq("tenant_id", tenantId)
+    .is("activity_started_at", null)
+    .select("id");
+  if (error) throw new Error(`claim_call_activity: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
+/** The caller's name as the Live page gives it (their display name, else their WhatsApp name), or null. */
+export async function callerNameOf(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("contacts")
+    .select("display_name, wa_profile_name")
+    .eq("tenant_id", tenantId)
+    .eq("id", contactId)
+    .maybeSingle();
+  if (error) throw new Error(`caller_name: ${error.message}`);
+  return (data?.display_name || data?.wa_profile_name || "").trim() || null;
+}

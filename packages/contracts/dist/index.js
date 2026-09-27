@@ -18319,6 +18319,7 @@ function parseShellMessage(v) {
 // src/mobile/live-activity.ts
 var CALL_ACTIVITY_NAME = "CallActivity";
 var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
+var CALL_ACTIVITY_ROLES = ["owner", "operator"];
 function callActivityStart(props, now) {
   const seconds = Math.floor(now.getTime() / 1e3);
   return {
@@ -18334,10 +18335,11 @@ function callActivityStart(props, now) {
   };
 }
 function callActivityPropsOf(call) {
-  const who = (call.who ?? "").trim() || (call.from_e164 ?? "").trim() || (call.from_raw ?? "").trim() || "Someone";
+  const tail = phoneTail(call.from_e164) ?? phoneTail(call.from_raw);
+  const who = (call.name ?? "").trim() || (tail ? `Caller ending ${tail}` : "Someone");
   return {
     who,
-    line: (call.to_e164 ?? "").trim() || "your line",
+    line: formatPhoneDisplay(call.to_e164) ?? "your line",
     startedAt: call.started_at ?? (/* @__PURE__ */ new Date(0)).toISOString()
   };
 }
@@ -26992,6 +26994,7 @@ export {
   BusinessProfileSchema,
   CALENDAR_FEED_WORDS,
   CALL_ACTIVITY_NAME,
+  CALL_ACTIVITY_ROLES,
   CALL_ACTIVITY_STALE_MS,
   CALL_HEARTBEAT_MS,
   CALL_KEY_PREFIX,
