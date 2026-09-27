@@ -63,7 +63,6 @@
   "apps/dashboard/src/server/receptionist/prompt-preview.ts": 2,
   "apps/dashboard/src/server/route.ts": 8,
   "apps/dashboard/src/server/verbs.ts": 17,
-  "apps/dashboard/src/server/with-route.ts": 2,
   "apps/dashboard/src/server/workspace/billing.ts": 3,
   "apps/dashboard/src/server/workspace/setup.ts": 1,
   "apps/dashboard/src/server/workspace/team.ts": 2,
