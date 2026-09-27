@@ -1,4 +1,4 @@
--- 00216 · A call on the Lock Screen starts once, on phones whose activity token is theirs alone.
+-- 00218 · A call on the Lock Screen starts once, on phones whose activity token is theirs alone.
 --
 -- The call's Live Activity (00191, apps/edge/lib/voice/call-activity.ts) is started from the Retell webhook. A
 -- redelivered call_started started it again on every phone: calls.activity_started_at records the one start, won by

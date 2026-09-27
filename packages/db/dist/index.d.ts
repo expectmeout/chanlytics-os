@@ -7896,7 +7896,7 @@ declare function recordCallNote(db: Db$b, p: {
  */
 declare function claimCallNotification(db: Db$b, tenantId: string, callId: string): Promise<boolean>;
 /**
- * Claim the one start of a call's Live Activity on the workspace's phones (00216). True for the first delivery of its
+ * Claim the one start of a call's Live Activity on the workspace's phones (00218). True for the first delivery of its
  * call_started; false once claimed, so a redelivered one starts nothing twice. Throws on a database error.
  */
 declare function claimCallActivity(db: Db$b, tenantId: string, callId: string): Promise<boolean>;

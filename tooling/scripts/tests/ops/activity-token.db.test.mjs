@@ -1,5 +1,5 @@
 /**
- * A phone's call activity belongs to one person (00216), on a real Postgres with real sessions: the register door
+ * A phone's call activity belongs to one person (00218), on a real Postgres with real sessions: the register door
  * takes an activity token from any other row that holds it, two rows can never hold one token, and a phone that has
  * not said its token this time keeps the one it said before. Runs against the database `supabase start` builds on
  * this machine, never production.
