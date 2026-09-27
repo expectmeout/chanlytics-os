@@ -127,6 +127,14 @@ export const RATE = {
   profile_set: { limit: 10, windowMs: 3_600_000, noun: "name changes" },
   /** Becoming a partner (0012): once per account, so the bucket is for the codes tried. */
   partner_become: { limit: 10, windowMs: 3_600_000, noun: "partner codes tried" },
+  /**
+   * The back office's partner verbs (0012, P5): a person's decision on a workspace a partner brought, and a payout
+   * recorded. Worked down a list like the waiting list, but each one moves money or a partner's standing, so the
+   * ceilings are a support session's, not a loop's.
+   */
+  platform_partner_standing: { limit: 60, windowMs: 3_600_000, noun: "partner standings set" },
+  platform_partner_payout: { limit: 30, windowMs: 3_600_000, noun: "partner payouts recorded" },
+  platform_partner_status: { limit: 20, windowMs: 3_600_000, noun: "partners paused or restored" },
   /** The native app's sign-in door (app/auth/native): per network, a token that does not verify costs a call each time. */
   native_sign_in: { limit: 20, windowMs: 3_600_000, noun: "sign-ins" },
   /** The phone app registers its push token on launch (me/devices); sixty an hour is a loop, not a person. */

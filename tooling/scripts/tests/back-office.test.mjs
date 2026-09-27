@@ -46,6 +46,9 @@ import {
   clockDateYear,
   clockDayLabel,
   zoneDayKey,
+  platformPartnerRows,
+  platformPartnerSummary,
+  platformPartnerStanding,
 } from "@chanlytics/contracts";
 
 const clock = (sweep, healthy, detail = null) => ({
@@ -696,6 +699,33 @@ test("a workspace reading its own Setup still gets the roster, on its own client
   assert.deepEqual(asked, { p_tenant_id: TENANT }, "the member path calls the roster RPC");
   assert.equal(setup.team.members, 1);
   assert.equal(setup.team.invitesOpen, 1);
+});
+
+test("a workspace a partner brought names them on its own Setup, and nobody else's read carries the name", async () => {
+  const roster = [
+    {
+      membership_id: "m1",
+      member_user_id: "u1",
+      email: "owner@example.com",
+      role: "owner",
+      joined_at: ago(90),
+      display_name: "Bea",
+    },
+    {
+      membership_id: "m2",
+      member_user_id: "u2",
+      email: "ada@example.com",
+      role: "partner",
+      joined_at: ago(80),
+      display_name: null,
+    },
+  ];
+  const mine = await setupDtoFor(fakeDb(workspaceTables(), {}, { team_roster: () => roster }), TENANT, {
+    kind: "member",
+  });
+  assert.equal(mine.team.partner, "ada@example.com", "the address when they have not given a name");
+  const theirs = await setupDtoFor(fakeDb(workspaceTables()), TENANT, { kind: "back_office" });
+  assert.equal("partner" in theirs.team, false);
 });
 
 test("REGRESSION (S14): Setup reads what was asked for per thing, from the events -- a port read as a line, and the edge's line-is-ready bell read as a request", async () => {
@@ -1835,4 +1865,202 @@ test("a deployment whose overview predates the queue draws no card at all", asyn
   await page.settle();
   assert.equal(byId(page.tree, "platform-queue"), null);
   assert.ok(byId(page.tree, "platform-overview"), "and the workspaces are still there");
+});
+
+/* ------------------------------------------------------------------------ partners (decision 0012, P5) */
+
+const P1 = "10000000-0000-4000-8000-000000000001";
+/** One partner's line of platform_partner_balances(). */
+const balance = (over = {}) => ({
+  partner_id: P1,
+  code: "ada-co",
+  email: "ada@example.com",
+  status: "active",
+  share_bp: 2500,
+  joined_at: "2026-08-01T00:00:00Z",
+  workspaces: 2,
+  under_review: 1,
+  currency: "usd",
+  held_cents: 5000,
+  payable_cents: 12500,
+  paid_cents: 0,
+  last_paid_at: null,
+  ...over,
+});
+/** One line of platform_partner_workspaces(). */
+const brought = (over = {}) => ({
+  tenant_id: "b",
+  partner_id: P1,
+  code: "ada-co",
+  attributed_at: "2026-08-01T00:00:00Z",
+  standing: "review",
+  standing_why: "The card that pays for it also pays for a workspace the partner owns.",
+  standing_at: "2026-08-09T00:00:00Z",
+  decided_by: "sweep",
+  checks: { same_card: true, same_listing: false },
+  ...over,
+});
+/** The window API with the partner card's half, network stubbed, the words the real contract's. */
+function partnerApi(tenants, partners, calls = []) {
+  return {
+    ...api(tenants, null, calls),
+    list: async () => ({ ok: true, tenants, health: null, queue: null, partners, message: "" }),
+    partnerRows: platformPartnerRows,
+    partnerSummary: platformPartnerSummary,
+    partnerStanding: platformPartnerStanding,
+    markPaid: async (partnerId, code, currency, reference, expected) => {
+      calls.push(`paid:${partnerId}:${code}:${currency}:${reference}:${expected}`);
+      return { ok: true, message: "Recorded." };
+    },
+    setStatus: async (partnerId, code, status, why) => {
+      calls.push(`status:${partnerId}:${code}:${status}:${why}`);
+      return { ok: true, message: "Done." };
+    },
+    setStanding: async (tenantId, standing, why) => {
+      calls.push(`standing:${tenantId}:${standing}:${why}`);
+      return { ok: true, message: "Done." };
+    },
+  };
+}
+
+test("the partner card: what each partner is owed, the workspaces held for a person, and who brought each workspace on its row", async () => {
+  globalThis.window.__platform = partnerApi(
+    [
+      live({ tenant_id: "a", slug: "harbor", name: "Harbor Moving" }),
+      live({ tenant_id: "b", slug: "bayside", name: "Bayside Salon" }),
+      live({ tenant_id: "c", slug: "nobody", name: "Nobody's" }),
+    ],
+    {
+      balances: [balance()],
+      workspaces: [
+        brought(),
+        brought({ tenant_id: "a", standing: "qualified", standing_why: null, decided_by: "sweep" }),
+      ],
+    },
+  );
+  const page = mount(Pane);
+  await page.settle();
+  assert.equal(
+    textOf(byId(page.tree, "platform-partners-words")),
+    "1 partner · $125.00 payable · 1 workspace under review",
+  );
+  assert.equal(
+    textOf(byId(page.tree, "platform-partner-money-ada-co")),
+    "$125.00 payable · $50.00 held · $0.00 paid to date",
+    "a zero is said as a zero",
+  );
+  assert.ok(byId(page.tree, "platform-standing-b"), "the one under review is on the card");
+  assert.equal(byId(page.tree, "platform-standing-a"), null, "a qualified one is not: nothing to decide");
+  assert.match(textOf(byId(page.tree, "platform-standing-words-b")), /Under review \(the nightly check\): The card/);
+  const rows = attnRows(page.tree);
+  const meta = Object.fromEntries(rows.map((r) => [r.props.name, r.props.meta]));
+  assert.match(meta["Bayside Salon"], / · Brought by ada-co$/);
+  assert.doesNotMatch(meta["Nobody's"], /Brought by/, "a workspace nobody brought says nothing about partners");
+});
+
+test("a deployment whose overview predates the partners draws no partner card, and the workspaces are still there", async () => {
+  globalThis.window.__platform = partnerApi([live({ tenant_id: "a", slug: "harbor", name: "Harbor Moving" })], null);
+  const page = mount(Pane);
+  await page.settle();
+  assert.equal(byId(page.tree, "platform-partners"), null);
+  assert.ok(byId(page.tree, "platform-overview"));
+});
+
+test("recording a payout is never one click, sends nothing, and waits for the payment's reference", async () => {
+  const calls = [];
+  const P = partnerApi([], null, calls);
+  let reloaded = 0;
+  const said = [];
+  const [row] = platformPartnerRows([balance()]);
+  const view = mount(globalThis.window.PlatformPartnerRow, {
+    row,
+    P,
+    onDone: () => {
+      reloaded += 1;
+    },
+    flash: (t) => said.push(t),
+  });
+  assert.equal(textOf(byId(view.tree, "platform-partner-mark-ada-co")), "Mark $125.00 as paid");
+  await view.press(byId(view.tree, "platform-partner-mark-ada-co").props.onClick);
+  assert.equal(calls.filter((c) => c.startsWith("paid:")).length, 0, "arming is not doing");
+  assert.match(textOf(byId(view.tree, "platform-partner-pay-ada-co-confirm")), /Nothing is sent/);
+  assert.equal(byId(view.tree, "platform-partner-pay-ada-co-yes").props.disabled, true, "not without a reference");
+  view.type(byId(view.tree, "platform-partner-pay-ada-co-typed"), "  bank-ref-1  ");
+  assert.equal(byId(view.tree, "platform-partner-pay-ada-co-yes").props.disabled, false);
+  await view.press(byId(view.tree, "platform-partner-pay-ada-co-yes").props.onClick);
+  assert.deepEqual(
+    calls.filter((c) => c.startsWith("paid:")),
+    [`paid:${P1}:ada-co:usd:bank-ref-1:12500`],
+  );
+  assert.equal(reloaded, 1);
+  assert.equal(said.length, 1);
+});
+
+test("a partner owed nothing, or owed less than refunds took, has no payout button", () => {
+  const [none, under] = platformPartnerRows([
+    balance({ currency: null, held_cents: 0, payable_cents: 0 }),
+    balance({ payable_cents: -3000 }),
+  ]);
+  for (const row of [none, under]) {
+    const view = mount(globalThis.window.PlatformPartnerRow, { row, P: partnerApi([], null), onDone() {}, flash() {} });
+    assert.equal(byId(view.tree, "platform-partner-mark-ada-co"), null);
+  }
+  assert.equal(none.money, "Nothing earned yet.");
+  assert.match(under.money, /^-\$30\.00 to come off the next payout/);
+});
+
+test("a person's decision on a brought workspace asks why, and disqualifying is the red one", async () => {
+  const calls = [];
+  const P = partnerApi([], null, calls);
+  let reloaded = 0;
+  const view = mount(globalThis.window.PlatformPartnerStandingRow, {
+    ws: brought(),
+    name: "Bayside Salon",
+    P,
+    onDone: () => {
+      reloaded += 1;
+    },
+    flash() {},
+  });
+  assert.ok(byId(view.tree, "platform-standing-arm-qualified-b"));
+  assert.ok(byId(view.tree, "platform-standing-arm-disqualified-b"));
+  assert.equal(byId(view.tree, "platform-standing-arm-review-b"), null, "never the standing it already has");
+  await view.press(byId(view.tree, "platform-standing-arm-disqualified-b").props.onClick);
+  const confirm = byId(view.tree, "platform-standing-disqualified-b-confirm");
+  assert.match(confirm.props.className, /confirm-danger/);
+  assert.match(textOf(confirm), /What was paid stays paid/);
+  assert.equal(byId(view.tree, "platform-standing-disqualified-b-yes").props.disabled, true, "not without why");
+  view.type(byId(view.tree, "platform-standing-disqualified-b-typed"), "Same owner as the partner.");
+  await view.press(byId(view.tree, "platform-standing-disqualified-b-yes").props.onClick);
+  assert.deepEqual(calls, ["standing:b:disqualified:Same owner as the partner."]);
+  assert.equal(reloaded, 1);
+});
+
+test("pausing a partner asks why, is the red one, and is offered once per partner, never on a second currency's line", async () => {
+  const calls = [];
+  const P = partnerApi([], null, calls);
+  const [usd, eur] = platformPartnerRows([balance(), balance({ currency: "eur" })]);
+  const second = mount(globalThis.window.PlatformPartnerRow, { row: eur, P, onDone() {}, flash() {} });
+  assert.equal(byId(second.tree, "platform-partner-arm-paused-ada-co"), null);
+  let reloaded = 0;
+  const view = mount(globalThis.window.PlatformPartnerRow, {
+    row: usd,
+    P,
+    onDone: () => {
+      reloaded += 1;
+    },
+    flash() {},
+  });
+  assert.ok(byId(view.tree, "platform-partner-arm-closed-ada-co"));
+  assert.equal(byId(view.tree, "platform-partner-arm-active-ada-co"), null, "an active partner is not restored");
+  await view.press(byId(view.tree, "platform-partner-arm-paused-ada-co").props.onClick);
+  const confirm = byId(view.tree, "platform-partner-status-paused-ada-co-confirm");
+  assert.match(confirm.props.className, /confirm-danger/);
+  assert.match(textOf(confirm), /become a viewer on every workspace they brought/);
+  assert.equal(byId(view.tree, "platform-partner-mark-ada-co"), null, "one question at a time");
+  assert.equal(byId(view.tree, "platform-partner-status-paused-ada-co-yes").props.disabled, true, "not without why");
+  view.type(byId(view.tree, "platform-partner-status-paused-ada-co-typed"), "Reported by an owner.");
+  await view.press(byId(view.tree, "platform-partner-status-paused-ada-co-yes").props.onClick);
+  assert.deepEqual(calls, [`status:${P1}:ada-co:paused:Reported by an owner.`]);
+  assert.equal(reloaded, 1);
 });

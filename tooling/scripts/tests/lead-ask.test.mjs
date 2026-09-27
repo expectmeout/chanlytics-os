@@ -319,7 +319,7 @@ test("the planner's refusals are words for the model to say, and no card", async
     "propose_lead_search",
     MODEL_INPUT,
   );
-  assert.match(JSON.parse(op.result).error, /only an owner can start a lead search/);
+  assert.match(JSON.parse(op.result).error, /only an owner or the workspace's partner can start a lead search/);
   const people = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, looking_for: "people" });
   assert.match(JSON.parse(people.result).error, /I find businesses, not people at home/);
   assert.equal(people.proposal, null);

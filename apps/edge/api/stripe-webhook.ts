@@ -37,7 +37,13 @@ import {
   subscriptionFacts,
   tenantOf,
 } from "../lib/billing.js";
-import { earnFromInvoice, invoiceOfPayment, isAttributed, reverseForInvoice } from "../lib/partner-earnings.js";
+import {
+  earnFromInvoice,
+  invoiceOfPayment,
+  isAttributed,
+  reverseForInvoice,
+  type LedgerOutcome,
+} from "../lib/partner-earnings.js";
 import { receptionistOn } from "../lib/packages/contracts.js";
 import { env } from "../lib/env.js";
 
@@ -92,6 +98,16 @@ export async function POST(request: Request): Promise<Response> {
   };
   const giveBack = async (): Promise<void> => {
     if (lease) await forgetEvent(db, event.id, lease);
+  };
+  // A ledger door the database does not have yet (either deploy order, 0012): the webhook's own work is done and
+  // answered 200, but the claim is given back, so the event resent from Stripe's dashboard once the migration is in
+  // writes the share, where a completed claim would answer it as a duplicate.
+  const ledgerAnswer = async (out: LedgerOutcome, key: "partner_earned" | "partner_reversed"): Promise<Response> => {
+    if (out && "skipped" in out) {
+      await giveBack();
+      return json(200, { ok: true, partner_skipped: true });
+    }
+    return done(json(200, { ok: true, ...(out ? { [key]: out.earned } : {}) }));
   };
   // The invoice a payment paid (0012): read as every Stripe read here is, under STRIPE_READ_OPTIONS; a read that does
   // not answer gives the claim back, and the door's 503 has Stripe deliver the event again.
@@ -233,7 +249,7 @@ export async function POST(request: Request): Promise<Response> {
         if (row) await notePayment(db, row, event.type === "invoice.paid" ? "paid" : "failed");
         const earned =
           row && event.type === "invoice.paid" ? await earnFromInvoice(db, row.tenant_id, inv, event.id, L) : null;
-        return done(json(200, { ok: true, ...(earned ? { partner_earned: earned.earned } : {}) }));
+        return ledgerAnswer(earned, "partner_earned");
       }
       case "charge.refunded": {
         // A partner's share gives back what the refund takes (0012). Stripe says the charge's refunded total so far;
@@ -246,7 +262,7 @@ export async function POST(request: Request): Promise<Response> {
         const invoice = await invoiceOf(idOf(charge.payment_intent));
         if (invoice === UNREADABLE) return json(503, { ok: false, error: "stripe_unreadable" });
         const r = invoice ? await reverseForInvoice(db, invoice, event.id, "refund", charge.amount_refunded, L) : null;
-        return done(json(200, { ok: true, ...(r ? { partner_reversed: r.earned } : {}) }));
+        return ledgerAnswer(r, "partner_reversed");
       }
       case "charge.dispute.created":
       case "charge.dispute.closed": {
@@ -254,12 +270,17 @@ export async function POST(request: Request): Promise<Response> {
         const dispute = event.data.object;
         const dup = await keep(null);
         if (dup) return dup;
-        if (event.type === "charge.dispute.closed" && dispute.status !== "won") return done(json(200, { ok: true }));
+        // An inquiry (warning_*) takes no money, so it takes no share, and its close gives nothing back. A dispute
+        // closed won, or prevented, gives back what its dispute took; lost leaves it taken.
+        if (event.type === "charge.dispute.created" && dispute.status.startsWith("warning_"))
+          return done(json(200, { ok: true }));
+        if (event.type === "charge.dispute.closed" && dispute.status !== "won" && dispute.status !== "prevented")
+          return done(json(200, { ok: true }));
         const invoice = await invoiceOf(idOf(dispute.payment_intent));
         if (invoice === UNREADABLE) return json(503, { ok: false, error: "stripe_unreadable" });
         const kind = event.type === "charge.dispute.created" ? "dispute" : "dispute_won";
         const r = invoice ? await reverseForInvoice(db, invoice, event.id, kind, dispute.amount, L) : null;
-        return done(json(200, { ok: true, ...(r ? { partner_reversed: r.earned } : {}) }));
+        return ledgerAnswer(r, "partner_reversed");
       }
       case "customer.deleted": {
         // The ids the row kept point at nothing now: forgotten, so the portal

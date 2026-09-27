@@ -180,7 +180,7 @@ test("invoice.paid that earns nothing: a one-time payment, a zero, and a payment
   assert.deepEqual(d.calls, []);
 });
 
-test("a database without the ledger's doors: the share is skipped and said, the webhook's own work still answered 200", async () => {
+test("a database without the ledger's doors: the share is skipped and said, the webhook's own work still answered 200, and the claim given back for a resend", async () => {
   const d = doors({
     partner_earn: () => {
       throw Object.assign(new Error("Could not find the function public.partner_earn"), { code: "PGRST202" });
@@ -189,8 +189,16 @@ test("a database without the ledger's doors: the share is skipped and said, the 
   const db = fakeDb(tables(true), {}, d.rpcs);
   setPg(db);
   const r = await deliver("invoice.paid", invoice());
-  assert.deepEqual([r.status, r.body], [200, { ok: true }], "never a 500 Stripe would retry for days");
+  assert.deepEqual(
+    [r.status, r.body],
+    [200, { ok: true, partner_skipped: true }],
+    "never a 500 Stripe would retry for days",
+  );
   assert.ok(db.seen.some((s) => s.table === "billing_accounts" && s.op === "update"));
+  assert.ok(
+    db.seen.some((s) => s.table === "billing_events" && s.op === "delete"),
+    "the claim is forgotten, so the event resent once the migration is in writes the share",
+  );
 });
 
 test("a door that fails for any other reason is a 500, and the delivery is given back so Stripe's retry is not a duplicate", async () => {
@@ -269,6 +277,11 @@ test("a dispute takes the share while it is open; won, it gives it back; lost, n
   });
   const opened = await deliver("charge.dispute.created", dispute("needs_response"));
   assert.deepEqual(opened.body, { ok: true, partner_reversed: -10000 });
+  // An inquiry takes no money, so it takes no share, and its close gives nothing back.
+  const inquiry = await deliver("charge.dispute.created", dispute("warning_needs_response"));
+  assert.deepEqual(inquiry.body, { ok: true });
+  const settled = await deliver("charge.dispute.closed", dispute("warning_closed"));
+  assert.deepEqual(settled.body, { ok: true });
   const lost = await deliver("charge.dispute.closed", dispute("lost"));
   assert.deepEqual(lost.body, { ok: true });
   const won = await deliver("charge.dispute.closed", dispute("won"));

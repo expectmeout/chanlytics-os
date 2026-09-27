@@ -20,6 +20,8 @@ export interface PartnerDto {
   share_bp: number;
   terms_accepted_at: string | null;
   created_at: string;
+  /** How many workspaces came through the link, on a team or not (GET partner); absent from an older server. */
+  brought?: number | null;
 }
 
 export const PARTNER_STATUSES = ["active", "paused", "closed"] as const;
@@ -31,6 +33,8 @@ export const PARTNER_STANDINGS = ["qualified", "review", "disqualified"] as cons
 export const PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"] as const;
 /** Where a movement stands: held thirty days, payable once the workspace qualifies, paid (P5), void if disqualified. */
 export const PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"] as const;
+/** What can happen to a share after it is written: a refund, a dispute, a dispute won (00203; waiting, 00207). */
+export const PARTNER_REVERSAL_KINDS = ["refund", "dispute", "dispute_won"] as const;
 /** Days a share is held before it may be paid: what 00203 adds to the invoice's paid_at. */
 export const PARTNER_HOLD_DAYS = 30;
 
@@ -128,6 +132,15 @@ export const PARTNER_WORDS = {
   readingWorkspaces: "Reading your workspaces…",
   failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /**
+   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+   * owner's yes. Their price does not change; the share is Chanlytics'.
+   */
+  joinAsk: (code: string) =>
+    `Add ${code}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend:
+    "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
 } as const;
 
 /** The share, as a sentence: "25% of what it pays for its plan". */
@@ -174,7 +187,10 @@ function sumWords(rows: readonly PartnerBalanceRow[], state: string): { words: s
   };
 }
 
-export function partnerEarningsWords(rows: readonly PartnerBalanceRow[] | null | undefined): PartnerEarningsVM {
+export function partnerEarningsWords(
+  rows: readonly PartnerBalanceRow[] | null | undefined,
+  nowMs = Date.now(),
+): PartnerEarningsVM {
   const list = rows ?? [];
   const held = sumWords(list, "held");
   const payable = sumWords(list, "payable");
@@ -185,10 +201,14 @@ export function partnerEarningsWords(rows: readonly PartnerBalanceRow[] | null |
     .sort()[0];
   return {
     none: list.every((r) => r.earned_cents === 0),
+    // The date is the earliest a held share could be paid, never a promise: one waiting on a review, or past its
+    // date and not yet judged, is said as waiting rather than given a day that has gone.
     held:
       held.cents === 0
         ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.`
-        : `${held.words} held${next ? `, the first of it payable from ${dayWords(next)}` : ""}.`,
+        : next && Date.parse(next) > nowMs
+          ? `${held.words} held, the first of it payable from ${dayWords(next)} at the earliest.`
+          : `${held.words} held, payable once each workspace it came from is qualified.`,
     payable:
       payable.cents < 0
         ? `${payable.words} to come off your next payout, for refunds and disputes after you were paid.`
@@ -247,7 +267,7 @@ export interface PartnerWorkspaceMoneyDto {
 export const PARTNER_STANDING_WORDS: Record<string, string | null> = {
   pending: "Its share is judged once it has paid.",
   qualified: null,
-  review: "Under review: its card or its listing matches one of yours. We'll write to you.",
+  review: "Under review: a person at Chanlytics looks at it before its share is paid. We'll write to you.",
   disqualified: "Not eligible for a share.",
 };
 
@@ -296,6 +316,8 @@ export function partnerWorkspacesVM(
   overview: readonly PlatformTenantDto[],
   money: readonly PartnerWorkspaceMoneyDto[],
   nowMs = Date.now(),
+  /** The partner's own status: a paused or closed partner is off every team by the platform, not by an owner. */
+  status: string = "active",
 ): PartnerWorkspacesVM {
   const judged = platformRows(overview, nowMs);
   const moneyOf = (id: string) => money.filter((m) => m.tenant_id === id);
@@ -329,9 +351,14 @@ export function partnerWorkspacesVM(
       verdict: null,
       label: "Off the team",
       tone: "plain",
-      sentence: m.on_team
-        ? "Its details could not be read just now."
-        : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
+      sentence:
+        status === "paused"
+          ? "Your partner account is paused, so you are a viewer on its team until it is looked at."
+          : status === "closed"
+            ? "Your partner account is closed. Its details are its owner's."
+            : m.on_team
+              ? "Its details could not be read just now."
+              : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
       facts: null,
       standing: standingOf(m.tenant_id),
       money: moneyLine(moneyOf(m.tenant_id)),
@@ -344,4 +371,217 @@ export function partnerWorkspacesVM(
   const parts = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
   if (needs) parts.push(`${needs} need${needs === 1 ? "s" : ""} you`);
   return { rows, summary: total ? parts.join(" · ") : "No workspace has come through your link yet." };
+}
+
+/* ---------------------------------------------------------------------------------- the back office (0012, P5) */
+
+/** One line of platform_partner_balances() (00205): a partner, and one currency of what they earned. */
+export interface PlatformPartnerBalanceDto {
+  partner_id: string;
+  code: string;
+  email: string | null;
+  status: string;
+  share_bp: number;
+  joined_at: string;
+  workspaces: number;
+  under_review: number;
+  /** Null for a partner with nothing on the ledger yet. */
+  currency: string | null;
+  held_cents: number;
+  payable_cents: number;
+  paid_cents: number;
+  last_paid_at: string | null;
+}
+
+/** One line of platform_partner_workspaces() (00205): who brought a workspace, and its standing. */
+export interface PlatformPartnerWorkspaceDto {
+  tenant_id: string;
+  partner_id: string;
+  code: string;
+  attributed_at: string;
+  standing: string | null;
+  standing_why: string | null;
+  standing_at: string | null;
+  /** Who decided it: the sweep's checks, or a person in the back office. Null until it is judged. */
+  decided_by: string | null;
+  checks: Record<string, unknown> | null;
+}
+
+/** A person's three decisions, as the back office's buttons say them. */
+export const PARTNER_STANDING_VERBS: Record<(typeof PARTNER_STANDINGS)[number], string> = {
+  qualified: "Qualify",
+  review: "Hold for review",
+  disqualified: "Disqualify",
+};
+
+/** What a person may decide from each standing: never the one it already has. */
+export function partnerStandingChoices(standing: string | null): (typeof PARTNER_STANDINGS)[number][] {
+  return PARTNER_STANDINGS.filter((s) => s !== standing);
+}
+
+export interface PlatformPartnerRowVM {
+  partnerId: string;
+  code: string;
+  /** "ada@example.com · 3 workspaces · 1 under review · 25% · paused" */
+  who: string;
+  /** "$125.00 payable · $50.00 held · $1,200.00 paid to date", a zero said as a zero. */
+  money: string;
+  currency: string | null;
+  payableCents: number;
+  /** A payout can be recorded: the net payable in this currency is above zero. */
+  canPay: boolean;
+  /** The button's words, with the amount: "Mark $125.00 as paid". */
+  payLabel: string;
+  tone: Tone;
+  status: string;
+  /** The first line of this partner: where the partner's own actions (pause, close, restore) are drawn, once. */
+  first: boolean;
+  statusChoices: { status: (typeof PARTNER_STATUSES)[number]; label: string }[];
+}
+
+/** A platform admin's three decisions about a partner, as the back office's buttons say them. */
+export const PARTNER_STATUS_VERBS: Record<(typeof PARTNER_STATUSES)[number], string> = {
+  active: "Restore",
+  paused: "Pause",
+  closed: "Close",
+};
+
+/** What may be decided about a partner from their status: never the one they have. */
+export function partnerStatusChoices(status: string): (typeof PARTNER_STATUSES)[number][] {
+  return PARTNER_STATUSES.filter((s) => s !== status);
+}
+
+/** What partner_status_set answered, as the toast says it. */
+export function partnerStatusOutcomeWords(code: string, r: { status: string; seats: number }): string {
+  const seats = `${r.seats} ${r.seats === 1 ? "workspace" : "workspaces"}`;
+  if (r.status === "active")
+    return r.seats
+      ? `${code} is restored, and a partner again on ${seats}.`
+      : `${code} is restored. No seat was waiting to be given back.`;
+  const what = r.status === "closed" ? "closed" : "paused";
+  return r.seats
+    ? `${code} is ${what}: a viewer on ${seats} now, and what they held there is released.`
+    : `${code} is ${what}. They held no partner seat to take.`;
+}
+
+/** The back office's partner list: one row per partner and currency, what is owed first. */
+export function platformPartnerRows(rows: readonly PlatformPartnerBalanceDto[]): PlatformPartnerRowVM[] {
+  const seen = new Set<string>();
+  return rows.map((r) => {
+    const first = !seen.has(r.partner_id);
+    seen.add(r.partner_id);
+    const cur = r.currency ?? "usd";
+    const pct = r.share_bp / 100;
+    const who = [
+      r.email ?? "no address on file",
+      `${r.workspaces} workspace${r.workspaces === 1 ? "" : "s"}`,
+      r.under_review ? `${r.under_review} under review` : null,
+      `${Number.isInteger(pct) ? pct : pct.toFixed(1).replace(/\.0$/, "")}% of what each pays`,
+      r.status === "active" ? null : r.status,
+    ].filter(Boolean);
+    const payable = r.payable_cents;
+    const money =
+      r.currency === null
+        ? "Nothing earned yet."
+        : [
+            payable < 0
+              ? `${moneyWords(payable, cur)} to come off the next payout`
+              : `${moneyWords(payable, cur)} payable`,
+            `${moneyWords(r.held_cents, cur)} held`,
+            `${moneyWords(r.paid_cents, cur)} paid to date`,
+          ].join(" · ");
+    return {
+      partnerId: r.partner_id,
+      code: r.code,
+      who: who.join(" · "),
+      money,
+      currency: r.currency,
+      payableCents: payable,
+      canPay: r.currency !== null && payable > 0,
+      payLabel: `Mark ${moneyWords(Math.max(payable, 0), cur)} as paid`,
+      tone: r.status !== "active" ? "danger" : r.under_review ? "warn" : payable > 0 ? "info" : "plain",
+      status: r.status,
+      first,
+      statusChoices: partnerStatusChoices(r.status).map((s) => ({ status: s, label: PARTNER_STATUS_VERBS[s] })),
+    };
+  });
+}
+
+/** The card's one line: "2 partners · $125.00 payable · 1 workspace under review", counted from the rows. */
+export function platformPartnerSummary(rows: readonly PlatformPartnerBalanceDto[]): string {
+  const partners = new Set(rows.map((r) => r.partner_id)).size;
+  if (!partners) return "No partners yet.";
+  const byCur = new Map<string, number>();
+  for (const r of rows)
+    if (r.currency && r.payable_cents > 0) byCur.set(r.currency, (byCur.get(r.currency) ?? 0) + r.payable_cents);
+  const review = [...new Map(rows.map((r) => [r.partner_id, r.under_review])).values()].reduce((n, v) => n + v, 0);
+  const parts = [`${partners} partner${partners === 1 ? "" : "s"}`];
+  parts.push(byCur.size ? `${[...byCur].map(([c, n]) => moneyWords(n, c)).join(" and ")} payable` : "nothing payable");
+  if (review) parts.push(`${review} workspace${review === 1 ? "" : "s"} under review`);
+  return parts.join(" · ");
+}
+
+export interface PlatformPartnerStandingVM {
+  /** "Brought by ada-co" */
+  by: string;
+  /** Its standing and why, in words: "Under review: The card that pays for it also pays for a workspace the partner owns." */
+  standing: string;
+  tone: Tone;
+  /** The decisions a person may take from here, with their words. */
+  choices: { standing: (typeof PARTNER_STANDINGS)[number]; label: string }[];
+}
+
+const STANDING_LABELS: Record<string, string> = {
+  qualified: "Qualified",
+  review: "Under review",
+  disqualified: "Disqualified",
+};
+
+/** A workspace's partner, for its row in the back office. */
+export function platformPartnerStanding(w: PlatformPartnerWorkspaceDto): PlatformPartnerStandingVM {
+  const label = w.standing ? (STANDING_LABELS[w.standing] ?? w.standing) : "Not judged yet";
+  const whose =
+    w.decided_by === "person" ? " (decided by a person)" : w.decided_by === "sweep" ? " (the nightly check)" : "";
+  const why = w.standing ? (w.standing_why ? `: ${w.standing_why}` : "") : ": judged once it has paid";
+  return {
+    by: `Brought by ${w.code}`,
+    standing: `${label}${whose}${why}`,
+    tone:
+      w.standing === "review"
+        ? "warn"
+        : w.standing === "disqualified"
+          ? "danger"
+          : w.standing === "qualified"
+            ? "ok"
+            : "plain",
+    choices: partnerStandingChoices(w.standing).map((s) => ({ standing: s, label: PARTNER_STANDING_VERBS[s] })),
+  };
+}
+
+/** What partner_payout_mark answered, as the toast says it. */
+export function partnerPayoutOutcomeWords(
+  code: string,
+  r: { paid: boolean; changed?: boolean; total_cents: number; currency: string; earnings?: number },
+): string {
+  if (r.changed)
+    return `Nothing was recorded: what is payable to ${code} is now ${moneyWords(r.total_cents, r.currency)}, not what the card showed. Read the card again before you mark it.`;
+  if (r.paid)
+    return `Recorded: ${moneyWords(r.total_cents, r.currency)} paid to ${code}, settling ${r.earnings ?? 0} ledger ${r.earnings === 1 ? "line" : "lines"}.`;
+  if (r.total_cents < 0)
+    return `Nothing to pay: refunds since the last payout take ${moneyWords(-r.total_cents, r.currency)}, which comes off their next share.`;
+  return "Nothing is payable to them in that currency, so nothing was recorded.";
+}
+
+/** What partner_standing_set answered, as the toast says it. */
+export function partnerStandingOutcomeWords(r: { standing: string; voided: number; matured: number }): string {
+  const label = (STANDING_LABELS[r.standing] ?? r.standing).toLowerCase();
+  if (r.standing === "disqualified")
+    return r.voided
+      ? `Disqualified. What it still held (${r.voided} ${r.voided === 1 ? "share" : "shares"}) is void; what was paid stays paid.`
+      : "Disqualified. It earns nothing from now on; what was paid stays paid.";
+  if (r.standing === "qualified")
+    return r.matured
+      ? `Qualified. ${r.matured} ${r.matured === 1 ? "share" : "shares"} past the hold ${r.matured === 1 ? "is" : "are"} payable now.`
+      : "Qualified. Its shares become payable as each one's hold ends.";
+  return `Now ${label}. What it holds waits until a person decides.`;
 }

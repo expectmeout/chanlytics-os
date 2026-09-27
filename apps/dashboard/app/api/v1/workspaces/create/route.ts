@@ -64,6 +64,8 @@ const Body = z
     timezone: z.string().trim().min(1).max(64).optional(),
     /** The invite code, asked of a first workspace when sign-up is by invitation. */
     code: InviteCodeSchema.optional(),
+    /** The partner's code the person agreed to add to their team, as the create screen asked (0012). */
+    partner: z.string().trim().max(40).optional(),
   })
   .strict();
 
@@ -104,7 +106,11 @@ export const POST = write({
     });
     if (!door.open) throw new AppError(door.code, door.message);
 
-    const partnerCode = partnerCodeFromCookie(req.headers.get("cookie"));
+    // A partner's link leaves a cookie (0012), but a partner joins a team only with the owner's yes: the create
+    // screen names the partner and sends their code back when the person agrees. A cookie with no yes beside it,
+    // or a yes for some other code, credits nobody and seats nobody.
+    const cookieCode = partnerCodeFromCookie(req.headers.get("cookie"));
+    const partnerCode = cookieCode && parsed.data.partner === cookieCode ? cookieCode : null;
     const args = { p_name: parsed.data.name, p_timezone: parsed.data.timezone ?? undefined };
     let { data, error } = await ctx.supabase
       .rpc("create_workspace", partnerCode ? { ...args, p_partner_code: partnerCode } : args)

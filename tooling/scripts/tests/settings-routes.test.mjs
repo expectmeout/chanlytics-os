@@ -917,3 +917,29 @@ test("connecting a WhatsApp number: the owner's, the sign-up ids validated at th
   assert.equal(writes(guard), 0);
   assert.equal(tables.decisions.length, 0);
 });
+
+test("a partner's save (0012) sends back the feed address it was shown masked: the stored one is kept, and the answer is masked too", async () => {
+  const feed = "https://calendar.example.com/private/abcdef123456/basic.ics";
+  const tables = {
+    memberships: both("partner", "owner"),
+    tenant_config: [
+      { tenant_id: A, config: { calendar: { ical_url: feed } }, version: 3, updated_at: "2026-09-01T00:00:00Z" },
+    ],
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+    tenant_channels: [],
+    google_listings: [],
+    events: [],
+  };
+  const read = await settings.GET.run(get(inA), ctxFor(tables));
+  assert.ok(read.config.calendar.ical_url.includes("…"), "a partner is shown the address masked");
+  const saved = await settings.PUT.run(send("PUT", { config: read.config, version: 3 }, inA), ctxFor(tables));
+  assert.ok(saved.config.calendar.ical_url.includes("…"), "and the save's answer does not hand it over whole");
+  assert.equal(tables.tenant_config[0].config.calendar.ical_url, feed, "the stored address is the one kept");
+  const moved = "https://calendar.example.com/private/zzzzzz999999/basic.ics";
+  await settings.PUT.run(send("PUT", { config: { calendar: { ical_url: moved } }, version: 4 }, inA), ctxFor(tables));
+  assert.equal(
+    tables.tenant_config[0].config.calendar.ical_url,
+    moved,
+    "a new address is a new feed, and theirs to set",
+  );
+});

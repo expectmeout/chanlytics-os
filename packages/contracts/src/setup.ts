@@ -67,7 +67,13 @@ export interface SetupDto {
   email?: EmailSetupDto;
   templates: { approved: number; pending: number; startersApproved: number };
   calendar: { state: "ok" | "unavailable" | "none"; problem?: string | null };
-  team: { members: number; invitesOpen: number; alertEmails: number };
+  team: {
+    members: number;
+    invitesOpen: number;
+    alertEmails: number;
+    /** The partner who brought the workspace and sits on its team (0012), by name; the member's read alone carries it. */
+    partner?: string | null;
+  };
   /**
    * The two answers, counted separately.
    *
@@ -1243,7 +1249,9 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       title: "Team and alerts",
       state: people && t.alertEmails ? "ready" : !people && !t.alertEmails ? "not_started" : "waiting_you",
       required: false,
-      sentence: people ? `${who} · ${alerts}.` : `Only you so far · ${alerts}.`,
+      sentence: people
+        ? `${who}${t.partner ? ` · ${t.partner} is your partner` : ""} · ${alerts}.`
+        : `Only you so far · ${alerts}.`,
       details: people ? [] : ["Invite someone who answers when you can't"],
       verb: !t.alertEmails
         ? { label: "Set alerts", to: "admin/notifications" }

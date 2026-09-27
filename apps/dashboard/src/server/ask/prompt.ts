@@ -307,9 +307,11 @@ export function turnWords(t: TurnFacts): string {
   const can =
     t.role === "owner"
       ? "an owner: they can do everything on the pages, including settings, team and exports"
-      : t.role === "operator"
-        ? "an operator: they can reply, take over, snooze and resolve threads and change autonomy, but not settings, team or exports"
-        : "a viewer: they can read everything and change nothing";
+      : t.role === "partner"
+        ? "the workspace's partner, who brought it and sets it up for its owner: they can do what an operator can and change settings, channels and lead searches, but not billing, team or exports"
+        : t.role === "operator"
+          ? "an operator: they can reply, take over, snooze and resolve threads and change autonomy, but not settings, team or exports"
+          : "a viewer: they can read everything and change nothing";
   lines.push(`You are speaking with ${t.personLabel}, ${can}.`);
   if (t.surface === "leads")
     lines.push(

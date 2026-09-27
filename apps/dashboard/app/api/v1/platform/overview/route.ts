@@ -1,5 +1,5 @@
 import { read, platform } from "@/server/route";
-import { platformHealth, platformOverview, platformWaitlist } from "@/server/platform";
+import { platformHealth, platformOverview, platformPartners, platformWaitlist } from "@/server/platform";
 
 /**
  * GET /api/v1/platform/overview — every workspace, for the back office.
@@ -28,15 +28,20 @@ import { platformHealth, platformOverview, platformWaitlist } from "@/server/pla
  * The waiting list is here for the same reason and one more: the people on it
  * have no workspace, so they appear on no other surface in this product. This
  * is the only page they can be on.
+ *
+ * The partners (0012, P5) ride here for the first reason: who brought a
+ * workspace and what it has earned them is a fact about the workspaces on this
+ * page. Null when it could not be read; the workspaces still come back.
  */
 export const GET = read({
   scope: platform,
   handle: async ({ office }) => {
-    const [tenants, health, queue] = await Promise.all([
+    const [tenants, health, queue, partners] = await Promise.all([
       platformOverview(office),
       platformHealth(office),
       platformWaitlist(office),
+      platformPartners(office),
     ]);
-    return { tenants, health, queue };
+    return { tenants, health, queue, partners };
   },
 });

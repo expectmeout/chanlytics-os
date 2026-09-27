@@ -733,7 +733,7 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
     cb.includes('if (proof.state.u !== ctx.userId) return back("error", "someone_else");'),
     "the person who started it",
   );
-  assert.ok(cb.includes('if (member.role !== "owner") return back("error", "not_owner");'));
+  assert.ok(cb.includes('if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");'));
   assert.ok(!cb.includes("client_secret"), "the dashboard never sees the secret");
   const server = readCode("apps/dashboard/src/server/google.ts");
   assert.ok(

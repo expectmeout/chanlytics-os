@@ -626,6 +626,12 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   const invited = setupSteps(empty({ team: { members: 1, invitesOpen: 1, alertEmails: 2 } }), NOW);
   assert.equal(row(invited, "team").state, "ready");
   assert.equal(row(invited, "team").sentence, "1 person · 1 invite open · alerts go to 2 addresses.");
+  // The partner who brought the workspace sits on its team, and the owner is told who they are (0012).
+  const brought = setupSteps(
+    empty({ team: { members: 2, invitesOpen: 0, alertEmails: 1, partner: "Ada Lovelace" } }),
+    NOW,
+  );
+  assert.equal(row(brought, "team").sentence, "2 people · Ada Lovelace is your partner · alerts go to 1 address.");
   const feed = setupSteps(empty({ calendar: { state: "unavailable" } }), NOW);
   assert.equal(row(feed, "calendar").state, "waiting_you");
   assert.deepEqual(row(feed, "calendar").verb, { label: "Check the address", to: "admin/workspace" });

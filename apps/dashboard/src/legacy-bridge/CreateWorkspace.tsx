@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SIGNUP_WORDS, firstRunKicker, type PendingWorkspace, type SignupPosture } from "@chanlytics/contracts";
+import {
+  PARTNER_COOKIE,
+  PARTNER_WORDS,
+  SIGNUP_WORDS,
+  firstRunKicker,
+  partnerCodeFromCookie,
+  type PendingWorkspace,
+  type SignupPosture,
+} from "@chanlytics/contracts";
 import { api } from "./api";
 import { joinWaitlistFrom } from "./waitlist";
 
@@ -115,13 +123,19 @@ export default function CreateWorkspace({
   const [code, setCode] = useState("");
   // Behind a waitlist: the list's own sentence, once it has taken them.
   const [joined, setJoined] = useState<string | null>(null);
+  // A partner's link brought them (0012): the partner joins the team only if they say yes here, so the screen asks
+  // rather than making the workspace on arrival, and the yes is the default they can take back.
+  const [partnerCode] = useState(() =>
+    typeof document === "undefined" ? null : partnerCodeFromCookie(document.cookie),
+  );
+  const [withPartner, setWithPartner] = useState(true);
 
   // CREATE ONCE (F5): a first workspace whose name sign-up kept is made as the
   // screen opens, from that name and clock -- and the invite code sign-up
   // checked, which the create route reads for itself -- so there is no second
   // screen. A refusal (a name taken, a code that changed since) leaves the
   // form, filled in, with the server's sentence, as a press on it would.
-  const kept = !another && door !== "waitlist" ? (initial?.name ?? "").trim() : "";
+  const kept = !another && door !== "waitlist" && !partnerCode ? (initial?.name ?? "").trim() : "";
   const [making, setMaking] = useState(kept.length >= 2);
   const started = useRef(false);
 
@@ -130,7 +144,12 @@ export default function CreateWorkspace({
     setBusy(true);
     setError(null);
     const r = await api()("POST workspaces/create", {
-      body: { name: trimmed, timezone, ...(door === "invite" && typedCode ? { code: typedCode } : {}) },
+      body: {
+        name: trimmed,
+        timezone,
+        ...(door === "invite" && typedCode ? { code: typedCode } : {}),
+        ...(partnerCode && withPartner ? { partner: partnerCode } : {}),
+      },
       // Nothing here is read again: the tab leaves for the new workspace at once (onCreated).
       refresh: false,
     });
@@ -142,6 +161,8 @@ export default function CreateWorkspace({
       setBusy(false);
       return false;
     }
+    // The link's cookie has done its one job, yes or no: a later workspace is not credited to it.
+    if (partnerCode) document.cookie = `${PARTNER_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax; Secure`;
     onCreated(r.data.workspace);
     return true;
   };
@@ -337,6 +358,19 @@ export default function CreateWorkspace({
               aria-label="Invite code"
             />
             <span className="cw-hint">{SIGNUP_WORDS.firstWorkspaceCode}</span>
+          </label>
+        )}
+
+        {partnerCode && (
+          <label className="cw-field cw-check" data-testid="create-workspace-partner">
+            <input
+              type="checkbox"
+              checked={withPartner}
+              onChange={(e) => setWithPartner(e.target.checked)}
+              disabled={busy}
+              data-testid="create-workspace-partner-yes"
+            />
+            <span className="cw-hint">{PARTNER_WORDS.joinAsk(partnerCode)}</span>
           </label>
         )}
 

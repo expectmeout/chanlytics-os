@@ -193,7 +193,10 @@ test("the page: TWO asks, each asking how before it writes, a STOP is not undone
       p.includes('onRecord={recordAndClose("marketing", offersFold)}'),
   );
   assert.ok(p.includes("data-testid={`${testid}-how`}"), "a yes is not written until the page knows how it was given");
-  assert.ok(p.includes('window.__ME.role === "operator"'), "operators record answers too");
+  assert.ok(
+    p.includes('["owner", "operator", "partner"].includes(window.__ME.role)'),
+    "operators record answers too, and the partner",
+  );
   assert.ok(
     p.includes('if (value !== "unknown") record("unknown", null);'),
     "the reset writes nothing when there is nothing to reset",

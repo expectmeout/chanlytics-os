@@ -317,6 +317,16 @@ export async function setupDtoFor(
         "members" in team && Array.isArray(team.members) ? team.members.length : (team as { members: number }).members,
       invitesOpen: "invites" in team ? team.invites.length : (team as { invitesOpen: number }).invitesOpen,
       alertEmails: cfg?.notifications?.escalation_emails?.length ?? 0,
+      // The partner who sits on the team (0012), by the name the roster already carries: on the member's own
+      // read only. The back office reads counts, never the roster, so its team stays three numbers.
+      ...("members" in team && Array.isArray(team.members)
+        ? {
+            partner: (() => {
+              const p = team.members.find((m) => m.role === "partner");
+              return p ? p.displayName || p.email || null : null;
+            })(),
+          }
+        : {}),
     },
     consent: { yes: yes.count ?? 0, offers: offersReach.count ?? 0, offersSaidYes: offersSaid.count ?? 0 },
     requests: requestsFrom(requested.data),

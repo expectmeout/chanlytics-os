@@ -26,6 +26,9 @@ const retry = await import(at("apps/dashboard/app/api/v1/platform/lines/retry/ro
 const invoices = await import(at("apps/dashboard/app/api/v1/billing/invoices/route.ts"));
 const resume = await import(at("apps/dashboard/app/api/v1/billing/resume/route.ts"));
 const sync = await import(at("apps/dashboard/app/api/v1/billing/sync/route.ts"));
+const standing = await import(at("apps/dashboard/app/api/v1/platform/partners/standing/route.ts"));
+const payout = await import(at("apps/dashboard/app/api/v1/platform/partners/payout/route.ts"));
+const partnerStatus = await import(at("apps/dashboard/app/api/v1/platform/partners/status/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -201,4 +204,241 @@ test("billing's three: the invoices and a resume the owner's, a refresh an opera
     "Billing could not be refreshed (no_edge_credential).",
   );
   await refused(sync.POST.run(send("POST"), ctxFor(viewer)), "choose_workspace", 400);
+});
+
+/* ------------------------------------------------------------------------ partners (decision 0012, P5) */
+
+const P1 = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+/** A function's own refusal, as the database raises it: its words, with its code. */
+const raise = (code, message) => () => {
+  throw Object.assign(new Error(message), { code });
+};
+
+test("partners: the two verbs declare the platform scope, no workspace role, and a support ceiling each", () => {
+  assert.equal(standing.POST.policy.scope, "platform");
+  assert.equal(standing.POST.policy.role, null);
+  assert.equal(standing.POST.policy.rate, "platform_partner_standing");
+  assert.equal(payout.POST.policy.scope, "platform");
+  assert.equal(payout.POST.policy.role, null);
+  assert.equal(payout.POST.policy.rate, "platform_partner_payout");
+});
+
+test("partners: a customer who guessed the doors learns nothing, and nothing reaches the functions", async () => {
+  const tables = { memberships: both("owner", "owner") };
+  const ctx = ctxFor(tables, {}, admin(false));
+  await refused(
+    standing.POST.run(send("POST", { tenant_id: A, standing: "qualified", why: "x" }), ctx),
+    "not_found",
+    404,
+  );
+  await refused(
+    payout.POST.run(send("POST", { partner_id: P1, currency: "usd", reference: "r" }), ctx),
+    "not_found",
+    404,
+  );
+  assert.deepEqual(
+    ctx.supabase.seen.filter((x) => x.rpc).map((x) => x.rpc),
+    ["is_platform_admin", "is_platform_admin"],
+  );
+});
+
+test("partners: a decision names a workspace, a standing and why, and the function's own words come back", async () => {
+  const tables = { memberships: both("owner", "owner") };
+  const asked = [];
+  const ok = admin(true, {
+    partner_standing_set: (args) => {
+      asked.push(args);
+      return { tenant_id: A, standing: args.p_standing, from: "review", voided: 0, matured: 2 };
+    },
+  });
+  await refused(
+    standing.POST.run(send("POST", { tenant_id: "x", standing: "qualified", why: "y" }), ctxFor(tables, {}, ok)),
+    "not_found",
+    404,
+    "That workspace does not exist.",
+  );
+  await refused(
+    standing.POST.run(send("POST", { tenant_id: A, standing: "maybe", why: "y" }), ctxFor(tables, {}, ok)),
+    "validation",
+    400,
+  );
+  await refused(
+    standing.POST.run(send("POST", { tenant_id: A, standing: "qualified", why: "   " }), ctxFor(tables, {}, ok)),
+    "validation",
+    400,
+    "Say why",
+  );
+  assert.deepEqual(asked, [], "nothing reached the function");
+  const out = await standing.POST.run(
+    send("POST", { tenant_id: A, standing: "qualified", why: "  Checked by hand.  " }),
+    ctxFor(tables, {}, ok),
+  );
+  assert.deepEqual(asked, [{ p_tenant: A, p_standing: "qualified", p_why: "Checked by hand." }]);
+  assert.equal(out.result.matured, 2);
+  await refused(
+    standing.POST.run(
+      send("POST", { tenant_id: A, standing: "qualified", why: "y" }),
+      ctxFor(tables, {}, admin(true, { partner_standing_set: raise("P0002", "No partner brought that workspace.") })),
+    ),
+    "not_found",
+    404,
+    "No partner brought that workspace.",
+  );
+});
+
+test("partners: a payout names the partner, the currency and the reference; the function settles it, or says why not", async () => {
+  const tables = { memberships: both("owner", "owner") };
+  const asked = [];
+  const ok = admin(true, {
+    partner_payout_mark: (args) => {
+      asked.push(args);
+      return { paid: true, total_cents: "12500", currency: "usd", earnings: 2, payout_id: "p1" };
+    },
+  });
+  await refused(
+    payout.POST.run(send("POST", { partner_id: "x", currency: "usd", reference: "r" }), ctxFor(tables, {}, ok)),
+    "not_found",
+    404,
+    "That partner does not exist.",
+  );
+  await refused(
+    payout.POST.run(send("POST", { partner_id: P1, currency: "dollars", reference: "r" }), ctxFor(tables, {}, ok)),
+    "validation",
+    400,
+  );
+  await refused(
+    payout.POST.run(send("POST", { partner_id: P1, currency: "usd", reference: " " }), ctxFor(tables, {}, ok)),
+    "validation",
+    400,
+    "reference",
+  );
+  assert.deepEqual(asked, []);
+  await refused(
+    payout.POST.run(
+      send("POST", { partner_id: P1, currency: "usd", reference: "r", expected_cents: "12500" }),
+      ctxFor(tables, {}, ok),
+    ),
+    "validation",
+    400,
+    "whole number of cents",
+  );
+  const out = await payout.POST.run(
+    send("POST", { partner_id: P1, currency: "USD", reference: " bank-ref-1 ", expected_cents: 12500 }),
+    ctxFor(tables, {}, ok),
+  );
+  assert.deepEqual(asked, [{ p_partner: P1, p_currency: "usd", p_reference: "bank-ref-1", p_expected_cents: 12500 }]);
+  assert.equal(out.result.total_cents, 12500, "a bigint read as a number");
+  await refused(
+    payout.POST.run(
+      send("POST", { partner_id: P1, currency: "usd", reference: "r" }),
+      ctxFor(tables, {}, admin(true, { partner_payout_mark: raise("22023", "Unknown currency: xyz") })),
+    ),
+    "validation",
+    400,
+    "Unknown currency",
+  );
+});
+
+test("partners ride on the overview, and a partner list that cannot be read never takes the workspaces down", async () => {
+  const tables = { memberships: both("owner", "owner") };
+  const bal = {
+    partner_id: P1,
+    code: "ada-co",
+    email: "ada@example.com",
+    status: "active",
+    share_bp: 2500,
+    joined_at: "2026-08-01T00:00:00Z",
+    workspaces: 1,
+    under_review: 0,
+    currency: "usd",
+    held_cents: "5000",
+    payable_cents: "0",
+    paid_cents: "0",
+    last_paid_at: null,
+  };
+  const out = await overview.GET.run(
+    get(),
+    ctxFor(
+      tables,
+      {},
+      admin(true, {
+        platform_overview: () => [],
+        platform_partner_balances: () => [bal],
+        platform_partner_workspaces: () => [],
+      }),
+    ),
+  );
+  assert.equal(out.partners.balances[0].held_cents, 5000);
+  assert.deepEqual(out.partners.workspaces, []);
+  const down = await overview.GET.run(
+    get(),
+    ctxFor(
+      tables,
+      {},
+      admin(true, {
+        platform_overview: () => [],
+        platform_partner_balances: raise("57014", "canceling statement due to statement timeout"),
+        platform_partner_workspaces: () => [],
+      }),
+    ),
+  );
+  assert.equal(down.partners, null, "unread, said as unread");
+  assert.deepEqual(down.tenants, []);
+  const older = await overview.GET.run(
+    get(),
+    ctxFor(
+      tables,
+      {},
+      admin(true, {
+        platform_overview: () => [],
+        platform_partner_balances: raise("PGRST202", "Could not find the function public.platform_partner_balances"),
+        platform_partner_workspaces: raise(
+          "PGRST202",
+          "Could not find the function public.platform_partner_workspaces",
+        ),
+      }),
+    ),
+  );
+  assert.deepEqual(
+    older.partners,
+    { balances: [], workspaces: [] },
+    "a database 00205 has not reached has no partners to show",
+  );
+});
+
+test("partners: a pause names the partner, a status and why; a customer is refused at the door and the function answers the rest", async () => {
+  const tables = { memberships: both("owner", "owner") };
+  assert.equal(partnerStatus.POST.policy.scope, "platform");
+  assert.equal(partnerStatus.POST.policy.rate, "platform_partner_status");
+  const guessed = ctxFor(tables, {}, admin(false));
+  await refused(
+    partnerStatus.POST.run(send("POST", { partner_id: P1, status: "paused", why: "x" }), guessed),
+    "not_found",
+    404,
+  );
+  const asked = [];
+  const ok = admin(true, {
+    partner_status_set: (args) => {
+      asked.push(args);
+      return { partner_id: P1, status: args.p_status, from: "active", seats: 3 };
+    },
+  });
+  await refused(
+    partnerStatus.POST.run(send("POST", { partner_id: P1, status: "gone", why: "x" }), ctxFor(tables, {}, ok)),
+    "validation",
+    400,
+  );
+  await refused(
+    partnerStatus.POST.run(send("POST", { partner_id: P1, status: "paused", why: "" }), ctxFor(tables, {}, ok)),
+    "validation",
+    400,
+    "Say why",
+  );
+  assert.deepEqual(asked, []);
+  const out = await partnerStatus.POST.run(
+    send("POST", { partner_id: P1, status: "paused", why: " Reported by an owner. " }),
+    ctxFor(tables, {}, ok),
+  );
+  assert.deepEqual(asked, [{ p_partner: P1, p_status: "paused", p_why: "Reported by an owner." }]);
+  assert.equal(out.result.seats, 3);
 });

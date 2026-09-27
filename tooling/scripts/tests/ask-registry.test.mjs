@@ -184,9 +184,15 @@ test("the lead search keeps its order: the owner check comes before the plan's o
     asked: "find me personal trainers in Texas",
   };
   const operator = await buildProposal(contextFor("operator").t, "propose_lead_search", ask);
-  assert.match(JSON.parse(operator.result).error, /^only an owner can start a lead search/);
+  assert.match(JSON.parse(operator.result).error, /^only an owner or the workspace's partner can start a lead search/);
   const owner = await buildProposal(contextFor("owner").t, "propose_lead_search", ask);
   assert.equal(JSON.parse(owner.result).error, "the plan is not complete: count Too small: expected number to be >=1");
+  // The partner has `find` (ROLE_PERMS, 0012): past the role check, to the plan's own words, as the owner is.
+  const partner = await buildProposal(contextFor("partner").t, "propose_lead_search", ask);
+  assert.equal(
+    JSON.parse(partner.result).error,
+    "the plan is not complete: count Too small: expected number to be >=1",
+  );
   // The owner check wins over the plan's semantic schema only: D2 orders every tool's parse before its handler, so an
   // ask malformed at the flat schema hears the zod's words whatever the role; PR 3.2's D7 moves `needs` in front.
   const flat = await buildProposal(contextFor("operator").t, "propose_lead_search", {

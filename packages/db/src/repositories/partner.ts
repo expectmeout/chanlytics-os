@@ -35,6 +35,19 @@ export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
   return data;
 }
 
+/**
+ * How many workspaces came through the caller's link (their partner_tenants rows, which partner_tenants_partner_select
+ * lets them read): the same count whether or not they still sit on each team. Null when it cannot be read.
+ */
+export async function getPartnerBroughtCount(db: Db, partnerId: string): Promise<number | null> {
+  const { count, error } = await db
+    .from("partner_tenants")
+    .select("tenant_id", { count: "exact", head: true })
+    .eq("partner_id", partnerId);
+  if (error) return null;
+  return count ?? 0;
+}
+
 /** One line of the caller's balance: a currency's total in one state, and when the next held one is due. */
 export interface PartnerBalanceLine {
   currency: string;
@@ -102,4 +115,102 @@ export async function getPartnerWorkspaces(
           month_cents: Number(r.month_cents),
         })),
   };
+}
+
+/* ------------------------------------------------------------------------------ the back office's partner verbs */
+
+export type PlatformPartnerBalanceLine =
+  Database["public"]["Functions"]["platform_partner_balances"]["Returns"][number];
+export type PlatformPartnerWorkspaceLine =
+  Database["public"]["Functions"]["platform_partner_workspaces"]["Returns"][number];
+
+/** An answer from one of the platform's partner verbs: the value, or the function's own code and words. */
+export type PartnerVerbResult<T> = { ok: true; value: T } | { ok: false; code: string; message: string };
+
+/**
+ * Every partner and every workspace one brought (00205), for the back office. Both functions check the caller is a
+ * platform admin themselves, so this is called on the session client, never the service role. A database 00205 has
+ * not reached reads as no partners.
+ */
+export async function getPlatformPartners(
+  db: Db,
+): Promise<{ balances: PlatformPartnerBalanceLine[]; workspaces: PlatformPartnerWorkspaceLine[] }> {
+  const [b, w] = await Promise.all([db.rpc("platform_partner_balances"), db.rpc("platform_partner_workspaces")]);
+  for (const r of [b, w]) {
+    if (r.error && !noFunction(r.error)) throw Object.assign(new Error(r.error.message), { code: r.error.code });
+  }
+  return {
+    balances: b.error
+      ? []
+      : (b.data ?? []).map((r) => ({
+          ...r,
+          held_cents: Number(r.held_cents),
+          payable_cents: Number(r.payable_cents),
+          paid_cents: Number(r.paid_cents),
+        })),
+    workspaces: w.error ? [] : (w.data ?? []),
+  };
+}
+
+/** A platform admin decides a brought workspace's standing (00205 partner_standing_set). */
+export async function setPartnerStanding(
+  db: Db,
+  tenantId: string,
+  standing: string,
+  why: string,
+): Promise<PartnerVerbResult<{ standing: string; from: string | null; voided: number; matured: number }>> {
+  const { data, error } = await db.rpc("partner_standing_set", {
+    p_tenant: tenantId,
+    p_standing: standing,
+    p_why: why,
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return {
+    ok: true,
+    value: data as unknown as { standing: string; from: string | null; voided: number; matured: number },
+  };
+}
+
+/** What partner_payout_mark answers: paid, or not and why (changed: what is payable moved since it was read). */
+export type PartnerPayoutAnswer = {
+  paid: boolean;
+  changed?: boolean;
+  total_cents: number;
+  currency: string;
+  earnings?: number;
+  payout_id?: string;
+};
+
+/**
+ * A platform admin records a payout sent by hand (00205, 00207 partner_payout_mark). `expectedCents` is what the
+ * person saw and sent; the function records nothing when what is payable is no longer that.
+ */
+export async function markPartnerPaid(
+  db: Db,
+  partnerId: string,
+  currency: string,
+  reference: string,
+  expectedCents?: number,
+): Promise<PartnerVerbResult<PartnerPayoutAnswer>> {
+  const { data, error } = await db.rpc("partner_payout_mark", {
+    p_partner: partnerId,
+    p_currency: currency,
+    p_reference: reference,
+    ...(expectedCents === undefined ? {} : { p_expected_cents: expectedCents }),
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data as unknown as PartnerPayoutAnswer;
+  return { ok: true, value: { ...v, total_cents: Number(v.total_cents) } };
+}
+
+/** A platform admin pauses, closes or restores a partner (00206 partner_status_set). */
+export async function setPartnerStatus(
+  db: Db,
+  partnerId: string,
+  status: string,
+  why: string,
+): Promise<PartnerVerbResult<{ status: string; from: string; seats: number }>> {
+  const { data, error } = await db.rpc("partner_status_set", { p_partner: partnerId, p_status: status, p_why: why });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: data as unknown as { status: string; from: string; seats: number } };
 }
