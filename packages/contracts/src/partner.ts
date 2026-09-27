@@ -20,6 +20,8 @@ export interface PartnerDto {
   share_bp: number;
   terms_accepted_at: string | null;
   created_at: string;
+  /** How many workspaces came through the link, on a team or not (GET partner); absent from an older server. */
+  brought?: number | null;
 }
 
 export const PARTNER_STATUSES = ["active", "paused", "closed"] as const;
@@ -183,7 +185,10 @@ function sumWords(rows: readonly PartnerBalanceRow[], state: string): { words: s
   };
 }
 
-export function partnerEarningsWords(rows: readonly PartnerBalanceRow[] | null | undefined): PartnerEarningsVM {
+export function partnerEarningsWords(
+  rows: readonly PartnerBalanceRow[] | null | undefined,
+  nowMs = Date.now(),
+): PartnerEarningsVM {
   const list = rows ?? [];
   const held = sumWords(list, "held");
   const payable = sumWords(list, "payable");
@@ -194,10 +199,14 @@ export function partnerEarningsWords(rows: readonly PartnerBalanceRow[] | null |
     .sort()[0];
   return {
     none: list.every((r) => r.earned_cents === 0),
+    // The date is the earliest a held share could be paid, never a promise: one waiting on a review, or past its
+    // date and not yet judged, is said as waiting rather than given a day that has gone.
     held:
       held.cents === 0
         ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.`
-        : `${held.words} held${next ? `, the first of it payable from ${dayWords(next)}` : ""}.`,
+        : next && Date.parse(next) > nowMs
+          ? `${held.words} held, the first of it payable from ${dayWords(next)} at the earliest.`
+          : `${held.words} held, payable once each workspace it came from is qualified.`,
     payable:
       payable.cents < 0
         ? `${payable.words} to come off your next payout, for refunds and disputes after you were paid.`
@@ -256,7 +265,7 @@ export interface PartnerWorkspaceMoneyDto {
 export const PARTNER_STANDING_WORDS: Record<string, string | null> = {
   pending: "Its share is judged once it has paid.",
   qualified: null,
-  review: "Under review: its card or its listing matches one of yours. We'll write to you.",
+  review: "Under review: a person at Chanlytics looks at it before its share is paid. We'll write to you.",
   disqualified: "Not eligible for a share.",
 };
 
@@ -305,6 +314,8 @@ export function partnerWorkspacesVM(
   overview: readonly PlatformTenantDto[],
   money: readonly PartnerWorkspaceMoneyDto[],
   nowMs = Date.now(),
+  /** The partner's own status: a paused or closed partner is off every team by the platform, not by an owner. */
+  status: string = "active",
 ): PartnerWorkspacesVM {
   const judged = platformRows(overview, nowMs);
   const moneyOf = (id: string) => money.filter((m) => m.tenant_id === id);
@@ -338,9 +349,14 @@ export function partnerWorkspacesVM(
       verdict: null,
       label: "Off the team",
       tone: "plain",
-      sentence: m.on_team
-        ? "Its details could not be read just now."
-        : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
+      sentence:
+        status === "paused"
+          ? "Your partner account is paused, so you are a viewer on its team until it is looked at."
+          : status === "closed"
+            ? "Your partner account is closed. Its details are its owner's."
+            : m.on_team
+              ? "Its details could not be read just now."
+              : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
       facts: null,
       standing: standingOf(m.tenant_id),
       money: moneyLine(moneyOf(m.tenant_id)),

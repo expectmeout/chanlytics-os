@@ -4148,6 +4148,8 @@ interface PartnerDto {
     share_bp: number;
     terms_accepted_at: string | null;
     created_at: string;
+    /** How many workspaces came through the link, on a team or not (GET partner); absent from an older server. */
+    brought?: number | null;
 }
 declare const PARTNER_STATUSES: readonly ["active", "paused", "closed"];
 /** The share every new partner account starts with: partners.share_bp's default (00202). The offer says it before there is a row. */
@@ -4241,7 +4243,7 @@ interface PartnerEarningsVM {
     /** Nothing on the ledger yet: said once, instead of three zeros. */
     none: boolean;
 }
-declare function partnerEarningsWords(rows: readonly PartnerBalanceRow[] | null | undefined): PartnerEarningsVM;
+declare function partnerEarningsWords(rows: readonly PartnerBalanceRow[] | null | undefined, nowMs?: number): PartnerEarningsVM;
 interface PartnerVM {
     code: string;
     link: string;
@@ -4296,7 +4298,9 @@ interface PartnerWorkspacesVM {
  * still sit on its team, with its standing and what it earned them. A workspace whose owner removed them keeps its
  * money line and says why it shows nothing else. The back office's order: what needs someone first.
  */
-declare function partnerWorkspacesVM(overview: readonly PlatformTenantDto[], money: readonly PartnerWorkspaceMoneyDto[], nowMs?: number): PartnerWorkspacesVM;
+declare function partnerWorkspacesVM(overview: readonly PlatformTenantDto[], money: readonly PartnerWorkspaceMoneyDto[], nowMs?: number, 
+/** The partner's own status: a paused or closed partner is off every team by the platform, not by an owner. */
+status?: string): PartnerWorkspacesVM;
 /** One line of platform_partner_balances() (00205): a partner, and one currency of what they earned. */
 interface PlatformPartnerBalanceDto {
     partner_id: string;

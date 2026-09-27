@@ -35,6 +35,19 @@ export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
   return data;
 }
 
+/**
+ * How many workspaces came through the caller's link (their partner_tenants rows, which partner_tenants_partner_select
+ * lets them read): the same count whether or not they still sit on each team. Null when it cannot be read.
+ */
+export async function getPartnerBroughtCount(db: Db, partnerId: string): Promise<number | null> {
+  const { count, error } = await db
+    .from("partner_tenants")
+    .select("tenant_id", { count: "exact", head: true })
+    .eq("partner_id", partnerId);
+  if (error) return null;
+  return count ?? 0;
+}
+
 /** One line of the caller's balance: a currency's total in one state, and when the next held one is due. */
 export interface PartnerBalanceLine {
   currency: string;

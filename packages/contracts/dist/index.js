@@ -20277,7 +20277,7 @@ function sumWords(rows, state) {
     cents: of.reduce((n, r2) => n + r2.earned_cents, 0)
   };
 }
-function partnerEarningsWords(rows) {
+function partnerEarningsWords(rows, nowMs = Date.now()) {
   const list2 = rows ?? [];
   const held = sumWords(list2, "held");
   const payable = sumWords(list2, "payable");
@@ -20285,7 +20285,9 @@ function partnerEarningsWords(rows) {
   const next = list2.filter((r2) => r2.state === "held" && r2.next_payable_at).map((r2) => r2.next_payable_at).sort()[0];
   return {
     none: list2.every((r2) => r2.earned_cents === 0),
-    held: held.cents === 0 ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.` : `${held.words} held${next ? `, the first of it payable from ${dayWords2(next)}` : ""}.`,
+    // The date is the earliest a held share could be paid, never a promise: one waiting on a review, or past its
+    // date and not yet judged, is said as waiting rather than given a day that has gone.
+    held: held.cents === 0 ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.` : next && Date.parse(next) > nowMs ? `${held.words} held, the first of it payable from ${dayWords2(next)} at the earliest.` : `${held.words} held, payable once each workspace it came from is qualified.`,
     payable: payable.cents < 0 ? `${payable.words} to come off your next payout, for refunds and disputes after you were paid.` : `${payable.words} payable.`,
     paid: `${paid.words} paid to date.`
   };
@@ -20305,7 +20307,7 @@ function partnerVM(dto, origin, workspacesAsPartner, balance = []) {
 var PARTNER_STANDING_WORDS = {
   pending: "Its share is judged once it has paid.",
   qualified: null,
-  review: "Under review: its card or its listing matches one of yours. We'll write to you.",
+  review: "Under review: a person at Chanlytics looks at it before its share is paid. We'll write to you.",
   disqualified: "Not eligible for a share."
 };
 var NEEDS_THE_PARTNER = ["broken", "stalled", "waiting_owner", "billing", "rehearsal"];
@@ -20317,7 +20319,7 @@ function moneyLine(lines) {
   if (toDate === 0 && month === 0) return "Nothing earned from it yet.";
   return `${say((l) => l.month_cents)} from this month's payments \xB7 ${say((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
 }
-function partnerWorkspacesVM(overview, money, nowMs = Date.now()) {
+function partnerWorkspacesVM(overview, money, nowMs = Date.now(), status = "active") {
   const judged = platformRows(overview, nowMs);
   const moneyOf = (id) => money.filter((m) => m.tenant_id === id);
   const standingOf2 = (id) => {
@@ -20350,7 +20352,7 @@ function partnerWorkspacesVM(overview, money, nowMs = Date.now()) {
       verdict: null,
       label: "Off the team",
       tone: "plain",
-      sentence: m.on_team ? "Its details could not be read just now." : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
+      sentence: status === "paused" ? "Your partner account is paused, so you are a viewer on its team until it is looked at." : status === "closed" ? "Your partner account is closed. Its details are its owner's." : m.on_team ? "Its details could not be read just now." : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
       facts: null,
       standing: standingOf2(m.tenant_id),
       money: moneyLine(moneyOf(m.tenant_id)),

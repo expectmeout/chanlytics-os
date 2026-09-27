@@ -108,12 +108,18 @@ test("the earnings in words: each line a sum from the ledger, a zero said, what 
   assert.equal(none.held, "Nothing held. A share is held 30 days after each payment.");
   assert.equal(none.payable, "$0.00 payable.");
   assert.equal(none.paid, "$0.00 paid to date.");
-  const some = partnerEarningsWords([
+  const ledger = [
     { currency: "usd", state: "held", earned_cents: 10000, next_payable_at: "2026-11-02T00:00:00Z" },
     { currency: "usd", state: "paid", earned_cents: 30000, next_payable_at: null },
-  ]);
+  ];
+  const some = partnerEarningsWords(ledger, Date.parse("2026-09-27T00:00:00Z"));
   assert.equal(some.none, false);
-  assert.equal(some.held, "$100.00 held, the first of it payable from Nov 2.");
+  assert.equal(some.held, "$100.00 held, the first of it payable from Nov 2 at the earliest.");
+  assert.equal(
+    partnerEarningsWords(ledger, Date.parse("2026-11-20T00:00:00Z")).held,
+    "$100.00 held, payable once each workspace it came from is qualified.",
+    "a date that has gone is not given: what waits past it waits on a judgement or a person",
+  );
   assert.equal(some.paid, "$300.00 paid to date.");
   const owed = partnerEarningsWords([
     { currency: "usd", state: "payable", earned_cents: -2500, next_payable_at: null },
@@ -225,7 +231,7 @@ test("GET partner: the caller's row and their balance, or null and nothing; a da
   assert.deepEqual(
     await partner.GET.run(get(), ctxFor(tables({ partners: [row] }), { partner_balance: () => lines })),
     {
-      partner: row,
+      partner: { ...row, brought: 0 },
       balance: [
         { currency: "usd", state: "held", earned_cents: 10000, next_payable_at: "2026-10-26T00:00:00Z" },
         { currency: "usd", state: "paid", earned_cents: 20000, next_payable_at: null },
@@ -240,7 +246,7 @@ test("GET partner: the caller's row and their balance, or null and nothing; a da
   };
   assert.deepEqual(
     await partner.GET.run(get(), ctxFor(tables({ partners: [row] }), noLedger)),
-    { partner: row, balance: [] },
+    { partner: { ...row, brought: 0 }, balance: [] },
     "no ledger yet is nothing earned yet",
   );
   const older = ctxFor(tables());
@@ -479,6 +485,11 @@ test("a workspace whose owner took the partner off its team keeps its money line
   const r = vm.rows[0];
   assert.deepEqual([r.verdict, r.facts, r.slug, r.onTeam], [null, null, null, false]);
   assert.match(r.sentence, /took you off its team/);
+  // Paused or closed, the platform took the seat, not an owner, and the words say so.
+  const paused = partnerWorkspacesVM([], [moneyRow({ tenant_id: "t-off", on_team: false })], NOW, "paused");
+  assert.match(paused.rows[0].sentence, /^Your partner account is paused/);
+  const closed = partnerWorkspacesVM([], [moneyRow({ tenant_id: "t-off", on_team: false })], NOW, "closed");
+  assert.doesNotMatch(closed.rows[0].sentence, /share goes on/, "a closed partner earns nothing new");
   assert.match(r.standing, /^Under review/);
   assert.equal(r.money, "$100.00 from this month's payments · $300.00 to date");
   assert.equal(vm.summary, "1 workspace · 0 live");

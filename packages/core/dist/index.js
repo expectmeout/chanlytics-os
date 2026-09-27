@@ -3270,6 +3270,11 @@ var PARTNER_WORDS = {
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /**
+   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+   * owner's yes. Their price does not change; the share is Chanlytics'.
+   */
+  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
   spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
@@ -7805,6 +7810,11 @@ var PARTNER_WORDS2 = {
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /**
+   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+   * owner's yes. Their price does not change; the share is Chanlytics'.
+   */
+  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
   spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
@@ -10689,6 +10699,11 @@ var PARTNER_WORDS3 = {
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /**
+   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+   * owner's yes. Their price does not change; the share is Chanlytics'.
+   */
+  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
   spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };

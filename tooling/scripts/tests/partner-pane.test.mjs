@@ -83,7 +83,7 @@ test("a partner: the link on this origin, the row's share, the ledger's sums, an
   globalThis.window.__PARTNER = {
     dto: { ...ROW, share_bp: 2000 },
     balance: [
-      { currency: "usd", state: "held", earned_cents: 10000, next_payable_at: "2026-10-26T00:00:00Z" },
+      { currency: "usd", state: "held", earned_cents: 10000, next_payable_at: "2036-10-26T00:00:00Z" },
       { currency: "usd", state: "payable", earned_cents: 5000, next_payable_at: null },
     ],
     fetchedAt: 1,
@@ -91,7 +91,10 @@ test("a partner: the link on this origin, the row's share, the ledger's sums, an
   const tree = draw();
   assert.equal(textOf(byTestId(tree, "partner-link")), "https://app.chanlytics.com/p/ada");
   assert.equal(textOf(byTestId(tree, "partner-share")), "20% of what it pays for its plan, for as long as it pays.");
-  assert.equal(textOf(byTestId(tree, "partner-held")), "$100.00 held, the first of it payable from Oct 26.");
+  assert.equal(
+    textOf(byTestId(tree, "partner-held")),
+    "$100.00 held, the first of it payable from Oct 26 at the earliest.",
+  );
   assert.equal(textOf(byTestId(tree, "partner-payable")), "$50.00 payable.");
   assert.equal(textOf(byTestId(tree, "partner-paid")), "$0.00 paid to date.", "a zero is said as a zero");
   assert.equal(textOf(byTestId(tree, "partner-brought")), "2 workspaces came through your link.");
