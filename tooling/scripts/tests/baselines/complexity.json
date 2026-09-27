@@ -676,8 +676,8 @@
   },
   "apps/dashboard/src/legacy/pages/leads-bench.jsx::LeadReviewBench#1": {
     "lines": 93,
-    "branches": 34,
-    "depth": 3
+    "branches": 32,
+    "depth": 2
   },
   "apps/dashboard/src/legacy/pages/leads-finder.jsx::LeadPlanCard#1": {
     "lines": 112,
@@ -700,13 +700,13 @@
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/leads-peek.jsx::LeadPeekInfo#1": {
-    "lines": 168,
-    "branches": 36,
+    "lines": 169,
+    "branches": 35,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/leads-scope.jsx::LeadsBulkBar#1": {
-    "lines": 86,
-    "branches": 53,
+    "lines": 84,
+    "branches": 46,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/leads-scope.jsx::LeadsScope#1": {
@@ -1181,7 +1181,7 @@
   },
   "packages/contracts/src/leads/lead-peek.ts::toLeadPeekVM#1": {
     "lines": 194,
-    "branches": 76,
+    "branches": 75,
     "depth": 4
   },
   "packages/contracts/src/leads/lead-row.ts::toLeadRowVM#1": {

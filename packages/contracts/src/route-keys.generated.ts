@@ -52,6 +52,7 @@ export const ROUTE_KEYS = [
   "GET lead-searches/[id]",
   "GET lead-suggestions",
   "GET leads",
+  "GET leads/[id]",
   "GET leads/export",
   "GET messages/[id]/media",
   "GET metrics",

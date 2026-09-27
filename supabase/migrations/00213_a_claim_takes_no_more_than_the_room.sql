@@ -1,4 +1,4 @@
--- 00212 · A claim takes no more than the domain's room.
+-- 00213 · A claim takes no more than the domain's room.
 --
 -- reach_out_claim (00184, 00197) counts the room a domain has left today and claims that many due sends:
 -- `update ... where s.id in (select ... limit v_room for update of s2 skip locked)`. The limit held only while the
@@ -26,7 +26,7 @@ begin
   v_room := least(p_limit, p_cap - (public.sending_domain_capacity(p_domain_id, p_at)->>'used')::int);
   if v_room is null or v_room <= 0 then return; end if;
   -- Picked once, then claimed: the pick is a materialized CTE, so it runs exactly once and the claim is at most
-  -- v_room rows (00212). Inside `where s.id in (...)`, a plan that evaluated the pick again after rows were claimed
+  -- v_room rows (00213). Inside `where s.id in (...)`, a plan that evaluated the pick again after rows were claimed
   -- skipped them (FOR UPDATE ... SKIP LOCKED) and took the next due ones, past the domain's day.
   return query
   with picked as materialized (

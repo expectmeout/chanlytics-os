@@ -39,7 +39,7 @@ const plDial = (tel) => { window.location.href = `tel:${tel}`; };
 const PL_NO_LEADS = {
   searches: [], counts: { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 }, rows: [], next: null,
   offered: 0, view: { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" },
-  route: "clients/leads", suggestions: null, tz: "UTC", readFailed: false, fetchedAt: 0,
+  route: "clients/leads", suggestions: null, peeked: [], tz: "UTC", readFailed: false, fetchedAt: 0,
 };
 
 // The Leads surface (legacy-bridge/leads.ts): the searches, the counts, the rows of one view, how many a refresh
@@ -246,7 +246,9 @@ const useLeadPeekAddress = ({ leadView, viewRoute, addrPeek, peekId, setPeekId, 
 // answered, which is the only thing an undo names (the review's E9).
 const leadActs = ({ leads, leadView, leadBusy, setLeadBusy, plFlash, setSel, setAllMatching, setArmed, setPeekMode, setPeekId, setBulkWhy }) => {
   const canFind = !window.canDo || window.canDo("find");
-  const leadById = (id) => leads.rows.find((l) => l.id === id) || null;
+  // A lead the peek read on its own, on no page loaded (a link to it, or one far down a view), is looked up too, so
+  // Keep, Call and Copy from its peek act on it rather than on nothing (legacy-bridge/leads.ts, PR 9).
+  const leadById = (id) => leads.rows.find((l) => l.id === id) || (leads.peeked || []).find((l) => l.id === id) || null;
   const searchById = (id) => leads.searches.find((s) => s.id === id) || null;
   const leadUndo = (r) => (r.data && r.data.op_id
     ? { undo: async () => { const u = await window.__leadUndo(r.data.op_id, r.data.version); if (!u.ok) plFlash(window.refusalToast(u, "Nothing was put back")); } }
@@ -685,8 +687,8 @@ const leadsBulkProps = (p) => {
     sel, onToggle: toggleSel, onToggleAll: toggleAll, onClearSel: clearSelection,
     onSelectIds: (ids) => { setSel(new Set(ids)); setAllMatching(false); },
     // Needs review's resolvers (D3). Keep and Exclude go through the bulk door (00145), which takes the member's
-    // own door once per lead; Check again through its own. Find an email draws only once its courier exists, so
-    // the bar never offers what no door can do.
+    // own door once per lead; Check again through its own, and only where its courier exists, so the bar never
+    // offers what no door can do.
     review: {
       actsFor: (ids) => {
         const V = window.__LEAD_VM || {};
@@ -694,9 +696,7 @@ const leadsBulkProps = (p) => {
         return [...new Set(groups.flatMap((g) => g.acts))];
       },
       canCheckAgain: typeof window.__leadCheckAgain === "function",
-      canFindEmail: typeof window.__leadFindEmail === "function",
       onCheckAgain: (ids) => window.__leadCheckAgain && leadSaid(() => window.__leadCheckAgain(ids)),
-      onFindEmail: (ids) => window.__leadFindEmail && leadAct(() => window.__leadFindEmail(ids), <>Looking for {ids.length === 1 ? "an email" : `${ids.length} emails`}.</>),
       onKeep: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "keep", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
       onExclude: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "exclude", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
     },

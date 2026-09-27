@@ -123,8 +123,8 @@ const LeadReviewBench = ({ groups, rows, groupKey, onGroup, search, month, revie
   const nearby = (search && search.round && search.round.nearby) || [];
   const words = V.LEAD_REVIEW_ACT_WORDS || {};
   // An act draws only where its door exists, as the bulk bar's do: nothing on this bench is ever dead.
-  const can = (a) => (a === "check_again" ? review.canCheckAgain : a === "find_email" ? review.canFindEmail : true);
-  const press = (a) => (a === "check_again" ? review.onCheckAgain(ids) : a === "find_email" ? review.onFindEmail(ids) : a === "keep" ? review.onKeep(ids) : review.onExclude(ids));
+  const can = (a) => (a === "check_again" ? review.canCheckAgain : true);
+  const press = (a) => (a === "check_again" ? review.onCheckAgain(ids) : a === "keep" ? review.onKeep(ids) : review.onExclude(ids));
   return (
     <div className="ld-bench" data-testid="lead-bench">
       <div className="ld-bench-queue" role="tablist" aria-label="What would resolve these leads" data-testid="lead-bench-queue">

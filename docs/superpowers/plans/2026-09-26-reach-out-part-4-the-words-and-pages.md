@@ -4406,6 +4406,71 @@ It has no Rename, Hide or Delete (F15).
 
 ## PR 9 — Leads' five dead doors (`reach-out-4i-leads-doors`, 00212)
 
+> **As built (26 Sep 2026, on `main` at `c4841b09`; merged with `main` at `519724e9` on 27 Sep, migration 00212).** Built
+> as 00199, the plan's number; by the merge `main` reached 00208 (the partner role, 00201–00207, and 00208) and open PRs
+> held 00209–00211, so it is `00212_lead_searches_are_live.sql`. Each defect was checked in the code first; none was
+> fixed on `main`. The merge ported the work into #1161's layout (`server/leads/`, `contracts/src/leads/`, tests by
+> domain; the realtime test is `tests/database/realtime-publication.db.test.mjs`).
+>
+> - **9.1 Find an email.** The buttons were already hidden (they waited on a `__leadFindEmail` nothing installed), but the act
+>   still advertised itself: the bench's pile read "Find an email · Keep · Exclude" and its column priced it
+>   (`leadReviewCosts`: "Claude reads their pages again for an address"). It left contracts in one place:
+>   `LeadReviewAct`, the `bad_email` and `no_email` piles' acts, its word and its cost line; the page's `canFindEmail`,
+>   `onFindEmail` and the bar's two buttons went with it. `leads-vm` and `leads-honest` pin its absence (the page test
+>   draws both piles with a stale courier on the window).
+> - **9.2 Erase.** The peek had no ⋯ menu, so it gained one (`MoreMenu escape`, `peek-more`) in its top row. Who is offered
+>   it is contracts' `leadPeekMenu(role)` over `ST_STORE.myRole()` (View-as included, failing closed): the owner alone,
+>   since `DELETE leads/[id]` is role owner. An operator is offered no menu at all rather than a gated item (a secondary
+>   act stays out of sight). The words are `LEAD_ERASE_WORDS` (on `LEAD_WORDS.erase`); the question is the house
+>   `Confirm`, asked in the peek as its `erase` mode, so Esc backs out of it as from the whys. Yes calls `__leadErase`,
+>   closes the peek and toasts "{name} is erased. It won't be found again."; a refusal keeps the peek open. **Beyond the
+>   plan:** the bridge's `eraseLead` now answers on the door's accept (`refresh: "behind"`) and drops the lead from every
+>   view the tab holds, because a re-read only patches the rows it finds and the erased lead stood on the page.
+> - **9.3 Live searches.** `00212_lead_searches_are_live.sql`, with 00117's if-not-exists guard; replayed through 00212 on a
+>   scratch Postgres 16 and run twice. Nothing pinned the publication's table list, so
+>   `realtime-publication.db.test.mjs` now reads it: every table `packages/db` `realtime.ts` watches is published (it
+>   fails with `lead_searches` dropped). The generated types and schema sets do not change. **Not done here:** "push it
+>   to production" is the release's, not this branch's.
+> - **9.4 The peek past the loaded page.** `GET leads/[id]` (`read()`, `leadScope`, every member; `route-policy.json`, the
+>   typed client) reads the lead, one membership (`?search=` the view's search, else the newest; blanked is gone), its
+>   places and its search's name, and hands them to the list's own `toLeadRowDto` (`server/lead-page.ts` `leadOne`); the
+>   route test holds its row equal to `GET leads`'. `peekVMFor` asks it once per lead, holds the last eight, and fires
+>   `surface:leads` when it lands; a refusal is not asked again, a failure to answer is retried after the next re-read,
+>   which also re-reads the held lead. **Beyond the plan:** a press on a held lead shows at once and is put back when
+>   refused (`actAtOnce`), and the surface publishes the held rows as `peeked`, where the page's `leadById` finds them,
+>   so Keep, Call and Copy from that peek act on the lead. Not checked in a running app (no stack here).
+> - **9.5 The checks.** `checksOf` reports every criterion the judge answered, in its order, under its key, skipping a key
+>   that shares a seen check's name. `LeadCheck.key` widens to any string; `LEAD_CHECK_WORDS` gains `kind`; contracts'
+>   `leadCheckWord` says a read check in the plan's words (the kind by the plan's name, a criterion by its text, an
+>   exclusion as what the place is not) and a key the plan no longer names by the fixed words, else the key said plainly.
+>   Tested with a plan keyed `kind` and `open_weekends` through the route and the peek's view model.
+> - **The review round on this branch (26 Sep 2026), fixed in new commits.**
+>   - **The one-lead read is the named workspace's.** `GET leads/[id]` is `workspace`-scoped (as `GET lead-searches/[id]`
+>     is), not row-scoped: a member of two workspaces opening one's lead id on the other's page is a 404. Its
+>     `route-policy.json` row says `workspace`. The bridge also drops a row whose search the surface does not hold.
+>   - **One membership rule.** leads_page's inline `(m.class <> 'qualified' or m.counted)` is `lead_member_shown` in
+>     00212; `leads_page` (00161's body, that line changed) and the new `lead_member_of`, which `leadOne` reads, both ask
+>     it. 00212 therefore also carries two functions and a `leads_page` redefinition (it was applied nowhere yet);
+>     `database.types.ts` gains the two by hand, as the generator writes them. Other doors that still spell the rule
+>     inline (lead_bulk, the counts) are unchanged.
+>   - **The peek's cache** is keyed by workspace, lead and the view's search, and forgets a key on eviction and on
+>     every refusal; a held lead the re-read finds gone leaves the peek and every view.
+>   - **Erase** holds one erase per lead at a time and draws "Erasing…" while the door is out.
+> - **The merge with `main` (27 Sep 2026), and what its ratchets asked.**
+>   - **The partner role.** Erase stays the owner's: `DELETE leads/[id]` is `role: "owner"`, which a partner's rung
+>     (below an owner's) does not reach. `leadPeekMenu` now asks the door's own ladder rather than comparing a string:
+>     `ROLE_RANK` and `roleAtLeast` moved from `server/with-route.ts` into contracts (`config/roles.ts`), which
+>     `with-route.ts` re-exports for the doors and Ask's act tools, so the page and the doors read one ladder. A partner
+>     is offered no ⋯ (tested).
+>   - **Tables are typed once.** The one-lead read (the lead, `lead_member_of`, the places) moved into
+>     `packages/db/src/repositories/leads.ts` (`readLeadOne`, narrowing the jsonb without a cast); `leadOne` builds the
+>     row from it, so `lead-page.ts` is back at its table-name and `as unknown as` baselines.
+>   - **Complexity.** The peek's ⋯ and its question are two small components (`LeadPeekMore`, `LeadPeekAsk`) and the erase
+>     acts a helper (`leadEraseActs`); `toLeadPeekVM` asks `peekCheckLabel`. `LeadPeekInfo` still stands one line over
+>     its baseline (169 for 168; one branch fewer): the ⋯ is a line in the peek's top row. The baseline is raised by
+>     that line in this diff; the reductions (the bench, the bulk bar, `__leadFindEmail`) are banked.
+>   - **`leads_page`** was not redefined on `main` after 00161, so 00212's redefinition starts from 00161's body.
+
 Carried from Part 1 (§1's list), one task each.
 
 - [ ] **9.1 Find an email: the door without a door comes out.**

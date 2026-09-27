@@ -2,8 +2,9 @@
  * A lead's peek: its reach, today's line, its hours and its week. Moved whole from leads.ts (Reach out Part 2.5), which
  * re-exports it.
  */
-import type { LeadCheckKey, LeadRowDto, LeadSearchDto } from "./lead-dtos";
+import type { LeadCheck, LeadRowDto, LeadSearchDto } from "./lead-dtos";
 import {
+  leadCheckWord,
   leadExclusionWord,
   leadHoursShort,
   leadSlots,
@@ -15,11 +16,12 @@ import {
 import { CLOCK, clockIn, hourOf, milesLabel } from "./lead-helpers";
 import type { LeadSlot } from "./lead-row";
 import type { LeadEmailState, LeadSearchPlan } from "./lead-search";
+import { roleAtLeast } from "../config/roles";
 import {
-  LEAD_CHECK_WORDS,
   LEAD_CLOSED_WORDS,
   LEAD_CONTACT_STANDARD_WORDS,
   LEAD_EMAIL_WORDS,
+  LEAD_ERASE_WORDS,
   LEAD_FIT_WORDS,
   LEAD_LEFT_OUT_WORD,
   LEAD_LOCKED_LINE,
@@ -116,7 +118,7 @@ export interface LeadPeekVM {
   groups: {
     how: "seen" | "read";
     checks: {
-      key: LeadCheckKey;
+      key: LeadCheck["key"];
       label: string;
       answer: "yes" | "no" | "unknown";
       source: string;
@@ -134,6 +136,24 @@ export interface LeadPeekVM {
     maps: { label: string; href: string } | null;
   };
   version: number;
+}
+
+/**
+ * A check's label in the peek: the mailbox says the state it saw; what was seen is said in the check's own words; what
+ * Claude read, in the plan's (the judge's keys are its, PR 9).
+ */
+const peekCheckLabel = (c: LeadCheck, search: LeadSearchDto | null, mailboxLabel: string): string =>
+  c.key === "mailbox" ? mailboxLabel : leadCheckWord(c.how === "read" ? search : null, c.key, c.answer);
+
+/**
+ * What the peek's ⋯ menu offers the member looking at it (Reach out Part 4, PR 9). Erase is the owner's alone -- the
+ * door refuses anyone else (DELETE leads/[id], role owner) -- and a secondary act, so a role that may not press it is
+ * offered nothing rather than a gated item (legacy/CLAUDE.md, "Role gates"). A role the page cannot tell is not an
+ * owner. An empty list draws no menu at all.
+ */
+export function leadPeekMenu(role: string | null | undefined): { id: "erase"; label: string; danger: true }[] {
+  // The door's own ladder (config.ts roleAtLeast), never a second reading of it: a partner stands below an owner.
+  return roleAtLeast(role ?? "", "owner") ? [{ id: "erase", label: LEAD_ERASE_WORDS.act, danger: true }] : [];
 }
 
 /**
@@ -253,7 +273,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
   const seen: LeadPeekVM["groups"][number]["checks"] = [];
   const read: LeadPeekVM["groups"][number]["checks"] = [];
   for (const c of m.checks) {
-    const label = c.key === "mailbox" ? mailboxLabel : LEAD_CHECK_WORDS[c.key][c.answer];
+    const label = peekCheckLabel(c, search, mailboxLabel);
     (c.how === "seen" ? seen : read).push({ key: c.key, label, answer: c.answer, source: c.source, reason: c.reason });
   }
   const others = m.other_emails.length

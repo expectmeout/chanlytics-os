@@ -667,6 +667,13 @@
       "rate": "lead_member",
       "spend": false
     },
+    "GET leads/[id]": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "DELETE leads/[id]": {
       "kind": "write",
       "scope": "row",

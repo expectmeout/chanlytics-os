@@ -4952,9 +4952,17 @@ export type Database = {
         Args: { p_kind: string; p_lead_id: string; p_search_id: string }
         Returns: Json
       }
+      lead_member_of: {
+        Args: { p_lead_id: string; p_search_id?: string; p_tenant_id: string }
+        Returns: Json
+      }
       lead_member_put_back: {
         Args: { p_lead_id: string; p_search_id: string }
         Returns: Json
+      }
+      lead_member_shown: {
+        Args: { p_class: string; p_counted: boolean }
+        Returns: boolean
       }
       lead_month: {
         Args: { p_at?: string; p_tenant_id: string }

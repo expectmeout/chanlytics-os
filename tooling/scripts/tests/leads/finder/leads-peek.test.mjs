@@ -20,6 +20,7 @@ import {
   LEAD_CONTACT_STANDARD_WORDS,
   leadDraftFooter,
   toLeadPeekVM,
+  leadPeekMenu,
 } from "../../../../../packages/contracts/src/leads/leads.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 
@@ -104,6 +105,8 @@ globalThis.Icon = globalThis.window.Icon;
 globalThis.StatePill = globalThis.window.StatePill;
 // Call is the ways-of-calling menu, the house one, drawn for real: pressing it opens it.
 globalThis.MoreMenu = globalThis.window.MoreMenu;
+// Erase asks first, in the house question (PR 9), drawn for real.
+globalThis.Confirm = globalThis.window.Confirm;
 // The table's own helpers: `leads-scope.jsx` reads plSortKeys at module scope (LEAD_SORT_KEYS), so the file it was
 // lifted from loads first here, as people-honest's harness loads it.
 await import("../../../../../apps/dashboard/src/legacy/pages/people-table.jsx");
@@ -362,6 +365,10 @@ const courierOf = (over = {}) => {
       seen.push(["undo", opId, version]);
       return over.undo ? over.undo() : { ok: true, data: {} };
     },
+    __leadErase: async (id) => {
+      seen.push(["erase", id]);
+      return over.erase ? over.erase() : { ok: true, data: { erased: true, already: false } };
+    },
   };
   return api;
 };
@@ -421,6 +428,8 @@ const reset = () => {
   copied.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
   delete globalThis.window.ST_STORE;
+  // Who the ⋯ offers Erase to is contracts' rule, published as seed-globals.ts publishes it.
+  globalThis.window.__LEAD_VM = { leadPeekMenu };
 };
 
 /* ================================================== Task 12: the peek ==== */
@@ -688,6 +697,117 @@ test("an operator sees Not a fit, Keep, Exclude and Put back disabled with the g
   }
   await press(byTestId(tree, "peek-keep"));
   assert.deepEqual(flashes, [], "the gate replaced the handler");
+});
+
+/* ========================================= PR 9: Erase, the owner's ==== */
+
+const roleIs = (role) => {
+  globalThis.window.ST_STORE = { can: (a) => role === "owner" || a !== "find", myRole: () => role };
+};
+/** The ⋯'s item by its words, once the ⋯ is pressed: the house MoreMenu, drawn for real. */
+const menuItem = async (P, label) => {
+  await press(byTestId(P.draw().tree, "peek-more"));
+  return find(
+    P.draw().tree,
+    (n) =>
+      String(n.props?.className || "")
+        .split(" ")
+        .includes("more-item") && textOf(n).includes(label),
+  );
+};
+
+test("the owner's ⋯ offers Erase this lead; it asks first in contracts' words, and yes erases through the one door, closes the peek and says it is gone", async () => {
+  reset();
+  roleIs("owner");
+  const courier = courierOf();
+  const P = page({ courier });
+  assert.equal(P.draw().tree && byTestId(P.draw().tree, "peek-erase-confirm"), null, "nothing asked before the press");
+  const item = await menuItem(P, LEAD_WORDS.erase.act);
+  assert.ok(item, "the ⋯ holds Erase this lead");
+  assert.equal(
+    String(item.props.className).includes("danger"),
+    true,
+    "drawn as the act that destroys, in the menu's own way",
+  );
+  await press(item);
+  assert.equal(P.st.mode, "erase");
+  assert.deepEqual(courier.seen, [], "the menu's press asks; it does not erase");
+  const ask = byTestId(P.draw().tree, "peek-erase-confirm");
+  assert.equal(
+    textOf(ask).startsWith("Erase Travis Heights Coaching Co.? Its record and every trace of it go for good."),
+    true,
+  );
+  await press(byTestId(ask, "peek-erase-yes"));
+  await settle();
+  assert.deepEqual(courier.seen, [["erase", LEAD]], "the one door, with the lead's id");
+  assert.equal(P.st.peekId, null, "the peek closes on a lead that is gone");
+  assert.equal(flashes.at(-1).msg, "Travis Heights Coaching Co. is erased. It won't be found again.");
+  assert.equal(flashes.at(-1).undo, undefined, "no Undo: it goes for good");
+});
+
+test("No leaves the lead as it was, and a refused Erase says why and keeps the peek open", async () => {
+  reset();
+  roleIs("owner");
+  let P = page();
+  await press(await menuItem(P, LEAD_WORDS.erase.act));
+  await press(byTestId(P.draw().tree, "peek-erase-no"));
+  assert.equal(P.st.mode, "info");
+  assert.equal(P.st.peekId, LEAD);
+  assert.deepEqual(flashes, []);
+  const courier = courierOf({ erase: () => ({ ok: false, code: "forbidden", status: 403, message: "Owner only." }) });
+  P = page({ courier });
+  await press(await menuItem(P, LEAD_WORDS.erase.act));
+  await press(byTestId(P.draw().tree, "peek-erase-yes"));
+  await settle();
+  assert.deepEqual(courier.seen, [["erase", LEAD]]);
+  assert.equal(P.st.peekId, LEAD, "still open: nothing went");
+  assert.equal(P.st.mode, "info");
+  assert.equal(flashes.at(-1).tone, "danger", "the door's refusal, said");
+});
+
+test("REVIEW: Yes, erase pressed twice sends one erase, and the question says it is erasing while the door is out", async () => {
+  reset();
+  roleIs("owner");
+  let release;
+  const courier = courierOf({
+    erase: () => new Promise((res) => (release = () => res({ ok: true, data: { erased: true, already: false } }))),
+  });
+  const P = page({ courier });
+  await press(await menuItem(P, LEAD_WORDS.erase.act));
+  const yes = byTestId(P.draw().tree, "peek-erase-yes");
+  const first = yes.props.onClick({ preventDefault() {}, stopPropagation() {} });
+  const second = yes.props.onClick({ preventDefault() {}, stopPropagation() {} });
+  await settle();
+  assert.deepEqual(courier.seen, [["erase", LEAD]], "one door call for two presses");
+  const busy = byTestId(P.draw().tree, "peek-erase-yes");
+  assert.equal(busy.props.disabled, true, "held while the door is out");
+  assert.equal(textOf(busy), LEAD_WORDS.erase.busy);
+  release();
+  await Promise.all([first, second]);
+  await settle();
+  assert.equal(P.st.peekId, null);
+  assert.equal(flashes.filter((f) => /is erased/.test(String(f.msg))).length, 1, "one toast");
+});
+
+test("an operator, a partner, a viewer and a role the page cannot read are offered no ⋯ at all: Erase is the owner's, and a secondary act stays out of sight", () => {
+  for (const role of ["operator", "partner", "viewer", null]) {
+    reset();
+    if (role) roleIs(role);
+    const { tree } = page().draw();
+    assert.equal(byTestId(tree, "peek-more"), null, `${role ?? "no role"}: no menu`);
+    assert.equal(
+      find(tree, (n) => textOf(n) === LEAD_WORDS.erase.act),
+      null,
+      `${role ?? "no role"}: no Erase anywhere`,
+    );
+  }
+  assert.deepEqual(
+    leadPeekMenu("owner").map((m) => m.id),
+    ["erase"],
+  );
+  assert.deepEqual([leadPeekMenu("operator"), leadPeekMenu(undefined)], [[], []]);
+  // A partner (decision 0012) stands below an owner on the door's own ladder: DELETE leads/[id] refuses them too.
+  assert.deepEqual(leadPeekMenu("partner"), [], "a partner is offered no Erase");
 });
 
 test("a stage click goes through the one door and says what the door said, with Undo; it never converts", async () => {
