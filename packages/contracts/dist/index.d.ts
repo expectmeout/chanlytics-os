@@ -17400,7 +17400,20 @@ type PageMessage = {
  | {
     t: "overlay";
     open: boolean;
+}
+/**
+ * A file the page made (a chart's CSV), for the phone's share sheet: a WebView cannot save a file made in the page
+ * (a blob: link, which Android's download manager refuses), so the page hands the app its name, type and words.
+ */
+ | {
+    t: "file";
+    name: string;
+    type: AppFileType;
+    text: string;
 };
+/** What a page may hand the app as a file: words only, never a binary or a script. */
+declare const APP_FILE_TYPES: readonly ["text/csv", "text/plain"];
+type AppFileType = (typeof APP_FILE_TYPES)[number];
 /** A phone's push token, as expo-notifications hands it out. */
 declare const PUSH_TOKEN_MAX = 200;
 type ShellMessage = 
