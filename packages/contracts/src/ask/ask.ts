@@ -3,15 +3,17 @@
  *
  * What lives here is everything about Ask that is pure and shared: its limits,
  * the rule that keeps a citation honest and where a row opens, the
- * cards and their undo, the Line's jump index and suggestions, and the three
- * questions answered without a model. The answer itself -- its shape, the
- * format the model writes it in and how it is read back -- is ask-answer.ts's.
+ * cards (what each kind does is its spec, in ask-proposals/), the Line's
+ * jump index and suggestions, and the three questions answered without a
+ * model. The answer itself -- its shape, the format the model writes it in
+ * and how it is read back -- is ask-answer.ts's.
  * The route that runs the model lives in the dashboard; the Line that shows
  * the answer lives in the legacy pages; both read from here.
  */
 import type { SchemaSet } from "../shared/schema-sets";
 import { z } from "zod";
 import type { AskAnswer } from "./ask-answer";
+import type { ProposalNeeds } from "../ask-proposals/spec";
 import { dayPlusInZone } from "../calendar/availability";
 import { parseLeadsRoute } from "../leads/lead-plan";
 import { parsePipelineRoute } from "../deals/pipeline";
@@ -204,8 +206,8 @@ export interface AskProposal {
     | "playbook"
     | "lead_search"
     | "deal";
-  /** The lowest role that may commit it; the route re-checks on Approve. */
-  needs: "operator" | "owner";
+  /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
+  needs: ProposalNeeds;
   title: string;
   /** The exact change, in the person's words. */
   summary: string;
@@ -222,22 +224,6 @@ export interface AskProposal {
   outcome?: AskProposalOutcome | null;
 }
 
-/** The client gate (data-bits `gate`) a card of this kind checks before Approve; the route re-checks the role. */
-export const PROPOSAL_GATE: Record<AskProposal["kind"], "approve" | "autonomy" | "settings" | "team" | "find"> = {
-  reply: "approve",
-  steer: "approve",
-  thread_verb: "approve",
-  whisper: "approve",
-  policy: "autonomy",
-  person_mode: "settings",
-  settings: "settings",
-  invite: "team",
-  broadcast: "approve",
-  playbook: "approve",
-  lead_search: "find",
-  deal: "approve",
-};
-
 /** What became of a card, kept with the turn that proposed it. */
 export interface AskProposalOutcome {
   state: "done" | "dismissed" | "failed" | "undone";
@@ -248,34 +234,12 @@ export interface AskProposalOutcome {
   undo?: Record<string, unknown> | null;
 }
 
-/** How long a committed card's undo stays open, for every verb whose route sets no window of its own. */
-export const ASK_UNDO_MS = 10 * 60_000;
-
 /**
- * Whether a committed card's undo is still true to offer.
- *
- * A reply's undo cancels the send, so it lives exactly as long as the send's own
- * cancel window. A settings undo writes the whole earlier config, so it is safe
- * only while nobody has saved since -- the version the card wrote is still the
- * version loaded. Everything else reverses cleanly for a while, then not.
- * An undo used to be offered forever, and to survive reopening a thread days later.
+ * How long a committed card's undo stays open, for every verb whose route sets no window of its own. What each kind
+ * does -- its route, its receipt, its undo and the gate before Approve (PROPOSAL_GATE, askUndoOpen) -- is its spec's,
+ * ask-proposals/.
  */
-export function askUndoOpen(
-  kind: string,
-  undo: Record<string, unknown> | null | undefined,
-  atMs: number,
-  nowMs: number,
-  settingsVersion: number | null,
-): boolean {
-  if (!undo) return false;
-  if (kind === "reply") {
-    const until = typeof undo.cancelable_until === "string" ? Date.parse(undo.cancelable_until) : NaN;
-    return Number.isFinite(until) && nowMs < until;
-  }
-  if (nowMs - atMs > ASK_UNDO_MS) return false;
-  if (kind === "settings") return typeof undo.version_after === "number" && settingsVersion === undo.version_after;
-  return true;
-}
+export const ASK_UNDO_MS = 10 * 60_000;
 
 export const AskProposalOutcomeSchema = z.object({
   state: z.enum(["done", "dismissed", "failed", "undone"]),

@@ -201,7 +201,8 @@ test("propose_lead_search makes a plan card for an owner; the model's plan is co
   assert.equal(out.isError, false);
   assert.deepEqual(
     [out.proposal.kind, out.proposal.needs, out.proposal.title],
-    ["lead_search", "owner", "Find 200 personal trainers"],
+    ["lead_search", "partner", "Find 200 personal trainers"],
+    "a lead search needs a partner, as its route (POST lead-searches) and the find permission do",
   );
   assert.equal(
     out.proposal.summary,
@@ -314,12 +315,24 @@ test("the planner's refusals are words for the model to say, and no card", async
   const out = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, country: "CA", region: "ON" });
   assert.deepEqual([out.proposal, out.isError], [null, true]);
   assert.match(JSON.parse(out.result).error, /I can only find businesses in the US for now/);
-  const op = await buildProposal(
-    toolContext({ role: "operator", tables: world() }),
-    "propose_lead_search",
-    MODEL_INPUT,
+  const operator = toolContext({ role: "operator", tables: world() });
+  const op = await buildProposal(operator, "propose_lead_search", MODEL_INPUT);
+  assert.equal(
+    JSON.parse(op.result).error,
+    "only an owner or the workspace's partner can start a lead search; say so, and that one of them can ask",
   );
-  assert.match(JSON.parse(op.result).error, /only an owner or the workspace's partner can start a lead search/);
+  assert.deepEqual(operator.ctx.supabase.seen, [], "an operator is refused before anything is read");
+  // REGRESSION (D7): a partner was refused the card its route and the find permission allow. Now a partner gets it,
+  // needing a partner, and answering a waiting search is theirs too.
+  const partner = toolContext({ role: "partner", tables: world() });
+  const theirs = await buildProposal(partner, "propose_lead_search", MODEL_INPUT);
+  assert.equal(theirs.isError, false, theirs.result);
+  assert.deepEqual(
+    [theirs.proposal.kind, theirs.proposal.needs, theirs.proposal.undo],
+    ["lead_search", "partner", "Stop the search"],
+  );
+  const answers = await buildProposal(partner, "propose_lead_search", { ...MODEL_INPUT, amends: SEARCH3 });
+  assert.deepEqual([answers.isError, answers.proposal.undo], [false, null], "an answer carries the round on");
   const people = await buildProposal(t, "propose_lead_search", { ...MODEL_INPUT, looking_for: "people" });
   assert.match(JSON.parse(people.result).error, /I find businesses, not people at home/);
   assert.equal(people.proposal, null);

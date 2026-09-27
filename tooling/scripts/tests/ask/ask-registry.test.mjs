@@ -169,7 +169,7 @@ test("an unknown tool is refused as it always was, for a read and for an act", a
   assert.equal(toolLabel("list_audiences"), "Reading the lists and templates", "a registered read has its own line");
 });
 
-test("the lead search keeps its order: the owner check comes before the plan's own schema, so a non-owner with a malformed plan hears the owner words, and an owner the plan's", async () => {
+test("the lead search keeps its order: the owner check comes before the plan's own schema, so a member below a partner with a malformed plan hears the owner words, and an owner the plan's", async () => {
   const ask = {
     looking_for: "local_businesses",
     country: "US",
@@ -194,7 +194,8 @@ test("the lead search keeps its order: the owner check comes before the plan's o
     "the plan is not complete: count Too small: expected number to be >=1",
   );
   // The owner check wins over the plan's semantic schema only: D2 orders every tool's parse before its handler, so an
-  // ask malformed at the flat schema hears the zod's words whatever the role; PR 3.2's D7 moves `needs` in front.
+  // ask malformed at the flat schema hears the zod's words whatever the role; the role check (D7) is the handler's
+  // first line, after that parse.
   const flat = await buildProposal(contextFor("operator").t, "propose_lead_search", {
     looking_for: "local_businesses",
   });

@@ -1,6 +1,13 @@
 import "server-only";
 import type { z } from "zod";
-import { AppError, emptyReadSet, type AskProposal, type AskReadSet, type MembershipRole } from "@chanlytics/contracts";
+import {
+  AppError,
+  PROPOSAL_SPECS,
+  emptyReadSet,
+  type AskProposal,
+  type AskReadSet,
+  type MembershipRole,
+} from "@chanlytics/contracts";
 import type { RouteContext } from "../../with-route";
 import { readerContext, type ReaderContext } from "../../readers";
 
@@ -140,8 +147,15 @@ export const refuse = (why: string): ProposalOutcome => ({
   isError: true,
 });
 
-export const propose = (p: Omit<AskProposal, "id">): ProposalOutcome => {
-  const proposal: AskProposal = { id: nextId(), ...p };
+/**
+ * A card, from what its builder made of the input. The role it needs and its undo's words are its kind's spec's
+ * (contracts ask-proposals/), the same spec the palette commits it by, so a builder cannot say a second thing about
+ * either (D7). A builder whose kind needs more than an operator refuses a member below it first, in its route's words
+ * (`roleAtLeast`, `proposalBelowNeeds`).
+ */
+export const propose = (p: Omit<AskProposal, "id" | "needs" | "undo">): ProposalOutcome => {
+  const spec = PROPOSAL_SPECS[p.kind];
+  const proposal: AskProposal = { id: nextId(), ...p, needs: spec.needs, undo: spec.undo?.label(p) ?? null };
   return {
     proposal,
     isError: false,

@@ -20,11 +20,9 @@ async function proposeWhisper(t: ToolContext, input: { call_id: string; text: st
   t.read.call.add(id);
   return propose({
     kind: "whisper",
-    needs: "operator",
     title: `Whisper on the call with ${who}`,
     summary: text,
     payload: { call_id: id, text, who },
-    undo: null,
   });
 }
 

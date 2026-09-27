@@ -22,7 +22,7 @@ import {
   type AskReadSet,
   type FastCall,
 } from "./ask";
-import { leadQuestionRoute, leadsRoute } from "../leads/leads";
+import { PROPOSAL_SPECS, proposalSpec } from "../ask-proposals/proposals";
 
 /* ------------------------------------------------------------------ the shape */
 
@@ -114,43 +114,13 @@ export function answerText(a: AskAnswer): string {
 /* ------------------------------------------------------------- one door */
 
 /**
- * Where a card's Open goes, or null for the kinds that have none (a reply, a rewrite, a whisper, an invite). A lead
- * search's, once approved, is the search the commit made.
+ * Where a card's Open goes, or null for the kinds that have none (a reply, a rewrite, a whisper, an invite): its
+ * spec's `open` (ask-proposals/). A lead search's, once approved, is the search the commit made. A kind no card has
+ * opens the thread its payload names, as a thread card does.
  */
 export function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload" | "outcome">): string | null {
-  const pl = (p.payload ?? {}) as Record<string, unknown>;
-  const id = (k: string) => (typeof pl[k] === "string" && pl[k] ? (pl[k] as string) : null);
-  switch (p.kind) {
-    case "reply":
-    case "steer":
-    case "whisper":
-    case "invite":
-      return null;
-    case "settings":
-      return "admin/workspace";
-    case "policy":
-      return "admin/autonomy";
-    case "person_mode":
-    case "deal":
-      return id("contact_id") ? `clients/${id("contact_id")}` : null;
-    case "broadcast":
-      return "broadcasts";
-    case "playbook":
-      return "outbound";
-    case "lead_search": {
-      // A card that answers a search opens on that search, on the pile it asked about; a card approved opens on the
-      // search it made.
-      const am = (pl.amends ?? null) as { search_id?: unknown } | null;
-      if (am && typeof am.search_id === "string" && am.search_id) return leadQuestionRoute(am.search_id);
-      // Approved, the outcome carries the search the commit made (commit.ts's undo), and Open lands on that search
-      // rather than on All leads.
-      const undo = (p.outcome?.undo ?? {}) as Record<string, unknown>;
-      const sid = typeof undo.search_id === "string" && undo.search_id ? undo.search_id : null;
-      return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
-    }
-    default:
-      return id("conversation_id") ? `inbox/th-${id("conversation_id")}` : null;
-  }
+  const card = { payload: (p.payload ?? {}) as Record<string, unknown> };
+  return (proposalSpec(p.kind) ?? PROPOSAL_SPECS.thread_verb).open(card, p.outcome ?? null);
 }
 
 function nextQuestions(next: string[], places: string[]): string[] {

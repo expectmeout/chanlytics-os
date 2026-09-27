@@ -10,7 +10,7 @@
     "repo/legacy-harness.test.mjs"
   ],
   "counts": {
-    "ask/ask.test.mjs": 57,
+    "ask/ask.test.mjs": 56,
     "auth/auth-gate.test.mjs": 5,
     "auth/signup-posture.test.mjs": 5,
     "auth/signup.test.mjs": 9,
@@ -18,7 +18,7 @@
     "billing/billing-pause.test.mjs": 5,
     "billing/billing.test.mjs": 19,
     "billing/may-spend.test.mjs": 3,
-    "broadcasts/broadcasts.test.mjs": 26,
+    "broadcasts/broadcasts.test.mjs": 25,
     "calendar/availability-tool.test.mjs": 1,
     "calendar/availability.test.mjs": 4,
     "calendar/calendar-people.test.mjs": 38,
@@ -56,7 +56,7 @@
     "people/threads-people.test.mjs": 6,
     "platform/back-office.test.mjs": 23,
     "platform/delete-tenant.test.mjs": 3,
-    "playbooks/playbooks.test.mjs": 23,
+    "playbooks/playbooks.test.mjs": 22,
     "playbooks/visit-playbooks.test.mjs": 5,
     "public/business-page.test.mjs": 10,
     "receptionist/brain-v2.test.mjs": 9,

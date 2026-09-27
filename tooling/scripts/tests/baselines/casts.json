@@ -18,7 +18,7 @@
   "apps/dashboard/src/legacy-bridge/app-bridge.ts": 1,
   "apps/dashboard/src/legacy-bridge/arrival.ts": 2,
   "apps/dashboard/src/legacy-bridge/ask.ts": 2,
-  "apps/dashboard/src/legacy-bridge/ask/commit.ts": 2,
+  "apps/dashboard/src/legacy-bridge/ask/commit.ts": 1,
   "apps/dashboard/src/legacy-bridge/ask/context.ts": 1,
   "apps/dashboard/src/legacy-bridge/ask/palette.ts": 3,
   "apps/dashboard/src/legacy-bridge/ask/speech.ts": 1,

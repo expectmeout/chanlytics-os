@@ -12167,31 +12167,7 @@ function isUngrounded(answer, reads) {
   return reads === 0 && /\d/.test(answer);
 }
 var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
-var PROPOSAL_GATE = {
-  reply: "approve",
-  steer: "approve",
-  thread_verb: "approve",
-  whisper: "approve",
-  policy: "autonomy",
-  person_mode: "settings",
-  settings: "settings",
-  invite: "team",
-  broadcast: "approve",
-  playbook: "approve",
-  lead_search: "find",
-  deal: "approve"
-};
 var ASK_UNDO_MS = 10 * 6e4;
-function askUndoOpen(kind, undo, atMs, nowMs, settingsVersion) {
-  if (!undo) return false;
-  if (kind === "reply") {
-    const until = typeof undo.cancelable_until === "string" ? Date.parse(undo.cancelable_until) : NaN;
-    return Number.isFinite(until) && nowMs < until;
-  }
-  if (nowMs - atMs > ASK_UNDO_MS) return false;
-  if (kind === "settings") return typeof undo.version_after === "number" && settingsVersion === undo.version_after;
-  return true;
-}
 var AskProposalOutcomeSchema = z8.object({
   state: z8.enum(["done", "dismissed", "failed", "undone"]),
   receipt: z8.string().max(300).catch(""),
@@ -12624,6 +12600,412 @@ function askModelProfile(name) {
   return ASK_MODEL_PROFILES[id];
 }
 
+// src/ask-proposals/spec.ts
+var PROPOSAL_WORDS = {
+  cannotApprove: "This card cannot be approved from here.",
+  noUndo: "This one has no undo."
+};
+var asText = (v) => v == null ? "" : String(v);
+var rec = (v) => v && typeof v === "object" ? v : {};
+var decisionOf = (data) => {
+  const id = rec(data).decision_id;
+  return typeof id === "string" && id ? id : null;
+};
+var idIn = (pl, k) => typeof pl?.[k] === "string" && pl[k] ? pl[k] : null;
+var refuseWith = (words4) => ({ refused: words4 });
+var ownEntry = (m, k) => Object.prototype.hasOwnProperty.call(m, k) ? m[k] : void 0;
+var PEOPLE_CHANGED = { type: "surface:clients" };
+
+// src/ask-proposals/campaigns.ts
+var broadcastSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "POST broadcasts",
+    body: {
+      template_id: pl.template_id,
+      params: Array.isArray(pl.params) ? pl.params : [],
+      audience: { kind: pl.audience_kind, id: pl.audience_id ?? null },
+      scheduled_for: pl.scheduled_for ?? null,
+      name: pl.name ?? null
+    }
+  }),
+  // The count and the name are the route's answer where it gave them, the card's where it did not.
+  receipt: ({ payload: pl }, data) => {
+    const n = Number(rec(data).recipient_count ?? pl.count ?? 0);
+    return `Broadcast \u201C${rec(data).name ?? asText(pl.name)}\u201D \u2014 ${n} ${n === 1 ? "person" : "people"}, ${pl.scheduled_for ? "scheduled" : "sending now"}`;
+  },
+  undo: {
+    label: () => "Cancel it, if it has not finished",
+    window: "ten_minutes",
+    record: (_p, data) => ({ broadcast_id: rec(data).id, decision_id: decisionOf(data) }),
+    call: (u) => ({ route: "POST broadcasts/[id]/cancel", params: { id: asText(u.broadcast_id) } }),
+    receipt: (data) => rec(data).was === "sending" ? "Stopped \u2014 it ends after this batch" : "Canceled \u2014 nothing will send"
+  },
+  open: () => "broadcasts"
+};
+var playbookSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: ({ payload: pl }) => ({
+    route: "POST playbooks",
+    body: {
+      name: pl.name ?? null,
+      trigger: pl.trigger,
+      // On a list (decision 0009): the list it names, and whether it sends an offer or a win-back.
+      ...pl.list_key ? { list_key: pl.list_key } : pl.list_id ? { list_id: pl.list_id } : {},
+      ...pl.list_key || pl.list_id ? { policy_class: pl.policy_class } : {},
+      template_id: pl.template_id,
+      params: Array.isArray(pl.params) ? pl.params : [],
+      run_hour: pl.run_hour,
+      cap_per_run: pl.cap_per_run,
+      gap_days: pl.gap_days,
+      cadence_days: pl.cadence_days
+    }
+  }),
+  receipt: ({ payload: pl }, data) => `Playbook \u201C${rec(data).name ?? asText(pl.name)}\u201D is running \u2014 its next run is on the card in Campaigns \u203A Playbooks`,
+  undo: {
+    label: () => "Delete it \u2014 nothing will run",
+    window: "ten_minutes",
+    record: (_p, data) => ({ playbook_id: rec(data).id, decision_id: decisionOf(data) }),
+    call: (u) => ({ route: "DELETE playbooks/[id]", params: { id: asText(u.playbook_id) } }),
+    receipt: () => "Deleted \u2014 nothing will run"
+  },
+  open: () => "outbound"
+};
+
+// src/ask-proposals/inbox.ts
+var ASK_THREAD_ROUTES = {
+  take_over: "POST conversations/[id]/take-over",
+  hand_back: "POST conversations/[id]/hand-back",
+  snooze: "POST conversations/[id]/snooze",
+  wake: "POST conversations/[id]/wake",
+  archive: "POST conversations/[id]/archive"
+};
+var isRoutedVerb = (v) => Object.prototype.hasOwnProperty.call(ASK_THREAD_ROUTES, v);
+var INVERSE = {
+  take_over: "hand_back",
+  hand_back: "take_over",
+  snooze: "wake"
+};
+var UNDO_LABEL = {
+  take_over: "Hand back",
+  hand_back: "Take over again",
+  snooze: "Wake"
+};
+var RECEIPT = {
+  hand_back: "The receptionist has it again",
+  snooze: "Snoozed",
+  wake: "Back in the Inbox",
+  archive: "Archived",
+  resolve: "Resolved"
+};
+var threadCall = (verb, conversationId, until) => verb === "snooze" ? { route: ASK_THREAD_ROUTES.snooze, params: { id: asText(conversationId) }, body: { until: asText(until) } } : { route: ASK_THREAD_ROUTES[verb], params: { id: asText(conversationId) } };
+var cardThreadRoute = ({ payload }) => {
+  const id = idIn(payload, "conversation_id");
+  return id ? `inbox/th-${id}` : null;
+};
+var replySpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST conversations/[id]/reply",
+    params: { id: asText(p.payload.conversation_id) },
+    body: { text: asText(p.payload.text) },
+    idempotencyKey: p.id
+  }),
+  receipt: (p) => `On its way to ${asText(p.payload.who)} \u2014 sends in 15 seconds unless you cancel`,
+  undo: {
+    label: () => "Sends 15 seconds after you approve; cancel within them",
+    window: "cancelable",
+    record: (_p, data) => ({
+      message_id: rec(data).message_id,
+      cancelable_until: rec(data).cancelable_until,
+      decision_id: decisionOf(data)
+    }),
+    call: (u) => ({ route: "POST messages/[id]/cancel-send", params: { id: asText(u.message_id) } }),
+    receipt: () => "Canceled before it sent"
+  },
+  open: () => null
+};
+var steerSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST messages/[id]/steer",
+    params: { id: asText(p.payload.message_id) },
+    body: { text: asText(p.payload.instruction) }
+  }),
+  receipt: () => "Rewritten \u2014 the new draft waits its turn",
+  open: () => null
+};
+var threadVerbSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => {
+    const verb = asText(p.payload.verb);
+    if (!ASK_THREAD_VERBS.includes(verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return verb === "resolve" ? { route: "POST escalations/[id]/resolve", params: { id: asText(p.payload.escalation_id) } } : threadCall(verb, p.payload.conversation_id, p.payload.until);
+  },
+  receipt: (p) => {
+    const verb = asText(p.payload.verb);
+    return verb === "take_over" ? `You have ${asText(p.payload.who)}'s thread` : ownEntry(RECEIPT, verb) ?? "Done";
+  },
+  undo: {
+    label: ({ payload }) => ownEntry(UNDO_LABEL, asText(payload.verb)) ?? null,
+    window: "ten_minutes",
+    record: (p, data) => {
+      const inverse = ownEntry(INVERSE, asText(p.payload.verb));
+      return inverse ? {
+        verb: inverse,
+        conversation_id: p.payload.conversation_id,
+        until: p.payload.until ?? null,
+        decision_id: decisionOf(data)
+      } : null;
+    },
+    call: (u) => {
+      const verb = asText(u.verb);
+      return isRoutedVerb(verb) ? threadCall(verb, u.conversation_id, u.until) : refuseWith(PROPOSAL_WORDS.noUndo);
+    },
+    receipt: () => "Undone"
+  },
+  open: cardThreadRoute
+};
+var whisperSpec = {
+  needs: "operator",
+  gate: "approve",
+  commit: (p) => ({
+    route: "POST calls/[id]/whisper",
+    params: { id: asText(p.payload.call_id) },
+    body: { text: asText(p.payload.text), trigger: false }
+  }),
+  receipt: () => "Whispered \u2014 the receptionist works it into its next answer",
+  open: () => null
+};
+
+// src/ask-proposals/leads.ts
+var amendsOf = (pl) => {
+  const am = pl?.amends ?? null;
+  return am && typeof am.search_id === "string" && am.search_id ? am : null;
+};
+var leadSearchSpec = {
+  needs: "partner",
+  doing: "start a lead search",
+  gate: "find",
+  commit: ({ payload: pl }) => {
+    const am = amendsOf(pl);
+    if (am)
+      return {
+        route: "POST lead-searches/[id]/answer",
+        params: { id: am.search_id },
+        body: { answer: "include", plan: pl.plan }
+      };
+    const threadId = typeof pl.thread_id === "string" && pl.thread_id ? pl.thread_id : null;
+    return { route: "POST lead-searches", body: threadId ? { ...pl.plan, thread_id: threadId } : pl.plan };
+  },
+  receipt: ({ payload: pl }) => {
+    const am = amendsOf(pl);
+    if (am) return `Answered. ${asText(am.name) || "The search"} carries on with your answer; Leads shows it.`;
+    const plan = pl.plan ?? {};
+    return `Finding ${plan.count ?? ""} ${plan.terms?.[0] ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(
+      /\s+/g,
+      " "
+    );
+  },
+  undo: {
+    // An answer carries the round on; there is nothing to undo (Stop is the strip's).
+    label: ({ payload }) => amendsOf(payload) ? null : "Stop the search",
+    window: "ten_minutes",
+    record: (p, data) => amendsOf(p.payload) ? null : { search_id: rec(data).search_id },
+    // An operator's route undoing a partner's card: stopping a search spends nothing (route-policy.json).
+    call: (u) => ({ route: "POST lead-searches/[id]/stop", params: { id: asText(u.search_id) } }),
+    receipt: () => "Stopping. Whatever it found is kept, and the emails already found are still checked."
+  },
+  open: ({ payload }, outcome) => {
+    const am = amendsOf(payload);
+    if (am) return leadQuestionRoute(am.search_id);
+    const sid = idIn(rec(outcome?.undo), "search_id");
+    return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
+  }
+};
+
+// src/ask-proposals/person.ts
+var cardPersonRoute = ({ payload }) => {
+  const id = idIn(payload, "contact_id");
+  return id ? `clients/${id}` : null;
+};
+var personModeSpec = {
+  needs: "owner",
+  doing: "change how the receptionist treats one person",
+  gate: "settings",
+  commit: (p) => ({
+    route: "PUT contacts/[id]/receptionist",
+    params: { id: asText(p.payload.contact_id) },
+    body: { mode: p.payload.mode },
+    events: [PEOPLE_CHANGED]
+  }),
+  receipt: (p) => `Receptionist for ${asText(p.payload.who)}: ${PERSON_MODE_WORDS[asText(p.payload.mode)] ?? asText(p.payload.mode)}`,
+  undo: {
+    label: () => "Set it back",
+    window: "ten_minutes",
+    record: (p, data) => ({
+      contact_id: p.payload.contact_id,
+      mode: p.payload.previous ?? "inherit",
+      decision_id: decisionOf(data)
+    }),
+    call: (u) => ({
+      route: "PUT contacts/[id]/receptionist",
+      params: { id: asText(u.contact_id) },
+      body: { mode: u.mode },
+      events: [PEOPLE_CHANGED]
+    }),
+    receipt: () => "Set back"
+  },
+  open: cardPersonRoute
+};
+var dealSpec = {
+  needs: "operator",
+  gate: "approve",
+  // The card's body is the route's body: `who` is the card's own word and the id is the route's param, so both stay
+  // out of a request the route reads strictly. No undo: a mis-recorded stage is moved again on the person's page, and
+  // a step is changed or done there.
+  commit: ({ payload }) => {
+    const { who: _who, contact_id: _id, ...body } = payload;
+    return {
+      route: "POST contacts/[id]/deal",
+      params: { id: asText(payload.contact_id) },
+      body,
+      events: [PEOPLE_CHANGED]
+    };
+  },
+  // The step after the deal (0007, amended), naming the row the door wrote (a new proposal's card has no id to name):
+  // the team's note, with its day. It answers as the door takes it, People read again behind it. An answer that names
+  // no deal sends no step: a note tied to no deal is not the step the card said, so it is said as not saved.
+  then: (p, data) => {
+    if (!p.step) return null;
+    const dealId = idIn(rec(rec(data).deal), "id");
+    if (!dealId) return refuseWith("the deal came back without its id; set it on their page");
+    return {
+      route: "POST contacts/[id]/notes",
+      params: { id: asText(p.payload.contact_id) },
+      body: { body: p.step.body, due_on: p.step.due_on, team_only: true, deal_id: dealId },
+      refresh: "behind",
+      events: [{ type: "note:saved", detail: { personId: asText(p.payload.contact_id) } }]
+    };
+  },
+  // The deal stands either way, so a step the door refused is said on the receipt, to set again on their page.
+  receipt: ({ payload: pl }, _data, then) => {
+    const receipt = `${asText(pl.who)} \xB7 ${DEAL_STAGE_WORDS[asText(pl.stage)] ?? asText(pl.stage)}`;
+    if (!then) return receipt;
+    return then.ok ? `${receipt} \xB7 ${NOTE_WORDS.stepAdded}` : `${receipt} \xB7 the next step was not saved: ${then.message}`;
+  },
+  open: cardPersonRoute
+};
+
+// src/ask-proposals/workspace.ts
+var policyBody = (cls, mode, confidence) => {
+  const body = { class: cls };
+  if (mode) body.mode = mode;
+  if (typeof confidence === "number") body.minConfidence = confidence;
+  return body;
+};
+var policySpec = {
+  needs: "operator",
+  gate: "autonomy",
+  commit: (p) => ({
+    route: "PUT policies",
+    body: policyBody(p.payload.class, p.payload.mode, p.payload.min_confidence)
+  }),
+  receipt: (p) => `Autonomy changed: ${p.summary}`,
+  undo: {
+    label: () => "Set it back",
+    window: "ten_minutes",
+    // The events ledger keeps policy changes and hands back no row id, so this undo names none.
+    record: (p) => {
+      const prev = p.payload.previous ?? {};
+      return { class: p.payload.class, mode: prev.mode ?? null, min_confidence: prev.min_confidence ?? null };
+    },
+    call: (u) => !u.mode && typeof u.min_confidence !== "number" ? refuseWith("The previous setting is unknown; change it in Settings.") : { route: "PUT policies", body: policyBody(u.class, u.mode, u.min_confidence) },
+    receipt: () => "Set back"
+  },
+  open: () => "admin/autonomy"
+};
+var settingsSpec = {
+  needs: "partner",
+  doing: "change the workspace's settings",
+  gate: "settings",
+  commit: (p, tab) => {
+    const st = tab.settings;
+    if (!st || !st.config || typeof st.version !== "number")
+      return refuseWith("Settings are not loaded yet \u2014 open Settings once and try again.");
+    const config = applySettingsChange(
+      st.config,
+      p.payload.change
+    );
+    return { route: "PUT settings", body: { config, version: st.version } };
+  },
+  receipt: (p) => p.summary,
+  undo: {
+    label: () => "Put the previous settings back",
+    window: "version",
+    // The whole config as it was before, and the version this save wrote: restoring it is safe only while that is
+    // still the version loaded.
+    record: (_p, data, tab) => ({ config: tab.settings?.config, version_after: rec(data).version }),
+    call: (u, tab) => {
+      const version = tab.settings?.version;
+      if (typeof version !== "number") return refuseWith("Settings are not loaded yet.");
+      if (typeof u.version_after !== "number" || version !== u.version_after)
+        return refuseWith("Settings have changed since this card \u2014 change them in Settings.");
+      return { route: "PUT settings", body: { config: u.config, version } };
+    },
+    receipt: () => "Previous settings are back"
+  },
+  open: () => "admin/workspace"
+};
+var inviteSpec = {
+  needs: "owner",
+  doing: "invite someone to the team",
+  gate: "team",
+  commit: (p) => ({ route: "POST team/invite", body: { email: asText(p.payload.email), role: p.payload.role } }),
+  receipt: (p) => `Invited ${asText(p.payload.email)} as ${asText(p.payload.role)}`,
+  open: () => null
+};
+
+// src/ask-proposals/proposals.ts
+var PROPOSAL_SPECS = {
+  reply: replySpec,
+  steer: steerSpec,
+  thread_verb: threadVerbSpec,
+  person_mode: personModeSpec,
+  policy: policySpec,
+  settings: settingsSpec,
+  whisper: whisperSpec,
+  invite: inviteSpec,
+  broadcast: broadcastSpec,
+  playbook: playbookSpec,
+  lead_search: leadSearchSpec,
+  deal: dealSpec
+};
+function proposalSpec(kind) {
+  return Object.prototype.hasOwnProperty.call(PROPOSAL_SPECS, kind) ? PROPOSAL_SPECS[kind] : null;
+}
+function proposalBelowNeeds(kind) {
+  const { needs, doing } = PROPOSAL_SPECS[kind];
+  return needs === "partner" ? `only an owner or the workspace's partner can ${doing}; say so, and that one of them can ask` : `only an owner can ${doing}; say so, and that an owner can ask`;
+}
+var PROPOSAL_GATE = /* @__PURE__ */ (() => Object.fromEntries(Object.entries(PROPOSAL_SPECS).map(([kind, spec]) => [kind, spec.gate])))();
+function askUndoOpen(kind, undo, atMs, nowMs, settingsVersion) {
+  if (!undo) return false;
+  const lasts = proposalSpec(kind)?.undo?.window ?? "ten_minutes";
+  if (lasts === "cancelable") {
+    const until = typeof undo.cancelable_until === "string" ? Date.parse(undo.cancelable_until) : NaN;
+    return Number.isFinite(until) && nowMs < until;
+  }
+  if (nowMs - atMs > ASK_UNDO_MS) return false;
+  if (lasts === "version") return typeof undo.version_after === "number" && settingsVersion === undo.version_after;
+  return true;
+}
+
 // src/ask/ask-answer.ts
 var ASK_ANSWER_CAPS = {
   headline: 160,
@@ -12659,35 +13041,8 @@ function answerText(a) {
   return [a.say.headline, a.say.detail].filter(Boolean).join(a.form === "prose" ? "\n" : " ");
 }
 function cardOpenRoute(p) {
-  const pl = p.payload ?? {};
-  const id = (k) => typeof pl[k] === "string" && pl[k] ? pl[k] : null;
-  switch (p.kind) {
-    case "reply":
-    case "steer":
-    case "whisper":
-    case "invite":
-      return null;
-    case "settings":
-      return "admin/workspace";
-    case "policy":
-      return "admin/autonomy";
-    case "person_mode":
-    case "deal":
-      return id("contact_id") ? `clients/${id("contact_id")}` : null;
-    case "broadcast":
-      return "broadcasts";
-    case "playbook":
-      return "outbound";
-    case "lead_search": {
-      const am = pl.amends ?? null;
-      if (am && typeof am.search_id === "string" && am.search_id) return leadQuestionRoute(am.search_id);
-      const undo = p.outcome?.undo ?? {};
-      const sid = typeof undo.search_id === "string" && undo.search_id ? undo.search_id : null;
-      return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
-    }
-    default:
-      return id("conversation_id") ? `inbox/th-${id("conversation_id")}` : null;
-  }
+  const card = { payload: p.payload ?? {} };
+  return (proposalSpec(p.kind) ?? PROPOSAL_SPECS.thread_verb).open(card, p.outcome ?? null);
 }
 function nextQuestions(next, places) {
   const out = [];
@@ -21849,6 +22204,182 @@ var SCHEMA_SETS = {
   "tenants.status": ["active", "paused", "test"]
 };
 
+// src/route-keys.generated.ts
+var ROUTE_KEYS = [
+  "DELETE ask/threads/[id]",
+  "DELETE capabilities/[kind]",
+  "DELETE contacts/[id]",
+  "DELETE google/connection",
+  "DELETE google/link",
+  "DELETE lead-searches/[id]",
+  "DELETE leads/[id]",
+  "DELETE me",
+  "DELETE me/devices",
+  "DELETE playbooks/[id]",
+  "DELETE segments/[id]",
+  "DELETE sending-domains/[id]",
+  "DELETE team/[id]",
+  "DELETE templates/[id]",
+  "GET activity",
+  "GET ask/openings",
+  "GET ask/threads",
+  "GET ask/threads/[id]",
+  "GET billing",
+  "GET billing/invoices",
+  "GET broadcasts",
+  "GET broadcasts/[id]",
+  "GET business-record",
+  "GET calendar",
+  "GET calls",
+  "GET calls/[id]/export",
+  "GET calls/[id]/recording",
+  "GET channels",
+  "GET channels/whatsapp/signup",
+  "GET consent/qr",
+  "GET contacts",
+  "GET contacts/[id]",
+  "GET contacts/export",
+  "GET conversations",
+  "GET conversations/[id]",
+  "GET conversations/[id]/export",
+  "GET escalations",
+  "GET export",
+  "GET google",
+  "GET google/callback",
+  "GET google/connect",
+  "GET google/locations",
+  "GET lead-searches",
+  "GET lead-searches/[id]",
+  "GET lead-suggestions",
+  "GET leads",
+  "GET leads/export",
+  "GET messages/[id]/media",
+  "GET metrics",
+  "GET notifications",
+  "GET partner",
+  "GET partner/workspaces",
+  "GET platform/overview",
+  "GET platform/tenants/[id]",
+  "GET playbooks",
+  "GET policies",
+  "GET reports",
+  "GET reports/campaigns",
+  "GET segments",
+  "GET settings",
+  "GET setup",
+  "GET team",
+  "GET templates",
+  "GET today",
+  "GET views",
+  "GET workspaces",
+  "PATCH lead-searches/[id]",
+  "PATCH team/[id]",
+  "PATCH workspaces",
+  "POST ask",
+  "POST ask/messages/[id]/proposals/[pid]",
+  "POST ask/warm",
+  "POST billing/checkout",
+  "POST billing/portal",
+  "POST billing/resume",
+  "POST billing/start-now",
+  "POST billing/sync",
+  "POST broadcasts",
+  "POST broadcasts/[id]/approve",
+  "POST broadcasts/[id]/cancel",
+  "POST calendar/preview",
+  "POST calls/[id]/end",
+  "POST calls/[id]/hand-over",
+  "POST calls/[id]/whisper",
+  "POST capabilities/[kind]",
+  "POST channels/whatsapp/connect",
+  "POST contacts",
+  "POST contacts/[id]/deal",
+  "POST contacts/[id]/notes",
+  "POST contacts/[id]/notes/decide",
+  "POST contacts/[id]/notes/done",
+  "POST contacts/[id]/notes/remove",
+  "POST contacts/import",
+  "POST conversations/[id]/archive",
+  "POST conversations/[id]/hand-back",
+  "POST conversations/[id]/reply",
+  "POST conversations/[id]/snooze",
+  "POST conversations/[id]/take-over",
+  "POST conversations/[id]/wake",
+  "POST escalations/[id]/resolve",
+  "POST google/link",
+  "POST google/locations",
+  "POST google/refresh",
+  "POST google/reviews/[id]/draft",
+  "POST google/reviews/[id]/reply",
+  "POST google/search",
+  "POST lead-operations/[id]/undo",
+  "POST lead-searches",
+  "POST lead-searches/[id]/answer",
+  "POST lead-searches/[id]/more",
+  "POST lead-searches/[id]/stop",
+  "POST lead-searches/[id]/undo",
+  "POST leads/[id]/draft",
+  "POST leads/[id]/exclude",
+  "POST leads/[id]/keep",
+  "POST leads/[id]/put-back",
+  "POST leads/[id]/stage",
+  "POST leads/bulk",
+  "POST leads/check-again",
+  "POST lines/buy",
+  "POST lines/forwarding",
+  "POST lines/forwarding/test",
+  "POST lines/register",
+  "POST lines/retry",
+  "POST lines/search",
+  "POST mailboxes",
+  "POST messages/[id]/cancel-send",
+  "POST messages/[id]/steer",
+  "POST partner",
+  "POST platform/lines/refile",
+  "POST platform/lines/release",
+  "POST platform/lines/replace",
+  "POST platform/lines/retry",
+  "POST platform/partners/payout",
+  "POST platform/partners/standing",
+  "POST platform/partners/status",
+  "POST platform/waitlist/invited",
+  "POST playbooks",
+  "POST playbooks/[id]/run",
+  "POST segments",
+  "POST segments/draft",
+  "POST sending-domains",
+  "POST sending-domains/[id]/check",
+  "POST sending-domains/[id]/resume",
+  "POST settings/receptionist",
+  "POST setup/request",
+  "POST team/invite",
+  "POST templates",
+  "POST templates/draft",
+  "POST templates/starter",
+  "POST templates/sync",
+  "POST workspaces/create",
+  "PUT business-record",
+  "PUT contacts/[id]/consent",
+  "PUT contacts/[id]/details",
+  "PUT contacts/[id]/marketing-consent",
+  "PUT contacts/[id]/receptionist",
+  "PUT contacts/consent",
+  "PUT contacts/marketing-consent",
+  "PUT contacts/notes",
+  "PUT contacts/receptionist",
+  "PUT lead-suggestions",
+  "PUT mailboxes/[id]",
+  "PUT me",
+  "PUT me/devices",
+  "PUT notifications",
+  "PUT playbooks/[id]",
+  "PUT policies",
+  "PUT segments/[id]",
+  "PUT settings",
+  "PUT templates/[id]",
+  "PUT views/[page]"
+];
+
 // src/shell/refusal.ts
 var NEEDS_TITLE = {
   owner: "Owner only",
@@ -24930,6 +25461,7 @@ export {
   ASK_RETENTION_DAYS,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
+  ASK_THREAD_ROUTES,
   ASK_THREAD_VERBS,
   ASK_TOKENS_DAY,
   ASK_TURN_BUDGET_MS,
@@ -25357,6 +25889,8 @@ export {
   PROMPT_OPENINGS,
   PROMPT_READERS,
   PROPOSAL_GATE,
+  PROPOSAL_SPECS,
+  PROPOSAL_WORDS,
   PROVIDER_STATUSES,
   PROVISIONING_DEADLINE_MS,
   PURPOSE_REFUSALS,
@@ -25424,6 +25958,7 @@ export {
   ROLES,
   ROLE_PERMS,
   ROLE_WORDS,
+  ROUTE_KEYS,
   RULES_AT_REST_WORDS,
   RULES_WITHOUT_FIELDS_WORDS,
   RUN_FILTERS,
@@ -26161,10 +26696,12 @@ export {
   promptCostWords,
   promptTotalWords,
   proposalAction,
+  proposalBelowNeeds,
   proposalFactsFor,
   proposalFollowUp,
   proposalLinkOf,
   proposalMessage,
+  proposalSpec,
   proposalsWaiting,
   proseAnswer,
   providerNameOf,

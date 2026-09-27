@@ -51,7 +51,6 @@ async function proposePolicy(
     .join(" · ");
   return propose({
     kind: "policy",
-    needs: "operator",
     title: `Autonomy: ${cls}`,
     summary,
     payload: {
@@ -63,7 +62,6 @@ async function proposePolicy(
         min_confidence: (row?.limits as { min_confidence?: number } | null)?.min_confidence ?? null,
       },
     },
-    undo: "Set it back",
   });
 }
 

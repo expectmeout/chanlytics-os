@@ -204,16 +204,6 @@
     "branches": 15,
     "depth": 6
   },
-  "apps/dashboard/src/legacy-bridge/ask/commit.ts::commitProposal#1": {
-    "lines": 211,
-    "branches": 74,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy-bridge/ask/commit.ts::undoProposal#1": {
-    "lines": 82,
-    "branches": 31,
-    "depth": 2
-  },
   "apps/dashboard/src/legacy-bridge/mascot/driver.ts::mountCharacter#1": {
     "lines": 218,
     "branches": 66,
@@ -436,7 +426,7 @@
   },
   "apps/dashboard/src/legacy/pages/ask-turn.jsx::AskCard#1": {
     "lines": 105,
-    "branches": 82,
+    "branches": 78,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/billing-real.jsx::PaneBillingReal#1": {
@@ -910,17 +900,17 @@
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/broadcast.ts::proposeBroadcast#1": {
-    "lines": 114,
+    "lines": 112,
     "branches": 35,
     "depth": 3
   },
   "apps/dashboard/src/server/ask/tools/act/deal.ts::proposeDeal#1": {
-    "lines": 117,
+    "lines": 115,
     "branches": 75,
     "depth": 4
   },
   "apps/dashboard/src/server/ask/tools/act/playbook.ts::proposePlaybook#1": {
-    "lines": 185,
+    "lines": 183,
     "branches": 48,
     "depth": 4
   },

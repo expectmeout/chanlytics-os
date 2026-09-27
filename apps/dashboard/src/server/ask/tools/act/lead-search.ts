@@ -2,20 +2,22 @@ import "server-only";
 import { z } from "zod";
 import {
   AppError,
-  ROLE_PERMS,
+  PROPOSAL_SPECS,
   ProposeLeadSearchSchema,
   planLeadSearch,
   planSentence,
+  proposalBelowNeeds,
   type LeadSearchPlan,
 } from "@chanlytics/contracts";
 import { answerPlanOf, planFacts, searchRow, waitingQuestionOf, type SearchViewRow } from "../../../leads/leads";
 import { requireUuid } from "../../../request-guards";
+import { roleAtLeast } from "../../../with-route";
 import { defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
 /**
  * The ask as the model writes it, field by field, in the flat shape it is shown. The plan's own schema
  * (ProposeLeadSearchSchema, contracts) judges it after the shaping below, in the handler, so the refusal keeps the
- * plan's words and the owner check still comes first.
+ * plan's words and the role check (a partner or an owner, the route's door) still comes first.
  */
 const LeadSearchAsk = z.object({
   looking_for: z.enum(["local_businesses", "people", "online_sellers", "other"]),
@@ -71,7 +73,7 @@ const shapeAsk = (input: LeadSearchAskInput) => {
 const LeadSearchPlanInput = z.preprocess((raw) => shapeAsk(raw as LeadSearchAskInput), ProposeLeadSearchSchema);
 
 /**
- * A lead search as a card the owner approves. The model says who, how many,
+ * A lead search as a card an owner or a partner approves. The model says who, how many,
  * where and the standard; the planner in contracts builds the plan, keys every
  * criterion and exclusion and checks the result against release A's own
  * schema, so what the card carries is a plan the door would accept. Nothing is
@@ -81,11 +83,8 @@ const LeadSearchPlanInput = z.preprocess((raw) => shapeAsk(raw as LeadSearchAskI
  * the owner's answer applied, at the version and count the server sets.
  */
 async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Promise<ProposalOutcome> {
-  // The lead finder is `find` (ROLE_PERMS): an owner's, and the partner's who sets the workspace up (0012).
-  if (!ROLE_PERMS[t.role as keyof typeof ROLE_PERMS]?.find)
-    return refuse(
-      "only an owner or the workspace's partner can start a lead search; say so, and that one of them can ask",
-    );
+  // The lead finder is the owner's and the partner's who sets the workspace up (0012): the card needs a partner.
+  if (!roleAtLeast(t.role, PROPOSAL_SPECS.lead_search.needs)) return refuse(proposalBelowNeeds("lead_search"));
   const shaped = LeadSearchPlanInput.safeParse(input);
   if (!shaped.success)
     return refuse(
@@ -124,7 +123,6 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
   // it to that), and the plan card is drawn from exactly what it answers.
   return propose({
     kind: "lead_search",
-    needs: "owner",
     title: r.view.title,
     summary: answer ? `Answers “${answer.question}”: ${planSentence(plan)}` : planSentence(plan),
     payload: {
@@ -133,8 +131,6 @@ async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Pro
       facts: await planFacts(t.ctx, t.tenantId, { categoryKey: shaped.data.category_key, now: t.now }),
       ...(answer ? { amends: answer } : {}),
     },
-    // An answer carries the round on; there is nothing to undo (Stop is the strip's).
-    undo: answer ? null : "Stop the search",
   });
 }
 

@@ -95,3 +95,5 @@ export type { SchemaSetKey, SchemaSet, Exactly, Within, Holds, SchemaAgreement }
 export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts } from "./csv";
 export type { CsvCell, ImportColumns, ImportRow } from "./csv";
 export { SCHEMA_SETS } from "../schema-sets.generated";
+export { ROUTE_KEYS } from "../route-keys.generated";
+export type { ApiRouteKey } from "../route-keys.generated";

@@ -49,16 +49,16 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            277   of which over 200 lines: 67
+functions over the limit            275   of which over 200 lines: 66
 files over 800 lines                 37
 directories over 20 modules           8
 window globals                      194   names
 window publishers                   388   sites in 141 files
 copies                              197   of 45 names
-as unknown as                       224
+as unknown as                       223
 table names outside packages/db     538
 dead exports, types and modules     406
-source-text reads in tests          836
+source-text reads in tests          833
 lint warnings allowed                46
 ```
 

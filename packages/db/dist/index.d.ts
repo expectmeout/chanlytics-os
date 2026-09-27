@@ -1907,7 +1907,7 @@ type Database = {
                     email: string;
                     expires_at: string;
                     id: string;
-                    invited_by: string;
+                    invited_by: string | null;
                     revoked_at: string | null;
                     role: string;
                     tenant_id: string;
@@ -1918,7 +1918,7 @@ type Database = {
                     email: string;
                     expires_at?: string;
                     id?: string;
-                    invited_by: string;
+                    invited_by?: string | null;
                     revoked_at?: string | null;
                     role: string;
                     tenant_id: string;
@@ -1929,7 +1929,7 @@ type Database = {
                     email?: string;
                     expires_at?: string;
                     id?: string;
-                    invited_by?: string;
+                    invited_by?: string | null;
                     revoked_at?: string | null;
                     role?: string;
                     tenant_id?: string;
