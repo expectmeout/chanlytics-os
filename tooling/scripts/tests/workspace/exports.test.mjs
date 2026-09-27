@@ -319,7 +319,7 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
     [true, false, false],
   );
   const limits = readCode("apps/dashboard/src/server/rate-limit.ts");
-  assert.ok(limits.includes('export: { limit: 10, windowMs: 60_000, noun: "exports" }'));
+  assert.ok(limits.includes('export: { limit: 10, windowMs: MIN_MS, noun: "exports" }'));
 });
 
 test("the pages link to the routes, and only where the bridge can name the workspace", () => {

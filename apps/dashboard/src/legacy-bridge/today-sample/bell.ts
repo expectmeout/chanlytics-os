@@ -2,8 +2,8 @@
  * The bell: three rows the edge kept and three this browser derives about rows the queue already holds; six more
  * on a busy day, between Ana's row and Kenia's.
  */
-import { agoLabel, SERVER_KEY_PREFIX, NEEDS_KEY_PREFIX, CALL_KEY_PREFIX } from "@chanlytics/contracts";
-import { MIN, type SampleClock } from "./clock";
+import { agoLabel, SERVER_KEY_PREFIX, NEEDS_KEY_PREFIX, CALL_KEY_PREFIX, MIN_MS } from "@chanlytics/contracts";
+import type { SampleClock } from "./clock";
 // The row the popover draws, from the bridge that owns it. `import type` is erased, so notifications.ts's
 // own `./api` import never reaches this browser-only bundle.
 import type { BellRow } from "../notifications";
@@ -27,7 +27,7 @@ const bellRow = (
   icon,
   tone,
   unread: true,
-  time: agoLabel(nowMs - minAgo * MIN, nowMs),
+  time: agoLabel(nowMs - minAgo * MIN_MS, nowMs),
   title,
   message,
   about,

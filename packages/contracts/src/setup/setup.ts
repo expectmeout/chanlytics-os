@@ -12,7 +12,7 @@ import type { SchemaSet } from "../shared/schema-sets";
 import { lineCredentialFailure } from "../lines/line-failure";
 import { formatPhoneDisplay } from "../shared/phone";
 import type { FactConflict } from "../config/facts";
-import { agoWords } from "../shared/time";
+import { agoWords, MIN_MS } from "../shared/time";
 import type { SetupGoogleFacts } from "../google/google";
 import { maySpend, type SetupBillingFacts } from "../workspace/billing";
 import { SOLE_PROP_LIMITS } from "../lines/registration-path";
@@ -159,7 +159,7 @@ export interface LineDto {
  * Five minutes, because the honest worst case is three and a state that is
  * genuinely still running must never be declared dead underneath itself.
  */
-export const PROVISIONING_DEADLINE_MS = 5 * 60_000;
+export const PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
 
 /**
  * Has this line been setting up longer than a line can legitimately take?

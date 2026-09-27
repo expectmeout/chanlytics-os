@@ -9,8 +9,11 @@ import { dmarcOf } from "../packages/channels.js";
 
 type TxtResolver = (name: string) => Promise<string[][]>;
 
+/** Each of the resolver's two tries at a TXT record gives up after this. */
+const DNS_TRY_TIMEOUT_MS = 3000;
+
 const systemResolver: TxtResolver = (name) => {
-  const r = new Resolver({ timeout: 3000, tries: 2 });
+  const r = new Resolver({ timeout: DNS_TRY_TIMEOUT_MS, tries: 2 });
   return r.resolveTxt(name);
 };
 let resolver: TxtResolver = systemResolver;

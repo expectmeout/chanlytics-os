@@ -17,6 +17,7 @@ import {
   type GoogleListingDto,
   type GoogleListingFacts,
   type GoogleReviewDto,
+  DAY_MS,
 } from "@chanlytics/contracts";
 import type { EdgeAnswer } from "./lines";
 
@@ -86,7 +87,7 @@ export async function googleFor(
 }> {
   const [listing, connection] = await Promise.all([listingFor(db, tenantId), connectionFor(db, tenantId)]);
   if (!listing) return { listing: null, connection, reviews: [], days: [] };
-  const sinceDay = new Date(Date.now() - DAYS_KEPT * 86_400_000).toISOString().slice(0, 10);
+  const sinceDay = new Date(Date.now() - DAYS_KEPT * DAY_MS).toISOString().slice(0, 10);
   const [reviews, days] = await Promise.all([
     db
       .from("google_reviews")

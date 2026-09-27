@@ -29,11 +29,12 @@ import { applyEmailReceipt } from "../lib/email/email-receipts.js";
 import { emitEvent, type Json } from "../lib/packages/db.js";
 import { scheduleJobOnce } from "../lib/packages/jobs.js";
 import { env } from "../lib/env.js";
+import { MIN_MS } from "../lib/packages/contracts.js";
 
 /** The event is metadata: ids, addresses, a subject. Anything larger is not one. */
 const MAX_BODY_BYTES = 256 * 1024;
 /** Mail for nobody is counted at most this often per instance: spam to a made-up address must not become a row per message. */
-const UNROUTABLE_ROW_MS = 60_000;
+const UNROUTABLE_ROW_MS = MIN_MS;
 let lastUnroutableRow = 0;
 
 export async function POST(request: Request): Promise<Response> {

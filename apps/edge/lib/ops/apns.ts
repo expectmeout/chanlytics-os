@@ -9,6 +9,7 @@
 import { createPrivateKey, sign as signRaw } from "node:crypto";
 import http2 from "node:http2";
 import { env } from "../env.js";
+import { MIN_MS } from "../packages/contracts.js";
 
 export interface ApnsPort {
   /**
@@ -27,7 +28,7 @@ export type ActivitySend =
 export const APNS_PRODUCTION = "https://api.push.apple.com";
 export const APNS_SANDBOX = "https://api.sandbox.push.apple.com";
 /** Apple takes a provider token for an hour and refuses one refreshed more often than every 20 minutes. */
-const JWT_LIFE_MS = 50 * 60_000;
+const JWT_LIFE_MS = 50 * MIN_MS;
 /** How long one push may take, connecting included: the Retell webhook waits on it. */
 const APNS_WAIT_MS = 3000;
 

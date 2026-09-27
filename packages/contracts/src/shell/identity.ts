@@ -1,4 +1,5 @@
 import { initialsOf } from "../conversations/viewmodels";
+import { DAY_MS } from "../shared/time";
 
 /**
  * Who a person is, in words.
@@ -104,7 +105,7 @@ export function inviteState(expiresAt: string | null | undefined, nowMs: number)
   const at = expiresAt ? Date.parse(expiresAt) : NaN;
   if (Number.isNaN(at)) return { expired: false, words: "invite pending" };
   if (at <= nowMs) return { expired: true, words: "invite expired — revoke it and send a new one" };
-  const days = Math.ceil((at - nowMs) / 86_400_000);
+  const days = Math.ceil((at - nowMs) / DAY_MS);
   return {
     expired: false,
     words: days <= 1 ? "invite pending · expires today" : `invite pending · expires in ${days} days`,

@@ -15,6 +15,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@chanlytics/db";
+import { MIN_MS } from "@chanlytics/contracts";
+import { DEADLINE_MARGIN_MS } from "@chanlytics/core";
 
 export type Db = SupabaseClient<Database>;
 
@@ -44,7 +46,7 @@ export const YIELD_AT_MS = 45_000;
  * The ceiling every tick function runs under (apps/edge/vercel.json: 60s).
  * Stated here because the lead job's window below is measured from it.
  */
-export const FUNCTION_CEILING_MS = 60_000;
+export const FUNCTION_CEILING_MS = MIN_MS;
 
 /**
  * The deadline a LEAD job is handed, from the tick's start. A broadcast's
@@ -64,7 +66,7 @@ export const FUNCTION_CEILING_MS = 60_000;
  * LEAD_YIELD_AT_MS - CLAIM_FOR_MS, and core's judge timeout is sized to fit
  * inside it; tick-geometry.test.mjs holds the two to that.
  */
-export const LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - 8_000;
+export const LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - DEADLINE_MARGIN_MS;
 
 /** Claims allowed for internal work before it is failed and reported. */
 export const MAX_ATTEMPTS = 3;
@@ -137,24 +139,24 @@ export function verdictFor(job: { kind: string; attempts: number }): Verdict {
  * person never does.
  */
 export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
-  email_ingest: [5 * 60_000, 30 * 60_000],
+  email_ingest: [5 * MIN_MS, 30 * MIN_MS],
   // The lead finder's three (00140). Each is written to be run again: a start
   // claims its run row before it calls the provider, a collect commits a page
   // by compare-and-set on the offset, a check commits by lead id. A
   // provider's 429 or 5xx throws and lands here: two minutes covers a bad
   // minute, ten a short outage; the third claim fails the row and the round
   // ends "the source failed". Every wait outlasts the lease (jobs-ledger.test.mjs).
-  lead_round_start: [2 * 60_000, 10 * 60_000],
-  lead_collect: [2 * 60_000, 10 * 60_000],
-  lead_check: [2 * 60_000, 10 * 60_000],
+  lead_round_start: [2 * MIN_MS, 10 * MIN_MS],
+  lead_collect: [2 * MIN_MS, 10 * MIN_MS],
+  lead_check: [2 * MIN_MS, 10 * MIN_MS],
   // A phone told from a kept row (00162): the push service's bad minute, then
   // its short outage, each wait outlasting the lease like the three above. The
   // row is read again on each try, and a phone the service answered for is
   // answered for once.
-  push_send: [2 * 60_000, 10 * 60_000],
+  push_send: [2 * MIN_MS, 10 * MIN_MS],
   // The receipts of a send (00189): Expo keeps them a day, so a bad minute and
   // then a short outage are affordable waits, each outlasting the lease.
-  push_receipts: [5 * 60_000, 30 * 60_000],
+  push_receipts: [5 * MIN_MS, 30 * MIN_MS],
 };
 
 /** How long a job that just threw waits before it is tried again; null when it is failed now. */

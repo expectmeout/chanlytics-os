@@ -2381,7 +2381,7 @@ var LEAD_ASSUMED_YIELD = 0.5;
 var LEAD_ESTIMATE_MARGIN = 1.3;
 var LEAD_ASK_MIN_FACTOR = 1.2;
 var LEAD_ASK_MAX_FACTOR = 4;
-var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
+var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 function leadPhoneState(phone) {
   if (!phone) return "none";
   return phoneDialable(phone) ? "ok" : "invalid";
@@ -3600,7 +3600,7 @@ function clockWhen(atMs, tz, nowMs) {
 }
 function daysBetween(fromKey, toKey) {
   const at2 = (key) => Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)));
-  return Math.round((at2(toKey) - at2(fromKey)) / 864e5);
+  return Math.round((at2(toKey) - at2(fromKey)) / DAY_MS);
 }
 function daysFromToday(atMs, tz, nowMs) {
   return daysBetween(zoneDayKey(nowMs, tz), zoneDayKey(atMs, tz));
@@ -3929,8 +3929,8 @@ function guessName(item, services = []) {
   return null;
 }
 function peopleFromItems(items, services, nowMs, window = {}) {
-  const from = nowMs - (window.backDays ?? 30) * 864e5;
-  const to = nowMs + (window.aheadDays ?? 90) * 864e5;
+  const from = nowMs - (window.backDays ?? 30) * DAY_MS;
+  const to = nowMs + (window.aheadDays ?? 90) * DAY_MS;
   const byPhone = /* @__PURE__ */ new Map();
   const ridersOf = /* @__PURE__ */ new Map();
   const better = (a, b) => {
@@ -3973,7 +3973,7 @@ function bookedAfterAsk(visits, askedMs) {
 }
 function visitAnswersAsk(nextStartMs, lastStartMs, askedMs) {
   if (nextStartMs !== null) return true;
-  return lastStartMs !== null && lastStartMs >= askedMs - 864e5;
+  return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
 }
 function toBookingReportVM(dto) {
   if (!dto || dto.calendar === "none")
@@ -4066,7 +4066,7 @@ function leadTodayLine(hours, tz, now) {
   }).formatToParts(now);
   const at2 = Number(parts2.find((p) => p.type === "hour")?.value ?? 0) + Number(parts2.find((p) => p.type === "minute")?.value ?? 0) / 60;
   const clock3 = (hh, mm, ap) => `${hh}${mm && mm !== "00" ? `:${mm}` : ""} ${ap.toUpperCase()}`;
-  const last = hoursOn(new Date(now.getTime() - 864e5))?.match(CLOCK);
+  const last = hoursOn(new Date(now.getTime() - DAY_MS))?.match(CLOCK);
   if (last && hourOf(last[4], last[5], last[6]) <= hourOf(last[1], last[2], last[3]) && at2 < hourOf(last[4], last[5], last[6])) {
     return `Open until ${clock3(last[4], last[5], last[6])}`;
   }
@@ -4105,7 +4105,7 @@ function leadWhere(r2) {
   const line = [r2.street, town].filter(Boolean).join(", ");
   return line ? { line, href: r2.maps_url ?? null } : null;
 }
-var LEAD_UNDO_MS = 24 * 60 * 6e4;
+var LEAD_UNDO_MS = DAY_MS;
 function leadUndoable(s, now) {
   const r2 = s?.round;
   return !!r2 && !r2.undo_op_id && !!r2.ended_at && now.getTime() - Date.parse(r2.ended_at) < LEAD_UNDO_MS;
@@ -4526,7 +4526,7 @@ function guardSpokenTurns(o) {
     correct: o.live && !o.alreadyCorrected
   };
 }
-var WA_WINDOW_MS = 24 * 3600 * 1e3;
+var WA_WINDOW_MS = 24 * HOUR_MS;
 function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
   if (!lastWaInboundAtIso) return { open: false, closesAtIso: null };
   const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS;
@@ -4541,7 +4541,7 @@ var REPLY_LIMITS = {
   email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
 };
 var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
-var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
+var CALL_HEARTBEAT_MS = 10 * MIN_MS;
 function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
   if (call.status !== "ongoing") return false;
   const beat = call.updated_at ?? call.started_at;
@@ -4552,7 +4552,7 @@ function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
 }
 var REPLY_DELAY_DEFAULT_MS = 3e4;
 var REPLY_DELAY_MIN_MS = 5e3;
-var REPLY_DELAY_MAX_MS = 6e5;
+var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var REPLY_CAP_DEFAULT = 20;
 var PAUSE_HOURS_DEFAULT = 24;
 function hardLimitsWords(limits) {
@@ -4952,7 +4952,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
   }
-  const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / 6e4)) : void 0;
+  const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
   const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { kind: "call", label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? lastInbound.type === "text" ? { kind: "wrote", label: "They wrote", text: messageWords(lastInbound), quoted: true } : { kind: "sent", label: "They sent", text: messageWords(lastInbound), quoted: false } : null;
   const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
   return {
@@ -4992,7 +4992,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     proposalUrl: dto.contact.proposal_url?.trim() || null,
-    ...waitingMin ? { waited: formatWaited(waitingMin * 6e4) } : {},
+    ...waitingMin ? { waited: formatWaited(waitingMin * MIN_MS) } : {},
     agent: agentFor(primaryChannel),
     // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
     // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
@@ -5325,7 +5325,7 @@ function dayIn(tz, iso, now) {
   if (Number.isNaN(at2.getTime())) return "";
   const key = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   if (key(at2) === key(now)) return "today";
-  if (key(at2) === key(new Date(now.getTime() - 864e5))) return "yesterday";
+  if (key(at2) === key(new Date(now.getTime() - DAY_MS))) return "yesterday";
   return new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at2);
 }
 function toLeadPeekVM(r2, search, tz, now) {
@@ -7139,7 +7139,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
       const w = replyWindow(via, r2.latest_wa_inbound_at, now);
       const win = {
         open: w.open,
-        hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0
+        hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0
       };
       return { replyWindow: win, replyVia: REPLY_VIA[via], bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
     })(),
@@ -7623,7 +7623,7 @@ function templateSentWords(s, tz, nowMs) {
 }
 
 // src/playbooks/playbook-time.ts
-var SWEEP_TICK_MS = 5 * 6e4;
+var SWEEP_TICK_MS = 5 * MIN_MS;
 function sweepTickAtOrAfter(ms2) {
   return Math.ceil((ms2 - SWEEP_TICK_MS) / HOUR_MS) * HOUR_MS + SWEEP_TICK_MS;
 }
@@ -7734,7 +7734,7 @@ var SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 var PLAYBOOK_NAME_MAX = 80;
 var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
 function triggerOf(id) {
@@ -9296,7 +9296,7 @@ function overLimitRefusal(h, audience) {
 
 // src/broadcasts/run-words.ts
 var REPLY_WINDOW_HOURS = 72;
-var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 function isReplyTo(sentAt, at2) {
   const s = Date.parse(sentAt);
@@ -9401,9 +9401,9 @@ function toRunReportVM(d, opts) {
   const start = starts.length ? Math.min(...starts) : opts.nowMs;
   const heard = reached.flatMap((r2) => [r2.delivered_at, r2.read_at, r2.replied ? r2.replied_at : null, r2.consent_after ? r2.consent_at : null]).map((s) => s ? Date.parse(s) : NaN).filter((t) => Number.isFinite(t) && t >= start && t - start <= opts.windowMs);
   const last = heard.length ? Math.max(...heard) - start : 0;
-  const windowH = opts.windowMs / 36e5;
-  const spanH = RUN_REPORT_SPANS_H.find((h) => h <= windowH && h * 36e5 > last) ?? windowH;
-  const step2 = spanH * 36e5 / RUN_REPORT_STEPS;
+  const windowH = opts.windowMs / HOUR_MS;
+  const spanH = RUN_REPORT_SPANS_H.find((h) => h <= windowH && h * HOUR_MS > last) ?? windowH;
+  const step2 = spanH * HOUR_MS / RUN_REPORT_STEPS;
   const bars2 = (stamps) => {
     const out = new Array(RUN_REPORT_STEPS).fill(0);
     for (const s of stamps) {
@@ -9631,7 +9631,7 @@ function inviteState(expiresAt, nowMs) {
   const at2 = expiresAt ? Date.parse(expiresAt) : NaN;
   if (Number.isNaN(at2)) return { expired: false, words: "invite pending" };
   if (at2 <= nowMs) return { expired: true, words: "invite expired \u2014 revoke it and send a new one" };
-  const days = Math.ceil((at2 - nowMs) / 864e5);
+  const days = Math.ceil((at2 - nowMs) / DAY_MS);
   return {
     expired: false,
     words: days <= 1 ? "invite pending \xB7 expires today" : `invite pending \xB7 expires in ${days} days`
@@ -9737,7 +9737,7 @@ function trialWords(trialEnd, nowMs) {
   if (!trialEnd) return "";
   const end = Date.parse(trialEnd);
   if (Number.isNaN(end)) return "";
-  const days = Math.ceil((end - nowMs) / 864e5);
+  const days = Math.ceil((end - nowMs) / DAY_MS);
   if (days <= 0) return "Trial ends today";
   return `${days} day${days === 1 ? "" : "s"} left on the trial, until ${dayWords(trialEnd)}`;
 }
@@ -9988,7 +9988,7 @@ var REGISTRATION_COST_WORDS = {
 };
 
 // src/setup/setup.ts
-var PROVISIONING_DEADLINE_MS = 5 * 6e4;
+var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
 function lineStuckProvisioning(l, nowMs) {
   if (!l || l.voice_state !== "provisioning") return false;
   const since = Date.parse(l.state_since);
@@ -10748,9 +10748,9 @@ function nextOpenMoment(tz, when) {
   const { date, hour } = parts(tz, when);
   if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
   const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
-  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * 36e5;
+  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * HOUR_MS;
   const landed = parts(tz, new Date(at2)).hour;
-  if (landed !== PLAYBOOK_HOURS.min) at2 += (PLAYBOOK_HOURS.min - landed) * 36e5;
+  if (landed !== PLAYBOOK_HOURS.min) at2 += (PLAYBOOK_HOURS.min - landed) * HOUR_MS;
   return { at: new Date(at2), moved: true };
 }
 function runDueNow(p, tz, now) {
@@ -14457,7 +14457,7 @@ function reviewReplyModeOf(rows) {
 var REVIEW_REPLY_MAX_WORDS = 60;
 var REVIEW_REPLY_MAX_CHARS = 1e3;
 var REVIEW_AUTO_REPLIES_PER_SYNC = 3;
-var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
 function firstName(author) {
   const a = (author ?? "").trim();
   if (!a || /^(a google user|anonymous)$/i.test(a)) return null;
@@ -14986,9 +14986,9 @@ function placesQueryOf(words4) {
   return /^[\d\s().+-]+$/.test(w) ? normalizePhone(w) ?? w : w;
 }
 var GOOGLE_SHOWN_REVIEWS = 5;
-var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
-var BOOTSTRAP_MS = 3600 * 1e3;
+var REVIEW_NEWS_MS = 36 * HOUR_MS;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * DAY_MS;
+var BOOTSTRAP_MS = HOUR_MS;
 function ratingWords(rating) {
   return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} \u2605` : "no rating yet";
 }
@@ -15605,7 +15605,7 @@ function deskSignMetadata(f) {
 }
 
 // src/deals/pace.ts
-var SAME_SITTING_MS = 36e5;
+var SAME_SITTING_MS = HOUR_MS;
 function yesWaits(rows) {
   return rows.filter(isYes).map((d) => d.decided_at ? Date.parse(d.decided_at) - Date.parse(d.proposed_at) : Number.NaN).filter((ms2) => Number.isFinite(ms2) && ms2 >= SAME_SITTING_MS).map((ms2) => Math.floor(ms2 / DAY_MS)).sort((a, b) => a - b);
 }
@@ -16268,7 +16268,7 @@ var MODE_WORDS = {
   unanswered: "Only calls you don't answer",
   always: "Every call"
 };
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
+var FORWARDING_TEST_WINDOW_MS = 30 * MIN_MS;
 function telHref(code2) {
   return `tel:${code2.replace(/\+/g, "%2B").replace(/#/g, "%23")}`;
 }
@@ -16339,7 +16339,7 @@ function forwardingMatch(facts, call, nowMs = Date.now()) {
   const from = typeof facts.test_started_at === "string" ? Date.parse(facts.test_started_at) : NaN;
   const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
   if (Number.isNaN(started) || Number.isNaN(from) || Number.isNaN(until)) return false;
-  if (started < from - 6e4 || started > until) return false;
+  if (started < from - MIN_MS || started > until) return false;
   const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
   if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
   const testFrom = typeof facts.test_from === "string" && facts.test_from ? normalizePhone(facts.test_from) : null;
@@ -16369,8 +16369,8 @@ function forwardingTestOpen(facts, nowMs = Date.now()) {
 }
 
 // src/setup/first-run-try.ts
-var TRY_QUIET_AFTER_MS = 3 * 6e4;
-var TRY_SLACK_MS = 6e4;
+var TRY_QUIET_AFTER_MS = 3 * MIN_MS;
+var TRY_SLACK_MS = MIN_MS;
 var FIRST_RUN_TRY_WORDS = {
   listenForwarded: "Call your number from your cell. Don't pick up.",
   listenOwn: "Call your receptionist from your cell.",
@@ -16462,7 +16462,7 @@ function firstRunTryOf({ dto, vm, calls, since, nowMs }) {
   if (!call) {
     const f = fw?.forwarding ?? null;
     const open = !!f && fw.forwarding_state !== "verified" && forwardingTestOpen(f, nowMs);
-    const left = open && f.test_until ? Math.max(1, Math.ceil((Date.parse(f.test_until) - nowMs) / 6e4)) : null;
+    const left = open && f.test_until ? Math.max(1, Math.ceil((Date.parse(f.test_until) - nowMs) / MIN_MS)) : null;
     const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
     return {
       ...base,
@@ -16756,7 +16756,7 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
       const codes = forwardingCodes("office", mode, f.destination_e164 ?? dest);
       const keepRow2 = vm.rows.find((r2) => r2.id === "keep") ?? null;
       const askedAt = dto.requests.forwarding ? Date.parse(dto.requests.forwarding) : NaN;
-      const asked = !Number.isNaN(askedAt) && nowMs - askedAt < 864e5 ? askedAt : null;
+      const asked = !Number.isNaN(askedAt) && nowMs - askedAt < DAY_MS ? askedAt : null;
       return {
         ...base,
         stage: "code",
@@ -18270,7 +18270,7 @@ function parseShellMessage(v) {
 
 // src/mobile/live-activity.ts
 var CALL_ACTIVITY_NAME = "CallActivity";
-var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
+var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
 var CALL_ACTIVITY_ROLES = ["owner", "operator"];
 function callActivityStart(props, now) {
   const seconds = Math.floor(now.getTime() / 1e3);
@@ -18330,7 +18330,7 @@ function whyNotLook(f) {
   if (customerWords(f.turns) < L2.minCustomerWords) return "few_words";
   if (f.lastSuggestedAt) {
     const since = f.nowMs - Date.parse(f.lastSuggestedAt);
-    if (Number.isFinite(since) && since < L2.cooldownDays * 864e5) return "cooldown";
+    if (Number.isFinite(since) && since < L2.cooldownDays * DAY_MS) return "cooldown";
   }
   if (f.workspaceToday >= L2.perWorkspaceDay) return "workspace_cap";
   return null;
@@ -18587,7 +18587,7 @@ function replyOf(d, row2, base, now, nowMs) {
   const via = replyChannelOfThreads(d.conversations) ?? (base.replyVia === "Email" ? "email" : base.replyVia ? "whatsapp" : null);
   const exactWindow = via ? replyWindow(via, row2.latest_wa_inbound_at, now) : null;
   if (!via || !exactWindow) return null;
-  const hoursLeft = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 36e5)) : 0;
+  const hoursLeft = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0;
   return { via, window: { open: exactWindow.open, hoursLeft } };
 }
 function proposalOf(d, dealsOn, current, tz) {
@@ -23584,9 +23584,9 @@ function roleGate(role, perm, doing) {
 }
 
 // src/voice/live.ts
-var LIVE_STALE_MS = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
+var LIVE_STALE_MS = 5 * MIN_MS;
+var LIVE_OVERLONG_MS = 30 * MIN_MS;
+var ANALYSIS_GRACE_MS = 10 * MIN_MS;
 var RECENT_MAX = 8;
 function fmtClock(seconds) {
   return mmss(Math.max(0, seconds) * 1e3);
@@ -23649,10 +23649,10 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
     if (sinceBeat > LIVE_STALE_MS) {
       checking = true;
-      checkingWhy = `no word from the phone provider for ${Math.round(sinceBeat / 6e4)} minutes`;
+      checkingWhy = `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`;
     } else if (sinceStart > LIVE_OVERLONG_MS) {
       checking = true;
-      checkingWhy = `live for over ${Math.floor(sinceStart / 6e4)} minutes`;
+      checkingWhy = `live for over ${Math.floor(sinceStart / MIN_MS)} minutes`;
     }
   }
   const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
@@ -23765,7 +23765,7 @@ function pushFor(n, targets) {
     data: { route: n.route, notification_id: n.id, tenant_id: n.tenant_id }
   }));
 }
-var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
+var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var BELL_WINDOW_DAYS = 30;
 
 // src/today/notifications.ts
@@ -23775,7 +23775,7 @@ function buildNotificationFeed(input) {
   for (const t of input.threads ?? []) {
     if (!t.real) continue;
     if (t.needsYou) {
-      const at2 = t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * 6e4 : t.lastAtMs ?? now);
+      const at2 = t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * MIN_MS : t.lastAtMs ?? now);
       items.push({
         key: `needs:${t.id}`,
         kind: "needs_you",
@@ -24233,9 +24233,9 @@ function emailWires(email) {
   return email?.ready && email.mailbox ? [{ kind: "email", status: "active", number: null, address: email.mailbox.address }] : [];
 }
 var TODAY_QUEUE_MAX = 6;
-var SEARCH_WARN_MS = 12 * 36e5;
+var SEARCH_WARN_MS = 12 * HOUR_MS;
 var QUOTE_MAX = 240;
-var NO_REPLY_AFTER_MS = 36e5;
+var NO_REPLY_AFTER_MS = HOUR_MS;
 function tzClock(iso, tz, now) {
   const t = tzTime(iso, tz);
   if (!iso || !t) return t;
@@ -24253,7 +24253,7 @@ function tzClock(iso, tz, now) {
   };
   const day = key(new Date(iso));
   if (day === key(now)) return t;
-  if (day === key(new Date(now.getTime() + 864e5))) return `tomorrow ${t}`;
+  if (day === key(new Date(now.getTime() + DAY_MS))) return `tomorrow ${t}`;
   try {
     return `${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
   } catch {
@@ -24271,9 +24271,9 @@ function tzSince(iso, tz, now) {
         month: "2-digit",
         day: "2-digit"
       }).format(d).split("-").map(Number);
-      return Date.UTC(parts2[0] ?? 1970, (parts2[1] ?? 1) - 1, parts2[2] ?? 1) / 864e5;
+      return Date.UTC(parts2[0] ?? 1970, (parts2[1] ?? 1) - 1, parts2[2] ?? 1) / DAY_MS;
     } catch {
-      return Math.floor(d.getTime() / 864e5);
+      return Math.floor(d.getTime() / DAY_MS);
     }
   };
   const days = dayNumber2(now) - dayNumber2(new Date(iso));
@@ -24305,7 +24305,7 @@ function tzDayAndTime(iso, tz, now) {
   if (!t) return null;
   const key = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   const toUtc = (k) => Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)));
-  const days = Math.round((toUtc(key(now)) - toUtc(key(new Date(iso)))) / 864e5);
+  const days = Math.round((toUtc(key(now)) - toUtc(key(new Date(iso)))) / DAY_MS);
   if (days < 1) return t;
   if (days === 1) return `yesterday at ${t}`;
   try {
@@ -24530,7 +24530,7 @@ function escalationRecords(openEsc, byConv, callByConv, tz, now) {
       conv,
       call,
       waitedMs,
-      warn: waitedMs > 30 * 6e4,
+      warn: waitedMs > 30 * MIN_MS,
       since: tzSince(e.created_at, tz, now) ?? "",
       // her own words, never a generated characterization of them
       quote: lastCustomer ? clipAtWord(messageWords(lastCustomer), QUOTE_MAX) : "",
@@ -24545,7 +24545,7 @@ function closingConversations(conversations, escSet, now) {
     const last = c.messages[c.messages.length - 1];
     if (!last || last.sender !== "customer") return false;
     const w = waWindow(c.last_wa_inbound_at, now);
-    return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1e3 : false;
+    return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * HOUR_MS : false;
   });
 }
 function todayFacts(input) {
@@ -24609,10 +24609,10 @@ function todayWindowClosing(f) {
   const { closingConvs, tz, now } = f;
   const rows = closingConvs.map((c) => {
     const w = waWindow(c.last_wa_inbound_at, now);
-    const mins = w.closesAtIso ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 6e4)) : 0;
+    const mins = w.closesAtIso ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / MIN_MS)) : 0;
     return {
       id: `wc-${c.id}`,
-      text: `${contactName(c)} \u2014 window closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * 6e4)})`,
+      text: `${contactName(c)} \u2014 window closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * MIN_MS)})`,
       to: `inbox/th-${c.id}`
     };
   });
@@ -24747,7 +24747,7 @@ function handoffRow2(r2) {
 function windowRow(c, f) {
   const { tz, now } = f;
   const w = waWindow(c.last_wa_inbound_at, now);
-  const leftMs = w.closesAtIso ? Math.max(6e4, new Date(w.closesAtIso).getTime() - now.getTime()) : 0;
+  const leftMs = w.closesAtIso ? Math.max(MIN_MS, new Date(w.closesAtIso).getTime() - now.getTime()) : 0;
   const last = [...c.messages].reverse().find((x) => x.sender === "customer");
   const who = contactName(c);
   return {
@@ -24763,7 +24763,7 @@ function windowRow(c, f) {
     quoted: !!last,
     status: ["Reply window closing", "they wrote last"],
     tone: "warn",
-    warn: leftMs < 2 * 36e5,
+    warn: leftMs < 2 * HOUR_MS,
     cta: { label: "Open thread", to: `inbox/th-${c.id}` },
     also: null,
     // After every escalation (which waited ≥ 0), the soonest to close first.

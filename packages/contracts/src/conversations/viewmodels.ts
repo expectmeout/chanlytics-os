@@ -1,4 +1,4 @@
-import { waitedLabel } from "../shared/time";
+import { waitedLabel, MIN_MS } from "../shared/time";
 import { clockShort, clockStamp, mmss } from "../shared/clock";
 import { standingOf } from "./standing";
 /**
@@ -826,7 +826,7 @@ export function toInboxThreadVM(
   }
 
   const waitingMin = escalation
-    ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / 60000))
+    ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS))
     : undefined;
 
   // The customer's own words where the decision is made. The reason's sentence
@@ -887,7 +887,7 @@ export function toInboxThreadVM(
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     proposalUrl: dto.contact.proposal_url?.trim() || null,
-    ...(waitingMin ? { waited: formatWaited(waitingMin * 60000) } : {}),
+    ...(waitingMin ? { waited: formatWaited(waitingMin * MIN_MS) } : {}),
     agent: agentFor(primaryChannel),
     // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
     // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is

@@ -258,3 +258,203 @@ export function tableNames(sf) {
   visit(sf);
   return n;
 }
+
+/* ---- Lengths of time written as bare numbers (the durations ratchet) ---- */
+
+const K = ts.SyntaxKind;
+/** A minute, an hour, a day and a week in milliseconds: what contracts' shared/time.ts names MIN_MS … WEEK_MS. */
+const UNIT_MS = new Set([60_000, 3_600_000, 86_400_000, 604_800_000]);
+/** A name that says it holds milliseconds (`LEASE_MS`, `ttlMs`, `max_call_duration_ms`) or is a unit (`MIN`, `DAY`). */
+const SAYS_MS = /(^|[a-z0-9])Ms$|(^|_)(MS|ms)$|^(MIN|MINUTE|HOUR|DAY|WEEK)S?$/;
+/** The words of a name that say its value is in another unit: metres, characters, bytes, tokens, cents, seconds. */
+const OTHER_UNITS = new Set(
+  "m km meters metres chars characters bytes kb mb tokens cents s sec secs seconds".split(" "),
+);
+/** A name with such a word anywhere (`RADIUS_MAX_M`, `TAB_TOTAL_CHARS`, `ASK_TOKENS_DAY`, `maxBytes`): not a time. */
+const saysOtherUnit = (name) =>
+  name.split(/[^A-Za-z0-9]+|(?<=[a-z0-9])(?=[A-Z])/).some((w) => OTHER_UNITS.has(w.toLowerCase()));
+const OFFSET_OPS = new Set([
+  K.PlusToken,
+  K.MinusToken,
+  K.LessThanToken,
+  K.LessThanEqualsToken,
+  K.GreaterThanToken,
+  K.GreaterThanEqualsToken,
+]);
+
+const numberOf = (n) => Number(n.text.replace(/_/g, ""));
+const bare = (n) => {
+  while (n && (ts.isParenthesizedExpression(n) || ts.isNonNullExpression(n) || ts.isAsExpression(n))) n = n.expression;
+  return n;
+};
+const isProduct = (n) => ts.isBinaryExpression(n) && n.operatorToken.kind === K.AsteriskToken;
+/** `n` with the parentheses around it: the node its parent sees. */
+function inParens(n) {
+  let c = n;
+  while (c.parent && ts.isParenthesizedExpression(c.parent)) c = c.parent;
+  return c;
+}
+/** The factors of a product, through parentheses: `hours * (3600 * 1000)` is hours, 3600 and 1000. */
+function factorsOf(n, out = []) {
+  const b = bare(n);
+  if (isProduct(b)) {
+    factorsOf(b.left, out);
+    factorsOf(b.right, out);
+  } else out.push(b);
+  return out;
+}
+/** The whole product a number is a factor of, or the number itself. */
+function productAround(n) {
+  let c = n;
+  for (;;) {
+    const up = inParens(c);
+    if (up.parent && isProduct(up.parent)) c = up.parent;
+    else return c;
+  }
+}
+/** The name a value initialises (a const, a property, a parameter's default), or null. */
+function slotNameOf(n) {
+  const o = inParens(n);
+  const p = o.parent;
+  const slot =
+    p &&
+    (ts.isVariableDeclaration(p) ||
+      ts.isPropertyAssignment(p) ||
+      ts.isPropertyDeclaration(p) ||
+      ts.isParameter(p) ||
+      ts.isBindingElement(p)) &&
+    p.initializer === o;
+  return slot ? p.name.getText() : null;
+}
+/** The name of the nearest declaration whose value holds `n` (`reply_delay_ms: z.number().max(600000)`), or null. */
+function holderNameOf(n) {
+  for (let p = n.parent; p; p = p.parent) {
+    if (ts.isVariableDeclaration(p) || ts.isPropertyAssignment(p) || ts.isPropertyDeclaration(p) || ts.isParameter(p))
+      return p.name.getText();
+    if (ts.isBlock(p) || ts.isSourceFile(p) || ts.isFunctionLike(p)) return null;
+  }
+  return null;
+}
+/** A timer's delay, AbortSignal.timeout's argument, or a `timeout:` option handed to a call: a length of time by place. */
+function isTimerSlot(n) {
+  const o = inParens(n);
+  const p = o.parent;
+  if (!p) return false;
+  if (ts.isCallExpression(p)) {
+    const c = p.expression;
+    const name = ts.isIdentifier(c) ? c.text : ts.isPropertyAccessExpression(c) ? c.name.text : "";
+    if ((name === "setTimeout" || name === "setInterval") && p.arguments[1] === o) return true;
+    if (name === "timeout" && ts.isPropertyAccessExpression(c) && c.expression.getText() === "AbortSignal")
+      return p.arguments[0] === o;
+  }
+  if (ts.isPropertyAssignment(p) && p.initializer === o && /^(timeout|timeoutMs)$/.test(p.name.getText())) {
+    const holder = inParens(p.parent).parent;
+    return !!holder && (ts.isCallExpression(holder) || ts.isNewExpression(holder));
+  }
+  return false;
+}
+/** A number that makes a timer's value: the value, its floor or cap (`Math.max(500, …)`), its default (`?? 400`), a branch. */
+function inTimerSlot(n) {
+  for (let c = n; ;) {
+    if (isTimerSlot(c)) return true;
+    const up = inParens(c);
+    const p = up.parent;
+    const passes =
+      p &&
+      ((ts.isConditionalExpression(p) && p.condition !== up) ||
+        (ts.isBinaryExpression(p) &&
+          (p.operatorToken.kind === K.QuestionQuestionToken || p.operatorToken.kind === K.BarBarToken)) ||
+        (ts.isCallExpression(p) && p.arguments.includes(up) && /^Math\.(min|max)$/.test(p.expression.getText())));
+    if (!passes) return false;
+    c = p;
+  }
+}
+/** A value in milliseconds: Date.now(), x.getTime(), performance.now(), or a name that says so (`now`, `sentAt`, `budgetMs`). */
+function inMs(e) {
+  const b = bare(e);
+  if (ts.isCallExpression(b)) {
+    if (/^(Date\.(now|parse|UTC)|performance\.now|now)$/.test(b.expression.getText())) return true;
+    return ts.isPropertyAccessExpression(b.expression) && /^(getTime|now)$/.test(b.expression.name.text);
+  }
+  if (ts.isIdentifier(b) || ts.isPropertyAccessExpression(b)) {
+    return /^now(Ms)?$|[a-z0-9](At|Ms)$|AtMs$|_(at|ms)$|_MS$/.test(ts.isIdentifier(b) ? b.text : b.name.text);
+  }
+  if (ts.isBinaryExpression(b) && (b.operatorToken.kind === K.MinusToken || b.operatorToken.kind === K.PlusToken))
+    return inMs(b.left) || inMs(b.right);
+  return false;
+}
+
+/** Why the product (or lone number) `top` is an unnamed length of time, or null when it is not one. */
+function durationOf(top) {
+  const factors = factorsOf(top);
+  const numbers = factors.filter((f) => ts.isNumericLiteral(f));
+  if (numbers.length === 0) return null;
+  const values = numbers.map(numberOf);
+  const v = values.reduce((a, b) => a * b, 1);
+  if (v === 0) return null;
+  const allNumbers = numbers.length === factors.length;
+  if (allNumbers && inTimerSlot(top)) return "a timer's delay";
+  if (v >= 60_000 && v % 60_000 === 0) {
+    // A name that says another unit wins: RADIUS_MAX_M = 60_000 is metres, not a minute.
+    const slot = allNumbers ? slotNameOf(top) : null;
+    if (slot !== null && saysOtherUnit(slot)) return null;
+    // Then the spelling, whatever the name: time's own factors, or a unit's own value.
+    const spelled =
+      (values.includes(1000) && values.some((x) => x === 60 || x === 3600 || x === 24 || x === 86_400)) ||
+      (numbers.length > 1 && values.some((x) => UNIT_MS.has(x)));
+    if (spelled) return "a unit spelled by hand";
+    if (numbers.length === 1 && UNIT_MS.has(v)) return "a unit's value";
+    // Then a bare whole number of minutes (300_000): as the value of a name that says no other unit, a time, so
+    // dropping `_MS` from the name hides nothing; inside an expression, only when the name holding it says so.
+    if (slot !== null) return `the value of ${slot}`;
+    const holder = holderNameOf(top);
+    return holder && SAYS_MS.test(holder) ? `a length of time in ${holder}` : null;
+  }
+  if (allNumbers && v >= 100) {
+    const o = inParens(top);
+    const p = o.parent;
+    if (p && ts.isBinaryExpression(p) && OFFSET_OPS.has(p.operatorToken.kind) && inMs(p.left === o ? p.right : p.left))
+      return "an offset from a time";
+  }
+  return null;
+}
+
+/**
+ * The lengths of time in one file written as bare numbers, where contracts' shared/time.ts (MIN_MS, HOUR_MS,
+ * DAY_MS, WEEK_MS) or a named constant should say what they are: `{ line, text, why }`, one per number or product
+ * of numbers. A number is a length of time when its place or its spelling says so:
+ *
+ *   - a timer's delay: setTimeout's and setInterval's, AbortSignal.timeout's, a `timeout:` option handed to a call,
+ *     or a floor, cap, default or branch of one (`Math.max(500, …)`, `?? 400`); a zero is not a delay;
+ *   - a whole number of minutes in milliseconds, spelled by hand, judged in this order. A name that says another
+ *     unit wins: `RADIUS_MAX_M = 60_000` is metres, `TAB_TOTAL_CHARS = 600_000` characters, `ASK_TOKENS_DAY`
+ *     tokens. Then the spelling, wherever it stands and whatever the name: time's own factors
+ *     (`LEASE = 5 * 60 * 1000`, `[5 * 60_000]`, `hours * 3600 * 1000`) or a unit's own value (`WINDOW = 60_000`,
+ *     `days * 86_400_000`, `/ 60000`). Then a bare whole number of minutes (`300_000`), which is the value of any
+ *     other name (`TIMEOUT = 300_000`, `ttlMs: 300_000`), so dropping the unit from a name hides nothing, and
+ *     inside an expression counts only when the name holding it says milliseconds
+ *     (`reply_delay_ms: z.number().max(600000)`);
+ *   - a number of at least 100 added to, taken from or compared with a value in milliseconds (`now + 50_000`).
+ *
+ * Not counted, on purpose: seconds (`24 * 60 * 60`, a max-age), which stay in their unit; `* 1000` and `/ 1000`,
+ * which change the unit and are not a length; a named constant that is not a whole minute (`RETRY_MS = 800`), which is
+ * already named; and a call's argument whose parameter is a timeout, which the tree cannot see without types.
+ */
+export function durationsIn(sf) {
+  const out = [];
+  const seen = new Set();
+  const visit = (n) => {
+    if (ts.isNumericLiteral(n)) {
+      const top = productAround(n);
+      if (!seen.has(top)) {
+        seen.add(top);
+        const why = durationOf(top);
+        if (why)
+          out.push({ line: sf.getLineAndCharacterOfPosition(top.getStart(sf)).line + 1, text: top.getText(sf), why });
+      }
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}

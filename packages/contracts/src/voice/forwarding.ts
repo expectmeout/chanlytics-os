@@ -13,6 +13,7 @@
  * card says what to do when a code is refused.
  */
 import { normalizePhone } from "../shared/phone";
+import { MIN_MS } from "../shared/time";
 
 /**
  * Who forwards the calls: a mobile or landline company, by its star codes, or an office phone system (RingCentral,
@@ -38,7 +39,7 @@ export const MODE_WORDS: Record<ForwardingMode, string> = {
 };
 
 /** How long a test window stays open once the owner presses Test it. */
-export const FORWARDING_TEST_WINDOW_MS = 30 * 60_000;
+export const FORWARDING_TEST_WINDOW_MS = 30 * MIN_MS;
 
 export interface ForwardingCode {
   /** As dialed. */
@@ -166,7 +167,7 @@ export function forwardingMatch(
   const from = typeof facts.test_started_at === "string" ? Date.parse(facts.test_started_at) : NaN;
   const until = typeof facts.test_until === "string" ? Date.parse(facts.test_until) : NaN;
   if (Number.isNaN(started) || Number.isNaN(from) || Number.isNaN(until)) return false;
-  if (started < from - 60_000 || started > until) return false;
+  if (started < from - MIN_MS || started > until) return false;
   const dest = typeof facts.destination_e164 === "string" ? normalizePhone(facts.destination_e164) : null;
   if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;
   const testFrom = typeof facts.test_from === "string" && facts.test_from ? normalizePhone(facts.test_from) : null;

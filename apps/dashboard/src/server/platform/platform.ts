@@ -262,7 +262,7 @@ export async function platformEvents(office: BackOffice, tenantId: string, limit
  * one surface in the product where that would be handing out the master key.
  * -------------------------------------------------------------------------- */
 
-import { edgeLines } from "../connections/lines";
+import { EDGE_LINES_TIMEOUT_MS, edgeLines } from "../connections/lines";
 import type { PlatformLineAction } from "@chanlytics/contracts";
 
 /** The edge call each action makes. Written out so the set is a list somebody can read, not a parameter. */
@@ -312,7 +312,7 @@ export async function platformLineAct(
   if (auditErr)
     throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
 
-  const a = await edgeLines(EDGE_OP[action](tenantId, lineId), 60_000);
+  const a = await edgeLines(EDGE_OP[action](tenantId, lineId), EDGE_LINES_TIMEOUT_MS);
   return { ok: a.status === 200, status: a.status, body: a.body };
 }
 

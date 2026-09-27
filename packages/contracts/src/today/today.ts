@@ -61,6 +61,7 @@ import {
   todayStanding,
   todayTrafficLine,
 } from "./today-bands";
+import { MIN_MS, HOUR_MS, DAY_MS } from "../shared/time";
 
 /**
  * One wire a workspace can be reached on.
@@ -213,7 +214,7 @@ export interface TodayQueueRowVM {
 /** Six rows on Today; the rest is a count for the Inbox link. */
 export const TODAY_QUEUE_MAX = 6;
 /** A question waited this long is warned: the sweep stops it after a day. */
-const SEARCH_WARN_MS = 12 * 3600000;
+const SEARCH_WARN_MS = 12 * HOUR_MS;
 
 /**
  * How much of a customer's own words a queue row carries.
@@ -260,7 +261,7 @@ export interface TodayNoReplyVM {
 }
 
 /** A message with nothing back for this long is one nobody answered; the receptionist answers in seconds. */
-export const NO_REPLY_AFTER_MS = 3_600_000;
+export const NO_REPLY_AFTER_MS = HOUR_MS;
 
 export interface TodayVM {
   standing: {
@@ -336,7 +337,7 @@ export function tzClock(iso: string | null | undefined, tz: string, now: Date): 
   };
   const day = key(new Date(iso));
   if (day === key(now)) return t;
-  if (day === key(new Date(now.getTime() + 86_400_000))) return `tomorrow ${t}`;
+  if (day === key(new Date(now.getTime() + DAY_MS))) return `tomorrow ${t}`;
   try {
     return `${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`;
   } catch {
@@ -364,9 +365,9 @@ function tzSince(iso: string | null | undefined, tz: string, now: Date): string 
         .format(d)
         .split("-")
         .map(Number);
-      return Date.UTC(parts[0] ?? 1970, (parts[1] ?? 1) - 1, parts[2] ?? 1) / 86_400_000;
+      return Date.UTC(parts[0] ?? 1970, (parts[1] ?? 1) - 1, parts[2] ?? 1) / DAY_MS;
     } catch {
-      return Math.floor(d.getTime() / 86_400_000);
+      return Math.floor(d.getTime() / DAY_MS);
     }
   };
   const days = dayNumber(now) - dayNumber(new Date(iso));
@@ -404,7 +405,7 @@ function tzDayAndTime(iso: string | null, tz: string, now: Date): string | null 
   const key = (d: Date) =>
     new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   const toUtc = (k: string) => Date.UTC(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)));
-  const days = Math.round((toUtc(key(now)) - toUtc(key(new Date(iso)))) / 86400000);
+  const days = Math.round((toUtc(key(now)) - toUtc(key(new Date(iso)))) / DAY_MS);
   if (days < 1) return t;
   if (days === 1) return `yesterday at ${t}`;
   try {
@@ -872,7 +873,7 @@ function escalationRecords(
       conv,
       call,
       waitedMs,
-      warn: waitedMs > 30 * 60000,
+      warn: waitedMs > 30 * MIN_MS,
       since: tzSince(e.created_at, tz, now) ?? "",
       // her own words, never a generated characterization of them
       quote: lastCustomer ? clipAtWord(messageWords(lastCustomer), QUOTE_MAX) : "",
@@ -899,7 +900,7 @@ function closingConversations(conversations: ConversationDto[], escSet: Set<stri
     const last = c.messages[c.messages.length - 1];
     if (!last || last.sender !== "customer") return false;
     const w = waWindow(c.last_wa_inbound_at, now);
-    return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * 3600 * 1000 : false;
+    return w.open && w.closesAtIso ? new Date(w.closesAtIso).getTime() - now.getTime() < 6 * HOUR_MS : false;
   });
 }
 
@@ -985,11 +986,11 @@ function todayWindowClosing(f: TodayFacts): TodayVM["windowClosing"] {
   const rows = closingConvs.map((c) => {
     const w = waWindow(c.last_wa_inbound_at, now);
     const mins = w.closesAtIso
-      ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / 60000))
+      ? Math.max(1, Math.round((new Date(w.closesAtIso).getTime() - now.getTime()) / MIN_MS))
       : 0;
     return {
       id: `wc-${c.id}`,
-      text: `${contactName(c)} — window closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * 60000)})`,
+      text: `${contactName(c)} — window closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} (in ${formatWaited(mins * MIN_MS)})`,
       to: `inbox/th-${c.id}`,
     };
   });
@@ -1204,7 +1205,7 @@ function handoffRow(r: EscalationRecord): TodayQueueRowVM {
 function windowRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM {
   const { tz, now } = f;
   const w = waWindow(c.last_wa_inbound_at, now);
-  const leftMs = w.closesAtIso ? Math.max(60000, new Date(w.closesAtIso).getTime() - now.getTime()) : 0;
+  const leftMs = w.closesAtIso ? Math.max(MIN_MS, new Date(w.closesAtIso).getTime() - now.getTime()) : 0;
   const last = [...c.messages].reverse().find((x) => x.sender === "customer");
   const who = contactName(c);
   return {
@@ -1222,7 +1223,7 @@ function windowRow(c: ConversationDto, f: TodayFacts): TodayQueueRowVM {
     quoted: !!last,
     status: ["Reply window closing", "they wrote last"],
     tone: "warn",
-    warn: leftMs < 2 * 3600000,
+    warn: leftMs < 2 * HOUR_MS,
     cta: { label: "Open thread", to: `inbox/th-${c.id}` },
     also: null,
     // After every escalation (which waited ≥ 0), the soonest to close first.

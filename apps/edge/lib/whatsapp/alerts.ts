@@ -4,7 +4,7 @@
  * texted through the one door, deliver() in packages/core, from the sink.
  */
 import { notify, type NotifyTarget, type NotifyMessage } from "../ops/notify.js";
-import { formatPhoneDisplay } from "../packages/contracts.js";
+import { formatPhoneDisplay, MIN_MS } from "../packages/contracts.js";
 
 /**
  * The text channels a thread can arrive on. Declared here rather than
@@ -140,7 +140,7 @@ export function handoffMessage({
  * per phone number id. The window is per lambda instance, which is imprecise in
  * the right direction: a burst across instances sends a few notes, not none.
  */
-const UNROUTABLE_ALERT_MS = 15 * 60 * 1000;
+const UNROUTABLE_ALERT_MS = 15 * MIN_MS;
 const unroutableAlerted = new Map<string, number>();
 
 const UNROUTABLE_WORDS = {
