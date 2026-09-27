@@ -31,12 +31,14 @@ interface CardPerson {
   /** The profile's own two fields as they stand: what a details card changes, and what its undo sets back. */
   name: string | null;
   email: string | null;
+  /** What the page shows in place of a name of their own (their WhatsApp name, number or address), or null. */
+  shows: string | null;
 }
 
 /**
  * The person a card names: an id a read returned, of someone in this workspace who was not erased, else the refusal in
  * the model's words. One read of the profile for every action of this tool, and the person into the turn's read set,
- * so an answer may cite them.
+ * so an answer may cite them. This workspace's alone: RLS shows a member everyone in every workspace they belong to.
  */
 async function personOnCard(t: ToolContext, contactId: string): Promise<CardPerson | ProposalOutcome> {
   const id = str(contactId, 40);
@@ -44,13 +46,15 @@ async function personOnCard(t: ToolContext, contactId: string): Promise<CardPers
   const { data: c, error } = await t.ctx.supabase
     .from("contacts")
     .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
+    .eq("tenant_id", t.tenantId)
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
-  const who = c.display_name || c.wa_profile_name || c.phone_e164 || c.email || "this person";
+  const shows = c.wa_profile_name || c.phone_e164 || c.email || null;
+  const who = c.display_name || shows || "this person";
   noteRow(t, "person", id, who, `clients/${id}`);
-  return { id, who, name: c.display_name ?? null, email: c.email ?? null };
+  return { id, who, name: c.display_name ?? null, email: c.email ?? null, shows };
 }
 const refused = (p: CardPerson | ProposalOutcome): p is ProposalOutcome => "result" in p;
 
@@ -142,7 +146,12 @@ async function proposePersonDetails(
   return propose({
     kind: "person_details",
     title: `Details for ${person.who}`,
-    summary: changed.map((k) => `${PERSON_DETAIL_WORDS[k]}: ${person[k] ?? "none"} → ${to[k]}`).join(" · "),
+    summary: changed
+      .map((k) => {
+        const was = person[k] ?? PERSON_DETAIL_WORDS.none[k](person.shows);
+        return `${PERSON_DETAIL_WORDS.label[k]}: ${was} → ${to[k]}`;
+      })
+      .join(" · "),
     payload: { contact_id: person.id, who: person.who, ...to, previous },
   });
 }
@@ -177,7 +186,7 @@ export const propose_person = defineActions({
         },
       ],
       label: "Preparing a note",
-      words: `Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist (the receptionist reads it before it answers them, so it shapes what they hear) or team (the team alone; the receptionist never reads it). Say for every time, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is propose_deal's.`,
+      words: `Action note takes contact_id, the id a read returned, body, the note in the words to keep (at most ${NOTE_MAX} characters), and for, who reads it: receptionist, for what should shape how the receptionist answers them (it reads the note before every answer to them), or team, for the team's own reminders and judgments (the receptionist never reads it). Always give for, from their words: it has no default, and the card says it back. Call it for something about one person worth keeping on their page, such as a preference or what to remember next time; a fact about the business itself, such as parking or a policy, is a settings change and not a note, and a next step with a day is not a note: it rides on a deal's move (propose_deal), or is set on their page.`,
       build: proposePersonNote,
     }),
     details: actAction({

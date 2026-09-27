@@ -524,6 +524,8 @@ const ROSA = "abababab-abab-4aba-8aba-abababababc1";
 const QUINN = "abababab-abab-4aba-8aba-abababababc2";
 const GONE = "abababab-abab-4aba-8aba-abababababc9";
 const NOBODY = "abababab-abab-4aba-8aba-abababababcf";
+const NAMELESS = "abababab-abab-4aba-8aba-abababababc3";
+const ELSEWHERE = "abababab-abab-4aba-8aba-abababababcb";
 
 /** A contact as the table holds it: what a card's builder reads, and what the routes' scope reads (loadContact). */
 const contactRow = (id, over = {}) => ({
@@ -539,14 +541,20 @@ const contactRow = (id, over = {}) => ({
 });
 /**
  * Harbor for the cards: Rosa, named on her profile and with no address; Quinn, known by his WhatsApp name, with one;
- * and someone erased. The member asking is an operator unless a case says otherwise.
+ * someone with nothing on their profile at all; and someone erased. The member asking is an operator unless a case says
+ * otherwise, and belongs to Bayside too, whose Bruno they can read (RLS shows a member every workspace of theirs).
  */
 const cardWorld = (role = "operator") => ({
-  memberships: [{ user_id: USER, tenant_id: A, role, tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" }],
+  memberships: [
+    { user_id: USER, tenant_id: A, role, tenants: { slug: "harbor" }, created_at: "2026-01-01T00:00:00Z" },
+    { user_id: USER, tenant_id: B, role, tenants: { slug: "bayside" }, created_at: "2026-02-01T00:00:00Z" },
+  ],
   contacts: [
     contactRow(ROSA, { display_name: "Rosa" }),
     contactRow(QUINN, { wa_profile_name: "Quinn W", phone_e164: "+15555550102", email: "quinn@example.com" }),
+    contactRow(NAMELESS, { phone_e164: null }),
     contactRow(GONE, { phone_e164: null, erased_at: "2026-09-01T00:00:00Z" }),
+    contactRow(ELSEWHERE, { tenant_id: B, display_name: "Bruno", phone_e164: "+15555550109" }),
   ],
   policies: [],
   person_notes: [],
@@ -590,6 +598,12 @@ const PERSON_CALLS = [
   [
     "a note on nobody here",
     { action: "note", contact_id: NOBODY, body: "Prefers mornings.", for: "team" },
+    { error: "no such person in this workspace" },
+    ["contacts.select"],
+  ],
+  [
+    "a note on someone of another workspace the member also belongs to",
+    { action: "note", contact_id: ELSEWHERE, body: "Prefers mornings.", for: "team" },
     { error: "no such person in this workspace" },
     ["contacts.select"],
   ],
@@ -681,6 +695,12 @@ const PERSON_CALLS = [
     ["contacts.select"],
   ],
   [
+    "details on someone of another workspace the member also belongs to",
+    { action: "details", contact_id: ELSEWHERE, name: "Bruno Reyes" },
+    { error: "no such person in this workspace" },
+    ["contacts.select"],
+  ],
+  [
     "details that change nothing: already their name",
     { action: "details", contact_id: ROSA, name: " Rosa " },
     { error: "already their name" },
@@ -711,7 +731,7 @@ const PERSON_CALLS = [
       kind: "person_details",
       needs: "operator",
       title: "Details for Rosa",
-      summary: "Name: Rosa → Rosa Díaz · Email: none → rosa@example.com",
+      summary: "Name: Rosa → Rosa Díaz · Email: no address → rosa@example.com",
       payload: {
         contact_id: ROSA,
         who: "Rosa",
@@ -730,7 +750,7 @@ const PERSON_CALLS = [
       kind: "person_details",
       needs: "operator",
       title: "Details for Quinn W",
-      summary: `Name: none → ${"Q".repeat(80)}`,
+      summary: `Name: no name of their own (shows as Quinn W) → ${"Q".repeat(80)}`,
       payload: { contact_id: QUINN, who: "Quinn W", name: "Q".repeat(80), previous: { name: null } },
       undo: "Set it back",
     },
@@ -743,13 +763,30 @@ const PERSON_CALLS = [
       kind: "person_details",
       needs: "operator",
       title: "Details for Quinn W",
-      summary: "Name: none → Quinn Walker",
+      summary: "Name: no name of their own (shows as Quinn W) → Quinn Walker",
       payload: { contact_id: QUINN, who: "Quinn W", name: "Quinn Walker", previous: { name: null } },
       undo: "Set it back",
     },
     ["contacts.select"],
   ],
 ];
+
+const PERSON_CALLS_NAMELESS = [
+  [
+    "a name for someone whose profile holds nothing at all: no name of their own, and nothing shown instead",
+    { action: "details", contact_id: NAMELESS, name: "Ana" },
+    {
+      kind: "person_details",
+      needs: "operator",
+      title: "Details for this person",
+      summary: "Name: no name of their own → Ana",
+      payload: { contact_id: NAMELESS, who: "this person", name: "Ana", previous: { name: null } },
+      undo: "Set it back",
+    },
+    ["contacts.select"],
+  ],
+];
+PERSON_CALLS.push(...PERSON_CALLS_NAMELESS);
 
 test("propose_person's note and details over the database in memory, from a table: each refusal in the model's words, before any read where it can be, and each card with who reads it or each field as it was and becomes; the person a card names is a row the answer may cite", async () => {
   for (const [what, input, want, reads] of PERSON_CALLS) {
@@ -772,6 +809,16 @@ test("propose_person's note and details over the database in memory, from a tabl
   assert.deepEqual(
     [viewer.got, viewer.reads],
     [{ error: "propose_person: action note is an owner's, a partner's or an operator's" }, []],
+  );
+  // A deal's card reads its person the same way: this workspace's alone, though RLS would show Bayside's Bruno.
+  const supabase = fakeDb(cardWorld(), {}, {});
+  const t = newToolContext({ supabase, userId: USER, email: "ada@example.com", params: {} }, A, "operator", TZ, NOW);
+  const deal = await buildProposal(t, "propose_deal", { contact_id: ELSEWHERE, stage: "won" });
+  assert.deepEqual(JSON.parse(deal.result), { error: "no such person in this workspace" });
+  assert.deepEqual(
+    supabase.seen.map((q) => [`${q.table}.${q.op}`, q.filters.find(([, col]) => col === "tenant_id")?.[2]]),
+    [["contacts.select", A]],
+    "one read, of this workspace's people",
   );
 });
 
@@ -830,6 +877,10 @@ function doors(world) {
         String(a.p_email ?? "")
           .trim()
           .toLowerCase() || null;
+      const tenant = contact(a.p_contact_id).tenant_id;
+      // One address per person in a workspace (00125's unique index), refused in the door's own words and code.
+      if (email && world.contacts.some((c) => c.id !== a.p_contact_id && c.tenant_id === tenant && c.email === email))
+        throw Object.assign(new Error("Another person here already has that address."), { code: "23505" });
       contact(a.p_contact_id).email = email;
       return { contact_id: a.p_contact_id, email };
     },
@@ -1001,4 +1052,29 @@ test("a details card, walked end to end: the model's call makes it from what the
   await undoProposal(qt.win, named.proposal, doneWith(set), qt.client);
   assert.equal(q.contacts.find((c) => c.id === QUINN).display_name, null);
   assert.equal(q.contacts.find((c) => c.id === QUINN).email, "quinn@example.com", "his address untouched throughout");
+});
+
+test("REGRESSION: a details card with a name and an address another person here already has fails whole, in the door's words: her name is as it was, and no undo is kept -- the route set the name first, so the card failed with the name already changed", async () => {
+  const world = cardWorld();
+  const tab = tabOver(world);
+  const built = await buildProposal(tab.t, "propose_person", {
+    action: "details",
+    contact_id: ROSA,
+    name: "Rosa Díaz",
+    email: "quinn@example.com",
+  });
+  assert.equal(built.isError, false, built.result);
+  const failed = await commitProposal(tab.win, built.proposal, tab.client);
+  assert.deepEqual(
+    [failed.ok, failed.code, failed.status, failed.message, "undo" in failed],
+    [false, "conflict", 409, "Another person here already has that address.", false],
+    "the card fails in the door's words, keeping no undo",
+  );
+  const rosa = world.contacts.find((c) => c.id === ROSA);
+  assert.deepEqual([rosa.display_name, rosa.email], ["Rosa", null], "nothing of the card was made");
+  assert.deepEqual(
+    tab.sent.map((s) => [s.key, s.body]),
+    [[`PUT /api/v1/contacts/${ROSA}/details`, { name: "Rosa Díaz", email: "quinn@example.com" }]],
+  );
+  assert.ok(!tab.events.includes("surface:clients"), "nothing landed, nothing said");
 });

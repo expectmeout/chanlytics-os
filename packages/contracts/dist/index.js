@@ -12938,7 +12938,13 @@ var noteSaved = (personId) => ({
   detail: { personId: asText(personId) }
 });
 var DETAIL_FIELDS = ["name", "email"];
-var PERSON_DETAIL_WORDS = { name: "Name", email: "Email" };
+var PERSON_DETAIL_WORDS = {
+  label: { name: "Name", email: "Email" },
+  none: {
+    name: (shows) => shows ? `no name of their own (shows as ${shows})` : "no name of their own",
+    email: () => "no address"
+  }
+};
 function detailsCall(contactId, from, none) {
   const body = Object.fromEntries(DETAIL_FIELDS.filter((k) => typeof from[k] === "string").map((k) => [k, from[k]]));
   if (!Object.keys(body).length) return refuseWith(none);
@@ -13054,7 +13060,7 @@ var personDetailsSpec = {
   receipt: ({ payload: pl }, data) => [
     asText(pl.who),
     ...DETAIL_FIELDS.filter((k) => typeof pl[k] === "string").map(
-      (k) => `${PERSON_DETAIL_WORDS[k]}: ${asText(rec(data)[k] ?? pl[k])}`
+      (k) => `${PERSON_DETAIL_WORDS.label[k]}: ${asText(rec(data)[k] ?? pl[k])}`
     )
   ].join(" \xB7 "),
   undo: {

@@ -34,11 +34,23 @@ const noteSaved = (personId: unknown): ProposalEvent => ({
 });
 
 /**
- * The two fields of a person's profile a details card sets (D9), and each as its card and its receipt say it: literals,
- * never a call, so a package that bundles contracts and uses neither keeps neither.
+ * The two fields of a person's profile a details card sets (D9), and each as its card and its receipt say it: its
+ * name, and what the card says of it where the profile holds nothing -- a name beside what the page shows in its place
+ * (their WhatsApp name, their number or their address). Literals, never a call, so a package that bundles contracts and
+ * uses neither keeps neither.
  */
 const DETAIL_FIELDS = ["name", "email"] as const;
-export const PERSON_DETAIL_WORDS: Record<(typeof DETAIL_FIELDS)[number], string> = { name: "Name", email: "Email" };
+type DetailField = (typeof DETAIL_FIELDS)[number];
+export const PERSON_DETAIL_WORDS: {
+  label: Record<DetailField, string>;
+  none: Record<DetailField, (shows: string | null) => string>;
+} = {
+  label: { name: "Name", email: "Email" },
+  none: {
+    name: (shows) => (shows ? `no name of their own (shows as ${shows})` : "no name of their own"),
+    email: () => "no address",
+  },
+};
 
 /**
  * The details route's call for what a card or its undo names: only those of the two fields it carries as text, the
@@ -172,7 +184,7 @@ export const personDetailsSpec: ProposalSpec = {
     [
       asText(pl.who),
       ...DETAIL_FIELDS.filter((k) => typeof pl[k] === "string").map(
-        (k) => `${PERSON_DETAIL_WORDS[k]}: ${asText(rec(data)[k] ?? pl[k])}`,
+        (k) => `${PERSON_DETAIL_WORDS.label[k]}: ${asText(rec(data)[k] ?? pl[k])}`,
       ),
     ].join(" · "),
   undo: {

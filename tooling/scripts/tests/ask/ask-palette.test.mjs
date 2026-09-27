@@ -1861,7 +1861,7 @@ test("a person's note and a person's details (PR 4.6) are drawn as their own kin
       kind: "person_details",
       needs: "operator",
       title: "Details for Rosa",
-      summary: "Name: Rosa → Rosa Díaz · Email: none → rosa@example.com",
+      summary: "Name: Rosa → Rosa Díaz · Email: no address → rosa@example.com",
       payload: { contact_id: "c1", who: "Rosa", name: "Rosa Díaz", email: "rosa@example.com", previous: {} },
       undo: "Set it back",
     },
