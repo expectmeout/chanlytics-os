@@ -15,7 +15,7 @@ import {
   registrationKey,
   signedOut,
 } from "../src/shell/bridge.ts";
-import { INITIAL } from "../src/shell/state.ts";
+import { INITIAL, recalled } from "../src/shell/state.ts";
 
 test("a page's messages move the state; 'out' is the signed-out state the root layout draws the sign-in screen for", () => {
   let s = INITIAL;
@@ -133,4 +133,18 @@ test("the page's theme is the shell's: kept in the state and acted on, and Today
   r = onPageMessage(INITIAL, JSON.stringify({ t: "today", snapshot: snap }));
   assert.equal(r.state, INITIAL, "the widget's snapshot is the Surface's to hand on; the state does not change");
   assert.equal(r.effect, "nothing");
+});
+
+test("a launch opens in what the last one kept: a workspace that reads as one, and a theme the page knows", () => {
+  assert.deepEqual(recalled("acme-plumbing", "light"), { slug: "acme-plumbing", theme: "light" });
+  assert.deepEqual(recalled(" acme-plumbing ", "dark"), { slug: "acme-plumbing", theme: "dark" });
+  // Nothing kept, or nothing that reads as a workspace or a theme: the state keeps its own defaults.
+  assert.deepEqual(recalled(null, null), {});
+  assert.deepEqual(recalled("", "sepia"), {});
+  assert.deepEqual(recalled("two words", null), {});
+  assert.deepEqual(recalled("x".repeat(201), null), {});
+  // A sign-out forgets the workspace, so the next launch keeps nobody's (remembered.ts writes what the state holds).
+  const out = signedOut({ ...INITIAL, ...recalled("acme-plumbing", "light"), session: "in" });
+  assert.equal(out.slug, null);
+  assert.equal(out.theme, "light");
 });

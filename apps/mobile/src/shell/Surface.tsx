@@ -18,6 +18,7 @@ import type {
 } from "react-native-webview/lib/WebViewTypes";
 import * as Application from "expo-application";
 import * as WebBrowser from "expo-web-browser";
+import * as Updates from "expo-updates";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from "expo-router";
 import { parsePageMessage, THEME_COLORS, type PageMessage, type ShellMessage } from "@chanlytics/contracts";
@@ -31,6 +32,12 @@ import { Offline } from "./Offline";
 import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
 
 const PLATFORM: "ios" | "android" = Platform.OS === "ios" ? "ios" : "android";
+/**
+ * Whether a computer on the cable may inspect the pages (chrome://inspect, Safari's Develop menu): in a development or
+ * preview build only, where it is how a page's load is measured on a phone. Never in a store build, where it would
+ * hand the signed-in pages to anyone holding the phone with a debugger.
+ */
+const INSPECTABLE = __DEV__ || Updates.channel === "preview";
 
 export interface SurfaceHandle {
   ask(m: ShellMessage): void;
@@ -74,9 +81,10 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   const userAgent = useMemo(() => userAgentToken(Application.nativeApplicationVersion ?? "0.0.0", PLATFORM), []);
   const inset = bottomInset(PLATFORM, insets.bottom);
   // Where this WebView starts, fixed as it is created, and again for each new one after a dead renderer: the page
-  // moves itself after that. It followed the shell's slug, so on a cold start (no slug yet: the site's home, which
+  // moves itself after that. It followed the shell's slug, so on a first launch (no slug yet: the site's home, which
   // replaces itself with the workspace's address) the page naming its workspace sent the WebView to the same page
-  // with `#/today` added, an entry Back then stepped through with nothing to see.
+  // with `#/today` added, an entry Back then stepped through with nothing to see. Every launch after the first knows
+  // its workspace from the one before (remembered.ts) and starts at its address.
   const [start, setStart] = useState<{ epoch: number; source: WebViewSource } | null>(null);
   const source = start?.epoch === epoch ? start.source : sourceOf(route, slug, post);
   if (mounted && start?.epoch !== epoch) setStart({ epoch, source });
@@ -187,6 +195,7 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
         // iOS's "normal" as the number it means: Android's native prop is a Double, and the word crashed the app
         // the moment the first page mounted (the library converts it on iOS only).
         decelerationRate={0.998}
+        webviewDebuggingEnabled={INSPECTABLE}
         // No textZoom: Android's WebView follows the phone's font size, which 100 took from anyone who reads larger.
       />
     </View>

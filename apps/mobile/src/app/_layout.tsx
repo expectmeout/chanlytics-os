@@ -19,13 +19,16 @@ import { Lock, useLockGate } from "@/shell/LockScreen";
 import { signOutNatively } from "@/shell/native-auth";
 import { listenPushToStart } from "@/shell/live-activity";
 import { getState, reloadEveryPage, setState, useShell } from "@/shell/state";
+import { recallAndKeep } from "@/shell/remembered";
 import { decideReload, isOlderThan, minAppOf, shaOf } from "@/shell/deploy";
 import { Update } from "@/shell/Update";
 import * as Application from "expo-application";
 import { THEME_COLORS } from "@chanlytics/contracts";
 import { SITE_ORIGIN } from "@/site";
 
-// The theme before any page has said: the web's own default for a device that has chosen nothing.
+// The workspace and the theme the last launch kept, before any page is made: the first page opens at its workspace's
+// own address, in the member's own theme. Before any page has said one, the theme is the web's own default.
+recallAndKeep();
 Appearance.setColorScheme(getState().theme);
 
 async function lookAtTheSite(): Promise<void> {
