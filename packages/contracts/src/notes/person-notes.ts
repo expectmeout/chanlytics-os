@@ -23,7 +23,7 @@ export interface PersonNoteDto {
   team_only: boolean;
   /** The receptionist's own note waits for a member to keep it or dismiss it. */
   state: "kept" | "suggested";
-  source: "page" | "bulk" | "moved" | "call" | "thread";
+  source: "page" | "bulk" | "moved" | "call" | "thread" | "reach_out";
   version: number;
   created_at: string;
   updated_at: string;
@@ -148,6 +148,8 @@ const NOTE_FROM: Record<PersonNoteDto["source"], string | null> = {
   moved: null,
   call: "After a call",
   thread: "After a conversation",
+  // A step a reach-out's reply made (Reach out Part 5, 00220 person_step_from_playbook): the words say which.
+  reach_out: "From a reach-out",
 };
 
 /** A note's step: its day, and once done, who did it and when ("Done by Maria · Sep 24"). Null for a note. */

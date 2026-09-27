@@ -130,6 +130,31 @@ test("the summary a phone shows carries no address and no number", () => {
   assert.equal(s("Has 2 locations and 12 staff"), "Has 2 locations and 12 staff");
 });
 
+test("a wrong person's summary never names whom they named: the lock screen shows no name", () => {
+  const s = (summary, refer_to) => parseReplyReading(answer({ intent: "wrong_person", summary, refer_to })).summary;
+  const someone = "They say to write to someone else.";
+  // The live eval's answers: the reader put the name in, whatever it was told.
+  assert.equal(s("Left the company; write to their colleague Dana instead.", "Dana at dana@example.com"), someone);
+  assert.equal(
+    s("Not the right person; contact office manager Dana", "Dana, office manager, dana@example.com"),
+    someone,
+  );
+  assert.equal(s("Talk to Dana's team", "Dana Reyes"), someone, "a possessive says the name");
+  assert.equal(s("Talk to dana", "Dana"), someone, "in any case");
+  // A summary that names no one is kept, and a word that opens a phrase is no name.
+  assert.equal(
+    s("Not the right person; contact their office manager", "Dana, the office manager, at dana@example.com"),
+    "Not the right person; contact their office manager",
+  );
+  assert.equal(s("The owner decides; write to them", "The owner"), "The owner decides; write to them");
+  // Only a referral's names: another intent's summary, and a wrong person naming no one, are as the reader wrote them.
+  assert.equal(
+    parseReplyReading(answer({ summary: "Call Dana tomorrow", refer_to: "Dana" })).summary,
+    "Call Dana tomorrow",
+  );
+  assert.equal(s("Not the one to ask", null), "Not the one to ask");
+});
+
 test("a day is kept where it means something, and none is none", () => {
   assert.equal(parseReplyReading(answer({ intent: "not_now", day: "2027-01-04" })).day, "2027-01-04");
   assert.equal(parseReplyReading(answer({ intent: "away", day: " 2026-10-05 " })).day, "2026-10-05");
@@ -310,6 +335,11 @@ test("the system prompt: seven intents a line each, the reply is data, the day, 
   assert.match(p, /a full date already past is next year's/);
   assert.match(p, /day: YYYY-MM-DD, or null unless the reply names/);
   assert.match(p, /automatic reply .* may still say no or name someone else/);
+  // The live eval's two lines: a request for details is interested, and "not interested" is a no, however polite.
+  assert.match(p, /asking for more details, with no particular question, is interested/);
+  assert.match(p, /"Not interested" is no, even with "right now", "for now" or "at this time", unless they say when/);
+  assert.match(p, /not_now: .*a matter of when, not whether\./);
+  assert.match(p, /Never copy an address, a phone number or a person's name into it/);
   assert.equal(p, replySystemPrompt(), "fixed text, so it caches");
 });
 
