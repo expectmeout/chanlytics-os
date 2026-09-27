@@ -176,22 +176,24 @@ const useArLine = (A, H) => {
   const held = useArRef(false);
   // When the Line opened: the question says how long it waited (the turn's shape, opened_ms).
   const openedAt = useArRef(0);
+  // Whether the takeover's Back entry is in the history (useArClose pushes it on a phone, nav takes it for a place).
+  const pushed = useArRef(false);
   return {
     query, setQuery, threads, setThreads, active, setActive, live, setLive, quick, setQuick, scope, setScope, sel, setSel,
     move, setMove, lang, setLang, tick, setTick, view, setView, unfolded, setUnfolded, foldAll, setFoldAll, doomed,
     setDoomed, composing, setComposing, slideFrom, speech, toastNode, flash, inputRef, faceRef, heroRef, stageRef, bodyRef,
-    dialogRef, typing, threadsReady, turnSeq, asked, held, openedAt,
+    dialogRef, typing, threadsReady, turnSeq, asked, held, openedAt, pushed,
   };
 };
 
 /** Talking: held on the mic, a Space held on an empty line, a phone's three held a beat; said where the browser cannot listen. */
-const useArVoice = ({ H, M, lang, live, query, setQuery, typing, flash, t, late }) => {
+const useArVoice = ({ H, M, lang, live, query, setQuery, typing, flash, t, submit }) => {
   const talk = H.useAskTalk({
     lang,
     disabled: !!live,
     onWords: (words) => { setQuery(words); if (M) M.mood.hear(0.8); },
     onHeard: (heard, error) => {
-      if (heard) { if (!typing.current) late.submit(heard); return; }
+      if (heard) { if (!typing.current) submit(heard); return; }
       // Each said once: a second press refreshes the toast that says it (`once`), never a second beneath it.
       if (error === "blocked") flash({ once: "ask-mic", msg: <>{t.micBlocked}</> });
       else if (error === "not-allowed") flash({ once: "ask-mic", msg: <>{t.micDenied}</> });
@@ -298,12 +300,11 @@ const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, setThread
 };
 
 /** Closing: Back on a phone, and what the Line forgets once closed. */
-const useArClose = ({ open, onClose, setQuick, setDoomed, setView, speech }) => {
+const useArClose = ({ open, onClose, setQuick, setDoomed, setView, speech, pushed }) => {
   // Back closes the takeover (S8): one entry with a null state and the same address, so the shell's hash router
   // never hears it and Next's app router, which reloads on a Back to a state it did not write (app-shell.jsx), ignores
-  // it. Whether the entry is ours is this ref, not the popped state. Closing any other way goes back over it; going
-  // somewhere takes it for the place (nav).
-  const pushed = useArRef(false);
+  // it. Whether the entry is ours is `pushed` (useArLine), not the popped state. Closing any other way goes back over
+  // it; going somewhere takes it for the place (nav).
   useArEffect(() => {
     const h = typeof window !== "undefined" ? window.history : null;
     if (!open || !arPhone() || !h || !h.pushState) return;
@@ -322,7 +323,6 @@ const useArClose = ({ open, onClose, setQuick, setDoomed, setView, speech }) => 
   useArEffect(() => {
     if (!open) { setQuick(null); setDoomed(null); setView("rows"); speech.stop(); }
   }, [open]);
-  return pushed;
 };
 
 // The draft and the conversation's id, kept in the tab (legacy-bridge/tab-memory.ts) so a reload keeps them too (S9):
@@ -330,7 +330,7 @@ const useArClose = ({ open, onClose, setQuick, setDoomed, setView, speech }) => 
 // the Line is made closed, so being made forgets nothing. The id whenever a thread is opened or made, forgotten when
 // the conversation ends (Clear, or deleted), never by the Line being made, or when the kept one cannot be read, so a
 // thread that will not read does not flash on every open.
-const useArMemory = ({ open, A, query, setQuery, active, asked, late }) => {
+const useArMemory = ({ open, A, query, setQuery, active, asked, openThread }) => {
   const mem = () => (typeof window !== "undefined" && window.__tabMemory) || null;
   const threadWas = useArRef(null);
   // Open: what the tab kept comes back. A kept conversation is read first and the words go back after it, since
@@ -342,7 +342,7 @@ const useArMemory = ({ open, A, query, setQuery, active, asked, late }) => {
     const words = typeof kept === "string" && kept && !query ? kept : null;
     const th = m.draft("ask-thread");
     if (typeof th === "string" && th && !active && !asked.current)
-      late.openThread({ id: th }).then((o) => { if (!o) m.dropDraft("ask-thread"); if (words) setQuery(words); });
+      openThread({ id: th }).then((o) => { if (!o) m.dropDraft("ask-thread"); if (words) setQuery(words); });
     else if (words) setQuery(words);
   }, [open]);
   useArEffect(() => {
@@ -377,7 +377,7 @@ const useArFocus = ({ H, open, doomed, live, active, view, quick, inputRef, dial
 };
 
 /** What the shell sends as it opens the Line, and the keys anywhere in it. */
-const useArSeedKeys = ({ open, A, onClose, live, asked, setTick, setView, setScope, setActive, setQuick, setQuery, late }) => {
+const useArSeedKeys = ({ open, A, onClose, live, asked, setTick, setView, setScope, setActive, setQuick, setQuery, stop, openThread, submit }) => {
   // What the shell sends as it opens the Line: a question to ask or to finish, or a thread to open (`askAbout({ thread })`, any caller). The
   // shell opens and sends in the same moment, so the Line listens while closed too and keeps the last request.
   useArEffect(() => {
@@ -397,7 +397,7 @@ const useArSeedKeys = ({ open, A, onClose, live, asked, setTick, setView, setSco
         return;
       }
       if (e.key !== "Escape" || e.defaultPrevented) return;
-      if (live) late.stop();
+      if (live) stop();
       else onClose();
     };
     window.addEventListener("keydown", onKeys);
@@ -406,9 +406,9 @@ const useArSeedKeys = ({ open, A, onClose, live, asked, setTick, setView, setSco
     if (d) {
       asked.current = null;
       if (d.about) setScope(typeof d.about === "object" ? d.about : null);
-      if (d.thread) late.openThread({ id: d.thread });
+      if (d.thread) openThread({ id: d.thread });
       else if (d.mode === "compose" || !d.prompt) { setActive(null); setQuick(null); setQuery(d.prompt || ""); }
-      else late.submit(d.prompt);
+      else submit(d.prompt);
     }
     return () => window.removeEventListener("keydown", onKeys);
   });
@@ -431,7 +431,7 @@ const useArWalk = ({ query, active, open, view, quick, live, setSel, setMove, bo
   }, [sel, move]);
 };
 
-// ---- The Line's acts and the turn, made as an open Line draws, after its hooks --------------------------------------
+// ---- The Line's acts and the turn, made before the hooks that call them ---------------------------------------------
 
 /** Going somewhere, a question back in the field, leaving the turn in flight, Clear, a card's outcome, a conversation opened or deleted, and Stop. */
 const arActs = ({ A, M, onClose, pushed, active, setActive, live, setLive, turnSeq, setQuery, setQuick, setView, setUnfolded, setFoldAll, setScope, setThreads, setDoomed, speech, flash, t, inputRef }) => {
@@ -1009,8 +1009,9 @@ const arLineView = (ln) => {
 };
 
 // ---- The Line -------------------------------------------------------------------------------------------------------
-// `ln` is the Line as drawn so far: the props and parts, the state, then what each hook and builder above returns, in
-// the order AskReal always made it; every hook before the early return, the rest only while the Line is open.
+// `ln` is the Line as drawn so far: the props and parts, the state, the acts, then what each hook and builder above
+// returns; every hook before the early return, the rest only while the Line is open. The acts call no hook, so they are
+// made before the hooks that call them (a heard question, a kept or seeded thread, Esc), closed or open.
 const AskReal = ({ open, onClose }) => {
   const A = window.__ask;
   const H = window.AskHooks;
@@ -1019,20 +1020,19 @@ const AskReal = ({ open, onClose }) => {
   // Ask's face: the one mood every face follows (legacy-bridge/mascot mood.ts), standing in the line.
   const M = window.__mascot || null;
   const AskFace = window.AskFace || null;
-  // The acts the hooks call (a heard question, a kept or seeded thread, Esc) are made below the early return; a hook
-  // reads them when its callback or effect runs, by which time this draw has made them.
-  const late = { get openThread() { return openThread; }, get stop() { return stop; }, get submit() { return submit; } };
-  const ln = { open, onClose, A, H, M, AskFace, buildLineRows, AskRows, flatRows, AskNowPills, AskTurn, answerMoves, late, ...useArLine(A, H) };
+  const ln = { open, onClose, A, H, M, AskFace, buildLineRows, AskRows, flatRows, AskNowPills, AskTurn, answerMoves, ...useArLine(A, H) };
   ln.t = window.askText(ln.lang);
   const route = arRoute();
   ln.route = route;
   // With the param: Leads is People's `leads` param, and the Line on it is the finder (spec F2, F3).
   ln.surface = A ? A.surfaceFor(route.page, route.param) : "other";
+  Object.assign(ln, arActs(ln));
+  ln.submit = arSubmitter(ln);
   Object.assign(ln, useArVoice(ln));
   useArMood(ln);
   useArSlide(ln);
   useArOpen(ln);
-  ln.pushed = useArClose(ln);
+  useArClose(ln);
   useArMemory(ln);
   useArFocus(ln);
   useArSeedKeys(ln);
@@ -1040,9 +1040,6 @@ const AskReal = ({ open, onClose }) => {
 
   if (!open || !A) return null;
   ln.phone = arPhone();
-  const { openThread, stop } = Object.assign(ln, arActs(ln));
-  const submit = arSubmitter(ln);
-  ln.submit = submit;
   Object.assign(ln, arUnder(ln));
   ln.activate = arActivate(ln);
   ln.onKey = arOnKey(ln);
