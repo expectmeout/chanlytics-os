@@ -1064,6 +1064,23 @@ test("GET leads pages by the key the database answered, with the list, the class
   assert.equal(first.rows.length, 1);
 });
 
+test("GET leads reads the month only for a role that may find: an operator's or a viewer's first page is its rows, never a 500", async () => {
+  // lead_month_used (00143) refuses anyone has_permission('find') refuses, as the database does: the owner and the
+  // partner may. Seen in the real app (27 Sep 2026): a viewer's Leads said "Can't reach your workspace".
+  const monthDoor = (role) => () => {
+    if (!ROLE_PERMS[role].find)
+      throw Object.assign(new Error("Only an owner can find businesses for you."), { code: "42501" });
+    return { allowance: { used: 3, reserved: 0 }, budget: { used: 0, reserved: 0 } };
+  };
+  for (const role of ["owner", "partner", "operator", "viewer"]) {
+    const rpcs = { ...doors(), lead_month_used: monthDoor(role) };
+    const first = await leads.GET.run(get(inA), ctxOf(world({ role }), {}, rpcs));
+    assert.equal(first.rows.length, 1, `${role}: the rows`);
+    assert.deepEqual(first.counts, COUNTS, `${role}: the rail's numbers`);
+    assert.equal("month" in first, ROLE_PERMS[role].find, `${role}: the month only for a role that may find`);
+  }
+});
+
 test("a row says what was seen and what Claude read, and wears the name of the search that found it", async () => {
   const rpcs = doors();
   const out = await leads.GET.run(get(inA), ctxOf(world({ role: "viewer" }), {}, rpcs));

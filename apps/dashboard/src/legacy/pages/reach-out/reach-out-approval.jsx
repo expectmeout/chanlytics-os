@@ -24,9 +24,13 @@ const RoRunHeld = ({ vm, may, busy, said, onDecide }) => (
       <div key={h.id} className="bc-person is-held" data-testid="ro-held">
         <span className="bc-person-name">{h.name}</span>
         <span className="bc-person-words">{h.why}</span>
-        {may && h.doors.map(([door, words]) => (
-          <button key={door} type="button" className="bc-person-door" disabled={busy === h.id} onClick={() => onDecide(h.id, door)} data-testid={`ro-door-${door}`}>{words}</button>
-        ))}
+        {may && (
+          <span className="bc-person-doors">
+            {h.doors.map(([door, words]) => (
+              <button key={door} type="button" className="bc-person-door" disabled={busy === h.id} onClick={() => onDecide(h.id, door)} data-testid={`ro-door-${door}`}>{words}</button>
+            ))}
+          </span>
+        )}
         {said && said.id === h.id && <span className="pb-warn" role="alert" data-testid="ro-held-said">{said.text}</span>}
       </div>
     ))}

@@ -20182,7 +20182,15 @@ function reachLineOf(r2, includeUnconfirmed) {
   const why = [];
   if (unconfirmed > 0)
     why.push(
-      includeUnconfirmed ? { tone: "plain", text: `${unconfirmed} unconfirmed addresses, included`, door: "Leave them out" } : { tone: "warn", text: `${unconfirmed} unconfirmed addresses, held`, door: "Include them" }
+      includeUnconfirmed ? {
+        tone: "plain",
+        text: `${plural(unconfirmed, "unconfirmed address", "unconfirmed addresses")}, included`,
+        door: "Leave them out"
+      } : {
+        tone: "warn",
+        text: `${plural(unconfirmed, "unconfirmed address", "unconfirmed addresses")}, held`,
+        door: "Include them"
+      }
     );
   if (r2.phone_only > 0) why.push({ tone: "plain", text: `${r2.phone_only} by phone only, kept for calls`, door: null });
   return {
@@ -20194,7 +20202,7 @@ function reachLineOf(r2, includeUnconfirmed) {
 }
 function paceWords(p) {
   const next = DOMAIN_RAMP.find((s) => s.days > p.sentDays);
-  const why = next ? `${p.sentDays < 1 ? "Recommended for a new domain. " : ""}Rises to ${next.perDay} a day after ${next.days} clean days.` : "The most a domain sends in a day.";
+  const why = next ? `${p.sentDays < 1 ? "The pace for a new domain. " : ""}Rises to ${next.perDay} a day after ${next.days} clean days.` : "The most a domain sends in a day.";
   return {
     parts: [
       "",
@@ -20270,10 +20278,19 @@ function nextRunWords(c, tz, now) {
   return { tone: "plain", text: `Next run ${at2}.`, run_id: null };
 }
 var clock2 = (iso, tz) => clockTime(Date.parse(iso), tz);
+function firstSendWhen(firstAt, tz, now) {
+  if (!firstAt) return null;
+  const ms2 = Date.parse(firstAt);
+  return zoneDayKey(ms2, tz) === zoneDayKey(now, tz) ? clock2(firstAt, tz) : clockWhen(ms2, tz, now);
+}
+function approveWords(today, from) {
+  if (!from) return `Approve \u2014 ${today}`;
+  return today > 0 ? `Approve \u2014 ${today} from ${from}` : `Approve \u2014 from ${from}`;
+}
 function approvalWordsOf(r2, p) {
   const earlier = !!r2.run_for && r2.run_for < p.today;
   const passed = !earlier && !!r2.first_at && Date.parse(r2.first_at) <= p.now;
-  const at2 = earlier || passed ? null : r2.first_at ? clock2(r2.first_at, p.timezone) : null;
+  const at2 = earlier || passed ? null : firstSendWhen(r2.first_at, p.timezone, p.now);
   const total = r2.today + r2.later;
   const why = [];
   if (r2.later > 0)
@@ -20310,7 +20327,7 @@ function approvalWordsOf(r2, p) {
     ],
     words: words4,
     reader: r2.first ? `as ${r2.first.business_name} reads it \xB7 every opening is its own; your offer and ask are the same for all ${total}` : null,
-    approve: `Approve \u2014 ${r2.today}${earlier || passed ? " from now" : at2 ? ` from ${at2}` : ""}`,
+    approve: approveWords(r2.today, earlier || passed ? "now" : at2),
     approveNote: r2.checking > 0 ? `${r2.checking} more are being checked; they go once they pass.` : null,
     note: "Skipping loses this run only \u2014 the reach-out keeps its place and asks again tomorrow.",
     recheck: r2.held.some((h) => h.reason === "check_unavailable" && h.detail === null) ? REACH_OUT_SHEET_WORDS.recheck : null,
@@ -20688,7 +20705,8 @@ function reachOutRunWordsOf(r2, p) {
     }),
     skipAsk: `Skip ${r2.chain_name}'s run?`,
     // What Approve released, as the flash says it: the checked sends due today, never the run's whole count (R21).
-    approved: `${r2.chain_name} approved \u2014 ${plural(r2.today, "email", "emails")} today, in their hours`,
+    // Nothing today (planned after hours, or on a closed day) says when they go instead of "0 emails today".
+    approved: r2.today === 0 && r2.later > 0 ? `${r2.chain_name} approved \u2014 ${plural(r2.later, "email", "emails")} in the coming days, in their hours` : `${r2.chain_name} approved \u2014 ${plural(r2.today, "email", "emails")} today, in their hours`,
     labels: REACH_OUT_RUN_LABELS,
     listHead: r2.checking > 0 ? `Who gets it \xB7 ${plural(r2.checking, "more is", "more are")} being checked` : "Who gets it"
   };
