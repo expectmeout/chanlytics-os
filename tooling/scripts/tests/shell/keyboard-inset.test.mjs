@@ -43,7 +43,11 @@ const docHeard = {};
 globalThis.document = {
   documentElement: {
     style: { setProperty: (k, v) => props.set(k, v), removeProperty: (k) => props.delete(k) },
-    classList: { toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)), remove: (c) => classes.delete(c) },
+    classList: {
+      toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)),
+      remove: (c) => classes.delete(c),
+      contains: (c) => classes.has(c),
+    },
   },
   addEventListener: (type, fn) => (docHeard[type] = docHeard[type] || []).push(fn),
   removeEventListener: (type, fn) => (docHeard[type] = (docHeard[type] || []).filter((f) => f !== fn)),
@@ -144,4 +148,31 @@ test("a pinch zoom shrinks what is shown too, and is no keyboard", () => {
   assert.equal(props.get("--vv-top"), "0px");
   assert.equal(classes.has("kb-up"), false);
   stop();
+});
+
+test("a page the phone app shrinks above the keyboard (Android) never makes room for one it only expects: the room came, then went as the page shrank", async () => {
+  const { APP_KEYS_RESIZE_CLASS } = await import("@chanlytics/contracts");
+  kept.clear();
+  show(812);
+  classes.add(APP_KEYS_RESIZE_CLASS);
+  try {
+    const stop = watchKeyboard();
+    focus("focusin", field);
+    assert.equal(
+      classes.has("kb-expected"),
+      false,
+      "REGRESSION: Ask's screen made room, then lost it as the app shrank the page",
+    );
+    // The page shrinks with the keyboard: what it shows and its layout are one height, so nothing is covered.
+    Object.assign(globalThis.window, { innerHeight: 480 });
+    show(480);
+    fire("resize");
+    assert.equal(props.get("--kb"), "0px", "nothing covered: the keys are below the page");
+    assert.equal(classes.has("kb-up"), false);
+    stop();
+  } finally {
+    classes.delete(APP_KEYS_RESIZE_CLASS);
+    Object.assign(globalThis.window, { innerHeight: 812 });
+    show(812);
+  }
 });

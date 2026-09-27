@@ -8,8 +8,17 @@
  * the shell used to intercept the sign-out for that and replay it as a GET, which the route does not answer, so on
  * iOS nobody was ever signed out.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { Appearance, BackHandler, Platform, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  Appearance,
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
 import type {
   ShouldStartLoadRequest,
@@ -173,7 +182,7 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   const paper = { backgroundColor: THEME_COLORS[theme] };
   if (!mounted) return <View style={[styles.fill, paper]} />;
   return (
-    <View style={[styles.fill, paper, { paddingTop: insets.top }]}>
+    <AboveTheKeyboard style={[styles.fill, paper, { paddingTop: insets.top }]}>
       <WebView
         key={epoch}
         ref={ref}
@@ -181,7 +190,7 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
         style={[styles.fill, paper]}
         applicationNameForUserAgent={userAgent}
         sharedCookiesEnabled
-        injectedJavaScriptBeforeContentLoaded={insetScript(inset)}
+        injectedJavaScriptBeforeContentLoaded={insetScript(inset, PLATFORM === "android")}
         onMessage={onMessage}
         onNavigationStateChange={onNavigation}
         onShouldStartLoadWithRequest={onShouldStart}
@@ -206,7 +215,21 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
         webviewDebuggingEnabled={INSPECTABLE}
         // No textZoom: Android's WebView follows the phone's font size, which 100 took from anyone who reads larger.
       />
-    </View>
+    </AboveTheKeyboard>
+  );
+}
+
+/**
+ * Android draws the app edge to edge, so the system shrinks nothing for the keyboard: the page kept its height, the
+ * keyboard lay over it, and the browser panned the view to the field, taking the page's header and a thread's name off
+ * the top. Here the page is shrunk to stand above the keys, as a browser tab's page is, and told so before it paints
+ * (insetScript), so it makes no room of its own. iOS's WebView makes its own room, and is left as it is.
+ */
+function AboveTheKeyboard({ style, children }: { style: StyleProp<ViewStyle>; children: ReactNode }) {
+  return (
+    <KeyboardAvoidingView behavior="padding" enabled={PLATFORM === "android"} style={style}>
+      {children}
+    </KeyboardAvoidingView>
   );
 }
 

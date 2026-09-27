@@ -15420,6 +15420,7 @@ function inAppFrom(userAgent) {
   return { version: m[1], platform: platform === "ios" || platform === "android" ? platform : "unknown" };
 }
 var IN_APP_CLASS = "in-app";
+var APP_KEYS_RESIZE_CLASS = "app-keys-resize";
 function inAppBootScript() {
   return [
     "try{",
@@ -26913,6 +26914,7 @@ export {
   ALERT_KINDS,
   ANALYSIS_GRACE_MS,
   ANGLE_WORDS_MAX,
+  APP_KEYS_RESIZE_CLASS,
   APP_ROUTE_RE,
   ASK_ANSWER_CAPS,
   ASK_ANSWER_FORMAT,
