@@ -530,7 +530,7 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/platform.jsx::PanePlatform#1": {
-    "lines": 227,
+    "lines": 204,
     "branches": 38,
     "depth": 1
   },

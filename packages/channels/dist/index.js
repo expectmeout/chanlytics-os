@@ -15,6 +15,7 @@ import { z as z13 } from "zod";
 import { z as z14 } from "zod";
 import { z as z15 } from "zod";
 import { z as z16 } from "zod";
+import { z as z17 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -1027,7 +1028,9 @@ var RETENTION_DAYS = {
   /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
   jobs_finished: 7,
   /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
-  jobs_failed: 90
+  jobs_failed: 90,
+  /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00225). */
+  page_vitals: 30
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -2778,6 +2781,19 @@ var REACH_OUT_SHEET_PARTS = {
   repliesLine: "Replies"
 };
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
+var PAGE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
+var VITAL_ID = /^[A-Za-z0-9-]{1,64}$/;
+var VITAL_CEILING = 10 * MIN_MS;
+var PageVitalReport = z13.object({
+  id: z13.string().regex(VITAL_ID, { error: "A report needs the browser's id." }),
+  name: z13.enum(PAGE_VITALS, { error: "A report names one of the five." }),
+  value: z13.number().min(0).max(VITAL_CEILING)
+});
+var PageVitalsInput = z13.object({
+  page: z13.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
+  vitals: z13.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
+});
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
@@ -2785,10 +2801,10 @@ var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SEARCH_WARN_MS = 12 * HOUR_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z13.string().trim().max(80);
-var SignupSchema = z13.object({
-  name: z13.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z13.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z14.string().trim().max(80);
+var SignupSchema = z14.object({
+  name: z14.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z14.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2802,17 +2818,17 @@ var SignupSchema = z13.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z13.string().max(200).optional(),
+  password: z14.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z13.string().trim().min(1).max(64).optional(),
+  timezone: z14.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z13.object({
-  name: z13.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z14.object({
+  name: z14.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z13.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z14.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -2850,11 +2866,11 @@ var PASSWORD_WORDS = {
 };
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z14.object({
-  code: z14.string().trim().min(1).max(64),
-  terms: z14.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z15.object({
+  code: z15.string().trim().min(1).max(64),
+  terms: z15.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z14.object({ letters: z14.boolean() }).strict();
+var PartnerLettersSchema = z15.object({ letters: z15.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -2893,43 +2909,43 @@ var PARTNER_WORDS = {
   letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
   lettersFailed: "your email setting"
 };
-var letterCents = z14.coerce.number();
-var letterSum = z14.object({ currency: z14.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z14.object({
+var letterCents = z15.coerce.number();
+var letterSum = z15.object({ currency: z15.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z15.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z14.array(z14.object({ kind: z14.string(), currency: z14.string(), count: z14.coerce.number(), cents: letterCents })).default([]),
+  written: z15.array(z15.object({ kind: z15.string(), currency: z15.string(), count: z15.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z14.array(letterSum).default([]),
+  matured: z15.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z14.array(letterSum).default([]),
-  paid: z14.array(z14.object({ currency: z14.string(), cents: letterCents, reference: z14.string(), sent_at: z14.string() })).default([]),
+  voided: z15.array(letterSum).default([]),
+  paid: z15.array(z15.object({ currency: z15.string(), cents: letterCents, reference: z15.string(), sent_at: z15.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z14.array(z14.object({ workspace: z14.string().nullable(), standing: z14.string(), why: z14.string().nullable() })).default([]),
+  standing: z15.array(z15.object({ workspace: z15.string().nullable(), standing: z15.string(), why: z15.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z14.array(z14.string().nullable()).default([]),
+  brought: z15.array(z15.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z14.array(z14.string().nullable()).default([]),
-  declined: z14.array(z14.string().nullable()).default([]),
+  accepted: z15.array(z15.string().nullable()).default([]),
+  declined: z15.array(z15.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z14.object({ status: z14.string(), why: z14.string().nullable() }).nullable().default(null),
-  balance: z14.array(
-    z14.object({
-      currency: z14.string(),
+  status: z15.object({ status: z15.string(), why: z15.string().nullable() }).nullable().default(null),
+  balance: z15.array(
+    z15.object({
+      currency: z15.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z14.string().nullable()
+      next_payable_at: z15.string().nullable()
     })
   ).default([])
 });
 var HANDOVER_DAYS = 14;
-var ownerEmail = z15.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z15.object({
-  name: z15.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z15.string().trim().max(64).nullish(),
+var ownerEmail = z16.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z16.object({
+  name: z16.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z16.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z15.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z16.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -2958,9 +2974,9 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
-var PartnerSecondFactorResetSchema = z16.object({
-  partner_id: z16.string().uuid("That partner does not exist."),
-  why: z16.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z17.object({
+  partner_id: z17.string().uuid("That partner does not exist."),
+  why: z17.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 
 // src/whatsapp.ts

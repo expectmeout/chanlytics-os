@@ -1206,6 +1206,13 @@
       "rate": null,
       "spend": false
     },
+    "POST vitals": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "vitals",
+      "spend": false
+    },
     "POST workspaces/create": {
       "kind": "write",
       "scope": "account",

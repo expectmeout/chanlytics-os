@@ -3343,6 +3343,30 @@ export type Database = {
         }
         Relationships: []
       }
+      page_vitals: {
+        Row: {
+          at: string
+          id: string
+          metric: string
+          page: string
+          value: number
+        }
+        Insert: {
+          at?: string
+          id: string
+          metric: string
+          page: string
+          value: number
+        }
+        Update: {
+          at?: string
+          id?: string
+          metric?: string
+          page?: string
+          value?: number
+        }
+        Relationships: []
+      }
       partner_earnings: {
         Row: {
           amount_cents: number
@@ -5318,6 +5342,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      note_page_vitals: {
+        Args: { p_page: string; p_vitals: Json }
+        Returns: number
+      }
       note_sweep_backlog: {
         Args: { p_remaining: number; p_sweep: string }
         Returns: number
@@ -5358,6 +5386,16 @@ export type Database = {
       outreach_wrote_back: {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: string[]
+      }
+      page_vitals_p75: {
+        Args: { p_days?: number; p_most?: number }
+        Returns: {
+          metric: string
+          p75: number
+          page: string
+          samples: number
+          since: string
+        }[]
       }
       partner_balance: {
         Args: never

@@ -3341,6 +3341,30 @@ type Database = {
                 };
                 Relationships: [];
             };
+            page_vitals: {
+                Row: {
+                    at: string;
+                    id: string;
+                    metric: string;
+                    page: string;
+                    value: number;
+                };
+                Insert: {
+                    at?: string;
+                    id: string;
+                    metric: string;
+                    page: string;
+                    value: number;
+                };
+                Update: {
+                    at?: string;
+                    id?: string;
+                    metric?: string;
+                    page?: string;
+                    value?: number;
+                };
+                Relationships: [];
+            };
             partner_earnings: {
                 Row: {
                     amount_cents: number;
@@ -5594,6 +5618,13 @@ type Database = {
                 };
                 Returns: undefined;
             };
+            note_page_vitals: {
+                Args: {
+                    p_page: string;
+                    p_vitals: Json;
+                };
+                Returns: number;
+            };
             note_sweep_backlog: {
                 Args: {
                     p_remaining: number;
@@ -5649,6 +5680,19 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: string[];
+            };
+            page_vitals_p75: {
+                Args: {
+                    p_days?: number;
+                    p_most?: number;
+                };
+                Returns: {
+                    metric: string;
+                    p75: number;
+                    page: string;
+                    samples: number;
+                    since: string;
+                }[];
             };
             partner_balance: {
                 Args: never;

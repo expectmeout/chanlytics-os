@@ -82,6 +82,9 @@ const CONSEQUENCE: Record<string, string> = {
   purge_notifications: "notifications are kept past their retention",
   purge_rate_hits: "the rate-limit ledger grows without bound, and every limit check reads a bigger table",
   purge_cron_history: "cron.job_run_details grows without bound, and this check reads a bigger table each time",
+  purge_jobs:
+    "finished jobs, each holding the number and words it sent, stay in the ledger past the week the privacy page states, and an erasure reads more of them",
+  purge_page_vitals: "page timings are kept past the thirty days the privacy page states",
 };
 
 /**

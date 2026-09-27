@@ -1,5 +1,6 @@
 import { read, platform } from "@/server/route";
 import { platformHealth, platformOverview, platformPartners, platformWaitlist } from "@/server/platform/platform";
+import { platformVitals } from "@/server/platform/vitals";
 
 /**
  * GET /api/v1/platform/overview — every workspace, for the back office.
@@ -32,16 +33,20 @@ import { platformHealth, platformOverview, platformPartners, platformWaitlist } 
  * The partners (0012, P5) ride here for the first reason: who brought a
  * workspace and what it has earned them is a fact about the workspaces on this
  * page. Null when it could not be read; the workspaces still come back.
+ *
+ * How fast the pages are (00225) rides here for the first reason too: it is the platform's own state, platform-wide
+ * like the clocks, and nobody else's to see. Null when it could not be read.
  */
 export const GET = read({
   scope: platform,
   handle: async ({ office }) => {
-    const [tenants, health, queue, partners] = await Promise.all([
+    const [tenants, health, queue, partners, vitals] = await Promise.all([
       platformOverview(office),
       platformHealth(office),
       platformWaitlist(office),
       platformPartners(office),
+      platformVitals(office),
     ]);
-    return { tenants, health, queue, partners };
+    return { tenants, health, queue, partners, vitals };
   },
 });

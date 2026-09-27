@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { api } from "./api";
 import { homeHref, lastWorkspace } from "./workspace";
 
@@ -64,6 +64,30 @@ const LegacyApp = dynamic(() => import("./LegacyApp"), { ssr: false, loading: ()
 if (typeof window !== "undefined") void import("./LegacyApp");
 
 /**
+ * Field data (00225): what this page load came to, sent when the page is put away (src/client/field-data.ts). The
+ * reporter loads once the page has, as a chunk of its own, so nobody waits for it and the route's budget does not
+ * carry it; its observers read what the browser buffered, so the numbers are the whole load's. The address is read
+ * as the page begins, because the shell may move it before the reporter arrives.
+ */
+const FieldDataReporter = lazy(() => import("../client/field-data-reporter"));
+const landedOn = typeof window === "undefined" ? "" : window.location.hash;
+
+/** True once the page's load event has fired: what waits for it never competes with what the page is loading. */
+function useLoaded(): boolean {
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    const done = () => setLoaded(true);
+    if (document.readyState === "complete") {
+      done();
+      return undefined;
+    }
+    window.addEventListener("load", done, { once: true });
+    return () => window.removeEventListener("load", done);
+  }, []);
+  return loaded;
+}
+
+/**
  * The shell, or the home that sends a tab to its workspace's address.
  *
  * On /w/<slug> the app mounts at once. On the home, the tab goes to the last
@@ -73,6 +97,7 @@ if (typeof window !== "undefined") void import("./LegacyApp");
  */
 export default function LegacyHost({ home = false }: { home?: boolean }) {
   const [stay, setStay] = useState(!home);
+  const loaded = useLoaded();
   useEffect(() => {
     if (!home) return;
     let cancelled = false;
@@ -92,5 +117,15 @@ export default function LegacyHost({ home = false }: { home?: boolean }) {
     };
   }, [home]);
   if (!stay) return <Loading />;
-  return <LegacyApp />;
+  // The home's own load is the redirect's, so only a workspace's address reports its timings.
+  return (
+    <>
+      {!home && loaded && (
+        <Suspense fallback={null}>
+          <FieldDataReporter landedOn={landedOn} />
+        </Suspense>
+      )}
+      <LegacyApp />
+    </>
+  );
 }
