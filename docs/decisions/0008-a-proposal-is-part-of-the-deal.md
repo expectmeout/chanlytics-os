@@ -1,11 +1,18 @@
 # 0008 · A proposal is part of the deal
 
-**Status:** built (PRs #927, #933, #937, #939, #938, #934, all merged 23
-September 2026), and amended the same day by "The Pipeline is a workspace"
-at the end of this note. Written against commit `d319dcdb` (PR #915,
-23 September 2026), and verified against the code at it. Where this note and
-the code disagree, the code wins. It amends [0004](0004-deals-record.md) where
-it says so, and the plans are
+**Status:** built, all but step 7 (PRs #927, #933, #937, #939, #938, #934, all merged 23 September 2026), and
+amended the same day by "The Pipeline is a workspace" and on 24 September by "Your pace", both built, with what the
+first amendment's _Still held_ names still held. **Step 7 has not happened:** the person's own link has not retired.
+`contacts.proposal_url` and `set_person_proposal` (00154, rewritten by 00160 to write through to the deal) are still in
+the schema, `apps/dashboard/app/api/v1/contacts/[id]/details/route.ts` still calls the door, and the readers keep their
+fallback to the person's link for someone with no deal (`proposalLinkOf`); the number the step names, 00161, went to
+another change. Written against commit `d319dcdb` (PR #915, 23 September 2026), and verified against the code at it.
+The status was verified again at `519724e9c` (27 September 2026): the record (00160: the deal's link, its day and why
+it passed; `tenants.sells_by`, read by `dealsAreOn` in `packages/contracts/src/deals/deals.ts`), the one sheet
+(`apps/dashboard/src/legacy/components/deal-sheet.jsx` over `packages/contracts/src/deals/deal-sheet.ts`), the Pipeline
+(`apps/dashboard/src/legacy/pages/pipeline-scope.jsx` over `packages/contracts/src/deals/pipeline.ts`) and the pace
+(`packages/contracts/src/deals/pace.ts`). Where this note and the code disagree, the code wins. It amends
+[0004](0004-deals-record.md) where it says so, and the plans are
 `docs/superpowers/plans/2026-09-23-proposals-and-deals.md` and
 `docs/superpowers/plans/2026-09-23-pipeline-one-workspace.md`.
 

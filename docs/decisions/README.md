@@ -1,11 +1,31 @@
 # Decisions
 
-Designs that have been decided and are not yet built. One numbered file per decision:
-[0001](0001-channel-neutral-inbound.md) a channel-neutral inbound pipeline,
-[0002](0002-appointments-record.md) an appointments record, [0003](0003-team-assignment.md)
-team assignment, [0004](0004-deals-record.md) a deals record, [0005](0005-a-payment-writes-won.md) a payment that writes won, [0006](0006-a-proposal-follow-up.md) a follow-up on a proposal waiting, [0007](0007-person-notes.md) a note that is a record, [0008](0008-a-proposal-is-part-of-the-deal.md) a proposal that is part of the deal, [0009](0009-one-idea-of-a-list.md) one idea of a list, [0010](0010-leads-are-paid-per-verified-lead.md) leads paid for per verified lead,
-[0011](0011-a-bearer-token-beside-the-cookie.md) a bearer token beside the cookie, [0012](0012-partners.md) a partner who brings a workspace, sets it up and earns a share, and [0013](0013-a-partner-signs-in-with-a-second-factor.md) a partner who signs in with a second factor. A number never changes, and a superseded note is edited in place. Each
-opens with a **Status and commit** line, then Context (what the code does today, with the
-file and line that proves it), Decision, Shape, Steps, Tests, Risks, Open questions. Every
-note is written against a **named commit** and verified against the code at it, not against
-the plans. The code moves; where a note and the code disagree, the code wins.
+Designs that have been decided, one numbered file per decision, and whether the code has them yet. A note stays here
+once it is built: it is the record of why the code has that shape.
+
+| Note                                                    | Decides                                                    | Status                                                                                                                                                            |
+| ------------------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [0001](0001-channel-neutral-inbound.md)                 | A channel-neutral inbound pipeline                         | Decided, not built                                                                                                                                                |
+| [0002](0002-appointments-record.md)                     | An appointments record                                     | Decided, not built                                                                                                                                                |
+| [0003](0003-team-assignment.md)                         | Team assignment                                            | Decided, not built                                                                                                                                                |
+| [0004](0004-deals-record.md)                            | A deal is a record                                         | Built, steps 1 to 4; step 5's three items are 0005, 0006 and 0002                                                                                                 |
+| [0005](0005-a-payment-writes-won.md)                    | A payment writes won                                       | Decided, not built                                                                                                                                                |
+| [0006](0006-a-proposal-follow-up.md)                    | A proposal waiting gets a follow-up                        | Built                                                                                                                                                             |
+| [0007](0007-person-notes.md)                            | A note is a record                                         | Built: its three phases and the day a note may have                                                                                                               |
+| [0008](0008-a-proposal-is-part-of-the-deal.md)          | A proposal is part of the deal                             | Built, all but step 7: the person's own proposal link (`contacts.proposal_url`, `set_person_proposal`) has not retired                                            |
+| [0009](0009-one-idea-of-a-list.md)                      | One idea of a list                                         | Built, steps 1 to 4; step 5 (the server's count past the page's bound) waits until a workspace nears it, and the end-to-end journey its Tests name is not written |
+| [0010](0010-leads-are-paid-per-verified-lead.md)        | Leads are paid for per verified lead                       | Decided, not built                                                                                                                                                |
+| [0011](0011-a-bearer-token-beside-the-cookie.md)        | A bearer token beside the cookie                           | Built with the note (the phone app's PR 8)                                                                                                                        |
+| [0012](0012-partners.md)                                | A partner brings a workspace, sets it up and earns a share | Built, P1 to P5; step 6's items are each a later note of their own                                                                                                |
+| [0013](0013-a-partner-signs-in-with-a-second-factor.md) | A partner signs in with a second factor                    | Proposed, not built                                                                                                                                               |
+| [0015](0015-the-shell-leaves-surface-by-surface.md)     | The shell leaves, one surface at a time                    | Proposed, not built; Ruben's to accept                                                                                                                            |
+
+0014 is not missing. Open pull request #1165 writes it, a partner who hears what changed once a day, so the shell's
+exit took the next number after it. Open pull request #1039, the pricing note, is written as 0011, which the bearer
+token has held since #1149: it takes the next free number when it lands. A number never changes once it is on `main`.
+
+A superseded note is edited in place. Each opens with a **Status and commit** line, then Context (what the code does
+today, with the file and line that proves it), Decision, Shape, Steps, Tests, Risks, Open questions. Every note is
+written against a **named commit** and verified against the code at it, not against the plans. When a note's status
+changes, its status line and this table change in the same pull request, and say the commit the status was read at.
+The code moves; where a note and the code disagree, the code wins.
