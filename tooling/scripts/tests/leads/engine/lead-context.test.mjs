@@ -673,3 +673,21 @@ test("a search the database could not answer throws: it is never 'nobody said it
     /searchMessages: permission denied for function search_messages/,
   );
 });
+
+test("a hit of a kind searchMessages does not know throws: it is never labelled a message", async () => {
+  const note = {
+    kind: "note",
+    id: "n-1",
+    conversation_id: "cv-1",
+    contact_id: "k-1",
+    channel: null,
+    direction: "outbound",
+    at: "2026-09-26T10:00:00+00:00",
+    snippet: "parking",
+  };
+  const db = fakeDb({}, {}, { search_messages: () => [note] });
+  await assert.rejects(
+    searchMessages(db, "aaaaaaaa-0000-4000-8000-000000000001", "parking", new Date(), 20),
+    /^Error: searchMessages: unknown kind note$/,
+  );
+});

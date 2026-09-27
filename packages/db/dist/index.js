@@ -4175,6 +4175,10 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
     );
   return bits.join(" ");
 }
+function hitKind(kind) {
+  if (kind === "message" || kind === "call") return kind;
+  throw new Error(`searchMessages: unknown kind ${kind}`);
+}
 async function searchMessages(db, tenantId, words2, since, limit) {
   const { data, error } = await db.rpc("search_messages", {
     p_tenant: tenantId,
@@ -4184,7 +4188,7 @@ async function searchMessages(db, tenantId, words2, since, limit) {
   });
   if (error) throw new Error(`searchMessages: ${error.message}`);
   return (data ?? []).map((r2) => ({
-    kind: r2.kind === "call" ? "call" : "message",
+    kind: hitKind(r2.kind),
     id: r2.id,
     conversationId: r2.conversation_id ?? null,
     contactId: r2.contact_id ?? null,

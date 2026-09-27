@@ -475,7 +475,7 @@ export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): s
 }
 
 /* -------------------------------------------------------------------------
- * The words a thread or a call said, found (00218).
+ * The words a thread or a call said, found (00219).
  * ---------------------------------------------------------------------- */
 
 /** A message that holds the words, or a call whose transcript does, as search_messages answers it. */
@@ -496,12 +496,20 @@ export interface MessageHit {
   snippet: string;
 }
 
+/** A hit's kind as the database spells it; anything else is a function this code was not written against. */
+function hitKind(kind: string): MessageHit["kind"] {
+  if (kind === "message" || kind === "call") return kind;
+  throw new Error(`searchMessages: unknown kind ${kind}`);
+}
+
 /**
  * The workspace's messages and call transcripts that hold these words, newest first: none older than `since`, at most
  * `limit` (the database clamps it to 1–50). The words are websearch_to_tsquery's, so a quoted phrase, `or` and `-word`
- * mean what a search box means; blank words, or words that only exclude, answer nothing. Under the caller's row
- * security on a session client. A read that fails THROWS: a search the database could not answer is never "nobody said
- * it".
+ * mean what a search box means. Blank words, and words whose query could match a message holding none of them (only
+ * exclusions, or an `or` with one: `valet or -parking`), answer nothing; so does a limit that is no number (NaN reaches
+ * the database as null, and the function is strict). Under the caller's row security on a session client. A read that
+ * fails THROWS, and so does a row of a kind this does not know: a search the database could not answer is never "nobody
+ * said it", and a hit is never labelled what it is not.
  */
 export async function searchMessages(
   db: Db,
@@ -519,7 +527,7 @@ export async function searchMessages(
   if (error) throw new Error(`searchMessages: ${error.message}`);
   // The generated row types every column as present; a call's channel, and a call's thread and person, may be null.
   return (data ?? []).map((r): MessageHit => ({
-    kind: r.kind === "call" ? "call" : "message",
+    kind: hitKind(r.kind),
     id: r.id,
     conversationId: r.conversation_id ?? null,
     contactId: r.contact_id ?? null,
