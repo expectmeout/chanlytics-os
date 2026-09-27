@@ -25,6 +25,7 @@ export * from "./ask-shape";
 export * from "./ask-context";
 export * from "./ask-model";
 export * from "./ask-answer";
+export * from "./ask-proposals";
 export * from "./availability";
 export * from "./feed-url";
 export * from "./line-failure";

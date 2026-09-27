@@ -6,10 +6,27 @@
  * those three said then. PR 3.2 derives all three from one spec per card kind; the table is what proves the
  * derivation changed no answer. A row that fails here is a card that now opens elsewhere, or offers its undo when it
  * did not, and the change is a change to the product, not to this file.
+ *
+ * Then the specs themselves (contracts ask-proposals/), executed over a card of every shape each kind makes: every
+ * route a spec names is a route the app has, and each is the door of the role the card needs (route-policy.json).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ASK_UNDO_MS, PROPOSAL_GATE, askUndoOpen, cardOpenRoute } from "@chanlytics/contracts";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  ASK_THREAD_VERBS,
+  ASK_UNDO_MS,
+  PROPOSAL_GATE,
+  PROPOSAL_SPECS,
+  ROUTE_KEYS,
+  askUndoOpen,
+  cardOpenRoute,
+} from "@chanlytics/contracts";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/route-policy.json"), "utf8")).routes;
 
 /** The twelve kinds, in AskProposal's order, and one no card has. */
 const KINDS = [
@@ -158,4 +175,128 @@ test("a card's Open goes exactly where it went at a993b71d, for every kind over 
     );
     assert.deepEqual(got, want, kind);
   }
+});
+
+/* ------------------------------------------------------------------ the specs */
+
+const card = (kind, payload, extra = {}) => ({
+  id: "p-1",
+  kind,
+  needs: "operator",
+  title: "t",
+  summary: "s",
+  payload,
+  undo: null,
+  ...extra,
+});
+/** What each route answers, as far as a spec reads it. */
+const ANSWER = {
+  message_id: "m1",
+  cancelable_until: iso(T + 15_000),
+  decision_id: "d1",
+  version: 4,
+  id: "b1",
+  search_id: "s1",
+  deal: { id: "deal1" },
+};
+const TAB = { settings: { config: { brain: {} }, version: 3 } };
+const TAB_AFTER = { settings: { config: { brain: {} }, version: 4 } };
+/** A card of every shape each kind makes: each thread verb, a lead search new and answering, a deal with its step. */
+const SHAPES = {
+  reply: [card("reply", { conversation_id: "c1", text: "On our way.", who: "Rosa" })],
+  steer: [card("steer", { message_id: "m1", instruction: "shorter" })],
+  thread_verb: ASK_THREAD_VERBS.map((verb) =>
+    card("thread_verb", { verb, conversation_id: "c1", escalation_id: "e1", until: iso(T + 86_400_000) }),
+  ),
+  person_mode: [card("person_mode", { contact_id: "p1", mode: "never", previous: "auto", who: "Rosa" })],
+  policy: [card("policy", { class: "reply", mode: "ask", previous: { mode: "auto", min_confidence: 0.6 } })],
+  settings: [card("settings", { change: { op: "add_note", title: "Parking", text: "Round the back." } })],
+  whisper: [card("whisper", { call_id: "k1", text: "Saturday is full" })],
+  invite: [card("invite", { email: "ada@example.com", role: "viewer" })],
+  broadcast: [card("broadcast", { template_id: "t1", audience_kind: "everyone", name: "Friday" })],
+  playbook: [card("playbook", { trigger: "quiet_30", template_id: "t1", name: "Win-back" })],
+  lead_search: [
+    card("lead_search", { plan: { count: 50, terms: ["dentists"] } }),
+    card("lead_search", { plan: { count: 50 }, amends: { search_id: "s9", name: "Dentists" } }),
+  ],
+  deal: [
+    card("deal", { contact_id: "p1", stage: "won", who: "Maria" }, { step: { body: "Call", due_on: "2026-10-01" } }),
+  ],
+};
+
+/** Every route a kind's spec reaches over its shapes: its commit, a second call, and the undo of what it kept. */
+function routesOf(kind) {
+  const spec = PROPOSAL_SPECS[kind];
+  const seen = [];
+  for (const p of SHAPES[kind]) {
+    const commit = spec.commit(p, TAB);
+    assert.ok(commit.route, `${kind}: every shape here commits (${commit.refused})`);
+    seen.push({ route: commit.route, by: "commit" });
+    const then = spec.then?.(p, ANSWER);
+    if (then) seen.push({ route: then.route, by: "then" });
+    const record = spec.undo?.record(p, ANSWER, TAB) ?? null;
+    if (record) {
+      const undo = spec.undo.call(record, TAB_AFTER);
+      assert.ok(undo.route, `${kind}: every undo kept here can be sent (${undo.refused})`);
+      seen.push({ route: undo.route, by: "undo" });
+    }
+  }
+  return seen;
+}
+
+test("the twelve kinds each have a spec, and every route a spec names is a route the app has", () => {
+  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 12));
+  const named = Object.fromEntries(
+    Object.keys(PROPOSAL_SPECS).map((k) => [k, [...new Set(routesOf(k).map((x) => x.route))].sort()]),
+  );
+  assert.deepEqual(named, {
+    reply: ["POST conversations/[id]/reply", "POST messages/[id]/cancel-send"],
+    steer: ["POST messages/[id]/steer"],
+    thread_verb: [
+      "POST conversations/[id]/archive",
+      "POST conversations/[id]/hand-back",
+      "POST conversations/[id]/snooze",
+      "POST conversations/[id]/take-over",
+      "POST conversations/[id]/wake",
+      "POST escalations/[id]/resolve",
+    ],
+    person_mode: ["PUT contacts/[id]/receptionist"],
+    policy: ["PUT policies"],
+    settings: ["PUT settings"],
+    whisper: ["POST calls/[id]/whisper"],
+    invite: ["POST team/invite"],
+    broadcast: ["POST broadcasts", "POST broadcasts/[id]/cancel"],
+    playbook: ["DELETE playbooks/[id]", "POST playbooks"],
+    lead_search: ["POST lead-searches", "POST lead-searches/[id]/answer", "POST lead-searches/[id]/stop"],
+    deal: ["POST contacts/[id]/deal", "POST contacts/[id]/notes"],
+  });
+  for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
+});
+
+test("a spec's `needs` is the policy role of every route it names; the one exception is the lead search's stop, an operator's door undoing a partner's card", () => {
+  for (const [kind, spec] of Object.entries(PROPOSAL_SPECS)) {
+    for (const { route, by } of routesOf(kind)) {
+      const role = POLICY[route]?.role;
+      if (kind === "lead_search" && route === "POST lead-searches/[id]/stop") {
+        // Stopping a search spends nothing, so any operator may; the card that started it was a partner's.
+        assert.deepEqual([by, role, spec.needs], ["undo", "operator", "partner"]);
+        continue;
+      }
+      assert.equal(spec.needs, role, `${kind}: ${route} (${by})`);
+    }
+  }
+  // What the four above operator are, and each names what it does for the refusal below it.
+  assert.deepEqual(
+    Object.entries(PROPOSAL_SPECS)
+      .filter(([, s]) => s.needs !== "operator")
+      .map(([k, s]) => [k, s.needs]),
+    [
+      ["person_mode", "owner"],
+      ["settings", "partner"],
+      ["invite", "owner"],
+      ["lead_search", "partner"],
+    ],
+  );
+  for (const [kind, spec] of Object.entries(PROPOSAL_SPECS))
+    assert.equal(!!spec.doing, spec.needs !== "operator", `${kind}: words for a refusal only above operator`);
 });
