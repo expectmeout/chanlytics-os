@@ -216,6 +216,13 @@ export {
   declineHandover,
   getPartnerHandovers,
   getHandoverInvite,
+  invitePartner,
+  withdrawPartnerInvite,
+  getWorkspacePartner,
+  getPartnerInvitations,
+  acceptPartnerInvite,
+  declinePartnerInvite,
+  getPartnerInviteMail,
 } from "./repositories/partner";
 export type {
   PartnerRow,
@@ -234,6 +241,11 @@ export type {
   OpenHandover,
   PartnerHandoverLine,
   HandoverInvite,
+  PartnerInviteSent,
+  WorkspacePartner,
+  PartnerInvitation,
+  PartnerJoined,
+  PartnerInviteMail,
 } from "./repositories/partner";
 export { readLeadOne } from "./repositories/leads";
 export type { LeadOneLead, LeadOneMember } from "./repositories/leads";
