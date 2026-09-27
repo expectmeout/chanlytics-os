@@ -6,7 +6,7 @@
  * page named for the workspace at the moment they asked. The workspace is
  * the address (plan 3.5): /w/<slug> names it, the home names none.
  */
-import { test } from "node:test";
+import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "../../_source.mjs";
 
@@ -247,7 +247,11 @@ function returnable() {
     doc.visibilityState = "visible";
     for (const f of on.visibilitychange || []) f();
   };
-  return { doc, back };
+  const away = () => {
+    doc.visibilityState = "hidden";
+    for (const f of on.visibilitychange || []) f();
+  };
+  return { doc, back, away };
 }
 
 test("a return to the tab reads the surface on screen first and the rest behind it in lanes, never every surface at once", async () => {
@@ -297,6 +301,43 @@ test("a return to the tab reads the surface on screen first and the rest behind 
     assert.equal(order.length, keys.length, "two returns in quick succession are one pass, not two");
   } finally {
     stop();
+    globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+  }
+});
+
+test("a glance at another app reads nothing again; half a minute away, a surface not live, or the live feed down reads every surface", async () => {
+  // Every return read every surface -- about 28 reads on a workspace for a look at a message elsewhere, and the phone
+  // app's five pages each did it on every return to the app. The live feed keeps them current while the tab is away.
+  const { setConnection } = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
+  mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
+  const { doc, back, away } = returnable();
+  globalThis.document = doc;
+  const { order, overrides } = crowd(["today", "inbox", "people"], { hash: "#/today" });
+  const stop = startSurfaces(overrides);
+  try {
+    await settle(60);
+    order.length = 0;
+    away();
+    mock.timers.tick(10_000);
+    back();
+    await settle(60);
+    assert.deepEqual(order, [], "REGRESSION: every surface read again for a ten-second glance away");
+    away();
+    mock.timers.tick(31_000);
+    back();
+    await settle(60);
+    assert.equal(order.length, 3, "half a minute away: every surface is read again");
+    order.length = 0;
+    setConnection({ realtimeDown: true });
+    away();
+    mock.timers.tick(1_000);
+    back();
+    await settle(60);
+    assert.equal(order.length, 3, "the live feed down: nothing kept them current, so a glance reads again");
+  } finally {
+    setConnection({ realtimeDown: false });
+    stop();
+    mock.timers.reset();
     globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
   }
 });

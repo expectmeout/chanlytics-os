@@ -112,6 +112,9 @@ export function registerReloader(fn: () => void): () => void {
   return () => reloaders.delete(fn);
 }
 
-export function reloadEveryPage(): void {
-  reloaders.forEach((fn) => fn());
+/** Reload every page, or every page but one: after a deploy, the page in front is left to the site's own notice. */
+export function reloadEveryPage(except?: () => void): void {
+  reloaders.forEach((fn) => {
+    if (fn !== except) fn();
+  });
 }

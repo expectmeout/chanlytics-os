@@ -521,7 +521,7 @@ test("the saga given no random source takes the secure default: the vault holds 
   assert.equal(s.sip_username, sipUsername(LINE_ID));
 });
 
-test("wiring: the saga's ports, the receptionist shared with voice-provision, the migration, the manifest, the events", () => {
+test("wiring: the saga's ports, the receptionist shared with voice-provision, the migration, the manifest, the events", async () => {
   // The edge endpoint itself -- the knock, every op, the spend rule, one line
   // per workspace, and that it schedules the saga rather than running it -- is
   // run in lines-door.test.mjs.
@@ -589,9 +589,12 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
     readCode("packages/db/src/realtime.ts").includes('{ table: "lines", event: "*" }'),
     "a callback repaints Setup",
   );
-  const index = readCode("packages/channels/src/index.ts");
-  for (const m of ["./lines", "./lines-twilio", "./lines-dry", "./lines-saga"])
-    assert.ok(index.includes(`export * from "${m}";`), m);
+  // The package hands the edge every value the saga's four modules export: its barrel names each one.
+  const channels = await import("@chanlytics/channels");
+  for (const m of ["lines", "lines-twilio", "lines-dry", "lines-saga"]) {
+    const mod = await import(new URL(`../../../../packages/channels/src/${m}.ts`, import.meta.url).href);
+    for (const name of Object.keys(mod)) assert.ok(name in channels, `${m}.ts: ${name}`);
+  }
 });
 
 /**
