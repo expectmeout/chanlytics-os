@@ -6,7 +6,9 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
  * The site the shell holds is EXPO_PUBLIC_SITE_ORIGIN when an EAS environment sets one, else the product's own address;
  * the app links (universal links on iOS, app links on Android) are derived from its host. The identifiers are the product's, once, in one place.
  */
-const ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN || "https://app.chanlytics.com"; // src/site.ts DEFAULT_SITE_ORIGIN
+// The config loader reads no file of the app's, so these two are spelled here as src/site.ts DEFAULT_SITE_ORIGIN and
+// src/shell/sign-in.ts reversedClientId spell them; test/config.test.mjs holds each copy to its original.
+const ORIGIN = process.env.EXPO_PUBLIC_SITE_ORIGIN || "https://app.chanlytics.com";
 const HOST = ORIGIN ? new URL(ORIGIN).host : "";
 // Google sign-in's iOS URL scheme is the iOS client id reversed; without the id there is no Google button and no plugin.
 const GOOGLE_IOS = (process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? "").trim();
@@ -17,8 +19,10 @@ const GOOGLE_PLUGIN: [string, { iosUrlScheme: string }][] = GOOGLE_SCHEME
 const ID = "com.chanlytics.app";
 /** The EAS project (expo.dev, chanlyticss-team / chanlytics): what builds, updates and push tokens are filed under. */
 const EAS_PROJECT_ID = "a5f1a093-2cd8-436b-8e7d-07fb2b0b62dc";
+/** contracts THEME_COLORS.dark: the paper the document opens on before its boot script runs. */
 const PAGE_DARK = "#0c0d0f";
-const MARK_TEAL = "#3cb79e"; // the ring in the mark, sampled from icon.png // contracts THEME_COLORS.dark: the paper the document opens on before its boot script runs.
+/** The top tile of the three, the mark (the mascot's rest look, lit, on the dark paper). */
+const MARK_CORAL = "#fa695c";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -30,6 +34,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   userInterfaceStyle: "automatic",
+  // Behind every screen, before and between the pages: the dark paper, never the system's white.
+  backgroundColor: PAGE_DARK,
   ios: {
     bundleIdentifier: ID,
     supportsTablet: false,
@@ -81,10 +87,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "expo-updates",
-    // The status-bar icon Android draws is the mark in white on transparent (a 96px PNG); the tint is the ring's teal.
+    // Android's status-bar icon: the three in white on transparent (a 96px PNG), tinted the top tile's coral.
     [
       "expo-notifications",
-      { icon: "./assets/images/notification-icon.png", color: MARK_TEAL, defaultChannel: "default" },
+      { icon: "./assets/images/notification-icon.png", color: MARK_CORAL, defaultChannel: "default" },
     ],
     ["expo-splash-screen", { backgroundColor: PAGE_DARK, image: "./assets/images/splash-icon.png", imageWidth: 96 }],
     "expo-apple-authentication",

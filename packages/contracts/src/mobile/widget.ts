@@ -18,13 +18,17 @@ export interface TodayWidgetSnapshot {
   at: string;
 }
 
+/**
+ * The first person and the count come from one list, the queue, as the page's own Today draws it: the first was the
+ * needs-you list's while the count was the queue's, so the widget could name someone the count did not include.
+ */
 export function todayWidgetSnapshot(vm: TodayVM, at: Date): TodayWidgetSnapshot {
-  const row = vm.needsYou?.rows[0] ?? null;
+  const row = vm.queue.rows[0] ?? null;
   return {
     headline: vm.standing.headline,
     figures: (vm.figures ?? []).map((f) => ({ label: f.label, value: f.value })),
     waiting: vm.queue.waiting,
-    first: row ? { who: row.who, reason: row.reason } : null,
+    first: row ? { who: row.who, reason: row.sentence } : null,
     at: at.toISOString(),
   };
 }
