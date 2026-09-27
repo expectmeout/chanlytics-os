@@ -22671,6 +22671,7 @@ function toLiveVM(calls, channels, tz, now = /* @__PURE__ */ new Date()) {
 var PUSH_PLATFORMS = ["ios", "android"];
 var TOKEN_MAX = 200;
 var VERSION_MAX = 40;
+var EXPO_PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]+\]$/;
 function parseDevice(body) {
   const b = body && typeof body === "object" ? body : {};
   const token2 = typeof b.token === "string" ? b.token.trim() : "";
@@ -22678,6 +22679,7 @@ function parseDevice(body) {
   if (token2.length > TOKEN_MAX) return { ok: false, reason: "That push token is longer than any we know." };
   const platform = PUSH_PLATFORMS.includes(String(b.platform)) ? b.platform : null;
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
+  if (!EXPO_PUSH_TOKEN.test(token2)) return { ok: false, reason: "That is not a push token the service hands out." };
   const version = typeof b.app_version === "string" && b.app_version.trim() ? b.app_version.trim().slice(0, VERSION_MAX) : null;
   const activity = typeof b.activity_token === "string" && b.activity_token.trim() ? b.activity_token.trim() : null;
   if (activity && activity.length > TOKEN_MAX)

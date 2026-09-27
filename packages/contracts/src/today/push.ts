@@ -13,6 +13,11 @@ export interface PushDevice {
 
 const TOKEN_MAX = 200;
 const VERSION_MAX = 40;
+/**
+ * The shape of a token Expo's push service hands an app (getExpoPushTokenAsync). Anything else can never be told,
+ * and one such row breaks the send for every phone in its batch: the service refuses the whole request.
+ */
+const EXPO_PUSH_TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]+\]$/;
 
 /** What PUT /api/v1/me/devices accepts, or why not, in one sentence. */
 export function parseDevice(body: unknown): { ok: true; device: PushDevice } | { ok: false; reason: string } {
@@ -24,6 +29,7 @@ export function parseDevice(body: unknown): { ok: true; device: PushDevice } | {
     ? (b.platform as PushPlatform)
     : null;
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
+  if (!EXPO_PUSH_TOKEN.test(token)) return { ok: false, reason: "That is not a push token the service hands out." };
   const version =
     typeof b.app_version === "string" && b.app_version.trim() ? b.app_version.trim().slice(0, VERSION_MAX) : null;
   // The Live Activity's push-to-start token (00191), when the phone has one: iOS 17.2 and later, never Android.

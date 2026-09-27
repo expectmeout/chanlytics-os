@@ -69,6 +69,76 @@ test("the access token rides as a bearer when set; a refusal or a dead wire thro
   assert.deepEqual(await expoPush(stub().fetchImpl).send([]), [], "nothing to send is nothing sent");
 });
 
+test("once a batch has left, a later batch's refusal or dead wire is said in its receipts, never thrown", async () => {
+  // A retry after a throw would send the first hundred again (RETRY_WAITS_MS push_send): the ledger's rule.
+  const answers = [
+    () => ({ ok: true, status: 200, json: async () => ({ data: [] }) }),
+    () => ({ ok: false, status: 503, text: async () => "busy" }),
+  ];
+  const fetchImpl = async (url, init) => {
+    const a = answers.shift()();
+    if (a.ok) a.json = async () => ({ data: JSON.parse(init.body).map(() => ({ status: "ok", id: "r" })) });
+    return a;
+  };
+  const receipts = await expoPush(fetchImpl).send(Array.from({ length: PUSH_BATCH + 2 }, (_, i) => msg(i)));
+  assert.equal(receipts.length, PUSH_BATCH + 2);
+  assert.deepEqual(receipts[0], { to: "tok-0", status: "ok", id: "r" });
+  assert.deepEqual(receipts[PUSH_BATCH], { to: `tok-${PUSH_BATCH}`, status: "error", error: "push_rejected 503 busy" });
+  const dead = [
+    () => ({ ok: true }),
+    () => {
+      throw new Error("ECONNRESET");
+    },
+  ];
+  const dying = async (url, init) => {
+    const a = dead.shift()();
+    a.status = 200;
+    a.json = async () => ({ data: JSON.parse(init.body).map(() => ({ status: "ok", id: "r" })) });
+    return a;
+  };
+  const r2 = await expoPush(dying).send(Array.from({ length: PUSH_BATCH + 1 }, (_, i) => msg(i)));
+  assert.deepEqual(r2[PUSH_BATCH], { to: `tok-${PUSH_BATCH}`, status: "error", error: "push_rejected ECONNRESET" });
+});
+
+test("tokens of two apps in one batch: the service refuses the whole batch, so each app's go in a request of their own", async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body);
+    calls.push(body.map((m) => m.to));
+    const tokens = body.map((m) => m.to);
+    if (tokens.includes("tok-0") && tokens.includes("tok-2")) {
+      return {
+        ok: false,
+        status: 400,
+        text: async () =>
+          JSON.stringify({
+            errors: [
+              {
+                code: "PUSH_TOO_MANY_EXPERIENCE_IDS",
+                message: "All push notification messages in the same request must be for the same project",
+                details: { "@ours/chanlytics": ["tok-0", "tok-1"], "@someone/else": ["tok-2"] },
+              },
+            ],
+          }),
+      };
+    }
+    if (tokens.includes("tok-2")) return { ok: false, status: 400, text: async () => "not yours" };
+    return { ok: true, status: 200, json: async () => ({ data: tokens.map(() => ({ status: "ok", id: "r" })) }) };
+  };
+  const receipts = await expoPush(fetchImpl).send([msg(0), msg(1), msg(2), msg(3)]);
+  assert.deepEqual(calls, [["tok-0", "tok-1", "tok-2", "tok-3"], ["tok-0", "tok-1"], ["tok-2"]]);
+  assert.deepEqual(
+    receipts.map((r) => [r.to, r.status, r.error ?? r.id]),
+    [
+      ["tok-0", "ok", "r"],
+      ["tok-1", "ok", "r"],
+      ["tok-2", "error", "push_rejected 400"],
+      ["tok-3", "error", "push_rejected 400"],
+    ],
+    "this app's phones are told; the other app's token and one the service named nowhere are refused, not thrown",
+  );
+});
+
 test("the receipts, a thousand ids a request, by id; a phone gone in its receipt is named; a refusal throws", async () => {
   const calls = [];
   const fetchImpl = async (url, init) => {

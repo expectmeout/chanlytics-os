@@ -22,19 +22,27 @@ test("a device is a token and a platform; the version is kept short; anything el
     ok: true,
     device: { token: "ExponentPushToken[abc]", platform: "ios", app_version: "1.2.0", activity_token: null },
   });
-  assert.deepEqual(parseDevice({ token: "t", platform: "android" }), {
+  const T = "ExpoPushToken[xxxxxxxxxxxxxxxxxxxxxx]";
+  assert.deepEqual(parseDevice({ token: T, platform: "android" }), {
     ok: true,
-    device: { token: "t", platform: "android", app_version: null, activity_token: null },
+    device: { token: T, platform: "android", app_version: null, activity_token: null },
   });
   assert.equal(
-    parseDevice({ token: "t", platform: "ios", activity_token: " act " }).device.activity_token,
+    parseDevice({ token: T, platform: "ios", activity_token: " act " }).device.activity_token,
     "act",
     "the Live Activity's push-to-start token rides along",
   );
-  assert.equal(parseDevice({ token: "t", platform: "ios", activity_token: "x".repeat(201) }).ok, false);
+  assert.equal(parseDevice({ token: T, platform: "ios", activity_token: "x".repeat(201) }).ok, false);
   assert.equal(parseDevice({ platform: "ios" }).reason, "A device needs its push token.");
-  assert.equal(parseDevice({ token: "t", platform: "windows" }).reason, "A device is an iPhone or an Android phone.");
+  assert.equal(parseDevice({ token: T, platform: "windows" }).reason, "A device is an iPhone or an Android phone.");
   assert.equal(parseDevice({ token: "x".repeat(201), platform: "ios" }).ok, false);
+  // Only a token the service hands out: one of any other shape breaks the send for every phone in its batch.
+  for (const bad of ["t", "tok-u1-a", "ExponentPushToken[]", "ExponentPushToken[a b]", "apns:abc"]) {
+    assert.equal(
+      parseDevice({ token: bad, platform: "ios" }).reason,
+      "That is not a push token the service hands out.",
+    );
+  }
   assert.equal(parseDevice(null).ok, false);
   assert.deepEqual(PUSH_PLATFORMS, ["ios", "android"]);
 });

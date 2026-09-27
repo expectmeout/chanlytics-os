@@ -210,6 +210,28 @@ test("a phone the service reports gone is forgotten; a row nobody can hear, or t
   assert.deepEqual(q.sent, [], "a purged row says nothing");
 });
 
+test("a month's bell is counted whole, a page at a time and the marks in short lists", async () => {
+  // The read of the window's rows is paged (a thousand a page) and the marks are asked for a hundred ids at a time:
+  // a single read answers a thousand rows at most, and a hundred-odd uuids more in one `in` list is a URL too long.
+  // The fake does not cap either; this holds the count right across the seams the paging introduces.
+  const many = Array.from({ length: 1250 }, (_, i) =>
+    row({ id: `n${i}`, created_at: `2026-09-${String(1 + (i % 25)).padStart(2, "0")}T10:00:00Z` }),
+  );
+  const db = fakeDb({
+    notifications: many,
+    memberships: [{ user_id: "u1", tenant_id: T, role: "owner" }],
+    push_devices: [{ id: "d1", user_id: "u1", token: "tok-u1-a" }],
+    notification_marks: [
+      { notification_id: "n3", user_id: "u1", read_at: "2026-09-26T00:00:00Z", dismissed_at: null },
+      { notification_id: "n1200", user_id: "u1", read_at: null, dismissed_at: "2026-09-26T00:00:00Z" },
+    ],
+  });
+  const p = port();
+  await dispatchJob(ctx(db, { push: p.push }), { ...job, payload: { notification_id: "n0" } });
+  assert.equal(p.sent.length, 1);
+  assert.equal(p.sent[0].badge, 1248, "every row of the window but the two marked");
+});
+
 test("a transport that fails throws, so the ledger tries again; a runtime without a port fails by name", async () => {
   const p = port(new Error("push_rejected 503"));
   await assert.rejects(dispatchJob(ctx(world().db, { push: p.push }), job), /push_rejected 503/);
