@@ -4,7 +4,7 @@ import { dayInZone, isDayKey, shiftKey, toCalendarVM } from "@chanlytics/contrac
 import { load } from "../../../readers";
 import { calendar } from "../../../readers/calendar";
 import { openings } from "../../../readers/openings";
-import { defineActions, readAction, str, type ToolContext } from "../context";
+import { defineActions, noteRow, readAction, str, type ToolContext } from "../context";
 
 async function getOpenings(t: ToolContext, input: { day: string; service: string }): Promise<unknown> {
   // The palette's own read (readers/openings.ts), once a turn, with the zone and the settings the turn read; what was
@@ -46,7 +46,9 @@ async function getCalendar(t: ToolContext, input: { day: string; days?: number }
   );
   const vm = toCalendarVM(r.data.calendar, t.now);
   // A person the calendar names is a row read: the answer may name them, and open their profile.
-  for (const d of vm.days) for (const b of [...d.allDay, ...d.blocks]) if (b.person) t.read.person.add(b.person.id);
+  for (const d of vm.days)
+    for (const b of [...d.allDay, ...d.blocks])
+      if (b.person) noteRow(t, "person", b.person.id, b.person.name, `clients/${b.person.id}`);
   return {
     route: "calendar",
     feed: vm.feed.line,

@@ -1,9 +1,9 @@
 import "server-only";
 import { z } from "zod";
-import { ASK_CAPS, toTodayVM } from "@chanlytics/contracts";
+import { ASK_CAPS, callerName, toTodayVM } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { today } from "../../../readers/today";
-import { defineRead, type ToolContext } from "../context";
+import { defineRead, noteRow, type ToolContext } from "../context";
 
 async function getToday(t: ToolContext): Promise<unknown> {
   // Today as the page composes it (readers/today.ts), read once in the turn: the Inbox's threads, the metrics the
@@ -12,12 +12,13 @@ async function getToday(t: ToolContext): Promise<unknown> {
   const { metrics, conversations, escalations, calls, searches } = (await load(t.rc, today, undefined)).data;
   // The page's own builder, with the waiting searches the page passes (the queue reads them).
   const vm = toTodayVM(metrics, conversations, escalations, calls, t.now, searches);
-  for (const r of vm.needsYou?.rows ?? []) t.read.thread.add(r.conversationId);
+  for (const r of vm.needsYou?.rows ?? [])
+    noteRow(t, "thread", r.conversationId, r.who, `inbox/th-${r.conversationId}`);
   // A row this read RETURNS is a row a citation may name (see the header).
   // These were returned and not recorded, so the assistant could warn about a
   // closing window and then be unable to open the thread it had just named.
-  for (const r of vm.windowClosing?.rows ?? []) t.read.thread.add(r.id.replace(/^wc-/, ""));
-  for (const c of calls ?? []) t.read.call.add(c.id);
+  for (const r of vm.windowClosing?.rows ?? []) noteRow(t, "thread", r.id.replace(/^wc-/, ""), r.text, r.to);
+  for (const c of calls ?? []) noteRow(t, "call", c.id, callerName(c), `conversations/cv-${c.id}`);
   return {
     standing: {
       headline: vm.standing.headline,

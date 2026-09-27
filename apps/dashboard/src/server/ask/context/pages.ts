@@ -17,12 +17,13 @@ import { broadcasts as broadcastsReader } from "../../readers/broadcasts";
 import { templates as templatesReader } from "../../readers/templates";
 import { channels as channelsReader } from "../../readers/channels";
 import { connections as connectionsReader } from "../../readers/connections";
-import { aggregateOf, idsOf, line, pageWithView, sourceOf, type ContextRow, type Provider } from "./rows";
+import { aggregateOf, idsOf, line, pageWithView, refsOf, sourceOf, type ContextRow, type Provider } from "./rows";
 
 /**
  * The rest of the pages, as their context: Reports (the numbers, no rows), Campaigns (the playbooks, the broadcasts
  * or the messages, whichever tab the page is), Settings (the pane and what the workspace runs on), Start (the step and
- * how far setup has come), and any other page, which is its address alone and reads nothing.
+ * how far setup has come), and any other page, which is its address alone and reads nothing. A row is cited as its
+ * reader gave it: a playbook, a Broadcasts row as a broadcast (the page's own word for it is run), a template.
  */
 
 const zone = (rc: ReaderContext) => load(rc, facts.facts, undefined).then((r) => r.data.timezone);
@@ -48,8 +49,10 @@ export const reports: Provider = async (rc, ctx) => {
 
 /** The playbooks the page drew, each as campaigns.playbooks says one: its moment, state, next run, what runs earned. */
 async function playbookRows(rc: ReaderContext, ids: string[]) {
-  const pb = (await load(rc, playbooksReader, undefined)).data;
+  const read = await load(rc, playbooksReader, undefined);
+  const pb = read.data;
   const byId = new Map(pb.playbooks.map((p) => [p.id, p]));
+  const refs = refsOf(read.rows);
   const rows: ContextRow[] = [];
   for (const id of ids) {
     const p = byId.get(id);
@@ -67,7 +70,7 @@ async function playbookRows(rc: ReaderContext, ids: string[]) {
         ],
         `outbound/${id}`,
       ),
-      ref: null,
+      ref: refs.get(id) ?? null,
     });
   }
   const running = pb.playbooks.filter((p) => p.state === "running").length;
@@ -76,8 +79,10 @@ async function playbookRows(rc: ReaderContext, ids: string[]) {
 
 /** The broadcasts the page drew, each as the Broadcasts page says one: its state, when, who it went to, what came back. */
 async function broadcastRows(rc: ReaderContext, ids: string[]) {
-  const [list, tz] = await Promise.all([load(rc, broadcastsReader, undefined).then((r) => r.data), zone(rc)]);
+  const [read, tz] = await Promise.all([load(rc, broadcastsReader, undefined), zone(rc)]);
+  const list = read.data;
   const vms = new Map(list.broadcasts.map((b) => [b.id, toBroadcastVM(b, tz, rc.now)]));
+  const refs = refsOf(read.rows);
   const rows: ContextRow[] = [];
   for (const id of ids) {
     const b = vms.get(id);
@@ -96,7 +101,7 @@ async function broadcastRows(rc: ReaderContext, ids: string[]) {
         ],
         `broadcasts/run:${id}`,
       ),
-      ref: null,
+      ref: refs.get(id) ?? null,
     });
   }
   const open = [...vms.values()].filter((b) => b.open).length;
@@ -105,8 +110,10 @@ async function broadcastRows(rc: ReaderContext, ids: string[]) {
 
 /** The messages the page drew, each as the library lists one: its name, category, status and language. */
 async function templateRows(rc: ReaderContext, ids: string[]) {
-  const all = (await load(rc, templatesReader, { all: true })).data.templates;
+  const read = await load(rc, templatesReader, { all: true });
+  const all = read.data.templates;
   const byId = new Map(all.map((t) => [t.id, t]));
+  const refs = refsOf(read.rows);
   const rows: ContextRow[] = [];
   for (const id of ids) {
     const t = byId.get(id);
@@ -116,7 +123,7 @@ async function templateRows(rc: ReaderContext, ids: string[]) {
       source: sourceOf("template", id),
       title: name,
       text: line([name, t.category, t.meta_status, t.language], "messages"),
-      ref: null,
+      ref: refs.get(id) ?? null,
     });
   }
   const approved = all.filter((t) => t.meta_status === "approved").length;

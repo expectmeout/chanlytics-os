@@ -410,8 +410,8 @@
     "depth": 2
   },
   "apps/dashboard/src/legacy/pages/ask-turn.jsx::AskAnswer#1": {
-    "lines": 94,
-    "branches": 34,
+    "lines": 92,
+    "branches": 31,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/ask-turn.jsx::AskCard#1": {
@@ -881,7 +881,7 @@
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
     "lines": 558,
-    "branches": 116,
+    "branches": 114,
     "depth": 6
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {

@@ -5,6 +5,7 @@ import {
   ESCALATION_REASON_LABELS,
   clockStamp,
   messageText,
+  noteRows,
   replyWhy,
   toInboxThreadVM,
 } from "@chanlytics/contracts";
@@ -13,7 +14,7 @@ import { conversation } from "../../../readers/conversation";
 import { escalations as escalationsReader } from "../../../readers/escalations";
 import { inbox } from "../../../readers/inbox";
 import { threadState } from "../../thread-state";
-import { UUID, defineActions, readAction, str, unlessNotFound, type ToolContext } from "../context";
+import { UUID, defineActions, noteRow, readAction, str, unlessNotFound, type ToolContext } from "../context";
 
 /**
  * The open escalation the Inbox shows on each thread, as the page picks it
@@ -53,7 +54,7 @@ async function listThreads(t: ToolContext, input: { filter: string }): Promise<u
   // Counted BEFORE the cap, like people.search's `matches` (read/people.ts).
   // Counted after, "total_matching" reported 20 for 25 held drafts.
   const picked = matching.slice(0, ASK_CAPS.threads);
-  for (const v of picked) t.read.thread.add(v.conversationId);
+  for (const v of picked) noteRow(t, "thread", v.conversationId, v.who, `inbox/th-${v.conversationId}`);
   return {
     filter,
     total_matching: matching.length,
@@ -103,9 +104,9 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
   const dto = { ...r.data.conversation, messages: r.data.messages };
   // The page's own builder, over the page's own payload.
   const vm = toInboxThreadVM(dto, esc, t.timezone, t.now);
-  t.read.thread.add(id);
-  t.read.conversation.add(id);
-  if (dto.contact.id) t.read.person.add(dto.contact.id);
+  // The thread and its person as the reader gave them, and the thread again where Conversations opens it.
+  noteRows(t.read, r.rows);
+  noteRow(t, "conversation", id, r.rows[0].label, `conversations/${id}`);
   return {
     conversation_id: id,
     route: `inbox/th-${id}`,

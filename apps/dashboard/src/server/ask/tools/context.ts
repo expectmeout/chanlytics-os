@@ -4,6 +4,8 @@ import {
   AppError,
   PROPOSAL_SPECS,
   emptyReadSet,
+  noteRows,
+  type AskCitationKind,
   type AskProposal,
   type AskReadSet,
   type MembershipRole,
@@ -170,6 +172,20 @@ export function unlessNotFound<T>(read: Promise<T>): Promise<T | null> {
     if (e instanceof AppError && e.code === "not_found") return null;
     throw e;
   });
+}
+
+/**
+ * A row a tool returned, into the turn's read set (contracts noteRows) with the route the tool gave the model for it:
+ * an answer may cite it, and it opens there. A row a reader returned goes in as the reader gave it (its `rows`).
+ */
+export function noteRow(
+  t: ToolContext,
+  kind: Exclude<AskCitationKind, "page">,
+  id: string,
+  label: string,
+  route: string,
+): void {
+  noteRows(t.read, [{ kind, id, route, label }]);
 }
 
 export function newToolContext(

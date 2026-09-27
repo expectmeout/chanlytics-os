@@ -44,7 +44,7 @@ export interface SearchResultBlock {
 export interface BuiltContext {
   /** The aggregate first, then the rows in the page's order. */
   blocks: SearchResultBlock[];
-  /** The rows a citation may name (thread, conversation, call, person) and the page, for the turn's read set. */
+  /** The page, and every row kept as its reader gave it (any of the twelve kinds), for the turn's read set. */
   refs: RowRef[];
   /** The rows kept, the aggregate not counted. */
   rows: number;
@@ -123,10 +123,9 @@ function assemble(ctx: PageContext, got: Provided): Built {
     ? `${base} · ${left} more ${left === 1 ? "row" : "rows"} on screen left out of this context`
     : base;
   const blocks = [block(`page://${ctx.surface}`, title, aggregate), ...taken.map((t) => t.b)];
-  const citable = new Set(["thread", "conversation", "call", "person"]);
   return {
     blocks,
-    refs: [pageRef(ctx, title), ...taken.flatMap((t) => (t.r.ref && citable.has(t.r.ref.kind) ? [t.r.ref] : []))],
+    refs: [pageRef(ctx, title), ...taken.flatMap((t) => (t.r.ref ? [t.r.ref] : []))],
     rows: taken.length,
     chars: blocks.reduce((n, b) => n + size(b), 0),
     stamp: Date.now(),

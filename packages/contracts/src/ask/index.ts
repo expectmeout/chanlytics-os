@@ -47,8 +47,16 @@ export type {
   AskIntent,
   AskSettingsChange,
 } from "./ask";
-export { emptyReadSet, groundCitations, citationRoute, ASK_CITATION_KINDS, ASK_PAGE_ROUTES } from "./citations";
-export type { AskCitationKind, AskCitation, AskReadSet } from "./citations";
+export {
+  emptyReadSet,
+  noteRows,
+  groundCitations,
+  citationRoute,
+  ASK_CITATION_KINDS,
+  ASK_PAGE_ROUTES,
+  ASK_ROW_WORDS,
+} from "./citations";
+export type { AskCitationKind, AskCitation, AskReadSet, AskRowRef } from "./citations";
 export { cacheHitOf } from "./ask-shape";
 export type { AskTurnShape, AskTurnTokens } from "./ask-shape";
 export { askModelProfile, ASK_MODELS, ASK_MODEL_PROFILES, ASK_MODEL } from "./ask-model";

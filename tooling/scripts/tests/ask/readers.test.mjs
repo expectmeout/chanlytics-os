@@ -614,7 +614,7 @@ test("calls: GET calls' answer -- the named workspace's calls, newest first, nar
   );
 });
 
-test("searches: GET lead-searches' answer -- every kept search with its latest round, and the rail's counts, read together -- and no row a citation names yet", async () => {
+test("searches: GET lead-searches' answer -- every kept search with its latest round, and the rail's counts, read together -- and each search a row a citation names, opened on Leads at that search", async () => {
   // lead-routes.test.mjs, "the searches read brings the rail's counts with it".
   const ctx = dayCtx(
     {
@@ -637,7 +637,7 @@ test("searches: GET lead-searches' answer -- every kept search with its latest r
     [s.id, s.asked_on, s.round.ending_pending, s.round.emails_checked, s.round.with_phone],
     [S1, "2026-09-19T00:00:00Z", true, 41, 72],
   );
-  assert.deepEqual(r.rows, [], "a search is not citable until Phase 4");
+  assert.deepEqual(r.rows, [{ kind: "search", id: S1, route: `clients/leads:s-${S1}`, label: s.name }]);
   assert.equal(selects(ctx, "lead_searches_view").length, 1);
 });
 
@@ -2218,7 +2218,7 @@ const segmentsWorld = () => ({
   rpcs: {},
 });
 
-test("the lists, for Ask and for the page: GET segments answers its reader's payload over people-routes' fixture in both workspaces -- every list of the one workspace read, with every member -- and a list is not a row a citation names yet", async () => {
+test("the lists, for Ask and for the page: GET segments answers its reader's payload over people-routes' fixture in both workspaces -- every list of the one workspace read, with every member -- and each list a row a citation names, opened on People at that list", async () => {
   for (const [tenant, want] of [
     [A, [{ id: SEG1, name: "Regulars", ids: [P1], rule: null, archived_at: null }]],
     [B, [{ id: SEG2, name: "VIP", ids: [P2], rule: null, archived_at: null }]],
@@ -2228,7 +2228,10 @@ test("the lists, for Ask and for the page: GET segments answers its reader's pay
     const r = await kernel.load(turnIn(ctx, tenant), listsReader, undefined);
     assert.deepEqual(r.data, page, "the route's payload");
     assert.deepEqual(r.data, { lists: want });
-    assert.deepEqual(r.rows, []);
+    assert.deepEqual(
+      r.rows,
+      want.map((l) => ({ kind: "list", id: l.id, route: `clients/list:${l.id}`, label: l.name })),
+    );
     assert.deepEqual(asked(ctx), ["segments.select", "segment_members.select"], "the lists and their members at once");
   }
 });
@@ -2310,7 +2313,7 @@ const touchedWorld = () => {
   };
 };
 
-test("the broadcasts, for Ask and for the page: GET broadcasts answers its reader's payload over outbound-routes' two fixtures -- the recent fifty with what their messages earned, whether older ones exist, and who a run reached within the week of the turn's clock -- and a broadcast is not a row a citation names yet", async () => {
+test("the broadcasts, for Ask and for the page: GET broadcasts answers its reader's payload over outbound-routes' two fixtures -- the recent fifty with what their messages earned, whether older ones exist, and who a run reached within the week of the turn's clock -- and each broadcast a row a citation names, opened where its address spells it, a run", async () => {
   for (const [w, tenant] of [
     [bcWorld(), A],
     [bcWorld(), B],
@@ -2321,7 +2324,10 @@ test("the broadcasts, for Ask and for the page: GET broadcasts answers its reade
     assert.deepEqual(r.data, page, "the route's payload");
     assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
     assert.deepEqual(Object.keys(r.data), ["broadcasts", "more", "touched"]);
-    assert.deepEqual(r.rows, []);
+    assert.deepEqual(
+      r.rows,
+      r.data.broadcasts.map((b) => ({ kind: "broadcast", id: b.id, route: `broadcasts/run:${b.id}`, label: b.name })),
+    );
   }
   // What outbound-routes asserts of the route, of the reader.
   const harbor = (await kernel.load(turnIn(worldCtx(bcWorld())), broadcastsReader, undefined)).data;
@@ -2416,7 +2422,9 @@ test("one broadcast, for Ask and for the page: GET broadcasts/:id answers its re
   assert.deepEqual(r.data, page, "the route's payload");
   assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
   assert.deepEqual(r.data, await getBroadcast(worldCtx(w), A, BC1), "getBroadcast's own answer");
-  assert.deepEqual(r.rows, []);
+  assert.deepEqual(r.rows, [
+    { kind: "broadcast", id: BC1, route: `broadcasts/run:${BC1}`, label: r.data.broadcast.name },
+  ]);
   const by = Object.fromEntries(r.data.recipients.map((x) => [x.contact_id, x]));
   assert.deepEqual(
     [by[P1].name, by[P1].replied, by[P1].reply_words, by[P1].answered_by],
@@ -2569,7 +2577,7 @@ const outboundWorld = () => ({
   rpcs: {},
 });
 
-test("the playbooks, for Ask and for the page: GET playbooks answers its reader's payload, key for key and byte for byte -- over outbound-routes' fixture in both workspaces, whose People read fails and counts no moment; calendar-counts' thousand and three people with one reached this week, its People read refused, and its proposals out where deals are on and where they are off; and a workspace with a calendar, deals on and a list of its own -- and a playbook is not a row a citation names yet", async () => {
+test("the playbooks, for Ask and for the page: GET playbooks answers its reader's payload, key for key and byte for byte -- over outbound-routes' fixture in both workspaces, whose People read fails and counts no moment; calendar-counts' thousand and three people with one reached this week, its People read refused, and its proposals out where deals are on and where they are off; and a workspace with a calendar, deals on and a list of its own -- and each playbook a row a citation names, opened on Playbooks at its card", async () => {
   const thousand = Array.from({ length: 1003 }, (_, i) => poolPerson(i + 1));
   thousand[0].marketing_consent = "unknown";
   thousand[1].dnc = true;
@@ -2618,7 +2626,10 @@ test("the playbooks, for Ask and for the page: GET playbooks answers its reader'
       assert.deepEqual(r.data, page, `${label}: the route's payload`);
       assert.equal(JSON.stringify(r.data), JSON.stringify(page), `${label}: byte for byte`);
       assert.deepEqual(Object.keys(r.data), PLAYBOOKS_KEYS, `${label}: the keys in the order the route answered them`);
-      assert.deepEqual(r.rows, []);
+      assert.deepEqual(
+        r.rows,
+        r.data.playbooks.map((p) => ({ kind: "playbook", id: p.id, route: `outbound/${p.id}`, label: p.name })),
+      );
       pages[label] = r.data;
     }
   });
@@ -2991,7 +3002,7 @@ const setupWorld = () => ({
   },
 });
 
-test("connections, for the page: GET setup answers its reader's payload over setup.test.mjs's shape -- setupDtoFor's own answer for a member reading their own workspace on their session, on the turn's clock, and their role beside it -- asking what setupDtoFor asks, in its order: the roster through its door, never the back office's counts", async () => {
+test("connections, for the page: GET setup answers its reader's payload over setup.test.mjs's shape -- setupDtoFor's own answer for a member reading their own workspace on their session, on the turn's clock, and their role beside it -- asking what setupDtoFor asks, in its order: the roster through its door, never the back office's counts; each domain it sends cold email from a row a citation names, on Connections", async () => {
   const NOW = new Date("2026-09-07T15:00:00Z");
   const w = setupWorld();
   const routed = worldCtx(w);
@@ -3001,7 +3012,7 @@ test("connections, for the page: GET setup answers its reader's payload over set
   assert.deepEqual(r.data, page, "the route's payload");
   assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
   assert.deepEqual(Object.keys(r.data), ["setup", "role"]);
-  assert.deepEqual(r.rows, []);
+  assert.deepEqual(r.rows, [], "email is off here: no domain, no row");
   const direct = worldCtx(w);
   assert.deepEqual(
     r.data,
@@ -3015,6 +3026,54 @@ test("connections, for the page: GET setup answers its reader's payload over set
   const viewer = await kernel.load(memberIn(worldCtx(w), B, "viewer", NOW), connections, undefined);
   assert.deepEqual(viewer.data, await setupRoute.GET.run(req(`?workspace=${B}`), worldCtx(w)));
   assert.equal(viewer.data.role, "viewer");
+  // A workspace that sends cold email from a domain of its own: each domain is a row a citation names, on Connections.
+  const D1 = "5e5e5e5e-5e5e-4e5e-8e5e-5e5e5e5e5e5e";
+  const sending = setupWorld();
+  sending.tables.mailboxes = [
+    {
+      id: "mb1",
+      tenant_id: A,
+      local_part: "harbor",
+      reply_token: "a".repeat(24),
+      reply_token_prev: null,
+      from_name: "Harbor",
+      reply_mode: "draft",
+      last_received_at: null,
+      last_error: null,
+    },
+  ];
+  sending.tables.sending_domains = [
+    {
+      id: D1,
+      tenant_id: A,
+      host: "send.example.com",
+      from_local: "sam",
+      from_name: "Sam",
+      records: [],
+      state: "records",
+      provider_status: "not_started",
+      dmarc: null,
+      held_why: null,
+      held_at: null,
+      verified_at: null,
+      clean_since: null,
+      checked_at: null,
+      created_at: "2026-09-25T12:00:00Z",
+    },
+  ];
+  const was = process.env.EMAIL_DOMAIN;
+  process.env.EMAIL_DOMAIN = "mail.example.com";
+  try {
+    const d = await kernel.load(memberIn(worldCtx(sending), A, "owner", NOW), connections, undefined);
+    assert.deepEqual(
+      d.data.setup.email.sending.domains.map((x) => x.id),
+      [D1],
+    );
+    assert.deepEqual(d.rows, [{ kind: "domain", id: D1, route: "admin/integrations", label: "send.example.com" }]);
+  } finally {
+    if (was === undefined) delete process.env.EMAIL_DOMAIN;
+    else process.env.EMAIL_DOMAIN = was;
+  }
 });
 
 const N1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
@@ -3190,7 +3249,7 @@ const activityWorld = () => {
   };
 };
 
-test("the activity log, for the page: GET activity answers its reader's payload over activity.test.mjs's fixture -- both ledgers newest first, the noise left out, the actors named -- with a filter handed in as the route parsed it: none, a person, a day by the workspace's clock; the route keeps the owner's door and the reader trusts its caller; not a row a citation names yet", async () => {
+test("the activity log, for the page: GET activity answers its reader's payload over activity.test.mjs's fixture -- both ledgers newest first, the noise left out, the actors named -- with a filter handed in as the route parsed it: none, a person, a day by the workspace's clock; the route keeps the owner's door and the reader trusts its caller; not a row a citation names", async () => {
   const w = activityWorld();
   for (const [q, filter, ids] of [
     ["", {}, ["e-e5", "d-d3", "d-d2", "e-e1", "d-d1", "e-e4"]],
@@ -3244,7 +3303,7 @@ const channelsWorld = (over = {}) => ({
   ...over,
 });
 
-test("the channels, for the page and for Ask: GET channels answers its reader's payload over reads-routes' fixture -- the named workspace's rows by kind, when each last heard from a customer, and the quality Meta assigned the WhatsApp number, from its config -- the last message, the last call and the rows asked at once, as the route asked them; not a row a citation names yet", async () => {
+test("the channels, for the page and for Ask: GET channels answers its reader's payload over reads-routes' fixture -- the named workspace's rows by kind, when each last heard from a customer, and the quality Meta assigned the WhatsApp number, from its config -- the last message, the last call and the rows asked at once, as the route asked them; not a row a citation names", async () => {
   for (const tenant of [A, B]) {
     const page = await channelsRoute.GET.run(req(`?workspace=${tenant}`), dayCtx(channelsWorld()));
     const ctx = dayCtx(channelsWorld());
@@ -3454,7 +3513,7 @@ const TEMPLATES_ALL_ASKED_AT_MAIN = [
   "playbooks.select",
 ];
 
-test("the templates, for the composers, Settings and Ask: GET templates answers its reader's payload over outbound-routes' fixtures, `all` as the route parses it -- the composers' read the approved and unhidden alone, each row the message as the customer receives it and why this product cannot send it, and nothing more read; Settings' every template, with what sends each and how many went out -- and a template is not a row a citation names yet", async () => {
+test("the templates, for the composers, Settings and Ask: GET templates answers its reader's payload over outbound-routes' fixtures, `all` as the route parses it -- the composers' read the approved and unhidden alone, each row the message as the customer receives it and why this product cannot send it, and nothing more read; Settings' every template, with what sends each and how many went out -- and each template a row a citation names, with no address of its own: it opens the page it came from", async () => {
   for (const [q, all, names, keys, reads] of [
     ["", false, ["visit_reminder"], ["templates"], ["templates.select"]],
     [
@@ -3477,7 +3536,16 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
       [keys, names],
       "the composers see the approved and unhidden; Settings sees everything, by name",
     );
-    assert.deepEqual(r.rows, []);
+    assert.deepEqual(
+      r.rows,
+      r.data.templates.map((t) => ({
+        kind: "template",
+        id: t.id,
+        route: "messages",
+        label: t.title || t.name,
+      })),
+      "a template opens Templates, from Settings' read and the composers' alike",
+    );
     assert.deepEqual(asked(ctx), reads);
     assert.deepEqual(asked(routed), ["memberships.select", ...reads], "the workspace's door, then the same reads");
   }

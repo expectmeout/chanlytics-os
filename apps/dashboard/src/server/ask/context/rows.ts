@@ -1,12 +1,6 @@
 import "server-only";
-import {
-  citationRoute,
-  type AskContextRowKind,
-  type AskSurface,
-  type PageContext,
-  type PageContextRow,
-} from "@chanlytics/contracts";
-import type { ReaderContext, RowRef } from "../../readers";
+import type { AskContextRowKind, AskSurface, PageContext, PageContextRow } from "@chanlytics/contracts";
+import type { ReaderContext, RowKind, RowRef } from "../../readers";
 
 /**
  * What every context provider shares (server/ask/context.ts builds the blocks from what they return): the row a
@@ -22,7 +16,7 @@ export interface ContextRow {
   title: string;
   /** who · state · last activity · `route: <where it opens>`, 160 characters at most. */
   text: string;
-  /** The row a citation may name, for the kinds a citation names (thread, conversation, call, person); else null. */
+  /** The row a citation may name, as its reader gave it: every kind of row a page shows is one (a run, a broadcast). */
   ref: RowRef | null;
 }
 
@@ -72,10 +66,13 @@ export function idsOf(ctx: PageContext, ...kinds: AskContextRowKind[]): PageCont
   });
 }
 
-/** A row a citation may name, opened where the answer opens it (contracts citationRoute). */
-export function refOf(kind: "thread" | "conversation" | "call" | "person", id: string, label: string): RowRef {
-  return { kind, id, route: citationRoute({ kind, id, label }), label };
+/** A row a citation may name, of any kind, opened where the page that drew it opens it: the route its line says. */
+export function refOf(kind: RowKind, id: string, label: string, route: string): RowRef {
+  return { kind, id, route, label };
 }
+
+/** A reader's rows by id: the RowRef a row on screen is cited by, where its reader said it opens. */
+export const refsOf = (rows: RowRef[]): Map<string, RowRef> => new Map(rows.map((r) => [r.id, r]));
 
 /** A row's source: its kind and its id. */
 export const sourceOf = (kind: AskContextRowKind, id: string): string => `${kind}://${id}`;

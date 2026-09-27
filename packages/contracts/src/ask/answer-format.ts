@@ -4,12 +4,12 @@
  */
 import { ASK_LANGUAGES } from "./ask";
 import { ASK_ANSWER_CAPS as C } from "./ask-answer";
-import { ASK_CITATION_KINDS } from "./citations";
+import { ASK_CITATION_KINDS, ASK_ROW_WORDS } from "./citations";
 
 const SOURCE = {
   type: "object",
   description:
-    "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+    "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -69,7 +69,7 @@ export const ASK_ANSWER_FORMAT = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS}), at most ${C.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {

@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { UUID, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import { UUID, defineAct, noteRow, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
 async function proposeWhisper(t: ToolContext, input: { call_id: string; text: string }): Promise<ProposalOutcome> {
   const id = str(input.call_id, 40);
@@ -17,7 +17,7 @@ async function proposeWhisper(t: ToolContext, input: { call_id: string; text: st
   if (call.status !== "ongoing") return refuse("that call is not in progress; there is nobody on the line");
   const who =
     call.contacts?.display_name || call.contacts?.wa_profile_name || call.contacts?.phone_e164 || "the caller";
-  t.read.call.add(id);
+  noteRow(t, "call", id, who, `conversations/cv-${id}`);
   return propose({
     kind: "whisper",
     title: `Whisper on the call with ${who}`,

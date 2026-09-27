@@ -1,7 +1,9 @@
 # 0013 · A partner signs in with a second factor
 
-**Status:** proposed, not built. Written against commit `c1cce84a` (main, 27 September 2026) with the partner programme
-of 0012 through P5 (#1159) beside it. Where this note and the code disagree, the code wins.
+**Status:** decided. M1 and M2 built on the branch this note ships with (00215), on `ef81c14a` (main, after #1177);
+M3 is the next pull request and ships only once TOTP is switched on in the hosted project (M0). Written against
+commit `c1cce84a` (main, 27 September 2026). Ruben answered the open questions: no grace (M3 refuses from its first
+day), and partners only (owners are not offered a factor here). Where this note and the code disagree, the code wins.
 
 ## Context
 
@@ -53,8 +55,26 @@ Each shippable on its own, in either deploy order.
 2. **M1 — enrol.** The pane's "Protect your partner account" step (browser code in `src/auth`, which may use
    `supabase.auth.mfa`); `partner_become` requires `aal2`; the sign-in challenge (decision 4). No enforcement yet.
 3. **M2 — the reset.** `POST platform/partners/second-factor/reset` over the Auth admin API, in the back office.
-4. **M3 — enforce, with grace.** `requireRole` and the two SQL predicates refuse an `aal1` partner. Partners who joined
-   before M3 get fourteen days, counted from M3's deploy and said on their pane; after that the door refuses.
+4. **M3 — enforce.** `requireRole` and the two SQL predicates refuse an `aal1` partner, and `partner_become` requires
+   `aal2`, from the day it ships (no grace, Ruben's answer).
+
+## As built (M1, M2)
+
+- **The second step has its own page, `/verify`.** The middleware sends a signed-in person away from `/login`, and a
+  session that owes its code is signed in, so the sign-in page cannot ask for it. After a password or an email code,
+  the page asks Supabase Auth where to land (`pathAfterSignIn`); after Google, the callback does
+  (`landingAfter`, `oauth-callback.ts`). A session that owes nothing is sent straight in from `/verify`. The page has
+  sign-out and says what to do without the phone.
+- **Enrolment is a row on Settings › Partner** (`PartnerSecondFactor`): off says why and offers it; setting up shows
+  the QR code and the key; the first code turns it on. A setup begun and never finished is cleared before the next.
+  Supabase does not say ahead of time whether the project allows TOTP, so the row appears, and a project with it
+  switched off says so when setup is pressed. A read that fails says so; it is never shown as off.
+- **The reset (00215)** is `POST platform/partners/second-factor` (rate `platform_partner_second_factor`, 10 an
+  hour), a button on the partner's first line in the back office. `partner_second_factor_reset` checks the caller,
+  keeps who, when and why on the partner (`second_factor_reset_at`, `_by`, `_why`) and writes `platform.acted` on
+  each workspace the partner sits on, before the dashboard's service client removes the factors in Supabase Auth.
+- `partner_become` does not require `aal2` yet: until M0, nobody could become a partner. It moves to M3 with the rest
+  of the enforcement.
 
 ## Tests
 
@@ -74,9 +94,8 @@ Each shippable on its own, in either deploy order.
 - **The native app.** Its bearer tokens (0011) carry the same `aal`; its sign-in needs the same challenge before a
   partner's seat works there. Until it has one, a partner acts from the web.
 
-## Open questions
+## Open questions, answered
 
-- Should owners be offered (not required) a second factor at the same time? The door would not change; only the
-  words and the Setup row.
-- Fourteen days of grace, or refuse on day one because the programme is not marketed yet? If there are no partners
-  in production when M3 ships, there is nobody to grace.
+- Should owners be offered (not required) a second factor at the same time? **No: partners only**, for now.
+- Fourteen days of grace, or refuse on day one because the programme is not marketed yet? **No grace**: M3 refuses
+  an `aal1` partner seat from its first day.
