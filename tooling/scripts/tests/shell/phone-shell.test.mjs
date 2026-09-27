@@ -84,8 +84,8 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
     "the room under every surface is the shell's tab bar, not the web's",
   );
   assert.ok(css.includes("html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }"));
-  // Google refuses OAuth in an embedded WebView: in-app the web's Google door and its "or" are not drawn (PR 1 of the app).
-  assert.ok(css.includes("html.in-app .auth-google, html.in-app .auth-or { display: none; }"));
+  // The in-app rule for the web's Google door is in globals.css, which the sign-in page loads (consent-page.test.mjs).
+  assert.ok(!css.includes(".auth-google"), "the sign-in page never loads this sheet, so its rule cannot live here");
   assert.ok(
     shell.includes('window.addEventListener("shell:menu", onMenu)') &&
       shell.includes('window.addEventListener("shell:top", onTop)'),

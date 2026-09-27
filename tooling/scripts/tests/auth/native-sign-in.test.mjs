@@ -10,9 +10,26 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { nativeSignInPlan, NATIVE_FAILED, NATIVE_PROVIDERS } = await import(
+const { nativeSignInPlan, fromAnotherSite, NATIVE_FAILED, NATIVE_PROVIDERS } = await import(
   at("apps/dashboard/src/server/auth/native-sign-in.ts")
 );
+
+test("a form posted from another site is refused; the app's own WebView, which names no site, is not", () => {
+  const h = (o) => new Headers(o);
+  // An attacker's page auto-submitting their own token: the browser says so.
+  assert.equal(fromAnotherSite(h({ "sec-fetch-site": "cross-site", origin: "https://evil.example" })), true);
+  assert.equal(fromAnotherSite(h({ "sec-fetch-site": "same-site" })), true);
+  assert.equal(fromAnotherSite(h({ origin: "https://evil.example", host: "app.chanlytics.com" })), true);
+  assert.equal(fromAnotherSite(h({ origin: "not a url", host: "app.chanlytics.com" })), true);
+  // The WebView's POST: no initiator, so `none` or silence, and no Origin.
+  assert.equal(fromAnotherSite(h({ "sec-fetch-site": "none" })), false);
+  assert.equal(fromAnotherSite(h({})), false);
+  assert.equal(fromAnotherSite(h({ host: "app.chanlytics.com" })), false);
+  assert.equal(fromAnotherSite(h({ origin: "null", host: "app.chanlytics.com" })), false);
+  // Our own page, were it ever to post here.
+  assert.equal(fromAnotherSite(h({ "sec-fetch-site": "same-origin" })), false);
+  assert.equal(fromAnotherSite(h({ origin: "https://app.chanlytics.com", host: "app.chanlytics.com" })), false);
+});
 const { ipOf, hashKey } = await import(at("apps/dashboard/src/server/request-ip.ts"));
 
 test("a provider's identity token is signed in and the browser lands on this site only", () => {

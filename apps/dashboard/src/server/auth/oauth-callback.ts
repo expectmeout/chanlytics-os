@@ -6,14 +6,25 @@
  * `next` is where the page that started the sign-in asked to land -- the
  * app's own hash route, usually. It is taken only as a path on this site: a
  * value that could send the browser elsewhere (a scheme, a `//host`, a
- * newline) is replaced with the root rather than trusted, because the query
- * string of a callback is exactly the place a link in an email would put one.
+ * backslash, which browsers read as a slash, or a control character, which URL
+ * parsing drops so that `/<tab>/host` becomes `//host`) is replaced with the
+ * root rather than trusted, because the query string of a callback is exactly
+ * the place a link in an email would put one. Then the path is resolved against
+ * a stand-in origin and must still be on it.
  */
 export const OAUTH_FAILED = "/login?error=oauth";
 
+const HERE = "https://this.invalid";
+
 export function safeNext(next: string | null | undefined): string {
   const n = (next ?? "").trim();
-  if (!n.startsWith("/") || n.startsWith("//") || n.startsWith("/\\") || /[\r\n]/.test(n)) return "/";
+  // eslint-disable-next-line no-control-regex -- the control characters are the point
+  if (!n.startsWith("/") || n.startsWith("//") || /[\u0000-\u001f\u007f\\]/.test(n)) return "/";
+  try {
+    if (new URL(n, HERE).origin !== HERE) return "/";
+  } catch {
+    return "/";
+  }
   return n;
 }
 

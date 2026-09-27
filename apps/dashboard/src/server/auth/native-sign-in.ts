@@ -27,6 +27,27 @@ export interface NativePlan {
 
 const refuse = (why: string): NativePlan => ({ signIn: null, to: NATIVE_FAILED, refused: why });
 
+/**
+ * Whether the request says it came from another site. The door signs a person in from a form body with no session
+ * behind it, so a page elsewhere could auto-submit an attacker's own token and silently sign a visitor into the
+ * attacker's account (login CSRF). The app's own WebView posts with no initiator: Fetch Metadata says `none`, or
+ * says nothing on a client that does not send it, and there is no Origin. So this is not `isSameOrigin`, which
+ * refuses silence; only positive evidence refuses: another site's word in Sec-Fetch-Site, or an Origin that is not
+ * this host.
+ */
+export function fromAnotherSite(headers: { get(name: string): string | null }): boolean {
+  const site = headers.get("sec-fetch-site");
+  if (site && site !== "same-origin" && site !== "none") return true;
+  const origin = headers.get("origin");
+  const host = headers.get("host");
+  if (!origin || origin === "null" || !host) return false;
+  try {
+    return new URL(origin).host !== host;
+  } catch {
+    return true;
+  }
+}
+
 export function nativeSignInPlan(body: unknown): NativePlan {
   if (!body || typeof body !== "object") return refuse("no body");
   const b = body as Record<string, unknown>;

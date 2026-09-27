@@ -85,6 +85,11 @@ test("`next` is a path on this site, or the root", () => {
     undefined,
     "/x\r\nSet-Cookie: a=b",
     "inbox",
+    // A tab is dropped by URL parsing, so this resolves to https://evil.example/; a backslash reads as a slash.
+    "/\t/evil.example",
+    "/a\\evil.example",
+    "/x\u0000y",
+    "/\u007f",
   ]) {
     assert.equal(safeNext(bad), "/", JSON.stringify(bad));
   }
