@@ -119,7 +119,6 @@ async function proposeDeal(
   const next = stepDay ? `${NOTE_WORDS.next}: ${clipAtWord(stepWords, 80)}, due ${stepDay.near}` : null;
   return propose({
     kind: "deal",
-    needs: "operator",
     title: `${who} · ${words}`,
     summary: [words, service, money, url ? linkHost(url) : null, why, next].filter((x): x is string => !!x).join(" · "),
     payload: {
@@ -135,7 +134,6 @@ async function proposeDeal(
       ...(reason ? { lost_reason: reason } : {}),
       who,
     },
-    undo: null,
     ...(stepDay ? { step: { body: stepWords, due_on: stepDay.day } } : {}),
   });
 }

@@ -237,6 +237,16 @@ export async function memberContext(
 const ROLE_RANK: Record<Role, number> = { viewer: 0, operator: 1, partner: 2, owner: 3 };
 
 /**
+ * Whether a role stands on the rung named, or above it: the one reading of the ladder, for the doors (requireRole) and
+ * for what Ask hands a member (the act tools, which refuse a card its route would refuse). A role the ladder does not
+ * know stands on no rung.
+ */
+export function roleAtLeast(role: string, atLeast: Role): boolean {
+  const have = Object.prototype.hasOwnProperty.call(ROLE_RANK, role) ? ROLE_RANK[role as Role] : undefined;
+  return have !== undefined && have >= ROLE_RANK[atLeast];
+}
+
+/**
  * The server-side door (PRD E1). RLS is the floor — it stops cross-tenant
  * reads no matter what — but "which member may flip this switch" is a role
  * decision, and it is made HERE, never in the browser. The client's gate()
@@ -248,8 +258,7 @@ const ROLE_RANK: Record<Role, number> = { viewer: 0, operator: 1, partner: 2, ow
  * have walked through every door in the app.
  */
 export function requireRole(member: MemberContext, atLeast: Role): void {
-  const have = ROLE_RANK[member.role];
-  if (have === undefined || have < ROLE_RANK[atLeast]) {
+  if (!roleAtLeast(member.role, atLeast)) {
     // The least role that may, in the words a member reads. A partner's door
     // says "owner": the partner already passed it, and until a workspace can
     // say whether it has one (0012, P2), "owner" is what is true of every

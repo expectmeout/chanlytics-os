@@ -203,7 +203,6 @@ async function proposePlaybook(
   const words = renderTemplate(tpl.body_preview, exampleParams(specs, "the business"));
   return propose({
     kind: "playbook",
-    needs: "operator",
     title: `Playbook: ${checked.name}`,
     summary: `${listLabel ? `On ${listLabel}` : `${trig.label} — ${trig.hint.toLowerCase()}`} · ${scheduleLine(checked)} · ${saidYesWords("the list", purposeOfPlaybook(cls), candidates, drawn.saidYes)} · under “${PLAYBOOK_CLASS_LABEL[cls]}” (${mode}): ${MODE_WORDS[mode] ?? mode}. Says: ${words.slice(0, 140)}${words.length > 140 ? "…" : ""}`,
     payload: {
@@ -224,7 +223,6 @@ async function proposePlaybook(
       list_key: checked.list_key,
       mode,
     },
-    undo: "Delete it — nothing will run",
   });
 }
 

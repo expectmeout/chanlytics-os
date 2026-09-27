@@ -8,7 +8,8 @@
  * did not, and the change is a change to the product, not to this file.
  *
  * Then the specs themselves (contracts ask-proposals/), executed over a card of every shape each kind makes: every
- * route a spec names is a route the app has, and each is the door of the role the card needs (route-policy.json).
+ * route a spec names is a route the app has, and each is the door of the role the card needs (route-policy.json); and
+ * the gate a card checks before Approve lets the roles that role lets (ROLE_PERMS, on the server's own ladder).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -18,8 +19,10 @@ import { fileURLToPath } from "node:url";
 import {
   ASK_THREAD_VERBS,
   ASK_UNDO_MS,
+  MEMBERSHIP_ROLES,
   PROPOSAL_GATE,
   PROPOSAL_SPECS,
+  ROLE_PERMS,
   ROUTE_KEYS,
   askUndoOpen,
   cardOpenRoute,
@@ -299,4 +302,27 @@ test("a spec's `needs` is the policy role of every route it names; the one excep
   );
   for (const [kind, spec] of Object.entries(PROPOSAL_SPECS))
     assert.equal(!!spec.doing, spec.needs !== "operator", `${kind}: words for a refusal only above operator`);
+});
+
+test("the gate a card checks before Approve lets exactly the roles its `needs` lets, by the server's own ladder; the one exception is a person's mode, whose gate a partner passes and whose route is an owner's", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+  const { roleAtLeast } = await import(
+    new URL("../../../apps/dashboard/src/server/with-route.ts", import.meta.url).href
+  );
+  for (const [kind, spec] of Object.entries(PROPOSAL_SPECS)) {
+    for (const role of MEMBERSHIP_ROLES) {
+      const gate = ROLE_PERMS[role][spec.gate];
+      const needs = roleAtLeast(role, spec.needs);
+      if (kind === "person_mode" && role === "partner") {
+        // Its gate is `settings`, which a partner holds; its route (PUT contacts/[id]/receptionist) is an owner's.
+        // The builder refuses a partner, so no partner is handed the card: Ask threads are the member's own.
+        assert.deepEqual([spec.gate, gate, needs], ["settings", true, false]);
+        continue;
+      }
+      assert.equal(gate, needs, `${kind} for a ${role}: gate ${spec.gate} against needs ${spec.needs}`);
+    }
+  }
+  // The ladder knows its four rungs and nothing else: a role it has never heard of stands on none.
+  for (const odd of ["", "constructor", "admin"]) assert.equal(roleAtLeast(odd, "viewer"), false, odd);
 });

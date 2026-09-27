@@ -1,12 +1,14 @@
 import "server-only";
 import { z } from "zod";
-import { PERSON_MODES } from "@chanlytics/contracts";
+import { PERSON_MODES, PROPOSAL_SPECS, proposalBelowNeeds } from "@chanlytics/contracts";
+import { roleAtLeast } from "../../../with-route";
 import { UUID, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
 async function proposePersonMode(
   t: ToolContext,
   input: { contact_id: string; mode: string },
 ): Promise<ProposalOutcome> {
+  if (!roleAtLeast(t.role, PROPOSAL_SPECS.person_mode.needs)) return refuse(proposalBelowNeeds("person_mode"));
   const id = str(input.contact_id, 40);
   const mode = str(input.mode, 10);
   if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
@@ -37,11 +39,9 @@ async function proposePersonMode(
   t.read.person.add(id);
   return propose({
     kind: "person_mode",
-    needs: "owner",
     title: `Receptionist for ${who}`,
     summary: `The receptionist ${LABEL[mode]}`,
     payload: { contact_id: id, mode, previous: pol?.mode ?? "inherit", who },
-    undo: "Set it back",
   });
 }
 

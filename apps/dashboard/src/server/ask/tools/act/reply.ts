@@ -41,11 +41,9 @@ async function draftReply(
   t.read.thread.add(id);
   return propose({
     kind: "reply",
-    needs: "operator",
     title: `Reply to ${who}`,
     summary: text,
     payload: { conversation_id: id, text, voice, who, window_open: win.open, price_warning: price },
-    undo: "Sends 15 seconds after you approve; cancel within them",
   });
 }
 
@@ -80,11 +78,9 @@ async function proposeSteer(
   t.read.thread.add(m.conversation_id);
   return propose({
     kind: "steer",
-    needs: "operator",
     title: "Rewrite the held reply",
     summary: instruction,
     payload: { message_id: id, conversation_id: m.conversation_id, instruction, current: (m.body ?? "").slice(0, 300) },
-    undo: null,
   });
 }
 
