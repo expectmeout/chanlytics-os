@@ -26,10 +26,18 @@ export const PUT = write({
 });
 
 /**
- * DELETE /api/v1/me — delete your own account (App Store 5.1.1(v); 00190). The door refuses the only owner of a
- * workspace with other members, who must make someone else an owner first; that refusal is a conflict the page says
- * in the door's own words. On success the session is ended here too, so the page that asked lands on the sign-in.
+ * DELETE /api/v1/me — delete your own account (App Store 5.1.1(v); 00190, 00208). The door refuses by name the only
+ * owner of a workspace with other members, who must make someone else an owner first, and a partner whose record
+ * holds workspaces or money, which the platform closes first; each refusal is a conflict the page says in its own
+ * words. Anything else the door says is not the person's to read: it is logged, and they are told nothing changed.
+ * On success the session is ended here too, so the page that asked lands on the sign-in.
  */
+const REFUSALS: Record<string, string> = {
+  sole_owner: "You are the only owner of a workspace with other members. Make someone else an owner first.",
+  partner_records:
+    "Your partner record holds workspaces you brought or money you earned. Write to us to close it first.",
+};
+
 export const DELETE = write({
   scope: account,
   role: null,
@@ -37,14 +45,13 @@ export const DELETE = write({
   handle: async ({ ctx }) => {
     const { data, error } = await ctx.supabase.rpc("delete_my_account");
     if (error) {
-      if (error.message.includes("sole_owner")) {
-        throw new AppError(
-          "conflict",
-          "You are the only owner of a workspace with other members. Make someone else an owner first.",
-          409,
-        );
-      }
-      throw new AppError("validation", error.message, 400);
+      const named = Object.keys(REFUSALS).find((k) => error.message.includes(k));
+      if (named) throw new AppError("conflict", REFUSALS[named], 409);
+      console.error("account_delete_failed", JSON.stringify({ message: error.message.slice(0, 200) }));
+      throw new AppError(
+        "internal",
+        "Your account could not be deleted. Nothing was changed. Try again, or write to us.",
+      );
     }
     await ctx.supabase.auth.signOut().catch(() => undefined);
     const left =
