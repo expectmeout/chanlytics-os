@@ -42,7 +42,7 @@ copies                              122   of 33 names
 as unknown as                       222
 table names outside packages/db     535
 unnamed durations                    78   in 34 files
-dead exports, types and modules     205
+dead exports, types and modules     204
 source-text reads in tests          832
 lint warnings allowed                46
 ```
