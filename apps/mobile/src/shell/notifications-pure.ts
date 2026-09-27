@@ -14,6 +14,19 @@ export function tabOf(route: string): Tab {
   return "more";
 }
 
+/**
+ * The route each tab's page opens on, in the web's own names: People is the web's `clients` (app-shell.jsx PHONE_TABS).
+ * More opens Today, with its drawer over it. Each tab's route belongs to that tab by tabOf, the rule a link and a tap
+ * follow; the People tab asked for `people`, a route the web does not have, and drew "No surface" where People was.
+ */
+export const TAB_ROUTES: Readonly<Record<Tab, string>> = {
+  today: "today",
+  inbox: "inbox",
+  calendar: "calendar",
+  people: "clients",
+  more: "today",
+};
+
 /** The route a notification's data names, when it is one of the page's own; null for anything else. */
 export function routeOfData(data: unknown): string | null {
   if (!data || typeof data !== "object") return null;

@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { Surface, type SurfaceHandle } from "@/shell/Surface";
+import { TAB_ROUTES } from "@/shell/notifications-pure";
 
 /**
  * More is the workspace with its drawer asked open: everything the four tabs do not hold, in the web's own menu. Asked
@@ -8,5 +9,5 @@ import { Surface, type SurfaceHandle } from "@/shell/Surface";
  */
 export default function MoreTab() {
   const onReady = useCallback((h: SurfaceHandle) => h.ask({ t: "menu" }), []);
-  return <Surface route="today" tab="more" onReady={onReady} />;
+  return <Surface route={TAB_ROUTES.more} tab="more" onReady={onReady} />;
 }

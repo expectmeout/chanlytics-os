@@ -5,7 +5,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { tabOf, routeOfData, badgeOfData } from "../src/shell/notifications-pure.ts";
+import { tabOf, routeOfData, badgeOfData, TAB_ROUTES } from "../src/shell/notifications-pure.ts";
+
+test("each tab opens on a route the web has, and that route is the tab's own: More's page is Today under its drawer", () => {
+  for (const tab of ["today", "inbox", "calendar", "people"]) {
+    assert.equal(
+      tabOf(TAB_ROUTES[tab]),
+      tab,
+      `REGRESSION: the People tab opened #/people, which the web does not have`,
+    );
+  }
+  assert.equal(TAB_ROUTES.people, "clients");
+  assert.equal(TAB_ROUTES.more, "today");
+});
 
 test("a route belongs to the tab that draws it; everything else is More's, where the drawer reaches all", () => {
   assert.equal(tabOf("inbox"), "inbox");
