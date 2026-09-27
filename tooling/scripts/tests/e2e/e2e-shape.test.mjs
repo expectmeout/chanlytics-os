@@ -12,7 +12,7 @@
  * as a billing bug and a phone-number bug for a day.
  *
  * No exemption for routes that resolve the workspace from the row they name
- * (requireOperator passes the row's tenant as `wanted`, so those cannot be
+ * (a row scope in route() passes the row's tenant as `wanted`, so those cannot be
  * refused). The client has no such exemption — scoped() appends to every URL
  * it fetches — and a rule with a carve-out list is a rule that rots. One
  * carve-out only: the bare `request` fixture, which has no session by
