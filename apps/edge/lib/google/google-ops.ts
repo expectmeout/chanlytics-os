@@ -22,14 +22,9 @@ import {
   type ListingRow,
   type LocationChoice,
 } from "./google.js";
+import { errorMessage, type DoorAnswer } from "../admin-door.js";
 
 type ListingInsert = Database["public"]["Tables"]["google_listings"]["Insert"];
-
-/** What the door answers: the status and the JSON body. */
-export interface GoogleAnswer {
-  status: number;
-  body: unknown;
-}
 
 /** A line the door logs on the plan's behalf; the event names are what alerting greps for and never change. */
 interface GoogleLog {
@@ -54,7 +49,7 @@ export interface GoogleBody {
 /** The listing as the dashboard sees it, or null when the workspace has none. */
 export type ListingView = ReturnType<typeof listingForClient> | null;
 
-export const UNKNOWN_GOOGLE_OP: GoogleAnswer = {
+export const UNKNOWN_GOOGLE_OP: DoorAnswer = {
   status: 400,
   body: {
     ok: false,
@@ -62,11 +57,9 @@ export const UNKNOWN_GOOGLE_OP: GoogleAnswer = {
   },
 };
 
-export const NO_PLACES_KEY: GoogleAnswer = { status: 503, body: { ok: false, error: "no_places_key" } };
-export const NO_LISTING: GoogleAnswer = { status: 404, body: { ok: false, error: "no_listing" } };
-export const NOT_CONNECTED: GoogleAnswer = { status: 404, body: { ok: false, error: "not_connected" } };
-
-const said = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+export const NO_PLACES_KEY: DoorAnswer = { status: 503, body: { ok: false, error: "no_places_key" } };
+export const NO_LISTING: DoorAnswer = { status: 404, body: { ok: false, error: "no_listing" } };
+export const NOT_CONNECTED: DoorAnswer = { status: 404, body: { ok: false, error: "not_connected" } };
 
 /* ---------------------------------------------------------------- search */
 
@@ -74,7 +67,7 @@ const said = (e: unknown): string => (e instanceof Error ? e.message : String(e)
 export function planPlaceSearch(
   key: string | null,
   rawQuery: unknown,
-): { kind: "refuse"; answer: GoogleAnswer } | { kind: "search"; key: string; query: string } {
+): { kind: "refuse"; answer: DoorAnswer } | { kind: "search"; key: string; query: string } {
   if (!key) {
     return {
       kind: "refuse",
@@ -102,8 +95,8 @@ export function planPlaceSearch(
 }
 
 /** Google's refusal in Google's words, never a throw. */
-export function googleFailedAnswer(e: unknown): GoogleAnswer {
-  return { status: 502, body: { ok: false, error: said(e) } };
+export function googleFailedAnswer(e: unknown): DoorAnswer {
+  return { status: 502, body: { ok: false, error: errorMessage(e) } };
 }
 
 /* ------------------------------------------------------------------ link */
@@ -111,7 +104,7 @@ export function googleFailedAnswer(e: unknown): GoogleAnswer {
 export function planLink(
   key: string | null,
   rawPlaceId: unknown,
-): { kind: "refuse"; answer: GoogleAnswer } | { kind: "link"; key: string; placeId: string } {
+): { kind: "refuse"; answer: DoorAnswer } | { kind: "link"; key: string; placeId: string } {
   if (!key) return { kind: "refuse", answer: NO_PLACES_KEY };
   const placeId = typeof rawPlaceId === "string" ? rawPlaceId.trim() : "";
   if (!PLACE_ID.test(placeId)) {
@@ -121,8 +114,8 @@ export function planLink(
 }
 
 /** A wrong id is refused here, not kept as a row that never reads. */
-export function unreadablePlaceAnswer(e: unknown): GoogleAnswer {
-  return { status: 502, body: { ok: false, error: "unreadable", detail: said(e) } };
+export function unreadablePlaceAnswer(e: unknown): DoorAnswer {
+  return { status: 502, body: { ok: false, error: "unreadable", detail: errorMessage(e) } };
 }
 
 /** The listing row for the place just read: what the read said about it, never what the listing it replaces said. */
@@ -144,7 +137,7 @@ export function linkRow(details: PlaceDetails, tenantId: string, userId: string 
   };
 }
 
-export function linkedAnswer(listing: ListingView, saved: ListingRow, read: CheckResult): GoogleAnswer {
+export function linkedAnswer(listing: ListingView, saved: ListingRow, read: CheckResult): DoorAnswer {
   return { status: 200, body: { ok: true, listing: listing ?? listingForClient(saved), read } };
 }
 
@@ -152,7 +145,7 @@ export function linkedAnswer(listing: ListingView, saved: ListingRow, read: Chec
 
 export function planConnect(
   rawCode: unknown,
-): { kind: "refuse"; answer: GoogleAnswer } | { kind: "connect"; code: string } {
+): { kind: "refuse"; answer: DoorAnswer } | { kind: "connect"; code: string } {
   const code = typeof rawCode === "string" ? rawCode.trim() : "";
   if (!code || code.length > 2000) {
     return { kind: "refuse", answer: { status: 400, body: { ok: false, error: "code is required" } } };
@@ -161,7 +154,7 @@ export function planConnect(
 }
 
 /** One location on Maps binds at once and the listing is read; several wait for the owner's choice. */
-export function connectAnswer(r: ConnectResult, listing: ListingView): { answer: GoogleAnswer; log: GoogleLog } {
+export function connectAnswer(r: ConnectResult, listing: ListingView): { answer: DoorAnswer; log: GoogleLog } {
   if (!r.ok) {
     return {
       log: { event: "google_connect_failed", fields: { error: r.error, detail: r.detail?.slice(0, 200) } },
@@ -188,13 +181,13 @@ export function connectAnswer(r: ConnectResult, listing: ListingView): { answer:
 /* ----------------------------------------------------------------- draft */
 
 /** A draft and a reply are about one review, named by its row. */
-export const NO_REVIEW_ID: GoogleAnswer = {
+export const NO_REVIEW_ID: DoorAnswer = {
   status: 400,
   body: { ok: false, error: "id (the review's row) is required" },
 };
 
 /** The Autonomy row, read once for the dashboard's draft and the sweep's replies alike: Never refuses before the review is read. */
-export function draftRefusal(mode: ReviewReplyMode): GoogleAnswer | null {
+export function draftRefusal(mode: ReviewReplyMode): DoorAnswer | null {
   return mode === "never" ? { status: 409, body: { ok: false, error: "policy_never", mode } } : null;
 }
 
@@ -202,7 +195,7 @@ export function draftAnswer(
   id: string,
   mode: ReviewReplyMode,
   r: { ok: true; text: string } | { ok: false; error: string; detail?: string },
-): { answer: GoogleAnswer; log: GoogleLog } {
+): { answer: DoorAnswer; log: GoogleLog } {
   if (!r.ok) {
     return {
       log: { event: "google_review_draft_failed", fields: { id, error: r.error } },
@@ -219,7 +212,7 @@ export function draftAnswer(
 
 type LocationsRead = { ok: true; locations: LocationChoice[] } | { ok: false; error: string };
 
-export function locationsAnswer(r: LocationsRead): GoogleAnswer {
+export function locationsAnswer(r: LocationsRead): DoorAnswer {
   return { status: r.ok ? 200 : 502, body: r };
 }
 
@@ -228,7 +221,7 @@ export function planChoose(
   rawAccount: unknown,
   rawLocation: unknown,
 ):
-  | { kind: "refuse"; answer: GoogleAnswer }
+  | { kind: "refuse"; answer: DoorAnswer }
   | { kind: "choose"; conn: ConnectionRow; accountName: string; locationName: string } {
   if (!conn) return { kind: "refuse", answer: NOT_CONNECTED };
   const accountName = typeof rawAccount === "string" ? rawAccount.trim() : "";
@@ -247,7 +240,7 @@ export function chosenLocation(
   r: LocationsRead,
   accountName: string,
   locationName: string,
-): { kind: "refuse"; answer: GoogleAnswer } | { kind: "bind"; loc: LocationChoice } {
+): { kind: "refuse"; answer: DoorAnswer } | { kind: "bind"; loc: LocationChoice } {
   if (!r.ok) return { kind: "refuse", answer: { status: 502, body: { ok: false, error: r.error } } };
   const loc = r.locations.find((l) => l.account_name === accountName && l.name === locationName);
   if (!loc) return { kind: "refuse", answer: { status: 404, body: { ok: false, error: "no_such_location" } } };
@@ -257,11 +250,11 @@ export function chosenLocation(
 type BindResult =
   { ok: true; connection: ConnectionRow; read: CheckResult } | { ok: false; error: string; detail?: string };
 
-export function bindFailedAnswer(bound: Extract<BindResult, { ok: false }>): GoogleAnswer {
+export function bindFailedAnswer(bound: Extract<BindResult, { ok: false }>): DoorAnswer {
   return { status: 502, body: { ok: false, error: bound.error, detail: bound.detail } };
 }
 
-export function chosenAnswer(bound: Extract<BindResult, { ok: true }>, listing: ListingView): GoogleAnswer {
+export function chosenAnswer(bound: Extract<BindResult, { ok: true }>, listing: ListingView): DoorAnswer {
   return {
     status: 200,
     body: { ok: true, connection: connectionForClient(bound.connection), listing, read: bound.read },
@@ -274,14 +267,14 @@ export function chosenAnswer(bound: Extract<BindResult, { ok: true }>, listing: 
 export function planReply(
   id: string | null,
   rawComment: unknown,
-): { kind: "refuse"; answer: GoogleAnswer } | { kind: "reply"; id: string; comment: string } {
+): { kind: "refuse"; answer: DoorAnswer } | { kind: "reply"; id: string; comment: string } {
   const comment = cleanReply(rawComment);
   if (!id) return { kind: "refuse", answer: NO_REVIEW_ID };
   if (!comment) return { kind: "refuse", answer: { status: 400, body: { ok: false, error: "comment is required" } } };
   return { kind: "reply", id, comment };
 }
 
-export function replyAnswer(r: { ok: true } | { ok: false; error: string }): GoogleAnswer {
+export function replyAnswer(r: { ok: true } | { ok: false; error: string }): DoorAnswer {
   if (r.ok) return { status: 200, body: r };
   const status =
     r.error === "not_connected" || r.error === "not_from_profile" ? 409 : r.error === "no_review" ? 404 : 502;
@@ -291,6 +284,6 @@ export function replyAnswer(r: { ok: true } | { ok: false; error: string }): Goo
 /* --------------------------------------------------------------- refresh */
 
 /** Read now: the profile when connected, the public listing otherwise; what the dashboard sees either way. */
-export function refreshAnswer(read: CheckResult, listing: ListingView, connection: unknown): GoogleAnswer {
+export function refreshAnswer(read: CheckResult, listing: ListingView, connection: unknown): DoorAnswer {
   return { status: read.ok ? 200 : 502, body: { ok: read.ok, read, listing, connection } };
 }

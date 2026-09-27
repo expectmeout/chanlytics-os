@@ -6,7 +6,7 @@ import { env } from "./env.js";
 import { logger } from "./log.js";
 
 /** The dashboard's address when DASHBOARD_ORIGIN is not set. */
-export const DEFAULT_DASHBOARD_ORIGIN = "https://app.chanlytics.com";
+const DEFAULT_DASHBOARD_ORIGIN = "https://app.chanlytics.com";
 
 const ORIGIN = /^https:\/\/[a-z0-9.-]+$/i;
 /** An origin as typed: a trailing slash is the same origin (unsubscribeUrl strips it too). */

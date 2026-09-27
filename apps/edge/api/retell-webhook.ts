@@ -316,8 +316,9 @@ async function routeDelivery(db: Db, n: { agentId: string | null; retellCallId: 
 }
 
 /**
- * The call on the phones' Lock Screens (00191, lib/voice/call-activity.ts): once, as it starts, to every phone that
- * handed the site its push-to-start token. Best effort beside the call's own door.
+ * The call on the phones' Lock Screens (00191, lib/voice/call-activity.ts): once per call, as it starts, to the phones
+ * of the people who take calls. Best effort beside the call's own door, and bounded (apns.ts: three seconds a push),
+ * since the webhook's answer waits on it.
  */
 async function tellPhones(db: Db, tenantId: string, s: Extract<CallStep, { kind: "call_activity" }>): Promise<void> {
   const keys = apnsKeys();
@@ -331,6 +332,8 @@ async function tellPhones(db: Db, tenantId: string, s: Extract<CallStep, { kind:
       call: s.retellCallId,
       started: outcome.started,
       refused: outcome.refused.length,
+      gone: outcome.gone,
+      already: outcome.already,
     });
     for (const r of outcome.refused) L.warn("call_activity_refused", { call: s.retellCallId, error: r.error });
   }
@@ -548,37 +551,35 @@ export async function POST(request: Request): Promise<Response> {
   const refusal = await erasureRefusal(db, n, routed, event);
   if (refusal) return refusal;
 
-  // null = no control plane to ask; true = this delivery owns the post-call
-  // side effects; false = a retry or replay, they already went out.
+  // null = the plan made no claim (a dead letter makes none); true = this
+  // delivery owns the post-call side effects; false = a retry or replay, they
+  // already went out.
   let notifyClaim: boolean | null = null;
   // What the bell row is about: the call, or the thread when it needs a call back.
   let callAbout: CallAbout | null = null;
 
-  // ---- canonical calls row (additive; never breaks the legacy path) ----
-  if (db) {
-    try {
-      if (!routed) await deadLetter(db, n);
-      else {
-        const res = await ingestCall(db, routed.tenantId, n, call);
-        const plan = planCallEvent(
-          { ...delivery, n },
-          { ingest: res, alreadyCorrected: corrected.has(n.retellCallId), canCorrect: !!env.RETELL_API_KEY },
-        );
-        callAbout = plan.about;
-        notifyClaim = await applyPlan(db, routed, plan);
-      }
-    } catch (e) {
-      // A non-2xx is the only thing that earns a retry. Swallowing this with
-      // a 200 forfeited the three deliveries Retell offers, and an ended call
-      // whose analysis failed to land read "No summary" forever — while the
-      // email below still went out. The side effects are idempotent (the
-      // upsert on the call, the note's unique key, the notification claim, a
-      // stored recording is terminal), so a retry is safe -- and the answer is
-      // a 503, as the WhatsApp and SMS doors give a write the database
-      // refused: try again.
-      L.error("ingest_call_failed", { error: errField(e) });
-      return json(503, { ok: false, error: "ingest_failed" });
+  try {
+    if (!routed) await deadLetter(db, n);
+    else {
+      const res = await ingestCall(db, routed.tenantId, n, call);
+      const plan = planCallEvent(
+        { ...delivery, n },
+        { ingest: res, alreadyCorrected: corrected.has(n.retellCallId), canCorrect: !!env.RETELL_API_KEY },
+      );
+      callAbout = plan.about;
+      notifyClaim = await applyPlan(db, routed, plan);
     }
+  } catch (e) {
+    // A non-2xx is the only thing that earns a retry. Swallowing this with
+    // a 200 forfeited the three deliveries Retell offers, and an ended call
+    // whose analysis failed to land read "No summary" forever — while the
+    // email below still went out. The side effects are idempotent (the
+    // upsert on the call, the note's unique key, the notification claim, a
+    // stored recording is terminal), so a retry is safe -- and the answer is
+    // a 503, as the WhatsApp and SMS doors give a write the database
+    // refused: try again.
+    L.error("ingest_call_failed", { error: errField(e) });
+    return json(503, { ok: false, error: "ingest_failed" });
   }
 
   if (event === "call_analyzed") {

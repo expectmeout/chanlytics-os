@@ -36,7 +36,7 @@
   "apps/dashboard/src/server/verbs.ts": 17,
   "apps/dashboard/src/server/workspace/billing.ts": 2,
   "apps/edge/lib/ask-gateway.ts": 8,
-  "apps/edge/lib/billing.ts": 11,
+  "apps/edge/lib/billing/billing.ts": 2,
   "apps/edge/lib/email/dmarc.ts": 1,
   "apps/edge/lib/email/email-receipts.ts": 1,
   "apps/edge/lib/email/email.ts": 1,
