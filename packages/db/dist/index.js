@@ -4175,6 +4175,29 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
     );
   return bits.join(" ");
 }
+function hitKind(kind) {
+  if (kind === "message" || kind === "call") return kind;
+  throw new Error(`searchMessages: unknown kind ${kind}`);
+}
+async function searchMessages(db, tenantId, words2, since, limit) {
+  const { data, error } = await db.rpc("search_messages", {
+    p_tenant: tenantId,
+    p_words: words2,
+    p_since: since.toISOString(),
+    p_limit: limit
+  });
+  if (error) throw new Error(`searchMessages: ${error.message}`);
+  return (data ?? []).map((r2) => ({
+    kind: hitKind(r2.kind),
+    id: r2.id,
+    conversationId: r2.conversation_id ?? null,
+    contactId: r2.contact_id ?? null,
+    channel: r2.channel ?? null,
+    direction: r2.direction,
+    at: r2.at,
+    snippet: r2.snippet ?? ""
+  }));
+}
 
 // src/repositories/idempotency.ts
 var HOLD_COLUMNS = "response, created_at, request_hash";
@@ -4997,6 +5020,7 @@ export {
   runsWaitingOf,
   savedListFor,
   savedListsFor,
+  searchMessages,
   searchNamesByIds,
   sendJobScheduled,
   sendNow,
