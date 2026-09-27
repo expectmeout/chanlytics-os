@@ -9,7 +9,9 @@
  *
  * Then the specs themselves (contracts ask-proposals/), executed over a card of every shape each kind makes: every
  * route a spec names is a route the app has, and each is the door of the role the card needs (route-policy.json); and
- * the gate a card checks before Approve lets the roles that role lets (ROLE_PERMS, on the server's own ladder).
+ * the gate a card checks before Approve lets the roles that role lets (ROLE_PERMS, on the server's own ladder). The two
+ * kinds PR 4.6 added (a person's note and details, the Phase 4 plan's D8 and D9) answer the three readings as their
+ * family's cards do, and their calls are pinned over the answers their routes really give.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -31,7 +33,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/route-policy.json"), "utf8")).routes;
 
-/** The twelve kinds, in AskProposal's order, and one no card has. */
+/** The fourteen kinds, in AskProposal's order, and one no card has. */
 const KINDS = [
   "reply",
   "steer",
@@ -45,12 +47,14 @@ const KINDS = [
   "playbook",
   "lead_search",
   "deal",
+  "note",
+  "person_details",
   "teleport",
 ];
 
 /* ------------------------------------------------------------------ the gate */
 
-test("the gate each kind checks before Approve is the one it checked at a993b71d", () => {
+test("the gate each kind checks before Approve is the one it checked at a993b71d; a person's note and details, an operator's, check approve", () => {
   assert.deepEqual(PROPOSAL_GATE, {
     reply: "approve",
     steer: "approve",
@@ -64,6 +68,8 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     playbook: "approve",
     lead_search: "find",
     deal: "approve",
+    note: "approve",
+    person_details: "approve",
   });
 });
 
@@ -89,7 +95,7 @@ const VERSIONS = [null, 4, 5];
 
 /**
  * askUndoOpen at a993b71d, per kind: one group per entry of UNDOS, in order; inside a group, for each of ATS, the
- * three VERSIONS -- 1 where the undo was offered.
+ * three VERSIONS -- 1 where the undo was offered. The two kinds since keep the family's ten minutes.
  */
 const UNDO_OPEN = {
   reply: "000000000 000000000 111111111 000000000 000000000 000000000 000000000 000000000",
@@ -104,6 +110,8 @@ const UNDO_OPEN = {
   playbook: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   lead_search: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   deal: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
+  note: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
+  person_details: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   teleport: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
 };
 
@@ -138,7 +146,10 @@ const CASES = [
   [{}, done(null)],
   [{}, { state: "failed", receipt: "r", atMs: T, undo: { search_id: "s1" } }],
 ];
-/** cardOpenRoute at a993b71d, per kind: one answer per entry of CASES, or one answer for them all. */
+/**
+ * cardOpenRoute at a993b71d, per kind: one answer per entry of CASES, or one answer for them all. The two kinds since
+ * open the person they name, as the family's do.
+ */
 const OPEN = {
   reply: null,
   steer: null,
@@ -167,6 +178,8 @@ const OPEN = {
     "clients/leads:s-s1",
   ],
   deal: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
+  note: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
+  person_details: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
   teleport: [null, null, "inbox/th-c1", null, null, "inbox/th-c1", null, null, null, null, null, null, null, null],
 };
 
@@ -201,6 +214,7 @@ const ANSWER = {
   id: "b1",
   search_id: "s1",
   deal: { id: "deal1" },
+  note: { id: "n1" },
 };
 const TAB = { settings: { config: { brain: {} }, version: 3 } };
 const TAB_AFTER = { settings: { config: { brain: {} }, version: 4 } };
@@ -225,6 +239,20 @@ const SHAPES = {
   deal: [
     card("deal", { contact_id: "p1", stage: "won", who: "Maria" }, { step: { body: "Call", due_on: "2026-10-01" } }),
   ],
+  note: [
+    card("note", { contact_id: "p1", body: "Prefers mornings.", team_only: false, who: "Rosa" }),
+    card("note", { contact_id: "p1", body: "Owes a callback.", team_only: true, who: "Rosa" }),
+  ],
+  person_details: [
+    card("person_details", { contact_id: "p1", who: "Rosa", name: "Rosa Díaz", previous: { name: "Rosa" } }),
+    card("person_details", {
+      contact_id: "p1",
+      who: "Rosa",
+      name: "Rosa Díaz",
+      email: "rosa@example.com",
+      previous: { name: null, email: null },
+    }),
+  ],
 };
 
 /** Every route a kind's spec reaches over its shapes: its commit, a second call, and the undo of what it kept. */
@@ -247,8 +275,8 @@ function routesOf(kind) {
   return seen;
 }
 
-test("the twelve kinds each have a spec, and every route a spec names is a route the app has", () => {
-  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 12));
+test("the fourteen kinds each have a spec, and every route a spec names is a route the app has", () => {
+  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 14));
   const named = Object.fromEntries(
     Object.keys(PROPOSAL_SPECS).map((k) => [k, [...new Set(routesOf(k).map((x) => x.route))].sort()]),
   );
@@ -272,6 +300,8 @@ test("the twelve kinds each have a spec, and every route a spec names is a route
     playbook: ["DELETE playbooks/[id]", "POST playbooks"],
     lead_search: ["POST lead-searches", "POST lead-searches/[id]/answer", "POST lead-searches/[id]/stop"],
     deal: ["POST contacts/[id]/deal", "POST contacts/[id]/notes"],
+    note: ["POST contacts/[id]/notes", "POST contacts/[id]/notes/remove"],
+    person_details: ["PUT contacts/[id]/details"],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
 });
@@ -325,4 +355,131 @@ test("the gate a card checks before Approve lets exactly the roles its `needs` l
   }
   // The ladder knows its four rungs and nothing else: a role it has never heard of stands on none.
   for (const odd of ["", "constructor", "admin"]) assert.equal(roleAtLeast(odd, "viewer"), false, odd);
+});
+
+/* ------------------------------------------------ a person's note and details */
+
+const P1 = "abababab-abab-4aba-8aba-abababababa1";
+const N1 = "efefefef-1111-4111-8111-efefefefefef";
+/**
+ * What `POST contacts/[id]/notes` answers: `{ note }`, the row the door wrote as the page reads it (writtenNote over
+ * toNoteDto, server/people/person-notes.ts), every field PersonNoteDto has.
+ */
+const WRITTEN = {
+  note: {
+    id: N1,
+    body: "Prefers mornings.",
+    author_kind: "member",
+    author_name: null,
+    mine: true,
+    for_user_id: null,
+    for_name: null,
+    for_me: false,
+    team_only: false,
+    state: "kept",
+    source: "page",
+    version: 1,
+    created_at: "2026-09-27T14:00:00.000Z",
+    updated_at: "2026-09-27T14:00:00.000Z",
+    due_on: null,
+    done_at: null,
+    done_by_name: null,
+    done_by_me: false,
+    deal_id: null,
+  },
+};
+
+test("a note (D8): the words and who reads them to the notes route, nothing else; the undo takes away the note the door wrote, by the id it answered; a card that does not say who reads it is never sent", () => {
+  const spec = PROPOSAL_SPECS.note;
+  const saved = { type: "note:saved", detail: { personId: P1 } };
+  const forReceptionist = card("note", { contact_id: P1, body: "Prefers mornings.", team_only: false, who: "Rosa" });
+  const forTeam = card("note", { contact_id: P1, body: "Owes us a callback.", team_only: true, who: "Rosa" });
+  assert.deepEqual(spec.commit(forReceptionist, TAB), {
+    route: "POST contacts/[id]/notes",
+    params: { id: P1 },
+    body: { body: "Prefers mornings.", team_only: false },
+    refresh: "behind",
+    events: [saved],
+  });
+  assert.deepEqual(spec.commit(forTeam, TAB).body, { body: "Owes us a callback.", team_only: true });
+  assert.equal(spec.receipt(forReceptionist, WRITTEN), "Rosa · Note added");
+  assert.equal(spec.receipt(forTeam, WRITTEN), "Rosa · Note added · Team only");
+  assert.equal(spec.undo.label(forReceptionist), "Delete it");
+  const kept = spec.undo.record(forReceptionist, WRITTEN, TAB);
+  assert.deepEqual(kept, { contact_id: P1, note_id: N1 });
+  assert.deepEqual(spec.undo.call(kept, TAB_AFTER), {
+    route: "POST contacts/[id]/notes/remove",
+    params: { id: P1 },
+    body: { note_id: N1 },
+    refresh: "behind",
+    events: [saved],
+  });
+  assert.equal(spec.undo.receipt({ removed: N1 }), "Note deleted");
+  // The route answers `{ note: null }` when the door wrote none: nothing to take away, so no undo is kept.
+  assert.equal(spec.undo.record(forReceptionist, { note: null }, TAB), null);
+  // Who reads it is the card's to say (D8): without it the route would default to the receptionist, which nobody
+  // chose, so such a card is refused before anything is sent; and a card with no words has nothing to write.
+  for (const team_only of [undefined, null, "false", 0])
+    assert.deepEqual(spec.commit(card("note", { contact_id: P1, body: "x", team_only, who: "Rosa" }), TAB), {
+      refused: "This card cannot be approved from here.",
+    });
+  assert.ok("refused" in spec.commit(card("note", { contact_id: P1, body: "", team_only: true }), TAB));
+});
+
+test("a person's details (D9): only the fields the card changes to the details route; the receipt says what the route stored; the undo sets back what the builder read, an empty field to nothing, since the route clears with an empty string", () => {
+  const spec = PROPOSAL_SPECS.person_details;
+  const people = { type: "surface:clients" };
+  const email = card("person_details", {
+    contact_id: P1,
+    who: "Rosa",
+    email: "rosa@example.com",
+    previous: { email: null },
+  });
+  const both = card("person_details", {
+    contact_id: P1,
+    who: "Rosa",
+    name: "Rosa Díaz",
+    email: "rosa@example.com",
+    previous: { name: "Rosa", email: "old@example.com" },
+  });
+  assert.deepEqual(spec.commit(email, TAB), {
+    route: "PUT contacts/[id]/details",
+    params: { id: P1 },
+    body: { email: "rosa@example.com" },
+    events: [people],
+  });
+  assert.deepEqual(spec.commit(both, TAB).body, { name: "Rosa Díaz", email: "rosa@example.com" });
+  // What `PUT contacts/[id]/details` answers: the id and each field it wrote, as the door stored it.
+  assert.equal(spec.receipt(email, { contact_id: P1, email: "rosa@example.com" }), "Rosa · Email: rosa@example.com");
+  assert.equal(
+    spec.receipt(both, { contact_id: P1, name: "Rosa Díaz", email: "rosa@example.com" }),
+    "Rosa · Name: Rosa Díaz · Email: rosa@example.com",
+  );
+  assert.equal(spec.undo.label(email), "Set it back");
+  const cleared = spec.undo.record(email, { contact_id: P1, email: "rosa@example.com" }, TAB);
+  assert.deepEqual(cleared, { contact_id: P1, email: "" }, "an address they did not have goes again");
+  assert.deepEqual(spec.undo.call(cleared, TAB_AFTER), {
+    route: "PUT contacts/[id]/details",
+    params: { id: P1 },
+    body: { email: "" },
+    events: [people],
+  });
+  const back = spec.undo.record(both, { contact_id: P1, name: "Rosa Díaz", email: "rosa@example.com" }, TAB);
+  assert.deepEqual(back, { contact_id: P1, name: "Rosa", email: "old@example.com" });
+  assert.deepEqual(spec.undo.call(back, TAB_AFTER).body, { name: "Rosa", email: "old@example.com" });
+  assert.equal(spec.undo.receipt({}), "Set back");
+  // A card that does not carry what a field was keeps no undo: nothing is cleared on a guess.
+  assert.equal(spec.undo.record(card("person_details", { contact_id: P1, name: "Rosa Díaz" }), {}, TAB), null);
+  // Nothing to change, nothing sent; notes and a proposal's link are never this card's, whatever it carries.
+  assert.deepEqual(spec.commit(card("person_details", { contact_id: P1, who: "Rosa", previous: {} }), TAB), {
+    refused: "This card cannot be approved from here.",
+  });
+  assert.deepEqual(
+    spec.commit(
+      card("person_details", { contact_id: P1, name: "Rosa", notes: "x", proposal: "https://x.example.com" }),
+      TAB,
+    ).body,
+    { name: "Rosa" },
+  );
+  assert.deepEqual(spec.undo.call({ contact_id: P1 }, TAB), { refused: "This one has no undo." });
 });

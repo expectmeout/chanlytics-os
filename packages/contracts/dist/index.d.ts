@@ -11194,7 +11194,7 @@ type AskThreadVerb = (typeof ASK_THREAD_VERBS)[number];
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 interface AskProposal {
     id: string;
-    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search" | "deal";
+    kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search" | "deal" | "note" | "person_details";
     /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
     needs: ProposalNeeds;
     title: string;
@@ -11224,11 +11224,7 @@ interface AskProposalOutcome {
     /** What Undo needs, when the verb has one: an id, a previous value. */
     undo?: Record<string, unknown> | null;
 }
-/**
- * How long a committed card's undo stays open, for every verb whose route sets no window of its own. What each kind
- * does -- its route, its receipt, its undo and the gate before Approve (PROPOSAL_GATE, askUndoOpen) -- is its spec's,
- * ask-proposals/.
- */
+/** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */
 declare const ASK_UNDO_MS: number;
 declare const AskProposalOutcomeSchema: z.ZodObject<{
     state: z.ZodEnum<{
@@ -11929,6 +11925,8 @@ declare const PROPOSAL_SPECS: {
     playbook: ProposalSpec;
     lead_search: ProposalSpecAboveOperator;
     deal: ProposalSpec;
+    note: ProposalSpec;
+    person_details: ProposalSpec;
 };
 /** The kinds above operator, whose refusal below `needs` is said in words (person_mode, settings, invite, lead_search). */
 type ProposalKindAboveOperator = {
@@ -11947,7 +11945,7 @@ declare function proposalBelowNeeds(kind: ProposalKindAboveOperator): string;
  * pure, as the repo's other derived tables are: a bare call at the top level is kept by every bundle that inlines
  * contracts (db, core, channels, jobs), and would carry every spec and its words in with it.
  */
-declare const PROPOSAL_GATE: Record<"broadcast" | "playbook" | "deal" | "reply" | "invite" | "whisper" | "settings" | "steer" | "thread_verb" | "person_mode" | "policy" | "lead_search", ProposalGate>;
+declare const PROPOSAL_GATE: Record<"broadcast" | "playbook" | "deal" | "reply" | "invite" | "whisper" | "note" | "settings" | "steer" | "thread_verb" | "person_mode" | "policy" | "lead_search" | "person_details", ProposalGate>;
 /**
  * Whether a committed card's undo is still true to offer: its spec's window, and ten minutes for a kind with none.
  *

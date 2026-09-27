@@ -846,6 +846,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     playbook: "approve",
     lead_search: "find",
     deal: "approve",
+    note: "approve",
+    person_details: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
