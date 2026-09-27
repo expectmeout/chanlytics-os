@@ -1085,7 +1085,7 @@
     "depth": 3
   },
   "apps/mobile/src/shell/Surface.tsx::Surface#1": {
-    "lines": 159,
+    "lines": 161,
     "branches": 42,
     "depth": 2
   },
