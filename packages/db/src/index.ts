@@ -130,7 +130,7 @@ export type {
   HeldNoticeMark,
   HeldNoticeRun,
 } from "./repositories/reach-out-sheet";
-export { forgetNotification } from "./repositories/notifications";
+export { forgetNotification, activityTokensOf, forgetActivityTokens } from "./repositories/notifications";
 export { resolveChannelDetailed, resolveChannel } from "./repositories/routing";
 export type { RoutedChannel, ChannelLookup } from "./repositories/routing";
 export {
@@ -139,6 +139,8 @@ export {
   setCallRecording,
   recordCallNote,
   claimCallNotification,
+  claimCallActivity,
+  callerNameOf,
 } from "./repositories/calls";
 export type { NormalizedCallInput, IngestCallResult } from "./repositories/calls";
 export {

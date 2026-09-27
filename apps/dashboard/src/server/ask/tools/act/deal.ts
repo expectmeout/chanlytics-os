@@ -52,8 +52,7 @@ async function proposeDeal(
   const reason = str(input.lost_reason, 20);
   if (reason && !isDealLostReason(reason)) return refuse(`lost_reason must be one of ${DEAL_LOST_REASONS.join(", ")}`);
   if (reason && stage !== "lost") return refuse("lost_reason goes only with stage lost");
-  // Its next step (0007, amended): the words and their day together, a real day from the business's today on. It is
-  // a note with a day, the team's, which the commit writes after the deal, naming it (commit.ts).
+  // Its next step (0007, amended): its words and a real day from today on, the team's note the commit writes after.
   const stepWords = typeof input.next_step === "string" ? input.next_step.trim() : "";
   if (stepWords.length > NOTE_MAX) return refuse(`next_step is at most ${NOTE_MAX} characters`);
   const stepDue = str(input.next_step_due, 10);
@@ -65,6 +64,7 @@ async function proposeDeal(
   const { data: c, error } = await t.ctx.supabase
     .from("contacts")
     .select("id, display_name, wa_profile_name, phone_e164, email, erased_at")
+    .eq("tenant_id", t.tenantId)
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);

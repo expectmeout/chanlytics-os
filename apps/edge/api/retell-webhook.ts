@@ -316,8 +316,9 @@ async function routeDelivery(db: Db, n: { agentId: string | null; retellCallId: 
 }
 
 /**
- * The call on the phones' Lock Screens (00191, lib/voice/call-activity.ts): once, as it starts, to every phone that
- * handed the site its push-to-start token. Best effort beside the call's own door.
+ * The call on the phones' Lock Screens (00191, lib/voice/call-activity.ts): once per call, as it starts, to the phones
+ * of the people who take calls. Best effort beside the call's own door, and bounded (apns.ts: three seconds a push),
+ * since the webhook's answer waits on it.
  */
 async function tellPhones(db: Db, tenantId: string, s: Extract<CallStep, { kind: "call_activity" }>): Promise<void> {
   const keys = apnsKeys();
@@ -331,6 +332,8 @@ async function tellPhones(db: Db, tenantId: string, s: Extract<CallStep, { kind:
       call: s.retellCallId,
       started: outcome.started,
       refused: outcome.refused.length,
+      gone: outcome.gone,
+      already: outcome.already,
     });
     for (const r of outcome.refused) L.warn("call_activity_refused", { call: s.retellCallId, error: r.error });
   }

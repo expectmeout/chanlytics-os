@@ -18,6 +18,7 @@ import type {
 } from "react-native-webview/lib/WebViewTypes";
 import * as Application from "expo-application";
 import * as WebBrowser from "expo-web-browser";
+import * as Updates from "expo-updates";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from "expo-router";
 import { parsePageMessage, THEME_COLORS, type PageMessage, type ShellMessage } from "@chanlytics/contracts";
@@ -31,6 +32,12 @@ import { Offline } from "./Offline";
 import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
 
 const PLATFORM: "ios" | "android" = Platform.OS === "ios" ? "ios" : "android";
+/**
+ * Whether a computer on the cable may inspect the pages (chrome://inspect, Safari's Develop menu): in a development or
+ * preview build only, where it is how a page's load is measured on a phone. Never in a store build, where it would
+ * hand the signed-in pages to anyone holding the phone with a debugger.
+ */
+const INSPECTABLE = __DEV__ || Updates.channel === "preview";
 
 export interface SurfaceHandle {
   ask(m: ShellMessage): void;
@@ -55,6 +62,9 @@ interface Props {
 
 export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   const ref = useRef<WebView>(null);
+  // Whether a sheet, a dialog or a menu stands over the page, as the page last said (legacy-bridge/app-bridge.ts
+  // watchOverlays, at install and on every change): Android's Back closes it before it walks the history.
+  const overlay = useRef(false);
   const focused = useIsFocused();
   // Created the first time this tab is in front, kept afterwards: a latch set during render, not in an effect.
   const [mounted, setMounted] = useState(focused);
@@ -62,6 +72,10 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   // Counts the times Android's renderer died under this page: each one is a new WebView, since the old one is dead
   // and blank for good (the library only reports it). iOS reloads in place, below.
   const [epoch, setEpoch] = useState(0);
+  // A new WebView after a dead renderer has nothing standing over it until its page says so.
+  useEffect(() => {
+    overlay.current = false;
+  }, [epoch]);
   const slug = useShell((s) => s.slug);
   const theme = useShell((s) => s.theme);
   const token = useShell((s) => s.token);
@@ -74,9 +88,10 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   const userAgent = useMemo(() => userAgentToken(Application.nativeApplicationVersion ?? "0.0.0", PLATFORM), []);
   const inset = bottomInset(PLATFORM, insets.bottom);
   // Where this WebView starts, fixed as it is created, and again for each new one after a dead renderer: the page
-  // moves itself after that. It followed the shell's slug, so on a cold start (no slug yet: the site's home, which
+  // moves itself after that. It followed the shell's slug, so on a first launch (no slug yet: the site's home, which
   // replaces itself with the workspace's address) the page naming its workspace sent the WebView to the same page
-  // with `#/today` added, an entry Back then stepped through with nothing to see.
+  // with `#/today` added, an entry Back then stepped through with nothing to see. Every launch after the first knows
+  // its workspace from the one before (remembered.ts) and starts at its address.
   const [start, setStart] = useState<{ epoch: number; source: WebViewSource } | null>(null);
   const source = start?.epoch === epoch ? start.source : sourceOf(route, slug, post);
   if (mounted && start?.epoch !== epoch) setStart({ epoch, source });
@@ -93,6 +108,7 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   const onMessage = useCallback(
     (e: WebViewMessageEvent) => {
       const m = actOnPageMessage(e.nativeEvent.data);
+      if (m?.t === "overlay") overlay.current = m.open;
       if (m?.t === "route") {
         if (!ready) onReady?.(handle);
         setReady(true);
@@ -150,7 +166,7 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
     return false;
   }, []);
 
-  useAndroidBack(ref, canGoBack, focused);
+  useAndroidBack(ref, canGoBack, overlay, focused);
 
   // The page's paper, behind the WebView (the library's own is white) and in the strip under the status bar: the
   // shell pads the top itself, on both platforms, since the page's header draws to the top of its viewport.
@@ -187,6 +203,7 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
         // iOS's "normal" as the number it means: Android's native prop is a Double, and the word crashed the app
         // the moment the first page mounted (the library converts it on iOS only).
         decelerationRate={0.998}
+        webviewDebuggingEnabled={INSPECTABLE}
         // No textZoom: Android's WebView follows the phone's font size, which 100 took from anyone who reads larger.
       />
     </View>
@@ -211,20 +228,30 @@ function actOnPageMessage(raw: string): PageMessage | null {
 }
 
 /**
- * Android's Back walks the page's own history first, while its tab is in front; at the history's start, the system's
- * own Back (the last tab, then the app left). It used to answer "handled" whatever the page's history held, so the
- * app could not be left.
+ * Android's Back, while its tab is in front: first it closes what stands over the page (a sheet, a dialog, a menu:
+ * the page is asked, and closes it as Escape would), then it walks the page's own history, and at the history's start
+ * it is the system's own Back (the last tab, then the app left). It used to answer "handled" whatever the page's
+ * history held, so the app could not be left; and it left the page from under an open sheet, the app with it.
  */
-function useAndroidBack(ref: RefObject<WebView | null>, canGoBack: RefObject<boolean>, focused: boolean): void {
+function useAndroidBack(
+  ref: RefObject<WebView | null>,
+  canGoBack: RefObject<boolean>,
+  overlay: RefObject<boolean>,
+  focused: boolean,
+): void {
   useEffect(() => {
     if (Platform.OS !== "android" || !focused) return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (overlay.current) {
+        ref.current?.injectJavaScript(askPage({ t: "close" }));
+        return true;
+      }
       if (!canGoBack.current) return false;
       ref.current?.goBack();
       return true;
     });
     return () => sub.remove();
-  }, [focused, ref, canGoBack]);
+  }, [focused, ref, canGoBack, overlay]);
 }
 
 /**

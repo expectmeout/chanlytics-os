@@ -4,7 +4,7 @@
  * install, then every route change, every needs-you count and every workspace change; the shell's navigate sets the
  * hash, its menu and top become the shell's own events, and a message that does not parse does nothing.
  */
-import { test } from "node:test";
+import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 import { installAppBridge, hashRoute } from "../../../../apps/dashboard/src/legacy-bridge/app-bridge.ts";
 
@@ -22,6 +22,7 @@ function windowOf({
   pathname = "/w/acme-plumbing",
   bell = null,
   theme = "dark",
+  overlays = null,
 } = {}) {
   const listeners = new Map();
   const posted = [];
@@ -32,6 +33,8 @@ function windowOf({
         classList: { contains: (c) => inApp && c === "in-app" },
         getAttribute: (n) => (n === "data-theme" ? theme : null),
       },
+      // The page's dialogs in the document's order; one that closed has left the document.
+      ...(overlays ? { querySelectorAll: () => overlays.filter((n) => n.isConnected), activeElement: null } : {}),
     },
     location: {
       hash,
@@ -79,6 +82,7 @@ test("at install the page says a person is in, its theme, the workspace and the 
     { t: "theme", theme: "light" },
     { t: "workspace", slug: "acme-plumbing" },
     { t: "route", route: "inbox" },
+    { t: "overlay", open: false },
   ]);
   posted.length = 0;
   win.location.hash = "#/clients/abc";
@@ -273,4 +277,84 @@ test("a device ask with an activity token registers both", async () => {
     "register",
     { token: "tok", platform: "ios", app_version: "1.0.0", activity_token: "act" },
   ]);
+});
+
+/** A dialog as the page holds it: shown until Escape takes it away, unless it keeps itself open. */
+function dialog({ closes = true } = {}) {
+  const field = { name: "field inside" };
+  const node = {
+    isConnected: true,
+    keys: [],
+    field,
+    getClientRects: () => ({ length: node.isConnected ? 1 : 0 }),
+    contains: (other) => other === node || other === field,
+    dispatchEvent(e) {
+      node.keys.push(e.key);
+      if (closes && e.key === "Escape") node.isConnected = false;
+      return true;
+    },
+  };
+  field.dispatchEvent = (e) => node.dispatchEvent(e);
+  return node;
+}
+const overlayPosts = (posted) => posted.filter((m) => m.t === "overlay");
+
+test("Back closes what stands over the page: the topmost dialog hears Escape, and the page says when none is left", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const under = dialog();
+    const over = dialog();
+    const overlays = [under, over];
+    const { win, posted } = windowOf({ overlays });
+    installAppBridge(win);
+    assert.deepEqual(overlayPosts(posted), [{ t: "overlay", open: true }], "said at install");
+    win.__appBridge.receive(JSON.stringify({ t: "close" }));
+    assert.deepEqual(over.keys, ["Escape"], "the one on top");
+    assert.deepEqual(under.keys, [], "never the one beneath it");
+    mock.timers.tick(250);
+    assert.equal(overlayPosts(posted).length, 1, "one still stands: nothing new to say");
+    win.__appBridge.receive(JSON.stringify({ t: "close" }));
+    assert.deepEqual(under.keys, ["Escape"]);
+    mock.timers.tick(250);
+    assert.deepEqual(overlayPosts(posted).at(-1), { t: "overlay", open: false });
+    // Nothing standing: a close is only a fresh look.
+    win.__appBridge.receive(JSON.stringify({ t: "close" }));
+    mock.timers.tick(250);
+    assert.equal(overlayPosts(posted).length, 2);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("the Escape goes to what has the focus inside the dialog, so a field's own Escape answers first", () => {
+  const d = dialog();
+  const { win } = windowOf({ overlays: [d] });
+  installAppBridge(win);
+  const seen = [];
+  d.field.dispatchEvent = (e) => seen.push(["field", e.key, e.bubbles, e.cancelable]);
+  win.document.activeElement = d.field;
+  win.__appBridge.receive(JSON.stringify({ t: "close" }));
+  assert.deepEqual(seen, [["field", "Escape", true, true]], "bubbling and cancelable, as a keyboard's");
+  assert.deepEqual(d.keys, []);
+});
+
+test("a dialog Escape leaves standing twice running is not asked again: Back walks the history past it", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const stuck = dialog({ closes: false });
+    const { win, posted } = windowOf({ overlays: [stuck] });
+    installAppBridge(win);
+    const close = () => {
+      win.__appBridge.receive(JSON.stringify({ t: "close" }));
+      mock.timers.tick(250);
+    };
+    close(); // a sheet mid-save keeps itself open: that Back does nothing
+    assert.deepEqual(overlayPosts(posted), [{ t: "overlay", open: true }]);
+    close(); // twice running: it is left to its own close
+    assert.deepEqual(overlayPosts(posted).at(-1), { t: "overlay", open: false });
+    close();
+    assert.deepEqual(stuck.keys, ["Escape", "Escape"], "not asked a third time");
+  } finally {
+    mock.timers.reset();
+  }
 });

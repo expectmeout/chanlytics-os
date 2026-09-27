@@ -37,6 +37,12 @@ const Body = z
  *
  * The contact is the row (contactScope): a live person the caller can see
  * under RLS, the role judged where they live.
+ *
+ * The address goes first. Each door commits on its own, and the address's is
+ * the one that refuses in practice (another person here has it): asked with a
+ * name beside it (an Ask details card), a refusal leaves the name as it was
+ * rather than half the change made. The name is cut to its door's 80 below,
+ * so that door does not refuse.
  */
 export const PUT = write({
   scope: contactScope,
@@ -59,6 +65,18 @@ export const PUT = write({
     } = {
       contact_id: id,
     };
+    if (input.email !== undefined) {
+      const typed = input.email.trim();
+      const email = typed ? normalizeEmail(typed) : null;
+      if (typed && !email) throw new AppError("validation", whyNotAnEmail(typed) ?? "That is not an email address.");
+      const { data, error: doorErr } = await ctx.supabase.rpc("set_person_email", {
+        p_contact_id: id,
+        p_email: email ?? "",
+      });
+      // 23505 is the door's own word for "another person here already has that address".
+      if (doorErr) throw new AppError(doorErr.code === "23505" ? "conflict" : "validation", doorErr.message);
+      out.email = ((data ?? {}) as { email?: string | null }).email ?? null;
+    }
     if (hasName) {
       const { data, error: doorErr } = await ctx.supabase.rpc("set_person_name", {
         p_contact_id: id,
@@ -74,18 +92,6 @@ export const PUT = write({
       });
       if (doorErr) throw new AppError("validation", doorErr.message);
       out.notes = ((data ?? {}) as { notes?: string | null }).notes ?? null;
-    }
-    if (input.email !== undefined) {
-      const typed = input.email.trim();
-      const email = typed ? normalizeEmail(typed) : null;
-      if (typed && !email) throw new AppError("validation", whyNotAnEmail(typed) ?? "That is not an email address.");
-      const { data, error: doorErr } = await ctx.supabase.rpc("set_person_email", {
-        p_contact_id: id,
-        p_email: email ?? "",
-      });
-      // 23505 is the door's own word for "another person here already has that address".
-      if (doorErr) throw new AppError(doorErr.code === "23505" ? "conflict" : "validation", doorErr.message);
-      out.email = ((data ?? {}) as { email?: string | null }).email ?? null;
     }
     if (input.proposal !== undefined) {
       const typed = input.proposal.trim();

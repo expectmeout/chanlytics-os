@@ -846,6 +846,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     playbook: "approve",
     lead_search: "find",
     deal: "approve",
+    note: "approve",
+    person_details: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
@@ -867,7 +869,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ["propose_campaign", ["broadcast", "playbook"]],
       ["propose_deal", []],
       ["propose_lead_search", []],
-      ["propose_person", ["mode"]],
+      ["propose_person", ["mode", "note", "details"]],
       ["propose_reply", ["draft", "steer"]],
       ["propose_settings", []],
       ["propose_team", ["invite"]],
@@ -994,12 +996,24 @@ test("an answer never carries tags: the leak seen on production is cut", () => {
   // fourteen reads run against the database in memory" (each row's `recent`).
 });
 
-test("the eval checks that an Open asked for is followed", () => {
+test("the eval checks that an Open asked for is followed, and what the words decided on a card: a note's reader, which has no default, and the address a details card sets (card_fields, PR 4.6)", async () => {
   // Open/show/see goes there as the answer lands, and what an answer shows is the contract's: both executed in
   // ask-palette.test.mjs ("open, show or see", "a turn since the Line"); where the browser cannot listen, the field's
   // one button is Send alone, executed there too ("one button at the field's end").
   const judge = readCode("tooling/scripts/eval-ask.mjs");
   assert.ok(judge.includes("e.navigate_now"));
+  assert.ok(judge.includes("Object.entries(e.card_fields ?? {})"), "every kind a case names");
+  assert.ok(judge.includes("p.payload?.[k] !== v"), "each field of each card of that kind, compared");
+  const { readFile } = await import("node:fs/promises");
+  const cases = JSON.parse(await readFile(path.join(here, "../../../evals/ask-cases.json"), "utf8"));
+  assert.deepEqual(
+    Object.fromEntries(cases.filter((c) => c.expect?.card_fields).map((c) => [c.id, c.expect.card_fields])),
+    {
+      person_note_team: { note: { team_only: true } },
+      person_note_receptionist: { note: { team_only: false } },
+      person_details_email: { person_details: { email: "jordan.reyes@example.com" } },
+    },
+  );
 });
 
 test("context first: the page rides into every turn (ask-turn.test.mjs runs it), loaders are memoised and lighter, and the rounds run at low effort", () => {
