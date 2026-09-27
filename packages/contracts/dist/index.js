@@ -12126,9 +12126,9 @@ function pipelineBoardMore(n) {
 
 // src/ask/ask.ts
 var ASK_MAX_CHARS = 1e3;
-var ASK_MAX_ROUNDS = 4;
+var ASK_MAX_ROUNDS = 3;
 var ASK_TURN_BUDGET_MS = 45e3;
-var ASK_MAX_TOKENS = 2e3;
+var ASK_MAX_TOKENS = 4e3;
 var ASK_TOKENS_DAY = 15e5;
 var ASK_RETENTION_DAYS = 90;
 var ASK_CAPS = {

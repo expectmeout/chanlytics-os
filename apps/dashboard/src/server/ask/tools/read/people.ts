@@ -182,8 +182,13 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
 export const search_people = defineRead({
   name: "search_people",
   // The lists are named from the one table of them (contracts lists.ts), never typed beside it.
-  description: `Find people (customers and callers) by name or phone digits. Returns their state, last contact, receptionist mode and their next appointment when the calendar is connected. Empty query lists the most recent people. list narrows to one list: the list token list_audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own), or a People list's id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. A list that can't be counted here says why. Each person says their next step, when they have one.`,
+  description: `Find people (customers and callers) by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them. Each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token list_audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Call it to find someone, or to see who is on a list; call get_person instead for one person's whole profile, timeline and notes, with the contact_id a row here gives. It returns at most ${ASK_CAPS.people} people, with matches counted before the cap; a list that cannot be counted here says why.`,
   input: z.object({ query: z.string(), list: z.string().optional() }),
+  examples: [
+    { query: "Rosa" },
+    { query: "", list: "quiet" },
+    { query: "", list: "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
+  ],
   label: "Looking through People",
   run: searchPeople,
 });
@@ -191,7 +196,7 @@ export const search_people = defineRead({
 export const get_person = defineRead({
   name: "get_person",
   description:
-    "One person's profile: right now, facts, their conversations and calls, and their timeline. Use a contact id from search_people or get_thread.",
+    "One person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; search_people is the sibling that finds people and lists them with their state. contact_id is the id search_people, get_thread, get_call or get_calendar returned. It returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
   input: z.object({ contact_id: z.string() }),
   label: "Reading the profile",
   run: getPerson,
