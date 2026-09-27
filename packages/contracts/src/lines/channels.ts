@@ -1,4 +1,4 @@
-import { agoWords } from "../shared/time";
+import { agoWords, DATE_FMT, DAY_MS } from "../shared/time";
 /**
  * Channels — the numbers a business is reachable on, as facts.
  *
@@ -92,9 +92,7 @@ export interface ChannelVM {
   created_at: string;
 }
 
-const DAY_MS = 86_400_000;
 const QUIET_AFTER_MS = 7 * DAY_MS;
-const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 
 function ago(ms: number, nowMs: number): string {
   return agoWords(ms, nowMs, { dateAfterMs: QUIET_AFTER_MS, date: (at) => DATE_FMT.format(new Date(at)) });

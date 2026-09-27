@@ -13,6 +13,7 @@ import {
   overLimitRefusal,
   paramLabel,
   purposeOfTemplate,
+  UUID,
   type Audience,
   type AudienceKind,
   listToken,
@@ -22,7 +23,6 @@ import { assembleRun } from "./assemble";
 import { templateValues } from "./template-values";
 import type { CreateBroadcastCommand, CreateBroadcastPorts } from "./ports";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** An instant names its offset: "Z" or "±hh:mm". A date alone, or a wall-clock time without one, is read on the server's clock. */
 const OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
 

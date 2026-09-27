@@ -47,6 +47,7 @@ import { isOptedOutContact } from "../consent/consent";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
 import { channelKindWords } from "../lines/channels";
 import { formatPhoneDisplay } from "../shared/phone";
+import { capitalize, plural } from "../shared/words";
 import type { EmailSetupDto } from "../email/mailbox";
 import { leadQuestionRoute, type LeadSearchDto } from "../leads/leads";
 import {
@@ -458,10 +459,6 @@ const REASON_WHY: Record<string, string> = {
   callback: "because they need a call back",
 };
 const reasonWhy = (r: string): string => REASON_WHY[r] ?? reasonShort(r) ?? r;
-
-const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
-
-const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /** A wire's word inside a sentence: "by WhatsApp", "by email", "by text". */
 const wireWord = (w: string): string => (w === "WhatsApp" ? w : w.toLowerCase());

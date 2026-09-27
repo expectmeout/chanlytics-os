@@ -880,8 +880,8 @@
     "depth": 2
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 560,
-    "branches": 121,
+    "lines": 559,
+    "branches": 117,
     "depth": 6
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {

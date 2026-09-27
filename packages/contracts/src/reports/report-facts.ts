@@ -6,6 +6,7 @@
  */
 import { reportHourWords, type ReportVM } from "./reports";
 import type { CampaignReportVM } from "./campaign-report";
+import { plural } from "../shared/words";
 
 export interface ReportFactVM {
   id: "unanswered" | "handovers" | "busiest" | "campaign" | "channel";
@@ -18,7 +19,6 @@ export interface ReportFactVM {
   door: { label: string; to: string } | null;
 }
 
-const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 const lowerFirst = (s: string): string => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
 
 export function reportFacts(vm: ReportVM, campaigns: CampaignReportVM | null): ReportFactVM[] {

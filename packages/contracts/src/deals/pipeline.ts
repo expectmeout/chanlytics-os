@@ -18,6 +18,7 @@
  * a page only composes it. Pure.
  */
 import { clockDate, clockNear, clockNearWhen } from "../shared/clock";
+import { plural } from "../shared/words";
 import { DEAL_CARD_WORDS, type DealSheetMode } from "./deal-sheet";
 import {
   DEAL_LOST_REASONS,
@@ -275,7 +276,6 @@ export const PIPELINE_WORDS = {
   },
 } as const;
 
-const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 const upper = (s: string): string => (s ? `${s[0].toUpperCase()}${s.slice(1)}` : s);
 /** A time in stage in words, "8 d", from the one count of whole days (wholeDaysSince); "" without one. */
 const daysWords = (days: number | null): string => (days === null ? "" : `${days} d`);

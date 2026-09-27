@@ -137,7 +137,7 @@ async function proposeBroadcast(
 export const propose_broadcast = defineAct({
   name: "propose_broadcast",
   description:
-    "Propose a broadcast: one approved WhatsApp template to an audience — everyone who said yes, or any list list_audiences names (its kind and audience_id: a People list, or one of the workspace's own) — with the template's values in order (typed text, or @first_name, @business_name, @booking_link to fill per person) and an optional ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date). Read list_audiences first. It becomes a card the person approves; nobody without a recorded yes is ever included.",
+    "Propose a broadcast: one approved WhatsApp template to an audience, everyone who said yes or any list list_audiences names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the template's values in order (typed text, or @first_name, @business_name or @booking_link to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), and an optional name. Read list_audiences first, for the template ids, the audiences and their counts; propose_playbook is the sibling for a standing rule that sends on its own. When nobody can be sent it, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to; never propose a broadcast to nobody. It becomes a card the person approves; nobody without a recorded yes is ever included, and the card says how many it reaches.",
   input: z.object({
     template_id: z.string(),
     audience_kind: z.enum(["everyone", "list", "saved"]),
@@ -146,6 +146,22 @@ export const propose_broadcast = defineAct({
     scheduled_for: z.string().optional(),
     name: z.string().optional(),
   }),
+  examples: [
+    {
+      template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+      audience_kind: "everyone",
+      params: ["@first_name", "20% off until Friday"],
+    },
+    { template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70", audience_kind: "list", audience_id: "quiet", params: [] },
+    {
+      template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+      audience_kind: "saved",
+      audience_id: "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b",
+      params: ["@first_name"],
+      scheduled_for: "2026-10-03T15:00:00-04:00",
+      name: "October offer",
+    },
+  ],
   label: "Preparing a broadcast",
   build: proposeBroadcast,
 });

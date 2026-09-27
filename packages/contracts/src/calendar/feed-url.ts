@@ -11,6 +11,7 @@
  * places: the preview's refusal, the Calendar page's card, and the Setup
  * row. Each way a feed fails has one sentence, and it names what to do.
  */
+import { DAY_MS } from "../shared/time";
 
 /** Hosts a feed is never fetched from: this machine, the private ranges, link-local, and local names. */
 const PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
@@ -170,8 +171,6 @@ export interface FeedHorizon {
   from: number;
   to: number;
 }
-
-const DAY_MS = 86_400_000;
 
 /**
  * THREE WINDOWS, NAMED.

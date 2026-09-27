@@ -15,7 +15,8 @@
  * gained. Pure: the routes feed it rows, the tests feed it fixtures.
  */
 import type { SchemaSet } from "../shared/schema-sets";
-import { agoWords } from "../shared/time";
+import { agoWords, DATE_FMT, WEEK_MS } from "../shared/time";
+import { plural } from "../shared/words";
 import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
 import { dayDate, fmtDay, deltaOf, type ReportTileVM } from "../reports/reports";
 import { DAYS, dayProblems, type Hours } from "../config/config";
@@ -308,8 +309,6 @@ export const REVIEW_NEWS_MAX_AGE_MS = 14 * 86_400_000;
 /** The first read after linking is history, not news. */
 const BOOTSTRAP_MS = 3600 * 1000;
 
-const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
-
 /** "4.8 ★"; "no rating yet" when Google has none. */
 export function ratingWords(rating: number | null | undefined): string {
   return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} ★` : "no rating yet";
@@ -424,9 +423,6 @@ export interface GoogleVM {
   /** Today's one line when a review is news, and where it leads. */
   todayLine: { text: string; to: string } | null;
 }
-
-const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-const WEEK_MS = 7 * 86_400_000;
 
 function whenWords(iso: string | null, nowMs: number): string {
   if (!iso) return "";

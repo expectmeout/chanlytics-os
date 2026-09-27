@@ -22,7 +22,7 @@ it is deleted in the same change. The plan that orders the work is
 | Directories over 20 modules                                    | `baselines/tree-shape.json`                                       | Empty                                                                                                                             | Phase 1: `src/server`, `contracts`, the demo tree and the tests, each grouped by domain                                                                                                                                                 |
 | Window globals: the `window.__*` names the shell reads         | `baselines/window-globals.json`                                   | Empty: every surface reads its data through a typed import                                                                        | The shell's exit decision (the next free number), surface by surface; a surface that goes real-only retires its names                                                                                                                   |
 | Window publishers: `Object.assign(window, …)` and `window.x =` | `baselines/window-publishers.json`                                | Empty                                                                                                                             | The same                                                                                                                                                                                                                                |
-| Copies: a name declared at top level in three or more files    | `baselines/copies.json`                                           | Empty                                                                                                                             | Phase 3: `DAY_MS` and `WEEK_MS` in `contracts/time.ts`, `UUID` in `identity.ts`, `plural` and `capitalize` in one `words.ts`, `escapeHtml` in `core/html.ts`, `mmss` in `clock.ts`, `serviceDb` in `packages/db`                        |
+| Copies: a name declared at top level in three or more files    | `baselines/copies.json`                                           | Empty                                                                                                                             | The homes exist (contracts' `shared/time.ts`, `identity.ts`, `words.ts`, `html.ts`, `clock.ts`; `server/service-db.ts`): Ask's and Reach out's copies move there once those land; other names are other things, renamed to say which    |
 | `as unknown as`                                                | `baselines/casts.json`                                            | Zero                                                                                                                              | Phase 3, with the branded ids; the bridge's window casts go with the generated `legacy-globals.d.ts`                                                                                                                                    |
 | Table names outside `packages/db`                              | `baselines/tables.json`                                           | Zero: every read and write of a table goes through a repository or a reader in `packages/db` (`CLAUDE.md`, what not to introduce) | A reader at a time, as `src/server` is grouped by domain                                                                                                                                                                                |
 | Dead exports, types and modules                                | `baselines/dead-exports.json`, `corepack pnpm check:dead-exports` | Zero                                                                                                                              | Phase 3: a look at each (a use knip cannot see is read through a string or a test double), then delete; `assertCanSend` and `schema-agreement.ts` first                                                                                 |
@@ -61,14 +61,14 @@ fails when this block and the baselines disagree.
 
 ```text
 functions over the limit            269   of which over 200 lines: 65
-files over 800 lines                 36
+files over 800 lines                 35
 directories over 20 modules           8
 window globals                      195   names
 window publishers                   391   sites in 144 files
-copies                              191   of 44 names
+copies                              129   of 35 names
 as unknown as                       223
 table names outside packages/db     535
-dead exports, types and modules     213
+dead exports, types and modules     212
 source-text reads in tests          833
 lint warnings allowed                46
 ```

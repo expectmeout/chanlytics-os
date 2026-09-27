@@ -1,4 +1,7 @@
-/** The plumbing every domain uses: time and the clock, the three normalizers, CSV, the envelope and its errors, the closed sets. */
+/**
+ * The plumbing every domain uses: time and the clock, the three normalizers, what an id looks like, the small words,
+ * HTML escaping, CSV, the envelope and its errors, the closed sets.
+ */
 export { ok, err } from "./envelope";
 export type { Ok, Err, Envelope } from "./envelope";
 export { ERROR_CODES, AppError } from "./errors";
@@ -71,7 +74,18 @@ export type {
   ActorType,
   TemplateStatus,
 } from "./enums";
-export { spanUnits, spanLabel, waitedLabel, agoShort, agoWords, timezoneCity } from "./time";
+export {
+  MIN_MS,
+  HOUR_MS,
+  DAY_MS,
+  WEEK_MS,
+  spanUnits,
+  spanLabel,
+  waitedLabel,
+  agoShort,
+  agoWords,
+  timezoneCity,
+} from "./time";
 export type { SpanUnits } from "./time";
 export {
   zoneDayKey,
@@ -92,6 +106,9 @@ export {
   fromZonedInput,
 } from "./clock";
 export type { SchemaSetKey, SchemaSet, Exactly, Within, Holds, SchemaAgreement } from "./schema-sets";
+export { UUID, isUuid } from "./identity";
+export { plural } from "./words";
+export { escapeHtml } from "./html";
 export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts } from "./csv";
 export type { CsvCell, ImportColumns, ImportRow } from "./csv";
 export { SCHEMA_SETS } from "../schema-sets.generated";

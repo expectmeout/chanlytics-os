@@ -1266,6 +1266,12 @@ interface CheckPlaybookPorts extends TemplateValuesPorts {
     /** Whether deals are on here (dealsAreOn, 0008): a proposal follow-up is made only then (0006). */
     dealsOn(): Promise<boolean>;
 }
+/**
+ * Everything a playbook names, checked the way a broadcast is: the trigger,
+ * then the template and its values through the one judgement, then the
+ * whole numbers. A playbook can never name a template a broadcast could not
+ * send or a slot the workspace cannot fill.
+ */
 declare function checkPlaybook(ports: CheckPlaybookPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
 
 declare const reachOutRunIdFor: (stepId: string, runFor: string) => Promise<string>;

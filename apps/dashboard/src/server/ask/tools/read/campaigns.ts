@@ -144,7 +144,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
         }
       : null,
     ...(couldNotRead.length ? { could_not_read: couldNotRead } : {}),
-    note: `Two consents, two counts each. can_be_sent_offers is who a promotional template reaches and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not. Pick the template first, then quote its can_be_sent count as who the broadcast reaches -- never a larger count. When that is 0 and its said_yes is not, the ones who said yes have no number: say so, and never send the owner to get a yes they already have.`,
+    note: `Two consents, two counts each. can_be_sent_offers is who a promotional template reaches and can_be_sent_messages who a utility or authentication one reaches, because ${NO_NUMBER_REACH}; said_yes_to_offers and said_yes_to_messages count everyone who gave that yes, a number or not.`,
   };
 }
 
@@ -253,14 +253,13 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),
       starter_template: starterForTrigger(x.id)?.title ?? null,
     })),
-    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever a broadcast already reached this week waits out the week. When can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so, and never send the owner to get a yes they already have. A null count means the page could not count it just now.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs." : ""} Nothing here has run because you read it.`,
+    note: `A run is a broadcast, and ${NO_NUMBER_REACH}. It never reaches anyone twice within the playbook's gap, and sends one playbook message per person per week. said_yes_now counts who each trigger names that said the yes its template needs, a number or not; can_be_sent_now is who of them a run reaches now, the Playbooks page's own count: whoever a broadcast already reached this week waits out the week. A null count means the page could not count it just now.${pb.deals_on ? " The proposal follow-up reaches each proposal once, with its link: its counts leave out whoever already had theirs." : ""}`,
   };
 }
 
 export const list_audiences = defineRead({
   name: "list_audiences",
-  description:
-    "The audiences a broadcast may go to — everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule) — each with its kind and audience_id (propose_broadcast's audience), its list token (search_people's list), and FOUR counts; a list of the workspace's own that can't be counted here carries cannot_count (why) and no counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). Also the approved WhatsApp templates with their category and values, and whether the number may send. Read this before proposing a broadcast, and match the count to the template.",
+  description: `The audiences a broadcast may go to, read before any broadcast: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (propose_broadcast's audience), its list token (search_people's list), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}. Call it before proposing a broadcast, and to say who a message would reach; list_playbooks is the sibling for the standing rules and their moments. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. A list that cannot be counted here carries cannot_count and no counts.`,
   input: z.object({}),
   label: "Reading the lists and templates",
   run: listAudiences,
@@ -269,7 +268,7 @@ export const list_audiences = defineRead({
 export const list_playbooks = defineRead({
   name: "list_playbooks",
   description:
-    "The playbooks: standing rules that send one approved template to newly eligible people who said yes — each with what starts it, its template, its clock, whether it is running, the autonomy mode its class runs under, its next run, what its runs earned, and a run waiting for a person if there is one — plus every trigger with who its moment names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Read this to say what is running, and before proposing a playbook.",
+    "The playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Call it to say what is running, and before proposing a playbook; list_audiences is the sibling for a one-off broadcast's audiences and templates. When can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so, and never send the owner to get a yes they already have. A null count means the page could not count it just now, and nothing has run because it was read.",
   input: z.object({}),
   label: "Reading the playbooks",
   run: listPlaybooksTool,

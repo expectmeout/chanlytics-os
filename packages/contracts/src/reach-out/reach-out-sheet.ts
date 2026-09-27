@@ -6,8 +6,8 @@
 import { clockTime } from "../shared/clock";
 import { DOMAIN_RAMP, domainDailyCap } from "../email/sending-domains";
 import { nextRunLabel } from "../playbooks/playbook-schedule";
-// The one "3 emails" (setup.ts), not an eleventh copy of it.
-import { plural } from "../setup/setup";
+// The one "3 emails" (shared/words.ts), not an eleventh copy of it.
+import { plural } from "../shared/words";
 import type {
   ReachOutChainDto,
   ReachOutChainReportDto,

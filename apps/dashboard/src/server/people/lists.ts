@@ -9,6 +9,7 @@ import {
   listDraftFieldLines,
   parseListToken,
   ruleLists,
+  UUID,
   type ListRule,
 } from "@chanlytics/contracts";
 import { askForJson } from "../model-json";
@@ -28,8 +29,6 @@ export type SavedListDto = SavedListRow;
 
 export const LIST_NAME_MAX = 60;
 export const LIST_BATCH_MAX = 500;
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function cleanListName(raw: unknown): string {
   const name = typeof raw === "string" ? raw.trim().replace(/\s+/g, " ") : "";

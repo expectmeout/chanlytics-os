@@ -5,7 +5,8 @@
 import type { AskedPurpose } from "../consent/consent";
 import type { PersonRowVM } from "./people";
 import { mayReceive, saidYesTo } from "./person-consent";
-import { DAY_MS, MONTH_MS, WEEK_MS } from "./person-helpers";
+import { MONTH_MS } from "./person-helpers";
+import { DAY_MS, WEEK_MS } from "../shared/time";
 
 /* ---------------------------- lists and totals --------------------------- */
 

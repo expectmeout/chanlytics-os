@@ -831,7 +831,9 @@ test("the dashboard: owners and the partner link and search, operators read, mem
   const get = readCode("apps/dashboard/app/api/v1/google/route.ts");
   assert.ok(/googleFor\(ctx\.supabase, member\.tenantId\),\s*googleReadiness\(\)/.test(get));
   const server = readCode("apps/dashboard/src/server/connections/google.ts");
-  assert.ok(server.includes('edgeHeaders("/api/admin/google"') && server.includes("const READY_TTL_MS = 5 * 60_000;"));
+  assert.ok(
+    server.includes('edgeHeaders("/api/admin/google"') && server.includes("now - readyCache.at < READY_TTL_MS"),
+  );
   assert.ok(!server.includes("GOOGLE_PLACES_API_KEY"), "the dashboard never holds the key");
   const setup = readCode("apps/dashboard/src/server/workspace/setup.ts");
   // What Setup reads of the listing, and of Google's facts, setup.test.mjs runs (setupDtoFor over a database in memory).

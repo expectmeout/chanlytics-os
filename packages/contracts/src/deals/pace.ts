@@ -5,8 +5,7 @@
  */
 import { isYes, PACE_WINDOW_DAYS, type DealPaceDto } from "./deals";
 import { quantile } from "../reports/reports";
-
-const DAY_MS = 86_400_000;
+import { DAY_MS } from "../shared/time";
 
 /** A yes put on file within this long of its proposal is a client entered after the fact, not a decision. */
 export const SAME_SITTING_MS = 3_600_000;

@@ -30,7 +30,8 @@ import {
   toPersonRowVM,
   visitTitleFor,
 } from "./people";
-import { addedBy, capitalize, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
+import { addedBy, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
+import { capitalize } from "../shared/words";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
 import { replyWindow } from "../config/policy";
 import { messageAt, type MessageDto, messageText, shortTime, writtenChannelOf } from "../conversations/viewmodels";
