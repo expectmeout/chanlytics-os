@@ -397,7 +397,7 @@ const bcRunActs = ({ canSend, stopping, setStopping, setArmId, flash, approvingR
     } else if (!said) say(r.data);
     return r.ok;
   };
-  const approve = async (row) => {
+  const approve = async (row, words = null) => {
     if (!window.__broadcasts || !canSend || approvingRef.current) return false;
     approvingRef.current = row.id;
     setApproving(row.id);
@@ -407,7 +407,7 @@ const bcRunActs = ({ canSend, stopping, setStopping, setArmId, flash, approvingR
       said = true;
       approvingRef.current = null;
       setApproving(null);
-      flash({ tone: "ok", msg: <><b>{row.name}</b> approved — {data.recipient_count} {data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(data)}</> });
+      flash({ tone: "ok", msg: typeof words === "string" ? <>{words}</> : <><b>{row.name}</b> approved — {data.recipient_count} {data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(data)}</> });
     };
     const r = await window.__broadcasts.approve(row.id, { onAccepted: say });
     if (!r.ok) {
@@ -522,7 +522,7 @@ const bcSheetOf = ({ openRows, data, openRun, canSend, armId, setArmId, stopping
       onArm: (on) => setArmId(on ? row.id : null),
       stopping: stopping === row.id,
       approving: approving === row.id,
-      approve: async () => { if (await approve(row)) onward(); },
+      approve: async (words) => { if (await approve(row, typeof words === "string" ? words : null)) onward(); },
       skip: async () => { if (await cancel(row)) onward(); },
     };
   };

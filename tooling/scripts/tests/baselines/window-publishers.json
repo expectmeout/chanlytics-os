@@ -134,6 +134,7 @@
   "apps/dashboard/src/legacy/pages/playbook-card.jsx": 1,
   "apps/dashboard/src/legacy/pages/playbook-composer.jsx": 1,
   "apps/dashboard/src/legacy/pages/reach-out/email-template-row.jsx": 1,
+  "apps/dashboard/src/legacy/pages/reach-out/reach-out-approval.jsx": 1,
   "apps/dashboard/src/legacy/pages/reach-out/reach-out-door.jsx": 1,
   "apps/dashboard/src/legacy/pages/reach-out/reach-out-row.jsx": 1,
   "apps/dashboard/src/legacy/pages/reach-out/reach-out-sheet.jsx": 1,
