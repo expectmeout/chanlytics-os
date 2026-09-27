@@ -1,4 +1,5 @@
 import "server-only";
+import type { AskCitationKind, AskRowRef } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import type { Member } from "../route";
 
@@ -30,16 +31,14 @@ import type { Member } from "../route";
  * turns with other clocks and other roles.
  */
 
-/** The kinds a row may be cited as (contracts AskReadSet) and a page. Phase 4 grows this to twelve. */
-export type RowKind = "thread" | "conversation" | "call" | "person" | "page";
+/** The kinds a row may be cited as, twelve, and a page: the citation's thirteen names (contracts ASK_CITATION_KINDS). */
+export type RowKind = AskCitationKind;
 
-export interface RowRef {
-  kind: RowKind;
-  id: string;
-  /** Where it opens, as the page opens it. */
-  route: string;
-  label: string;
-}
+/**
+ * A row a reader returned: its kind and id, where it opens as its page opens it, and its name. The read set keeps it
+ * as the reader gave it (contracts AskRowRef), so a citation of it opens where the reader said.
+ */
+export type RowRef = AskRowRef;
 
 export interface Read<T> {
   data: T;

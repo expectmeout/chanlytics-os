@@ -8,7 +8,7 @@ const LIMIT = 60;
 /**
  * GET notifications, as the route answers it: the workspace's kept notifications of the last thirty days by the turn's
  * clock, newest first, with this person's own marks on each row and when they last opened the bell. The route's body,
- * moved here whole. A notification is not a row a citation names until Phase 4.
+ * moved here whole. A notification is not a row a citation names: none of the thirteen is the bell's.
  */
 export const notifications: Reader<undefined, NotificationsDto> = {
   name: "notifications",

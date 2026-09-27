@@ -30,7 +30,17 @@ import { people as peopleReader } from "../../readers/people";
 import { calendar as calendarReader } from "../../readers/calendar";
 import { leads as leadsReader } from "../../readers/leads";
 import { searches as searchesReader } from "../../readers/searches";
-import { aggregateOf, idsOf, line, pageWithView, refOf, sourceOf, type ContextRow, type Provider } from "./rows";
+import {
+  aggregateOf,
+  idsOf,
+  line,
+  pageWithView,
+  refOf,
+  refsOf,
+  sourceOf,
+  type ContextRow,
+  type Provider,
+} from "./rows";
 
 /**
  * The people pages, as their context: People, the Pipeline, the Calendar and Leads. Each person is read through
@@ -81,7 +91,7 @@ export const people: Provider = async (rc, ctx) => {
       source: sourceOf("person", id),
       title: v.name,
       text: personLine(r, v, tz, rc.now.getTime()),
-      ref: refOf("person", id, v.name),
+      ref: refOf("person", id, v.name, `clients/${id}`),
     });
   }
   return {
@@ -128,7 +138,7 @@ export const pipeline: Provider = async (rc, ctx) => {
         ],
         `clients/${id}`,
       ),
-      ref: refOf("person", id, row.name),
+      ref: refOf("person", id, row.name, `clients/${id}`),
     });
   }
   const asked = (ctx.view ?? "").replace(/:search$/, "");
@@ -169,7 +179,7 @@ export const calendar: Provider = async (rc, ctx) => {
       source: sourceOf("person", id),
       title: p.name,
       text: line([p.name, ...p.on], `clients/${id}`),
-      ref: refOf("person", id, p.name),
+      ref: refOf("person", id, p.name, `clients/${id}`),
     });
   }
   const taken = vm.days.reduce((n, d) => n + d.allDay.length + d.blocks.length, 0);
@@ -206,12 +216,15 @@ export const leads: Provider = async (rc, ctx) => {
     ...(v.searchId ? { search: v.searchId } : {}),
   });
   const query = asked.success ? asked.data : LeadsQuerySchema.parse({});
-  const [page, found, tz] = await Promise.all([
-    load(rc, leadsReader, query).then((r) => r.data),
+  const [read, found, tz] = await Promise.all([
+    load(rc, leadsReader, query),
     load(rc, searchesReader, undefined).then((r) => r.data),
     zone(rc),
   ]);
+  const page = read.data;
   const byId = new Map(page.rows.map((r) => [r.id, r]));
+  // Each lead as the Leads page's read gave it: its RowRef, which opens its peek on the page's own view.
+  const refs = refsOf(read.rows);
   const rows: ContextRow[] = [];
   for (const { id } of idsOf(ctx, "lead")) {
     const r = byId.get(id);
@@ -224,7 +237,7 @@ export const leads: Provider = async (rc, ctx) => {
         [vm.name, vm.category, vm.area, vm.fitLabel, vm.stageLabel, vm.emailWord],
         leadsRoute({ searchId: v.searchId, list: v.list, cls: v.cls, peek: id }),
       ),
-      ref: null,
+      ref: refs.get(id) ?? null,
     });
   }
   const c = found.counts;

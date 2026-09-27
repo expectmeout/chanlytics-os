@@ -7,6 +7,7 @@ import {
   actAction,
   approvalWords,
   defineActions,
+  noteRow,
   propose,
   refuse,
   str,
@@ -46,7 +47,7 @@ async function proposePersonMode(
     never: "stays silent with them",
     inherit: "follows the workspace rule",
   };
-  t.read.person.add(id);
+  noteRow(t, "person", id, who, `clients/${id}`);
   return propose({
     kind: "person_mode",
     title: `Receptionist for ${who}`,

@@ -1,10 +1,10 @@
 import "server-only";
 import { z } from "zod";
-import { ASK_CAPS, abandonedCall, toCallVM } from "@chanlytics/contracts";
+import { ASK_CAPS, abandonedCall, noteRows, toCallVM } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { call } from "../../../readers/call";
 import { calls as callsReader } from "../../../readers/calls";
-import { UUID, defineActions, readAction, str, unlessNotFound, type ToolContext } from "../context";
+import { UUID, defineActions, noteRow, readAction, str, unlessNotFound, type ToolContext } from "../context";
 
 function dayKey(iso: string | null | undefined, tz: string): string | null {
   if (!iso) return null;
@@ -43,7 +43,7 @@ async function listCalls(t: ToolContext, input: { filter: string }): Promise<unk
       }
     })
     .slice(0, ASK_CAPS.calls);
-  for (const v of picked) t.read.call.add(v.callId);
+  for (const v of picked) noteRow(t, "call", v.callId, v.who, `conversations/cv-${v.callId}`);
   return {
     filter,
     calls: picked.map((v) => ({
@@ -69,8 +69,8 @@ async function getCall(t: ToolContext, input: { call_id: string }): Promise<unkn
   const r = await unlessNotFound(load(t.rc, call, { id }));
   if (!r) return { error: "no such call in this workspace" };
   const v = toCallVM(r.data.call, t.timezone, t.now);
-  t.read.call.add(id);
-  if (v.clientId) t.read.person.add(v.clientId);
+  // The call and its person, as the reader gave them.
+  noteRows(t.read, r.rows);
   return {
     call_id: id,
     route: `conversations/cv-${id}`,

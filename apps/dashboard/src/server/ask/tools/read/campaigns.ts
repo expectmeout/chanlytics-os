@@ -11,6 +11,7 @@ import {
   listsFor,
   membersOf,
   nextRunLabel,
+  noteRows,
   numberHealth,
   playbookListRef,
   policyClassOffered,
@@ -31,7 +32,7 @@ import * as readers from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { playbooks } from "../../../readers/playbooks";
 import { templates as templatesReader, type TemplatesRead } from "../../../readers/templates";
-import { defineActions, readAction, unread, type ToolContext } from "../context";
+import { defineActions, noteRow, readAction, unread, type ToolContext } from "../context";
 
 /**
  * The audiences a broadcast may go to, counted by the same contracts
@@ -39,21 +40,19 @@ import { defineActions, readAction, unread, type ToolContext } from "../context"
  * assistant says is the number the card will carry.
  */
 async function listAudiences(t: ToolContext): Promise<unknown> {
-  const [pool, lists, tpls, chans] = await Promise.all([
+  const [pool, lists, tplRead, chans] = await Promise.all([
     load(t.rc, audiencePool, undefined).then((r) => r.data),
     // The workspace's own lists as People's rail reads them (readers/lists.ts), once a turn.
     load(t.rc, listsReader, undefined).then((r) => r.data.lists),
     // The composers' read of the templates (readers/templates.ts), once a turn: approved and not hidden by the
     // workspace (ledger #9), each with why this product cannot send it. A read that fails is its own state, as the
     // Broadcasts page keeps it, never "no template yet"; the audiences still answer.
-    load(t.rc, templatesReader, { all: false }).then(
-      (r) => r.data.templates,
-      unread(t, "campaigns.audiences", "templates"),
-    ),
+    load(t.rc, templatesReader, { all: false }).catch(unread(t, "campaigns.audiences", "templates")),
     // The channels as the Broadcasts page reads them (readers/channels.ts), once a turn: workspace.settings reads the
     // same. A read that fails is no number known, as the page takes it -- said as such, never as no number.
     load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "campaigns.audiences", "channels")),
   ]);
+  const tpls = tplRead ? tplRead.data.templates : null;
   const rows = pool.rows;
   // FOUR sizes for every audience: this listing is read BEFORE a template is
   // chosen, the two answers differ, and who gave an answer is not who can be sent
@@ -80,6 +79,8 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
   const offered = listsFor(pool.listCtx, lists).filter(
     (d) => !(d.ref.kind === "builtin" && ["opted_in", "offers_ok", "opted_out"].includes(d.ref.id)),
   );
+  // Every list it offers is a row an answer may cite by its audience_id, opened on People at that list.
+  for (const d of offered) noteRow(t, "list", d.ref.id, d.label, `clients/${d.token}`);
   const audiences = [
     { kind: "everyone", audience_id: null, list: null, label: EVERYONE_LABEL, ...sizes("everyone", null, null) },
     ...offered.map((d) => {
@@ -114,6 +115,12 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
         tpls.filter((x) => x.channel === "whatsapp" && x.meta_status === "approved").sort(compareTemplates),
       )
     : null;
+  // Every template it offers is a row an answer may cite, as the composers' read gave it.
+  const offeredIds = new Set(split?.sendable.map((x) => x.id));
+  noteRows(
+    t.read,
+    (tplRead?.rows ?? []).filter((r) => offeredIds.has(r.id)),
+  );
   // What could not be read, in words the model says: a null above is not none.
   const couldNotRead = [
     ...(split ? [] : ["The messages could not be read just now: say so, and propose no broadcast until they can."]),
@@ -168,13 +175,16 @@ const MODE_WORDS: Record<string, string> = {
  * already had their proposal's follow-up left out, as a run counts them.
  */
 async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
-  const [pb, policies] = await Promise.all([
-    load(t.rc, playbooks, undefined).then((r) => r.data),
+  const [read, policies] = await Promise.all([
+    load(t.rc, playbooks, undefined),
     load(t.rc, readers.policies, undefined).then(
       (r) => r.data,
       () => [],
     ),
   ]);
+  const pb = read.data;
+  // Every playbook it lists is a row an answer may cite, opened on Playbooks at its card: the reader's RowRefs.
+  noteRows(t.read, read.rows);
   const modes = new Map(policies.map((r) => [r.class, r.mode]));
   const modeOf = (cls: string) => modes.get(cls) ?? "ask";
   // Who a moment or a list names that said the yes its template needs, a number or not, and who of them a run reaches

@@ -5,6 +5,7 @@ import {
   BUILTIN_LISTS,
   ago,
   nextStepOf,
+  noteRows,
   parseListToken,
   personName,
   poolRowOf,
@@ -19,7 +20,16 @@ import { audiencePool } from "../../../readers/audience-pool";
 import { lists as listsReader } from "../../../readers/lists";
 import { people } from "../../../readers/people";
 import { person } from "../../../readers/person";
-import { AUDIENCES_CALL, UUID, defineActions, readAction, str, unlessNotFound, type ToolContext } from "../context";
+import {
+  AUDIENCES_CALL,
+  UUID,
+  defineActions,
+  noteRow,
+  readAction,
+  str,
+  unlessNotFound,
+  type ToolContext,
+} from "../context";
 
 function stepLine(r: PersonRowDto, tz: string, nowMs: number): string | null {
   const s = nextStepOf(r, tz, nowMs);
@@ -110,8 +120,9 @@ async function searchPeople(t: ToolContext, input: { query: string; list?: strin
   }
   const picked = hits.slice(0, ASK_CAPS.people);
   for (const r of picked) {
-    t.read.person.add(r.id);
-    if (r.latest_conversation_id) t.read.thread.add(r.latest_conversation_id);
+    noteRow(t, "person", r.id, personName(r), `clients/${r.id}`);
+    const th = r.latest_conversation_id;
+    if (th) noteRow(t, "thread", th, personName(r), `inbox/th-${th}`);
   }
   return {
     query: q,
@@ -134,12 +145,9 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
   if (!r) return { error: "no such person in this workspace" };
   const detail = r.data.person;
   const vm = toPersonVM(detail, t.timezone, t.now, t.ctx.userId ?? null);
-  t.read.person.add(id);
-  for (const c of detail.conversations) {
-    t.read.thread.add(c.id);
-    t.read.conversation.add(c.id);
-  }
-  for (const c of detail.calls) t.read.call.add(c.id);
+  // The person, their threads and calls as the reader gave them, and each thread again where Conversations opens it.
+  noteRows(t.read, r.rows);
+  for (const c of detail.conversations) noteRow(t, "conversation", c.id, vm.name, `conversations/${c.id}`);
   return {
     contact_id: id,
     route: `clients/${id}`,
