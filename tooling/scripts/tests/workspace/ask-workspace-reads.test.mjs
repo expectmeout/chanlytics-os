@@ -3,7 +3,7 @@
  * their pages' builders answer over the same readers -- Setup's rows (contracts setupSteps) and Connections' words for
  * a sending domain (sendingDomainWords), the bell's kept rows (serverNotificationRows), and Settings › Activity's lines --
  * over the database in memory, the registry dispatching as a turn does. Money stays out (the charter, §7): no billing
- * row, no price, no billing notice, no billing entry. The activity log is an owner's: refused below one by the registry
+ * row, no price, no billing notice, no entry about money (billing's or a partner's share). The activity log is an owner's: refused below one by the registry
  * and again by its handler. The readers themselves are GET setup's, GET notifications' and GET activity's
  * (ask/readers.test.mjs).
  */
@@ -14,6 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   agoLabel,
   clockStamp,
+  isActivityMoney,
   newReceptionistDefaults,
   sendingDomainWords,
   serverNotificationRows,
@@ -325,7 +326,11 @@ test("workspace.notifications answers the bell's kept rows over GET notification
 
 /* ------------------------------------------------------------------------------------------------ activity */
 
-/** activity.test.mjs's fixture (ask/readers.test.mjs activityWorld), and a billing entry beside it. */
+/**
+ * activity.test.mjs's fixture (ask/readers.test.mjs activityWorld), each event with the category its emitter files it
+ * under, and beside it two entries about money -- the subscription's and a partner's share -- and a partner's
+ * attribution, which is the workspace's and not money.
+ */
 const activityWorld = () => {
   const P = "11111111-1111-4111-8111-111111111111";
   const C = "22222222-2222-4222-8222-222222222222";
@@ -341,10 +346,11 @@ const activityWorld = () => {
     payload,
     created_at,
   });
-  const event = (id, kind, subject_type, subject_id, data, created_at) => ({
+  const event = (id, kind, subject_type, subject_id, data, created_at, category = kind.split(".")[0]) => ({
     id,
     tenant_id: A,
     kind,
+    category,
     subject_type,
     subject_id,
     data,
@@ -376,7 +382,9 @@ const activityWorld = () => {
         event("e2", "usage.ask_tokens", "user", USER, { tokens: 400 }, "2026-09-11T14:45:00Z"),
         event("e4", "call.recorded", "call", K, {}, "2026-09-10T10:00:00Z"),
         event("e5", "broadcast.sent", "broadcast", "b1", { sent: 3, held: 1 }, "2026-09-12T13:00:00Z"),
-        event("e6", "billing.updated", "subscription", null, { status: "active" }, "2026-09-12T12:00:00Z"),
+        event("e6", "billing.updated", "subscription", null, { status: "active" }, "2026-09-12T12:00:00Z", "billing"),
+        event("e7", "partner.earned", "tenant", A, { earned_cents: 1200 }, "2026-09-12T11:00:00Z", "billing"),
+        event("e8", "partner.attributed", "tenant", A, {}, "2026-09-12T10:00:00Z", "workspace"),
       ],
     },
     rpcs: {
@@ -390,7 +398,7 @@ const activityWorld = () => {
 };
 const ACT_NOW = new Date("2026-09-12T16:00:00Z");
 
-test("workspace.activity answers Settings › Activity's lines over GET activity's reader, for an owner: both ledgers newest first, each who and what in the page's words by the business's clock and where it opens, the noise left out, filtered as the route filters; billing's entries stay out, and a billing kind is refused in words", async () => {
+test("workspace.activity answers Settings › Activity's lines over GET activity's reader, for an owner: both ledgers newest first, each who and what in the page's words by the business's clock and where it opens, the noise left out, filtered as the route filters; an entry about money (its category billing: the subscription's, a partner's share) stays out, and a kind about money is refused in words", async () => {
   const w = activityWorld();
   for (const [input, filter] of [
     [{}, {}],
@@ -401,7 +409,7 @@ test("workspace.activity answers Settings › Activity's lines over GET activity
     assert.equal(isError, false, JSON.stringify(out));
     const page = (await load(readerContext(ctxOf(w), { tenantId: A, role: "owner" }, ACT_NOW), activity, filter)).data;
     const lines = page.rows
-      .filter((r) => !r.kind.startsWith("billing"))
+      .filter((r) => !isActivityMoney(r))
       .map((r) => {
         const who = r.actor_user_id
           ? (page.actors[r.actor_user_id] ?? "A member")
@@ -424,20 +432,37 @@ test("workspace.activity answers Settings › Activity's lines over GET activity
           open,
         };
       });
-    assert.deepEqual(out, { route: "admin/activity", activity: lines, next_cursor: page.page.next_cursor });
+    assert.deepEqual(out, {
+      route: "admin/activity",
+      activity: lines,
+      next_cursor: page.page.has_more ? page.page.next_cursor : null,
+    });
   }
   const all = (await ask(w, { action: "activity" }, "owner", ACT_NOW)).out;
-  assert.equal(all.activity.length, 6, "five of the ledger's rows and the export, less usage and billing");
+  assert.equal(all.activity.length, 7, "the ledger's rows and the attribution, less usage, billing and the share");
   assert.ok(!JSON.stringify(all).includes("billing"), "no billing entry");
+  const page = (await load(readerContext(ctxOf(w), { tenantId: A, role: "owner" }, ACT_NOW), activity, {})).data;
+  const money = page.rows.filter(isActivityMoney).map((r) => r.id);
+  assert.deepEqual(money.sort(), ["e-e6", "e-e7"], "the page holds both, and says them");
+  assert.ok(!all.activity.some((l) => page.rows.find((r) => r.id === "e-e7").text === l.what), "a partner's share");
+  assert.ok(
+    all.activity.some((l) => l.what === page.rows.find((r) => r.id === "e-e8").text),
+    "an attribution is not",
+  );
   assert.ok(
     all.activity.some((l) => l.what.startsWith("Ada · ")),
     "a member is named as the page names them",
   );
-  const billing = await ask(w, { action: "activity", kind: "billing.updated" }, "owner", ACT_NOW);
-  assert.deepEqual(
-    [billing.isError, billing.out.error],
-    [true, "billing's rows stay out of Ask: Settings › Billing has them"],
-  );
+  for (const kind of ["billing.updated", "partner.earned"]) {
+    const refused = await ask(w, { action: "activity", kind }, "owner", ACT_NOW);
+    assert.deepEqual(
+      [refused.isError, refused.out.error],
+      [true, "that kind is about money, which stays out of Ask: its page has it"],
+      kind,
+    );
+  }
+  const attributed = await ask(w, { action: "activity", kind: "partner.attributed" }, "owner", ACT_NOW);
+  assert.deepEqual([attributed.isError, attributed.out.activity.length], [false, 1], "the workspace's, said");
   const bad = await ask(w, { action: "activity", day: "Friday" }, "owner", ACT_NOW);
   assert.equal(bad.isError, true);
   assert.match(bad.out.error, /^workspace: day /);
@@ -458,4 +483,46 @@ test("workspace.activity is an owner's (D13): below an owner the registry refuse
   const tool = READ_DEFS.find((d) => d.name === "workspace");
   assert.equal(tool.actions.activity.needs, "owner");
   for (const a of ["settings", "connections", "notifications"]) assert.equal(tool.actions[a].needs, undefined, a);
+});
+
+test("workspace.activity pages without a gap or a repeat: past the thirty it says, the next read starts right after the last one said; where the rest of the reader's page is money, after the page -- so every line is said once, in order, and the last read has no next_cursor", async () => {
+  const T0 = Date.parse("2026-09-12T15:00:00Z");
+  const at = (i) => new Date(T0 - i * 60_000).toISOString();
+  const K = (i) => `33333333-3333-4333-8333-${String(i).padStart(12, "0")}`;
+  // 20 calls, then 80 entries about money filling the rest of the reader's first page of a hundred, then 40 calls.
+  const events = [];
+  for (let i = 0; i < 140; i++) {
+    const money = i >= 20 && i < 100;
+    events.push({
+      id: `x${String(i).padStart(3, "0")}`,
+      tenant_id: A,
+      kind: money ? "partner.earned" : "call.recorded",
+      category: money ? "billing" : "call",
+      subject_type: money ? "tenant" : "call",
+      subject_id: money ? A : K(i),
+      data: {},
+      created_at: at(i),
+    });
+  }
+  const w = activityWorld();
+  w.tables.decisions = [];
+  w.tables.events = events;
+  const said = [];
+  const cursors = [];
+  let cursor;
+  for (let n = 0; n < 10; n++) {
+    const { out, isError } = await ask(w, { action: "activity", ...(cursor ? { cursor } : {}) }, "owner", ACT_NOW);
+    assert.equal(isError, false, JSON.stringify(out));
+    said.push(...out.activity.map((l) => l.open));
+    cursors.push(out.next_cursor);
+    if (!out.next_cursor) break;
+    cursor = out.next_cursor;
+  }
+  const calls = events.filter((e) => e.category === "call").map((e) => `conversations/cv-${e.subject_id}`);
+  assert.deepEqual(said, calls, "every call once, newest first: no gap, no repeat");
+  assert.deepEqual(
+    cursors,
+    [`${at(99)}|e-x099`, `${at(129)}|e-x129`, null],
+    "the reader's page end where the rest was money; the thirtieth line said; none at the end",
+  );
 });

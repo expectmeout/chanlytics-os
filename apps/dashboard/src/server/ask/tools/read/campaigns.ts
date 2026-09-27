@@ -290,7 +290,7 @@ function broadcastLine(b: BroadcastDto, tz: string, now: Date) {
     broadcast_id: b.id,
     route: `broadcasts/run:${b.id}`,
     name: b.name,
-    by: b.playbook_id ? "a playbook" : "hand",
+    by: b.playbook_id ? "a playbook" : "a person",
     audience: b.audience.label,
     template: b.template_name,
     state: vm.stateLabel,
@@ -390,7 +390,7 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the broadcasts",
       words:
-        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Needs you, with waiting_on_you), when, how many it was for, and how many were sent, delivered, read, replied, held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
+        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Needs you, with waiting_on_you), when, how many it was for, how many were sent, the share of those delivered and read, and how many replied, were held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
       run: readBroadcasts,
     }),
     broadcast: readAction({

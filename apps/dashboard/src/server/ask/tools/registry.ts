@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { roleAtLeast, type MembershipRole } from "@chanlytics/contracts";
+import { MEMBERSHIP_ROLES, roleAtLeast, type MembershipRole } from "@chanlytics/contracts";
 import {
   NO_ACTION,
   WHOSE,
@@ -196,24 +196,27 @@ export function toolSchema(input: z.ZodType): Record<string, unknown> {
   return normalise(flatten(z.toJSONSchema(input) as Record<string, unknown>)) as Record<string, unknown>;
 }
 
-/**
- * A tool's examples, each action's -- every action's, or the ones a role is offered -- in the actions' order and with
- * its `action` first (D9, D11).
- */
-export const examplesOf = (
-  t: Tool<{ examples?: unknown[] }>,
-  only?: readonly string[],
-): Array<Record<string, unknown>> =>
-  Object.entries(t.actions)
-    .filter(([action]) => !only || only.includes(action))
-    .flatMap(([action, d]) =>
-      ((d.examples ?? []) as Array<Record<string, unknown>>).map((ex) =>
-        action === NO_ACTION ? ex : { action, ...ex },
-      ),
-    );
+/** The actions of a tool this role may use, in the model's order (D2): a tool with no action, its one, or none. */
+export function offeredActions(t: Pick<Tool<ReadDef | ActDef>, "actions">, role: MembershipRole): string[] {
+  return Object.keys(t.actions).filter((a) => roleAtLeast(role, needsOf(t.actions[a])));
+}
 
-/** Each tool's zod, every action of it, built once: what a call is parsed by. */
-const INPUTS = new Map<string, z.ZodType>([...READ_DEFS, ...ACT_DEFS].map((t) => [t.name, inputOf(t)]));
+/**
+ * Each role's zod for each tool, built once: what that role's call is parsed by (D2). A tool with actions is parsed as
+ * the union of the actions the role is offered, so a refusal names only the actions and fields its tool showed it --
+ * null where it is offered none; a tool with no action by its one definition, whose builder judges the role itself.
+ */
+const INPUTS = new Map<MembershipRole, Map<string, z.ZodType | null>>(
+  MEMBERSHIP_ROLES.map((role) => [
+    role,
+    new Map(
+      [...READ_DEFS, ...ACT_DEFS].map((t) => {
+        const offered = offeredActions(t, role);
+        return [t.name, !takesAction(t) ? inputOf(t) : offered.length ? inputOf(t, offered) : null];
+      }),
+    ),
+  ]),
+);
 
 export const ACT_TOOL_NAMES = new Set(ACT_DEFS.map((t) => t.name));
 
@@ -283,10 +286,17 @@ function withoutNulls(schema: z.ZodType, value: unknown): unknown {
  * go out now, to everyone -- a different card from the one asked for. Refused instead, in words; a null is absent, and
  * a key no action takes is stripped as every unknown key is.
  */
-function othersFields(tool: Tool<{ input: z.ZodObject }>, action: string, raw: unknown): string[] {
+function othersFields(
+  tool: Tool<{ input: z.ZodObject }>,
+  action: string,
+  raw: unknown,
+  offered: readonly string[],
+): string[] {
   const own = tool.actions[action].input.shape;
   const others = new Set(
-    Object.entries(tool.actions).flatMap(([a, d]) => (a === action ? [] : Object.keys(d.input.shape))),
+    Object.entries(tool.actions).flatMap(([a, d]) =>
+      a === action || !offered.includes(a) ? [] : Object.keys(d.input.shape),
+    ),
   );
   return Object.entries(raw as Record<string, unknown>)
     .filter(([k, v]) => k !== "action" && v !== null && !(k in own) && others.has(k))
@@ -301,7 +311,9 @@ function othersFields(tool: Tool<{ input: z.ZodObject }>, action: string, raw: u
  * `<tool>: <path> <message>; ...`, or, for a field only another action takes, `<tool>: <fields> not taken by action
  * <action>`, and the handler never runs. First, an action the caller's role may not use (the Phase 4 plan, D2) is
  * refused in words, `<tool>: action <action> is an owner's`: the tool that role is offered does not name it, and this
- * is the second guard, beside each builder's own role check, which stays.
+ * is the second guard, beside each builder's own role check, which stays. Then it is parsed as the role's own tool:
+ * the union of the actions it is offered, and another action's field is one of those actions' -- so no refusal names
+ * an action or a field the role was not shown; a tool none of whose actions it may use is refused whole, in words.
  */
 function parseInput<D extends ReadDef | ActDef>(
   tool: Tool<D>,
@@ -313,7 +325,12 @@ function parseInput<D extends ReadDef | ActDef>(
     const needs = needsOf(tool.actions[asked]);
     if (!roleAtLeast(role, needs)) return { ok: false, error: `${tool.name}: action ${asked} is ${WHOSE[needs]}` };
   }
-  const input = INPUTS.get(tool.name)!;
+  const input = INPUTS.get(role)?.get(tool.name);
+  if (!input) {
+    const needs = Object.values(tool.actions).map(needsOf);
+    const least = needs.find((n) => needs.every((m) => roleAtLeast(m, n))) ?? "owner";
+    return { ok: false, error: `${tool.name} is ${WHOSE[least]}` };
+  }
   const r = input.safeParse(withoutNulls(input, raw));
   if (!r.success) {
     const issues = r.error.issues.map((i) => `${i.path.length ? `${i.path.join(".")} ` : ""}${i.message}`).join("; ");
@@ -322,7 +339,7 @@ function parseInput<D extends ReadDef | ActDef>(
   const data = r.data as Record<string, unknown>;
   if (!takesAction(tool)) return { ok: true, def: tool.actions[NO_ACTION], data };
   const { action, ...rest } = data as { action: string };
-  const stray = othersFields(tool, action, raw);
+  const stray = othersFields(tool, action, raw, offeredActions(tool, role));
   if (stray.length) return { ok: false, error: `${tool.name}: ${stray.join(", ")} not taken by action ${action}` };
   return { ok: true, def: tool.actions[action], data: rest };
 }

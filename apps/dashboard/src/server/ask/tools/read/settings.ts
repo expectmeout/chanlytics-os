@@ -4,6 +4,7 @@ import {
   agoLabel,
   clockStamp,
   dealsAreOn,
+  isActivityMoney,
   noteRows,
   parseTenantConfig,
   policyClassOffered,
@@ -149,7 +150,10 @@ const ACTIVITY_CAP = 30;
  * checks): both ledgers, newest first, each line the page's -- who, then the sentence -- by the business's clock, and
  * where it opens. An owner's (D13): the route's door is the owner's and RLS lets every member read the ledgers, so the
  * action is the door -- the registry offers it to an owner alone and refuses anyone else, and this checks again.
- * Billing's rows stay out.
+ * Money stays out (the charter): a row about money (contracts isActivityMoney, the category its emitter filed it under
+ * -- billing, and a partner's share) is never said, and a kind whose rows are money is refused in words. It pages
+ * without a gap: past the lines it says, the next read starts right after the last one said, so the rows between it
+ * and the reader's page's end are read again, and a money row among them is left out again.
  */
 async function readActivity(
   t: ToolContext,
@@ -159,14 +163,17 @@ async function readActivity(
   const q = ActivityQuerySchema.safeParse(input);
   if (!q.success)
     return { error: `workspace: ${q.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}` };
-  if (q.data.kind?.startsWith("billing"))
-    return { error: "billing's rows stay out of Ask: Settings › Billing has them" };
   const page = (await load(t.rc, activityReader, q.data)).data;
-  const rows = page.rows.filter((r) => !r.kind.startsWith("billing"));
+  // A kind has one category (its emitter's): named, and its rows are money, the kind is money's.
+  if (q.data.kind && page.rows.some(isActivityMoney))
+    return { error: "that kind is about money, which stays out of Ask: its page has it" };
+  const rows = page.rows.filter((r) => !isActivityMoney(r));
+  const said = rows.slice(0, ACTIVITY_CAP);
+  const last = said[said.length - 1];
   const nowMs = t.now.getTime();
   return {
     route: "admin/activity",
-    activity: rows.slice(0, ACTIVITY_CAP).map((r) => {
+    activity: said.map((r) => {
       const who = r.actor_user_id
         ? (page.actors[r.actor_user_id] ?? "A member")
         : r.actor_type === "ai"
@@ -184,8 +191,10 @@ async function readActivity(
               : null;
       return { when: clockStamp(Date.parse(r.at), t.timezone, nowMs), what: who ? `${who} · ${r.text}` : r.text, open };
     }),
-    ...(rows.length > ACTIVITY_CAP ? { more_on_this_page: rows.length - ACTIVITY_CAP } : {}),
-    next_cursor: page.page.next_cursor,
+    // The reader's own cursor shape, "<created_at>|<row id>": after the last line said while this page holds more;
+    // else after the page, while the log holds more; else none.
+    next_cursor:
+      rows.length > ACTIVITY_CAP ? `${last.at}|${last.id}` : page.page.has_more ? page.page.next_cursor : null,
   };
 }
 
@@ -232,7 +241,7 @@ export const workspaceTool = defineActions({
       examples: [{ day: "2026-09-26" }],
       label: "Reading the activity",
       needs: "owner",
-      words: `Action activity takes an optional person (a contact_id a read returned), kind (a verb or an event kind, exactly as the log spells it), day (YYYY-MM-DD, by the business's clock) and cursor (the next_cursor an earlier read returned), and reads who did what, as Settings › Activity lists it: both ledgers, newest first, each with when, who and what in the page's words, and where it opens; the usage, webhook and ingest records only when their kind is asked for. Call it for what a member or the receptionist did, and when. It returns the newest ${ACTIVITY_CAP} of a page of a hundred, with next_cursor for the page after; billing's rows stay out of Ask.`,
+      words: `Action activity takes an optional person (a contact_id a read returned), kind (a verb or an event kind, exactly as the log spells it), day (YYYY-MM-DD, by the business's clock) and cursor (the next_cursor an earlier read returned), and reads who did what, as Settings › Activity lists it: both ledgers, newest first, each with when, who and what in the page's words, and where it opens; the usage, webhook and ingest records only when their kind is asked for. Call it for what a member or the receptionist did, and when. It returns the newest ${ACTIVITY_CAP}, with next_cursor for the ones after them while there are more; anything about money (billing, a partner's share) stays out of Ask.`,
       run: readActivity,
     }),
   },

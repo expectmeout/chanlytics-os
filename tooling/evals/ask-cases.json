@@ -976,7 +976,7 @@
     "text": "who replied to our most recent broadcast?",
     "surface": "today",
     "expect": {
-      "tools_any": ["campaigns.broadcast", "campaigns.broadcasts"],
+      "tools_any": ["campaigns.broadcast"],
       "no_write": true
     }
   },

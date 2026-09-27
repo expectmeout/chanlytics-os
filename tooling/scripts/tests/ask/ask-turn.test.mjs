@@ -4503,6 +4503,16 @@ test("the row the scope names rides in whole, read by its own tool and action: a
     name: "leads",
     input: { action: "lead", lead_id: X },
   });
+  // On a search's view, the lead is read as that search found it: the membership its peek shows, never its newest.
+  const S = "66666666-6666-4666-8666-666666666666";
+  assert.deepEqual(scopedRead({ kind: "lead", id: X, label: "Zilker Strength" }, `clients/leads:s-${S}:p-${X}`), {
+    name: "leads",
+    input: { action: "lead", lead_id: X, search_id: S },
+  });
+  assert.deepEqual(scopedRead({ kind: "lead", id: X, label: "Zilker Strength" }, `clients/leads:l-ready:p-${X}`), {
+    name: "leads",
+    input: { action: "lead", lead_id: X },
+  });
   assert.deepEqual(scopedRead({ kind: "search", id: X, label: "Trainers" }), {
     name: "leads",
     input: { action: "search", search_id: X },
@@ -4561,6 +4571,29 @@ test("a run the person is looking at is the Broadcasts row the page drew: the an
     [["broadcast", RUN, `broadcasts/run:${RUN}`]],
   );
   assert.equal(r.answer.do.open, null, "a run is written as a broadcast, never as a run");
+});
+
+test("a lead the person has open on a search's view rides in read as that search found it: the turn hands scopedRead the page's address", async () => {
+  const LEAD = "abababab-0000-4000-8000-0000000000d1";
+  const SEARCH = "abababab-0000-4000-8000-0000000000e1";
+  const route = `clients/leads:s-${SEARCH}:p-${LEAD}`;
+  const runs = [];
+  const s = scripted([ROUND([answer("Zilker Strength is a strong fit.")])]);
+  const r = await runAskTurn(
+    turn(ctxFor(), {
+      surface: "leads",
+      scope: { kind: "lead", id: LEAD, label: "Zilker Strength" },
+      context: { ...PAGE, surface: "leads", route, view: "all" },
+    }).input,
+    ports(s.round, {
+      tool: async (_t, run) => {
+        runs.push(run);
+        return { result: "{}", isError: false, label: "" };
+      },
+    }),
+  );
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.deepEqual(runs, [{ name: "leads", input: { action: "lead", lead_id: LEAD, search_id: SEARCH } }]);
 });
 
 /* ------------------------------------------------ the turn reads the page (the Phase 2 plan, PR 2.4) */

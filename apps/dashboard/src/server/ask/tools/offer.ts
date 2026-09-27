@@ -1,7 +1,7 @@
 import "server-only";
-import { MEMBERSHIP_ROLES, roleAtLeast, type MembershipRole } from "@chanlytics/contracts";
-import { NO_ACTION, needsOf, type ActTool, type ReadTool, type ToolDef } from "./context";
-import { ACT_DEFS, READ_DEFS, examplesOf, inputOf, toolSchema } from "./registry";
+import { MEMBERSHIP_ROLES, type MembershipRole } from "@chanlytics/contracts";
+import { NO_ACTION, type ActTool, type ReadTool, type Tool, type ToolDef } from "./context";
+import { ACT_DEFS, READ_DEFS, inputOf, offeredActions, toolSchema } from "./registry";
 
 /**
  * What each role is offered (the Phase 4 plan, D2): per tool, the actions the role may use -- a read's own `needs`, or
@@ -11,10 +11,18 @@ import { ACT_DEFS, READ_DEFS, examplesOf, inputOf, toolSchema } from "./registry
  * every action reaches a role reads to it exactly as the tool reads whole. Built once per role, when the registry loads.
  */
 
-/** The actions of a tool this role may use, in the model's order: a tool with no action, its one, or none. */
-function offeredActions(t: ReadTool | ActTool, role: MembershipRole): string[] {
-  return Object.keys(t.actions).filter((a) => roleAtLeast(role, needsOf(t.actions[a])));
-}
+/**
+ * A tool's examples, each action's -- every action's, or the ones a role is offered -- in the actions' order and with
+ * its `action` first (D9, D11).
+ */
+const examplesOf = (t: Tool<{ examples?: unknown[] }>, only?: readonly string[]): Array<Record<string, unknown>> =>
+  Object.entries(t.actions)
+    .filter(([action]) => !only || only.includes(action))
+    .flatMap(([action, d]) =>
+      ((d.examples ?? []) as Array<Record<string, unknown>>).map((ex) =>
+        action === NO_ACTION ? ex : { action, ...ex },
+      ),
+    );
 
 /** A tool as this role is offered it, from the actions it may use (D2). */
 function defFor(t: ReadTool | ActTool, actions: string[]): ToolDef {

@@ -249,7 +249,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // as data, so its rows enter the read set and the answer can cite them. A failure costs that block, never the turn.
   const tCtx = Date.now();
   const plan = crossPagePlan(input.text, input.surface, input.context?.view ?? null);
-  const scoped = scopedRead(input.scope);
+  const scoped = scopedRead(input.scope, input.context?.route);
   const guard =
     <T>(what: string, fallback: T) =>
     (e: unknown): T => {

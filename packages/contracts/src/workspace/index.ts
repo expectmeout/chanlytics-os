@@ -45,7 +45,14 @@ export {
   RECORDING_RETENTION_DAYS,
   RECORDING_PURGED_WORDS,
 } from "./retention";
-export { activityWords, activityTone, isActivityNoise, ACTIVITY_NOISE_PREFIXES, ACTIVITY_KINDS } from "./activity";
+export {
+  activityWords,
+  activityTone,
+  isActivityMoney,
+  isActivityNoise,
+  ACTIVITY_NOISE_PREFIXES,
+  ACTIVITY_KINDS,
+} from "./activity";
 export type { ActivityRowDto, ActivityPageDto, ActivityVerb } from "./activity";
 export {
   signupPosture,

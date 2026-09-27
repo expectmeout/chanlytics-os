@@ -61,7 +61,7 @@ const { search: searchReader, searches: searchesReader } = await import(
   at("apps/dashboard/src/server/readers/searches.ts")
 );
 const { toSearchDto } = await import(at("apps/dashboard/src/server/leads/lead-searches.ts"));
-const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+const { runTool, newToolContext, READ_DEFS } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -1464,6 +1464,19 @@ test("Ask's leads, lead and search answer what the Leads page's builders answer 
     // Every row it names is in the read set as its reader gave it: the answer may cite it, and it opens there.
     const kind = input.action === "search" ? "search" : "lead";
     for (const [id, ref] of tc.read[kind]) assert.equal(ref.kind, kind, `${what}: ${id}`);
+  }
+  // The order is the page's column's: each sort's own first unless dir reverses it -- REGRESSION: the tool's own example
+  // ("the best ratings") went out ascending, and leads_page answered the lowest rated first.
+  const example = READ_DEFS.find((d) => d.name === "leads").actions.leads.examples[0];
+  for (const [input, sort, dir] of [
+    [{ action: "leads", sort: "rating" }, "rating", "asc"],
+    [{ action: "leads", sort: "rating", dir: "desc" }, "rating", "desc"],
+    [{ action: "leads", ...example }, "rating", "desc"],
+    [{ action: "leads" }, "fit", "asc"],
+  ]) {
+    await call(asRole("viewer"), input);
+    const sent = rpcCalls("leads_page").at(-1);
+    assert.deepEqual([sent.p_sort, sent.p_dir], [sort, dir], JSON.stringify(input));
   }
   const viewer = asRole("viewer");
   await call(viewer, { action: "lead", lead_id: LEAD, search_id: SEARCH });

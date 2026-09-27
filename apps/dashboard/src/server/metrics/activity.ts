@@ -128,7 +128,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
     .limit(reach);
   let eq = sb
     .from("events")
-    .select("id, kind, subject_type, subject_id, data, created_at")
+    .select("id, kind, category, subject_type, subject_id, data, created_at")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
@@ -176,6 +176,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
       actor_user_id: d.actor_user_id,
       actor_type: d.actor_type,
       text: activityWords(d.verb, d.payload),
+      category: null,
     })),
     ...(events.data ?? [])
       // Belt and braces for a database that answers the like() differently: the rule, in code too.
@@ -190,6 +191,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
         actor_user_id: null,
         actor_type: null,
         text: activityWords(e.kind, e.data),
+        category: e.category,
       })),
   ].sort(newestFirst);
   const after = cut ? merged.filter((r) => newestFirst(r, cut) > 0) : merged;

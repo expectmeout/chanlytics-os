@@ -21,7 +21,7 @@ const { readerCache, readerContext, load } = await import(at("apps/dashboard/src
 const { broadcasts: broadcastsReader, broadcast: broadcastReader } = await import(
   at("apps/dashboard/src/server/readers/broadcasts.ts")
 );
-const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+const { runTool, newToolContext, READ_DEFS } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 
 beforeEach(() => readerCache.clear());
 
@@ -153,7 +153,7 @@ const rowOf = (b) => {
     broadcast_id: b.id,
     route: `broadcasts/run:${b.id}`,
     name: b.name,
-    by: b.playbook_id ? "a playbook" : "hand",
+    by: b.playbook_id ? "a playbook" : "a person",
     audience: b.audience.label,
     template: b.template_name,
     state: vm.stateLabel,
@@ -181,6 +181,11 @@ test("campaigns.broadcasts answers the Broadcasts page's rows over its reader, e
     ["Needs you", true, "a playbook", "Quiet 30 days"],
   );
   assert.ok(out.broadcasts.find((b) => b.broadcast_id === BC3).why_it_failed, "a failed run says why");
+  // Who sent it, in the words the description reads it in; delivered and read are shares of what was sent.
+  const words = READ_DEFS.find((d) => d.name === "campaigns").actions.broadcasts.words;
+  assert.equal(out.broadcasts.find((b) => b.broadcast_id === BC1).by, "a person");
+  assert.ok(words.includes("whether a playbook or a person sent it"), words);
+  assert.ok(words.includes("the share of those delivered and read"), words);
   assert.ok(!out.broadcasts.some((b) => b.broadcast_id === BCB), "not another workspace's");
   for (const b of page.rows) assert.deepEqual(tc.read.broadcast.get(b.id), b, `${b.label}: the reader's row`);
 });

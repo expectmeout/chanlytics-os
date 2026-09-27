@@ -457,6 +457,41 @@ test("an action the caller's role may not use is refused in words, under the too
     );
     assert.deepEqual(supabase.seen, [], `${role} ${name}.${a}: nothing read`);
   }
+  // A call is parsed as the role's own tool: its errors name only the actions and fields that role was shown -- an
+  // operator's workspace never names activity or its filters -- and a tool none of whose actions it may use is
+  // refused whole, in words.
+  const { supabase: seen, t: op } = contextFor("operator");
+  const err = async (name, input) => JSON.parse((await runTool(op, { name, input })).result).error;
+  const none = await err("workspace", {});
+  assert.equal(
+    none,
+    "workspace: action Invalid discriminator value. Expected 'settings' | 'connections' | 'notifications'",
+  );
+  const unknown = await err("workspace", { action: "teleport" });
+  assert.ok(!/activity|person|kind|day|cursor/.test(unknown), unknown);
+  for (const field of ["person", "kind", "day", "cursor"]) {
+    const out = await runTool(op, { name: "workspace", input: { action: "notifications", [field]: "x" } });
+    assert.ok(!out.result.includes(field) && !out.result.includes("activity"), `${field}: ${out.result}`);
+  }
+  assert.ok(
+    seen.seen.every((q) => q.table !== "decisions" && q.table !== "events"),
+    "an operator's workspace reads no ledger",
+  );
+  const own = contextFor("owner").t;
+  assert.equal(
+    JSON.parse((await runTool(own, { name: "workspace", input: { action: "notifications", cursor: "x" } })).result)
+      .error,
+    "workspace: cursor not taken by action notifications",
+    "an owner was shown activity's fields, and hears so",
+  );
+  for (const [role, name, whose] of [
+    ["operator", "propose_team", "an owner's"],
+    ["partner", "propose_person", "an owner's"],
+    ["viewer", "propose_reply", "an owner's, a partner's or an operator's"],
+  ]) {
+    const out = await buildProposal(contextFor(role).t, name, {});
+    assert.equal(JSON.parse(out.result).error, `${name} is ${whose}`, `${role} ${name}`);
+  }
   // The builders' own checks stay: an owner's card's builder, called past the registry, refuses an operator in its
   // route's words.
   const { t } = contextFor("operator");
