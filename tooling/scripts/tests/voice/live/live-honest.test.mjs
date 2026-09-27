@@ -421,7 +421,7 @@ test("the call open is the address's: a row opens it by replacing the address, n
       "replaced: Back leaves Live rather than replaying every call looked at",
     );
     const head = (tree) => textOf(find(tree, (n) => n.props?.className === "lm-head-name"));
-    // The shell hands the page the address it asked for (the page stays mounted: app-shell.jsx shellMountKey).
+    // The shell hands the page the address it asked for (the page stays mounted: its row's `mount`, app-routes.jsx).
     assert.match(head(mount({ initialCallId: "c-live-2" })), /Ada Byron/, "the address names the call on screen");
     cells = [];
     assert.match(head(mount({ initialCallId: "c-live-2" })), /Ada Byron/, "and a refresh opens it again");

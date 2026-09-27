@@ -4,13 +4,13 @@
  * for to paid for; setup-rows.ts holds the table they sit in, setup.ts the words and the context they read.
  */
 import { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "../lines/line-failure";
+import { formatPhoneDisplay } from "../shared/phone";
 import { agoWords, spanLabel } from "../shared/time";
 import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "../voice/forwarding";
 import { whyCannotSpend, priceWords, billingDoorOpen } from "../workspace/billing";
 import { capabilityStatus } from "./capabilities";
 import {
   activationWords,
-  display,
   forwardedLineOf,
   lineStuckProvisioning,
   LINE_STEP_WORDS,
@@ -360,7 +360,7 @@ export function tryRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft | n
   const { voice, voiceReady, voiceNum, lines, nowMs } = ctx;
   if (!voiceReady) return null;
   const fwTry = forwardedLineOf(lines);
-  const through = fwTry?.e164 ? (display(fwTry.e164) ?? fwTry.e164) : voiceNum;
+  const through = fwTry?.e164 ? (formatPhoneDisplay(fwTry.e164) ?? fwTry.e164) : voiceNum;
   return {
     id: "try",
     icon: "phone",
@@ -385,7 +385,7 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
   const { voice, voiceReady, voiceNum, lines, nowMs } = ctx;
   const fw = lines.rows.find((l) => l.kind === "forwarded") ?? null;
   const f = fw?.forwarding ?? null;
-  const kept = fw?.e164 ? (display(fw.e164) ?? fw.e164) : "your number";
+  const kept = fw?.e164 ? (formatPhoneDisplay(fw.e164) ?? fw.e164) : "your number";
   const dest = voiceReady && voice.number ? voiceNum : null;
   const how = f
     ? `${MODE_WORDS[f.mode as ForwardingMode] ?? "Forwarded"} · ${CARRIER_WORDS[f.carrier as Carrier] ?? "your carrier"}`

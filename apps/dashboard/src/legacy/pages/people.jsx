@@ -2207,10 +2207,10 @@ const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):no
 
 /* ------------------------------------------------------------ the list page, in both scopes */
 // People and Leads are one page with two scopes, and each scope is a component of its own: PeopleReal and LeadsReal,
-// which the shell mounts apart (app-shell.jsx shellMountKey), each holding only its own state. What a list page is in
-// either scope they take from these two hooks, in this order: usePlControls before the view works out its rows (the
-// width, the toast, the selection, the saved sort and columns, the words in the box), and usePlPlace after (the
-// cursor, the place each view is left in, the first rows, and the page's one keyboard listener).
+// which the shell mounts apart (their route rows' `mount`, app-routes.jsx), each holding only its own state. What a
+// list page is in either scope they take from these two hooks, in this order: usePlControls before the view works out
+// its rows (the width, the toast, the selection, the saved sort and columns, the words in the box), and usePlPlace
+// after (the cursor, the place each view is left in, the first rows, and the page's one keyboard listener).
 
 /**
  * A list page's controls, before it knows its rows.
@@ -2593,8 +2593,8 @@ const usePlPlace = ({ controls, page, view, ids, noun, landed = true, selectionO
 };
 
 /* ------------------------------------------------------------------------------ People */
-// PeopleReal is its hooks and the elements it returns, one concern to a function below. The hooks are called in the
-// order the page always called them, so every hook keeps the cell it had; the elements are made where they always were.
+// PeopleReal is its hooks and the elements it returns, one concern to a function below. A hook keeps the effects that
+// set its state beside it, so a setter never leaves its hook; the elements are made where they always were.
 
 // The list the address names, as it names it: one People doesn't have here is said to be missing (listGone, below),
 // never swapped for Everyone.
@@ -2609,7 +2609,7 @@ const usePeopleView = ({ initialSegment, initialSaved, initialState }) => {
 };
 // The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list"
 // (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
-const usePeopleSheets = (newList) => {
+const usePeopleSheets = (newList, savedId) => {
   const [listsOpen, setListsOpen] = useState(() => !!newList && plPhoneNow());
   // Arrived at clients/new-list: the box is open from the first draw (and on a phone, the sheet it sits in).
   const [newListSignal, setNewListSignal] = useState(newList ? 1 : 0);
@@ -2620,8 +2620,7 @@ const usePeopleSheets = (newList) => {
   const [listAct, setListAct] = useState(null);
   // The open smart list's rule, being changed under its title (a desktop's; a phone's is a sheet, listAct "rule").
   const [ruleEditing, setRuleEditing] = useState(false);
-  // A list made here, on its way from the server: not "a list that isn't here" while the surface re-reads.
-  const [madeId, setMadeId] = useState(null);
+  React.useEffect(() => { setRuleEditing(false); }, [savedId]);
   const [listDraft, setListDraft] = useState(PL_LIST_EMPTY);
   // Import people: the owner's sheet over the page (people-import.jsx). The refresh-map re-reads People after each part.
   const [importOpen, setImportOpen] = useState(false);
@@ -2635,7 +2634,7 @@ const usePeopleSheets = (newList) => {
     window.addEventListener("segments:new", onNew);
     return () => window.removeEventListener("segments:new", onNew);
   }, []);
-  return { listsOpen, setListsOpen, newListSignal, addOpen, setAddOpen, addDraft, setAddDraft, listAct, setListAct, ruleEditing, setRuleEditing, madeId, setMadeId, listDraft, setListDraft, importOpen, setImportOpen };
+  return { listsOpen, setListsOpen, newListSignal, addOpen, setAddOpen, addDraft, setAddDraft, listAct, setListAct, ruleEditing, setRuleEditing, listDraft, setListDraft, importOpen, setImportOpen };
 };
 // A list made on the rail says so and is the one shown: the rail used to close
 // with no word, the new list somewhere down it. The answer goes back to the
@@ -2743,23 +2742,24 @@ const plPeopleShown = ({ rows, found, lists, saved, tab, listId, savedId, q, sor
     return 0;
   });
 };
-// The list open, as the page names it. The two effects below set usePeopleSheets' state, whose setters React keeps
-// still, as the page did when it declared them itself.
-const usePeopleOpenList = ({ people, lists, saved, listId, savedId, tab, q, madeId, setMadeId, setRuleEditing }) => {
+// The list open, as the page names it, and a list made here on its way from the server (`setMadeId`, which the doors
+// that make or open one call).
+const usePeopleOpenList = ({ people, lists, saved, listId, savedId, tab, q }) => {
   const activeList = listId && lists.find((l) => l.id === listId);
   const activeSaved = savedId && saved.find((s) => s.id === savedId);
+  // A list made here, on its way from the server: not "a list that isn't here" while the surface re-reads.
+  const [madeId, setMadeId] = useState(null);
   // A list the address names that People doesn't have (decision 0009): a link kept, an answer's jump, a teammate's
   // delete. It is said, and nobody is shown, rather than Everyone under its name. An archived one says how it comes back.
   const listGone = savedId && savedId === madeId ? null : plListGone({ listId, activeList, savedId, activeSaved, people });
-  React.useEffect(() => { setRuleEditing(false); }, [savedId]); // eslint-disable-line react-hooks/exhaustive-deps
   // The list made here has arrived: from now on it is a list like any other, said to be gone if it goes.
-  React.useEffect(() => { if (madeId && activeSaved && activeSaved.id === madeId) setMadeId(null); }, [madeId, activeSaved]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { if (madeId && activeSaved && activeSaved.id === madeId) setMadeId(null); }, [madeId, activeSaved]);
   // The rule behind the view, when one says it: what "Save these" keeps by default (decision 0009). One filter at a
   // time: a list and a state together, or words in the box, freeze who is shown.
   const viewRule = !q.trim() && window.__lists && window.__lists.ruleOf && !((listId || savedId) && tab !== "all")
     ? window.__lists.ruleOf({ builtin: activeList ? activeList.id : null, saved: activeSaved && !activeSaved.byHand ? activeSaved.id : null, standing: !listId && !savedId ? tab : null })
     : null;
-  return { activeList, activeSaved, listGone, viewRule };
+  return { activeList, activeSaved, listGone, viewRule, setMadeId };
 };
 // Any list open is a door Today can keep (decision 0009): pinned for this member (memberships.views.today), said on the
 // list's title line and in a phone's more-menu. The page holds the answer until the surface's copy has it.
@@ -3205,18 +3205,18 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const saved = people.saved || PL_NO_LISTS;
   const controls = usePlControls({ scope: "people", cols: PL_COLUMNS, phoneCols: PL_PHONE_COLUMNS, colCtx: { withCalendar, dealsOn }, people, sortFirst: { by: "last", dir: "desc" } });
   const { phone, bulkSheet, setBulkSheet, selectMode, canExport, plFlash, sel, toggleSel, sortBy, sortDir, q } = controls;
-  const sheets = usePeopleSheets(newList);
-  const { listsOpen, setListsOpen, addOpen, listAct, madeId, setMadeId, setRuleEditing } = sheets;
+  const sheets = usePeopleSheets(newList, savedId);
+  const { listsOpen, setListsOpen, addOpen, listAct } = sheets;
   // The roles ROLE_PERMS gives `approve`: owner, operator, and the partner (0012).
   const canEditLists = !!(window.__ME && ["owner", "operator", "partner"].includes(window.__ME.role));
-  const doors = peopleListDoors({ plFlash, setListId, setSavedId, setMadeId, setListsOpen });
   usePeopleAddress(listId, savedId, tab);
   const farther = usePeopleFarther({ people, q, plFlash });
   const { found } = farther;
   const shown = useMemo(() => plPeopleShown({ rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir }), [rows, found, lists, saved, tab, listId, savedId, q, sortBy, sortDir]);
-  const open = usePeopleOpenList({ people, lists, saved, listId, savedId, tab, q, madeId, setMadeId, setRuleEditing });
+  const open = usePeopleOpenList({ people, lists, saved, listId, savedId, tab, q });
+  const doors = peopleListDoors({ plFlash, setListId, setSavedId, setMadeId: open.setMadeId, setListsOpen });
   const pin = usePeoplePin({ activeList: open.activeList, activeSaved: open.activeSaved, plFlash });
-  const acts = peopleListActs({ ...open, setListId, setTab, setSavedId, setMadeId, plFlash });
+  const acts = peopleListActs({ ...open, setListId, setTab, setSavedId, plFlash });
   const cells = usePeopleCells({ people, saved, activeSaved: open.activeSaved, canEditLists, columns: controls.columns, onOpenProfile, dropFromList: acts.dropFromList });
   const place = usePeoplePlace({ controls, shown, tab, listId, savedId, q });
   const phoneActs = peoplePhoneSheetActs({ ...sheets, activeSaved: open.activeSaved, viewRule: open.viewRule, shownIds: place.shownIds, openMade: acts.openMade, setSavedId, plFlash, onOpenProfile });

@@ -717,7 +717,7 @@ function figuresOf(
 
 /** What `toTodayVM` reads: its six inputs as one record, so the facts and every band take one thing. */
 interface TodayInput {
-  m: MetricsSummaryDto;
+  metrics: MetricsSummaryDto;
   conversations: ConversationDto[];
   escalations: Array<EscalationDto & { conversation_id: string }>;
   /** Null: the calls read failed. The card says so rather than counting none. */
@@ -762,7 +762,7 @@ interface EscalationRecord {
 /** The facts every band reads, computed once over the input (today-bands.ts says what each band makes of them). */
 export interface TodayFacts extends TodayInput {
   tz: string;
-  p: MetricsSummaryDto["period"];
+  period: MetricsSummaryDto["period"];
   live: MetricsSummaryDto["now"];
   /** Whether the calls read succeeded; false means the rows omit the phone, and the card says so. */
   callsRead: boolean;
@@ -906,32 +906,32 @@ function closingConversations(conversations: ConversationDto[], escSet: Set<stri
 
 /** The facts, once: what every band below and in today-bands.ts reads. */
 function todayFacts(input: TodayInput): TodayFacts {
-  const { m, conversations, escalations, calls, now } = input;
-  const tz = m.workspace.timezone;
-  const p = m.period;
+  const { metrics, conversations, escalations, calls, now } = input;
+  const tz = metrics.workspace.timezone;
+  const period = metrics.period;
   const callDtos = calls ?? [];
   const byConv = new Map(conversations.map((c) => [c.id, c]));
   const openEsc = openEscalations(escalations, byConv, now);
   const escSet = new Set(openEsc.map((e) => e.conversation_id));
-  const sinceMs = new Date(m.window.since).getTime();
+  const sinceMs = new Date(metrics.window.since).getTime();
   return {
     ...input,
     tz,
-    p,
-    live: m.now,
+    period,
+    live: metrics.now,
     // Null: the calls read failed. The card says so rather than counting none.
     callsRead: calls !== null,
-    ...todayClock(m),
-    wires: todayWires(m),
+    ...todayClock(metrics),
+    wires: todayWires(metrics),
     needsYouCount: openEsc.length,
     escRecords: escalationRecords(openEsc, byConv, newestCallByThread(callDtos), tz, now),
     escSet,
     closingConvs: closingConversations(conversations, escSet, now),
     sinceMs,
     callsInWindow: callDtos.filter((c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs),
-    callMinutes: Math.round(p.call_seconds / 60),
-    traffic: p.messages_in + p.calls + p.messages_out_you,
-    oldest: tzSince(m.now.oldest_open_escalation_at, tz, now),
+    callMinutes: Math.round(period.call_seconds / 60),
+    traffic: period.messages_in + period.calls + period.messages_out_you,
+    oldest: tzSince(metrics.now.oldest_open_escalation_at, tz, now),
   };
 }
 
@@ -967,14 +967,14 @@ function todayNeedsRows(f: TodayFacts): TodayNeedsRowVM[] {
 /** Everything Ask reads about who needs you: the count, the rows, and what an empty list means. */
 function todayNeedsYou(f: TodayFacts): NonNullable<TodayVM["needsYou"]> {
   const rows = todayNeedsRows(f);
-  const { p } = f;
+  const { period } = f;
   return {
     count: f.needsYouCount,
     hint: "The receptionist stopped and asked for a human.",
     rows,
     empty: rows.length
       ? null
-      : p.unanswered_in_window === 0 && p.messages_out_you === 0
+      : period.unanswered_in_window === 0 && period.messages_out_you === 0
         ? "Nothing needs you. The receptionist answered every message that came in, and nobody asked for a person."
         : "Nothing needs you right now — nobody asked for a person.",
   };
@@ -1127,10 +1127,10 @@ function todayCallRows(f: TodayFacts): TodayCallRowVM[] {
 
 /** The calls band: the day's count and minutes as one line over the rows worth an ear; null on a day with no call. */
 function todayCalls(f: TodayFacts, rows: TodayCallRowVM[]): TodayVM["calls"] {
-  const { p, callMinutes } = f;
-  return p.calls
+  const { period, callMinutes } = f;
+  return period.calls
     ? {
-        line: `${p.calls} call${p.calls === 1 ? "" : "s"} today${
+        line: `${period.calls} call${period.calls === 1 ? "" : "s"} today${
           callMinutes ? ` · ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""
         }.`,
         rows,
@@ -1338,7 +1338,7 @@ export function toTodayVM(
   // After `now`, so every caller that never read the searches stands; null is "not read", the queue says nothing.
   searches: LeadSearchDto[] | null = null,
 ): TodayVM {
-  const f = todayFacts({ m, conversations, escalations, calls, now, searches });
+  const f = todayFacts({ metrics: m, conversations, escalations, calls, now, searches });
   const { chips, lines, alert } = todayStanding(f);
   const eyebrow = `${f.datePart} · ${f.clock} · ${m.workspace.name}`;
   const proof = todayProof(f.live, f.tz, now);

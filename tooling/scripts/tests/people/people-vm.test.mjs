@@ -557,6 +557,22 @@ test("the timeline merges messages, calls, escalations and decisions in true ord
   for (let i = 1; i < vm.timeline.length; i++) assert.ok(vm.timeline[i - 1].ts >= vm.timeline[i].ts, "sorted desc");
 });
 
+test('REGRESSION: a call with no length reads the same on the timeline as on its card, NaN included -- the timeline said "Inbound call · NaN:NaN"', () => {
+  const withLength = (duration_ms) => {
+    const d = detail();
+    return { ...d, calls: d.calls.map((k) => ({ ...k, duration_ms })) };
+  };
+  for (const none of [null, undefined, 0, -5000, NaN]) {
+    const d = withLength(none);
+    const call = toPersonVM(d, ZONE, NOW).timeline.find((i) => i.kind === "call");
+    assert.equal(call.who, "Inbound call", `a length of ${none} is no length on the timeline`);
+    assert.equal("duration" in contracts.toCallVM(d.calls[0], ZONE, NOW), false, `nor on the card, for ${none}`);
+  }
+  const d = withLength(112_000);
+  assert.equal(toPersonVM(d, ZONE, NOW).timeline.find((i) => i.kind === "call").who, "Inbound call · 1:52");
+  assert.equal(contracts.toCallVM(d.calls[0], ZONE, NOW).duration, "1:52");
+});
+
 test("last exchange is the customer's last line and the reply that followed it, verbatim", () => {
   const vm = toPersonVM(detail(), ZONE, NOW);
   assert.equal(vm.lastExchange.customer.text, "Can I move Saturday to 11?");
