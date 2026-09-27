@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Appearance, BackHandler, Linking, Platform, StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
-import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
+import type { ShouldStartLoadRequest, WebViewSource } from "react-native-webview/lib/WebViewTypes";
 import * as Application from "expo-application";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -67,11 +67,13 @@ export function Surface({ route, tab, onReady, post }: Props) {
   const insets = useSafeAreaInsets();
   const userAgent = useMemo(() => userAgentToken(Application.nativeApplicationVersion ?? "0.0.0", PLATFORM), []);
   const inset = bottomInset(PLATFORM, insets.bottom);
-  const uri = route === "login" ? LOGIN_HREF : hrefFor(slug, route);
-  // The door's POST from inside the WebView: the cookie it sets is the WebView's, and its 303 lands the page.
-  const source = post
-    ? { uri: NATIVE_DOOR, method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: post }
-    : { uri };
+  // Where this WebView starts, fixed as it is created, and again for each new one after a dead renderer: the page
+  // moves itself after that. It followed the shell's slug, so on a cold start (no slug yet: the site's home, which
+  // replaces itself with the workspace's address) the page naming its workspace sent the WebView to the same page
+  // with `#/today` added, an entry Back then stepped through with nothing to see.
+  const [start, setStart] = useState<{ epoch: number; source: WebViewSource } | null>(null);
+  const source = start?.epoch === epoch ? start.source : sourceOf(route, slug, post);
+  if (mounted && start?.epoch !== epoch) setStart({ epoch, source });
 
   const handle = useMemo<SurfaceHandle>(
     () => ({
@@ -208,6 +210,21 @@ function useAndroidBack(ref: RefObject<WebView | null>, canGoBack: RefObject<boo
     });
     return () => sub.remove();
   }, [focused, ref, canGoBack]);
+}
+
+/**
+ * What a new WebView loads: the sign-in page, the route on the workspace's address, or the native door's POST of an
+ * identity token (the cookie it sets is the WebView's, and its 303 lands the page).
+ */
+function sourceOf(route: string, slug: string | null, post: string | undefined): WebViewSource {
+  if (post)
+    return {
+      uri: NATIVE_DOOR,
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: post,
+    };
+  return { uri: route === "login" ? LOGIN_HREF : hrefFor(slug, route) };
 }
 
 /**
