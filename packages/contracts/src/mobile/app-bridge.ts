@@ -27,12 +27,6 @@ export type PageMessage =
   /** How many calls are in progress, on every refresh of the page's Live: none ends the phone's call activity (PR 7). */
   | { t: "calls"; live: number }
   /**
-   * The session's access token for the shell's own calls to /api/v1 (decision 0011, PR 8), answered to the shell's
-   * `token` ask: the token and when it expires (epoch seconds), or null when the page has no session to hand over.
-   * Never the refresh token: the page refreshes, the shell asks again.
-   */
-  | { t: "token"; access: string | null; expires: number }
-  /**
    * The theme the page is drawn in, at install and on every change: the member's own choice (chrome.ts
    * resolveTheme), which the device's setting is not. The shell paints its bars, its tab bar and its own screens
    * in it, so nothing native stands in the other theme beside the page.
@@ -50,13 +44,10 @@ export type ShellMessage =
    * Register this phone for the person signed in: the page calls PUT me/devices through its own client, and forgets
    * it again on its own before a sign-out (legacy-bridge/app-bridge.ts forgetPhone), so no ask says "forget".
    */
-  | { t: "device"; token: string; platform: "ios" | "android"; version: string; activity?: string }
-  /** The session's access token, for the shell's own calls (decision 0011): the page answers with `token`. */
-  | { t: "token" };
+  | { t: "device"; token: string; platform: "ios" | "android"; version: string; activity?: string };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null;
 
-/** What the page said, or null when it is not one of the four shapes. */
 /** A whole number, none below zero: a count the page says. */
 const isCount = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 
@@ -76,14 +67,10 @@ const PAGE_MESSAGES: { [K in PageMessage["t"]]: (v: Record<string, unknown>) => 
     return snapshot ? { t: "today", snapshot } : null;
   },
   calls: (v) => (isCount(v.live) ? { t: "calls", live: v.live } : null),
-  token: (v) => {
-    const access = typeof v.access === "string" && v.access.trim() ? v.access.trim() : null;
-    const expires = typeof v.expires === "number" && Number.isFinite(v.expires) && v.expires >= 0 ? v.expires : 0;
-    return { t: "token", access, expires };
-  },
   theme: (v) => (v.theme === "light" || v.theme === "dark" ? { t: "theme", theme: v.theme } : null),
 };
 
+/** What the page said, or null when it is not one of its shapes. */
 export function parsePageMessage(raw: string): PageMessage | null {
   let v: unknown;
   try {
@@ -100,7 +87,7 @@ export function parsePageMessage(raw: string): PageMessage | null {
 const token = (v: unknown): string | null =>
   typeof v === "string" && v.trim() && v.trim().length <= PUSH_TOKEN_MAX ? v.trim() : null;
 
-/** What the shell asked, or null when it is not one of the three shapes. */
+/** What the shell asked, or null when it is not one of its shapes. */
 export function parseShellMessage(v: unknown): ShellMessage | null {
   if (!isRecord(v)) return null;
   switch (v.t) {
@@ -110,8 +97,6 @@ export function parseShellMessage(v: unknown): ShellMessage | null {
       return { t: "menu" };
     case "top":
       return { t: "top" };
-    case "token":
-      return { t: "token" };
     case "device": {
       const tok = token(v.token);
       const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;

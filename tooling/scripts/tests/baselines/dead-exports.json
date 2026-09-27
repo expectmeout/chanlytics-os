@@ -69,7 +69,6 @@
   "apps/edge/lib/whatsapp/meta-templates.ts": 2,
   "apps/edge/lib/whatsapp/ports.ts": 1,
   "apps/edge/lib/whatsapp/waba-events.ts": 1,
-  "apps/mobile/src/shell/api.ts": 6,
   "apps/mobile/src/shell/bridge.ts": 1,
   "apps/mobile/src/shell/deploy.ts": 1,
   "apps/mobile/src/shell/notifications.ts": 2,

@@ -564,6 +564,126 @@ test("the thread open is the address's: a click replaces it, a bucket switch nam
   }
 });
 
+test("on a phone a thread a tap opens is an entry of its own: Back closes it to the list, the thread's own Back is that Back, and the list's address names no thread", () => {
+  // The phone app used to draw the thread natively over the page; retired, the page's own thread must answer Back.
+  // Every read replaced the address, so Back -- Android's, the browser's, the app's -- left the Inbox with the thread
+  // still open, and a bucket's first thread in the address opened it on a refresh.
+  const w = globalThis.window;
+  const keep = {
+    matchMedia: w.matchMedia,
+    history: w.history,
+    hash: w.location.hash,
+    useEffect: globalThis.React.useEffect,
+  };
+  // A browser's history of hash entries: a navigation is a new entry, a replace is not, Back steps one.
+  const entries = ["#/inbox"];
+  const navs = [];
+  let backs = 0;
+  w.location.hash = entries[0];
+  w.matchMedia = (q) => ({ matches: q === "(max-width: 720px)" });
+  w.appNavigate = (to, opts) => {
+    navs.push([to, opts || null]);
+    if (opts && opts.replace) entries[entries.length - 1] = "#/" + to;
+    else entries.push("#/" + to);
+    w.location.hash = entries.at(-1);
+  };
+  w.history = {
+    back: () => {
+      backs += 1;
+      entries.pop();
+      w.location.hash = entries.at(-1);
+    },
+  };
+  // Effects that run again when what they follow changes, as React runs them: the address is followed by an effect.
+  const seen = new Map();
+  globalThis.React.useEffect = (fn, deps) => {
+    const k = frames.key();
+    const was = seen.get(k);
+    if (was && deps && deps.every((d, i) => Object.is(d, was[i]))) return;
+    seen.set(k, deps || []);
+    fn();
+  };
+  let list = null;
+  let back = null;
+  globalThis.InboxList = (p) => {
+    list = p;
+    return null;
+  };
+  globalThis.InboxThread = (p) => {
+    back = p.onBack;
+    return null;
+  };
+  globalThis.InboxAgentRail = () => null;
+  w.VW_UTIL = { seed() {}, remaining: () => null };
+  const base = {
+    real: true,
+    state: "escalated",
+    needsYou: true,
+    takenOver: false,
+    claimedByOther: false,
+    archived: false,
+  };
+  const more = { tags: [], whoMeta: "", lastAtMs: 1000, timeline: [] };
+  const threads = [
+    { ...base, ...more, id: "th-emily", who: "Emily Chen" },
+    { ...base, ...more, id: "th-zoe", who: "Zoe Martin" },
+    { ...base, ...more, id: "th-marcus", who: "Marcus Bell", state: "done", needsYou: false },
+  ];
+  const fresh = () => {
+    cells = [];
+    seen.clear();
+    w.INBOX_DATA = { INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: threads };
+  };
+  // The shell hands the Inbox the thread its address names; an effect's own change shows on the draw after it.
+  const draw = () => {
+    const param = /^#\/inbox\/(.+)$/.exec(w.location.hash);
+    let tree;
+    for (let i = 0; i < 2; i++) {
+      frames.begin();
+      tree = w.Inbox({ initialThreadId: param ? param[1] : null, showAgentRail: false });
+    }
+    return String(tree.props.className).includes("phone-thread");
+  };
+  try {
+    fresh();
+    assert.equal(draw(), false, "the list");
+    list.onSelectThread("th-zoe");
+    assert.deepEqual(navs.at(-1), ["inbox/th-zoe", null], "a tap on a phone is a new entry");
+    assert.equal(draw(), true, "the thread is the screen");
+    w.history.back();
+    assert.equal(w.location.hash, "#/inbox");
+    assert.equal(draw(), false, "REGRESSION: Back left the Inbox with the thread open over it; it closes the thread");
+    list.onSelectThread("th-emily");
+    assert.equal(draw(), true);
+    back();
+    assert.equal(backs, 2, "the thread's own Back is the browser's, so no entry of the thread is left behind");
+    assert.equal(w.location.hash, "#/inbox");
+    assert.equal(draw(), false);
+    list.onBucketChange("done");
+    assert.deepEqual(
+      navs.at(-1),
+      ["inbox", { replace: true }],
+      "REGRESSION: a bucket's list on a phone named its first thread, which a refresh then opened",
+    );
+    // A thread the address brought (the bell, a link, a notification) closes to its list in place.
+    fresh();
+    entries.splice(0, entries.length, "#/today", "#/inbox/th-marcus");
+    w.location.hash = entries.at(-1);
+    assert.equal(draw(), true, "a link opens straight onto its thread");
+    back();
+    assert.equal(backs, 2, "its Back is not the browser's: that would leave the Inbox");
+    assert.deepEqual(navs.at(-1), ["inbox", { replace: true }]);
+    assert.equal(draw(), false);
+  } finally {
+    w.matchMedia = keep.matchMedia;
+    w.history = keep.history;
+    w.location.hash = keep.hash;
+    globalThis.React.useEffect = keep.useEffect;
+    delete w.appNavigate;
+    globalThis.InboxThread = RealInboxThread;
+  }
+});
+
 test("the words in the Inbox's search come back after a refresh, in this tab only", async () => {
   const m = new Map();
   const keepStore = globalThis.window.sessionStorage;

@@ -102,13 +102,31 @@ test("the shell's navigate sets the hash; menu and top become the shell's events
   win.addEventListener("shell:top", () => heard.push("top"));
   win.__appBridge.receive('{"t":"navigate","route":"inbox"}');
   assert.equal(win.location.hash, "/inbox");
+  fire("shell:ready");
   win.__appBridge.receive('{"t":"menu"}');
   win.__appBridge.receive('{"t":"top"}');
   win.__appBridge.receive('{"t":"navigate","route":"https://example.com/x"}');
   win.__appBridge.receive("nope");
   assert.deepEqual(heard, ["menu", "top"]);
   assert.equal(win.location.hash, "/inbox");
-  void fire;
+});
+
+test("a menu ask that arrives before the shell has mounted waits for it; a scroll to the top of nothing is dropped", () => {
+  // The bridge is installed as the page's script loads, seconds before app-shell.jsx mounts and listens: the More
+  // tab's one ask used to arrive with nobody listening, and the drawer never opened.
+  const { win, fire } = windowOf();
+  const off = installAppBridge(win);
+  const heard = [];
+  win.addEventListener("shell:menu", () => heard.push("menu"));
+  win.addEventListener("shell:top", () => heard.push("top"));
+  win.__appBridge.receive('{"t":"menu"}');
+  win.__appBridge.receive('{"t":"top"}');
+  assert.deepEqual(heard, [], "nothing is said before the shell is ready");
+  fire("shell:ready");
+  assert.deepEqual(heard, ["menu"], "the menu ask is replayed once the shell listens; the early top is dropped");
+  win.__appBridge.receive('{"t":"menu"}');
+  assert.deepEqual(heard, ["menu", "menu"], "after that, at once");
+  off();
 });
 
 const doors = (answer = true) => {
@@ -123,11 +141,6 @@ const doors = (answer = true) => {
     forget: async (t) => {
       calls.push(["forget", t]);
       return answer;
-    },
-    token: async () => {
-      calls.push(["token"]);
-      if (answer instanceof Error) throw answer;
-      return answer ? { access: "tok", expires: 1800000000 } : null;
     },
   };
 };
@@ -236,24 +249,4 @@ test("a device ask with an activity token registers both", async () => {
     "register",
     { token: "tok", platform: "ios", app_version: "1.0.0", activity_token: "act" },
   ]);
-});
-
-test("the shell's token ask is answered from the page's own session, and with nothing when there is none", async () => {
-  const { win, posted } = windowOf();
-  const d = doors(true);
-  installAppBridge(win, d);
-  win.__appBridge.receive('{"t":"token"}');
-  await tick();
-  assert.deepEqual(d.calls.at(-1), ["token"]);
-  assert.deepEqual(posted.at(-1), { t: "token", access: "tok", expires: 1800000000 });
-  const none = windowOf();
-  installAppBridge(none.win, doors(false));
-  none.win.__appBridge.receive('{"t":"token"}');
-  await tick();
-  assert.deepEqual(none.posted.at(-1), { t: "token", access: null, expires: 0 });
-  const broken = windowOf();
-  installAppBridge(broken.win, doors(new Error("no client")));
-  broken.win.__appBridge.receive('{"t":"token"}');
-  await tick();
-  assert.deepEqual(broken.posted.at(-1), { t: "token", access: null, expires: 0 });
 });
