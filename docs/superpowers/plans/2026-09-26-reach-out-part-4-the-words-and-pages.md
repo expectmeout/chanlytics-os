@@ -32,6 +32,22 @@ The claim takes checked sends only. The sheet, the approval sheet, Playbooks and
 
 **Order, after the review round (R19):** 1, 2, 3, 4, 5, 8, 6, 7, 9, 10. Playbooks' row ships before the door that makes a chain. §0.5 overrides the task code below wherever they disagree.
 
+**As built (27 Sep 2026).** Each PR's own note, under its heading, says what departed from its tasks and why.
+
+| PR | Pull request | Migration | What it shipped |
+| --- | --- | --- | --- |
+| 1 | #1125 | — | The words, pure: the six slots, the validators, the check's code rules and holds, the model's prompts and answers |
+| 2 + 3 | #1137 | 00197 | A send checked before it goes, and the check as its own clock on the edge (R1), with the preview door |
+| 4 + 5 | #1153 | 00211 | The member doors (save, reach, decide, report, remove, run recheck) and the routes and view models |
+| 8 | #1174 | — | Playbooks' chain row and its open row; Templates' email rows |
+| 6 | #1178 | — | The sheet, the Leads door, Autonomy's outreach row |
+| 7 | #1180 | — | The approval sheet's reach-out block, its held list and doors, the first hold's notice |
+| 9 | #1168 | 00212 | Leads' five dead doors, carried from Part 1 |
+| 10 | PR 10 | — | The proof on a stack, from the sheet's door to two emails sent; the docs |
+
+00213 (#1165, another plan's) made `reach_out_claim`'s pick a materialized CTE, so a claim never takes more than a
+domain's room.
+
 Each PR runs this sequence:
 1. Branch from `main` after the one before it merges.
 2. Implement, then run the gate.
@@ -4674,6 +4690,32 @@ end $$;
 - [ ] **The PR:** gate, review, fixes, 00212 to production, PR, merge on green.
 
 ## PR 10 — The proof, and the docs (`reach-out-4j-proof`)
+
+> **As built (27 Sep 2026, on PR 7's head, `9defcfd5`; tests and docs only, no migration).** What departs from the
+> tasks below:
+>
+> - **The proof** is the second test of `tooling/scripts/tests/reach-out/reach-out.integration.db.test.mjs` (the file
+>   moved into `reach-out/` with #1161's layout; its directory is at the tree cap, so no new file). It runs the plan's
+>   seven steps with the names as built: `reach_out_save` by the service role with the owner's id (R15, after
+>   contracts `validateReachOutChain`); `runReachOutStep` (R13, what Start asks through the run-now door), not a
+>   `reach-out-run` door; the check's own tick, `checkSends`, over a scripted `AskModel` (R1), not `checkPlanned`; the
+>   dashboard's `reachOutRunOf` (`server/campaigns/reach-outs.ts`, importable as `campaign-ports.ts` is), read on the
+>   owner's signed-in session; `reach_out_send_decide` and `reach_out_remove` on that session, since both ask
+>   `auth.uid()`; and `approveRun` with the dashboard's ports on it too. It needs `SUPABASE_ANON_KEY` to sign in, and
+>   skips without it.
+> - **What it proves beyond the list:** four model calls for two businesses and none on the tick after (nothing is
+>   checked twice); the chain hold keeps its opening, so an Include needs no second check, and carries `included_for`;
+>   `reachOutRunOf`'s held line is said by contracts `holdWords` ("reads like a chain: 3 listings share their
+>   website"), its first email is the words with every slot filled, and its domains are the run's sends'. The sends go
+>   due by hand before each read, so "today" does not hang on the hour the suite runs.
+> - **Run** against every migration replayed on a stock Postgres 16 with stubs for what the stack provides, under
+>   PostgREST 12.2.3 and a small gateway for the auth calls (the stack's images cannot be pulled here): both tests of
+>   the file pass. With the shared-website leads cut to two, step 3 fails, as it should.
+> - **The docs.** The spec's status, its "As built (Part 4)" notes in §4.3, §4.4 and §4.11, and §6's Part 4 line; the
+>   PRD's S-14.4, the routes table and the Leads, Playbooks, Broadcasts and Templates rows; the runbook's step 8, the
+>   model the check needs and what `check_unavailable` means; the glossary's Check, Opening, Angle and Held; the
+>   architecture's check clock and the sheet's door; this plan's table above. The memory note is outside the
+>   repository, and is not this PR's.
 
 ### Task 10.1: The end-to-end test, from the sheet's door
 

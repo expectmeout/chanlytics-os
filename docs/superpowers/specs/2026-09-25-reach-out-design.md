@@ -1,7 +1,7 @@
 # Reach out: design spec
 
 **Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** Parts 1–2 shipped; 2.5 (the hardening) and 2.6 (the review before Part 3)
-shipped; Part 3 (the engine) shipped 26 Sep (D15–D19); Part 4 (the words and the pages) next. The eight decisions in §9 were approved 25 Sep ·
+shipped; Part 3 (the engine) shipped 26 Sep (D15–D19); Part 4 (the words and the pages) shipped 26–27 Sep (§6, ten PRs); Part 5 (replies) next. The eight decisions in §9 were approved 25 Sep ·
 **Canvas:** https://claude.ai/artifact/AdMCtQTkWUoDhXz8SewiZg (23 boards; the builder is `Claude Video/reach-out-design/canvas`) ·
 **Supersedes:** §4.7 "Leads" of `2026-09-24-campaigns-on-every-channel-design.md` · **Re-sequences:** steps 2–11 of
 `docs/plans/2026-09-24-every-business-every-channel.md` §4 · **Follows:** Part 0 of the campaigns spec (#999, #1005,
@@ -170,6 +170,31 @@ what the owner asked the finder for, the business's own "what we do" and tone (`
 `tone`), and the owner's email. It returns `{opening ≤ 40 words, angle ≤ 3 words, facts_used[]}`. Cached on the recipient
 row; regenerated when the owner edits the email.
 
+**As built (Part 4; 00197, 00211).**
+- **The six slots.** `{{business}}` and `{{city}}` are the lead's; `{{your business}}` is the workspace's name;
+  `{{your name}}` is the chain's `signed_by`, which the sheet fills with the member's first name and the owner can
+  change; `{{booking link}}` is the workspace's `brain.booking_link`, and the sheet refuses Start while the words name it
+  and the workspace has none; `{{opening}}` is the send's own. One slot rule (contracts `slotsNamed`, `reachOutSlots`)
+  serves the save, the check, the preview and the sender. A lone brace is refused at the save (`stray_brace`).
+- **The validator** is contracts `validateReachOutWords` and `validateReachOutChain`: the subject and body bounds above,
+  at most 120 words, one link, no line in capitals, known slots only. The route runs it; the database keeps only its
+  CHECKs. A chain is saved whole by `reach_out_save` (00211), the service role's door, which writes its email templates
+  and its playbook rows in one transaction.
+- **A fault that is the workspace's holds the send,** never skips the lead: no name to sign with (`no_signed_by`) or no
+  booking link (`no_booking_link`). A lead with no value for its own slot is still skipped (`missing_value`).
+- **The writer and the reader** are two calls to Haiku 4.5, only for a step whose words name `{{opening}}`: words
+  without one cost no call. The writer answers `{opening, angle, facts_used}` from the business's record, fenced so an
+  about text cannot forge a line of the prompt; what the owner asked the finder for is told to it outside the record.
+  The reader answers whether the opening claims anything the record does not hold, whether it reads as a pitch, and
+  the business's language, judged from its about text.
+- **What is kept on the send:** the opening, its angle and the facts it used, the words it was checked against
+  (`checked_words`, a hash) and their version (`check_gen`). New words, a new name to sign with, or a booking link
+  gained or lost send it back to be checked (`reach_out_recheck`); a send its owner included past a hold keeps that.
+- **Its cost is bounded where it is spent:** the check is its own clock (`reach-out-check-sweep`, every minute), and a
+  workspace that may not spend, has no room in its month, or has spent its model attempts for the UTC day
+  (contracts `REACH_OUT_CHECKS_PER_DAY`, `reach_out_check_spend`) is asked again an hour on. Tokens are logged per tick
+  (`reach_out_checked`), not metered. The sheet's preview counts in Ask's daily budget (`reach_out_preview`).
+
 ### 4.4 The check before each send
 
 A second pass per email, deterministic where it can be and a model where it must:
@@ -197,6 +222,33 @@ Skip · Not a fit). The approval sheet repeats the count. A held email never sen
 - A workspace with no business address for the foot, or no mailbox for the replies, claims nothing at all.
 - The footer and the unsubscribe headers are frozen into every request.
 - Everything the door checks (§4.8) is asked again when the email leaves.
+
+**As built (Part 4; 00197, 00211): the holds, and who answers them.**
+- **`held` is a state of a send,** with its reason and a detail: planned → held by the check; held → planned by the
+  owner's Include or a Rewrite; held → skipped by Skip, Not a fit, or fourteen days unanswered (`kept_waiting`). The
+  claim takes only a checked send (`checked_at`), never a held one, and a held send keeps its run open.
+- **The reasons:** `customer_domain`, `chain`, `language`, `unbacked_fact`, `reads_like_spam` and `check_unavailable`.
+  `missing_value` stays a skip: a lead with no city is not the owner's to fix.
+- **The opening's rules.** Code reads its length, links, braces, capitals, a price, and that every number and every
+  named fact is one the record holds (contracts `checkOpening`); the reader's answer is read with it
+  (`openingVerdict`). A broken rule asks one rewrite, told why, then holds. A language that is not the step's holds at
+  once, with no rewrite: the owner's words are in one language, and another language's version is Templates' later.
+- **Not a chain (F4).** A business reads like a chain when three or more of the workspace's leads share its own website,
+  or its name. A page on a platform (a social profile, a booking site) is nobody's own site, so it counts nothing. The
+  words say what was measured: "reads like a chain: 3 listings share their website". The spec's "`locs ≥ 3` on Maps"
+  has no field the finder holds.
+- **Not a customer's domain (F6).** When a person in People, other than the lead's own, writes from the lead's email
+  domain, and that domain is not free mail, the send is held `customer_domain`. An exact address or number a person
+  holds stays Part 3's skip (`already_yours`).
+- **When the model fails,** each try counts and backs off (1, 2, 4, 8, then 15 minutes). After an hour of tries the send
+  is held `check_unavailable` with no detail, and the check's clock puts it back to be checked an hour on. A hold for a
+  rule an opening broke waits for its owner.
+- **The doors.** Include, Rewrite, Skip and Not a fit are one door, `reach_out_send_decide`; Not a fit archives the lead
+  in the same transaction. Include is refused past the fortnight. An Include is kept on the send (`included_for`), so
+  neither it nor a later step's send to the same lead is held for that reason again. "Check the held again" puts a
+  run's unanswered `check_unavailable` holds back in one call (`reach_out_run_recheck`).
+- **The tally is the approval sheet's** (F12): checked, ready and held for the whole run is read there a minute after
+  Start, with each held email's doors. The sheet's "Before it goes" previews one business at a time.
 
 ### 4.5 The timetable
 
@@ -366,6 +418,28 @@ On the surfaces as they stand; the canvas draws each.
 - **Today, Inbox, a person's page, Connections, Notifications, Reports, Templates:** as §4.7–4.10 and the canvas.
 - **The phone:** the door where the thumb is; the sheet as the page; the queue first; a reply with one button.
 
+**As built (Part 4).**
+- **Leads:** a search with ready businesses shows *Write to the N ready* (or *Write to the N unconfirmed* when only
+  those are left), and *Open its reach-out* once the search has one. On a desk it stands before Find leads; on a phone
+  it is the full-width button at the top of the rows. A role that may not approve sees it gated, told why.
+- **The sheet** (`pages/reach-out/reach-out-sheet.jsx`) is opened by the Leads door, by Edit on the chain's Playbooks
+  row, and by "Edit in its reach-out" on each of its email rows in Templates. Every sentence is contracts'
+  (`reach-out-draft.ts`). Start's outcome is said in the sheet, with the door to the run that waits.
+- **The approval block** (`pages/reach-out/reach-out-approval.jsx`) is drawn for any live reach-out run on Broadcasts:
+  today's share and the rest, who is still being checked (read again every 15 seconds while any are), the held with
+  their reasons and doors, the skipped by reason, and the first ready email as it reads. Approve names only checked
+  sends. The first hold in a run not waiting for its owner tells them once.
+- **Playbooks:** a chain is one row above the moments; its open row reads the chain's report (written, delivered,
+  wrote back, said no, bounced, per step), links "N wait for your say" to the run that holds them, and offers Pause,
+  Resume, Edit, and Remove only until the first email leaves.
+- **Templates:** a chain's steps are email rows, with "What sends it" and "a reach-out sends email only". There is no
+  version switch, and their words are edited in the chain's sheet.
+- **Autonomy:** the `outreach` class is offered (veto, ask or never).
+- **What moved (F12, F16).** The tally, and "Skip this one", moved from the sheet to the approval sheet. The bulk bar's
+  *Write to them* moved to Part 7 (a chain's audience is a search, and chosen leads are Part 7's own list). *Leads while
+  it writes* (the strip, the Stage detail line, the peek's timeline) moved to Part 6, with what comes back. The sheet's
+  *another step* offers another email only; a call or a note for the owner is Part 5's dated step.
+
 ### 4.12 Failure handling
 
 A domain that stops verifying holds its runs and says "Your domain stopped verifying" on the row, the run and Today. A
@@ -433,9 +507,14 @@ Each to 100% before the next, and each shippable in either deploy order unless s
    - **C13** the clock claims nothing without the cold lane's secrets, and answers 503 `cold_lane_unset` while a send is
      due (PR 6).
    - **C14** an email taken as the last of its second waits out `ratelimit-reset` before the next leaves (PR 6).
-4. **The words and the pages:** email template rows and their validator, the slots, the opening and check jobs, the
-   sheet, the Leads door and the bulk door, the approval sheet's words, the Playbooks open row, Templates' switch.
-   2 PRs.
+4. **Built 26–27 Sep 2026 in ten PRs (00197, 00211 and 00212).** **The words and the pages:** #1125 (PR 1, the words,
+   pure), #1137 (PRs 2 and 3, a send checked before it goes and the check's clock on the edge, 00197), #1153 (PRs 4
+   and 5, the member doors and the routes, 00211), #1174 (PR 8, Playbooks' chain row and Templates' email rows), #1178
+   (PR 6, the sheet and the Leads door), #1180 (PR 7, the approval sheet's reach-out block), #1168 (PR 9, Leads' five dead
+   doors, carried from Part 1, 00212) and PR 10 (the proof on a stack, and these notes). 00213 (#1165, another plan's)
+   made `reach_out_claim`'s pick a materialized CTE, so a claim never takes more than the domain's room.
+   `docs/superpowers/plans/2026-09-26-reach-out-part-4-the-words-and-pages.md` has the decisions (F1–F16, R1–R24) and
+   what each PR built. The bulk door moved to Part 7 and *Leads while it writes* to Part 6 (§4.11).
 5. **Replies:** the intent classifier, pause and resume, said no, the dated-step door, notifications, Today's rows, the
    Inbox strips; the first use of draft mode on a lead thread. 2 PRs. Carried from Part 2.5: **C15**, the owner's reply
    leaves from the thread's own domain. And **C16**: until a classifier reads replies, the door refuses a cold email to
