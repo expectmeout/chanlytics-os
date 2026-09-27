@@ -1,7 +1,8 @@
 # 0012 · A partner brings a workspace, sets it up, and earns a share
 
 **Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) merged (#1151); P4 (the partner's table)
-merged (#1156); P5 (standing and payouts) built on the branch this note ships with (00205). Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
+merged (#1156); P5 (standing and payouts) built on the branch this note ships with (00205), with the pause the
+Risks promise (00206). Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
 at that commit, before P1, so the Context describes the code P1 to P3 changed: `memberships.role` admits `partner`,
 `has_permission()` and `ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, `requireRole`
 refuses a role it does not know (00201, `with-route.ts`); `partners` and `partner_tenants` exist, `create_workspace`
@@ -38,6 +39,10 @@ standing` (`tenant_id`, `standing`, `why`) and `POST platform/partners/payout` (
   money left, so it is `sent` or it does not exist. A net that is not above zero records nothing. Each workspace it
   came from gets a `partner.paid` event with its own part and no reference, since a workspace's members read its
   events. The partners and who brought each workspace ride on `GET platform/overview`, as the waiting list does.
+- **Pausing a partner is a verb, built with P5** (00206 `partner_status_set`, `POST platform/partners/status`): the
+  Risks and the terms promised it and nothing set `partners.status`. A pause or a close makes each partner seat a
+  viewer's and releases what the partner held in those conversations, as a departure does (00132); the workspace keeps
+  `seat_held_at`, and a restore gives back only those seats, where the owner has not removed the partner since.
 
 ## Context
 

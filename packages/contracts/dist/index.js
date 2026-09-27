@@ -20249,7 +20249,9 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 function shareWords(shareBp) {
   const pct2 = shareBp / 100;
@@ -20365,8 +20367,26 @@ var PARTNER_STANDING_VERBS = {
 function partnerStandingChoices(standing) {
   return PARTNER_STANDINGS.filter((s) => s !== standing);
 }
+var PARTNER_STATUS_VERBS = {
+  active: "Restore",
+  paused: "Pause",
+  closed: "Close"
+};
+function partnerStatusChoices(status) {
+  return PARTNER_STATUSES.filter((s) => s !== status);
+}
+function partnerStatusOutcomeWords(code2, r2) {
+  const seats = `${r2.seats} ${r2.seats === 1 ? "workspace" : "workspaces"}`;
+  if (r2.status === "active")
+    return r2.seats ? `${code2} is restored, and a partner again on ${seats}.` : `${code2} is restored. No seat was waiting to be given back.`;
+  const what = r2.status === "closed" ? "closed" : "paused";
+  return r2.seats ? `${code2} is ${what}: a viewer on ${seats} now, and what they held there is released.` : `${code2} is ${what}. They held no partner seat to take.`;
+}
 function platformPartnerRows(rows) {
+  const seen = /* @__PURE__ */ new Set();
   return rows.map((r2) => {
+    const first = !seen.has(r2.partner_id);
+    seen.add(r2.partner_id);
     const cur = r2.currency ?? "usd";
     const pct2 = r2.share_bp / 100;
     const who = [
@@ -20391,7 +20411,10 @@ function platformPartnerRows(rows) {
       payableCents: payable,
       canPay: r2.currency !== null && payable > 0,
       payLabel: `Mark ${moneyWords(Math.max(payable, 0), cur)} as paid`,
-      tone: r2.under_review ? "warn" : payable > 0 ? "info" : "plain"
+      tone: r2.status !== "active" ? "danger" : r2.under_review ? "warn" : payable > 0 ? "info" : "plain",
+      status: r2.status,
+      first,
+      statusChoices: partnerStatusChoices(r2.status).map((s) => ({ status: s, label: PARTNER_STATUS_VERBS[s] }))
     };
   });
 }
@@ -24936,6 +24959,7 @@ export {
   PARTNER_STANDING_VERBS,
   PARTNER_STANDING_WORDS,
   PARTNER_STATUSES,
+  PARTNER_STATUS_VERBS,
   PARTNER_WORDS,
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN,
@@ -25701,6 +25725,8 @@ export {
   partnerPayoutOutcomeWords,
   partnerStandingChoices,
   partnerStandingOutcomeWords,
+  partnerStatusChoices,
+  partnerStatusOutcomeWords,
   partnerVM,
   partnerWorkspacesVM,
   passwordProblem,

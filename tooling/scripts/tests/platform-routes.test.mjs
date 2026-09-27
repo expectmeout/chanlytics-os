@@ -28,6 +28,7 @@ const resume = await import(at("apps/dashboard/app/api/v1/billing/resume/route.t
 const sync = await import(at("apps/dashboard/app/api/v1/billing/sync/route.ts"));
 const standing = await import(at("apps/dashboard/app/api/v1/platform/partners/standing/route.ts"));
 const payout = await import(at("apps/dashboard/app/api/v1/platform/partners/payout/route.ts"));
+const partnerStatus = await import(at("apps/dashboard/app/api/v1/platform/partners/status/route.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -394,4 +395,41 @@ test("partners ride on the overview, and a partner list that cannot be read neve
     { balances: [], workspaces: [] },
     "a database 00205 has not reached has no partners to show",
   );
+});
+
+test("partners: a pause names the partner, a status and why; a customer is refused at the door and the function answers the rest", async () => {
+  const tables = { memberships: both("owner", "owner") };
+  assert.equal(partnerStatus.POST.policy.scope, "platform");
+  assert.equal(partnerStatus.POST.policy.rate, "platform_partner_status");
+  const guessed = ctxFor(tables, {}, admin(false));
+  await refused(
+    partnerStatus.POST.run(send("POST", { partner_id: P1, status: "paused", why: "x" }), guessed),
+    "not_found",
+    404,
+  );
+  const asked = [];
+  const ok = admin(true, {
+    partner_status_set: (args) => {
+      asked.push(args);
+      return { partner_id: P1, status: args.p_status, from: "active", seats: 3 };
+    },
+  });
+  await refused(
+    partnerStatus.POST.run(send("POST", { partner_id: P1, status: "gone", why: "x" }), ctxFor(tables, {}, ok)),
+    "validation",
+    400,
+  );
+  await refused(
+    partnerStatus.POST.run(send("POST", { partner_id: P1, status: "paused", why: "" }), ctxFor(tables, {}, ok)),
+    "validation",
+    400,
+    "Say why",
+  );
+  assert.deepEqual(asked, []);
+  const out = await partnerStatus.POST.run(
+    send("POST", { partner_id: P1, status: "paused", why: " Reported by an owner. " }),
+    ctxFor(tables, {}, ok),
+  );
+  assert.deepEqual(asked, [{ p_partner: P1, p_status: "paused", p_why: "Reported by an owner." }]);
+  assert.equal(out.result.seats, 3);
 });

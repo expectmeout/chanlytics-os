@@ -182,3 +182,15 @@ export async function markPartnerPaid(
   };
   return { ok: true, value: { ...v, total_cents: Number(v.total_cents) } };
 }
+
+/** A platform admin pauses, closes or restores a partner (00206 partner_status_set). */
+export async function setPartnerStatus(
+  db: Db,
+  partnerId: string,
+  status: string,
+  why: string,
+): Promise<PartnerVerbResult<{ status: string; from: string; seats: number }>> {
+  const { data, error } = await db.rpc("partner_status_set", { p_partner: partnerId, p_status: status, p_why: why });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: data as unknown as { status: string; from: string; seats: number } };
+}

@@ -618,3 +618,71 @@ test(
     }
   },
 );
+
+/* --------------------------------------------------------------------------------- a partner paused (00206) */
+
+test(
+  "a paused partner is a viewer on every workspace they brought and nowhere else changed; restored, the seats come back",
+  { skip },
+  async () => {
+    const [{ id: partnerId }] = ok(await partner.client.from("partners").select("id"));
+    const self = await partner.client.rpc("partner_status_set", {
+      p_partner: partnerId,
+      p_status: "active",
+      p_why: "me",
+    });
+    assert.equal(self.error?.code, "42501", "a partner cannot restore themselves");
+
+    const admin = await person("admin3");
+    ok(await db.from("platform_admins").insert({ user_id: admin.userId }));
+    const roleOn = async (tenant) =>
+      ok(await db.from("memberships").select("role").eq("tenant_id", tenant).eq("user_id", partner.userId)).map(
+        (m) => m.role,
+      );
+    const ownBefore = ok(
+      await db.from("memberships").select("tenant_id, role").eq("user_id", partner.userId).eq("role", "owner"),
+    );
+    try {
+      const paused = ok(
+        await admin.client.rpc("partner_status_set", {
+          p_partner: partnerId,
+          p_status: "paused",
+          p_why: "Reported by an owner.",
+        }),
+      );
+      assert.ok(paused.seats >= 1);
+      assert.deepEqual(await roleOn(brought), ["viewer"]);
+      const own = ok(
+        await db.from("memberships").select("tenant_id, role").eq("user_id", partner.userId).eq("role", "owner"),
+      );
+      assert.equal(own.length, ownBefore.length, "their own workspaces are theirs still");
+      const held = ok(await db.from("partner_tenants").select("seat_held_at").eq("tenant_id", brought).single());
+      assert.ok(held.seat_held_at, "the workspace remembers the pause took the seat");
+      assert.ok(
+        !ok(await partner.client.rpc("partner_overview"))
+          .map((r) => r.tenant_id)
+          .includes(brought),
+        "a paused partner sees nothing of the business",
+      );
+      const ev = ok(
+        await db.from("events").select("data").eq("tenant_id", brought).eq("kind", "platform.acted"),
+      ).filter((e) => e.data.action === "partner_status");
+      assert.equal(ev.at(-1).data.by, admin.userId, "recorded against the person, on the workspace");
+
+      const restored = ok(
+        await admin.client.rpc("partner_status_set", {
+          p_partner: partnerId,
+          p_status: "active",
+          p_why: "Looked at; nothing wrong.",
+        }),
+      );
+      assert.equal(restored.seats, paused.seats);
+      assert.deepEqual(await roleOn(brought), ["partner"]);
+      const cleared = ok(await db.from("partner_tenants").select("seat_held_at").eq("partner_id", partnerId));
+      assert.ok(cleared.every((r) => r.seat_held_at === null));
+    } finally {
+      await db.from("partners").update({ status: "active" }).eq("id", partnerId);
+      await db.from("platform_admins").delete().eq("user_id", admin.userId);
+    }
+  },
+);

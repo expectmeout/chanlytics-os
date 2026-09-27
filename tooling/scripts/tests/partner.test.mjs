@@ -26,6 +26,8 @@ import {
   partnerPayoutOutcomeWords,
   partnerStandingChoices,
   partnerStandingOutcomeWords,
+  partnerStatusChoices,
+  partnerStatusOutcomeWords,
   platformPartnerRows,
   platformPartnerSummary,
   shareWords,
@@ -362,6 +364,7 @@ test("wiring, run: the pane's surface is real and waits for Settings, becoming o
   // The back office's two partner verbs (P5) have their ceilings.
   assert.equal(RATE.platform_partner_standing.limit, 60);
   assert.equal(RATE.platform_partner_payout.limit, 30);
+  assert.equal(RATE.platform_partner_status.limit, 20);
 });
 
 /* ------------------------------------------------------------ the workspaces a partner brought (P4) */
@@ -537,7 +540,12 @@ test("the back office's partner line: who, what they are owed, and a payout only
   assert.equal(row.money, "$125.00 payable · $50.00 held · $0.00 paid to date");
   assert.equal(row.canPay, true);
   assert.equal(row.payLabel, "Mark $125.00 as paid");
-  assert.equal(row.tone, "warn", "a workspace under review is a person's to look at");
+  assert.equal(row.tone, "danger", "a paused partner outranks a workspace under review");
+  assert.equal(
+    platformPartnerRows([line({ under_review: 1 })])[0].tone,
+    "warn",
+    "a workspace under review is a person's to look at",
+  );
   const [owed] = platformPartnerRows([line({ payable_cents: -3000, paid_cents: 12500 })]);
   assert.equal(owed.canPay, false);
   assert.equal(owed.money, "-$30.00 to come off the next payout · $0.00 held · $125.00 paid to date");
@@ -585,5 +593,37 @@ test("a person's decisions: never the standing it has; the outcome said in words
   assert.equal(
     partnerPayoutOutcomeWords("ada-co", { paid: false, total_cents: 0, currency: "usd" }),
     "Nothing is payable to them in that currency, so nothing was recorded.",
+  );
+});
+
+test("a partner is paused, closed or restored: never to the status they have, drawn once per partner, and said in words", () => {
+  assert.deepEqual(partnerStatusChoices("active"), ["paused", "closed"]);
+  assert.deepEqual(partnerStatusChoices("paused"), ["active", "closed"]);
+  const rows = platformPartnerRows([
+    line({ currency: "usd" }),
+    line({ currency: "eur" }),
+    line({ partner_id: "p2", code: "bo", status: "paused" }),
+  ]);
+  assert.deepEqual(
+    rows.map((r) => r.first),
+    [true, false, true],
+    "the partner's own buttons once, on their first line",
+  );
+  assert.deepEqual(
+    rows[2].statusChoices.map((c) => c.label),
+    ["Restore", "Close"],
+  );
+  assert.equal(rows[2].tone, "danger", "a paused partner is not a quiet line");
+  assert.equal(
+    partnerStatusOutcomeWords("ada-co", { status: "paused", seats: 2 }),
+    "ada-co is paused: a viewer on 2 workspaces now, and what they held there is released.",
+  );
+  assert.equal(
+    partnerStatusOutcomeWords("ada-co", { status: "active", seats: 1 }),
+    "ada-co is restored, and a partner again on 1 workspace.",
+  );
+  assert.equal(
+    partnerStatusOutcomeWords("ada-co", { status: "closed", seats: 0 }),
+    "ada-co is closed. They held no partner seat to take.",
   );
 });

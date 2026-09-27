@@ -3472,6 +3472,7 @@ export type Database = {
           checks: Json
           code_used: string
           partner_id: string
+          seat_held_at: string | null
           standing: string | null
           standing_at: string | null
           standing_by: string | null
@@ -3483,6 +3484,7 @@ export type Database = {
           checks?: Json
           code_used: string
           partner_id: string
+          seat_held_at?: string | null
           standing?: string | null
           standing_at?: string | null
           standing_by?: string | null
@@ -3494,6 +3496,7 @@ export type Database = {
           checks?: Json
           code_used?: string
           partner_id?: string
+          seat_held_at?: string | null
           standing?: string | null
           standing_at?: string | null
           standing_by?: string | null
@@ -5288,6 +5291,10 @@ export type Database = {
       }
       partner_standing_set: {
         Args: { p_standing: string; p_tenant: string; p_why: string }
+        Returns: Json
+      }
+      partner_status_set: {
+        Args: { p_partner: string; p_status: string; p_why: string }
         Returns: Json
       }
       partner_workspace_money: {

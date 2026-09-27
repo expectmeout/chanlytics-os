@@ -1885,6 +1885,10 @@ function partnerApi(tenants, partners, calls = []) {
       calls.push(`paid:${partnerId}:${code}:${currency}:${reference}`);
       return { ok: true, message: "Recorded." };
     },
+    setStatus: async (partnerId, code, status, why) => {
+      calls.push(`status:${partnerId}:${code}:${status}:${why}`);
+      return { ok: true, message: "Done." };
+    },
     setStanding: async (tenantId, standing, why) => {
       calls.push(`standing:${tenantId}:${standing}:${why}`);
       return { ok: true, message: "Done." };
@@ -2002,5 +2006,34 @@ test("a person's decision on a brought workspace asks why, and disqualifying is 
   view.type(byId(view.tree, "platform-standing-disqualified-b-typed"), "Same owner as the partner.");
   await view.press(byId(view.tree, "platform-standing-disqualified-b-yes").props.onClick);
   assert.deepEqual(calls, ["standing:b:disqualified:Same owner as the partner."]);
+  assert.equal(reloaded, 1);
+});
+
+test("pausing a partner asks why, is the red one, and is offered once per partner, never on a second currency's line", async () => {
+  const calls = [];
+  const P = partnerApi([], null, calls);
+  const [usd, eur] = platformPartnerRows([balance(), balance({ currency: "eur" })]);
+  const second = mount(globalThis.window.PlatformPartnerRow, { row: eur, P, onDone() {}, flash() {} });
+  assert.equal(byId(second.tree, "platform-partner-arm-paused-ada-co"), null);
+  let reloaded = 0;
+  const view = mount(globalThis.window.PlatformPartnerRow, {
+    row: usd,
+    P,
+    onDone: () => {
+      reloaded += 1;
+    },
+    flash() {},
+  });
+  assert.ok(byId(view.tree, "platform-partner-arm-closed-ada-co"));
+  assert.equal(byId(view.tree, "platform-partner-arm-active-ada-co"), null, "an active partner is not restored");
+  await view.press(byId(view.tree, "platform-partner-arm-paused-ada-co").props.onClick);
+  const confirm = byId(view.tree, "platform-partner-status-paused-ada-co-confirm");
+  assert.match(confirm.props.className, /confirm-danger/);
+  assert.match(textOf(confirm), /become a viewer on every workspace they brought/);
+  assert.equal(byId(view.tree, "platform-partner-mark-ada-co"), null, "one question at a time");
+  assert.equal(byId(view.tree, "platform-partner-status-paused-ada-co-yes").props.disabled, true, "not without why");
+  view.type(byId(view.tree, "platform-partner-status-paused-ada-co-typed"), "Reported by an owner.");
+  await view.press(byId(view.tree, "platform-partner-status-paused-ada-co-yes").props.onClick);
+  assert.deepEqual(calls, [`status:${P1}:ada-co:paused:Reported by an owner.`]);
   assert.equal(reloaded, 1);
 });

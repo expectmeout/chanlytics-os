@@ -134,6 +134,7 @@ export const RATE = {
    */
   platform_partner_standing: { limit: 60, windowMs: 3_600_000, noun: "partner standings set" },
   platform_partner_payout: { limit: 30, windowMs: 3_600_000, noun: "partner payouts recorded" },
+  platform_partner_status: { limit: 20, windowMs: 3_600_000, noun: "partners paused or restored" },
   /** The native app's sign-in door (app/auth/native): per network, a token that does not verify costs a call each time. */
   native_sign_in: { limit: 20, windowMs: 3_600_000, noun: "sign-ins" },
   /** The phone app registers its push token on launch (me/devices); sixty an hour is a loop, not a person. */

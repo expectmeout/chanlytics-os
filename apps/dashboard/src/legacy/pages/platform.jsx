@@ -253,6 +253,21 @@ const PartnerRow = ({ row, P, onDone, flash }) => {
   const [arm, setArm] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [ref, setRef] = React.useState("");
+  // The partner's own status, on their first line only: pause, close or restore, each with why.
+  const [armStatus, setArmStatus] = React.useState(null);
+  const [why, setWhy] = React.useState("");
+  const runStatus = async () => {
+    setBusy(true);
+    const r = await Promise.resolve()
+      .then(() => P.setStatus(row.partnerId, row.code, armStatus, why.trim()))
+      .catch(() => ({ ok: false, message: "That did not go through." }));
+    setBusy(false);
+    setArmStatus(null);
+    setWhy("");
+    flash({ tone: r.ok ? "ok" : "danger", msg: <>{r.message}</> });
+    if (r.ok) onDone();
+  };
+  const statusChoice = armStatus ? row.statusChoices.find((c) => c.status === armStatus) : null;
   const run = async () => {
     setBusy(true);
     const r = await Promise.resolve()
@@ -287,11 +302,42 @@ const PartnerRow = ({ row, P, onDone, flash }) => {
             testid={`platform-partner-pay-${row.code}`}
           />
         )}
+        {statusChoice && (
+          <Confirm
+            block
+            question={`${statusChoice.label} ${row.code}?`}
+            detail={
+              armStatus === "active"
+                ? "They become a partner again on every workspace a pause took them off, where the owner has not removed them since."
+                : "They become a viewer on every workspace they brought, and what they hold in its conversations is released. Their earnings are kept, and mature only once they are restored."
+            }
+            yes={`Yes, ${statusChoice.label.toLowerCase()}`}
+            no="Not now"
+            danger={armStatus !== "active"}
+            typed="why, for the partner"
+            value={why}
+            onType={setWhy}
+            ready={why.trim().length > 0 && why.trim().length <= 500}
+            busy={busy}
+            onYes={runStatus}
+            onNo={() => { setArmStatus(null); setWhy(""); }}
+            testid={`platform-partner-status-${armStatus}-${row.code}`}
+          />
+        )}
       </div>
-      {!arm && row.canPay && (
-        <button className="btn btn-sm" onClick={() => setArm(true)} disabled={busy} data-testid={`platform-partner-mark-${row.code}`}>
-          {row.payLabel}
-        </button>
+      {!arm && !armStatus && (
+        <span className="cl-row-actions">
+          {row.canPay && (
+            <button className="btn btn-sm" onClick={() => setArm(true)} disabled={busy} data-testid={`platform-partner-mark-${row.code}`}>
+              {row.payLabel}
+            </button>
+          )}
+          {row.first && row.statusChoices.map((c) => (
+            <button key={c.status} className="btn btn-sm" onClick={() => setArmStatus(c.status)} disabled={busy} data-testid={`platform-partner-arm-${c.status}-${row.code}`}>
+              {c.label}
+            </button>
+          ))}
+        </span>
       )}
     </div>
   );

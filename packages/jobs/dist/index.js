@@ -2519,7 +2519,9 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
@@ -9991,7 +9993,9 @@ var PARTNER_WORDS2 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
@@ -13568,7 +13572,9 @@ var PARTNER_WORDS3 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
@@ -16244,7 +16250,9 @@ var PARTNER_WORDS22 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
 var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
@@ -18774,7 +18782,9 @@ var PARTNER_WORDS32 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 var CONSENT_PHRASE32 = OFFERS_OPT_IN_PHRASES32.en;
 var CONSENT_PHRASE_ES32 = OFFERS_OPT_IN_PHRASES32.es;
@@ -22011,7 +22021,9 @@ var PARTNER_WORDS4 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;
 var CONSENT_PHRASE_ES4 = OFFERS_OPT_IN_PHRASES4.es;

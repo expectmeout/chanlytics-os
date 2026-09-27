@@ -24,7 +24,13 @@ import "server-only";
  * unless the database says yes. The type is branded so it cannot be forged from
  * an object literal either. Nothing is exported that hands out authority.
  */
-import { createServiceClient, getPlatformPartners, markPartnerPaid, setPartnerStanding } from "@chanlytics/db";
+import {
+  createServiceClient,
+  getPlatformPartners,
+  markPartnerPaid,
+  setPartnerStanding,
+  setPartnerStatus,
+} from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -370,6 +376,21 @@ export async function platformPartnerPayout(
   reference: string,
 ): Promise<{ paid: boolean; total_cents: number; currency: string; earnings?: number; payout_id?: string }> {
   const r = await markPartnerPaid(office.session, partnerId, currency, reference);
+  if (!r.ok) throw partnerVerbError(r);
+  return r.value;
+}
+
+/**
+ * Pause, close or restore a partner. A pause takes their seat on every workspace they brought (a viewer's until they
+ * are restored) and releases what they held there; the function does it, and records it, in one transaction.
+ */
+export async function platformPartnerStatus(
+  office: BackOffice,
+  partnerId: string,
+  status: string,
+  why: string,
+): Promise<{ status: string; from: string; seats: number }> {
+  const r = await setPartnerStatus(office.session, partnerId, status, why);
   if (!r.ok) throw partnerVerbError(r);
   return r.value;
 }

@@ -2466,7 +2466,9 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
@@ -4296,6 +4298,11 @@ async function markPartnerPaid(db, partnerId, currency, reference) {
   const v = data;
   return { ok: true, value: { ...v, total_cents: Number(v.total_cents) } };
 }
+async function setPartnerStatus(db, partnerId, status, why) {
+  const { data, error } = await db.rpc("partner_status_set", { p_partner: partnerId, p_status: status, p_why: why });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: data };
+}
 
 // src/realtime.ts
 var WATCHED = [
@@ -4495,6 +4502,7 @@ export {
   setCallRecording,
   setListRule,
   setPartnerStanding,
+  setPartnerStatus,
   setPersonReplyMode,
   setPolicyMode,
   staleSends,

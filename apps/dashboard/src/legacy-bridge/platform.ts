@@ -28,6 +28,7 @@ import {
   platformPartnerStanding,
   partnerPayoutOutcomeWords,
   partnerStandingOutcomeWords,
+  partnerStatusOutcomeWords,
   clockTime,
   clockDateYear,
   clockDayLabel,
@@ -145,6 +146,8 @@ export interface PlatformApi {
     currency: string,
     reference: string,
   ): Promise<{ ok: boolean; message: string }>;
+  /** Pause, close or restore a partner, with why. A pause takes their seat on every workspace they brought. */
+  setStatus(partnerId: string, code: string, status: string, why: string): Promise<{ ok: boolean; message: string }>;
 }
 
 declare global {
@@ -240,6 +243,12 @@ export function installPlatform(win: Window = window): void {
       overviews.clear();
       if (!r.ok) return { ok: false, message: r.message };
       return { ok: r.data.result.paid, message: partnerPayoutOutcomeWords(code, r.data.result) };
+    },
+    async setStatus(partnerId, code, status, why) {
+      const r = await api()("POST platform/partners/status", { body: { partner_id: partnerId, status, why } });
+      overviews.clear();
+      if (!r.ok) return { ok: false, message: r.message };
+      return { ok: true, message: partnerStatusOutcomeWords(code, r.data.result) };
     },
     partnerRows: platformPartnerRows,
     partnerSummary: platformPartnerSummary,

@@ -912,6 +912,13 @@
       "rate": "platform_partner_standing",
       "spend": false
     },
+    "POST platform/partners/status": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_partner_status",
+      "spend": false
+    },
     "POST platform/waitlist/invited": {
       "kind": "write",
       "scope": "platform",

@@ -128,6 +128,9 @@ export const PARTNER_WORDS = {
   readingWorkspaces: "Reading your workspaces…",
   failedWorkspaces: "your workspaces",
   noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend:
+    "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
 } as const;
 
 /** The share, as a sentence: "25% of what it pays for its plan". */
@@ -406,11 +409,43 @@ export interface PlatformPartnerRowVM {
   /** The button's words, with the amount: "Mark $125.00 as paid". */
   payLabel: string;
   tone: Tone;
+  status: string;
+  /** The first line of this partner: where the partner's own actions (pause, close, restore) are drawn, once. */
+  first: boolean;
+  statusChoices: { status: (typeof PARTNER_STATUSES)[number]; label: string }[];
+}
+
+/** A platform admin's three decisions about a partner, as the back office's buttons say them. */
+export const PARTNER_STATUS_VERBS: Record<(typeof PARTNER_STATUSES)[number], string> = {
+  active: "Restore",
+  paused: "Pause",
+  closed: "Close",
+};
+
+/** What may be decided about a partner from their status: never the one they have. */
+export function partnerStatusChoices(status: string): (typeof PARTNER_STATUSES)[number][] {
+  return PARTNER_STATUSES.filter((s) => s !== status);
+}
+
+/** What partner_status_set answered, as the toast says it. */
+export function partnerStatusOutcomeWords(code: string, r: { status: string; seats: number }): string {
+  const seats = `${r.seats} ${r.seats === 1 ? "workspace" : "workspaces"}`;
+  if (r.status === "active")
+    return r.seats
+      ? `${code} is restored, and a partner again on ${seats}.`
+      : `${code} is restored. No seat was waiting to be given back.`;
+  const what = r.status === "closed" ? "closed" : "paused";
+  return r.seats
+    ? `${code} is ${what}: a viewer on ${seats} now, and what they held there is released.`
+    : `${code} is ${what}. They held no partner seat to take.`;
 }
 
 /** The back office's partner list: one row per partner and currency, what is owed first. */
 export function platformPartnerRows(rows: readonly PlatformPartnerBalanceDto[]): PlatformPartnerRowVM[] {
+  const seen = new Set<string>();
   return rows.map((r) => {
+    const first = !seen.has(r.partner_id);
+    seen.add(r.partner_id);
     const cur = r.currency ?? "usd";
     const pct = r.share_bp / 100;
     const who = [
@@ -440,7 +475,10 @@ export function platformPartnerRows(rows: readonly PlatformPartnerBalanceDto[]):
       payableCents: payable,
       canPay: r.currency !== null && payable > 0,
       payLabel: `Mark ${moneyWords(Math.max(payable, 0), cur)} as paid`,
-      tone: r.under_review ? "warn" : payable > 0 ? "info" : "plain",
+      tone: r.status !== "active" ? "danger" : r.under_review ? "warn" : payable > 0 ? "info" : "plain",
+      status: r.status,
+      first,
+      statusChoices: partnerStatusChoices(r.status).map((s) => ({ status: s, label: PARTNER_STATUS_VERBS[s] })),
     };
   });
 }

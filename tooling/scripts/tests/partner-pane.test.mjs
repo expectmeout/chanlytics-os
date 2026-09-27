@@ -163,6 +163,11 @@ test("under the account, the workspaces brought: reading, then the back office's
   await settle();
   const tree = redraw();
   assert.equal(textOf(byTestId(tree, "partner-workspaces-summary")), "2 workspaces · 1 live");
+  assert.match(
+    textOf(byTestId(tree, "partner-spend")),
+    /waits until its owner pays for a plan/,
+    "what waits on the owner is said where the workspaces are",
+  );
   const live = byTestId(tree, "partner-workspace-t1");
   assert.ok(textOf(live).includes("Harbor Moving") && textOf(live).includes("$100.00 to date"));
   press(byTestId(tree, "partner-open-t1"));
