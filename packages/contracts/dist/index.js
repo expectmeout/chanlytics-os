@@ -12938,7 +12938,7 @@ var noteSaved = (personId) => ({
   detail: { personId: asText(personId) }
 });
 var DETAIL_FIELDS = ["name", "email"];
-var DETAIL_WORDS = { name: "Name", email: "Email" };
+var PERSON_DETAIL_WORDS = { name: "Name", email: "Email" };
 function detailsCall(contactId, from, none) {
   const body = Object.fromEntries(DETAIL_FIELDS.filter((k) => typeof from[k] === "string").map((k) => [k, from[k]]));
   if (!Object.keys(body).length) return refuseWith(none);
@@ -13054,7 +13054,7 @@ var personDetailsSpec = {
   receipt: ({ payload: pl }, data) => [
     asText(pl.who),
     ...DETAIL_FIELDS.filter((k) => typeof pl[k] === "string").map(
-      (k) => `${DETAIL_WORDS[k]}: ${asText(rec(data)[k] ?? pl[k])}`
+      (k) => `${PERSON_DETAIL_WORDS[k]}: ${asText(rec(data)[k] ?? pl[k])}`
     )
   ].join(" \xB7 "),
   undo: {
@@ -27321,6 +27321,7 @@ export {
   PERM_DOING,
   PERSON_CAME_FROM_WORDS,
   PERSON_CHANNEL_WORDS,
+  PERSON_DETAIL_WORDS,
   PERSON_MODES,
   PERSON_MODE_LABELS,
   PERSON_MODE_WORDS,

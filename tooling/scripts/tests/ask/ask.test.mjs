@@ -869,7 +869,7 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
       ["propose_campaign", ["broadcast", "playbook"]],
       ["propose_deal", []],
       ["propose_lead_search", []],
-      ["propose_person", ["mode"]],
+      ["propose_person", ["mode", "note", "details"]],
       ["propose_reply", ["draft", "steer"]],
       ["propose_settings", []],
       ["propose_team", ["invite"]],

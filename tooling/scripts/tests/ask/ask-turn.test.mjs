@@ -419,6 +419,7 @@ test("each role is offered its tools, sorted by name: a viewer the reads alone, 
     "propose_autonomy",
     "propose_campaign",
     "propose_deal",
+    "propose_person",
     "propose_reply",
     "propose_thread_verb",
     "propose_whisper",
@@ -429,8 +430,17 @@ test("each role is offered its tools, sorted by name: a viewer the reads alone, 
   );
   assert.deepEqual(
     acts("owner").filter((n) => !acts("partner").includes(n)),
-    ["propose_person", "propose_team"],
+    ["propose_team"],
   );
+  // A person's note and details are an operator's (PR 4.6), a person's mode an owner's: one tool, offered per action.
+  const personActions = (role) =>
+    offered[role].find((t) => t.name === "propose_person")?.input_schema.properties.action.enum ?? null;
+  assert.deepEqual(["viewer", "operator", "partner", "owner"].map(personActions), [
+    null,
+    ["note", "details"],
+    ["note", "details"],
+    ["mode", "note", "details"],
+  ]);
   assert.deepEqual(
     offered.owner.map((t) => t.name),
     [...READ_TOOLS, ...ACT_TOOLS].map((t) => t.name).sort(),

@@ -34,11 +34,11 @@ const noteSaved = (personId: unknown): ProposalEvent => ({
 });
 
 /**
- * The two fields of a person's profile a details card sets (D9), and each as its receipt says it: literals, never a
- * call, so a package that bundles contracts and uses neither keeps neither.
+ * The two fields of a person's profile a details card sets (D9), and each as its card and its receipt say it: literals,
+ * never a call, so a package that bundles contracts and uses neither keeps neither.
  */
 const DETAIL_FIELDS = ["name", "email"] as const;
-const DETAIL_WORDS: Record<(typeof DETAIL_FIELDS)[number], string> = { name: "Name", email: "Email" };
+export const PERSON_DETAIL_WORDS: Record<(typeof DETAIL_FIELDS)[number], string> = { name: "Name", email: "Email" };
 
 /**
  * The details route's call for what a card or its undo names: only those of the two fields it carries as text, the
@@ -172,7 +172,7 @@ export const personDetailsSpec: ProposalSpec = {
     [
       asText(pl.who),
       ...DETAIL_FIELDS.filter((k) => typeof pl[k] === "string").map(
-        (k) => `${DETAIL_WORDS[k]}: ${asText(rec(data)[k] ?? pl[k])}`,
+        (k) => `${PERSON_DETAIL_WORDS[k]}: ${asText(rec(data)[k] ?? pl[k])}`,
       ),
     ].join(" · "),
   undo: {
