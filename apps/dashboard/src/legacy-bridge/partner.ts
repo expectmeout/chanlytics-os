@@ -5,6 +5,10 @@
  * seam already holds: a membership whose role is partner is one the link brought.
  */
 import {
+  FIRST_RUN_ROUTE,
+  HANDOVER_WORDS,
+  handoverRoom,
+  partnerHandoverVM,
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_WORDS,
   partnerVM,
@@ -12,10 +16,11 @@ import {
   shareWords,
   type PartnerBalanceRow,
   type PartnerDto,
+  type PartnerHandoverVM,
   type PartnerVM,
   type PartnerWorkspacesVM,
 } from "@chanlytics/contracts";
-import type { SurfaceOverride, Workspace } from "./surface-data";
+import { switchWorkspace, type SurfaceOverride, type Workspace } from "./surface-data";
 import { api, read } from "./api";
 import { refreshSurfaces } from "./surface-runner";
 
@@ -26,8 +31,18 @@ export interface PartnerSurface {
   fetchedAt: number;
 }
 
+/** The workspaces a partner brought, and the handovers of those they set up for a business (0015). */
+export interface PartnerWorkspacesRead {
+  vm: PartnerWorkspacesVM;
+  /** Each workspace they set up, and where its handover stands, by workspace. */
+  handovers: Record<string, PartnerHandoverVM>;
+  /** Why another cannot be set up now (ten waiting), or null. */
+  full: string | null;
+}
+
 export interface PartnerApi {
   words: typeof PARTNER_WORDS;
+  handoverWords: typeof HANDOVER_WORDS;
   /** The share every new partner account starts with, as a sentence: the offer says it before there is a row. */
   offerShare: string;
   /** The pane's sentences, from the row, the ledger's sums and the workspaces this person holds as partner. */
@@ -39,7 +54,12 @@ export interface PartnerApi {
   /** Read the account again (the failed card's retry). */
   refresh(): Promise<void>;
   /** The workspaces this partner brought, judged as the back office judges them, with their standing and money (P4). */
-  workspaces(): Promise<{ ok: true; vm: PartnerWorkspacesVM } | { ok: false; message: string }>;
+  workspaces(): Promise<({ ok: true } & PartnerWorkspacesRead) | { ok: false; message: string }>;
+  /** Set a workspace up for a business and hand it to its owner (0015), then go into it at its first run once the
+   *  invitation went. */
+  setUp(input: { name: string; email: string }): Promise<{ ok: true; sent: boolean } | { ok: false; message: string }>;
+  /** Send a handover again, to the same address or another. `sent` says whether the invitation went. */
+  resend(tenantId: string, email: string): Promise<{ ok: true; sent: boolean } | { ok: false; message: string }>;
   /** Go into one of them: the switcher's own way. */
   open(tenantId: string): void;
   /** The daily letter on or off (0014). The surface is written from the answer, so the switch shows what is kept. */
@@ -74,6 +94,7 @@ export function installPartner(win: Window = window): void {
     ((win as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? []).filter((w) => w.role === "partner").length;
   win.__partner = {
     words: PARTNER_WORDS,
+    handoverWords: HANDOVER_WORDS,
     offerShare: shareWords(PARTNER_SHARE_BP_DEFAULT),
     // The server's count (partner_tenants) when it sends one; the seats held, from an older server.
     vm: (dto, balance) => partnerVM(dto, win.location.origin, dto.brought ?? brought(), balance ?? []),
@@ -90,7 +111,29 @@ export function installPartner(win: Window = window): void {
       const r = await api()("GET partner/workspaces");
       if (!r.ok) return { ok: false, message: r.message };
       const status = (win as unknown as { __PARTNER?: { dto?: { status?: string } } | null }).__PARTNER?.dto?.status;
-      return { ok: true, vm: partnerWorkspacesVM(r.data.overview, r.data.money, Date.now(), status ?? "active") };
+      const now = Date.now();
+      // An older server sends no handovers: none were made there.
+      const lines = r.data.handovers ?? [];
+      return {
+        ok: true,
+        vm: partnerWorkspacesVM(r.data.overview, r.data.money, now, status ?? "active"),
+        handovers: Object.fromEntries(lines.map((h) => [h.tenantId, partnerHandoverVM(h, now)])),
+        full: handoverRoom(lines).words,
+      };
+    },
+    async setUp(input) {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+      const r = await api()("POST partner/workspaces", { body: { name: input.name, email: input.email, timezone } });
+      if (!r.ok) return { ok: false, message: r.message };
+      // Into the new workspace at its first run, by its slug: it is not on the switcher's list yet. Unless the
+      // invitation did not go: then the partner stays here to be told, and sends it again from its row.
+      if (r.data.sent) switchWorkspace(r.data.workspace.id, r.data.workspace.slug, `#/${FIRST_RUN_ROUTE}`);
+      return { ok: true, sent: r.data.sent };
+    },
+    async resend(tenantId, email) {
+      const r = await api()("POST partner/workspaces/[id]/resend", { params: { id: tenantId }, body: { email } });
+      if (!r.ok) return { ok: false, message: r.message };
+      return { ok: true, sent: r.data.sent };
     },
     open(tenantId) {
       const shell = (win as unknown as { __shell?: { switchWorkspace(id: string): void } }).__shell;

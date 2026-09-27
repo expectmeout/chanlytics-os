@@ -36,16 +36,19 @@ export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
 }
 
 /**
- * How many workspaces came through the caller's link (their partner_tenants rows, which partner_tenants_partner_select
- * lets them read): the same count whether or not they still sit on each team. Null when it cannot be read.
+ * How many workspaces the caller brought (their partner_tenants rows, which partner_tenants_partner_select lets them
+ * read): through their link, or set up and accepted by an owner (0015); one still waiting for its owner is not
+ * brought yet. The same count whether or not they still sit on each team. On a database 00214 has not reached every
+ * row is a link's. Null when it cannot be read.
  */
 export async function getPartnerBroughtCount(db: Db, partnerId: string): Promise<number | null> {
-  const { count, error } = await db
-    .from("partner_tenants")
-    .select("tenant_id", { count: "exact", head: true })
-    .eq("partner_id", partnerId);
-  if (error) return null;
-  return count ?? 0;
+  const of = () =>
+    db.from("partner_tenants").select("tenant_id", { count: "exact", head: true }).eq("partner_id", partnerId);
+  const r = await of().or("origin.eq.link,handover_accepted_at.not.is.null");
+  if (!r.error) return r.count ?? 0;
+  if (!/\b(origin|handover_accepted_at)\b/.test(r.error.message)) return null;
+  const older = await of();
+  return older.error ? null : (older.count ?? 0);
 }
 
 /** One line of the caller's balance: a currency's total in one state, and when the next held one is due. */

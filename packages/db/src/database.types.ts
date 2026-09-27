@@ -3495,6 +3495,13 @@ export type Database = {
           attributed_at: string
           checks: Json
           code_used: string
+          handover_accepted_at: string | null
+          handover_accepted_by: string | null
+          handover_declined_at: string | null
+          handover_email: string | null
+          handover_expires_at: string | null
+          handover_sent_at: string | null
+          origin: string
           partner_id: string
           seat_held_at: string | null
           standing: string | null
@@ -3507,6 +3514,13 @@ export type Database = {
           attributed_at?: string
           checks?: Json
           code_used: string
+          handover_accepted_at?: string | null
+          handover_accepted_by?: string | null
+          handover_declined_at?: string | null
+          handover_email?: string | null
+          handover_expires_at?: string | null
+          handover_sent_at?: string | null
+          origin?: string
           partner_id: string
           seat_held_at?: string | null
           standing?: string | null
@@ -3519,6 +3533,13 @@ export type Database = {
           attributed_at?: string
           checks?: Json
           code_used?: string
+          handover_accepted_at?: string | null
+          handover_accepted_by?: string | null
+          handover_declined_at?: string | null
+          handover_email?: string | null
+          handover_expires_at?: string | null
+          handover_sent_at?: string | null
+          origin?: string
           partner_id?: string
           seat_held_at?: string | null
           standing?: string | null
@@ -4730,6 +4751,17 @@ export type Database = {
           timezone: string
         }[]
       }
+      create_workspace_for_business: {
+        Args: { p_name: string; p_owner_email: string; p_timezone: string }
+        Returns: {
+          id: string
+          locale: string
+          name: string
+          slug: string
+          status: string
+          timezone: string
+        }[]
+      }
       deadman_candidates: {
         Args: { p_older_than?: string }
         Returns: {
@@ -4805,6 +4837,24 @@ export type Database = {
       get_cron_sweep_key: { Args: never; Returns: string }
       get_google_credentials: { Args: { p_tenant_id: string }; Returns: Json }
       get_line_credentials: { Args: { p_line_id: string }; Returns: Json }
+      handover_accept: {
+        Args: { p_tenant: string }
+        Returns: {
+          id: string
+          name: string
+          slug: string
+        }[]
+      }
+      handover_decline: { Args: { p_tenant: string }; Returns: undefined }
+      handovers_mine: {
+        Args: never
+        Returns: {
+          expires_at: string
+          partner_code: string
+          tenant_id: string
+          workspace: string
+        }[]
+      }
       has_permission: {
         Args: { p_permission: string; p_tenant_id: string; p_user: string }
         Returns: boolean
@@ -5298,6 +5348,10 @@ export type Database = {
         Returns: Json
       }
       partner_earnings_sweep: { Args: { p_now?: string }; Returns: Json }
+      partner_handover_resend: {
+        Args: { p_email: string; p_tenant: string }
+        Returns: Json
+      }
       partner_letter_written: {
         Args: { p_partner: string; p_through: string }
         Returns: boolean

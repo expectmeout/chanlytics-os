@@ -182,7 +182,8 @@ export interface PartnerEarningsVM {
   none: boolean;
 }
 
-const dayWords = (at: string): string =>
+/** A day as the partner's pages say it: "Oct 11". */
+export const dayWords = (at: string): string =>
   new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** A currency's sums, joined when a partner has more than one: "$100.00 and €20.00". */
@@ -622,6 +623,9 @@ export const PartnerLetterNewsSchema = z.object({
     .default([]),
   /** Workspaces that came through the link since. */
   brought: z.array(z.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0015, 00214). */
+  accepted: z.array(z.string().nullable()).default([]),
+  declined: z.array(z.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z.object({ status: z.string(), why: z.string().nullable() }).nullable().default(null),
   balance: z
@@ -644,6 +648,7 @@ export const partnerPaneUrl = (origin: string): string => `${origin.replace(/\/+
 const money = (rows: readonly { currency: string; cents: number }[]): string =>
   rows.map((r) => moneyWords(Math.abs(r.cents), r.currency)).join(" and ");
 const workspaceWords = (name: string | null): string => (name && name.trim() ? name.trim() : "A workspace you brought");
+const setUpWords = (name: string | null): string => (name && name.trim() ? name.trim() : "A workspace you set up");
 const whyWords = (why: string | null): string => (why && why.trim() ? ` Why: ${why.trim()}` : "");
 
 /** Each reversal kind's line: what came off, or what came back. */
@@ -731,6 +736,11 @@ function letterLines(news: PartnerLetterNews): string[] {
   for (const s of news.standing) lines.push(standingLine(s));
   for (const b of news.brought)
     lines.push(`${b && b.trim() ? b.trim() : "A new workspace"} signed up through your link.`);
+  // A news object written before 0015 has neither: nothing to say.
+  for (const a of news.accepted ?? [])
+    lines.push(`${setUpWords(a)} has its owner now: they accepted it. Its share runs from its first payment.`);
+  for (const d of news.declined ?? [])
+    lines.push(`${setUpWords(d)} was declined by the owner you sent it to. Send it again, or to someone else.`);
   return lines;
 }
 
@@ -744,6 +754,8 @@ const LETTER_SUBJECTS: readonly [(news: PartnerLetterNews) => boolean, (news: Pa
     () => "A workspace you brought is not eligible for a share",
   ],
   [(n) => n.standing.some((s) => s.standing === "review"), () => "A workspace you brought is under review"],
+  [(n) => (n.declined ?? []).length > 0, () => "A business declined the workspace you set up"],
+  [(n) => (n.accepted ?? []).length > 0, () => "A business took over the workspace you set up"],
   [(n) => sharesOf(n).length > 0, (n) => `You earned ${money(sharesOf(n))}`],
 ];
 

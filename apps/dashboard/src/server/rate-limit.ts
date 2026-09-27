@@ -130,6 +130,13 @@ export const RATE = {
   /** A partner's daily letter on or off (0014): a switch, pressed by hand. */
   partner_letters: { limit: 30, windowMs: 3_600_000, noun: "email settings changed" },
   /**
+   * A partner sets a workspace up for a business, or sends its handover again (0015): each writes to a person who has
+   * not asked for anything yet, so the ceiling is a working session's, not a loop's.
+   */
+  partner_handover: { limit: 20, windowMs: 3_600_000, noun: "workspaces handed over" },
+  /** The owner's answer to a handover (0015): accept or decline, pressed by hand. */
+  handover_answer: { limit: 30, windowMs: 3_600_000, noun: "handover answers" },
+  /**
    * The back office's partner verbs (0012, P5): a person's decision on a workspace a partner brought, and a payout
    * recorded. Worked down a list like the waiting list, but each one moves money or a partner's standing, so the
    * ceilings are a support session's, not a loop's.

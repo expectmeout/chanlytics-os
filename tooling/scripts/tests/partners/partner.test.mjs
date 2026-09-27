@@ -546,7 +546,7 @@ test("nothing brought yet is said once, and needs-you counts only what the back 
   assert.match(vm.summary, /1 needs you$/);
 });
 
-test("GET partner/workspaces: on the account, every caller's own two lists, none on a database without the doors", async () => {
+test("GET partner/workspaces: on the account, every caller's own lists, none on a database without the doors", async () => {
   assert.deepEqual(partnerWorkspaces.GET.policy, {
     kind: "read",
     scope: "account",
@@ -571,7 +571,8 @@ test("GET partner/workspaces: on the account, every caller's own two lists, none
       get(),
       ctxFor(tables(), { partner_overview: missing, partner_workspace_money: missing }),
     ),
-    { overview: [], money: [] },
+    { overview: [], money: [], handovers: [] },
+    "and no handovers (0015), which handover.test.mjs proves",
   );
 });
 

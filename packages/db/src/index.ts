@@ -17,6 +17,7 @@ export * from "./repositories/lists";
 export * from "./repositories/touches";
 export * from "./repositories/deals";
 export * from "./repositories/partner";
+export * from "./repositories/handover";
 export * from "./repositories/leads";
 export * from "./realtime";
 export * from "./paged";

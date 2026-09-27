@@ -11,7 +11,7 @@ import {
   type SellsBy,
 } from "@chanlytics/contracts";
 import { acceptOpenInvites } from "@/server/workspace/team";
-import { getOwnPartner } from "@chanlytics/db";
+import { getOpenHandovers, getOwnPartner } from "@chanlytics/db";
 import { isPlatformAdmin } from "@/server/platform/platform";
 import { isSameOrigin } from "@/server/request-guards";
 
@@ -92,6 +92,12 @@ export const GET = read({
     // database 00202 has not reached.
     const partnerRow = await getOwnPartner(supabase);
     const partner = partnerRow ? { code: partnerRow.code, status: partnerRow.status } : null;
+    // A workspace a partner set up and handed to this person (0015), on the same payload: the shell asks before it
+    // opens anything else, the create screen included. None on a database 00214 has not reached; a failed read is
+    // logged and reads as none, because the boot must not fail for it.
+    const open = await getOpenHandovers(supabase);
+    if (open.error) console.error("handovers_unread", JSON.stringify({ error: open.error.slice(0, 200) }));
+    const handovers = open.handovers;
 
     // Accept any open invitation for this address, then re-read. Self-healing:
     // there is no accept endpoint to get wrong, and no link that expires into a
@@ -151,6 +157,7 @@ export const GET = read({
           display_name: displayName,
           platform_admin: platformAdmin,
           partner,
+          handovers,
         },
       };
     }
@@ -191,6 +198,7 @@ export const GET = read({
         display_name: displayName,
         platform_admin: platformAdmin,
         partner,
+        handovers,
       },
     };
   },

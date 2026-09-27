@@ -6,17 +6,128 @@
 // them: held, payable and paid. Nothing here states a number the database does not hold: the share is the row's, the
 // count is the memberships', and every sum is partner_balance's (00203); a zero is said as a zero. Under it, the
 // workspaces they brought (P4): the back office's own row and verdict for each they still sit on the team of, its
-// standing and what it earned them, and Open, which goes into it the way the switcher does.
+// standing and what it earned them, and Open, which goes into it the way the switcher does. And (0015) a workspace set
+// up for a business: the form, and each one handed over, what its handover says, with Send again until it is accepted.
+
+// Set a workspace up for a business and hand it to its owner (0015): the name, the owner's address, one press. On
+// success the bridge goes into the new workspace at its first run; if the invitation did not go, it stays to say so.
+const PartnerSetUp = ({ api, flash, full, onMade }) => {
+  const H = api.handoverWords;
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const make = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const r = await api.setUp({ name: name.trim(), email: email.trim() });
+    setBusy(false);
+    if (!r.ok) { setError(r.message); return; }
+    if (!r.sent) { setOpen(false); flash({ tone: "warn", msg: <>{H.notSent}</> }); onMade(); }
+  };
+  return (
+    <section className="rec-card set-card" data-testid="partner-setup" aria-labelledby="partner-setup-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="partner-setup-title">{H.start}</h2>
+      </div>
+      <p className="set-row-hint" data-testid="partner-setup-intro">{H.intro}</p>
+      {full ? <p className="set-row-hint" role="status" data-testid="partner-setup-full">{full}</p> : null}
+      {!full && !open ? (
+        <button type="button" className="btn" onClick={() => setOpen(true)} data-testid="partner-setup-open">{H.start}</button>
+      ) : null}
+      {!full && open ? (
+        <form onSubmit={make} className="set-form" data-testid="partner-setup-form">
+          <label className="set-field">
+            <span className="set-field-label">{H.nameLabel}</span>
+            <input className="input" value={name} onChange={(e) => { setName(e.target.value); setError(null); }} autoComplete="organization" data-testid="partner-setup-name" />
+          </label>
+          <label className="set-field">
+            <span className="set-field-label">{H.emailLabel}</span>
+            <input className="input" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(null); }} autoComplete="off" spellCheck={false} data-testid="partner-setup-email" />
+            <span className="set-row-hint">{H.emailHint}</span>
+          </label>
+          {error ? <p className="set-error" role="alert" data-testid="partner-setup-error">{error}</p> : null}
+          <div className="set-form-actions">
+            <button type="submit" className="btn" disabled={busy || name.trim().length < 2 || !email.trim()} aria-busy={busy || undefined} data-testid="partner-setup-make">
+              {busy ? H.making : H.make}
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)} disabled={busy} data-testid="partner-setup-cancel">{H.cancel}</button>
+          </div>
+        </form>
+      ) : null}
+    </section>
+  );
+};
+
+// Send a handover again, to the address it went to or another, until its owner accepts it.
+const HandoverResend = ({ api, h, flash, onSent }) => {
+  const H = api.handoverWords;
+  const [open, setOpen] = React.useState(false);
+  const [email, setEmail] = React.useState(h.email);
+  const [busy, setBusy] = React.useState(false);
+  if (!h.canResend) return null;
+  if (!open) {
+    return <button type="button" className="btn btn-sm btn-ghost" onClick={() => setOpen(true)} data-testid={`partner-resend-open-${h.tenantId}`}>{H.resend}</button>;
+  }
+  const send = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    const r = await api.resend(h.tenantId, email.trim());
+    setBusy(false);
+    if (!r.ok) { flash({ tone: "warn", msg: <>Couldn't send {H.failedResend}: {r.message}</> }); return; }
+    setOpen(false);
+    flash(r.sent ? { tone: "ok", msg: <>{H.sentAgain}</> } : { tone: "warn", msg: <>{H.notSent}</> });
+    onSent();
+  };
+  return (
+    <form onSubmit={send} className="set-form" data-testid={`partner-resend-${h.tenantId}`}>
+      <label className="set-field">
+        <span className="set-field-label">{H.resendTo}</span>
+        <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} spellCheck={false} data-testid={`partner-resend-email-${h.tenantId}`} />
+      </label>
+      <button type="submit" className="btn btn-sm" disabled={busy || !email.trim()} aria-busy={busy || undefined} data-testid={`partner-resend-send-${h.tenantId}`}>
+        {busy ? H.resending : H.resend}
+      </button>
+    </form>
+  );
+};
+
+// The workspaces the partner set up that wait for an owner, or were declined: what each handover says, and Send again.
+const PartnerHandovers = ({ api, handovers, flash, onSent }) => {
+  const open = Object.values(handovers).filter((h) => h.state !== "accepted");
+  if (!open.length) return null;
+  return (
+    <section className="rec-card set-card" data-testid="partner-handovers" aria-labelledby="partner-handovers-title">
+      <div className="rec-card-head">
+        <h2 className="rec-card-title" id="partner-handovers-title">{api.handoverWords.waiting}</h2>
+      </div>
+      {open.map((h) => (
+        <div className="set-row" key={h.tenantId} data-testid={`partner-handover-${h.tenantId}`}>
+          <div className="set-row-info">
+            <span className="set-row-label">{h.name}</span>
+            <span className="set-row-hint" data-testid={`partner-handover-sentence-${h.tenantId}`}>{h.sentence}</span>
+          </div>
+          <HandoverResend api={api} h={h} flash={flash} onSent={onSent} />
+        </div>
+      ))}
+    </section>
+  );
+};
 
 // The workspaces a partner brought, read when the pane opens (GET partner/workspaces), in the back office's rows.
-const PartnerWorkspaces = ({ W, api }) => {
-  const [state, setState] = React.useState({ vm: null, problem: null });
+const PartnerWorkspaces = ({ W, api, flash, active }) => {
+  const [state, setState] = React.useState({ vm: null, handovers: {}, full: null, problem: null });
   const [again, setAgain] = React.useState(0);
   React.useEffect(() => {
     let live = true;
-    setState({ vm: null, problem: null });
+    setState({ vm: null, handovers: {}, full: null, problem: null });
     api.workspaces().then((r) => {
-      if (live) setState(r.ok ? { vm: r.vm, problem: null } : { vm: null, problem: r.message });
+      if (!live) return;
+      setState(r.ok ? { vm: r.vm, handovers: r.handovers || {}, full: r.full || null, problem: null } : { vm: null, handovers: {}, full: null, problem: r.message });
     });
     return () => { live = false; };
   }, [again, api]);
@@ -31,7 +142,11 @@ const PartnerWorkspaces = ({ W, api }) => {
     );
   }
   const vm = state.vm;
+  const reread = () => setAgain((n) => n + 1);
   return (
+    <>
+    {active ? <PartnerSetUp api={api} flash={flash} full={state.full} onMade={reread} /> : null}
+    <PartnerHandovers api={api} handovers={state.handovers} flash={flash} onSent={reread} />
     <section className="rec-card set-card" data-testid="partner-workspaces" aria-labelledby="partner-workspaces-title">
       <div className="rec-card-head">
         <h2 className="rec-card-title" id="partner-workspaces-title">{W.workspaces}</h2>
@@ -60,6 +175,7 @@ const PartnerWorkspaces = ({ W, api }) => {
         </div>
       )}
     </section>
+    </>
   );
 };
 
@@ -220,7 +336,7 @@ const PanePartner = ({ flash }) => {
       </div>
       <PartnerLettersRow W={W} api={api} letters={P.dto.letters} flash={flash} />
     </section>
-    <PartnerWorkspaces W={W} api={api} />
+    <PartnerWorkspaces W={W} api={api} flash={flash} active={P.dto.status === "active"} />
     </>
   );
 };
