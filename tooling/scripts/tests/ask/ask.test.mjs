@@ -859,8 +859,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   });
   assert.ok(ok.success);
   assert.equal(AskProposalOutcomeSchema.safeParse({ state: "sent" }).success, false, "only the four states");
-  // The ten acts as the registry offers them, one per card family, sorted by name, the twelve acts before them their
-  // actions (D11). What this block pinned as text runs in ask-turn.test.mjs, "the proposal builders run against the
+  // The eleven acts as the registry offers them, one per card family, sorted by name, the acts before them their
+  // actions (D11; propose_list and propose_campaign's run since PR 4.7). What this block pinned as text runs in ask-turn.test.mjs, "the proposal builders run against the
   // database in memory": every card's result says nothing has happened yet, a proposal never writes, the money row is
   // refused before it is a card, a person who opted out gets no reply, a reply no longer held has nothing to rewrite, a
   // whisper needs a call in progress.
@@ -868,9 +868,10 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     ACT_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
       ["propose_autonomy", []],
-      ["propose_campaign", ["broadcast", "playbook"]],
+      ["propose_campaign", ["broadcast", "playbook", "run"]],
       ["propose_deal", []],
       ["propose_lead_search", []],
+      ["propose_list", []],
       ["propose_person", ["mode", "note", "details"]],
       ["propose_reply", ["draft", "steer"]],
       ["propose_settings", []],
@@ -1162,7 +1163,8 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
   const reads = READ_TOOLS.length;
   const acts = ACT_TOOLS.length;
   const total = reads + acts;
-  // Nine reads and ten acts since the consolidation (D11): nineteen, an owner's whole set.
+  // Nine reads and ten acts since the consolidation (D11), eleven since propose_list (the Phase 4 plan, D1): twenty, an
+  // owner's whole set.
   assert.ok(reads >= 9 && acts >= 10, `found ${reads} read and ${acts} act tools in the registry`);
   assert.ok(
     total <= cap - 4,

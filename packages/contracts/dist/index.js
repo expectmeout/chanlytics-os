@@ -11040,6 +11040,9 @@ function reachLines(reach, p) {
   const lines = reasons.map((r2, rank) => ({ ...r2, rank })).filter((r2) => r2.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words4, tone, door }) => ({ n, words: `${n} ${words4}`, tone, door }));
   return { pool: reach.pool, held: reach.heardAny + (once ? 0 : reach.heardThis) + reach.overLimit, lines };
 }
+function runDayPassed(run, today) {
+  return run.playbook_id && run.run_for && run.run_for !== today ? `This run was made for ${run.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.` : null;
+}
 function toApprovalVM(d, opts) {
   const b = d.broadcast;
   const will = b.recipient_count;
@@ -28450,6 +28453,7 @@ export {
   rulesKept,
   rulesLine,
   rulesWithoutFieldsWords,
+  runDayPassed,
   runDueNow,
   runningTotal,
   runsWords,

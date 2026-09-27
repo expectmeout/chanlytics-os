@@ -131,6 +131,21 @@ export function reachLines(
 }
 
 /**
+ * Why a playbook's run cannot be approved on the business's `today` ("2026-09-21"), in approveRun's words, or null. A
+ * playbook's run is a day's run: its people were that day's eligible and its words were written for that day
+ * ("tomorrow at 2:00 PM"), so approved on a later day it is refused, and the next sweep reads the calendar again. The
+ * route's rule, and Ask's run card's refusal before a card is shown: one sentence.
+ */
+export function runDayPassed(
+  run: { playbook_id: string | null; run_for?: string | null },
+  today: string,
+): string | null {
+  return run.playbook_id && run.run_for && run.run_for !== today
+    ? `This run was made for ${run.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`
+    : null;
+}
+
+/**
  * A playbook's run waiting on a person, as the sheet says it: the canvas's
  * "approving from the sofa". What it reaches, by the rules that made its list;
  * the words as the first person on it reads them; and what approving does,
