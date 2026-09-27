@@ -4,7 +4,9 @@
 // sends it (the chain, which opens its Playbooks row). How many it has written is its chain's report, read when the row
 // opens (window.useReachOutReport, reach-out-row.jsx; R23), and said only once read: nothing while it reads or when it
 // could not be read, never a 0 it did not read. It has no Rename, Hide or Delete of its own, and no WhatsApp or Text
-// versions: a reach-out sends email only, and its words change where the chain is. Every sentence is contracts'
+// versions: a reach-out sends email only, and its words change where the chain is: Edit in its reach-out opens the
+// reach-out sheet (PR 6) over its chain as the reach_outs surface read it, for a role that may change it; for anyone
+// else, or a chain whose search is gone, it opens the chain's Playbooks row. Every sentence is contracts'
 // (window.__reachOuts.words, emailTemplateWords). The rows are contracts' emailTemplateRowsOf over the reach_outs
 // surface's chains (__REACH_OUTS), which __TEMPLATES_ALL (WhatsApp's) never holds.
 
@@ -21,11 +23,14 @@ const EmailWords = ({ text }) => {
 
 const EmailTemplateRow = ({ t, open = false, onOpen }) => {
   const [read] = window.useReachOutReport ? window.useReachOutReport(t.root_id, open) : [null];
+  const [editing, setEditing] = React.useState(false);
   const W = window.__reachOuts && window.__reachOuts.words;
   if (!W) return null;
   const written = open && read && read.state === "ok" ? W.emailRowWrittenOf(read.report, t.step_id) : null;
   const w = W.emailTemplateWords({ chainName: t.chain_name, stepN: t.step_n, afterDays: t.after_days });
   const go = () => window.CHANLY && window.CHANLY.nav(`outbound/${t.root_id}`);
+  const chain = (window.__REACH_OUTS || []).find((c) => c.root_id === t.root_id);
+  const mayEdit = !!(chain && chain.search && window.ReachOutSheet && window.canDo && window.canDo("approve"));
   const oneLine = String(t.body || "").replace(/\s+/g, " ").trim();
   return (
     <div className={`msg-row msg-row-email${open ? " is-open" : ""}`} data-testid="template-email">
@@ -61,11 +66,11 @@ const EmailTemplateRow = ({ t, open = false, onOpen }) => {
           <div className="msg-card-foot">
             <span className="msg-card-meta">{w.foot}</span>
             <span className="msg-card-spacer" />
-            {/* Its words change on its reach-out's sheet; until the sheet comes (PR 6), this opens its Playbooks row. */}
-            <button className="btn btn-sm" onClick={go} data-testid="template-email-edit">{w.edit}</button>
+            <button className="btn btn-sm" onClick={mayEdit ? () => setEditing(true) : go} data-testid="template-email-edit">{w.edit}</button>
           </div>
         </div>
       )}
+      {editing && chain && <window.ReachOutSheet search={chain.search} chain={chain} onClose={() => setEditing(false)} />}
     </div>
   );
 };

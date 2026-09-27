@@ -165,9 +165,12 @@ export function triggerOffered(t: { kind: string }, dealsOn: boolean): boolean {
 
 /**
  * Whether an Autonomy class is offered in a workspace: a class no moment runs under, or one a moment offered here
- * runs under. So the follow-ups' row is only where deals are on (0006), and every other row is everywhere.
+ * runs under, or the reach-outs', which the reach-out sheet makes. So the follow-ups' row is only where deals are on
+ * (0006), and every other row is everywhere.
  */
 export function policyClassOffered(cls: string, dealsOn: boolean): boolean {
+  // The reach-outs' row: no moment runs under it, but its own sheet makes chains that do (Reach out, Part 4 PR 6).
+  if (cls === "outreach") return true;
   const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
   return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
 }

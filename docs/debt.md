@@ -51,6 +51,9 @@ falls back.
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Window globals +2 (Reach out, Part 4 PR 8): `__REACH_OUTS`, the chains, and `__reachOuts`, their verbs and contracts' words                                        | The shell's pages read the bridge only through window. The chains are a surface of their own so the moments' read (`surface-data.ts`, at its file and function caps) takes nothing more; Templates' email rows are drawn from the same `__REACH_OUTS` through contracts' `emailTemplateRowsOf`, not a third name | Playbooks and Templates leave the shell (the shell's exit decision) |
 | Window publishers +3 (Reach out, Part 4 PR 8): the bridge's `installReachOuts`, and `Object.assign(window, …)` in `reach-out-row.jsx` and `email-template-row.jsx` | The legacy tree's only way to share a component between files; the two rows are files of their own in `pages/reach-out/` so neither page, both at their function caps, grows                                                                                                                                     | The same                                                            |
+| Window publishers +2 (Reach out, Part 4 PR 6): `Object.assign(window, …)` in `reach-out-sheet.jsx` and `reach-out-door.jsx`                                        | The sheet is opened from three files (the Leads door, the chain's row, an email row) and the door from `leads-scope.jsx`; the legacy tree shares a component between files only through window                                                                                                                   | The same                                                            |
+| Window global readers (Reach out, Part 4 PR 6): `__ME`, `__SETTINGS`, `__SETUP`, `__surfaceFailed` and `__REACH_OUTS` +1 each, `__reachOuts` +2                    | The sheet signs with the member's first name, checks the booking link, sends from Setup's domains and says when either read failed; an email row's Edit finds its chain in `__REACH_OUTS`; the sheet and the door press the bridge's verbs. No new name                                                          | The same                                                            |
+| `LeadsScope` +2 lines, no branch (Reach out, Part 4 PR 6)                                                                                                          | The Leads door's two mounts, the desk's in the controls row and the search handed to the phone bar, both through one helper (`LeadsReachOutDoor`) so the function takes no branch                                                                                                                                | Leads' controls row is split out of `LeadsScope`                    |
 
 ## The numbers
 
@@ -64,7 +67,7 @@ functions over the limit            269   of which over 200 lines: 65
 files over 800 lines                 35
 directories over 20 modules           8
 window globals                      195   names
-window publishers                   391   sites in 144 files
+window publishers                   393   sites in 146 files
 copies                              129   of 35 names
 as unknown as                       223
 table names outside packages/db     535

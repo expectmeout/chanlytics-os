@@ -700,7 +700,7 @@
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/leads-scope.jsx::LeadsScope#1": {
-    "lines": 324,
+    "lines": 326,
     "branches": 64,
     "depth": 5
   },

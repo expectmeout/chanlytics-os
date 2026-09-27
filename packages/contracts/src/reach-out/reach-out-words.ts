@@ -42,6 +42,8 @@ export const OPENING_WORDS_MAX = 40;
 export const OPENING_CHARS_MAX = 400;
 export const ANGLE_WORDS_MAX = 3;
 export const REACH_OUT_STEPS_MAX = 5;
+/** The most domains a chain names; none named is every verified domain. */
+export const REACH_OUT_DOMAINS_MAX = 5;
 export const REACH_OUT_NAME_MAX = 80;
 export const SIGNED_BY_MAX = 60;
 /** The gap's choices on the sheet, in minutes; the database holds 5–120 (00183). */
@@ -277,7 +279,7 @@ export const ReachOutChainSchema = z.object({
       message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`,
     }),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z.array(z.string().uuid()).max(5),
+  domain_ids: z.array(z.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
   signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),
   steps: z.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX),
 });

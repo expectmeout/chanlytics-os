@@ -93,6 +93,8 @@ export const UI_ROWS: readonly UiRowMeta[] = [
   // Beside Win-back (0006): the proposal follow-up's class, auto, ask or never, where deals are on.
   { id: "follow_up", cls: "follow_up", ...W("follow_up"), modes: ["Auto", "Ask", "Never"] },
   { id: "campaign", cls: "campaign", ...W("campaign") },
+  // Beside the campaigns (Reach out, Part 4 PR 6): what a reach-out's runs do. Never auto: a chain's first run waits.
+  { id: "outreach", cls: "outreach", ...W("outreach"), modes: ["Veto", "Ask", "Never"] },
   {
     id: "reviews",
     cls: "reviews",
