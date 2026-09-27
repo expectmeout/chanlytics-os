@@ -22261,7 +22261,7 @@ interface ActivityPageDto {
 declare const ACTIVITY_NOISE_PREFIXES: readonly ["usage.", "webhook.", "ingest."];
 /**
  * Whether a row of the log is about money: an event its emitter filed under billing -- the subscription's
- * (billing.updated, .paused, .resumed, apps/edge/lib/billing.ts) and a partner's share, its reversal, its payment and
+ * (billing.updated, .paused, .resumed, apps/edge/lib/billing/billing.ts) and a partner's share, its reversal, its payment and
  * its standing (partner.earned, .reversed, .paid, .standing_set, written by 00203/00205/00207/00214). Read from the row's
  * own category, which every emitter writes beside the kind, so a money kind added later is money here without a list
  * to keep; a decision carries none. Ask leaves these out (the charter: anything about money), and the page shows them.

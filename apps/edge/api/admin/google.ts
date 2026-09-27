@@ -27,8 +27,9 @@
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
-import { pg } from "../../lib/pg.js";
+import { readBody, respond, workspaceOf, workspaceRow, type Refused } from "../../lib/admin-door.js";
 import { emitEvent } from "../../lib/packages/db.js";
+import { UUID } from "../../lib/packages/contracts.js";
 import type { PlaceDetails } from "../../lib/packages/channels.js";
 import {
   bindLocation,
@@ -54,7 +55,6 @@ import { logger, type Logger } from "../../lib/log.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../lib/packages/db.js";
 import {
-  type GoogleAnswer,
   type GoogleBody,
   type ListingView,
   UNKNOWN_GOOGLE_OP,
@@ -83,8 +83,6 @@ import {
 } from "../../lib/google/google-ops.js";
 
 type Db = SupabaseClient<Database>;
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** An op's call past the knock: a database, the workspace on record with its clock, who pressed the button, and the log. */
 interface GoogleCall {
@@ -116,27 +114,16 @@ const ON_CONNECTION: Record<"locations" | "choose" | "disconnect" | "reply", OnC
 const ON_LISTING: Record<"unlink" | "refresh", OnListing> = { unlink, refresh };
 
 const pick = <T>(table: Record<string, T>, op: string): T | null => (Object.hasOwn(table, op) ? table[op] : null);
-const respond = (a: GoogleAnswer): Response => json(a.status, a.body);
-const stop = (response: Response): { ok: false; response: Response } => ({ ok: false, response });
 /** A review's row, as the body names it, or null. */
 const reviewIdOf = (v: unknown): string | null => {
   const id = typeof v === "string" ? v.trim() : "";
   return UUID.test(id) ? id : null;
 };
 
-/** The body as sent; not JSON is an empty body, validated below like any other. */
-async function readBody(request: Request): Promise<GoogleBody> {
-  try {
-    return JSON.parse(await request.text());
-  } catch {
-    return {};
-  }
-}
-
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/google");
   if (!auth.ok) return auth.response;
-  const body = await readBody(request);
+  const body = await readBody<GoogleBody>(request);
   const op = typeof body.op === "string" ? body.op : "";
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
@@ -162,17 +149,14 @@ export async function POST(request: Request): Promise<Response> {
 }
 
 /** Past status and search every op needs a database and a workspace on record, with its clock and who is asking. */
-async function workspaceCall(
-  body: GoogleBody,
-): Promise<{ ok: true; value: GoogleCall } | { ok: false; response: Response }> {
-  const db = pg();
-  if (!db) return stop(json(503, { ok: false, error: "no_database" }));
-  const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
-  if (!UUID.test(tenantId)) return stop(json(400, { ok: false, error: "tenant_id (a workspace id) is required" }));
-  const tenant = await db.from("tenants").select("id, timezone").eq("id", tenantId).maybeSingle();
-  if (tenant.error) return stop(json(503, { ok: false, error: tenant.error.message }));
-  if (!tenant.data) return stop(json(404, { ok: false, error: "no such workspace" }));
-  const tz = tenant.data.timezone || "America/New_York";
+async function workspaceCall(body: GoogleBody): Promise<{ ok: true; value: GoogleCall } | Refused> {
+  const ws = workspaceOf(body.tenant_id);
+  if (!ws.ok) return ws;
+  const { db, tenantId } = ws;
+  const read = await db.from("tenants").select("id, timezone").eq("id", tenantId).maybeSingle();
+  const tenant = workspaceRow(read);
+  if (!tenant.ok) return tenant;
+  const tz = tenant.row.timezone || "America/New_York";
   const userId = typeof body.user_id === "string" && UUID.test(body.user_id) ? body.user_id : null;
   return { ok: true, value: { body, db, tenantId, tz, userId, L: logger({ tenant: tenantId }) } };
 }

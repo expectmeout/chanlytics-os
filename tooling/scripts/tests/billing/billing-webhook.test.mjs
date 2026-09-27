@@ -27,7 +27,7 @@ import { fakeDb } from "../_fake-db.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_only";
-const { setStripeClient } = await import(at("apps/edge/lib/billing.ts"));
+const { setStripeClient } = await import(at("apps/edge/lib/billing/billing.ts"));
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const hook = await import(at("apps/edge/api/stripe-webhook.ts"));
 
