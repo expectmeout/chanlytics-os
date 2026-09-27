@@ -88,7 +88,7 @@ window globals                      198   names
 window publishers                   442   sites in 151 files
 copies                              152   of 38 names
 as unknown as                       222
-table names outside packages/db     535
+table names outside packages/db     533
 unnamed durations                    78   in 34 files
 dead exports, types and modules     190
 source-text reads in tests          832

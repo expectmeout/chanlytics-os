@@ -123,7 +123,6 @@
   "apps/edge/lib/receptionist/unfinished.ts": 5,
   "apps/edge/lib/sms/sms.ts": 2,
   "apps/edge/lib/tenant-runtime.ts": 9,
-  "apps/edge/lib/voice/call-activity.ts": 2,
   "apps/edge/lib/voice/call-recording.ts": 3,
   "apps/edge/lib/voice/forwarding.ts": 2,
   "apps/edge/lib/voice/voice-agent.ts": 1,
