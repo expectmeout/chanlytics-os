@@ -22789,11 +22789,11 @@ declare function secondFactorResetWords(code: string, removed: number): string;
  * An existing workspace brings in a partner (decision 0018).
  *
  * The pure half: what the owner types, what the owner's card and the partner's pane say, and the email the partner
- * is sent. The fourteen days and the rule on credit are the database's (00219); they are restated here only to be
+ * is sent. The fourteen days and the rule on credit are the database's (00220); they are restated here only to be
  * said, never enforced.
  */
 
-/** How long an owner's invitation to a partner is open (00219). */
+/** How long an owner's invitation to a partner is open (00220). */
 declare const PARTNER_INVITE_DAYS = 14;
 /**
  * A partner's code as the owner may give it: the code itself, or the partner's whole link, whose last segment after
