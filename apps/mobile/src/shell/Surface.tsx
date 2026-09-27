@@ -53,7 +53,9 @@ export function Surface({ route, tab, onReady, post }: Props) {
   // Created the first time this tab is in front, kept afterwards: a latch set during render, not in an effect.
   const [mounted, setMounted] = useState(focused);
   if (focused && !mounted) setMounted(true);
-  const [failed, setFailed] = useState(false);
+  // Counts the times Android's renderer died under this page: each one is a new WebView, since the old one is dead
+  // and blank for good (the library only reports it). iOS reloads in place, below.
+  const [epoch, setEpoch] = useState(0);
   const slug = useShell((s) => s.slug);
   const theme = useShell((s) => s.theme);
   const token = useShell((s) => s.token);
@@ -74,10 +76,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
   const handle = useMemo<SurfaceHandle>(
     () => ({
       ask: (m) => ref.current?.injectJavaScript(askPage(m)),
-      reload: () => {
-        setFailed(false);
-        ref.current?.reload();
-      },
+      reload: () => ref.current?.reload(),
     }),
     [],
   );
@@ -144,6 +143,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
   return (
     <View style={[styles.fill, paper, { paddingTop: insets.top }]}>
       <WebView
+        key={epoch}
         ref={ref}
         source={source}
         style={[styles.fill, paper]}
@@ -154,10 +154,13 @@ export function Surface({ route, tab, onReady, post }: Props) {
         onNavigationStateChange={onNavigation}
         onShouldStartLoadWithRequest={onShouldStart}
         onContentProcessDidTerminate={() => ref.current?.reload()}
-        onError={() => setFailed(true)}
-        onLoadEnd={() => setFailed(false)}
+        onRenderProcessGone={() => setEpoch((n) => n + 1)}
         startInLoadingState
         renderLoading={() => <View style={[StyleSheet.absoluteFill, paper]} />}
+        // A load that fails (no network, the site down) shows the app's own screen, with a retry, in place of the
+        // library's white debug page. It used to be tracked in state from onError, which the library follows with
+        // onLoadEnd for the same failure, so the flag was cleared the moment it was set.
+        renderError={() => <Offline onRetry={handle.reload} />}
         allowsBackForwardNavigationGestures
         pullToRefreshEnabled
         contentInsetAdjustmentBehavior="never"
@@ -169,7 +172,6 @@ export function Surface({ route, tab, onReady, post }: Props) {
         decelerationRate={0.998}
         textZoom={100}
       />
-      {failed && <Offline onRetry={handle.reload} />}
     </View>
   );
 }
