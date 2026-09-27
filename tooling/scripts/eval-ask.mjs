@@ -34,6 +34,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, cardOpenRoute, oneDoor } from "@chanlytics/contracts";
 import { spread, wilson, pct } from "./ask-stats.mjs";
+import { usedAny } from "./rename-ask-tools.mjs";
 import {
   ROW_SOURCES,
   announcement,
@@ -276,14 +277,16 @@ export function judge(c, r) {
   const e = c.expect ?? {};
   const text = m.text ?? "";
   if (m.failed) fails.push(`turn failed: ${text.slice(0, 120)}`);
+  // The tools by their names today (D13, tooling/evals/tool-names.json): a case, or a turn stored before the rename,
+  // that says an old name is judged as its new one, so a baseline from before stays comparable.
   // Context first: an on-page case's page rode with it, so a case the page answers is satisfied by an answer that
   // needed no read at all.
-  if (e.tools_any && !fromContext(c, m, r.context) && !e.tools_any.some((t) => m.tools.includes(t)))
+  if (e.tools_any && !fromContext(c, m, r.context) && !usedAny(e.tools_any, m.tools))
     fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_any.join("/")}`);
   fails.push(...contextFails(c, m, r.context));
   if (m.failed && /daily budget|presupuesto diario/.test(text))
     fails.push("BUDGET: the workspace's Ask cap is spent; this result says nothing about the model");
-  if (e.tools_also_any && !e.tools_also_any.some((t) => m.tools.includes(t)))
+  if (e.tools_also_any && !usedAny(e.tools_also_any, m.tools))
     fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_also_any.join("/")}`);
   if (e.language && m.language !== e.language) fails.push(`language ${m.language} ≠ ${e.language}`);
   if (e.no_write && WRITE_CLAIMS.some((re) => re.test(text)))

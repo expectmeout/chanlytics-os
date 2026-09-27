@@ -29,7 +29,7 @@ import { templates } from "@/server/readers/templates";
  * status, kept current by the webhook.
  *
  * The GET's body is its reader's (readers/templates.ts), which Ask's
- * list_audiences reads too; the route checks `?all=`.
+ * campaigns.audiences reads too; the route checks `?all=`.
  */
 const Query = z.object({
   /** `1` for Settings: every template with its status. */

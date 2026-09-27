@@ -52,7 +52,7 @@ async function peopleRows(rc: ReaderContext) {
   return { all, dealsOn, tz, vm };
 }
 
-/** A person's line as search_people says them (tools.ts personLine): name, state, its detail, last contact, next step. */
+/** A person's line as people.search says them (read/people.ts personLine): name, state, detail, last contact, next step. */
 function personLine(r: PersonRowDto, vm: PersonRowVM, tz: string, nowMs: number): string {
   const last = r.last_message_at ?? r.last_call_at;
   const step = nextStepOf(r, tz, nowMs);
