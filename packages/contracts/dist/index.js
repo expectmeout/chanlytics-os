@@ -12933,6 +12933,23 @@ var cardPersonRoute = ({ payload }) => {
   const id = idIn(payload, "contact_id");
   return id ? `clients/${id}` : null;
 };
+var noteSaved = (personId) => ({
+  type: "note:saved",
+  detail: { personId: asText(personId) }
+});
+var DETAIL_FIELDS = ["name", "email"];
+var PERSON_DETAIL_WORDS = {
+  label: { name: "Name", email: "Email" },
+  none: {
+    name: (shows) => shows ? `no name of their own (shows as ${shows})` : "no name of their own",
+    email: () => "no address"
+  }
+};
+function detailsCall(contactId, from, none) {
+  const body = Object.fromEntries(DETAIL_FIELDS.filter((k) => typeof from[k] === "string").map((k) => [k, from[k]]));
+  if (!Object.keys(body).length) return refuseWith(none);
+  return { route: "PUT contacts/[id]/details", params: { id: asText(contactId) }, body, events: [PEOPLE_CHANGED] };
+}
 var personModeSpec = {
   needs: "owner",
   doing: "change how the receptionist treats one person",
@@ -12989,7 +13006,7 @@ var dealSpec = {
       params: { id: asText(p.payload.contact_id) },
       body: { body: p.step.body, due_on: p.step.due_on, team_only: true, deal_id: dealId },
       refresh: "behind",
-      events: [{ type: "note:saved", detail: { personId: asText(p.payload.contact_id) } }]
+      events: [noteSaved(p.payload.contact_id)]
     };
   },
   // The deal stands either way, so a step the door refused is said on the receipt, to set again on their page.
@@ -12997,6 +13014,68 @@ var dealSpec = {
     const receipt = `${asText(pl.who)} \xB7 ${DEAL_STAGE_WORDS[asText(pl.stage)] ?? asText(pl.stage)}`;
     if (!then) return receipt;
     return then.ok ? `${receipt} \xB7 ${NOTE_WORDS.stepAdded}` : `${receipt} \xB7 the next step was not saved: ${then.message}`;
+  },
+  open: cardPersonRoute
+};
+var noteSpec = {
+  needs: "operator",
+  gate: "approve",
+  // The route's strict body, the words and who reads them (D8): a note not for the team alone is read by the receptionist
+  // before it answers that person (00157). A card that does not say which is not sent, since the route's own default is
+  // the receptionist's and nobody chose it. No day and no deal: a step rides on a deal's card. It answers as the door
+  // takes it, People read again behind it, as the person page's composer writes one.
+  commit: ({ payload: pl }) => typeof pl.team_only !== "boolean" || !asText(pl.body) ? refuseWith(PROPOSAL_WORDS.cannotApprove) : {
+    route: "POST contacts/[id]/notes",
+    params: { id: asText(pl.contact_id) },
+    body: { body: asText(pl.body), team_only: pl.team_only },
+    refresh: "behind",
+    events: [noteSaved(pl.contact_id)]
+  },
+  receipt: ({ payload: pl }) => `${asText(pl.who)} \xB7 ${NOTE_WORDS.added}${pl.team_only === true ? ` \xB7 ${NOTE_WORDS.teamOnly}` : ""}`,
+  undo: {
+    label: () => "Delete it",
+    window: "ten_minutes",
+    // The note the door wrote, by the id it answered with; an answer that names none leaves nothing to take away.
+    record: (p, data) => {
+      const noteId = idIn(rec(rec(data).note), "id");
+      return noteId ? { contact_id: p.payload.contact_id, note_id: noteId } : null;
+    },
+    call: (u) => ({
+      route: "POST contacts/[id]/notes/remove",
+      params: { id: asText(u.contact_id) },
+      body: { note_id: asText(u.note_id) },
+      refresh: "behind",
+      events: [noteSaved(u.contact_id)]
+    }),
+    receipt: () => NOTE_WORDS.removed
+  },
+  open: cardPersonRoute
+};
+var personDetailsSpec = {
+  needs: "operator",
+  gate: "approve",
+  // Only the fields the card changes; its `previous` is what the builder read, for the undo.
+  commit: ({ payload: pl }) => detailsCall(pl.contact_id, pl, PROPOSAL_WORDS.cannotApprove),
+  // Each field as the route stored it (an address in its one spelling), the card's where it answered none.
+  receipt: ({ payload: pl }, data) => [
+    asText(pl.who),
+    ...DETAIL_FIELDS.filter((k) => typeof pl[k] === "string").map(
+      (k) => `${PERSON_DETAIL_WORDS.label[k]}: ${asText(rec(data)[k] ?? pl[k])}`
+    )
+  ].join(" \xB7 "),
+  undo: {
+    label: () => "Set it back",
+    window: "ten_minutes",
+    // Each changed field as it was before the card: the route clears a field with an empty string, so one that held
+    // nothing is set back to nothing. One whose previous value the card does not carry is never cleared on a guess.
+    record: ({ payload: pl }) => {
+      const prev = rec(pl.previous);
+      const changed = DETAIL_FIELDS.filter((k) => typeof pl[k] === "string");
+      if (!changed.length || changed.some((k) => !(k in prev))) return null;
+      return { contact_id: pl.contact_id, ...Object.fromEntries(changed.map((k) => [k, asText(prev[k])])) };
+    },
+    call: (u) => detailsCall(u.contact_id, u, PROPOSAL_WORDS.noUndo),
+    receipt: () => "Set back"
   },
   open: cardPersonRoute
 };
@@ -13083,7 +13162,9 @@ var PROPOSAL_SPECS = {
   broadcast: broadcastSpec,
   playbook: playbookSpec,
   lead_search: leadSearchSpec,
-  deal: dealSpec
+  deal: dealSpec,
+  note: noteSpec,
+  person_details: personDetailsSpec
 };
 function proposalSpec(kind) {
   return Object.prototype.hasOwnProperty.call(PROPOSAL_SPECS, kind) ? PROPOSAL_SPECS[kind] : null;
@@ -18275,7 +18356,8 @@ var PAGE_MESSAGES = {
     return snapshot ? { t: "today", snapshot } : null;
   },
   calls: (v) => isCount(v.live) ? { t: "calls", live: v.live } : null,
-  theme: (v) => v.theme === "light" || v.theme === "dark" ? { t: "theme", theme: v.theme } : null
+  theme: (v) => v.theme === "light" || v.theme === "dark" ? { t: "theme", theme: v.theme } : null,
+  overlay: (v) => typeof v.open === "boolean" ? { t: "overlay", open: v.open } : null
 };
 function parsePageMessage(raw) {
   let v;
@@ -18299,6 +18381,8 @@ function parseShellMessage(v) {
       return { t: "menu" };
     case "top":
       return { t: "top" };
+    case "close":
+      return { t: "close" };
     case "device": {
       const tok = token(v.token);
       const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;
@@ -18314,6 +18398,7 @@ function parseShellMessage(v) {
 // src/mobile/live-activity.ts
 var CALL_ACTIVITY_NAME = "CallActivity";
 var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
+var CALL_ACTIVITY_ROLES = ["owner", "operator"];
 function callActivityStart(props, now) {
   const seconds = Math.floor(now.getTime() / 1e3);
   return {
@@ -18329,10 +18414,11 @@ function callActivityStart(props, now) {
   };
 }
 function callActivityPropsOf(call) {
-  const who = (call.who ?? "").trim() || (call.from_e164 ?? "").trim() || (call.from_raw ?? "").trim() || "Someone";
+  const tail = phoneTail(call.from_e164) ?? phoneTail(call.from_raw);
+  const who = (call.name ?? "").trim() || (tail ? `Caller ending ${tail}` : "Someone");
   return {
     who,
-    line: (call.to_e164 ?? "").trim() || "your line",
+    line: formatPhoneDisplay(call.to_e164) ?? "your line",
     startedAt: call.started_at ?? (/* @__PURE__ */ new Date(0)).toISOString()
   };
 }
@@ -26887,6 +26973,7 @@ export {
   BusinessProfileSchema,
   CALENDAR_FEED_WORDS,
   CALL_ACTIVITY_NAME,
+  CALL_ACTIVITY_ROLES,
   CALL_ACTIVITY_STALE_MS,
   CALL_HEARTBEAT_MS,
   CALL_KEY_PREFIX,
@@ -27243,6 +27330,7 @@ export {
   PERM_DOING,
   PERSON_CAME_FROM_WORDS,
   PERSON_CHANNEL_WORDS,
+  PERSON_DETAIL_WORDS,
   PERSON_MODES,
   PERSON_MODE_LABELS,
   PERSON_MODE_WORDS,

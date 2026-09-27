@@ -3928,6 +3928,20 @@ async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
   if (error) throw new Error(`cannot take the notification back: ${error.message}`);
 }
+async function activityTokensOf(db, tenantId, roles) {
+  const { data: members, error: me } = await db.from("memberships").select("user_id").eq("tenant_id", tenantId).in("role", [...roles]);
+  if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
+  const people = (members ?? []).map((m) => m.user_id);
+  if (!people.length) return [];
+  const { data: devices, error: de } = await db.from("push_devices").select("activity_token").in("user_id", people).not("activity_token", "is", null);
+  if (de) throw new Error(`cannot read the phones: ${de.message}`);
+  return [...new Set((devices ?? []).map((d) => d.activity_token).filter((t) => !!t))];
+}
+async function forgetActivityTokens(db, tokens) {
+  if (!tokens.length) return;
+  const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
+  if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
+}
 
 // src/repositories/routing.ts
 var POS_TTL_MS = 5 * MIN_MS;
@@ -4035,6 +4049,16 @@ async function claimCallNotification(db, tenantId, callId) {
   const { data, error } = await db.from("calls").update({ notified_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", callId).eq("tenant_id", tenantId).is("notified_at", null).select("id");
   if (error) throw new Error(`claim_call_notification: ${error.message}`);
   return (data?.length ?? 0) > 0;
+}
+async function claimCallActivity(db, tenantId, callId) {
+  const { data, error } = await db.from("calls").update({ activity_started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", callId).eq("tenant_id", tenantId).is("activity_started_at", null).select("id");
+  if (error) throw new Error(`claim_call_activity: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function callerNameOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("contacts").select("display_name, wa_profile_name").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
+  if (error) throw new Error(`caller_name: ${error.message}`);
+  return (data?.display_name || data?.wa_profile_name || "").trim() || null;
 }
 
 // src/repositories/thread.ts
@@ -4927,12 +4951,15 @@ export {
   MAX_ROWS,
   PEOPLE_PAGE,
   acceptHandover,
+  activityTokensOf,
   addToList,
   addressesSuppressed,
   applyDomainCheck,
   archiveList,
   assembleHistory,
   becomePartner,
+  callerNameOf,
+  claimCallActivity,
   claimCallNotification,
   claimControl,
   claimIdempotencyKey,
@@ -4962,6 +4989,7 @@ export {
   everyoneIn,
   finishableRuns,
   followUpTouchesSince,
+  forgetActivityTokens,
   forgetNotification,
   getHandoverInvite,
   getOpenHandovers,
