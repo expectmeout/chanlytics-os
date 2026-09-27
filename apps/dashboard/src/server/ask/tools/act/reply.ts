@@ -6,6 +6,7 @@ import {
   UUID,
   actAction,
   defineActions,
+  noteRow,
   propose,
   refuse,
   str,
@@ -47,7 +48,7 @@ async function draftReply(
   // a texting thread has none, and this card used to call one closed.
   const win = replyWindow(await replyChannelOf(t.ctx, conv), conv.last_wa_inbound_at, t.now);
   const price = violatesNoPrices(text);
-  t.read.thread.add(id);
+  noteRow(t, "thread", id, who, `inbox/th-${id}`);
   return propose({
     kind: "reply",
     title: `Reply to ${who}`,
@@ -84,7 +85,7 @@ async function proposeSteer(
   ) {
     return refuse("that reply is not waiting any more; there is nothing to rewrite");
   }
-  t.read.thread.add(m.conversation_id);
+  noteRow(t, "thread", m.conversation_id, "The held reply", `inbox/th-${m.conversation_id}`);
   return propose({
     kind: "steer",
     title: "Rewrite the held reply",

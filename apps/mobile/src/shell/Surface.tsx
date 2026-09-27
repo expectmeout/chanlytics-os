@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Appearance, BackHandler, Linking, Platform, StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
-import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
+import type { ShouldStartLoadRequest, WebViewSource } from "react-native-webview/lib/WebViewTypes";
 import * as Application from "expo-application";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -53,7 +53,9 @@ export function Surface({ route, tab, onReady, post }: Props) {
   // Created the first time this tab is in front, kept afterwards: a latch set during render, not in an effect.
   const [mounted, setMounted] = useState(focused);
   if (focused && !mounted) setMounted(true);
-  const [failed, setFailed] = useState(false);
+  // Counts the times Android's renderer died under this page: each one is a new WebView, since the old one is dead
+  // and blank for good (the library only reports it). iOS reloads in place, below.
+  const [epoch, setEpoch] = useState(0);
   const slug = useShell((s) => s.slug);
   const theme = useShell((s) => s.theme);
   const token = useShell((s) => s.token);
@@ -65,19 +67,18 @@ export function Surface({ route, tab, onReady, post }: Props) {
   const insets = useSafeAreaInsets();
   const userAgent = useMemo(() => userAgentToken(Application.nativeApplicationVersion ?? "0.0.0", PLATFORM), []);
   const inset = bottomInset(PLATFORM, insets.bottom);
-  const uri = route === "login" ? LOGIN_HREF : hrefFor(slug, route);
-  // The door's POST from inside the WebView: the cookie it sets is the WebView's, and its 303 lands the page.
-  const source = post
-    ? { uri: NATIVE_DOOR, method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: post }
-    : { uri };
+  // Where this WebView starts, fixed as it is created, and again for each new one after a dead renderer: the page
+  // moves itself after that. It followed the shell's slug, so on a cold start (no slug yet: the site's home, which
+  // replaces itself with the workspace's address) the page naming its workspace sent the WebView to the same page
+  // with `#/today` added, an entry Back then stepped through with nothing to see.
+  const [start, setStart] = useState<{ epoch: number; source: WebViewSource } | null>(null);
+  const source = start?.epoch === epoch ? start.source : sourceOf(route, slug, post);
+  if (mounted && start?.epoch !== epoch) setStart({ epoch, source });
 
   const handle = useMemo<SurfaceHandle>(
     () => ({
       ask: (m) => ref.current?.injectJavaScript(askPage(m)),
-      reload: () => {
-        setFailed(false);
-        ref.current?.reload();
-      },
+      reload: () => ref.current?.reload(),
     }),
     [],
   );
@@ -144,6 +145,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
   return (
     <View style={[styles.fill, paper, { paddingTop: insets.top }]}>
       <WebView
+        key={epoch}
         ref={ref}
         source={source}
         style={[styles.fill, paper]}
@@ -154,10 +156,13 @@ export function Surface({ route, tab, onReady, post }: Props) {
         onNavigationStateChange={onNavigation}
         onShouldStartLoadWithRequest={onShouldStart}
         onContentProcessDidTerminate={() => ref.current?.reload()}
-        onError={() => setFailed(true)}
-        onLoadEnd={() => setFailed(false)}
+        onRenderProcessGone={() => setEpoch((n) => n + 1)}
         startInLoadingState
         renderLoading={() => <View style={[StyleSheet.absoluteFill, paper]} />}
+        // A load that fails (no network, the site down) shows the app's own screen, with a retry, in place of the
+        // library's white debug page. It used to be tracked in state from onError, which the library follows with
+        // onLoadEnd for the same failure, so the flag was cleared the moment it was set.
+        renderError={() => <Offline onRetry={handle.reload} />}
         allowsBackForwardNavigationGestures
         pullToRefreshEnabled
         contentInsetAdjustmentBehavior="never"
@@ -169,7 +174,6 @@ export function Surface({ route, tab, onReady, post }: Props) {
         decelerationRate={0.998}
         textZoom={100}
       />
-      {failed && <Offline onRetry={handle.reload} />}
     </View>
   );
 }
@@ -206,6 +210,21 @@ function useAndroidBack(ref: RefObject<WebView | null>, canGoBack: RefObject<boo
     });
     return () => sub.remove();
   }, [focused, ref, canGoBack]);
+}
+
+/**
+ * What a new WebView loads: the sign-in page, the route on the workspace's address, or the native door's POST of an
+ * identity token (the cookie it sets is the WebView's, and its 303 lands the page).
+ */
+function sourceOf(route: string, slug: string | null, post: string | undefined): WebViewSource {
+  if (post)
+    return {
+      uri: NATIVE_DOOR,
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: post,
+    };
+  return { uri: route === "login" ? LOGIN_HREF : hrefFor(slug, route) };
 }
 
 /**

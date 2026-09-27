@@ -12,6 +12,7 @@ import {
   failedAnswer,
   isUngrounded,
   normalizeAnswer,
+  noteRows,
   partialSay,
   proseAnswer,
   type AskAnswer,
@@ -290,7 +291,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // The page's rows a citation may name enter the read set; the page counts as one read, so a figure answered from it
   // is grounded (isUngrounded) -- when something on it was read: not a page whose read failed, nor one that is its
   // address alone (other) and shows no row.
-  if (built) for (const r of built.refs) if (r.kind !== "page") tc.read[r.kind].add(r.id);
+  if (built) noteRows(tc.read, built.refs);
   const pageRead =
     !!built && built.blocks.length > 0 && (built.rows > 0 || (!built.failed && input.context?.surface !== "other"));
   if (pageRead) reads++;

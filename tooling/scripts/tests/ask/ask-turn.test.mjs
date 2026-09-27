@@ -16,7 +16,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import {
   ASK_ANSWER_FORMAT,
+  ASK_CITATION_KINDS,
   ASK_MAX_ROUNDS,
+  ASK_ROW_WORDS,
   ASK_MAX_TOKENS,
   ASK_MODEL,
   ASK_MODEL_PROFILES,
@@ -2066,7 +2068,11 @@ test("calendar.week reads the people it names: a person on the calendar enters t
       [LUIS],
       "the event names Luis by his number",
     );
-    assert.deepEqual([...tc.read.person], [LUIS], "he is a row read; nobody else is");
+    assert.deepEqual(
+      [...tc.read.person.values()].map((r) => [r.id, r.route]),
+      [[LUIS, `clients/${LUIS}`]],
+      "he is a row read, opened at his profile; nobody else is",
+    );
   } finally {
     globalThis.fetch = fetchWas;
     forgetFeeds();
@@ -3041,9 +3047,16 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
   );
   assert.deepEqual([said.conversations.map((c) => c.conversation_id), said.calls.map((c) => c.call_id)], [[C1], [K1]]);
   assert.deepEqual(
-    [[...tc.read.person], [...tc.read.thread], [...tc.read.conversation], [...tc.read.call]],
-    [[P1], [C1], [C1], [K1]],
-    "the person, each thread, each call: rows a citation may name",
+    [tc.read.person, tc.read.thread, tc.read.conversation, tc.read.call].map((m) =>
+      [...m.values()].map((r) => [r.id, r.route]),
+    ),
+    [
+      [[P1, `clients/${P1}`]],
+      [[C1, `inbox/th-${C1}`]],
+      [[C1, `conversations/${C1}`]],
+      [[K1, `conversations/cv-${K1}`]],
+    ],
+    "the person, each thread, each call: rows a citation may name, each where the reader said it opens",
   );
 
   // Bea is bayside's: a harbor turn is told she is not here, in the tool's own words, and nothing of hers is a row.
@@ -3058,8 +3071,8 @@ test("people.get is the person page's one read (ledger #3): the reader's one rou
   assert.deepEqual(lines, [], "a person who is not here is not a failed read");
   assert.deepEqual(
     Object.values(away.read).map((s) => s.size),
-    [0, 0, 0, 0],
-    "nothing of another workspace enters the read set",
+    Array(12).fill(0),
+    "nothing of another workspace enters the read set, of any of the twelve kinds of row",
   );
 });
 
@@ -4201,6 +4214,83 @@ test("the workspace's pages are read once a turn, each tool as its page reads it
   assert.deepEqual(out["t-searches-again"], searches);
 });
 
+test("thirteen names in a turn (PR 4.2): the rows leads.searches, campaigns.audiences and campaigns.playbooks returned are cited as a search, a People list by its name, a template and a playbook, each opening where its reader said; a playbook no read returned is dropped, and said in the log", async () => {
+  const PB = "abababab-0000-4000-8000-00000000000b";
+  const NOT_READ = "abababab-0000-4000-8000-0000000000ff";
+  const winBack = {
+    id: PB,
+    tenant_id: A,
+    kind: "moment",
+    name: "Win-back",
+    trigger: "quiet_30",
+    list_id: null,
+    list_key: null,
+    template_id: TPL,
+    template_name: "fall_offer",
+    template_language: "en",
+    params: [],
+    policy_class: "reengage",
+    state: "running",
+    run_hour: 10,
+    cap_per_run: 50,
+    gap_days: 30,
+    cadence_days: 0,
+    last_run_for: null,
+    last_run_at: null,
+    created_at: "2026-09-01T00:00:00Z",
+  };
+  const world = () =>
+    ctxFor(tables({ templates: [OFFER], lead_searches_view: [WAITING_SEARCH], playbooks: [winBack] }), {
+      ...RPCS,
+      people_list: () => threeAnswers(),
+    });
+  // A People list the listing offers here, by the id it gives it (audience_id): a name, never a uuid.
+  const offered = JSON.parse(
+    (await runTool(newToolContext(world(), A, "owner", TZ, NOW), { name: "campaigns", input: { action: "audiences" } }))
+      .result,
+  ).audiences.find((a) => a.kind === "list");
+  assert.ok(offered && !/^[0-9a-f-]{36}$/.test(offered.audience_id), JSON.stringify(offered));
+  const item = (kind, id, title) => ({ title, meta: "", line: "", source: { kind, id, label: title } });
+  const s = scripted([
+    ROUND([
+      tool("leads", { action: "searches" }),
+      tool("campaigns", { action: "audiences" }),
+      tool("campaigns", { action: "playbooks" }),
+    ]),
+    ROUND([
+      answer("One search waits on you, and the win-back runs on its own.", {
+        show: {
+          items: [
+            item("search", WAITING_SEARCH.id, "Personal trainers in Austin"),
+            item("list", offered.audience_id, offered.label),
+            item("template", TPL, "fall_offer"),
+            item("playbook", PB, "Win-back"),
+            item("playbook", NOT_READ, "A playbook nobody read"),
+          ],
+        },
+      }),
+    ]),
+  ]);
+  const { input } = turn(world(), { role: "owner" });
+  const { result: r, lines } = await logged("ask_sources_dropped", () => runAskTurn(input, ports(s.round)));
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.deepEqual(
+    r.answer.show.items.map((i) => [i.source.kind, i.source.id, i.source.to]),
+    [
+      ["search", WAITING_SEARCH.id, `clients/leads:s-${WAITING_SEARCH.id}`],
+      ["list", offered.audience_id, `clients/seg:${offered.audience_id}`],
+      ["template", TPL, "messages"],
+      ["playbook", PB, `outbound/${PB}`],
+    ],
+    "each where its reader said: a search on Leads, a People list on People, a template on Templates, a playbook at its card",
+  );
+  assert.deepEqual(
+    lines.map((l) => JSON.parse(l).dropped),
+    [1],
+    "the playbook no read returned is dropped, and counted",
+  );
+});
+
 test("campaigns.audiences offers what the composer offers (ledger #14): a template this product cannot put on the wire -- a button that takes a value -- is withheld as the Broadcasts composer withholds it, and cannot_send says why in the composer's own sentence; nothing withheld, it says nothing", async () => {
   const T2 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
   const bookNow = {
@@ -4361,7 +4451,7 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
   assert.equal(noTemplates.lines.length, 1, "said once in the log");
 });
 
-test("the row the scope names rides in whole, read by its own tool: a call, a person, a thread; a lead, a search or a run is read by no tool until Phase 4, and a page needs no read", () => {
+test("the row the scope names rides in whole, read by its own tool: a call, a person, a thread; a lead, a search or a run has no read by its id yet, and a page needs no read", () => {
   const X = "77777777-7777-4777-8777-777777777777";
   assert.deepEqual(scopedRead({ kind: "call", id: X, label: "this call" }), {
     name: "calls",
@@ -4379,6 +4469,44 @@ test("the row the scope names rides in whole, read by its own tool: a call, a pe
   for (const kind of ["lead", "search", "run", "page"])
     assert.equal(scopedRead({ kind, id: X, label: kind }), null, kind);
   assert.equal(scopedRead(null), null);
+});
+
+test("a run the person is looking at is the Broadcasts row the page drew: the answer cites it as a broadcast, opened at its run; run is no citation's kind", async () => {
+  const RUN = "abababab-0000-4000-8000-0000000000c1";
+  const built = builtWith([{ kind: "broadcast", id: RUN, route: `broadcasts/run:${RUN}`, label: "Monday offer" }]);
+  const s = scripted([
+    ROUND([
+      answer("Monday offer went to 40 people; 3 replied.", {
+        show: {
+          items: [
+            {
+              title: "Monday offer",
+              meta: "",
+              line: "",
+              source: { kind: "broadcast", id: RUN, label: "Monday offer" },
+            },
+          ],
+        },
+        do: { open: { source: { kind: "run", id: RUN, label: "Monday offer" }, label: "", now: false }, next: [] },
+      }),
+    ]),
+  ]);
+  const scope = { kind: "run", id: RUN, label: "Monday offer" };
+  assert.equal(scopedRead(scope), null, "no tool reads a run by its id yet");
+  const r = await runAskTurn(
+    turn(ctxFor(), {
+      surface: "campaigns",
+      scope,
+      context: { ...PAGE, surface: "campaigns", route: `broadcasts/run:${RUN}`, view: "broadcasts" },
+    }).input,
+    ports(s.round, { context: async () => built }),
+  );
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.deepEqual(
+    r.answer.show.items.map((i) => [i.source.kind, i.source.id, i.source.to]),
+    [["broadcast", RUN, `broadcasts/run:${RUN}`]],
+  );
+  assert.equal(r.answer.do.open, null, "a run is written as a broadcast, never as a run");
 });
 
 /* ------------------------------------------------ the turn reads the page (the Phase 2 plan, PR 2.4) */
@@ -4586,6 +4714,38 @@ test("the three retries run in their order, each once: the page's data, then the
     "each said once, in that order",
   );
   assert.deepEqual([r.shape.context_dropped, r.shape.format], [true, false]);
+});
+
+test("thirteen names move five spans of the request (PR 4.2): the format's kind enum, its source's words and its items' words, the rules' items list and their source rule", async () => {
+  const s = scripted([ROUND([answer("Fine.")])]);
+  await runAskTurn(turn(ctxFor(), { role: "owner" }).input, ports(s.round));
+  const req = s.requests[0];
+  const { show, do: act } = req.output_config.format.schema.properties;
+  const sources = [
+    show.properties.figures.items.properties.source,
+    show.properties.items.items.properties.source,
+    show.properties.breakdown.properties.source,
+    act.properties.open.properties.source,
+  ];
+  for (const source of sources) {
+    assert.deepEqual(source.properties.kind.enum, [...ASK_CITATION_KINDS, "none"], "a page, twelve rows, and none");
+    assert.ok(source.description.includes("(a page's id is its route; a run is kind broadcast)"), source.description);
+  }
+  const every = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+  assert.equal(ASK_ROW_WORDS, every, "the rows an answer's items may name, said once");
+  assert.ok(
+    show.properties.items.description.startsWith(`The rows the answer names (${every}), at most 5;`),
+    show.properties.items.description,
+  );
+  const rules = req.system[0].text;
+  assert.ok(rules.includes(`items for the rows it names (${every})`), "the rules' items list says the same words");
+  assert.ok(
+    rules.includes(
+      "A row the Broadcasts page calls a run is kind broadcast; a list is kind list, with the audience_id campaigns gave it.",
+    ),
+    "the source rule says how the two rows whose word differs are cited",
+  );
+  assert.ok(!rules.includes("items for the rows it names (people, threads, calls),"), "the three-kind list is gone");
 });
 
 test("a rule that described one tool is that tool's description now, and out of the rules block (PR 3.3, D9); a rule about answering in general stays", async () => {

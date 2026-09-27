@@ -9,7 +9,9 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { leadQuestionRoute, leadsRoute } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
+import { PLAN } from "../_lead-fixtures.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -321,6 +323,57 @@ test("Today: the queue's rows the page drew, each as the queue says it (who, the
   assert.ok(!lines.some((l) => l.includes(CB)), "and no log line does");
 });
 
+test("Today: a search waiting for the owner's answer is a row a citation names, opened where every search opens; its line keeps the queue's button, the question", async () => {
+  const S1 = "34343434-3434-4343-8343-343434343435";
+  const waiting = {
+    id: S1,
+    tenant_id: A,
+    name: "Trainers in Austin",
+    asked: "trainers",
+    via: "people",
+    plan: PLAN,
+    removed_at: null,
+    created_at: "2026-09-12T09:00:00Z",
+    round_id: "56565656-5656-4565-8565-565656565656",
+    seq: 1,
+    purpose: "probe",
+    state: "waiting_on_owner",
+    ending: null,
+    question: { sentence: "Leave out the chains?", criterionKey: "chains", dropTerm: null, asked_at: iso(NOW - HOUR) },
+    answered: null,
+    target: 20,
+    plan_version: 1,
+    qualified: 12,
+    review: 0,
+    excluded: 13,
+    counted: 12,
+    judge_tokens: 900,
+    ending_pending: null,
+    waiting_since: iso(NOW - HOUR),
+    ended_at: null,
+    emails_checked: 0,
+    with_phone: 0,
+    undo_op_id: null,
+    undo_version: null,
+  };
+  const b = await buildContext(
+    rcIn(ctxFor(tables({ lead_searches_view: [waiting] }))),
+    page("today", [{ kind: "search", id: S1 }]),
+  );
+  assert.deepEqual(
+    b.blocks.map((x) => x.source),
+    ["page://today", `search://${S1}`],
+  );
+  assert.ok(textOf(b.blocks[1]).endsWith(`route: ${leadQuestionRoute(S1)}`), textOf(b.blocks[1]));
+  assert.deepEqual(b.refs.at(-1), {
+    kind: "search",
+    id: S1,
+    route: leadsRoute({ searchId: S1 }),
+    label: b.blocks[1].title,
+  });
+  assert.equal(b.refs.at(-1).route, `clients/leads:s-${S1}`, "the searches reader's route: one route per kind of row");
+});
+
 test("the Inbox: the threads in the bucket the page drew, each in inbox.list's words, and every bucket counted as inbox.list counts it; Conversations: its threads and calls; Live: its calls -- another workspace's rows absent from each", async () => {
   const inbox = await buildContext(
     rcIn(ctxFor()),
@@ -545,7 +598,7 @@ test("the Calendar: the people its board names in the span the page drew, each w
   }
 });
 
-test("Leads: the leads the page drew, each as its row says it and opened where the page opens it, the rail's counts and the searches waiting for an answer; a lead the Leads read did not return is absent, and a lead is never a citation's row", async () => {
+test("Leads: the leads the page drew, each as its row says it and opened where the page opens it, the rail's counts and the searches waiting for an answer; a lead the Leads read did not return is absent, and each lead is a row a citation names", async () => {
   const LEAD = "12121212-1212-4121-8121-121212121212";
   const SEARCH = "34343434-3434-4343-8343-343434343434";
   const pageRow = (lead_id, business_name) => ({
@@ -626,15 +679,23 @@ test("Leads: the leads the page drew, each as its row says it and opened where t
   assert.ok(textOf(b.blocks[1]).endsWith(`route: clients/leads:l-ready:p-${LEAD}`), textOf(b.blocks[1]));
   assert.match(textOf(b.blocks[0]), /^Leads, ready: 1 leads on screen · all: 3 · ready: 2 · nurture: 1/);
   assert.deepEqual(
-    b.refs.map((r) => r.kind),
-    ["page"],
-    "a lead rides as data and is cited by its page (Phase 4 makes it a row)",
+    b.refs,
+    [
+      { kind: "page", id: "clients/leads", route: "clients/leads", label: "Leads" },
+      {
+        kind: "lead",
+        id: LEAD,
+        route: `clients/leads:l-ready:p-${LEAD}`,
+        label: "Travis Heights Coaching",
+      },
+    ],
+    "a lead is a row a citation names, as the Leads read gave it: its peek, on the view it was read on",
   );
 });
 
 /* ------------------------------------------------------------------ the rest */
 
-test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by its tab, each in its page's words and none a citation's row; Reports, Settings, Start and any other page are their aggregate alone", async () => {
+test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by its tab, each in its page's words and each a row a citation names, a run as a broadcast; Reports, Settings, Start and any other page are their aggregate alone", async () => {
   const PB1 = "77777777-7777-4777-8777-7777777777a1";
   const BC1 = "77777777-7777-4777-8777-7777777777b1";
   const T1 = "77777777-7777-4777-8777-7777777777c1";
@@ -744,11 +805,15 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
     ],
   );
   assert.equal(textOf(msgs.blocks[1]), "Win-back offer · MARKETING · approved · en_US · route: messages");
-  for (const b of [pb, bc, msgs])
-    assert.deepEqual(
-      b.refs.map((r) => r.kind),
-      ["page"],
-    );
+  // Each row as its page's reader gave it; a Broadcasts row, which the page calls a run, is cited as a broadcast.
+  assert.deepEqual(
+    [pb, bc, msgs].map((b) => b.refs.slice(1)),
+    [
+      [{ kind: "playbook", id: PB1, route: `outbound/${PB1}`, label: "Win-back" }],
+      [{ kind: "broadcast", id: BC1, route: `broadcasts/run:${BC1}`, label: "September offer" }],
+      [{ kind: "template", id: T1, route: "messages", label: "Win-back offer" }],
+    ],
+  );
 
   const s = await buildContext(
     rcIn(ctxFor(tables({ tenant_channels: [{ tenant_id: A, kind: "whatsapp", status: "active" }] }))),

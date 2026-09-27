@@ -197,9 +197,9 @@ export interface AskThreadVM {
 }
 
 /**
- * The kinds a scope may have: the five a citation may name, and the rows a page opens that no citation names until
- * Phase 4 -- a lead or a search on Leads, a broadcast's run. A scope is what the person was looking at, a fact about
- * the turn; a citation is a claim about a row read, and its kinds build the answer's grammar (ask-answer.ts).
+ * The kinds a scope may have: a page and the rows a page opens, each a kind a citation names (citations.ts) but the
+ * run, a Broadcasts row, which its address spells so and a citation names a broadcast. A scope is what the person was
+ * looking at, a fact about the turn; a citation is a claim about a row read, and builds the answer's grammar.
  */
 export const ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"] as const;
 export type AskScopeKind = (typeof ASK_SCOPE_KINDS)[number];

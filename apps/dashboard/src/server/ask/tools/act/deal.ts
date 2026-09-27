@@ -20,7 +20,7 @@ import {
   whyNotALink,
   type DealStage,
 } from "@chanlytics/contracts";
-import { UUID, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import { UUID, defineAct, noteRow, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
 async function proposeDeal(
   t: ToolContext,
@@ -110,7 +110,7 @@ async function proposeDeal(
   }
   // On a move the row's own service is said, never the input's: the door never changes a row's service.
   const service = sameRow ? sameRow.service : (named ?? current?.service ?? null);
-  t.read.person.add(id);
+  noteRow(t, "person", id, who, `clients/${id}`);
   const words = DEAL_STAGE_WORDS[stage as DealStage];
   // A proposal's value is said as a client's is (0008), and the card says where the link lives and why they passed.
   const money = amount !== null ? amountWords(amount, per) : null;

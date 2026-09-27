@@ -192,7 +192,7 @@ test("a view of the Leads scope is a route Ask can cite and the page can read ba
   assert.match(
     route.slice("clients/".length),
     /^[A-Za-z0-9:_-]+$/,
-    "the citation grammar Ask grounds pages with (ask.ts PAGE_PREFIX)",
+    "the route grammar Ask grounds citations with (ask/citations.ts PAGE_PREFIX): with a search's id it names that row",
   );
   assert.deepEqual(parseLeadsRoute(route), {
     searchId: "5e000000-0000-4000-8000-000000000001",

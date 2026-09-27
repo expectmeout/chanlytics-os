@@ -270,6 +270,17 @@ test("R20: a scheduled run with held opens to them; each door presses its decisi
     all(held[0], (n) => /^ro-door-/.test(n.props?.["data-testid"] || "")).map((n) => n.props["data-testid"]),
     contracts.holdDoors("unbacked_fact").map((d) => `ro-door-${d}`),
   );
+  // One group per row: in the sheet's narrow layout a row's grid has one door cell, and doors laid in it one by one
+  // stacked on each other, so a press on Include landed on Skip (seen in the real app, 27 Sep 2026).
+  for (const row of held) {
+    const groups = all(row, (n) => /\bbc-person-doors\b/.test(n.props?.className || ""));
+    assert.equal(groups.length, 1, "a held row's doors are one group");
+    assert.equal(
+      all(groups[0], (n) => /^ro-door-/.test(n.props?.["data-testid"] || "")).length,
+      all(row, (n) => /^ro-door-/.test(n.props?.["data-testid"] || "")).length,
+      "every door is in it",
+    );
+  }
   const reads = w.reads;
   press(byTestId(held[0], "ro-door-include"));
   await settle();
