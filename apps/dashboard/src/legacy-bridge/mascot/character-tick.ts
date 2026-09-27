@@ -140,14 +140,16 @@ function fuse(st: Core, dt: number): void {
 // colour: its step, and whether it is at work. Addressed, it lights at once; done, it keeps its colour through
 // its bow and cools slowly, down the stack
 function shade(st: Core, dt: number): void {
-  st.lit = ease(st.lit, st.litTarget, dt, st.litTarget > st.lit ? 0.12 : 0.4);
+  // the light comes and goes quickly: coloured within 0.3 s, and grey about 0.4 s after it ends (it lingered 1.65 s,
+  // which read as performed; Ruben, 26 Sep)
+  st.lit = ease(st.lit, st.litTarget, dt, st.litTarget > st.lit ? 0.12 : 0.08);
   const liveNow = st.state === "idle" ? st.lit : 1;
   const warming = liveNow > st.prevLive;
   for (const b of st.bodies) {
     const k = clamp(b.step, 0, 2);
     const hold = warming ? k * 0.05 : 0.5 + k * 0.09;
     const target = st.clock - st.stateAt >= hold ? liveNow : st.prevLive;
-    b.live = ease(b.live, target, dt, target > b.live ? 0.08 : 0.45);
+    b.live = ease(b.live, target, dt, target > b.live ? 0.08 : st.glowOut ? 0.12 : 0.45);
     b.shade = ease(b.shade, k, dt, 0.16);
   }
 }

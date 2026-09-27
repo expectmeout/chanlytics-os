@@ -19,6 +19,8 @@ import {
   withCarrierConsent,
   smsKeywordConsent,
   mergeConsent,
+  smsRefusalOf,
+  SMS_OPTED_OUT_CODE,
   SMS_FOOTER,
   SMS_MAX_CHARS,
   SMS_HELD_REASON,
@@ -259,8 +261,17 @@ test("Twilio's calls, pinned: the Messaging Service, the sender pool, the messag
   const calls = [];
   const http = async (acct, method, url, form) => {
     calls.push({ acct: acct.sid, method, url, form });
+    // Twilio's error body, as it answers a text to a number that replied STOP to it (verified 2026-09-26).
     if (url.endsWith("/Messages.json") && form.To === "+10000000000")
-      return { status: 400, body: { code: 21610, message: "opted out" } };
+      return {
+        status: 400,
+        body: {
+          code: 21610,
+          message: "Attempt to send to unsubscribed recipient",
+          more_info: "https://www.twilio.com/docs/errors/21610",
+          status: 400,
+        },
+      };
     return {
       status: 201,
       body: { sid: url.includes("/Services/") ? "PH1" : url.includes("/Services") ? "MG1" : "SM1" },
@@ -307,12 +318,16 @@ test("Twilio's calls, pinned: the Messaging Service, the sender pool, the messag
     url: "https://api.twilio.com/2010-04-01/Accounts/ACsub/Messages.json",
     form: { MessagingServiceSid: "MG1", To: "+16465550123", Body: "hi" },
   });
-  assert.deepEqual(await p.sendSms(acct, { serviceSid: "MG1", to: "+10000000000", body: "hi" }), {
-    ok: false,
-    sid: null,
-    status: 400,
-    code: 21610,
-  });
+  const no = await p.sendSms(acct, { serviceSid: "MG1", to: "+10000000000", body: "hi" });
+  assert.deepEqual(no, { ok: false, sid: null, status: 400, code: 21610 });
+  // The carrier's verdict on the way OUT, as carrierConsent is its verdict on the way in: 21610 is the person's
+  // own no, said by the carrier, and the door treats it as one. Every other code is a failure of ours.
+  assert.equal(SMS_OPTED_OUT_CODE, 21610);
+  assert.equal(smsRefusalOf(no), "opted_out", "the person opted out at the carrier");
+  assert.equal(smsRefusalOf({ ok: false, code: 30034 }), null, "an unregistered line is ours to fix");
+  assert.equal(smsRefusalOf({ ok: false, code: null }), null);
+  assert.equal(smsRefusalOf({ ok: true, code: null }), null);
+  assert.equal(smsRefusalOf({ ok: false }), null, "a wire that carries no code says nothing about the person");
   assert.equal(twilioUrls.messages("AC1"), "https://api.twilio.com/2010-04-01/Accounts/AC1/Messages.json");
 });
 

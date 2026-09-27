@@ -61,6 +61,8 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setPg, pg } = await import(at("apps/edge/lib/pg.ts"));
 const { setInboundPorts } = await import(at("apps/edge/lib/whatsapp/ports.ts"));
 const { IngestFailed } = await import(at("apps/edge/lib/whatsapp/persist.ts"));
+const { smsSenderFor } = await import(at("apps/edge/lib/sms/sms.ts"));
+const { deliver } = await import(at("packages/core/dist/index.js"));
 const hook = await import(at("apps/edge/api/inbound-sms.ts"));
 
 /* -------------------------------------------------------------- the wire */
@@ -72,19 +74,29 @@ const RESEND = "https://api.resend.com/";
  * Every request that leaves this process, captured for the whole file rather
  * than per case: an approved line's text is answered on Twilio, and a case that
  * forgot to listen must not reach a real provider. Twilio's message API
- * answers as it answers a message it accepted; anything else (Resend) as a
- * delivered mail.
+ * answers as it answers a message it accepted -- or, for a number a case has
+ * put on `optedOutAtCarrier`, as it refuses a text to somebody who replied
+ * STOP to the number (21610, its error body as documented); anything else
+ * (Resend) as a delivered mail.
  */
 const requests = [];
+const optedOutAtCarrier = new Set();
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (url, init) => {
   const u = String(url);
   requests.push({ url: u, init });
   const json = (status, body) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-  return u.startsWith(TWILIO)
-    ? json(201, { sid: `SM${String(requests.length).padStart(32, "0")}`, status: "accepted" })
-    : json(200, {});
+  if (!u.startsWith(TWILIO)) return json(200, {});
+  const to = u.endsWith("/Messages.json") ? new URLSearchParams(init?.body ?? "").get("To") : null;
+  return to && optedOutAtCarrier.has(to)
+    ? json(400, {
+        code: 21610,
+        message: "Attempt to send to unsubscribed recipient",
+        more_info: "https://www.twilio.com/docs/errors/21610",
+        status: 400,
+      })
+    : json(201, { sid: `SM${String(requests.length).padStart(32, "0")}`, status: "accepted" });
 };
 after(() => {
   globalThis.fetch = realFetch;
@@ -653,6 +665,74 @@ test("a text on an approved line is answered on that line: the subaccount's own 
     );
     assert.equal(log.said("sms_inbound")[0].held, false);
     assert.deepEqual(w.left().mail, [], "nobody is paged for a text that was answered");
+  });
+});
+
+test("Twilio's 21610 on a text we send is the person's STOP: the line's sender says so, the door records it and refuses, nobody is paged, and Twilio is not asked about that person again", async () => {
+  // The carrier's no on the way out, through the real sender the door makes
+  // from the line and the vault, and the real send door over a database in
+  // memory: the person replied STOP to the number before we heard (the STOP
+  // went to the carrier, or came before the line's webhook pointed here).
+  // Until now this was a failed send like any other -- said as a failure,
+  // the owner told a delivery failed, nothing recorded -- and the next text to
+  // that person did it all again.
+  const w = world();
+  const from = w.customer();
+  optedOutAtCarrier.add(from);
+  const k = { id: `k-${w.i}`, tenant_id: w.T, consent: "opted_in", dnc: false, marketing_consent: "unknown" };
+  // The thread's person IS the contacts row (one object): what the door writes is what its next read sees.
+  const conv = { id: `conv-${w.i}`, tenant_id: w.T, contact_id: k.id, paused_until: null, contacts: k };
+  Object.assign(w.tables, { contacts: [k], conversations: [{ ...conv, tenants: { status: "active" } }], events: [] });
+  const db = w.open();
+  const sender = smsSenderFor(w.line, { sid: w.SUB, token: w.TOKEN });
+  const ports = { db, wire: { sms: (to, body) => sender.send(to, body.body) } };
+  const send = (body) =>
+    deliver(ports, {
+      tenantId: w.T,
+      conversationId: conv.id,
+      contactId: k.id,
+      to: from,
+      channel: "sms",
+      sender: "ai",
+      purpose: "conversational",
+      proactive: false,
+      body,
+    });
+  await listening(async (log) => {
+    assert.deepEqual(await send("We open at 9."), { outcome: "refused", reason: "opted_out", messageId: null });
+    assert.deepEqual(
+      w.left().texts.map((t) => [t.url, t.form.To]),
+      [[`${TWILIO}/Accounts/${w.SUB}/Messages.json`, from]],
+      "asked once, on the line's own account",
+    );
+    assert.deepEqual(
+      [k.consent, k.dnc, k.consent_source],
+      ["opted_out", true, "carrier"],
+      "recorded as ingest_inbound records a STOP it heard, with the carrier as the source",
+    );
+    assert.deepEqual(
+      w.tables.events.map((e) => [e.kind, e.subject_id, e.data]),
+      [
+        [
+          "contact.consent_changed",
+          k.id,
+          { consent: "opted_out", previous: "opted_in", source: "carrier", channel: "sms" },
+        ],
+      ],
+      "one ledger row",
+    );
+    assert.deepEqual(
+      log.said("sms_send_refused").map((l) => [l.stream, l.tenant_id, l.line_id, l.to_tail, l.code]),
+      [["log", w.T, w.line.id, from.slice(-4), 21610]],
+      "said as the person's refusal, with tails",
+    );
+    assert.deepEqual(log.said("sms_send_failed"), [], "never as a failure of ours");
+    assert.deepEqual(w.left().mail, [], "nobody is paged");
+
+    // The next text to that person, whoever writes it: refused before Twilio is asked.
+    assert.deepEqual(await send("Still there?"), { outcome: "refused", reason: "opted_out", messageId: null });
+    assert.equal(w.left().texts.length, 1, "Twilio is not asked again about a person who opted out");
+    assert.equal(w.tables.events.length, 1, "and the ledger keeps its one row");
   });
 });
 

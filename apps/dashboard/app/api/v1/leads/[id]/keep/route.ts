@@ -12,7 +12,7 @@ const Body = z.object({ search_id: z.string().uuid() });
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lead_member",
   input: Body,
   handle: async ({ ctx, input }) => {

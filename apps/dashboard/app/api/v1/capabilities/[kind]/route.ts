@@ -28,7 +28,7 @@ function kindOf(raw: unknown): CapabilityKind {
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   input: Body,
   handle: async ({ ctx, member, input }) => {
@@ -70,7 +70,7 @@ export const POST = write({
 /** DELETE /api/v1/capabilities/:kind — the owner switches it off again. The row stays; the history does. */
 export const DELETE = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   handle: async ({ ctx, member }) => {
     const kind = kindOf(ctx.params.kind);

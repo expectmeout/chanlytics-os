@@ -1,116 +1,23 @@
 import { read, write, workspace } from "@/server/route";
-import type { RouteContext } from "@/server/with-route";
 import {
   AppError,
   parseTenantConfig,
-  parseTenantConfigResult,
   TenantConfigWriteSchema,
   resolveFacts,
-  factConflicts,
-  knownForwarding,
   samePhone,
   whyNotAHandoff,
-  type KnownFacts,
 } from "@chanlytics/contracts";
 import { getTenantConfig, putTenantConfig } from "@chanlytics/db";
 import type { Json } from "@chanlytics/db";
-import { promptPreview } from "@/server/receptionist/prompt-preview";
-import { linesFor } from "@/server/connections/lines";
 import { SETTINGS_REFUSED, recordSettingsChanged } from "@/server/workspace/settings-write";
-
-function maskFeedUrl(u: string): string {
-  return u.length <= 30 ? "…" : `${u.slice(0, 24)}…${u.slice(-6)}`;
-}
+import { load, readerContext } from "@/server/readers";
+import { knownFacts, settings } from "@/server/readers/settings";
 
 /** GET /api/v1/settings — the tenant's config, with the version the client
- *  must echo back on write. Members read; RLS scopes. */
-/**
- * What the platform knows about this workspace, independent of what was typed.
- *
- * Resolved HERE rather than on the client: the server can read the channel rows
- * and the Google listing under RLS in one round trip, while the browser only
- * ever had a listing DTO with no address on it. One place that knows, so there
- * is one answer — which is the whole point of facts.ts.
- */
-async function knownFacts(ctx: RouteContext, tenantId: string): Promise<KnownFacts> {
-  const [ws, ch, gl, lines] = await Promise.all([
-    ctx.supabase.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
-    ctx.supabase.from("tenant_channels").select("kind, number_e164, status").eq("tenant_id", tenantId),
-    ctx.supabase.from("google_listings").select("name, address").eq("tenant_id", tenantId).maybeSingle(),
-    // The number the business keeps and forwards: the same rows, read the same way, as Setup's line rows. A failed
-    // read is no forwarding, on purpose: the settings read and a save still go through, and a transfer number is
-    // then judged against the line alone, as it was before forwarding was known.
-    linesFor(ctx.supabase, tenantId).catch(() => []),
-  ]);
-  // None of these is worth failing the settings read for. A workspace whose
-  // channels could not be listed sees its typed values unresolved, which is
-  // exactly where it was before any of this existed.
-  return {
-    workspace: ws.error ? null : ws.data,
-    channels: ch.error ? [] : (ch.data ?? []),
-    listing: gl.error ? null : gl.data,
-    forwarding: knownForwarding(lines),
-  };
-}
-
+ *  must echo back on write. Members read; RLS scopes. The body is its reader's (readers/settings.ts). */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => {
-    const row = await getTenantConfig(ctx.supabase, member.tenantId);
-    if (!row) throw new AppError("not_found", "Workspace has no configuration row.", 404);
-    // A config the parser refuses is a different fact from "nothing configured".
-    // Collapsing both to {} showed a broken workspace the "no receptionist yet"
-    // invitation — and the form behind it would have saved over the broken row,
-    // deleting whatever it still held. The edge already tells the two apart
-    // (tenant-runtime's configBroken); this is the same answer for the pane.
-    const parsed = parseTenantConfigResult(row.config);
-    if (parsed.ok) {
-      // The calendar feed address grants read access to the owner's calendar;
-      // only an owner sees it whole. Anyone else learns that one is set.
-      const cfg = parsed.config;
-      const visible =
-        member.role === "owner" || !cfg.calendar
-          ? cfg
-          : { ...cfg, calendar: { ical_url: maskFeedUrl(cfg.calendar.ical_url) } };
-      const known = await knownFacts(ctx, member.tenantId);
-      const facts = resolveFacts(cfg.brain ?? null, known);
-      // What the receptionist is told, composed here with the inputs the browser
-      // cannot see (the Autonomy rows, these facts, the closures, the calendar's
-      // openings), so the pane's card is the prompt and not a rendering of it.
-      // The feed address is read here and stays here.
-      const prompt = await promptPreview(
-        ctx,
-        member.tenantId,
-        { brain: cfg.brain ?? null, calendarUrl: cfg.calendar?.ical_url ?? null },
-        known,
-      );
-      return {
-        config: visible,
-        version: row.version,
-        role: member.role,
-        configBroken: false as const,
-        // What each fact resolves to and where it came from, plus anything that
-        // disagrees. The pane shows a source beside every value instead of a
-        // column of identical-looking text boxes, and a serious disagreement --
-        // a published number that is not the line being answered -- is said out
-        // loud rather than sitting in a document nobody compares.
-        facts,
-        conflicts: factConflicts(facts),
-        prompt,
-        // Who last changed it and when (00085): the Business card says so.
-        updatedBy: row.updated_by ?? null,
-        updatedAt: row.updated_at ?? null,
-      };
-    }
-    // `as const` on both: the two answers are told apart by this one flag, and the client narrows on it.
-    return {
-      config: null,
-      version: row.version,
-      role: member.role,
-      configBroken: true as const,
-      issues: parsed.issues,
-    };
-  },
+  handle: async ({ ctx, member }) => (await load(readerContext(ctx, member), settings, undefined)).data,
 });
 
 /**
@@ -124,7 +31,7 @@ export const GET = read({
  */
 export const PUT = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => null)) as { config?: unknown; version?: number } | null;

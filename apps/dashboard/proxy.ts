@@ -61,11 +61,15 @@ const PUBLIC_PATHS = new Set([
  *           takes input: its only write is a person's own "stop", under a key
  *           only we hold, and a GET changes nothing (src/server/public/unsubscribe.ts).
  *
+ *   /p/     a partner's link (decision 0012). It leaves one cookie naming the
+ *           partner's code and goes on to sign-up; it reads nothing and writes
+ *           nothing else (app/p/[code]/route.ts).
+ *
  * Adding one here is adding a page anybody on the internet may read. Each was
  * built for exactly that; nothing else goes on this list without the same
  * argument.
  */
-const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/"];
+const PUBLIC_PREFIXES = ["/yes/", "/b/", "/.well-known/", "/u/", "/p/"];
 
 /**
  * An auth redirect must never be stored. These responses depend entirely on a
@@ -168,12 +172,16 @@ export async function proxy(request: NextRequest) {
   // nothing in review would have flagged it. Adding a public route is now a
   // deliberate edit to this list, which the auth tests assert against.
   const isPublic = PUBLIC_PATHS.has(path) || PUBLIC_PREFIXES.some((p) => path.startsWith(p));
+  // A /api/v1 request that carries a bearer token (decision 0011: the phone app's native screens) has no cookie for
+  // this gate to read; the route's own wrapper verifies the token, and auth-gate.test.mjs holds every /api/v1 route
+  // to that wrapper. Only there, only with the header: a page request never passes on a header.
+  const bearer = path.startsWith("/api/v1/") && /^Bearer\s+\S+/i.test(request.headers.get("authorization") ?? "");
 
   // "We could not ask" is not "you are not signed in". withRoute answers 503
   // for a retryable auth failure so the client keeps its session — but this
   // gate ran first and answered 401, so that branch was unreachable in the
   // exact outage it was written for.
-  if (!user && !isPublic && isRetryableAuthError(authErr)) {
+  if (!user && !isPublic && !bearer && isRetryableAuthError(authErr)) {
     if (path.startsWith("/api/")) {
       return NextResponse.json(
         { ok: false, error: { code: "upstream_auth", message: "Could not verify your session just now — try again." } },
@@ -188,7 +196,7 @@ export async function proxy(request: NextRequest) {
     );
   }
 
-  if (!user && !isPublic) {
+  if (!user && !isPublic && !bearer) {
     // API callers get a machine-readable 401 — redirecting a fetch() to the
     // login HTML makes every client parse failure look like a data bug.
     if (path.startsWith("/api/")) {

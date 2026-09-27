@@ -1,7 +1,7 @@
 {
   "apps/dashboard/app/api/v1/ask/route.ts::handle#1": {
-    "lines": 224,
-    "branches": 48,
+    "lines": 247,
+    "branches": 54,
     "depth": 3
   },
   "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::handle#1": {
@@ -193,6 +193,16 @@
     "lines": 181,
     "branches": 19,
     "depth": 2
+  },
+  "apps/dashboard/src/legacy-bridge/app-bridge.ts::installAppBridge#1": {
+    "lines": 94,
+    "branches": 27,
+    "depth": 6
+  },
+  "apps/dashboard/src/legacy-bridge/app-bridge.ts::receive#1": {
+    "lines": 36,
+    "branches": 15,
+    "depth": 6
   },
   "apps/dashboard/src/legacy-bridge/ask/commit.ts::commitProposal#1": {
     "lines": 211,
@@ -500,8 +510,8 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/calendar.jsx::CalendarReal#1": {
-    "lines": 342,
-    "branches": 139,
+    "lines": 354,
+    "branches": 152,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/calendar.jsx::CrAgenda#1": {
@@ -585,7 +595,7 @@
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/first-run.jsx::FirstRun#1": {
-    "lines": 300,
+    "lines": 301,
     "branches": 137,
     "depth": 4
   },
@@ -609,14 +619,14 @@
     "branches": 46,
     "depth": 3
   },
-  "apps/dashboard/src/legacy/pages/inbox-list.jsx::(callback)#20": {
+  "apps/dashboard/src/legacy/pages/inbox-list.jsx::(callback)#23": {
     "lines": 110,
     "branches": 48,
     "depth": 4
   },
   "apps/dashboard/src/legacy/pages/inbox-list.jsx::InboxList#1": {
-    "lines": 396,
-    "branches": 155,
+    "lines": 409,
+    "branches": 161,
     "depth": 4
   },
   "apps/dashboard/src/legacy/pages/inbox-rail.jsx::InboxAgentRail#1": {
@@ -692,6 +702,11 @@
   "apps/dashboard/src/legacy/pages/leads-finder.jsx::ldStripOf#1": {
     "lines": 75,
     "branches": 43,
+    "depth": 3
+  },
+  "apps/dashboard/src/legacy/pages/leads-finder.jsx::leadAnswerPlan#1": {
+    "lines": 54,
+    "branches": 31,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/leads-peek.jsx::LeadPeekInfo#1": {
@@ -790,8 +805,8 @@
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/pipeline-scope.jsx::PipelineScope#1": {
-    "lines": 456,
-    "branches": 161,
+    "lines": 463,
+    "branches": 165,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/platform.jsx::PanePlatform#1": {
@@ -840,13 +855,13 @@
     "depth": 5
   },
   "apps/dashboard/src/legacy/pages/settings.jsx::SettingsPage#1": {
-    "lines": 106,
-    "branches": 39,
+    "lines": 107,
+    "branches": 41,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/settings.jsx::TeamSection#1": {
     "lines": 289,
-    "branches": 86,
+    "branches": 87,
     "depth": 4
   },
   "apps/dashboard/src/legacy/pages/setup.jsx::ForwardingCard#1": {
@@ -885,34 +900,29 @@
     "depth": 2
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 510,
-    "branches": 92,
+    "lines": 560,
+    "branches": 121,
     "depth": 6
-  },
-  "apps/dashboard/src/server/ask/proposals.ts::proposeBroadcast#1": {
-    "lines": 96,
-    "branches": 34,
-    "depth": 3
-  },
-  "apps/dashboard/src/server/ask/proposals.ts::proposeDeal#1": {
-    "lines": 102,
-    "branches": 75,
-    "depth": 4
-  },
-  "apps/dashboard/src/server/ask/proposals.ts::proposePlaybook#1": {
-    "lines": 171,
-    "branches": 47,
-    "depth": 4
-  },
-  "apps/dashboard/src/server/ask/snapshot.ts::buildSnapshot#1": {
-    "lines": 187,
-    "branches": 42,
-    "depth": 3
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {
     "lines": 67,
     "branches": 37,
     "depth": 2
+  },
+  "apps/dashboard/src/server/ask/tools/act/broadcast.ts::proposeBroadcast#1": {
+    "lines": 114,
+    "branches": 35,
+    "depth": 3
+  },
+  "apps/dashboard/src/server/ask/tools/act/deal.ts::proposeDeal#1": {
+    "lines": 117,
+    "branches": 75,
+    "depth": 4
+  },
+  "apps/dashboard/src/server/ask/tools/act/playbook.ts::proposePlaybook#1": {
+    "lines": 185,
+    "branches": 48,
+    "depth": 4
   },
   "apps/dashboard/src/server/campaigns/playbooks.ts::triggerPools#1": {
     "lines": 155,
@@ -930,13 +940,18 @@
     "depth": 1
   },
   "apps/edge/api/admin/eval.ts::POST#1": {
-    "lines": 98,
+    "lines": 100,
     "branches": 37,
     "depth": 3
   },
+  "apps/edge/api/admin/reach-out-preview.ts::POST#1": {
+    "lines": 58,
+    "branches": 33,
+    "depth": 2
+  },
   "apps/edge/api/admin/sending-domains.ts::POST#1": {
-    "lines": 80,
-    "branches": 32,
+    "lines": 84,
+    "branches": 33,
     "depth": 2
   },
   "apps/edge/api/admin/steer.ts::POST#1": {
@@ -975,7 +990,7 @@
     "depth": 3
   },
   "apps/edge/api/diag.ts::GET#1": {
-    "lines": 232,
+    "lines": 234,
     "branches": 47,
     "depth": 5
   },
@@ -985,8 +1000,8 @@
     "depth": 4
   },
   "apps/edge/api/stripe-webhook.ts::POST#1": {
-    "lines": 145,
-    "branches": 45,
+    "lines": 241,
+    "branches": 70,
     "depth": 3
   },
   "apps/edge/api/whatsapp.ts::POST#1": {
@@ -1019,9 +1034,14 @@
     "branches": 30,
     "depth": 2
   },
+  "apps/edge/lib/reach-out/check.ts::checkSends#1": {
+    "lines": 185,
+    "branches": 40,
+    "depth": 3
+  },
   "apps/edge/lib/reach-out/clock.ts::reachOutClock#1": {
-    "lines": 147,
-    "branches": 51,
+    "lines": 152,
+    "branches": 54,
     "depth": 8
   },
   "apps/edge/lib/reach-out/replan.ts::replanSends#1": {
@@ -1030,18 +1050,18 @@
     "depth": 5
   },
   "apps/edge/lib/reach-out/run-context.ts::reachOutRunContext#1": {
-    "lines": 142,
+    "lines": 151,
     "branches": 33,
     "depth": 2
   },
   "apps/edge/lib/reach-out/sender.ts::claimAndWrite#1": {
-    "lines": 127,
-    "branches": 32,
+    "lines": 128,
+    "branches": 33,
     "depth": 3
   },
   "apps/edge/lib/reach-out/sender.ts::writeOne#1": {
-    "lines": 163,
-    "branches": 39,
+    "lines": 176,
+    "branches": 46,
     "depth": 3
   },
   "apps/edge/lib/receptionist/unfinished.ts::sweepUnfinished#1": {
@@ -1062,6 +1082,16 @@
   "apps/edge/lib/whatsapp/waba-events.ts::describeWabaChange#1": {
     "lines": 115,
     "branches": 35,
+    "depth": 3
+  },
+  "apps/mobile/src/shell/Surface.tsx::Surface#1": {
+    "lines": 159,
+    "branches": 42,
+    "depth": 2
+  },
+  "apps/mobile/src/shell/Today.tsx::Today#1": {
+    "lines": 173,
+    "branches": 34,
     "depth": 3
   },
   "packages/channels/src/a2p-saga.ts::runA2PSaga#1": {
@@ -1095,8 +1125,8 @@
     "depth": 7
   },
   "packages/contracts/src/ask/ask.ts::buildAskSuggestions#1": {
-    "lines": 84,
-    "branches": 51,
+    "lines": 85,
+    "branches": 52,
     "depth": 3
   },
   "packages/contracts/src/broadcasts/run-report.ts::(callback)#15": {
@@ -1173,6 +1203,11 @@
     "lines": 146,
     "branches": 55,
     "depth": 5
+  },
+  "packages/contracts/src/mobile/app-bridge.ts::parsePageMessage#1": {
+    "lines": 42,
+    "branches": 36,
+    "depth": 2
   },
   "packages/contracts/src/people/list-rules.ts::listFactWords#1": {
     "lines": 60,
@@ -1294,14 +1329,14 @@
     "branches": 49,
     "depth": 3
   },
-  "packages/core/src/conversations/reply.ts::replyToConversation#1": {
-    "lines": 183,
-    "branches": 34,
+  "packages/core/src/conversations/reply.ts::queueReply#1": {
+    "lines": 152,
+    "branches": 24,
     "depth": 2
   },
   "packages/core/src/deliver.ts::deliver#1": {
-    "lines": 148,
-    "branches": 43,
+    "lines": 178,
+    "branches": 47,
     "depth": 3
   },
   "packages/core/src/inbound/answer.ts::answerInbound#1": {

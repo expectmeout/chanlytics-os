@@ -884,7 +884,10 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   ]) {
     const src = readCode(`apps/dashboard/app/api/v1/lines/${file}/route.ts`);
     // buy declares its policy on the export (route()); search and retry still perform it by hand.
-    assert.ok(src.includes('requireRole(member, "owner")') || src.includes('role: "owner",'), `${file}: owners only`);
+    assert.ok(
+      src.includes('requireRole(member, "partner")') || src.includes('role: "partner",'),
+      `${file}: owners and the partner only`,
+    );
     assert.ok(
       src.includes(`takeRate(ctx.userId, "${bucket}")`) || src.includes(`rate: "${bucket}",`),
       `${file}: ${bucket}`,
@@ -1004,10 +1007,10 @@ test("wiring: manifest, bridge, routes, rate bucket, event kind, migration", () 
   ])
     assert.ok(get.includes(pin), pin);
   assert.ok(
-    readCode("apps/dashboard/app/api/v1/setup/route.ts").includes(
-      'setupDtoFor(ctx.supabase, member.tenantId, { kind: "member" })',
+    readCode("apps/dashboard/src/server/readers/connections.ts").includes(
+      'setupDtoFor(rc.ctx.supabase, rc.tenantId, { kind: "member" }, rc.now)',
     ),
-    "and the route is its first caller",
+    "and the route is its first caller, through its reader",
   );
   const post = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
   for (const pin of [

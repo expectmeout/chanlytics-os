@@ -159,3 +159,4 @@ export {
 } from "./audience-pool";
 export type { PoolCalendar, PoolOptions } from "./audience-pool";
 export { erasedPhoneHash, erasedEmailHash, leadSuppressionHash } from "./erasure";
+export { CARRIER_CONSENT_SOURCE } from "./person-consent";

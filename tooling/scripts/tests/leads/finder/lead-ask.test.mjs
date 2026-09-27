@@ -22,8 +22,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { newToolContext, runTool } = await import(at("apps/dashboard/src/server/ask/tools.ts"));
-const { buildProposal } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
+const { newToolContext, runTool, buildProposal } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
@@ -210,6 +209,10 @@ test("propose_lead_search makes a plan card for an owner; the model's plan is co
   );
   assert.equal(out.proposal.payload.plan.version, 1);
   assert.match(JSON.parse(out.result).note, /Nothing has happened yet/);
+  assert.ok(
+    !t.ctx.supabase.seen.some((q) => ["insert", "update", "upsert", "delete"].includes(q.op)),
+    "a proposal reads; it never writes",
+  );
   // The plan is the schema's own, not the model's words passed through.
   assert.equal(out.proposal.summary, planSentence(out.proposal.payload.plan));
   assert.equal(out.proposal.payload.plan.card, "local_businesses");
@@ -353,6 +356,8 @@ test("list_lead_searches says what was asked, in the owner's words, and how each
   assert.equal(s.searches[0].question, null);
   assert.equal(s.searches[1].question, null);
   assert.equal(s.searches[2].question, "Most of the first 25 are chain gyms. Include them?");
+  // Beside them, the rail's six counts as the Leads page shows them (ledger #12): the door's own answer.
+  assert.deepEqual(s.counts, DOORS.lead_list_counts());
   assert.match(s.note, /propose_lead_search with amends set to its id/);
   assert.match(s.note, /Yes, keep going or Stop here on Leads/);
 });

@@ -1093,3 +1093,38 @@ test("the records draw as a table a registrar can take: each name and value copi
   assert.equal(byTestId(tree, "domain-copy-value-send-MX").props["aria-label"], "Copy the Return path value");
   assert.ok(byTestId(tree, "domain-found-resend._domainkey-TXT"), "a record the provider reads says so");
 });
+
+test("a person deletes their own account from Settings, in two steps, and the door's refusal is said where it happened (App Store 5.1.1(v), 00190)", async () => {
+  asRole("owner");
+  await import("../../../../apps/dashboard/src/legacy/components/record-fold.jsx");
+  await import("../../../../apps/dashboard/src/legacy/components/record-row.jsx");
+  await import("../../../../apps/dashboard/src/legacy/pages/settings.jsx");
+  const Profile = (props) => globalThis.window.PaneProfile(props);
+  const calls = [];
+  globalThis.window.__me = {
+    setName: async () => ({ ok: true, name: "", message: "" }),
+    deleteAccount: async () => {
+      calls.push("delete");
+      return {
+        ok: false,
+        message: "You are the only owner of a workspace with other members. Make someone else an owner first.",
+      };
+    },
+  };
+  try {
+    let tree = render(Profile, { flash() {} });
+    assert.ok(byTestId(tree, "set-profile-delete"), "the row is there for everyone");
+    assert.equal(byTestId(tree, "set-profile-delete-confirm"), null, "and asks first");
+    press(byTestId(tree, "set-profile-delete"));
+    tree = settle(Profile, { flash() {} });
+    assert.ok(byTestId(tree, "set-profile-delete-confirm"), "armed: the sentence and the one button");
+    assert.ok(textOf(tree).includes("keeps its records for the business"), "what stays is said before the button");
+    press(byTestId(tree, "set-profile-delete-go"));
+    await flush();
+    tree = settle(Profile, { flash() {} });
+    assert.deepEqual(calls, ["delete"]);
+    assert.ok(textOf(tree).includes("Make someone else an owner first"), "the door's refusal, where it happened");
+  } finally {
+    delete globalThis.window.__me;
+  }
+});

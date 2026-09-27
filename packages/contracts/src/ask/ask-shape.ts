@@ -22,9 +22,21 @@ export interface AskTurnShape {
   since_last_ms: number | null;
   /** From the palette opening to the question being sent, as the tab measured it. */
   opened_ms: number | null;
-  /** The snapshot and the prefetch, before the first round. */
-  snapshot_ms: number;
-  prefetched: string[];
+  /**
+   * The page's context as the turn read it (the Phase 2 plan, PR 2.4): the rows its blocks carried, after the server
+   * read every id again and the caps (null when the tab sent none, or the build failed); every block's characters;
+   * whether the warm's build was kept on this instance (hit), built now (miss), failed, or no context came (none); and
+   * how long the page, the shape, the cross-page reads and the scope's row took, together, before the first round.
+   * A page whose read failed is said as failed, whatever the cache did with it.
+   */
+  context_rows: number | null;
+  context_chars: number | null;
+  warm: "hit" | "miss" | "failed" | "none";
+  context_ms: number;
+  /** The API refused the request that carried the data blocks, and it was asked again without them (D14). */
+  context_dropped: boolean;
+  /** The reads the question named of another page, made before the first round (cross-page.ts). */
+  cross_page: string[];
   rounds: number;
   /** Each round's time from its request to its last event. */
   rounds_ms: number[];

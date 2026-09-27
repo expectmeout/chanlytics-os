@@ -213,6 +213,8 @@ export interface Core {
   // lit at rest (glow): the colour the tiles hold while idle, eased
   lit: number;
   litTarget: number;
+  // the glow going out at rest: the tiles cool as quickly as it came, not with an answer's slow cooling
+  glowOut: boolean;
   moves: Move[];
   events: CharacterEvent[];
   bodies: Body[];
@@ -312,6 +314,7 @@ export function createCore(options: CharacterOptions): Core {
     liquid: 0,
     lit: 0,
     litTarget: 0,
+    glowOut: false,
     moves: [],
     events: [],
     bodies: [0, 1, 2].map((i) => tileAt(i, entering)),

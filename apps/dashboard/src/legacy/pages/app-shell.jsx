@@ -402,6 +402,15 @@ const useShellKeys = ({ setAskOpen, sidebar, onSidebar }) => {
 
 /** Mobile drawer flows: Escape closes, body scroll locks while open, and a resize past the breakpoint clears the drawer state. */
 const useNavDrawer = (navOpen, setNavOpen) => {
+  // Inside the native shell (legacy-bridge/app-bridge.ts): the More tab asks for the drawer, a re-tap for the top.
+  useShellEffect(() => {
+    const onMenu = () => setNavOpen(true);
+    const onTop = () => { const el = document.querySelector(".main-scroll"); if (el) el.scrollTo({ top: 0, behavior: "smooth" }); };
+    window.addEventListener("shell:menu", onMenu);
+    window.addEventListener("shell:top", onTop);
+    return () => { window.removeEventListener("shell:menu", onMenu); window.removeEventListener("shell:top", onTop); };
+    // setNavOpen is the shell's own useState setter, handed in: stable, as it was when this effect sat in ChanlyticsApp.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useShellEffect(() => {
     if (!navOpen) return;
     const onKey = (e) => { if (e.key === "Escape") setNavOpen(false); };

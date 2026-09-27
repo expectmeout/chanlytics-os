@@ -13,6 +13,8 @@ import type { SchemaSet } from "../shared/schema-sets";
 import { z } from "zod";
 import type { AskAnswer } from "./ask-answer";
 import { dayPlusInZone } from "../calendar/availability";
+import { parseLeadsRoute } from "../leads/lead-plan";
+import { parsePipelineRoute } from "../deals/pipeline";
 
 /* ------------------------------------------------------------------ limits */
 
@@ -32,8 +34,9 @@ export const ASK_TURN_BUDGET_MS = 45_000;
 export const ASK_MAX_TOKENS = 2000;
 /**
  * Ask's own daily token budget per workspace, apart from the receptionist's.
- * Counted on uncached input plus output. With the day's snapshot riding into
- * every round, a turn costs two to eight thousand such tokens; a busy owner
+ * Counted on uncached input plus output. With the page's context riding into
+ * every round behind its own cache breakpoint (a cache read is not counted),
+ * a turn costs two to eight thousand such tokens; a busy owner
  * asking sixty questions stays well under this, and an eval run of the whole
  * case set fits several times over. The first cap (400k) was spent by a day
  * of eval runs and refused the palette until the window rolled.
@@ -297,7 +300,7 @@ export interface AskMessageVM {
   /** The tools this turn ran, in order. */
   tools: string[];
   latencyMs: number | null;
-  /** Model rounds the turn took; one means the snapshot was enough. */
+  /** Model rounds the turn took; one means the page's context was enough. */
   rounds?: number | null;
   /** Set on a turn that could not be answered; the text says why. */
   failed: boolean;
@@ -312,24 +315,53 @@ export interface AskThreadVM {
   scope: AskScope | null;
 }
 
+/**
+ * The kinds a scope may have: the five a citation may name, and the rows a page opens that no citation names until
+ * Phase 4 -- a lead or a search on Leads, a broadcast's run. A scope is what the person was looking at, a fact about
+ * the turn; a citation is a claim about a row read, and its kinds build the answer's grammar (ask-answer.ts).
+ */
+export const ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"] as const;
+export type AskScopeKind = (typeof ASK_SCOPE_KINDS)[number];
+
 /** What the person was looking at when they asked. Carried into the turn as a fact. */
 export interface AskScope {
-  kind: "thread" | "conversation" | "call" | "person" | "page";
+  kind: AskScopeKind;
   id: string;
   label: string;
 }
 
-/** The scope a route implies, when it names a row. */
+const UUID = /^[0-9a-f-]{36}$/;
+
+/**
+ * The scope a route implies, when it names a row: every address a page opens a row at. Conversations writes
+ * `<tab>:<id>` as a row opens (pages/conversations.jsx cvRoute), Live `live/<callId>`, a run `broadcasts/run:<id>`;
+ * the Leads and Pipeline peeks are read by their own pages' parsers (lead-plan.ts, pipeline.ts), never a second one.
+ */
 export function scopeFromRoute(page: string, param: string | null | undefined, label?: string | null): AskScope | null {
   if (!param) return null;
   if (page === "inbox" && param.startsWith("th-"))
     return { kind: "thread", id: param.slice(3), label: label || "this thread" };
-  if (page === "conversations" && param.startsWith("cv-"))
-    return { kind: "call", id: param.slice(3), label: label || "this call" };
-  if (page === "conversations" && /^[0-9a-f-]{36}$/.test(param))
-    return { kind: "conversation", id: param, label: label || "this conversation" };
-  if (page === "clients" && /^[0-9a-f-]{36}$/.test(param))
-    return { kind: "person", id: param, label: label || "this person" };
+  if (page === "conversations") {
+    // A row on its tab, or a row alone (on All): the row is after the tab's colon.
+    const row = param.includes(":") ? param.slice(param.indexOf(":") + 1) : param;
+    if (row.startsWith("cv-")) return { kind: "call", id: row.slice(3), label: label || "this call" };
+    if (UUID.test(row)) return { kind: "conversation", id: row, label: label || "this conversation" };
+    return null;
+  }
+  if (page === "live" && UUID.test(param)) return { kind: "call", id: param, label: label || "this call" };
+  if (page === "broadcasts" && param.startsWith("run:") && UUID.test(param.slice(4)))
+    return { kind: "run", id: param.slice(4), label: label || "this run" };
+  if (page === "clients") {
+    const leads = parseLeadsRoute(`clients/${param}`);
+    if (leads) {
+      if (leads.peek) return { kind: "lead", id: leads.peek, label: label || "this lead" };
+      if (leads.searchId) return { kind: "search", id: leads.searchId, label: label || "this search" };
+      return null;
+    }
+    const pipeline = parsePipelineRoute(`clients/${param}`);
+    if (pipeline) return pipeline.peek ? { kind: "person", id: pipeline.peek, label: label || "this person" } : null;
+    if (UUID.test(param)) return { kind: "person", id: param, label: label || "this person" };
+  }
   return null;
 }
 
@@ -440,7 +472,11 @@ export function askJump(query: string, index: JumpEntry[], limit = 6): JumpEntry
 
 /* ------------------------------------------------------------ suggestions */
 
-/** The pages Ask knows it is on. The route accepts exactly these; the prompt names them. */
+/**
+ * The pages Ask knows it is on. The route accepts exactly these; the prompt names them. Thirteen (the Phase 2 plan,
+ * D1): the Pipeline, the Calendar, the campaign pages (Playbooks, Broadcasts, Messages) and Start are pages of their
+ * own, no longer People's or "other".
+ */
 export const ASK_SURFACES = [
   "today",
   "inbox",
@@ -450,11 +486,23 @@ export const ASK_SURFACES = [
   "live",
   "reports",
   "settings",
+  "pipeline",
+  "calendar",
+  "campaigns",
+  "start",
   "other",
 ] as const;
 export type AskSurface = (typeof ASK_SURFACES)[number];
-/** The kinds a scope may have: the same five a citation may name. */
-export const ASK_SCOPE_KINDS = ASK_CITATION_KINDS;
+/**
+ * The surfaces that have no chips of their own yet, and whose they are offered (the Phase 2 plan, PR 2.1): the
+ * Pipeline People's, as it was when it went by People's name; the rest other's.
+ */
+const CHIPS_OF: Partial<Record<AskSurface, AskSurface>> = {
+  pipeline: "people",
+  calendar: "other",
+  campaigns: "other",
+  start: "other",
+};
 
 export interface AskSuggestion {
   /** The words sent, or placed in the input when `compose` is set. */
@@ -573,6 +621,8 @@ function clipWords(s: string, cap: number): string {
 
 export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   const t = T[input.language === "es" ? "es" : "en"];
+  // A page with no chips of its own yet is offered those it was offered before it had a name.
+  const at: AskSurface = CHIPS_OF[input.surface] ?? input.surface;
   const out: AskSuggestion[] = [];
   const add = (q: string, kind: AskSuggestion["kind"], icon: string, fast = false, label?: string) => {
     if (!out.some((s) => s.q === q)) out.push({ q, kind, icon, fast, ...(label ? { label } : {}) });
@@ -598,7 +648,7 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   if (input.liveNow > 0) add(t.live, "ask", "phone");
   if (input.missedToday > 0) add(t.calls, "ask", "phone", true);
   if (input.hasCalendar) add(input.surface === "today" ? t.openTomorrow : t.openSat, "ask", "calendar", true);
-  switch (input.surface) {
+  switch (at) {
     case "today":
       add(t.brief, "ask", "sparkle");
       add(t.who, "ask", "users");
@@ -628,8 +678,7 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
       break;
   }
   // Deals are a thing here (0004): who has a proposal out, where people are looked at.
-  if (input.dealsOn && (input.surface === "people" || input.surface === "other"))
-    add(t.proposals, "ask", "trending-up");
+  if (input.dealsOn && (at === "people" || at === "other")) add(t.proposals, "ask", "trending-up");
   if (input.needsYou === 0) add(t.needs, "ask", "inbox", true);
   add(t.week, "ask", "trending-up");
   add(t.rules, "ask", "shield");
@@ -651,8 +700,8 @@ export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   if (input.surface === "settings") act(t.actHours, t.actHoursQ, "clock", true);
   if (input.surface === "settings") act(t.actInvite, t.actInviteQ, "users", true);
   if (input.surface === "inbox" || input.heldDrafts > 0) act(t.actHold, t.actHoldQ, "shield");
-  if (input.surface === "people" || input.surface === "other") act(t.actOffer, t.actOfferQ, "wave", true);
-  if (input.surface === "people" || input.surface === "other") act(t.actPlaybook, t.actPlaybookQ, "bolt");
+  if (at === "people" || at === "other") act(t.actOffer, t.actOfferQ, "wave", true);
+  if (at === "people" || at === "other") act(t.actPlaybook, t.actPlaybookQ, "bolt");
   return [...asks, ...acts.slice(0, 4)];
 }
 

@@ -17,7 +17,7 @@ import { fakeDb } from "../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { buildProposal } = await import(
-  pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/proposals.ts")).href
+  pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/tools/index.ts")).href
 );
 
 const NOW = new Date("2026-09-10T15:00:00Z");
@@ -77,7 +77,8 @@ const inbound = (channel, h) => ({
   channel,
   channel_ts: hoursAgo(h),
 });
-const DRAFT = { conversation_id: CONV, text: "See you Tuesday at 3." };
+// The voice is required by the tool's schema (PR 3.1, D2); the builder no longer defaults it.
+const DRAFT = { conversation_id: CONV, text: "See you Tuesday at 3.", voice: "you" };
 
 test("the assistant's reply card shows the window the reply route will enforce", async () => {
   // Rosa last wrote by text, three days after an old WhatsApp. The route will

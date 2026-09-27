@@ -92,7 +92,7 @@ test("the cache hit ratio: cache reads over everything the model was fed; nothin
 });
 
 const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
-const { buildProposal } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
+const { buildProposal } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
 
 const NONE = { kind: "none", id: "", label: "" };
@@ -161,7 +161,7 @@ const turnInput = (over = {}) => ({
 /** The ports with the model scripted and every read answered at once, so no fixture is needed. */
 const portsOf = (round) => ({
   round,
-  snapshot: async () => "The day: nothing yet.",
+  shape: async () => "The workspace: Harbor",
   tool: async () => ({ result: JSON.stringify({ threads: [] }), isError: false }),
   propose: buildProposal,
 });
@@ -218,8 +218,8 @@ test("the loop fills the shape: a read then an answer is two rounds with their t
   );
   assert.ok(typeof sh.first_say_ms === "number" && sh.first_say_ms >= 0, "the Say streamed in round two");
   assert.ok(sh.final_ms >= sh.first_say_ms);
-  assert.equal(sh.snapshot_ms >= 0, true);
-  assert.deepEqual(sh.prefetched, []);
+  assert.equal(sh.context_ms >= 0, true);
+  assert.deepEqual([sh.cross_page, sh.warm, sh.context_rows, sh.context_chars], [[], "none", null, null]);
   assert.equal(typeof sh.model, "string");
   assert.equal(sh.effort, "low");
   assert.equal(lines.length, 1, "logged once");
@@ -243,7 +243,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const { setAskPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const askRoute = await import(at("apps/dashboard/app/api/v1/ask/route.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { runTool } = await import(at("apps/dashboard/src/server/ask/tools.ts"));
+const { runTool } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 beforeEach(() => setRateStore(memoryStore()));
 // The workspace's facts are kept across turns in the module: each test starts with none kept.
 beforeEach(() => readerCache.clear());
@@ -279,7 +279,7 @@ test("the route: the shape is stored on the turn's row with the palette's opened
       onText(written);
       return ROUND([text(written)], { stopReason: "end_turn" });
     },
-    snapshot: async () => "",
+    shape: async () => "",
   });
   try {
     const first = await askRoute.POST.run(
@@ -330,7 +330,7 @@ test("since_last_ms is nothing on a thread longer than the read: the read keeps 
       onText(written);
       return ROUND([text(written)], { stopReason: "end_turn" });
     },
-    snapshot: async () => "",
+    shape: async () => "",
   });
   const LONG = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
   const SHORT = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
@@ -417,12 +417,12 @@ test("one turn reads the workspace's facts once, on one clock: the route's own r
       if (rounds === 1)
         return ROUND([
           { type: "tool_use", id: "t-get_settings", name: "get_settings", text: "", json: "{}" },
-          { type: "tool_use", id: "t-list_calls", name: "list_calls", text: "", json: "{}" },
+          { type: "tool_use", id: "t-list_calls", name: "list_calls", text: "", json: '{"filter":"recent"}' },
         ]);
       onText(written);
       return ROUND([text(written)], { stopReason: "end_turn" });
     },
-    snapshot: async () => "",
+    shape: async () => "",
     tool: async (tc, run) => {
       clocks.push(tc.now === tc.rc.now);
       return runTool(tc, run);
@@ -433,7 +433,11 @@ test("one turn reads the workspace's facts once, on one clock: the route's own r
     const res = await askRoute.POST.run(post({ text: "what are our hours?", surface: "settings" }), ctx);
     await res.text();
     const selects = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
-    assert.deepEqual([selects("tenant_channels"), selects("calls")], [1, 1], "both tools ran and read their own rows");
+    assert.deepEqual(
+      [selects("tenant_channels"), selects("calls")],
+      [1, 2],
+      "both tools ran and read their own rows: get_settings the channels as their page reads them (readers/channels.ts), the last inbound call beside the rows, and list_calls the hundred newest",
+    );
     assert.equal(
       selects("tenants"),
       2,
@@ -443,6 +447,81 @@ test("one turn reads the workspace's facts once, on one clock: the route's own r
     assert.equal(selects("policies"), 1, "the policies once");
     assert.deepEqual(clocks, [true, true], "one clock per turn: each tool's now is its readers' now");
   } finally {
+    setAskPorts(null);
+  }
+});
+
+test("the route takes the page's context: the turn reads it as data before the question (the Phase 2 plan, PR 2.4), a row another workspace holds is absent, and the shape says what rode in; one the schema refuses is no context, said once in the log, never a refused question; a context fills a surface the palette did not name", async () => {
+  const written = answerJson("Nobody has booked this week yet.");
+  const requests = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      requests.push(call.request);
+      onText(written);
+      return ROUND([text(written)], { stopReason: "end_turn" });
+    },
+    shape: async () => "",
+  });
+  const T1 = "11111111-1111-4111-8111-111111111111";
+  const T2 = "22222222-2222-4222-8222-222222222222";
+  const context = {
+    v: 1,
+    surface: "inbox",
+    route: `inbox/th-${T1}`,
+    view: "needs",
+    focus: null,
+    rows: [
+      { kind: "thread", id: T1 },
+      { kind: "thread", id: T2 },
+    ],
+    askedAt: 1_758_880_000_000,
+  };
+  const refused = [];
+  const was = console.error;
+  console.error = (event, json) => {
+    if (event === "ask_context_refused") refused.push(JSON.parse(json));
+  };
+  try {
+    const tables = routeTables();
+    const ask = async (body) => (await askRoute.POST.run(post(body), ctxFor(tables))).text();
+    await ask({ text: "Who is waiting?", surface: "inbox" });
+    await ask({ text: "Who is waiting?", surface: "inbox", context });
+    const [plain, carried] = tables.ask_messages.filter((m) => m.role === "assistant").map((m) => m.content.shape);
+    assert.deepEqual([plain.context_rows, plain.warm], [null, "none"], "no context sent: nothing, never zero");
+    // The two threads are no thread of this workspace's Inbox: the server read them again and found none, so the page
+    // rides in as its figures alone.
+    assert.deepEqual([carried.context_rows, carried.warm], [0, "miss"]);
+    const data = (r) => r.messages.at(-1).content.filter((c) => c.type === "search_result");
+    assert.deepEqual(data(requests[0]), [], "no page, no data");
+    assert.deepEqual(
+      data(requests[1]).map((b) => [b.source, !!b.cache_control]),
+      [["page://inbox", true]],
+      "the page's figures, the context's breakpoint on its last block",
+    );
+    assert.ok(!JSON.stringify(requests[1]).includes(T2), "a row another workspace holds is named nowhere");
+    const system = (r) => JSON.stringify(r.system);
+    assert.equal(system(requests[1]), system(requests[0]), "system is the same bytes on any page");
+
+    // A row carrying a fact the tab says about it: the schema refuses the whole context, and the question is answered.
+    const bad = { ...context, rows: [{ kind: "thread", id: T1, preview: "hi" }] };
+    await ask({ text: "Who is waiting?", surface: "inbox", context: bad });
+    const answered = tables.ask_messages.filter((m) => m.role === "assistant");
+    assert.equal(answered.length, 3, "answered");
+    assert.equal(answered[2].content.shape.context_rows, null);
+    assert.deepEqual(data(requests[2]), [], "a refused context rides in not at all");
+    assert.equal(refused.length, 1, "said once");
+    assert.equal(refused[0].tenant, A);
+    assert.equal(refused[0].path, "rows.0");
+
+    // No surface named: the context's fills it.
+    await ask({
+      text: "Who is waiting?",
+      context: { ...context, surface: "pipeline", route: "clients/pipeline", rows: [] },
+    });
+    const last = tables.ask_messages.filter((m) => m.role === "assistant").at(-1).content.shape;
+    assert.equal(last.surface, "pipeline");
+  } finally {
+    console.error = was;
     setAskPorts(null);
   }
 });

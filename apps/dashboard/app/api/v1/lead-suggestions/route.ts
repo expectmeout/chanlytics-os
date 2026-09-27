@@ -21,7 +21,7 @@ export const GET = read({
  */
 export const PUT = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lead_suggest",
   input: BusinessLineSchema,
   handle: ({ ctx, member, input }) => setBusinessLine(ctx, member.tenantId, input.business_line),

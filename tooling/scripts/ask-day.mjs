@@ -98,6 +98,13 @@ function summarise(group) {
     turns: group.length,
     failed: group.filter((t) => t.failed).length,
     one_round: group.length ? group.filter((t) => t.shape.rounds === 1).length / group.length : null,
+    // A second round read what the first did not have: the share the context's breakpoint pays for itself above (D10).
+    two_plus: group.length ? group.filter((t) => t.shape.rounds >= 2).length / group.length : null,
+    // Of the turns that carried a page, how many found the warm's build kept (D7): the warm and the question met.
+    warm_hit: (() => {
+      const carried = sh.filter((s) => s.warm === "hit" || s.warm === "miss");
+      return carried.length ? carried.filter((s) => s.warm === "hit").length / carried.length : null;
+    })(),
     follow_up: group.length ? sh.filter((s) => s.follow_up).length / group.length : null,
     first_say: spread(sh.map((s) => s.first_say_ms)),
     first_text: spread(sh.map((s) => s.first_text_ms)),
@@ -119,7 +126,7 @@ const line = (name, s, dollars) =>
   `${(s.one_round === null ? "—" : pct(s.one_round)).padStart(5)} ${(s.follow_up === null ? "—" : pct(s.follow_up)).padStart(5)} ` +
   `${ms(s.first_say.median).padStart(9)} ${ms(s.first_say.p90).padStart(9)} ${ms(s.first_text.median).padStart(9)} ` +
   `${ms(s.final.median).padStart(9)} ${ms(s.final.p90).padStart(9)} ${(s.cache_hit.median === null ? "—" : pct(s.cache_hit.median)).padStart(6)} ` +
-  `${String(s.cap_hits).padStart(4)} ${ms(s.opened.median).padStart(9)} ${(dollars === undefined ? "" : dollars === null ? "unpriced" : `$${dollars.toFixed(3)}`).padStart(9)}`;
+  `${String(s.cap_hits).padStart(4)} ${ms(s.opened.median).padStart(9)} ${(s.two_plus === null ? "—" : pct(s.two_plus)).padStart(5)} ${(s.warm_hit === null ? "—" : pct(s.warm_hit)).padStart(5)} ${(dollars === undefined ? "" : dollars === null ? "unpriced" : `$${dollars.toFixed(3)}`).padStart(9)}`;
 
 console.log(
   `Ask, the last ${HOURS} h${TENANT ? ` in ${TENANT}` : ""}: ${turns.length} turns with a shape, ${all.length - turns.length} without a shape, ${usage.length} usage rows\n`,
@@ -127,7 +134,7 @@ console.log(
 console.log(
   `${"model · surface".padEnd(34)} ${"turns".padStart(5)} ${"fail".padStart(4)} ${"1-rd".padStart(5)} ${"f-up".padStart(5)} ` +
     `${"say med".padStart(9)} ${"say p90".padStart(9)} ${"text med".padStart(9)} ${"final med".padStart(9)} ${"final p90".padStart(9)} ` +
-    `${"cache".padStart(6)} ${"caps".padStart(4)} ${"open med".padStart(9)} ${"$/turn".padStart(9)}`,
+    `${"cache".padStart(6)} ${"caps".padStart(4)} ${"open med".padStart(9)} ${"2+rd".padStart(5)} ${"warm".padStart(5)} ${"$/turn".padStart(9)}`,
 );
 for (const [model, group] of Object.entries(byModel)) {
   const c = cost[model];

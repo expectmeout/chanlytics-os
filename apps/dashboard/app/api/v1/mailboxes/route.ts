@@ -21,7 +21,7 @@ const Body = z
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   input: Body,
   handle: async ({ ctx, member, input }) => ({

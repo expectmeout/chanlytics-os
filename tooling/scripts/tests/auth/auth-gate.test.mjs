@@ -110,7 +110,7 @@ test("one address: the deploy alias redirects, and a preview never does", () => 
   );
 });
 
-test("four public PREFIXES, and only a workspace's own pages and the unsubscribe link live under them", () => {
+test("five public PREFIXES, and only a workspace's own pages, the unsubscribe link and a partner's link live under them", () => {
   const block = /PUBLIC_PREFIXES\s*=\s*\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PREFIXES must be a literal array so this test can read it");
   const prefixes = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]);
@@ -137,7 +137,12 @@ test("four public PREFIXES, and only a workspace's own pages and the unsubscribe
   // authority, sealed under a key only we hold, so nothing is asked of the
   // database for a link we did not make; and a GET changes nothing, because
   // link scanners open every URL in an email (unsubscribe-door.test.mjs).
-  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/", "/u/"]);
+  //
+  // `/p/` joined with partners (decision 0012): a partner's link, which the
+  // reader opens before they have an account. It reads nothing and writes one
+  // cookie naming a code; who is credited is decided later, by create_workspace,
+  // so the link is not a door that can be probed (partner.test.mjs).
+  assert.deepEqual(prefixes, ["/yes/", "/b/", "/.well-known/", "/u/", "/p/"]);
   assert.match(middleware, /PUBLIC_PREFIXES\.some\(\(p\) => path\.startsWith\(p\)\)/);
   //
   // `/yes/<slug>/form` joined the opt-in page when a yes to offers had to be
@@ -275,6 +280,19 @@ test("the session is VERIFIED, never read from the cookie", () => {
     assert.ok(!/getSession\(/.test(src), `${name} must not use getSession()`);
     assert.match(src, /getClaims\(/, `${name} must verify with getClaims()`);
   }
+});
+
+test("the proxy passes a bearer request to the route wrapper only under /api/v1 and only with the header", () => {
+  // Decision 0011: a native screen's call carries the session's access token as a bearer and no cookie. The proxy
+  // reads the cookie only, so it lets such a request through to withRoute, which verifies the token. The bypass
+  // must name the API prefix and the header's scheme, and nothing else may widen it.
+  assert.match(
+    middleware,
+    /path\.startsWith\("\/api\/v1\/"\)\s*&&\s*\/\^Bearer\\s\+\\S\+\/i\.test\(request\.headers\.get\("authorization"\)/,
+    "the bypass is the /api/v1/ prefix AND a Bearer authorization header",
+  );
+  assert.match(withRoute, /verifyBearer\(bearer\)/, "and the wrapper verifies the bearer itself");
+  assert.match(withRoute, /!bearer && req\.method !== "GET"/, "the same-origin rule stays the cookie's");
 });
 
 /* ---------------------------------------------------------------------- 2 -- */

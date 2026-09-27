@@ -11,6 +11,7 @@ export * from "./email";
 export * from "./google";
 export * from "./leads";
 export * from "./lines";
+export * from "./mobile";
 export * from "./notes";
 export * from "./people";
 export * from "./playbooks";

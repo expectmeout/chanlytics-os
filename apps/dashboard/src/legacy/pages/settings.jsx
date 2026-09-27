@@ -15,6 +15,7 @@ const { useState: useSetState, useEffect: useSetEffect } = React;
 const ST_PERMS = window.ROLE_PERMS || {
   owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true,  settings: true,  export: true },
   operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false, settings: false, export: false },
+  partner:  { approve: true,  autonomy: true,  disconnect: true,  billing: false, team: false, settings: true,  export: false },
   viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false },
 };
 // A person's own hue, from the address they are known by: the same two letters
@@ -23,6 +24,7 @@ const stHue = (seed) => { const s = String(seed || ""); let h = 0; for (let i = 
 const ST_ROLE_META = {
   owner:    { label: "Owner",    can: "Everything — billing, team, and disconnecting channels" },
   operator: { label: "Operator", can: "Approves decisions and tunes autonomy — not billing or team" },
+  partner:  { label: "Partner",  can: "Sets up and runs the receptionist for you — not billing or team" },
   viewer:   { label: "Viewer",   can: "Sees everything, changes nothing — approvals are read-only" },
 };
 
@@ -91,6 +93,8 @@ window.INT_STORE = window.INT_STORE || {
  */
 const SET_TABS = [
   { id: "profile",       label: "Profile",       icon: "user",     group: "You" },
+  // A partner's account and link (0012): the offer for everyone else. On the account, like Profile.
+  { id: "partner",       label: "Partner",       icon: "users",    group: "You" },
   { id: "workspace",     label: "Business",      icon: "home",     group: "Workspace" },
   { id: "team",          label: "Team",          icon: "users",    group: "Workspace" },
   { id: "autonomy",      label: "Autonomy",      icon: "shield",   group: "Workspace" },
@@ -487,7 +491,50 @@ const PaneProfile = ({ flash }) => {
         value={<button type="button" className="bt-link" onClick={signOut} data-testid="set-profile-signout">Sign out everywhere</button>}
         hint="Ends your session on every device, this one included."
       />
+      <DeleteAccountRow flash={flash} />
     </section>
+  );
+};
+
+// Delete your own account (00190; App Store 5.1.1(v)): two steps on the row itself, the sentence saying what goes and
+// what stays, then the one button; the door's refusal (the only owner of a workspace with other members) said where
+// it happened. Drawn on the web and in the app alike: a rule that only the app needs is still the account's.
+const DeleteAccountRow = ({ flash }) => {
+  const [armed, setArmed] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [refused, setRefused] = React.useState("");
+  const go = async () => {
+    if (window.__DEMO_MODE || !window.__me || !window.__me.deleteAccount) { flash({ msg: <>Nothing to delete in the demo.</> }); return; }
+    setBusy(true);
+    const r = await window.__me.deleteAccount();
+    setBusy(false);
+    if (!r.ok) setRefused(r.message || "Your account could not be deleted.");
+  };
+  return (
+    <window.RecordRow
+      id="profile-delete"
+      label="Delete account"
+      value={
+        armed ? (
+          <span className="set-delete-confirm" data-testid="set-profile-delete-confirm">
+            <button type="button" className="bt-link bt-danger" onClick={go} disabled={busy} data-testid="set-profile-delete-go">
+              {busy ? "Deleting…" : "Yes, delete my account"}
+            </button>
+            {" · "}
+            <button type="button" className="bt-link" onClick={() => setArmed(false)} disabled={busy}>Keep it</button>
+          </span>
+        ) : (
+          <button type="button" className="bt-link" onClick={() => setArmed(true)} data-testid="set-profile-delete">Delete my account…</button>
+        )
+      }
+      hint={
+        refused
+          ? refused
+          : armed
+            ? "Removes you from every workspace and deletes your sign-in. A workspace you alone were in keeps its records for the business."
+            : "Yours to do here, any time. A workspace with other members needs another owner first."
+      }
+    />
   );
 };
 
@@ -771,7 +818,7 @@ const TeamSection = ({ flash }) => {
       })}
 
       <div className="set-roles-legend">
-        {["owner", "operator", "viewer"].map(r => (
+        {["owner", "operator", ...(team.some((m) => m.role === "partner") ? ["partner"] : []), "viewer"].map(r => (
           <div key={r} className="set-role-def">
             <RolePill role={r} />
             <span className="set-role-can">{ST_ROLE_META[r].can}</span>
@@ -1839,6 +1886,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
           />
         )}
         {active.id === "profile" && <PaneProfile flash={flash} />}
+        {active.id === "partner" && window.PanePartner && <window.PanePartner flash={flash} />}
         {active.id === "team" && <TeamSection flash={flash} />}
         {active.id === "workspace" && <PaneWorkspace flash={flash} />}
         {active.id === "autonomy" && (window.__POLICIES === undefined ? <PaneAutonomy flash={flash} /> : <PaneAutonomyReal flash={flash} />)}
@@ -1862,6 +1910,7 @@ window.SET_TAB = SET_TAB; // the shell's crumb, and so the tab's name, names the
 window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-scope port fix)
 window.WorkspaceData = WorkspaceData; // rendered on its own by exports.test (the door the privacy page promises)
 window.TeamSection = TeamSection; // rendered on its own by confirm.test (the remove that used to fire from a menu item)
+window.PaneProfile = PaneProfile; // rendered on its own by settings-doors.test (the account's own deletion, 00190)
 
 // The booking rules a save does not render are kept rather than rebuilt away -- the form started them from {} and
 // deleted the slot length on every Save (S2). That rule is the Business page's now, and it is not a helper at all:

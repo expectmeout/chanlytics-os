@@ -6,10 +6,12 @@
  *   0. an email this send already wrote (a tick that died after writing it) is adopted, whatever has changed since:
  *      it may be in somebody's inbox, so the send goes on as its email's, and the clock reads what became of it;
  *   1. the run and its chain as they stand now: a run closed since is skipped, a chain paused since waits;
- *   2. the words, the lead, the workspace and the domain, judged before anyone is made: a lead's own refusal (a slot
- *      it has no value for) skips it; the step's or the workspace's (no template, a slot no lead could fill, no
- *      address for the foot, no mailbox for the replies) holds the send, an hour on, in its lead's hours, and the
- *      lead keeps its place, so a fault the owner can fix never spends a run's audience;
+ *   2. the words, the lead, the workspace and the domain, judged before anyone is made: words changed since the send
+ *      was checked, or an opening it names and the send has none of, send it back to be checked (Part 4, R5); a
+ *      lead's own refusal (a slot it has no value for) skips it; the step's or the workspace's (no template, a slot no
+ *      lead could fill, no address for the foot, no mailbox for the replies, no name to sign with, no booking link)
+ *      holds the send, an hour on, in its lead's hours, and the lead keeps its place, so a fault the owner can fix
+ *      never spends a run's audience;
  *   3. for a step after the first, the lead's email on the step before (D19), waited for while its receipt has not
  *      stamped its Message-ID;
  *   4. the person (made once, E5: reach_out_person), refused for a lead that closed or a customer's address;
@@ -24,6 +26,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  checkResetPatch,
   claimSends,
   contactEmailOf,
   domainCapacityOf,
@@ -57,7 +60,7 @@ import { REACH_OUT_MONTH_EMAILS, domainDailyCap, emailDomainOf, parseTenantConfi
 import { unsubscribeOrigin } from "../dashboard-origin.js";
 import { coldReplyDomain } from "../email/email.js";
 import { env } from "../env.js";
-import { reachOutRequest, reachOutWords } from "./request.js";
+import { checkedWordsOf, reachOutRequest, reachOutWords } from "./request.js";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan } from "./replan.js";
 import type { Logger } from "../log.js";
 
@@ -88,6 +91,9 @@ const HOLDS = new Set([
   "no_subject",
   "unknown_slot",
   "words_unsendable",
+  // Part 4 (R6): words that name the name the chain signs with, or the booking link, when there is none.
+  "no_signed_by",
+  "no_booking_link",
 ]);
 
 /**
@@ -136,6 +142,8 @@ export interface SenderCounts {
   waited: number;
   /** Planned again an hour on for the step's or the workspace's words (HOLDS). */
   held: number;
+  /** Back to be checked: their words changed since their check, or they name an opening they have none of (R5). */
+  rechecked: number;
   /** Planned again past two weeks: given up, kept_waiting. */
   gave_up: number;
   errors: number;
@@ -145,11 +153,13 @@ export interface SenderCounts {
   workspaces_held: number;
 }
 
-type Outcome = "written" | "adopted" | "skipped" | "waited" | "held" | "lost";
+type Outcome = "written" | "adopted" | "skipped" | "waited" | "held" | "rechecked" | "lost";
 
 interface Workspace {
   businessName: string | null;
   address: string | null;
+  /** The booking link the words' {{booking link}} names (brain.booking_link). */
+  bookingLink: string | null;
   mailbox: { reply_token: string } | null;
   /** Why no email of this workspace can be written now (a HOLDS reason), or null. */
   missing: string | null;
@@ -176,11 +186,13 @@ function tickReads(db: Db) {
       once(workspaces, tenantId, async () => {
         const [w, mailbox] = await Promise.all([workspaceNameAndConfig(db, tenantId), mailboxOfTenant(db, tenantId)]);
         // The address drafts put at their foot (the dashboard's workspaceOffer): the profile's, as the owner wrote it.
-        const address = parseTenantConfig(w.config)?.brain?.profile?.address?.trim() || null;
+        const brain = parseTenantConfig(w.config)?.brain;
+        const address = brain?.profile?.address?.trim() || null;
         const businessName = w.name?.trim() || null;
         return {
           businessName,
           address,
+          bookingLink: brain?.booking_link?.trim() || null,
           mailbox: mailbox ? { reply_token: mailbox.reply_token } : null,
           missing: !mailbox ? "no_mailbox" : !businessName || !address ? "no_business_address" : null,
         };
@@ -249,6 +261,9 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     moveSend(db, { tenantId: s.tenant_id, id: s.id, from: "claimed", patch });
   const skip = async (reason: string): Promise<Outcome> =>
     (await move({ state: "skipped", reason: reason.slice(0, 60) })) ? "skipped" : "lost";
+  /** Back to be checked, keeping its time and its owner's inclusions; a check under way for older words writes nothing. */
+  const recheck = async (): Promise<Outcome> =>
+    (await move({ ...checkResetPatch(s.check_gen ?? 0), state: "planned", claimed_at: null })) ? "rechecked" : "lost";
   const hold = (reason: string): Outcome => {
     t.later.push({ send: s, wrote: false });
     const key = `${s.tenant_id}:${reason}`;
@@ -287,6 +302,9 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
   if (!lead) return skip("lead_gone");
   if (workspace.missing) return hold(workspace.missing);
   if (!words) return hold("no_template");
+  // Checked against other words than these (its step's, the name it signs with, whether a booking link exists): the
+  // check reads it again before it goes (R5). Never a skip: nothing about the lead changed.
+  if (s.checked_words !== checkedWordsOf(words, standing.signedBy, workspace.bookingLink !== null)) return recheck();
   // Its domain removed or held since the claim: planned again on another of the step's domains.
   if (!domain || domain.state !== "verified") {
     t.replan.push({ send: s, wrote: false });
@@ -311,7 +329,13 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     }
   }
   const slots = { business_name: lead.business_name, city: lead.city };
-  const said = reachOutWords(words, slots, { businessName: workspace.businessName }, parent !== null);
+  const workspaceSlots = {
+    businessName: workspace.businessName,
+    yourName: standing.signedBy,
+    bookingLink: workspace.bookingLink,
+  };
+  const said = reachOutWords(words, slots, workspaceSlots, parent !== null, s.opening ?? null);
+  if (!said.ok && said.reason === "no_opening") return recheck();
   if (!said.ok) return HOLDS.has(said.reason) ? hold(said.reason) : skip(said.reason);
 
   // 4. The person, made once; a lead that closed, or an address that is a customer's, is never written to cold.
@@ -330,7 +354,8 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     to,
     words,
     lead: slots,
-    workspace: { businessName: workspace.businessName, address: workspace.address },
+    workspace: { ...workspaceSlots, address: workspace.address },
+    opening: s.opening ?? null,
     domain,
     mailbox: workspace.mailbox,
     replyDomain: t.lane.replyDomain,
@@ -423,6 +448,7 @@ export async function claimAndWrite(p: {
     skipped: 0,
     waited: 0,
     held: 0,
+    rechecked: 0,
     gave_up: 0,
     errors: 0,
     month_spent: 0,
@@ -447,7 +473,7 @@ export async function claimAndWrite(p: {
     try {
       const r = await writeOne(t, s);
       if (r === "written" || r === "adopted") out[again ? "rewritten" : "written"] += 1;
-      else if (r === "skipped" || r === "waited" || r === "held") out[r] += 1;
+      else if (r === "skipped" || r === "waited" || r === "held" || r === "rechecked") out[r] += 1;
     } catch (e) {
       // This send stays claimed: written again in five minutes, or planned again by the clock's unstick after ten.
       failed("reach_out_write_failed", { send_id: s.id, tenant_id: s.tenant_id }, e);

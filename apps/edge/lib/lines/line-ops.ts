@@ -185,6 +185,11 @@ export function buyRequest(
   return { kind: "buy", number, areaCode };
 }
 
+/** The workspace's line that is being set up or answers: it holds one (lines_one_live_per_tenant_idx, 00195). */
+export function liveLineOf<T extends { voice_state: string }>(rows: T[]): T | undefined {
+  return rows.find((l) => l.voice_state === "provisioning" || l.voice_state === "answering");
+}
+
 /**
  * One line per workspace in v1: a second buy is refused while one is live, and
  * a failed one is answered with the row to retry rather than a new purchase.
@@ -198,7 +203,7 @@ export function planBuy(o: {
   others: LineDbRow[];
   now: Date;
 }): { kind: "refuse"; answer: LineAnswer } | { kind: "provision"; row: LinesInsert } {
-  const live = o.others.find((l) => l.voice_state === "provisioning" || l.voice_state === "answering");
+  const live = liveLineOf(o.others);
   if (live)
     return {
       kind: "refuse",

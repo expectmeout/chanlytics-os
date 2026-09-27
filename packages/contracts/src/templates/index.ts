@@ -108,3 +108,4 @@ export {
   WHATSAPP_LANGUAGES,
 } from "./template-languages";
 export type { TemplateLanguage } from "./template-languages";
+export { languageBase } from "./template-languages";

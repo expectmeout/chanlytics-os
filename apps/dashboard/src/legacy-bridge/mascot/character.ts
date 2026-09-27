@@ -18,7 +18,8 @@
  * - Reading: an orbit. The three circle a ring tilted toward you, the nearest the largest, lifted and lightest, the
  *   farthest small and deep; the ring's axis sways, so the path traces a sphere. Leaving it, each tile keeps its speed.
  * - Answering: the tiles side by side, each word lifting one toward you and lighting it.
- * - Lit (glow): at rest, the mark where it stands in the AI's colour, with a turn or two: a page arriving on a phone.
+ * - Lit (glow): at rest, the mark where it stands in the AI's colour, with a turn, and more while it stays: a page
+ *   arriving on a phone, or something waiting on you.
  * Gestures scale with the drawn size (`detail`): a 7px tile in the top bar moves less than a 60px one on a phone.
  * A face nobody is near (the top bar's icon) stops breathing after `quietAfter` seconds and only turns, less often.
  * Each tile carries a charge, drawn as colour, never as motion (`light`).

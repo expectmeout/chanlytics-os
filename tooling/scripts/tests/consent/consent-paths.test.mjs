@@ -52,7 +52,7 @@ const visitOne = await import(at("apps/dashboard/app/api/v1/contacts/[id]/consen
 const offersOne = await import(at("apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts"));
 const visitMany = await import(at("apps/dashboard/app/api/v1/contacts/consent/route.ts"));
 const offersMany = await import(at("apps/dashboard/app/api/v1/contacts/marketing-consent/route.ts"));
-const { ACT_TOOLS } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
+const { ACT_TOOLS } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 const { outboundGate, refusalScript } = await import(at("apps/edge/lib/receptionist/outbound-gate.ts"));
 const { deliver } = await import(at("packages/core/src/deliver.ts"));
 

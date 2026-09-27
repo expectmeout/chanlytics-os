@@ -1,0 +1,37 @@
+# The preview app on main: what a tester installs before the stores. A build is one of the plan's builds, so the
+# shell is built only when its native code changed (no preview build carries this fingerprint yet); a change to the
+# screens, the bridge or the contracts they bundle reaches the installed preview app as an update on its channel, on
+# the next launch. iOS has no preview build until the Apple account exists (an internal iOS build needs its
+# credentials); a simulator build is asked for by hand with the development-simulator profile.
+name: Preview
+on:
+  push:
+    branches: [main]
+    paths: ["apps/mobile/**", "packages/contracts/**"]
+jobs:
+  fingerprint:
+    type: fingerprint
+    environment: preview
+  get_android_build:
+    needs: [fingerprint]
+    type: get-build
+    params:
+      platform: android
+      profile: preview
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      wait_for_in_progress: true
+  build_android:
+    needs: [get_android_build]
+    if: ${{ !needs.get_android_build.outputs.build_id }}
+    type: build
+    params:
+      platform: android
+      profile: preview
+  update_android:
+    needs: [get_android_build]
+    if: ${{ needs.get_android_build.outputs.build_id }}
+    type: update
+    environment: preview
+    params:
+      platform: android
+      channel: preview

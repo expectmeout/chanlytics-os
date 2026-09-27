@@ -11,7 +11,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { callerName, personName, toCallVM } from "@chanlytics/contracts";
+import { callerName, describeNow, newReceptionistDefaults, personName, toCallVM } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 
@@ -59,11 +59,26 @@ const broadcastsRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/ro
 const broadcastRoute = await import(at("apps/dashboard/app/api/v1/broadcasts/[id]/route.ts"));
 const { everyone } = await import(at("apps/dashboard/src/server/people/people.ts"));
 const { audiencePool: audiencePoolReader } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
-const { audiencePool: audiencePoolOf } = await import(at("apps/dashboard/src/server/people/audience.ts"));
+const { audiencePool: audiencePoolOf, poolList } = await import(at("apps/dashboard/src/server/people/audience.ts"));
 const { everyone: everyoneReader } = await import(at("apps/dashboard/src/server/readers/everyone.ts"));
 const { playbooks: playbooksReader } = await import(at("apps/dashboard/src/server/readers/playbooks.ts"));
 const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 const { getBroadcast } = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
+const { settings: settingsReader } = await import(at("apps/dashboard/src/server/readers/settings.ts"));
+const { connections } = await import(at("apps/dashboard/src/server/readers/connections.ts"));
+const { notifications: notificationsReader } = await import(at("apps/dashboard/src/server/readers/notifications.ts"));
+const { activity: activityReader } = await import(at("apps/dashboard/src/server/readers/activity.ts"));
+const { channels: channelsReader } = await import(at("apps/dashboard/src/server/readers/channels.ts"));
+const { autonomy } = await import(at("apps/dashboard/src/server/readers/autonomy.ts"));
+const settingsRoute = await import(at("apps/dashboard/app/api/v1/settings/route.ts"));
+const setupRoute = await import(at("apps/dashboard/app/api/v1/setup/route.ts"));
+const notificationsRoute = await import(at("apps/dashboard/app/api/v1/notifications/route.ts"));
+const activityRoute = await import(at("apps/dashboard/app/api/v1/activity/route.ts"));
+const channelsRoute = await import(at("apps/dashboard/app/api/v1/channels/route.ts"));
+const policiesRoute = await import(at("apps/dashboard/app/api/v1/policies/route.ts"));
+const { setupDtoFor } = await import(at("apps/dashboard/src/server/workspace/setup.ts"));
+const { templates: templatesReader } = await import(at("apps/dashboard/src/server/readers/templates.ts"));
+const templatesRoute = await import(at("apps/dashboard/app/api/v1/templates/route.ts"));
 
 // The kept values live in the module, keyed by workspace, person and reader: each test starts with none.
 beforeEach(() => kernel.readerCache.clear());
@@ -200,7 +215,8 @@ test("the facts readers: the tenant's name and zone are read once and kept for t
   assert.deepEqual(f.data, { name: "Harbor", timezone: "America/New_York" });
   assert.equal(s.data, "booking");
   assert.deepEqual(p.data, []);
-  assert.deepEqual(c.data, { config: { hours: "9-5" }, version: 3 });
+  // Who last changed it and when ride with the row (PR 1.7), so the settings read is the turn's one read of it.
+  assert.deepEqual(c.data, { config: { hours: "9-5" }, version: 3, updated_by: null, updated_at: null });
   await Promise.all([kernel.load(rc, facts, undefined), kernel.load(rc, config, undefined)]);
   const reads = (table) => ctx.supabase.seen.filter((q) => q.table === table && q.op === "select").length;
   assert.deepEqual(
@@ -1825,7 +1841,11 @@ test("the openings, for Ask and for the palette: GET ask/openings answers its re
 
   await withFeed({ body: WEDNESDAY_TAKEN }, async () => {
     const t = calTables("https://cal.example/open.ics");
-    const want = await openingsFor(calCtx(t), A, { day: "2026-09-09", service: "Balayage" }, CAL_NOW);
+    // openingsFor handed the fixture's own zone and settings, as the reader hands it the turn's.
+    const want = await openingsFor(A, { day: "2026-09-09", service: "Balayage" }, CAL_NOW, {
+      timezone: t.tenants[0].timezone,
+      config: t.tenant_config[0].config,
+    });
     const read = await kernel.load(calIn(calCtx(t)), openingsReader, { day: "2026-09-09", service: "Balayage" });
     assert.deepEqual(read.data, { openings: want });
     assert.deepEqual(
@@ -2745,4 +2765,831 @@ test("everyone, for Ask: every page of People with the reply mode in force for e
     1,
     "and the reply modes once",
   );
+});
+
+/* ------------------------------------------ the workspace's pages: settings, and the six beside it (PR 1.7) */
+
+/** A request's reader context for a member of `role` in `tenantId`, on `now` when handed one. */
+const memberIn = (ctx, tenantId, role, now) => kernel.readerContext(ctx, { tenantId, role }, now);
+const DAY = 86_400_000;
+const FEED = "https://calendar.example.com/private/abcdef123456/basic.ics";
+/**
+ * settings-routes.test.mjs, "the settings read": a member of two workspaces -- harbor's viewer, bayside's owner -- each
+ * with a calendar feed on file, and harbor's own name and zone.
+ */
+const settingsWorld = (over = {}) => ({
+  memberships: [
+    membership(A, "viewer", "harbor", "2026-01-01T00:00:00Z"),
+    membership(B, "owner", "bayside", "2026-02-01T00:00:00Z"),
+  ],
+  tenant_config: [
+    { tenant_id: A, config: { calendar: { ical_url: FEED } }, version: 3, updated_at: "2026-09-01T00:00:00Z" },
+    { tenant_id: B, config: { calendar: { ical_url: FEED } }, version: 1, updated_at: "2026-09-01T00:00:00Z" },
+  ],
+  tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+  tenant_channels: [],
+  google_listings: [],
+  ...over,
+});
+/** settings-routes.test.mjs, "F1": a receptionist that publishes the number the business keeps, forwarded to its line. */
+const forwardedWorld = () => ({
+  memberships: [
+    membership(A, "owner", "harbor", "2026-01-01T00:00:00Z"),
+    membership(B, "owner", "bayside", "2026-02-01T00:00:00Z"),
+  ],
+  tenant_config: [
+    {
+      tenant_id: A,
+      config: {
+        brain: {
+          business_name: "Harbor Moving",
+          booking_link: "https://book.example/harbor",
+          phone_display: "(718) 555-0142",
+          system_prompt: "Answer as the front desk of Harbor Moving: brief, warm, and never a price.",
+          fallbacks: { greeting: "g", error: "e", non_text: "n" },
+        },
+      },
+      version: 2,
+      updated_at: "2026-09-01T00:00:00Z",
+    },
+  ],
+  tenants: [{ id: A, name: "Harbor Moving", timezone: "America/New_York" }],
+  tenant_channels: [{ tenant_id: A, kind: "voice", number_e164: "+19295550100", status: "active" }],
+  google_listings: [],
+  lines: [
+    {
+      id: L1,
+      tenant_id: A,
+      e164: "+17185550142",
+      kind: "forwarded",
+      provider: "carrier",
+      area_code: 718,
+      voice_state: "answering",
+      sms_state: "none",
+      whatsapp_state: "none",
+      port_state: "none",
+      forwarding_state: "verified",
+      state_since: "2026-09-20T00:00:00Z",
+      created_at: "2026-09-20T00:00:00Z",
+      facts: { carrier: "verizon", mode: "unanswered", destination_e164: "+19295550100" },
+    },
+  ],
+});
+/** What GET settings asked of the database at origin/main, after the workspace's door, in its order. */
+const SETTINGS_ASKED_AT_MAIN = [
+  "tenant_config.select",
+  "tenants.select",
+  "google_listings.select",
+  "lines.select",
+  "tenant_channels.select",
+  "policies.select",
+];
+/** The preview's clock, apart: the rest of what the settings read answers does not move with the minute. */
+const withoutClock = (d) => (d.prompt ? { ...d, prompt: { ...d.prompt, now: "<clock>" } } : d);
+
+test("the settings read, for Ask and for the page: GET settings answers its reader's payload, key for key, over settings-routes' fixtures -- a viewer's feed masked and an owner's whole, who last changed the row, a config the parser refuses as its own state, the platform's facts with the number the business forwards -- asking what it asked at origin/main in its order: the row once, the platform's facts at once, then the Autonomy rows inside the preview; no configuration row is the route's 404; the preview's clock is the turn's, and a turn that holds the row reads it once", async () => {
+  for (const [tenant, role, version] of [
+    [A, "viewer", 3],
+    [B, "owner", 1],
+  ]) {
+    const page = await settingsRoute.GET.run(req(`?workspace=${tenant}`), dayCtx(settingsWorld()));
+    const ctx = dayCtx(settingsWorld());
+    const r = await kernel.load(memberIn(ctx, tenant, role), settingsReader, undefined);
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+    assert.deepEqual(Object.keys(r.data), [
+      "config",
+      "version",
+      "role",
+      "configBroken",
+      "facts",
+      "conflicts",
+      "prompt",
+      "updatedBy",
+      "updatedAt",
+    ]);
+    assert.deepEqual(
+      [r.data.version, r.data.role, r.data.configBroken, r.data.prompt, r.data.updatedBy, r.data.updatedAt],
+      [version, role, false, null, null, "2026-09-01T00:00:00Z"],
+      "no receptionist, no prompt; a row written before its author was kept says so with null",
+    );
+    assert.deepEqual(r.rows, []);
+    assert.deepEqual(asked(ctx), SETTINGS_ASKED_AT_MAIN.slice(0, -1), "no receptionist: no Autonomy rows to read");
+  }
+  const viewer = await kernel.load(memberIn(dayCtx(settingsWorld()), A, "viewer"), settingsReader, undefined);
+  assert.ok(
+    viewer.data.config.calendar.ical_url.includes("…") &&
+      !viewer.data.config.calendar.ical_url.includes("abcdef123456"),
+    "a viewer learns that a feed is set, not its address",
+  );
+  const owner = await kernel.load(memberIn(dayCtx(settingsWorld()), B, "owner"), settingsReader, undefined);
+  assert.equal(owner.data.config.calendar.ical_url, FEED, "an owner sees it whole");
+  const authored = settingsWorld({
+    tenant_config: [{ tenant_id: B, config: {}, version: 1, updated_at: "2026-09-02T00:00:00Z", updated_by: "u7" }],
+  });
+  const byU7 = await kernel.load(memberIn(dayCtx(authored), B, "owner"), settingsReader, undefined);
+  assert.deepEqual(byU7.data, await settingsRoute.GET.run(req(`?workspace=${B}`), dayCtx(authored)));
+  assert.deepEqual([byU7.data.updatedBy, byU7.data.updatedAt], ["u7", "2026-09-02T00:00:00Z"]);
+  // A config the parser refuses: its own state, and nothing past the row is read.
+  const broken = settingsWorld({
+    tenant_config: [{ tenant_id: A, config: "nonsense", version: 7, updated_at: "2026-09-01T00:00:00Z" }],
+  });
+  const brokenCtx = dayCtx(broken);
+  const refused = await kernel.load(memberIn(brokenCtx, A, "viewer"), settingsReader, undefined);
+  assert.deepEqual(refused.data, await settingsRoute.GET.run(req(`?workspace=${A}`), dayCtx(broken)));
+  assert.deepEqual(Object.keys(refused.data), ["config", "version", "role", "configBroken", "issues"]);
+  assert.deepEqual(
+    [refused.data.config, refused.data.version, refused.data.configBroken],
+    [null, 7, true],
+    "REGRESSION: a broken config collapsed to {} and read as 'no receptionist yet'",
+  );
+  assert.ok(Array.isArray(refused.data.issues) && refused.data.issues.length > 0);
+  assert.deepEqual(asked(brokenCtx), ["tenant_config.select"]);
+  // No row at all: the route's 404, in its sentence, from the reader.
+  const noRow = (e) => {
+    assert.deepEqual([e.code, e.status, e.message], ["not_found", 404, "Workspace has no configuration row."]);
+    return true;
+  };
+  const none = dayCtx(settingsWorld({ tenant_config: [] }));
+  await assert.rejects(kernel.load(memberIn(none, A, "viewer"), settingsReader, undefined), noRow);
+  assert.deepEqual(asked(none), ["tenant_config.select"]);
+  await assert.rejects(
+    settingsRoute.GET.run(req(`?workspace=${A}`), dayCtx(settingsWorld({ tenant_config: [] }))),
+    noRow,
+  );
+  // F1: the platform's facts -- the number the business keeps, forwarded to its line -- and the receptionist's prompt.
+  const NOW = new Date("2026-09-21T14:00:00Z");
+  const routed = dayCtx(forwardedWorld());
+  const page = await settingsRoute.GET.run(req(`?workspace=${A}`), routed);
+  const ctx = dayCtx(forwardedWorld());
+  const r = await kernel.load(memberIn(ctx, A, "owner", NOW), settingsReader, undefined);
+  assert.deepEqual(withoutClock(r.data), withoutClock(page), "the route's payload, the preview's clock apart");
+  assert.deepEqual(r.data.facts.kept_line, { value: "+17185550142", source: "provisioned" });
+  assert.deepEqual(r.data.conflicts, [], "customers call the number they know and reach the receptionist");
+  assert.equal(
+    r.data.prompt.now,
+    describeNow("America/New_York", NOW, undefined),
+    "the preview says the turn's clock: one clock for the turn",
+  );
+  assert.deepEqual(
+    asked(routed),
+    ["memberships.select", ...SETTINGS_ASKED_AT_MAIN],
+    "the workspace's door, then the reads",
+  );
+  assert.deepEqual(asked(ctx), SETTINGS_ASKED_AT_MAIN);
+  // A turn that holds the row reads it once: the settings read is the turn's one read of the config.
+  const turn = memberIn(dayCtx(forwardedWorld()), A, "owner", NOW);
+  await kernel.load(turn, config, undefined);
+  const held = turn.ctx.supabase.seen.length;
+  const again = await kernel.load(turn, settingsReader, undefined);
+  assert.deepEqual(asked(turn.ctx).slice(held), SETTINGS_ASKED_AT_MAIN.slice(1), "the row was the turn's");
+  assert.deepEqual(again.data, r.data);
+});
+
+/** setup.test.mjs, "what the first run's Check reads": Northside's listing and its receptionist, owned in harbor. */
+const setupWorld = () => ({
+  tables: {
+    memberships: [
+      membership(A, "owner", "harbor", "2026-01-01T00:00:00Z"),
+      membership(B, "viewer", "bayside", "2026-02-01T00:00:00Z"),
+    ],
+    google_listings: [
+      {
+        tenant_id: A,
+        place_id: "ChIJ-northside-movers",
+        name: "Northside Movers",
+        address: null,
+        maps_uri: null,
+        business_status: null,
+        rating: null,
+        review_count: null,
+        linked_at: "2026-09-07T14:00:00Z",
+        checked_at: null,
+        check_error: null,
+        facts: {
+          hours: [{ open: { day: 2, hour: 9, minute: 0 }, close: { day: 2, hour: 17, minute: 0 } }],
+          website: null,
+          service_area_only: true,
+          primary_type: "moving_company",
+          booking_page: "https://calendly.com/northside-movers-example/estimate",
+          phone_e164: "+13055550100",
+        },
+      },
+    ],
+    tenant_config: [
+      {
+        tenant_id: A,
+        version: 3,
+        config: { brain: { business_name: "Northside Movers", ...newReceptionistDefaults("Northside Movers") } },
+      },
+    ],
+  },
+  rpcs: {
+    team_roster: () => [
+      { membership_id: "m1", member_user_id: USER, email: "ada@example.com", display_name: "Ada", role: "owner" },
+    ],
+  },
+});
+
+test("connections, for the page: GET setup answers its reader's payload over setup.test.mjs's shape -- setupDtoFor's own answer for a member reading their own workspace on their session, on the turn's clock, and their role beside it -- asking what setupDtoFor asks, in its order: the roster through its door, never the back office's counts", async () => {
+  const NOW = new Date("2026-09-07T15:00:00Z");
+  const w = setupWorld();
+  const routed = worldCtx(w);
+  const page = await setupRoute.GET.run(req(`?workspace=${A}`), routed);
+  const ctx = worldCtx(w);
+  const r = await kernel.load(memberIn(ctx, A, "owner", NOW), connections, undefined);
+  assert.deepEqual(r.data, page, "the route's payload");
+  assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+  assert.deepEqual(Object.keys(r.data), ["setup", "role"]);
+  assert.deepEqual(r.rows, []);
+  const direct = worldCtx(w);
+  assert.deepEqual(
+    r.data,
+    { setup: await setupDtoFor(direct.supabase, A, { kind: "member" }, NOW), role: "owner" },
+    "setupDtoFor's own answer for a member, and the role riding along so the page knows who may act",
+  );
+  assert.deepEqual(askedWith(ctx), askedWith(direct), "setupDtoFor's own reads, in its order, on the member's session");
+  assert.ok(asked(ctx).includes("rpc:team_roster"), "the roster through its door: a member's");
+  assert.ok(!asked(ctx).includes("memberships.select"), "never the back office's plain counts");
+  assert.deepEqual(asked(routed), ["memberships.select", ...asked(ctx)], "the workspace's door, then the same reads");
+  const viewer = await kernel.load(memberIn(worldCtx(w), B, "viewer", NOW), connections, undefined);
+  assert.deepEqual(viewer.data, await setupRoute.GET.run(req(`?workspace=${B}`), worldCtx(w)));
+  assert.equal(viewer.data.role, "viewer");
+});
+
+const N1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
+const N2 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc2";
+const N3 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc3";
+const N4 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc4";
+/**
+ * reads-routes.test.mjs, "reading notifications", on a clock (`now`): harbor's rows a day, three days and forty days
+ * old, one of bayside's; my mark on N2, another person's on N1 -- and, handed `mine`, marks of my own beside them.
+ */
+const notificationsWorld = (now = Date.now(), { mine = [], rows } = {}) => {
+  const ago = (days) => new Date(now - days * DAY).toISOString();
+  const row = (id, tenant_id, kind, title, days, over = {}) => ({
+    id,
+    tenant_id,
+    kind,
+    title,
+    body: "…",
+    route: null,
+    subject_type: null,
+    subject_id: null,
+    created_at: ago(days),
+    ...over,
+  });
+  return {
+    memberships: [
+      membership(A, "viewer", "harbor", "2026-01-01T00:00:00Z"),
+      membership(B, "viewer", "bayside", "2026-02-01T00:00:00Z"),
+    ],
+    notifications: rows ?? [
+      row(N1, A, "handoff", "Rosa asked for a person", 1, {
+        body: "She wrote: can I talk to someone?\nSecond line",
+        route: "inbox/th-x",
+        subject_type: "conversation",
+        subject_id: "x",
+      }),
+      row(N2, A, "billing", "Your trial ends in three days", 3, { route: "admin/billing" }),
+      row(N3, A, "alert", "Old", 40),
+      row(N4, B, "alert", "Elsewhere", 1),
+    ],
+    notification_marks: [
+      { notification_id: N2, user_id: USER, read_at: ago(2), dismissed_at: null },
+      { notification_id: N1, user_id: "someone-else", read_at: ago(0), dismissed_at: ago(0) },
+      ...mine,
+    ],
+    notification_reads: [{ tenant_id: A, user_id: USER, seen_at: "2026-09-10T12:00:00Z" }],
+  };
+};
+
+test("the notifications, for the page: GET notifications answers its reader's payload over reads-routes' fixture in both workspaces -- the month's rows newest first, each with this person's own marks, and when they last opened the bell -- the thirty days counted back from the turn's clock; the marks read only for the rows listed, and only this person's: another person's mark is not mine, my own dismissal is", async () => {
+  const today = Date.now();
+  for (const [tenant, ids, seen] of [
+    [A, [N1, N2], "2026-09-10T12:00:00Z"],
+    [B, [N4], null],
+  ]) {
+    const page = await notificationsRoute.GET.run(req(`?workspace=${tenant}`), dayCtx(notificationsWorld(today)));
+    const r = await kernel.load(turnIn(dayCtx(notificationsWorld(today)), tenant), notificationsReader, undefined);
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+    assert.deepEqual([r.data.notifications.map((n) => n.id), r.data.seen_at], [ids, seen]);
+    assert.deepEqual(r.rows, []);
+  }
+  // On the turn's clock: my own dismissal of N1 beside another person's mark on it, my read of N2.
+  const NOW = Date.parse("2026-09-20T12:00:00Z");
+  const mine = [{ notification_id: N1, user_id: USER, read_at: null, dismissed_at: new Date(NOW).toISOString() }];
+  const ctx = dayCtx(notificationsWorld(NOW, { mine }));
+  const r = await kernel.load(memberIn(ctx, A, "viewer", new Date(NOW)), notificationsReader, undefined);
+  assert.deepEqual(
+    r.data.notifications.map((n) => [n.id, n.read, n.dismissed]),
+    [
+      [N1, false, true],
+      [N2, true, false],
+    ],
+    "this person's marks ride on each row: my dismissal of N1, my read of N2; another person's read of N1 is not mine",
+  );
+  assert.deepEqual(asked(ctx), ["notification_reads.select", "notifications.select", "notification_marks.select"]);
+  const [rows] = selects(ctx, "notifications");
+  assert.deepEqual(
+    rows.filters.find(([op]) => op === "gte"),
+    ["gte", "created_at", new Date(NOW - 30 * DAY).toISOString()],
+    "thirty days back from the turn's clock",
+  );
+  const [marks] = selects(ctx, "notification_marks");
+  assert.deepEqual(
+    marks.filters,
+    [
+      ["eq", "user_id", USER],
+      ["in", "notification_id", [N1, N2]],
+    ],
+    "my marks, for the rows listed and no others",
+  );
+  // Four weeks on, the month reaches back two days: only yesterday's row is still in it.
+  const later = await kernel.load(
+    memberIn(dayCtx(notificationsWorld(NOW)), A, "viewer", new Date(NOW + 28 * DAY)),
+    notificationsReader,
+    undefined,
+  );
+  assert.deepEqual(
+    later.data.notifications.map((n) => n.id),
+    [N1],
+  );
+  // No row this month: no mark is read at all.
+  const quiet = dayCtx(notificationsWorld(NOW, { rows: [] }));
+  const none = await kernel.load(turnIn(quiet), notificationsReader, undefined);
+  assert.deepEqual(none.data, { notifications: [], seen_at: "2026-09-10T12:00:00Z" });
+  assert.deepEqual(asked(quiet), ["notification_reads.select", "notifications.select"]);
+});
+
+/**
+ * activity.test.mjs, "owners read both ledgers": harbor's owner; a person, their thread and their call; four decisions
+ * (one bayside's) and five events (a usage row and a webhook row among them), and the team's roster.
+ */
+const activityWorld = () => {
+  const P = "11111111-1111-4111-8111-111111111111";
+  const C = "22222222-2222-4222-8222-222222222222";
+  const K = "33333333-3333-4333-8333-333333333333";
+  const decision = (id, tenant_id, verb, subject_type, subject_id, actor, payload, created_at) => ({
+    id,
+    tenant_id,
+    verb,
+    subject_type,
+    subject_id,
+    actor_type: "user",
+    actor_user_id: actor,
+    payload,
+    created_at,
+  });
+  const event = (id, kind, subject_type, subject_id, data, created_at) => ({
+    id,
+    tenant_id: A,
+    kind,
+    subject_type,
+    subject_id,
+    data,
+    created_at,
+  });
+  return {
+    tables: {
+      memberships: [membership(A, "owner", "harbor", "2026-01-01T00:00:00Z")],
+      tenants: [{ id: A, slug: "harbor", name: "Harbor", status: "active", timezone: "America/New_York" }],
+      conversations: [{ id: C, tenant_id: A, contact_id: P }],
+      calls: [{ id: K, tenant_id: A, contact_id: P }],
+      decisions: [
+        decision(
+          "d1",
+          A,
+          "consent_change",
+          "contact",
+          P,
+          "u-ada",
+          { consent: "opted_in", source: "form" },
+          "2026-09-11T14:00:00Z",
+        ),
+        decision("d2", A, "take_over", "conversation", C, "u-bo", {}, "2026-09-11T15:00:00Z"),
+        decision("d3", A, "export", "workspace", A, "u-ada", { what: "people", rows: 5 }, "2026-09-12T02:30:00Z"),
+        decision("d4", B, "export", "workspace", B, "u-x", {}, "2026-09-11T16:00:00Z"),
+      ],
+      events: [
+        event("e1", "message.received", "message", "m1", {}, "2026-09-11T14:30:00Z"),
+        event("e2", "usage.ask_tokens", "user", USER, { tokens: 400 }, "2026-09-11T14:45:00Z"),
+        event("e3", "webhook.delivery", null, null, {}, "2026-09-11T14:50:00Z"),
+        event("e4", "call.recorded", "call", K, {}, "2026-09-10T10:00:00Z"),
+        event("e5", "broadcast.sent", "broadcast", "b1", { sent: 3, held: 1 }, "2026-09-12T13:00:00Z"),
+      ],
+    },
+    rpcs: {
+      team_roster: () => [
+        { membership_id: "m1", member_user_id: "u-ada", email: "ada@example.com", display_name: "Ada", role: "owner" },
+        { membership_id: "m2", member_user_id: "u-bo", email: "bo@example.com", display_name: "", role: "operator" },
+      ],
+    },
+    person: P,
+  };
+};
+
+test("the activity log, for the page: GET activity answers its reader's payload over activity.test.mjs's fixture -- both ledgers newest first, the noise left out, the actors named -- with a filter handed in as the route parsed it: none, a person, a day by the workspace's clock; the route keeps the owner's door and the reader trusts its caller; not a row a citation names yet", async () => {
+  const w = activityWorld();
+  for (const [q, filter, ids] of [
+    ["", {}, ["e-e5", "d-d3", "d-d2", "e-e1", "d-d1", "e-e4"]],
+    [`&person=${w.person}`, { person: w.person }, ["d-d2", "d-d1", "e-e4"]],
+    ["&day=2026-09-11", { day: "2026-09-11" }, ["d-d3", "d-d2", "e-e1", "d-d1"]],
+  ]) {
+    const routed = worldCtx(w);
+    const page = await activityRoute.GET.run(req(`?workspace=${A}${q}`), routed);
+    const ctx = worldCtx(w);
+    const r = await kernel.load(memberIn(ctx, A, "owner"), activityReader, filter);
+    assert.deepEqual(r.data, page, `the route's payload: ${q || "no filter"}`);
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+    assert.deepEqual(
+      r.data.rows.map((x) => x.id),
+      ids,
+    );
+    assert.deepEqual(r.rows, []);
+    assert.deepEqual(asked(routed), ["memberships.select", ...asked(ctx)], "the workspace's door, then the same reads");
+  }
+  assert.deepEqual(activityRoute.GET.policy.role, "owner", "the owner's door is the route's");
+});
+
+/** reads-routes.test.mjs, "the channels read": harbor's WhatsApp number with Meta's quality on its config, bayside's line. */
+const channelsWorld = (over = {}) => ({
+  memberships: [
+    membership(A, "operator", "harbor", "2026-01-01T00:00:00Z"),
+    membership(B, "operator", "bayside", "2026-02-01T00:00:00Z"),
+  ],
+  tenant_channels: [
+    {
+      id: "ch1",
+      tenant_id: A,
+      kind: "whatsapp",
+      number_e164: "+13055550199",
+      status: "active",
+      created_at: "2026-08-01T00:00:00Z",
+      config: { quality_rating: "GREEN", messaging_limit: "TIER_1K" },
+    },
+    {
+      id: "ch2",
+      tenant_id: B,
+      kind: "voice",
+      number_e164: "+13055550198",
+      status: "active",
+      created_at: "2026-08-01T00:00:00Z",
+      config: {},
+    },
+  ],
+  messages: [],
+  calls: [],
+  ...over,
+});
+
+test("the channels, for the page and for Ask: GET channels answers its reader's payload over reads-routes' fixture -- the named workspace's rows by kind, when each last heard from a customer, and the quality Meta assigned the WhatsApp number, from its config -- the last message, the last call and the rows asked at once, as the route asked them; not a row a citation names yet", async () => {
+  for (const tenant of [A, B]) {
+    const page = await channelsRoute.GET.run(req(`?workspace=${tenant}`), dayCtx(channelsWorld()));
+    const ctx = dayCtx(channelsWorld());
+    const r = await kernel.load(turnIn(ctx, tenant), channelsReader, undefined);
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+    assert.deepEqual(r.rows, []);
+    assert.deepEqual(asked(ctx), ["messages.select", "calls.select", "tenant_channels.select"]);
+  }
+  const harbor = (await kernel.load(turnIn(dayCtx(channelsWorld())), channelsReader, undefined)).data;
+  assert.deepEqual(
+    harbor.channels.map((c) => [c.id, c.kind, c.quality, c.messaging_limit]),
+    [["ch1", "whatsapp", "GREEN", "TIER_1K"]],
+  );
+  assert.deepEqual(Object.keys(harbor.channels[0]), [
+    "id",
+    "kind",
+    "number_e164",
+    "status",
+    "created_at",
+    "last_inbound_at",
+    "quality",
+    "quality_event",
+    "messaging_limit",
+    "quality_at",
+  ]);
+  // When each last heard from a customer: WhatsApp's last inbound message, the line's last inbound call.
+  const heard = channelsWorld({
+    tenant_channels: [
+      ...channelsWorld().tenant_channels,
+      {
+        id: "ch3",
+        tenant_id: A,
+        kind: "voice",
+        number_e164: "+13055550197",
+        status: "active",
+        created_at: "2026-08-02T00:00:00Z",
+        config: null,
+      },
+    ],
+    messages: [
+      {
+        tenant_id: A,
+        direction: "inbound",
+        channel: "whatsapp",
+        channel_ts: "2026-09-20T10:00:00Z",
+        created_at: "2026-09-20T10:00:01Z",
+      },
+    ],
+    calls: [{ tenant_id: A, direction: "inbound", started_at: "2026-09-19T10:00:00Z" }],
+  });
+  const r = await kernel.load(turnIn(dayCtx(heard)), channelsReader, undefined);
+  assert.deepEqual(r.data, await channelsRoute.GET.run(req(`?workspace=${A}`), dayCtx(heard)));
+  assert.deepEqual(
+    r.data.channels.map((c) => [c.kind, c.last_inbound_at]),
+    [
+      ["voice", "2026-09-19T10:00:00Z"],
+      ["whatsapp", "2026-09-20T10:00:00Z"],
+    ],
+    "by kind, each with when it last heard from a customer",
+  );
+});
+
+/** settings-routes.test.mjs, "the autonomy matrix": harbor's rows and a person's own row, bayside's with its limits. */
+const matrixRow = (tenant_id, cls, mode, limits = {}) => ({
+  id: `${cls}-${tenant_id.slice(0, 1)}`,
+  tenant_id,
+  class: cls,
+  mode,
+  subject_type: null,
+  subject_id: null,
+  limits,
+  updated_at: "2026-09-01T00:00:00Z",
+});
+const matrixWorld = (over = {}) => ({
+  memberships: [
+    membership(A, "viewer", "harbor", "2026-01-01T00:00:00Z"),
+    membership(B, "operator", "bayside", "2026-02-01T00:00:00Z"),
+  ],
+  policies: [
+    matrixRow(A, "reply", "auto"),
+    matrixRow(A, "money", "ask"),
+    { ...matrixRow(A, "reply", "never"), id: "person", subject_type: "contact", subject_id: "k1" },
+    matrixRow(B, "reply", "auto", { max_replies_day: 50, reply_delay_ms: 15000 }),
+    matrixRow(B, "booking", "auto"),
+  ],
+  ...over,
+});
+
+test("the autonomy matrix, for the page: GET policies answers its reader's payload over settings-routes' fixture in both workspaces -- the workspace's own rows by class, never a person's, the reader's role, and whether deals are on -- the rows and how the customers buy read at once, through the turn's readers, fresh on every request; a turn that holds both reads neither again", async () => {
+  for (const [tenant, role, classes] of [
+    [A, "viewer", ["money", "reply"]],
+    [B, "operator", ["booking", "reply"]],
+  ]) {
+    const page = await policiesRoute.GET.run(req(`?workspace=${tenant}`), dayCtx(matrixWorld()));
+    const ctx = dayCtx(matrixWorld());
+    const r = await kernel.load(memberIn(ctx, tenant, role), autonomy, undefined);
+    assert.deepEqual(r.data, page, "the route's payload");
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+    assert.deepEqual(Object.keys(r.data), ["policies", "role", "deals_on"]);
+    assert.deepEqual(
+      [r.data.policies.map((p) => p.class), r.data.role, r.data.deals_on],
+      [classes, role, false],
+      "the workspace's rows, by class; a person's own row is not the matrix",
+    );
+    assert.deepEqual(r.rows, []);
+    assert.deepEqual(asked(ctx), ["tenants.select", "policies.select"]);
+  }
+  const agency = matrixWorld({
+    tenants: [{ id: A, name: "Harbor", timezone: "America/New_York", sells_by: "proposal" }],
+  });
+  const on = await kernel.load(memberIn(dayCtx(agency), A, "viewer"), autonomy, undefined);
+  assert.equal(on.data.deals_on, true, "some customers get a proposal first: the follow-ups' row is drawn");
+  assert.deepEqual(on.data, await policiesRoute.GET.run(req(`?workspace=${A}`), dayCtx(agency)));
+  // A route keeps nothing: the same request twice reads the matrix twice.
+  const twice = dayCtx(matrixWorld());
+  await policiesRoute.GET.run(req(`?workspace=${A}`), twice);
+  await policiesRoute.GET.run(req(`?workspace=${A}`), twice);
+  assert.equal(selects(twice, "policies").length, 2, "fresh on every request");
+  // A turn that holds the rows and how the customers buy (get_settings, list_playbooks) reads neither again.
+  const turn = memberIn(dayCtx(matrixWorld()), A, "viewer");
+  await Promise.all([kernel.load(turn, policies, undefined), kernel.load(turn, sellsBy, undefined)]);
+  const held = turn.ctx.supabase.seen.length;
+  await kernel.load(turn, autonomy, undefined);
+  assert.equal(turn.ctx.supabase.seen.length, held, "the turn's own reads");
+});
+
+const TP1 = "77777777-7777-4777-8777-777777777771";
+const TP2 = "77777777-7777-4777-8777-777777777772";
+const TP3 = "77777777-7777-4777-8777-777777777773";
+const TP4 = "77777777-7777-4777-8777-777777777774";
+const TP9 = "77777777-7777-4777-8777-777777777779";
+/** A template row as outbound-routes.test.mjs builds one. */
+const tplRow = (id, tenant_id, over = {}) => ({
+  id,
+  tenant_id,
+  channel: "whatsapp",
+  name: "visit_reminder",
+  language: "en_US",
+  body_preview: "See you at {{1}}",
+  variables: [],
+  category: "utility",
+  meta_status: "approved",
+  quality: null,
+  rejected_reason: null,
+  synced_at: null,
+  source: "starter",
+  hidden_at: null,
+  title: null,
+  ...over,
+});
+/**
+ * outbound-routes.test.mjs, "templates: the composers see the approved and unhidden": bayside's approved reminder, its
+ * hidden sample and its pending offer, harbor's own; the reminder here titled, and carrying a heading, a footer and a
+ * button that takes a value (Meta's components, as the sync keeps them).
+ */
+const templatesWorld = () => ({
+  memberships: [
+    membership(A, "viewer", "harbor", "2026-01-01T00:00:00Z"),
+    membership(B, "operator", "bayside", "2026-02-01T00:00:00Z"),
+  ],
+  templates: [
+    tplRow(TP1, B, {
+      title: "Visit reminder",
+      components: [
+        { type: "HEADER", format: "TEXT", text: "Your visit" },
+        { type: "BODY", text: "See you at {{1}}" },
+        { type: "FOOTER", text: "Reply STOP to opt out" },
+        { type: "BUTTONS", buttons: [{ type: "URL", text: "Book", url: "https://book.example/{{1}}" }] },
+      ],
+    }),
+    tplRow(TP2, B, { name: "hello_world", hidden_at: "2026-09-01T00:00:00Z" }),
+    tplRow(TP3, B, { name: "offer", meta_status: "pending", category: "marketing" }),
+    tplRow(TP4, A, { name: "elsewhere" }),
+  ],
+});
+/** outbound-routes.test.mjs, "a template says what sends it": bayside's messages, playbooks and runs. */
+const usageWorld = () => ({
+  memberships: templatesWorld().memberships,
+  templates: [
+    tplRow(TP1, B, { name: "winback_offer" }),
+    tplRow(TP2, B, { name: "winback_offer", language: "es_MX" }),
+    tplRow(TP3, B, { name: "autumn_promo", category: "marketing", source: "meta" }),
+    tplRow(TP4, B, { name: "booking_link", variables: [{ position: 1 }, { position: 2 }, { position: 3 }] }),
+    tplRow(TP9, A, { name: "elsewhere" }),
+  ],
+  playbooks: [
+    pbRow(PB1, { tenant_id: B, template_name: "winback_offer" }),
+    pbRow(PB2, { tenant_id: B, name: "Second wind", template_name: "winback_offer", state: "paused" }),
+  ],
+  broadcasts: [
+    bcRow(BC1, B, { template_name: "winback_offer", state: "sent" }),
+    bcRow(BC2, B, { template_name: "winback_offer", playbook_id: PB1, state: "sent" }),
+  ],
+  broadcast_recipients: [
+    { broadcast_id: BC1, contact_id: "c1", tenant_id: B, state: "sent", sent_at: "2026-09-10T15:00:00Z" },
+    { broadcast_id: BC2, contact_id: "c2", tenant_id: B, state: "sent", sent_at: "2026-09-17T14:00:00Z" },
+  ],
+  messages: [],
+});
+/** What GET templates asked at origin/main for Settings (`all`), after the workspace's door: the rows, then the usage. */
+const TEMPLATES_ALL_ASKED_AT_MAIN = [
+  "templates.select",
+  "broadcasts.select",
+  "broadcast_recipients.select",
+  "messages.select",
+  "playbooks.select",
+];
+
+test("the templates, for the composers, Settings and Ask: GET templates answers its reader's payload over outbound-routes' fixtures, `all` as the route parses it -- the composers' read the approved and unhidden alone, each row the message as the customer receives it and why this product cannot send it, and nothing more read; Settings' every template, with what sends each and how many went out -- and a template is not a row a citation names yet", async () => {
+  for (const [q, all, names, keys, reads] of [
+    ["", false, ["visit_reminder"], ["templates"], ["templates.select"]],
+    [
+      "&all=1",
+      true,
+      ["hello_world", "offer", "visit_reminder"],
+      ["templates", "usedBy", "sends"],
+      TEMPLATES_ALL_ASKED_AT_MAIN,
+    ],
+    ["&all=0", false, ["visit_reminder"], ["templates"], ["templates.select"]],
+  ]) {
+    const routed = dayCtx(templatesWorld());
+    const page = await templatesRoute.GET.run(req(`?workspace=${B}${q}`), routed);
+    const ctx = dayCtx(templatesWorld());
+    const r = await kernel.load(turnIn(ctx, B), templatesReader, { all });
+    assert.deepEqual(r.data, page, `the route's payload: ${q || "the composers'"}`);
+    assert.equal(JSON.stringify(r.data), JSON.stringify(page), "byte for byte");
+    assert.deepEqual(
+      [Object.keys(r.data), r.data.templates.map((t) => t.name)],
+      [keys, names],
+      "the composers see the approved and unhidden; Settings sees everything, by name",
+    );
+    assert.deepEqual(r.rows, []);
+    assert.deepEqual(asked(ctx), reads);
+    assert.deepEqual(asked(routed), ["memberships.select", ...reads], "the workspace's door, then the same reads");
+  }
+  // The row as the composers get it: its category (a marketing template goes only to a yes to offers) and its title,
+  // the heading, footer and buttons out of Meta's array, and why it can't go from here -- never the array itself.
+  const [reminder] = (await kernel.load(turnIn(dayCtx(templatesWorld()), B), templatesReader, { all: false })).data
+    .templates;
+  assert.deepEqual(
+    [reminder.category, reminder.title, reminder.header, reminder.footer, reminder.buttons, reminder.blocked],
+    [
+      "utility",
+      "Visit reminder",
+      "Your visit",
+      "Reply STOP to opt out",
+      [{ text: "Book", kind: "url" }],
+      "a button that takes a value",
+    ],
+  );
+  assert.equal("components" in reminder, false, "Meta's array stays behind");
+  const settingsRead = (await kernel.load(turnIn(dayCtx(templatesWorld()), B), templatesReader, { all: true })).data;
+  assert.equal(settingsRead.templates.find((t) => t.name === "offer").category, "marketing");
+  // What sends each, and how many went out: outbound-routes' shape, the route's payload.
+  const usage = dayCtx(usageWorld());
+  const u = await kernel.load(turnIn(usage, B), templatesReader, { all: true });
+  assert.deepEqual(u.data, await templatesRoute.GET.run(req(`?workspace=${B}&all=1`), dayCtx(usageWorld())));
+  assert.deepEqual(
+    [u.data.usedBy.winback_offer.playbooks.map((p) => [p.name, p.paused]), u.data.usedBy.winback_offer.broadcasts],
+    [
+      [
+        ["Win-back", false],
+        ["Second wind", true],
+      ],
+      1,
+    ],
+    "both playbooks, which is paused, and the one run a person sent: a playbook's own run is not a second broadcast",
+  );
+  assert.deepEqual(u.data.sends.winback_offer, { count: 2, lastAt: "2026-09-17T14:00:00Z" });
+  assert.equal(u.data.usedBy.elsewhere, undefined, "another workspace's are not this one's");
+});
+
+const LIST_HAND = "bbbbbbbb-1111-4111-8111-bbbbbbbbbbb1";
+const LIST_RULE = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbb2";
+const LIST_NAMING = "bbbbbbbb-3333-4333-8333-bbbbbbbbbbb3";
+const LIST_ARCHIVED = "bbbbbbbb-4444-4444-8444-bbbbbbbbbbb4";
+const LIST_GONE = "bbbbbbbb-9999-4999-8999-bbbbbbbbbbb9";
+/**
+ * calendar-counts' three people, with the workspace's own lists: one kept by hand; one kept by a rule, with a stale
+ * member row a rule list never reads; one whose rule names the first; and one archived (00169), kept by hand.
+ */
+const listsPoolWorld = () =>
+  countsWorld(pagedPeople([poolPerson(1), poolPerson(2), poolPerson(3, { conversation_count: 0 })]), {
+    segments: [
+      { id: LIST_HAND, tenant_id: A, name: "Regulars", rule: null, archived_at: null },
+      {
+        id: LIST_RULE,
+        tenant_id: A,
+        name: "Talked to us",
+        rule: { all: [{ field: "conversations", op: "at_least", n: 1 }] },
+        archived_at: null,
+      },
+      {
+        id: LIST_NAMING,
+        tenant_id: A,
+        name: "Regulars who talked",
+        rule: {
+          all: [
+            { field: "in_list", op: "is", list: `list:${LIST_HAND}` },
+            { field: "conversations", op: "at_least", n: 1 },
+          ],
+        },
+        archived_at: null,
+      },
+      { id: LIST_ARCHIVED, tenant_id: A, name: "Old list", rule: null, archived_at: "2026-09-10T00:00:00Z" },
+    ],
+    segment_members: [
+      { tenant_id: A, segment_id: LIST_HAND, contact_id: "p1" },
+      { tenant_id: A, segment_id: LIST_HAND, contact_id: "p3" },
+      { tenant_id: A, segment_id: LIST_RULE, contact_id: "p3" },
+      { tenant_id: A, segment_id: LIST_ARCHIVED, contact_id: "p2" },
+    ],
+  });
+
+test("poolList takes the turn's lists: handed the workspace's lists as the lists reader holds them -- archived and members included -- it answers what it answers reading them itself, for a list kept by hand, a rule list, a rule that names another list, an archived list and one that is not there, and reads no list; without them it reads its own, as the send does", async () => {
+  const w = listsPoolWorld();
+  const pool = await audiencePoolOf(worldCtx(w), A, "America/New_York", new Date());
+  const want = {
+    [LIST_HAND]: { label: "Regulars", memberIds: ["p1", "p3"], rule: null },
+    [LIST_RULE]: { label: "Talked to us", memberIds: ["p1", "p2"] },
+    [LIST_NAMING]: { label: "Regulars who talked", memberIds: ["p1"] },
+    [LIST_ARCHIVED]: { label: "Old list", memberIds: ["p2"], rule: null, archived: true },
+    [LIST_GONE]: null,
+  };
+  for (const id of [LIST_HAND, LIST_RULE, LIST_NAMING, LIST_ARCHIVED, LIST_GONE]) {
+    const ref = { kind: "saved", id };
+    const reading = worldCtx(w);
+    const itself = await poolList(reading, A, pool, ref);
+    const handed = worldCtx(w);
+    const lists = (await kernel.load(turnIn(handed), listsReader, undefined)).data.lists;
+    const held = handed.supabase.seen.length;
+    const got = await poolList(handed, A, pool, ref, lists);
+    assert.deepEqual(got, itself, `the same answer, handed or read: ${id}`);
+    assert.equal(handed.supabase.seen.length, held, `handed the lists, it reads none: ${id}`);
+    assert.ok(asked(reading).includes("segments.select"), `without them, it reads its own: ${id}`);
+    const expected = want[id];
+    if (!expected) assert.equal(got, null, "no such list");
+    else for (const [k, v] of Object.entries(expected)) assert.deepEqual(got[k], v, `${id}: ${k}`);
+  }
+  // A People list reads no saved list either way.
+  const builtin = worldCtx(w);
+  assert.deepEqual(
+    await poolList(builtin, A, pool, { kind: "builtin", id: "phoned_only" }, []),
+    await poolList(worldCtx(w), A, pool, { kind: "builtin", id: "phoned_only" }),
+  );
+  assert.deepEqual(asked(builtin), []);
 });

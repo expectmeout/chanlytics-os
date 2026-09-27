@@ -514,32 +514,12 @@ test("REGRESSION: a playbook whose yes has no number to send to is not one nobod
 test("Ask knows playbooks: read as the page shows them, proposed as a card, committed through the app's route, undone by deleting; Today says what ran; a run's thread names its playbook", async () => {
   const { PROPOSAL_GATE, buildAskSuggestions, cardOpenRoute } = await import("@chanlytics/contracts");
   assert.equal(PROPOSAL_GATE.playbook, "approve");
-  const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
-  assert.ok(
-    tools.includes('name: "list_playbooks"') &&
-      /case "list_playbooks":\s*out = await listPlaybooksTool\(t\);\s*break;/.test(tools),
-  );
-  // The same rows, next-run words and counts as the page: list_playbooks runs against the page's own read in
-  // ask-turn.test.mjs.
-  assert.ok(tools.includes("Nothing here has run because you read it."));
-  const pr = readCode("apps/dashboard/src/server/ask/proposals.ts");
-  assert.ok(
-    pr.includes('name: "propose_playbook"') &&
-      /case "propose_playbook":\s*return await proposePlaybook\(t, input\);/.test(pr),
-  );
-  assert.ok(
-    pr.includes("checked = await checkPlaybookInput(t.ctx, t.tenantId, {"),
-    "checked the way the route checks it",
-  );
-  assert.ok(
-    pr.includes("starter is not approved on this workspace yet"),
-    "no template and no starter is an honest refusal",
-  );
-  assert.ok(
-    pr.includes("ask the person what to say there, then propose again with params"),
-    "a typed slot is a question, never invented words",
-  );
-  assert.ok(pr.includes('kind: "playbook",') && pr.includes('undo: "Delete it — nothing will run",'));
+  // Both tools are the registry's, and run in ask-turn.test.mjs: list_playbooks against the page's own read, its
+  // rows, next-run words and counts the page's, saying nothing ran because it was read ("list_playbooks tells who
+  // said yes"); propose_playbook as a card of kind playbook undone by deleting, refusing an honest no-starter and
+  // asking for a typed slot's words rather than inventing them ("the proposal builders run against the database in
+  // memory"), and checked the way the route checks it ("Ask reaches any list by its reference": a list about
+  // whoever is looking is refused by the same check).
   const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
   assert.ok(
     c.includes('case "playbook": {') &&

@@ -66,3 +66,4 @@ export type {
   DomainRecordRow,
 } from "./sending-domains";
 export { isFreeMail, FREE_MAIL_DOMAINS } from "./free-mail";
+export { posesAsReply } from "./email-subject";

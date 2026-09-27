@@ -17,7 +17,9 @@
  *
  * Routing: agent_id -> tenant_channels(kind='voice'). One Retell account hosts
  * many agents (432 calls across 8 in the live account) — an unrouted call is
- * dead-lettered, never guessed into a tenant.
+ * dead-lettered, never guessed into a tenant. A routing read the database
+ * could not make is a 503, never a dead letter: nothing is written, and the
+ * provider redelivers.
  *
  * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. It proves the signature, reads
  * the delivery into the shape the row keeps, refuses a call that belongs to
@@ -41,7 +43,7 @@ import {
 } from "../lib/packages/channels.js";
 import {
   pauseConversation,
-  resolveChannel,
+  resolveChannelDetailed,
   ingestCall,
   recordCallNote,
   linkCallMessage,
@@ -53,10 +55,12 @@ import {
 } from "../lib/packages/db.js";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/voice/call-recording.js";
 import { markForwardingVerified } from "../lib/voice/forwarding.js";
+import { tellPhonesCallStarted } from "../lib/voice/call-activity.js";
+import { apns, apnsKeys } from "../lib/ops/apns.js";
 import { erasedBeforeCall } from "../lib/erased.js";
 import { upsertEscalation } from "../lib/packages/jobs.js";
 import { frameGuardrail, offersBookingLink } from "../lib/packages/contracts.js";
-import type { RoutedChannel } from "../lib/packages/db.js";
+import type { ChannelLookup, RoutedChannel } from "../lib/packages/db.js";
 import { env } from "../lib/env.js";
 import { retellSigned } from "../lib/voice/voice-door-auth.js";
 import { logger, errField } from "../lib/log.js";
@@ -243,10 +247,13 @@ function readDelivery(raw: string): Delivery | null {
  * sends the delivery back rather than proceeding. The answer is the
  * response that ends the delivery, or null when it may go on.
  */
-async function erasureRefusal(db: Db, n: NormalizedCall, event: string | undefined): Promise<Response | null> {
-  if (!n.agentId || !n.fromE164 || !n.startedAtIso) return null;
-  const routedEarly = await resolveChannel(db, "voice", n.agentId).catch(() => null);
-  if (!routedEarly) return null;
+async function erasureRefusal(
+  db: Db,
+  n: NormalizedCall,
+  routed: RoutedChannel | null,
+  event: string | undefined,
+): Promise<Response | null> {
+  if (!routed || !n.fromE164 || !n.startedAtIso) return null;
   // A read that FAILED is not "nobody asked to be forgotten". The comment
   // above once promised a late sweep to catch what this let through; there
   // is no such sweep, so the promise was the only thing standing between a
@@ -254,11 +261,11 @@ async function erasureRefusal(db: Db, n: NormalizedCall, event: string | undefin
   // the provider redelivers, and a blip costs a retry rather than a person.
   let erased: boolean;
   try {
-    erased = await erasedBeforeCall(db, routedEarly.tenantId, n.fromE164, n.startedAtIso);
+    erased = await erasedBeforeCall(db, routed.tenantId, n.fromE164, n.startedAtIso);
   } catch (e) {
     L.error("retell_call_erasure_unreadable", {
       call: n.retellCallId,
-      tenant: routedEarly.tenantId,
+      tenant: routed.tenantId,
       error: errField(e),
     });
     return json(503, { ok: false, error: "erasure_unreadable" });
@@ -266,7 +273,7 @@ async function erasureRefusal(db: Db, n: NormalizedCall, event: string | undefin
   if (erased) {
     L.info("retell_call_skipped_erased", {
       call: n.retellCallId,
-      tenant: routedEarly.tenantId,
+      tenant: routed.tenantId,
       retell_event: event,
     });
     return json(200, { ok: true, skipped: "erased" });
@@ -275,7 +282,8 @@ async function erasureRefusal(db: Db, n: NormalizedCall, event: string | undefin
 }
 
 /**
- * A delivery that names no agent, routed through the call it belongs to.
+ * Whose call a delivery is: by the agent it names, or -- for one that names
+ * no agent -- through the call it belongs to.
  *
  * The canonical row was only ever written when the payload carried
  * agent_id. The provider documents call_started as "basic information" and
@@ -283,11 +291,49 @@ async function erasureRefusal(db: Db, n: NormalizedCall, event: string | undefin
  * promises the agent id on every event — and a per-turn delivery without it
  * used to be dropped before ingest, silently, leaving a live transcript
  * frozen on the dashboard while the provider streamed turns.
+ *
+ * A read that FAILED is a lookup that failed, never "no such call": the two
+ * earn different answers at the door, and this read once dropped its error
+ * on the floor.
  */
-async function routeByKnownCall(db: Db, retellCallId: string): Promise<RoutedChannel | null> {
-  const { data } = await db.from("calls").select("agent_id").eq("retell_call_id", retellCallId).limit(1).maybeSingle();
+async function routeDelivery(db: Db, n: { agentId: string | null; retellCallId: string }): Promise<ChannelLookup> {
+  if (n.agentId) return resolveChannelDetailed(db, "voice", n.agentId);
+  const { data, error } = await db
+    .from("calls")
+    .select("agent_id")
+    .eq("retell_call_id", n.retellCallId)
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    // The REASON rides the log: an RLS or grant regression on `calls` must
+    // read differently from a network blip, and the door's refusal names
+    // the call, not the cause.
+    L.error("retell_call_row_unreadable", { call_id: n.retellCallId, error: error.message });
+    return { channel: null, lookupFailed: true };
+  }
   const agentId = (data as { agent_id?: string | null } | null)?.agent_id ?? null;
-  return agentId ? resolveChannel(db, "voice", agentId) : null;
+  return agentId ? resolveChannelDetailed(db, "voice", agentId) : { channel: null, lookupFailed: false };
+}
+
+/**
+ * The call on the phones' Lock Screens (00191, lib/voice/call-activity.ts): once, as it starts, to every phone that
+ * handed the site its push-to-start token. Best effort beside the call's own door.
+ */
+async function tellPhones(db: Db, tenantId: string, s: Extract<CallStep, { kind: "call_activity" }>): Promise<void> {
+  const keys = apnsKeys();
+  if (!keys) return;
+  const outcome = await tellPhonesCallStarted(db, tenantId, s.call, apns(keys)).catch((e: unknown) => {
+    L.error("call_activity_failed", { call: s.retellCallId, error: errField(e) });
+    return null;
+  });
+  if (outcome) {
+    L.info("call_activity_started", {
+      call: s.retellCallId,
+      started: outcome.started,
+      refused: outcome.refused.length,
+    });
+    for (const r of outcome.refused) L.warn("call_activity_refused", { call: s.retellCallId, error: r.error });
+  }
 }
 
 /** A call nobody's agent owns: dead-lettered under the platform, never guessed into a tenant. */
@@ -402,6 +448,9 @@ async function applyStep(
     case "forwarding_verified":
       await markForwardingVerified(db, routed.tenantId, s.call);
       return;
+    case "call_activity":
+      await tellPhones(db, routed.tenantId, s);
+      return;
     case "delivery":
       await recordDelivery(db, routed.tenantId, s.callId, s.data);
       return;
@@ -455,16 +504,14 @@ async function applyPlan(db: Db, routed: RoutedChannel, plan: CallEventPlan): Pr
  * recording summary delivered to another business's owner. It now goes only
  * to a mailbox we know is this tenant's.
  */
-async function tellOwner(n: NormalizedCall, notice: NotifyMessage): Promise<void> {
-  // Resolve the tenant ONCE for this block: the summary email is
-  // tenant-scoped, and resolving it twice invites two answers.
-  const db2 = pg();
-  const routedForCall = db2 && n.agentId ? await resolveChannel(db2, "voice", n.agentId) : null;
-  const addressing =
-    db2 && routedForCall
-      ? await loadTenantNotifications(db2, routedForCall.tenantId)
-      : { notifications: null, isEnvDefault: false };
-  await notify({ tenantId: routedForCall?.tenantId ?? null, ...addressing }, notice);
+async function tellOwner(db: Db, routed: RoutedChannel | null, notice: NotifyMessage): Promise<void> {
+  // The tenant was decided ONCE, above, before anything was written: the
+  // summary email is tenant-scoped, and resolving it twice invites two
+  // answers.
+  const addressing = routed
+    ? await loadTenantNotifications(db, routed.tenantId)
+    : { notifications: null, isEnvDefault: false };
+  await notify({ tenantId: routed?.tenantId ?? null, ...addressing }, notice);
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -477,7 +524,28 @@ export async function POST(request: Request): Promise<Response> {
   const { event, call } = delivery;
   const n = normalizeCall(call);
   const db = pg();
-  const refusal = db ? await erasureRefusal(db, n, event) : null;
+  if (!db) {
+    // No control plane: nothing can be checked or written, so the delivery is
+    // not acknowledged. The SMS and WhatsApp doors answer the same 503, and a
+    // credential-less deployment answers no_database platform-wide (lib/pg.ts).
+    L.error("retell_no_database", { call_id: n.retellCallId, retell_event: event });
+    return json(503, { ok: false, error: "no_database" });
+  }
+  // Whose call this is, decided ONCE and before anything is written. A read
+  // that FAILED is not "nobody's agent": the dead letter below is for a
+  // database that ANSWERED, and a blip is a 503 -- nothing is written, and
+  // Retell redelivers (a non-2xx is retried, up to three times). Folding the
+  // two into one null once dead-lettered a live call under the platform with
+  // a 200, which the provider took as delivered and never sent again; and it
+  // skipped the erasure guard below on the way, since the guard could not be
+  // placed either.
+  const lookup = await routeDelivery(db, n);
+  if (lookup.lookupFailed) {
+    L.error("retell_routing_unreadable", { call_id: n.retellCallId, agent_id: n.agentId, retell_event: event });
+    return json(503, { ok: false, error: "routing_unreadable" });
+  }
+  const routed = lookup.channel;
+  const refusal = await erasureRefusal(db, n, routed, event);
   if (refusal) return refusal;
 
   // null = no control plane to ask; true = this delivery owns the post-call
@@ -489,9 +557,6 @@ export async function POST(request: Request): Promise<Response> {
   // ---- canonical calls row (additive; never breaks the legacy path) ----
   if (db) {
     try {
-      const routed = n.agentId
-        ? await resolveChannel(db, "voice", n.agentId)
-        : await routeByKnownCall(db, n.retellCallId);
       if (!routed) await deadLetter(db, n);
       else {
         const res = await ingestCall(db, routed.tenantId, n, call);
@@ -506,10 +571,13 @@ export async function POST(request: Request): Promise<Response> {
       // A non-2xx is the only thing that earns a retry. Swallowing this with
       // a 200 forfeited the three deliveries Retell offers, and an ended call
       // whose analysis failed to land read "No summary" forever — while the
-      // email below still went out. The side effects are idempotent now (the
-      // notification claim), so a retry is safe.
+      // email below still went out. The side effects are idempotent (the
+      // upsert on the call, the note's unique key, the notification claim, a
+      // stored recording is terminal), so a retry is safe -- and the answer is
+      // a 503, as the WhatsApp and SMS doors give a write the database
+      // refused: try again.
       L.error("ingest_call_failed", { error: errField(e) });
-      return json(500, { ok: false, error: "ingest_failed" });
+      return json(503, { ok: false, error: "ingest_failed" });
     }
   }
 
@@ -519,7 +587,7 @@ export async function POST(request: Request): Promise<Response> {
       L.info("retell_analyzed_duplicate", { call_id: n.retellCallId });
       return json(200, { ok: true, duplicate: true });
     }
-    await tellOwner(n, callNotice(n, call, callAbout));
+    await tellOwner(db, routed, callNotice(n, call, callAbout));
   }
   return json(200, { ok: true });
 }

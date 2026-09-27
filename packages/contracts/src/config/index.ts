@@ -200,3 +200,4 @@ export { promptBlocks } from "./prompt-blocks";
 export type { PromptBlockVM, PromptSource } from "./prompt-blocks";
 export { firstReceptionistOf, googleFillsOf } from "./first-receptionist";
 export type { FirstReceptionistKnown } from "./first-receptionist";
+export { TEAM_ROLES } from "./config";

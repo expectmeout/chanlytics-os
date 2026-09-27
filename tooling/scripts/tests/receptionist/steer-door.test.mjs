@@ -394,11 +394,19 @@ test("the door: a token for another door, a forgery and no credential are 403 an
       "no falling back from a bad token to the key",
     );
     await withEnv({ ANTHROPIC_API_KEY: undefined }, async () => {
+      // The key alone, on an edge that could have verified a token: refused before the model key is looked at.
       assert.deepEqual(
         await answer(await knock(body, { headers: { "x-diag-key": "diag-key-for-this-file" }, brain: b.port })),
-        [503, { ok: false, error: "no_model_key" }],
-        "the key opened the door; without a model there is nothing to rewrite with",
+        [403, { ok: false, error: "token_required" }],
+        "the key alone opens no door a token reaches",
       );
+      await withEnv({ EDGE_CALL_SECRET: undefined }, async () => {
+        assert.deepEqual(
+          await answer(await knock(body, { headers: { "x-diag-key": "diag-key-for-this-file" }, brain: b.port })),
+          [503, { ok: false, error: "no_model_key" }],
+          "without the secret the key opened the door; without a model there is nothing to rewrite with",
+        );
+      });
     });
   });
   assert.deepEqual(

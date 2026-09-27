@@ -185,22 +185,54 @@ export type Database = {
           },
         ]
       }
+      billing_card_marks: {
+        Row: {
+          card_fingerprint: string
+          seen_at: string
+          tenant_id: string
+        }
+        Insert: {
+          card_fingerprint: string
+          seen_at?: string
+          tenant_id: string
+        }
+        Update: {
+          card_fingerprint?: string
+          seen_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_card_marks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_events: {
         Row: {
           id: string
+          lease_until: string | null
           received_at: string
+          state: string
           tenant_id: string | null
           type: string
         }
         Insert: {
           id: string
+          lease_until?: string | null
           received_at?: string
+          state?: string
           tenant_id?: string | null
           type: string
         }
         Update: {
           id?: string
+          lease_until?: string | null
           received_at?: string
+          state?: string
           tenant_id?: string | null
           type?: string
         }
@@ -3305,6 +3337,165 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_earnings: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          earned_cents: number
+          id: string
+          kind: string
+          paid_at: string
+          partner_id: string
+          payable_at: string
+          payout_id: string | null
+          share_bp: number
+          state: string
+          stripe_event_id: string
+          stripe_invoice_id: string
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          currency: string
+          earned_cents: number
+          id?: string
+          kind: string
+          paid_at: string
+          partner_id: string
+          payable_at: string
+          payout_id?: string | null
+          share_bp: number
+          state?: string
+          stripe_event_id: string
+          stripe_invoice_id: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          earned_cents?: number
+          id?: string
+          kind?: string
+          paid_at?: string
+          partner_id?: string
+          payable_at?: string
+          payout_id?: string | null
+          share_bp?: number
+          state?: string
+          stripe_event_id?: string
+          stripe_invoice_id?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_earnings_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_earnings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_tenants: {
+        Row: {
+          attributed_at: string
+          checks: Json
+          code_used: string
+          partner_id: string
+          standing: string | null
+          standing_at: string | null
+          standing_by: string | null
+          standing_why: string | null
+          tenant_id: string
+        }
+        Insert: {
+          attributed_at?: string
+          checks?: Json
+          code_used: string
+          partner_id: string
+          standing?: string | null
+          standing_at?: string | null
+          standing_by?: string | null
+          standing_why?: string | null
+          tenant_id: string
+        }
+        Update: {
+          attributed_at?: string
+          checks?: Json
+          code_used?: string
+          partner_id?: string
+          standing?: string | null
+          standing_at?: string | null
+          standing_by?: string | null
+          standing_why?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_tenants_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partners: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          payout_facts: Json
+          share_bp: number
+          status: string
+          terms_accepted_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          payout_facts?: Json
+          share_bp?: number
+          status?: string
+          terms_accepted_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          payout_facts?: Json
+          share_bp?: number
+          status?: string
+          terms_accepted_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       person_notes: {
         Row: {
           author_kind: string
@@ -3423,6 +3614,7 @@ export type Database = {
           gap_days: number
           gap_minutes: number | null
           id: string
+          include_unconfirmed: boolean
           kind: string
           last_run_at: string | null
           last_run_for: string | null
@@ -3433,6 +3625,7 @@ export type Database = {
           params: Json
           policy_class: string
           run_hour: number
+          signed_by: string | null
           state: string
           template_id: string
           template_language: string
@@ -3452,6 +3645,7 @@ export type Database = {
           gap_days?: number
           gap_minutes?: number | null
           id?: string
+          include_unconfirmed?: boolean
           kind?: string
           last_run_at?: string | null
           last_run_for?: string | null
@@ -3462,6 +3656,7 @@ export type Database = {
           params?: Json
           policy_class: string
           run_hour?: number
+          signed_by?: string | null
           state?: string
           template_id: string
           template_language: string
@@ -3481,6 +3676,7 @@ export type Database = {
           gap_days?: number
           gap_minutes?: number | null
           id?: string
+          include_unconfirmed?: boolean
           kind?: string
           last_run_at?: string | null
           last_run_for?: string | null
@@ -3491,6 +3687,7 @@ export type Database = {
           params?: Json
           policy_class?: string
           run_hour?: number
+          signed_by?: string | null
           state?: string
           template_id?: string
           template_language?: string
@@ -3605,6 +3802,7 @@ export type Database = {
       }
       push_devices: {
         Row: {
+          activity_token: string | null
           app_version: string | null
           created_at: string
           id: string
@@ -3614,6 +3812,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          activity_token?: string | null
           app_version?: string | null
           created_at?: string
           id?: string
@@ -3623,6 +3822,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          activity_token?: string | null
           app_version?: string | null
           created_at?: string
           id?: string
@@ -3651,17 +3851,55 @@ export type Database = {
         }
         Relationships: []
       }
-      reach_out_sends: {
+      reach_out_check_spend: {
         Row: {
           attempts: number
+          day: string
+          tenant_id: string
+        }
+        Insert: {
+          attempts?: number
+          day: string
+          tenant_id: string
+        }
+        Update: {
+          attempts?: number
+          day?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reach_out_check_spend_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reach_out_sends: {
+        Row: {
+          angle: string | null
+          attempts: number
           broadcast_id: string
+          check_after: string | null
+          check_first_at: string | null
+          check_gen: number
+          check_started_at: string | null
+          check_tries: number
+          checked_at: string | null
+          checked_words: string | null
           claimed_at: string | null
           contact_id: string | null
           created_at: string
           domain_id: string | null
+          facts_used: string[]
+          hold_detail: string | null
           id: string
+          included_for: string[]
           lead_id: string
           message_id: string | null
+          opening: string | null
           playbook_id: string | null
           reason: string | null
           root_id: string
@@ -3672,15 +3910,27 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          angle?: string | null
           attempts?: number
           broadcast_id: string
+          check_after?: string | null
+          check_first_at?: string | null
+          check_gen?: number
+          check_started_at?: string | null
+          check_tries?: number
+          checked_at?: string | null
+          checked_words?: string | null
           claimed_at?: string | null
           contact_id?: string | null
           created_at?: string
           domain_id?: string | null
+          facts_used?: string[]
+          hold_detail?: string | null
           id: string
+          included_for?: string[]
           lead_id: string
           message_id?: string | null
+          opening?: string | null
           playbook_id?: string | null
           reason?: string | null
           root_id: string
@@ -3691,15 +3941,27 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          angle?: string | null
           attempts?: number
           broadcast_id?: string
+          check_after?: string | null
+          check_first_at?: string | null
+          check_gen?: number
+          check_started_at?: string | null
+          check_tries?: number
+          checked_at?: string | null
+          checked_words?: string | null
           claimed_at?: string | null
           contact_id?: string | null
           created_at?: string
           domain_id?: string | null
+          facts_used?: string[]
+          hold_detail?: string | null
           id?: string
+          included_for?: string[]
           lead_id?: string
           message_id?: string | null
+          opening?: string | null
           playbook_id?: string | null
           reason?: string | null
           root_id?: string
@@ -4272,7 +4534,15 @@ export type Database = {
       }
     }
     Functions: {
+      billing_card_mark: {
+        Args: { p_fingerprint: string; p_tenant_id: string }
+        Returns: undefined
+      }
       call_status_rank: { Args: { p_status: string }; Returns: number }
+      caller_has_permission: {
+        Args: { p_permission: string; p_tenant_id: string }
+        Returns: boolean
+      }
       campaign_series: {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
@@ -4335,7 +4605,7 @@ export type Database = {
         Returns: Json
       }
       create_workspace: {
-        Args: { p_name: string; p_timezone?: string }
+        Args: { p_name: string; p_partner_code?: string; p_timezone?: string }
         Returns: {
           id: string
           locale: string
@@ -4346,7 +4616,12 @@ export type Database = {
         }[]
       }
       create_workspace_for: {
-        Args: { p_name: string; p_timezone?: string; p_user: string }
+        Args: {
+          p_name: string
+          p_partner_code?: string
+          p_timezone?: string
+          p_user: string
+        }
         Returns: {
           id: string
           locale: string
@@ -4388,6 +4663,7 @@ export type Database = {
         }
         Returns: Json
       }
+      delete_my_account: { Args: never; Returns: Json }
       drop_google_credentials: {
         Args: { p_tenant_id: string }
         Returns: boolean
@@ -4589,6 +4865,7 @@ export type Database = {
         Args: { p_period: string; p_tenant_id: string }
         Returns: Json
       }
+      lead_name_key: { Args: { p_name: string }; Returns: string }
       lead_niche_prior: { Args: { p_category_key: string }; Returns: Json }
       lead_plan_check: { Args: { p_plan: Json }; Returns: undefined }
       lead_release: {
@@ -4715,6 +4992,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      lead_site_key: { Args: { p_host: string }; Returns: string }
       lead_suppression_hash: {
         Args: { p_tenant_id: string; p_value: string }
         Returns: string
@@ -4886,6 +5164,80 @@ export type Database = {
           p_to: string
         }
         Returns: Json
+      }
+      partner_balance: {
+        Args: never
+        Returns: {
+          currency: string
+          earned_cents: number
+          next_payable_at: string
+          state: string
+        }[]
+      }
+      partner_become: { Args: { p_code: string }; Returns: Json }
+      partner_earn: {
+        Args: {
+          p_amount_cents: number
+          p_currency: string
+          p_event_id: string
+          p_invoice_id: string
+          p_paid_at: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      partner_earnings_sweep: { Args: { p_now?: string }; Returns: Json }
+      partner_overview: {
+        Args: never
+        Returns: {
+          billing_mode: string
+          billing_status: string
+          created_at: string
+          current_period_end: string
+          last_inbound_at: string
+          line_e164: string
+          line_error: string
+          line_kind: string
+          members: number
+          name: string
+          reg_mock: boolean
+          reg_sole_prop: boolean
+          reg_step: string
+          slug: string
+          sms_state: string
+          status: string
+          tenant_id: string
+          timezone: string
+          trial_end: string
+          voice_active: boolean
+          voice_number: string
+          voice_state: string
+          whatsapp_active: boolean
+          whatsapp_number: string
+        }[]
+      }
+      partner_reverse: {
+        Args: {
+          p_amount_cents: number
+          p_event_id: string
+          p_invoice_id: string
+          p_kind: string
+        }
+        Returns: Json
+      }
+      partner_workspace_money: {
+        Args: never
+        Returns: {
+          currency: string
+          held_cents: number
+          month_cents: number
+          name: string
+          on_team: boolean
+          paid_cents: number
+          payable_cents: number
+          standing: string
+          tenant_id: string
+        }[]
       }
       people_list: {
         Args: {
@@ -5063,6 +5415,35 @@ export type Database = {
           whatsapp_number: string
         }[]
       }
+      platform_overview_rows_for: {
+        Args: { p_tenants: string[] }
+        Returns: {
+          billing_mode: string
+          billing_status: string
+          created_at: string
+          current_period_end: string
+          last_inbound_at: string
+          line_e164: string
+          line_error: string
+          line_kind: string
+          members: number
+          name: string
+          reg_mock: boolean
+          reg_sole_prop: boolean
+          reg_step: string
+          slug: string
+          sms_state: string
+          status: string
+          tenant_id: string
+          timezone: string
+          trial_end: string
+          voice_active: boolean
+          voice_number: string
+          voice_state: string
+          whatsapp_active: boolean
+          whatsapp_number: string
+        }[]
+      }
       profile_set: { Args: { p_display_name: string }; Returns: Json }
       provision_tenant: { Args: { p_tenant_id: string }; Returns: undefined }
       purge_ask: { Args: { p_keep?: string }; Returns: number }
@@ -5079,7 +5460,12 @@ export type Database = {
       purge_notifications: { Args: { p_keep?: string }; Returns: number }
       push_device_forget: { Args: { p_token: string }; Returns: Json }
       push_device_register: {
-        Args: { p_app_version?: string; p_platform: string; p_token: string }
+        Args: {
+          p_activity_token?: string
+          p_app_version?: string
+          p_platform: string
+          p_token: string
+        }
         Returns: Json
       }
       put_channel_credentials: {
@@ -5094,21 +5480,42 @@ export type Database = {
         Args: { p_line_id: string; p_secret: Json }
         Returns: string
       }
-      reach_out_audience: {
-        Args: {
-          p_limit: number
-          p_root_id: string
-          p_search_id: string
-          p_tenant_id: string
-        }
-        Returns: {
-          business_name: string
-          city: string
-          email: string
-          hours: Json
-          lead_id: string
-          region: string
-        }[]
+      reach_out_audience:
+        | {
+            Args: {
+              p_include_unconfirmed?: boolean
+              p_limit: number
+              p_search_id: string
+              p_tenant_id: string
+            }
+            Returns: {
+              business_name: string
+              city: string
+              email: string
+              hours: Json
+              lead_id: string
+              region: string
+            }[]
+          }
+        | {
+            Args: {
+              p_limit: number
+              p_root_id: string
+              p_search_id: string
+              p_tenant_id: string
+            }
+            Returns: {
+              business_name: string
+              city: string
+              email: string
+              hours: Json
+              lead_id: string
+              region: string
+            }[]
+          }
+      reach_out_check_take: {
+        Args: { p_at?: string; p_cap: number; p_tenant_id: string }
+        Returns: boolean
       }
       reach_out_claim: {
         Args: {
@@ -5118,15 +5525,27 @@ export type Database = {
           p_limit: number
         }
         Returns: {
+          angle: string | null
           attempts: number
           broadcast_id: string
+          check_after: string | null
+          check_first_at: string | null
+          check_gen: number
+          check_started_at: string | null
+          check_tries: number
+          checked_at: string | null
+          checked_words: string | null
           claimed_at: string | null
           contact_id: string | null
           created_at: string
           domain_id: string | null
+          facts_used: string[]
+          hold_detail: string | null
           id: string
+          included_for: string[]
           lead_id: string
           message_id: string | null
+          opening: string | null
           playbook_id: string | null
           reason: string | null
           root_id: string
@@ -5186,6 +5605,46 @@ export type Database = {
           region: string
         }[]
       }
+      reach_out_held_stale: {
+        Args: { p_before: string; p_limit: number; p_tenant_id?: string }
+        Returns: {
+          angle: string | null
+          attempts: number
+          broadcast_id: string
+          check_after: string | null
+          check_first_at: string | null
+          check_gen: number
+          check_started_at: string | null
+          check_tries: number
+          checked_at: string | null
+          checked_words: string | null
+          claimed_at: string | null
+          contact_id: string | null
+          created_at: string
+          domain_id: string | null
+          facts_used: string[]
+          hold_detail: string | null
+          id: string
+          included_for: string[]
+          lead_id: string
+          message_id: string | null
+          opening: string | null
+          playbook_id: string | null
+          reason: string | null
+          root_id: string
+          send_at: string | null
+          sent_at: string | null
+          state: string
+          tenant_id: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "reach_out_sends"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       reach_out_month_sent: {
         Args: { p_at: string; p_tenant_id: string }
         Returns: number
@@ -5208,18 +5667,54 @@ export type Database = {
           written_at: string
         }[]
       }
+      reach_out_record: {
+        Args: { p_lead_id: string; p_search_id: string; p_tenant_id: string }
+        Returns: {
+          about: string
+          business_name: string
+          category: string
+          city: string
+          email: string
+          email_domain_shared: boolean
+          hours: Json
+          name_listings: number
+          rating: number
+          region: string
+          reviews: number
+          site_listings: number
+          website_host: string
+          what_you_asked: string
+          why_it_fits: string
+        }[]
+      }
+      reach_out_release_unavailable: {
+        Args: { p_before: string; p_tenant_id?: string }
+        Returns: number
+      }
       reach_out_stale_sends: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {
+          angle: string | null
           attempts: number
           broadcast_id: string
+          check_after: string | null
+          check_first_at: string | null
+          check_gen: number
+          check_started_at: string | null
+          check_tries: number
+          checked_at: string | null
+          checked_words: string | null
           claimed_at: string | null
           contact_id: string | null
           created_at: string
           domain_id: string | null
+          facts_used: string[]
+          hold_detail: string | null
           id: string
+          included_for: string[]
           lead_id: string
           message_id: string | null
+          opening: string | null
           playbook_id: string | null
           reason: string | null
           root_id: string
@@ -5235,6 +5730,37 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      reach_out_unchecked: {
+        Args: {
+          p_ahead_minutes: number
+          p_limit: number
+          p_per_workspace: number
+          p_tenant_id?: string
+        }
+        Returns: {
+          about: string
+          business_name: string
+          category: string
+          check_gen: number
+          city: string
+          email: string
+          email_domain_shared: boolean
+          hours: Json
+          included_for: string[]
+          name_listings: number
+          rating: number
+          region: string
+          reviews: number
+          send: Json
+          signed_by: string
+          site_listings: number
+          template_id: string
+          template_language: string
+          website_host: string
+          what_you_asked: string
+          why_it_fits: string
+        }[]
       }
       release_conversation_control: {
         Args: {
@@ -5417,7 +5943,9 @@ export type Database = {
       trigger_leads_sweep: { Args: never; Returns: number }
       trigger_lines_sweep: { Args: never; Returns: number }
       trigger_notes_sweep: { Args: never; Returns: number }
+      trigger_partners_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }
+      trigger_reach_out_check_sweep: { Args: never; Returns: number }
       trigger_reach_out_sweep: { Args: never; Returns: number }
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }

@@ -306,6 +306,7 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   lead_collect: { stopped: "A search stopped partway", to: "clients/leads" },
   lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
   push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
+  push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
 };
 
 /** A job this runner has no words for: said as what it is, on the page that says what happened today. */

@@ -11,7 +11,7 @@ import { googleReadiness, stateSecret } from "@/server/connections/google";
  */
 export const GET = read({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "google_link",
   handle: async ({ ctx, member }) => {
     const ready = await googleReadiness();

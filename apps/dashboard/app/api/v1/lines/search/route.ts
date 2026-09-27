@@ -9,7 +9,7 @@ import { edgeLines } from "@/server/connections/lines";
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lines_search",
   handle: async ({ req }) => {
     const body = (await req.json().catch(() => ({}))) as { area_code?: unknown };

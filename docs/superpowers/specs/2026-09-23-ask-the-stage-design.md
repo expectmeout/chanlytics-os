@@ -102,7 +102,7 @@ Above the band, as today (`.ask-folds`), each fold a 36px row: the light square,
 
 `.ask-modal.ask-line` is the screen: `position: fixed; inset: 0`, `background: var(--bg)`, no radius, no shadow, padding-top `env(safe-area-inset-top)`, padding-bottom `env(safe-area-inset-bottom)`; the wash behind it is the kit's, fully covered. `role="dialog" aria-modal="true" aria-label="Ask Chanlytics"`. Three rows: the head, the middle (flex 1, scrolls when it must, `overscroll-behavior: contain`), the foot.
 
-- **Head** (52px): "Earlier" as `.btn-ghost` with the chat glyph at the left (toggles the Earlier list, `aria-pressed`); Clear as `.btn-ghost` beside it only in a conversation; × (44px) at the right.
+- **Head** (52px): "Earlier" as `.btn-ghost` with the chat glyph at the left (toggles the Earlier list, `aria-pressed`); Clear as `.btn-ghost` beside it in a conversation or over a quick answer (a preset question answered without a model; 26 Sep); × (44px) at the right.
 - **Foot**: the field (56px, `--bg-sunken`, radius 16, `--line`), the one button (36px) inside it, in 12px side padding; it rides the keyboard through `--ask-kb` as today.
 
 ### 5.2 At rest

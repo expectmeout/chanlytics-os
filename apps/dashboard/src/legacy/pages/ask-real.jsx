@@ -247,7 +247,7 @@ const useArSlide = ({ open, composing, setComposing, slideFrom, stageRef, heroRe
 };
 
 /** What opening does: the route's scope, the threads and the surfaces the rows read, and the three coming in from the button. */
-const useArOpen = ({ open, A, openedAt, setScope, threadsReady, setThreads, setTick, faceRef }) => {
+const useArOpen = ({ open, A, route, openedAt, setScope, threadsReady, setThreads, setTick, faceRef }) => {
   // Open: the route's scope, the threads, and the surfaces the rows read (Right now reads Today's and Broadcasts').
   useArEffect(() => {
     if (!open || !A) return;
@@ -260,6 +260,18 @@ const useArOpen = ({ open, A, openedAt, setScope, threadsReady, setThreads, setT
     evs.forEach((e) => window.addEventListener(e, bump));
     return () => evs.forEach((e) => window.removeEventListener(e, bump));
   }, [open]);
+
+  // Open, and the page under the Line changing while it is open: the page is warmed (POST ask/warm; legacy-bridge/ask/api.ts),
+  // so the server has read the rows on screen before the question comes. Never waited on; a page that cannot say what it
+  // holds, or a warm that fails, costs nothing.
+  useArEffect(() => {
+    if (!open || !A || !A.warm || !A.context) return;
+    // A tick later, so a page that has just come under the Line has said what it drew (legacy-bridge/ask/context.ts).
+    const id = setTimeout(() => {
+      try { Promise.resolve(A.warm(A.context(arRoute()))).catch(() => {}); } catch (e) { /* the question still goes */ }
+    }, 0);
+    return () => clearTimeout(id);
+  }, [open, route.page, route.param]);
 
   // Open: the three move from the button into the line (a FLIP), and the button's own face hides while they stand here
   // (ask.css, body.ask-open), so there is one character. With reduced motion they are simply here.
@@ -529,7 +541,11 @@ const arSubmitter = (ln) => {
     const mine = ++turnSeq.current;
     setLive({ q, text: "", say: null, traces: [] });
     const turn = { mine, threadId: thread.id, final: null, spoke: false, said: 0 };
-    await A.send({ text: q, threadId: turn.threadId, scope: thread.scope || scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null }, (ev) => arTurnHeard(ln, turn, ev));
+    // The page, as it is now: the rows on screen and the row the words name, if they name one (legacy-bridge/ask/context.ts).
+    // A page that cannot say what it holds sends none: the question still goes.
+    let context = null;
+    try { context = A.context ? A.context(arRoute(), q) : null; } catch (e) { context = null; }
+    await A.send({ text: q, threadId: turn.threadId, scope: thread.scope || scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context }, (ev) => arTurnHeard(ln, turn, ev));
     arTurnLanded(ln, turn);
   };
   return submit;
@@ -942,7 +958,7 @@ const arStage = ({ talk, live, stageRef, phone, faceRef, AskFace, scope, setScop
 
 /** The Line: the scrim, the dialog, what a screen reader hears, the head, the folds, the foot, the band, the question before a delete, and the middle. */
 const arLineView = (ln) => {
-  const { onClose, tick, dialogRef, drawn, view, live, setView, t, active, clearLine, phone, folds, foot, doomed, removeThread, setDoomed, body, restful, composingRows, bodyRef, hero, toastNode } = ln;
+  const { onClose, tick, dialogRef, drawn, view, live, setView, t, active, quick, clearLine, phone, folds, foot, doomed, removeThread, setDoomed, body, restful, composingRows, bodyRef, hero, toastNode } = ln;
   // What a screen reader hears: the answer's headline (or a prose answer's words) once it is whole (spec 6.10).
   const said = drawn ? drawn.answer.say.headline || drawn.answer.say.detail : "";
   return (
@@ -961,14 +977,15 @@ const arLineView = (ln) => {
         {...(window.touchSwipe ? window.touchSwipe({ onDown: onClose, when: arPhone }) : {})}
       >
         <p className="ask-said" role="status" aria-live="polite" data-testid="ask-said">{said}</p>
-        {/* A phone's head: Earlier, Clear in a conversation, and a close within the thumb's reach; both wait while a
+        {/* A phone's head: Earlier, Clear in a conversation or over a quick answer (a preset question is answered
+            without one, and was left with no way home but ×), and a close within the thumb's reach; both wait while a
             turn runs (spec 5.1, 5.4). A desktop draws none. */}
         <div className="ask-line-head">
           <button type="button" className="btn btn-ghost" aria-pressed={view === "earlier"} disabled={!!live} onClick={() => setView((v) => (v === "earlier" ? "rows" : "earlier"))} data-testid="ask-earlier">
             <Icon name="chat" size={13} />
             {t.earlier}
           </button>
-          {active ? <button type="button" className="btn btn-ghost" disabled={!!live} onClick={clearLine} data-testid="ask-clear-head">{t.clear}</button> : null}
+          {active || quick ? <button type="button" className="btn btn-ghost" disabled={!!live} onClick={clearLine} data-testid="ask-clear-head">{t.clear}</button> : null}
           <button type="button" className="ask-line-btn quiet" onClick={onClose} aria-label={t.close} title={t.close} data-testid="ask-close">
             <Icon name="x" size={14} />
           </button>
@@ -1008,6 +1025,7 @@ const AskReal = ({ open, onClose }) => {
   const ln = { open, onClose, A, H, M, AskFace, buildLineRows, AskRows, flatRows, AskNowPills, AskTurn, answerMoves, late, ...useArLine(A, H) };
   ln.t = window.askText(ln.lang);
   const route = arRoute();
+  ln.route = route;
   // With the param: Leads is People's `leads` param, and the Line on it is the finder (spec F2, F3).
   ln.surface = A ? A.surfaceFor(route.page, route.param) : "other";
   Object.assign(ln, useArVoice(ln));

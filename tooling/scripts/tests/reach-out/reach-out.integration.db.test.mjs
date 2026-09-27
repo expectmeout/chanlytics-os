@@ -18,6 +18,9 @@
  *   9. at the domain's day's share, a due send is not claimed, and a cold email written at it by hand is refused at
  *      the door as sending_domain_at_cap and planned again by the clock, never skipped.
  *
+ * Each tick checks before it claims (Part 4): the check's own tick (lib/reach-out/check.ts) runs first, over a model
+ * that is never asked, since these words name no opening; the claim takes only what it checked.
+ *
  * Kept to its own workspace (every clock and claim call takes it). Local stack only: it makes a workspace and a user.
  */
 import { test, before, after } from "node:test";
@@ -140,7 +143,13 @@ async function runJobs() {
   }
   return jobs.length;
 }
+/** No model: these words name no opening, so the check asks nothing, and a call would be a failure here. */
+const noModel = async () => {
+  throw new Error("the check asked a model about words that name no opening");
+};
 const tick = async (now = new Date()) => {
+  const checked = await lib.checkSends({ db, now, started: Date.now(), log: L, tenantId: A, ask: noModel });
+  assert.deepEqual([checked.calls, checked.errors], [0, 0], JSON.stringify(checked));
   await lib.reachOutClock(db, now, L, Date.now(), A);
   return lib.claimAndWrite({ db, now, started: Date.now(), lane: LANE, log: L, tenantId: A });
 };
@@ -152,6 +161,7 @@ before(async () => {
   lib = {
     ...(await import(at("apps/edge/lib/reach-out/run-context.ts"))),
     ...(await import(at("apps/edge/lib/reach-out/clock.ts"))),
+    ...(await import(at("apps/edge/lib/reach-out/check.ts"))),
     ...(await import(at("apps/edge/lib/reach-out/sender.ts"))),
     ...(await import(at("apps/edge/lib/reach-out/request.ts"))),
     ...(await import(at("apps/edge/lib/email/email.ts"))),

@@ -13,6 +13,7 @@
  *
  * docs/plans/2026-09-17-email-channel.md, §7.
  */
+import { posesAsReply } from "@chanlytics/contracts";
 
 /** What an email is a reply to, read off the stored parent row. */
 export interface EmailParent {
@@ -202,9 +203,6 @@ function unsubscribeHeaders(c: EmailCampaign): Record<string, string> {
   };
 }
 
-/** A subject that claims to answer or pass on an email. A first email a program sends never carries one: that subject deceives. */
-const ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
-
 /**
  * The request one email leaves as: a reply, or a first email.
  *
@@ -232,7 +230,8 @@ const ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 export function buildEmailRequest(i: EmailRequestInput): EmailRequest {
   const subject = i.parent ? replySubject(i.parent.subject) : oneLine(i.subject ?? "").slice(0, SUBJECT_MAX);
   if (!subject) throw new Error("buildEmailRequest: a first email names its subject");
-  if (!i.parent && (i.campaign || i.actor === "ai") && ANSWER_OR_FORWARD.test(subject))
+  // A first email a program sends never poses as a reply or a forward (contracts posesAsReply: the sheet asks it too).
+  if (!i.parent && (i.campaign || i.actor === "ai") && posesAsReply(subject))
     throw new Error("buildEmailRequest: a first email a program sends does not pose as a reply");
   if (i.campaign && !i.campaign.footer.trim()) throw new Error("buildEmailRequest: a campaign's footer is never empty");
   const unsubscribe = i.campaign ? unsubscribeHeaders(i.campaign) : {};

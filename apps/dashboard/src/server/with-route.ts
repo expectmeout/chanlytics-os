@@ -7,6 +7,7 @@ import {
   whyCannotSpend,
   type BillingMode,
   type BillingStatus,
+  type Role,
   type SpendWords,
 } from "@chanlytics/contracts";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
@@ -18,6 +19,7 @@ import { createClient } from "../lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { isSameOrigin } from "./request-guards";
+import { bearerOf, verifyBearer } from "./bearer";
 import { isRetryableAuthError } from "./auth-errors";
 import { serverTimingHeader } from "./server-timing";
 
@@ -88,7 +90,11 @@ export function withRoute<T>(
       // for this one. Both stop being true on a custom domain shared with
       // anything else. Reads are exempt — they change nothing, and a GET is
       // where a link preview or a prefetch legitimately arrives cross-site.
-      if (req.method !== "GET" && req.method !== "HEAD" && !isSameOrigin(req)) {
+      //
+      // A request that carries a bearer token (decision 0011: the phone app's native screens) has no cookie in it
+      // and reads none, so there is no ambient credential a foreign page could ride on; the rule is the cookie's.
+      const bearer = bearerOf(req);
+      if (!bearer && req.method !== "GET" && req.method !== "HEAD" && !isSameOrigin(req)) {
         console.log(JSON.stringify({ level: "warn", route, event: "cross_site_write_refused" }));
         return NextResponse.json(err("forbidden", "This request did not come from the app."), {
           status: 403,
@@ -97,12 +103,14 @@ export function withRoute<T>(
       }
       const authFrom = Date.now();
       const params = routeCtx?.params ? await routeCtx.params : {};
-      const supabase = await createClient();
       // The token's signature verified (proxy.ts says how: locally over the project's public key, or over the Auth
       // server where the project still signs with its shared secret), and its claims: who this is, their address
-      // and what they set at sign-up, as the Auth server's user record carried them. Never getSession().
-      const { data: verified, error: authErr } = await supabase.auth.getClaims();
-      const user = verified?.claims ?? null;
+      // and what they set at sign-up, as the Auth server's user record carried them. Never getSession(). A bearer
+      // is verified the same way, over the token the header carried, on a client that reads no cookie.
+      const session = bearer ? await verifyBearer(bearer) : await cookieSession();
+      const supabase = session.supabase;
+      const authErr = session.error;
+      const user = session.claims;
       if (!user) {
         // "We could not ask" is not "you are not signed in".
         //
@@ -132,7 +140,7 @@ export function withRoute<T>(
       const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
       const data = await handler(req, {
         supabase,
-        userId: user.sub,
+        userId: String(user.sub),
         email: typeof user.email === "string" ? user.email : undefined,
         metadata,
         params,
@@ -172,7 +180,7 @@ export function withRoute<T>(
 
 export interface MemberContext {
   tenantId: string;
-  role: "owner" | "operator" | "viewer";
+  role: Role;
 }
 
 /**
@@ -220,23 +228,40 @@ export async function memberContext(
   };
 }
 
-const ROLE_RANK: Record<MemberContext["role"], number> = { viewer: 0, operator: 1, owner: 2 };
+/**
+ * The ladder a route's `role` names a rung of. A partner (decision 0012) sits
+ * between operator and owner: everything setting a workspace up takes, and
+ * nothing that touches its money or its team, which is what `role: "partner"`
+ * on a route means (ROLE_PERMS in contracts is the same table, per permission).
+ */
+const ROLE_RANK: Record<Role, number> = { viewer: 0, operator: 1, partner: 2, owner: 3 };
 
 /**
  * The server-side door (PRD E1). RLS is the floor — it stops cross-tenant
  * reads no matter what — but "which member may flip this switch" is a role
  * decision, and it is made HERE, never in the browser. The client's gate()
  * chips are a courtesy rendering of the same truth.
+ *
+ * A role the ladder does not know is refused, whatever the door asked for. It
+ * used to pass: `ROLE_RANK[unknown] < n` is `undefined < n`, which is false,
+ * so a membership row carrying a role this build had never heard of would
+ * have walked through every door in the app.
  */
-export function requireRole(member: MemberContext, atLeast: MemberContext["role"]): void {
-  if (ROLE_RANK[member.role] < ROLE_RANK[atLeast]) {
+export function requireRole(member: MemberContext, atLeast: Role): void {
+  const have = ROLE_RANK[member.role];
+  if (have === undefined || have < ROLE_RANK[atLeast]) {
+    // The least role that may, in the words a member reads. A partner's door
+    // says "owner": the partner already passed it, and until a workspace can
+    // say whether it has one (0012, P2), "owner" is what is true of every
+    // workspace.
+    const needs = atLeast === "partner" ? "owner" : atLeast;
     throw new AppError(
       "forbidden",
-      atLeast === "owner" ? "Only an owner can do this." : "Viewers can see everything and change nothing.",
+      needs === "owner" ? "Only an owner can do this." : "Viewers can see everything and change nothing.",
       403,
       // The role the door wanted, so a page can title the refusal "Owner only"
       // rather than guess it from the sentence.
-      { needs: atLeast },
+      { needs },
     );
   }
 }
@@ -292,4 +317,15 @@ export async function requireSpend(
     throw new AppError("payment_required", "This workspace has no billing record. Open Billing to set one up.", 402);
   const why = whyCannotSpend(data.mode as BillingMode, data.status as BillingStatus, doing);
   if (why) throw new AppError("payment_required", why, 402);
+}
+
+/** The cookie's session, verified: what every request without a bearer is. */
+async function cookieSession() {
+  const supabase = await createClient();
+  const { data: verified, error } = await supabase.auth.getClaims();
+  return {
+    supabase,
+    claims: (verified?.claims as Record<string, unknown> | undefined) ?? null,
+    error: error ?? null,
+  };
 }

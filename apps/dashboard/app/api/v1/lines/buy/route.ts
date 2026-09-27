@@ -33,7 +33,7 @@ const Body = z.object({
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lines_buy",
   spend: true,
   input: Body,

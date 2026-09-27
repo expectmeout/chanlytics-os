@@ -256,12 +256,10 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
   }
 
   // The server resolves, because it is where the channel rows and the listing
-  // are; the browser only ever had a listing DTO with no address on it.
-  const route = readCode("apps/dashboard/app/api/v1/settings/route.ts");
-  assert.ok(
-    route.includes("resolveFacts(cfg.brain ?? null, known)") && route.includes("conflicts: factConflicts(facts)"),
-    "the settings read carries both",
-  );
+  // are; the browser only ever had a listing DTO with no address on it. That the
+  // settings read carries both -- each fact from the typed brain and what the
+  // platform knows, and their conflicts -- is RUN: through the route in
+  // settings-routes.test.mjs ("F1") and through its reader in readers.test.mjs.
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes(
       "w.__FACTS = cfg.configBroken ? null : { facts: cfg.facts, conflicts: cfg.conflicts };",

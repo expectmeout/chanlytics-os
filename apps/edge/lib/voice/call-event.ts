@@ -32,6 +32,7 @@ import { callSummaryLine } from "../packages/channels.js";
 import { callOutcomeWords, formatPhoneDisplay, guardSpokenTurns } from "../packages/contracts.js";
 import type { NotifyMessage } from "../ops/notify.js";
 import type { ForwardingCall } from "./forwarding.js";
+import type { CallForActivity } from "./call-activity.js";
 
 /** The delivery as the door read it: the event, the call as the provider shaped it, and the row's view of it. */
 interface CallEvent {
@@ -66,6 +67,7 @@ export interface CallAbout {
 export type CallStep =
   | { kind: "log"; event: "retell_event_stale"; fields: Record<string, unknown> }
   | { kind: "forwarding_verified"; call: ForwardingCall }
+  | { kind: "call_activity"; retellCallId: string; call: CallForActivity }
   | { kind: "delivery"; callId: string | null; data: Record<string, unknown> }
   | {
       kind: "note";
@@ -212,6 +214,15 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
     // Older than the row: a retried call_started after call_ended, or a
     // partial transcript after the final one. Nothing was written.
     steps.push({ kind: "log", event: "retell_event_stale", fields: { retell_event: event, call_id: n.retellCallId } });
+  }
+  // The call on the phones' Lock Screens (00191, lib/voice/call-activity.ts): once, as it starts, to every
+  // phone that handed the site its push-to-start token. Best effort beside the call's own door.
+  if (event === "call_started" && !res.skipped && n.status === "ongoing") {
+    steps.push({
+      kind: "call_activity",
+      retellCallId: n.retellCallId,
+      call: { from_e164: n.fromE164, from_raw: n.fromRaw ?? null, to_e164: n.toE164, started_at: n.startedAtIso },
+    });
   }
   // Awaited: this row IS /api/diag's answer to "what did the provider
   // actually send", and the deliveries it was written for -- call_started

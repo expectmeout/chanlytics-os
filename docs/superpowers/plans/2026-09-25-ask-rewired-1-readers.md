@@ -47,21 +47,22 @@ things this plan takes as given:
 
 ### The divergence ledger (tools against the pages, at `e562b350`)
 
-| #   | Tool                | Today                                                                                                                                                      | The page                                                                   | Closed in |
-| --- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------- |
-| 1   | get_report          | `report_series` only (`tools.ts:858`); a bad `days` becomes 30                                                                                             | series, then booking line, then deals (`reports/route.ts:43-58`); 400      | PR 1.5    |
-| 2   | get_today           | `toTodayVM` without the waiting searches (`tools.ts:331`)                                                                                                  | passes them (`surface-data.ts:489-496`)                                    | PR 1.2    |
-| 3   | get_person          | 9–12 queries in 3–4 rounds, its own smaller DTO (`tools.ts:649-785`)                                                                                       | one round of 18 (`contacts/[id]/route.ts:390-483`), `toPersonVM`           | PR 1.4    |
-| 4   | get_today           | 40 threads, 600 messages, no id tie-break, a failed calls read is `[]` (`tools.ts:245, 284, 328`)                                                          | 100 threads, 4000 messages paged with tie-break, calls `null`              | PR 1.2    |
-| 5   | get_thread          | messages without `channel` and `media` (`tools.ts:496-511`), so the window and the wire read as WhatsApp; newest open escalation                           | `conversations/[id]` carries both; the Inbox keeps the oldest escalation   | PR 1.3    |
-| 6   | list_threads        | never fetches escalated threads outside the newest 40                                                                                                      | the Inbox fetches them by `?ids=` (`surface-data.ts:391-400`)              | PR 1.2    |
-| 7   | search_people       | the whole pool in memory, matched on the first name only, ≥4 digits, JS order, 3 states (`tools.ts:600-647`)                                               | one SQL page with `p_query` (`contacts/route.ts:35-38`), 7 states          | PR 1.6    |
-| 8   | list_calls          | re-reads `tenantFacts` (`tools.ts:789`); today/missed filters over the newest 40                                                                            | GET calls: 100 newest                                                      | PR 1.2    |
-| 9   | list_audiences      | offers hidden templates (`tools.ts:969-975`)                                                                                                               | the composer filters `hidden_at` (`templates/route.ts:85`)                 | PR 1.6    |
-| 10  | list_playbooks      | pool rows for the asking member, the week's touches ignored, follow-ups read where deals are off (`tools.ts:1076-1092`)                                    | counts with no viewer, touches applied (`playbooks.ts:301-321`)            | PR 1.6    |
-| 11  | get_calendar        | `tenantFacts` twice, a one-day span from today, never adds people (`tools.ts:1186-1204`)                                                                   | a week from Monday; adds people when the caller may act                    | PR 1.5    |
-| 12  | list_lead_searches  | raw view rows, no counts (`tools.ts:1244-1266`)                                                                                                            | `searchesOf`: `toSearchDto` plus the six counts                            | PR 1.7    |
-| 13  | get_openings        | cuts `service` at 80 (`tools.ts:920`)                                                                                                                      | 160 (`ask/openings/route.ts:24`)                                           | PR 1.5    |
+| #   | Tool                | Today                                                                                                                                                      | The page                                                                   | Closed in | Closed by |
+| --- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------- | --------- |
+| 1   | get_report          | `report_series` only (`tools.ts:858`); a bad `days` becomes 30                                                                                             | series, then booking line, then deals (`reports/route.ts:43-58`); 400      | PR 1.5    | #1115     |
+| 2   | get_today           | `toTodayVM` without the waiting searches (`tools.ts:331`)                                                                                                  | passes them (`surface-data.ts:489-496`)                                    | PR 1.2    | #1101     |
+| 3   | get_person          | 9–12 queries in 3–4 rounds, its own smaller DTO (`tools.ts:649-785`)                                                                                       | one round of 18 (`contacts/[id]/route.ts:390-483`), `toPersonVM`           | PR 1.4    | #1113     |
+| 4   | get_today           | 40 threads, 600 messages, no id tie-break, a failed calls read is `[]` (`tools.ts:245, 284, 328`)                                                          | 100 threads, 4000 messages paged with tie-break, calls `null`              | PR 1.2    | #1101     |
+| 5   | get_thread          | messages without `channel` and `media` (`tools.ts:496-511`), so the window and the wire read as WhatsApp; newest open escalation                           | `conversations/[id]` carries both; the Inbox keeps the oldest escalation   | PR 1.3    | #1110     |
+| 6   | list_threads        | never fetches escalated threads outside the newest 40                                                                                                      | the Inbox fetches them by `?ids=` (`surface-data.ts:391-400`)              | PR 1.2    | #1101     |
+| 7   | search_people       | the whole pool in memory, matched on the first name only, ≥4 digits, JS order, 3 states (`tools.ts:600-647`)                                               | one SQL page with `p_query` (`contacts/route.ts:35-38`), 7 states          | PR 1.6    | #1118     |
+| 8   | list_calls          | re-reads `tenantFacts` (`tools.ts:789`); today/missed filters over the newest 40                                                                            | GET calls: 100 newest                                                      | PR 1.2    | #1101     |
+| 9   | list_audiences      | offers hidden templates (`tools.ts:969-975`)                                                                                                               | the composer filters `hidden_at` (`templates/route.ts:85`)                 | PR 1.6    | #1118     |
+| 10  | list_playbooks      | pool rows for the asking member, the week's touches ignored, follow-ups read where deals are off (`tools.ts:1076-1092`)                                    | counts with no viewer, touches applied (`playbooks.ts:301-321`)            | PR 1.6    | #1118     |
+| 11  | get_calendar        | `tenantFacts` twice, a one-day span from today, never adds people (`tools.ts:1186-1204`)                                                                   | a week from Monday; adds people when the caller may act                    | PR 1.5    | #1115     |
+| 12  | list_lead_searches  | raw view rows, no counts (`tools.ts:1244-1266`)                                                                                                            | `searchesOf`: `toSearchDto` plus the six counts                            | PR 1.7    | this PR   |
+| 13  | get_openings        | cuts `service` at 80 (`tools.ts:920`)                                                                                                                      | 160 (`ask/openings/route.ts:24`)                                           | PR 1.5    | #1115     |
+| 14  | list_audiences      | offered templates the composer withholds as unsendable: a picture heading, or a value in a heading or a button, which the wire refuses (`tools.ts:842-849` at `4b4637df`) | offers `sendableTemplates` of them and says why (`broadcasts-real.jsx:165-171`); its further filter, every slot a broadcast can fill (`bcSlots`), stays open | PR 1.7    | this PR   |
 
 Plus the repeated reads: `tenantFacts` up to five times a turn (`api/ask/route.ts:163`; `tools.ts:789, 881, 1074,
 1186`; `calendar.ts:166, 332`; `openings.ts:194`), `sellsByOf` and `listPolicies` three to four times, `tenant_config`
@@ -970,17 +971,35 @@ route tests pass unchanged. The PR names #7, #9, #10.
 
 # PR 1.7 · Settings, connections, notifications, activity, channels, policies, the searches' counts
 
-**Branch:** `ask-rewired/1-7-workspace`. **Created:** `readers/settings.ts` ← `settings/route.ts:56-113` (the prompt
-preview carries a clock; the reader returns it as the route does; nothing caches it), `readers/connections.ts` ←
-`setup/route.ts` (`setupDtoFor`), `readers/notifications.ts` ← `notifications/route.ts:14-64` (a 30-day window from
-`rc.now`), `readers/activity.ts` ← `activity/route.ts` (owner only: the route keeps `role: "owner"`; the reader trusts
-the caller), `readers/channels.ts` ← `channels/route.ts`, `readers/policiesRoute.ts` ← `policies/route.ts` (the
-`policies` reader from PR 1.1 plus `sellsBy`, the route's payload). **Modified:** the six routes; `tools.ts`
-`get_settings` (composes `settings`, `policies`, `channels`, `sellsBy` and projects the same fields as today),
-`list_lead_searches` (reads `searches` from PR 1.2: `toSearchDto` rows plus the six counts — closes #12).
-**Pins:** `settings-routes.test.mjs:637` deep-equals the business record payload: keep, it must pass unchanged. The
-PR names #12. After this PR every read Ask makes outside the snapshot goes through a reader; `tools.ts` should be
-under 700 lines (the loaders gone); say its line count in the PR.
+**Branch:** `ask-rewired/1-7-workspace`. **As built.** **Created:** `readers/settings.ts` ← `settings/route.ts:56-113`,
+with `knownFacts` (exported: the PUT still judges a changed transfer number with it) and `maskFeedUrl`; the `config`
+reader widened to the row's `updated_by` and `updated_at`, so the settings read is the turn's one read of the row; the
+prompt preview composed on the turn's clock and kept by nothing. `readers/connections.ts` ← `setup/route.ts`
+(`setupDtoFor` for a member, on the turn's clock). `readers/notifications.ts` ← `notifications/route.ts:14-64` (thirty
+days back from `rc.now`). `readers/activity.ts` ← `activity/route.ts` (owner only: the route keeps `role: "owner"`,
+the rate and the query's checks; the reader trusts the caller). `readers/channels.ts` ← `channels/route.ts`.
+`readers/autonomy.ts` ← `policies/route.ts` GET -- named for the pane it feeds rather than `policiesRoute.ts`: the
+`policies` and `sellsBy` readers at once, the route's payload, fresh per request. `readers/templates.ts` ←
+`templates/route.ts` GET (`{ all }`: the composers' read, or Settings' with what sends each; the route checks
+`?all=`). **Modified:** the seven routes to one line each; `tools.ts`: `get_settings` composes the facts, config,
+`policies`, `channels` and `sellsBy` readers and projects the same fields as today, the channels in the page's order --
+not `settings`, whose prompt preview fetches the calendar feed and re-reads the policies, which a question about the
+hours must not pay for; `list_audiences` reads `channels` (the number, as the Broadcasts page picks it) and the
+composers' `templates`, split as the composer splits them, `cannot_send` saying why for the ones the wire refuses
+(closes #14; the composer's slot filter stays open); `list_lead_searches` reads `searches`, the page's rows, and
+carries the rail's six `counts` (closes #12). `server/audience.ts` `poolList` takes the turn's lists: `search_people`,
+`propose_broadcast` and `propose_playbook` hand them for a list of the workspace's own; the send reads its own. A read
+the page tolerates, the tools tolerate as the page does and say so: a failed `channels` read is `get_settings`'
+`channels: null` and `list_audiences`' `number: null`, a failed `templates` read `list_audiences`' `templates: null`
+(and `cannot_send: null`), each with a `could_not_read` sentence, never "none" and never a failed tool; the turn keeps
+no failure, so the next tool reads again. `openingsFor` takes the turn's zone and settings, required (its fallback read
+of `tenantFacts` and the config is gone, and with it its database context), and the kernel's comment says what the
+cache does, so the phase's exit greps print nothing. After it no tool reads the database itself (`tools.ts` holds no
+`.from(` or `.rpc(`); a proposal's own checks and the snapshot keep theirs. **Pins:** re-pointed at the readers where no route run holds them (`back-office`, `setup`, the templates'
+title and columns); converted where a route run already asserts them (`availability`, `facts`, `settings-truth`,
+`broadcasts`, `notifications-durable`, the composers' filter in `starter-templates` and `templates-truth`); the
+baseline falls by five. `settings-routes.test.mjs:637` passes unchanged. `tools.ts` is 1,258 lines, not the 700 hoped
+for: what is left is the tools' own projections, which Phase 3's registry takes apart.
 
 ---
 

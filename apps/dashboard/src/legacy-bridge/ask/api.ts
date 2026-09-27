@@ -6,7 +6,14 @@
  * commit is marked `via: "ask"`, which the client sends as the x-via header
  * the ledger reads. Nothing here knows what the palette does with it.
  */
-import type { AskMessageVM, AskProposalOutcome, AskScope, AskSurface, AskThreadVM } from "@chanlytics/contracts";
+import type {
+  AskMessageVM,
+  AskProposalOutcome,
+  AskScope,
+  AskSurface,
+  AskThreadVM,
+  PageContext,
+} from "@chanlytics/contracts";
 import { refusalOf } from "@chanlytics/contracts";
 import { api } from "../api";
 import { unwrap, type Api, type ApiOptions, type ApiResult, type Output, type RouteKey } from "../../client/api";
@@ -106,6 +113,18 @@ export function askApi(client: Api = api()) {
       });
       return r.ok;
     },
+    /**
+     * The page, read before the question (POST ask/warm; the Phase 2 plan, D6): sent as the Line opens and as the page
+     * under it changes, so the question asked a moment later finds its page read. Sent raw, so the tab keeps its reads
+     * and runs no refresh; never waited on, and a warm that fails costs nothing but the warm.
+     */
+    warm: async (context: PageContext): Promise<void> => {
+      try {
+        await client.raw("POST ask/warm", { body: context });
+      } catch {
+        /* the question still goes, and reads its page itself */
+      }
+    },
     send: async (
       input: {
         text: string;
@@ -116,6 +135,8 @@ export function askApi(client: Api = api()) {
         answering?: { searchId: string } | null;
         /** How long the Line was open before this question, in ms (AskTurnShape.opened_ms); omitted when unknown. */
         openedMs?: number | null;
+        /** The page the question is asked on (contracts PageContext; ask/context.ts); omitted when the page gave none. */
+        context?: PageContext | null;
       },
       on: (ev: SendEvent) => void,
     ): Promise<void> => {
@@ -131,6 +152,7 @@ export function askApi(client: Api = api()) {
             ...(typeof input.openedMs === "number" && input.openedMs >= 0
               ? { opened_ms: Math.round(input.openedMs) }
               : {}),
+            ...(input.context ? { context: input.context } : {}),
           },
           timeoutMs: TURN_MS,
         });

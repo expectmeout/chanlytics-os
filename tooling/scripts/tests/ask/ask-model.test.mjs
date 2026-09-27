@@ -72,7 +72,7 @@ test("the dashboard picks by environment: unset is the default, a name in the li
 
 test("the loop asks the profile: the request names its id and its effort, and the turn returns the model it ran on", async () => {
   const { runAskTurn } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
-  const { buildProposal } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
+  const { buildProposal } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
   const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
   const { fakeDb } = await import("../_fake-db.mjs");
   const written = JSON.stringify({
@@ -113,7 +113,7 @@ test("the loop asks the profile: the request names its id and its effort, and th
         emit: () => {},
         now: new Date("2026-09-14T14:00:00Z"),
       },
-      { round, snapshot: async () => "", tool: async () => ({ result: "{}", isError: false }), propose: buildProposal },
+      { round, shape: async () => "", tool: async () => ({ result: "{}", isError: false }), propose: buildProposal },
     );
     assert.equal(r.failed, false, r.failure ?? "");
     assert.equal(r.model, "claude-sonnet-5");

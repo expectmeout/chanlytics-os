@@ -687,3 +687,24 @@ test("REGRESSION (D11, A3, A17): no invented receptionist on a real thread -- th
   assert.deepEqual(railed, ["t-seed"], "the demo keeps its rail");
   assert.ok(String(demo.props.className).includes("with-rail"));
 });
+
+test("the list tells Ask what it draws (the Phase 2 plan, D3): the conversations in its bucket, in the list's order, and the bucket that chose them", () => {
+  cells = [];
+  delete globalThis.window.__askOnScreen;
+  frames.begin();
+  RealInboxList(listProps());
+  assert.deepEqual(globalThis.window.__askOnScreen, {
+    key: "inbox",
+    ids: ["c1", "c2", "c3"],
+    labels: ["Rosa Díaz", "Nina Park", "Ada Lovelace"],
+    view: "escalated",
+  });
+  cells = [];
+  frames.begin();
+  RealInboxList(listProps({ threads: [ada], activeBucket: "all" }));
+  assert.deepEqual(
+    [globalThis.window.__askOnScreen.ids, globalThis.window.__askOnScreen.view],
+    [["c3"], "all"],
+    "another bucket, its own rows",
+  );
+});

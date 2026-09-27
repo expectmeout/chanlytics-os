@@ -101,10 +101,8 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
       route.includes('rpc("notification_mark", {') &&
       route.includes('rate: "notify_mark",'),
   );
-  assert.ok(
-    /read: !!m\?\.read_at,\s*dismissed: !!m\?\.dismissed_at,/.test(route),
-    "this person's marks ride on each row",
-  );
+  // This person's marks ride on each row -- their read and their dismissal, never another person's -- RUN through the
+  // route in reads-routes.test.mjs ("reading notifications") and through its reader in readers.test.mjs.
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(
     sd.includes('key: "notifications",') && sd.includes('refreshOnTables: ["notifications"],'),

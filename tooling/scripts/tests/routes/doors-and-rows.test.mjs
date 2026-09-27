@@ -78,8 +78,8 @@ test("the reply's idempotency key belongs to the caller and to the intent (core-
     "a different body is a different intent, and a receipt with no hash never answers",
   );
   assert.ok(
-    src.includes("await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);"),
-    "the stored hash is the one compared",
+    src.includes("ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt, nowIso)"),
+    "the stored hash is the one compared, and the receipt is written on the claim's own stamp",
   );
   // The check happens BEFORE any side effect of the send. The first of those
   // is the claim, which is also the pause: it used to be a mirror into a

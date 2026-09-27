@@ -285,6 +285,13 @@ test("the door: a token for another door, a forgery and no credential are 403; a
       ),
       [403, { ok: false, error: "token_malformed" }],
     );
+    // The key alone, on an edge that holds the secret: this door is a workspace's, and the harness mints a token
+    // for it (eval-brain.mjs), so the key opens it no longer -- before the model key is looked at.
+    assert.deepEqual(
+      await answer(await knock(body, { headers: { "x-diag-key": "diag-key-for-this-file" }, brain: b.port })),
+      [403, { ok: false, error: "token_required" }],
+      "the key alone opens no door a token reaches",
+    );
     await withEnv({ EDGE_CALL_SECRET: undefined, ANTHROPIC_API_KEY: undefined }, async () => {
       assert.deepEqual(
         await answer(await knock(body, { headers: { "x-diag-key": "diag-key-for-this-file" }, brain: b.port })),

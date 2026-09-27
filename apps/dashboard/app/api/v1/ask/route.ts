@@ -4,6 +4,7 @@ import {
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
   dealsAreOn,
+  PageContextSchema,
   detectLanguage,
   policyClassOffered,
   v1FromAnswer,
@@ -11,6 +12,7 @@ import {
   type AskProposal,
   type AskScope,
   type LeadSearchPlan,
+  type PageContext,
 } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
@@ -79,6 +81,7 @@ export const POST = write({
       surface?: unknown;
       answering?: unknown;
       opened_ms?: unknown;
+      context?: unknown;
     } | null;
     const text = typeof body?.text === "string" ? body.text.replace(/\s+/g, " ").trim() : "";
     if (!text) throw new AppError("validation", "Ask something.");
@@ -99,7 +102,28 @@ export const POST = write({
         scope = { kind: s.kind as AskScope["kind"], id: s.id.slice(0, 120), label: s.label.slice(0, 80) };
       }
     }
-    const surface = typeof body?.surface === "string" && SURFACES.has(body.surface) ? body.surface : null;
+    // The page the question was asked on (contracts PageContext): identities and words, read by its one schema. One the
+    // schema refuses is no context, said once in the log, and never a refused question: an older tab sends none, and a
+    // context is a help to the answer, not a condition of it. The turn reads the page again from these identities.
+    let context: PageContext | null = null;
+    if (body?.context !== undefined && body.context !== null) {
+      const read = PageContextSchema.safeParse(body.context);
+      if (read.success) context = read.data;
+      else {
+        const issue = read.error.issues[0];
+        console.error(
+          "ask_context_refused",
+          JSON.stringify({
+            tenant: member.tenantId,
+            path: issue?.path.join(".") ?? "",
+            issue: issue?.message ?? "unreadable",
+          }),
+        );
+      }
+    }
+    // The surface the palette names; a context says the same, and fills it when the palette named none.
+    const surface =
+      typeof body?.surface === "string" && SURFACES.has(body.surface) ? body.surface : (context?.surface ?? null);
     // How long the palette was open before the question was sent, as the tab
     // measured it (AskTurnShape.opened_ms): milliseconds within an hour, else
     // nothing. Never refused: a script or an older tab sends none.
@@ -203,6 +227,7 @@ export const POST = write({
           text: askTurnText(text, answering),
           openedMs,
           sinceLastMs,
+          context,
           emit: (ev) => send(line(ev)),
           // One clock for the turn: the tools' today is the readers' today.
           now: rc.now,

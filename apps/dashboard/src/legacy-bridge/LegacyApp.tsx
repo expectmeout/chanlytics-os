@@ -74,6 +74,7 @@ import { installCalendar } from "./calendar";
 import { installToday } from "./today";
 import { installMascot } from "./mascot";
 import { installArrival } from "./arrival";
+import { installAppBridge } from "./app-bridge";
 import { installBusinessTab } from "./business-tab";
 import { installSetup, setupOverride } from "./setup";
 import { installGoogle, googleOverride } from "./google";
@@ -83,6 +84,7 @@ import { installMailbox } from "./mailbox";
 import { installSendingDomains } from "./sending-domains";
 import { installBusinessRecord } from "./business-record";
 import { installPlatform } from "./platform";
+import { installPartner, partnerOverride } from "./partner";
 import { installActivity } from "./activity";
 import { installIdentity } from "./identity";
 import { installShell, publishShellStatus, shellStatusOf } from "./shell";
@@ -122,6 +124,8 @@ installToday();
 installMascot();
 // On a phone the three take a page in as it arrives and notice what comes for you (arrival.ts).
 installArrival();
+// Inside the native shell the page speaks the bridge (app-bridge.ts): its route, its needs, the shell's asks.
+installAppBridge();
 installBusinessTab();
 installSetup();
 installGoogle();
@@ -131,6 +135,7 @@ installMailbox();
 installSendingDomains();
 installBusinessRecord();
 installPlatform();
+installPartner();
 installActivity();
 installIdentity();
 installShell();
@@ -166,6 +171,8 @@ const SURFACES = [
   liveOverride,
   broadcastsOverride,
   playbooksOverride,
+  // The partner's account (0012): on the person, read once, beside the rest.
+  partnerOverride,
   calendarOverride,
   notificationsOverride,
   setupOverride,

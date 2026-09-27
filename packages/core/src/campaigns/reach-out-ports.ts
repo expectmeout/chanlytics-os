@@ -14,6 +14,8 @@ export interface ReachOutStep {
   /** The chain's: paused when the step or its root is (a paused root pauses every step of it). */
   state: "running" | "paused";
   lead_search_id: string | null;
+  /** The chain's (its root's): its catch-all addresses are written to too, as its owner chose (Part 4, F9). */
+  include_unconfirmed: boolean;
   after_playbook_id: string | null;
   after_days: number | null;
   gap_minutes: number;

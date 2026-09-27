@@ -40,7 +40,7 @@ function locations(raw: unknown): GoogleLocationDto[] {
 
 export const GET = read({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "google_search",
   handle: async ({ member }) => {
     const a = await edgeGoogle({ op: "locations", tenant_id: member.tenantId }, 25_000);
@@ -60,7 +60,7 @@ export const GET = read({
 
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "google_link",
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => ({}))) as { account_name?: unknown; location_name?: unknown };

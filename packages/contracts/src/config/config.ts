@@ -18,6 +18,14 @@ import { NO_LINK_DETAILS, offersBookingLink, priceNextStep } from "./no-booking-
 export const ROLES = MEMBERSHIP_ROLES;
 export type Role = (typeof ROLES)[number];
 
+/**
+ * The roles Team hands out: an invite, a change of role. A partner is not one
+ * of them. That role arrives with the workspace, written by the attribution
+ * when the workspace is made through a partner's link (decision 0012), and
+ * Team can only take it away.
+ */
+export const TEAM_ROLES = ["owner", "operator", "viewer"] as const satisfies readonly Role[];
+
 /** What each role may do. Mirrors the mockup's ST_PERMS exactly — the client
  *  gate() chips read this shape; the server re-checks via requireRole. */
 export const ROLE_PERMS: Record<
@@ -40,8 +48,14 @@ export const ROLE_PERMS: Record<
   // people a screen at a time, the owner may take them all at once.
   // `find` is the lead finder: starting a search, keeping a lead from review,
   // putting one back. Each spends the month's allowance, so it is the
-  // owner's alone (PRD v3 §16.6, S9); has_permission() in 00140 says the
-  // same, and lead-engine.db.test.mjs holds the two together.
+  // owner's, and the partner's (PRD v3 §16.6, S9); has_permission() in 00140
+  // (widened in 00201) says the same, and lead-engine.db.test.mjs holds the
+  // two together.
+  // `partner` (decision 0012) is the member who brought the workspace and sets
+  // it up for its owner: everything setting up and running the receptionist
+  // takes, and nothing that touches the money, the team, or the customer list
+  // as a file. `disconnect` is the channel permission both ways: a partner
+  // gets the line and connects WhatsApp, and may disconnect them again.
   owner: {
     approve: true,
     autonomy: true,
@@ -61,6 +75,16 @@ export const ROLE_PERMS: Record<
     settings: false,
     export: false,
     find: false,
+  },
+  partner: {
+    approve: true,
+    autonomy: true,
+    disconnect: true,
+    billing: false,
+    team: false,
+    settings: true,
+    export: false,
+    find: true,
   },
   viewer: {
     approve: false,

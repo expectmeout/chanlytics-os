@@ -517,10 +517,10 @@ test("Find: not on Google puts Google's row off, the member's own choice", async
   }
 });
 
-test("Find is an owner's, by the role gate (View-as included): anyone else sees Check, which says an owner sets the receptionist up", async () => {
+test("Find is for whoever may set the workspace up (an owner, or the partner who brought it: 0012), by the role gate (View-as included): anyone else sees Check, which says an owner sets the receptionist up", async () => {
   const asked = googleSays([found([HARBOR])]);
   const was = globalThis.window.canDo;
-  globalThis.window.canDo = (a) => a !== "team";
+  globalThis.window.canDo = (a) => a === "approve" || a === "autonomy"; // an operator, exactly (contracts ROLE_PERMS)
   try {
     globalThis.window.__SETUP = surface(findable);
     param = null;
@@ -1167,7 +1167,8 @@ test("your phone: a role that may not save the forwarding sees the questions wit
   phoneWorld();
   globalThis.window.__tabMemory.keepDraft("first-run-phone", { way: "keep", number: null, pick: null, pending: false });
   globalThis.window.__SETUP = surface(answeringLine());
-  globalThis.window.canDo = (what) => what !== "team";
+  // The line's presses are the channel permission (contracts ROLE_PERMS `disconnect`), which an operator lacks.
+  globalThis.window.canDo = (what) => what === "approve" || what === "autonomy";
   try {
     param = "phone";
     fresh();
@@ -1419,8 +1420,8 @@ test("Live: a refused Finish stays and says why, and Finish again goes on; a tea
     await byTestId(tree, "fr-onward").props.onClick();
     assert.equal(asked.length, 1, "not asked again");
     assert.equal(went.at(-1), "today", "Finish again goes on");
-    // A teammate: Finish switches nothing on, so nothing promises an email.
-    globalThis.window.canDo = (what) => what !== "team";
+    // A teammate: Finish switches nothing on (the channel permission), so nothing promises an email.
+    globalThis.window.canDo = (what) => what === "approve" || what === "autonomy";
     fresh();
     assert.equal(byTestId(mount(), "fr-live-note"), null);
   } finally {

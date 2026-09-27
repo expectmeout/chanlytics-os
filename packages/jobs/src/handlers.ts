@@ -4,7 +4,7 @@
  * packages/core/src/messages as verbs over ports; each handler here is the
  * adapter that builds the ports from the job's context (no env reads here).
  */
-import { pushFor, type JobKind } from "@chanlytics/contracts";
+import { pushFor, type JobKind, unreadFor, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "@chanlytics/contracts";
 import {
   classifyReceived,
   emailPlainText,
@@ -31,7 +31,7 @@ import {
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
-import { type ClaimedJob, type JobContext, must } from "./context";
+import { type ClaimedJob, type JobContext, must, type PushTicket } from "./context";
 export type { PushReceipt, PushPort, JobContext, ClaimedJob } from "./context";
 
 /** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone | to_email, body?, template?, purpose? (marketing, or outreach: a cold email), proactive? } */
@@ -198,18 +198,114 @@ async function pushSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   const devices =
     must(
       "push_send: cannot read the phones",
-      await ctx.db.from("push_devices").select("token").in("user_id", readers),
+      await ctx.db.from("push_devices").select("token, user_id").in("user_id", readers),
     ) ?? [];
   if (!devices.length) return;
+  const badges = await badgesFor(ctx, job.tenant_id, [...new Set(devices.map((d) => d.user_id))]);
   const receipts = await ctx.push.send(
     pushFor(
       n,
-      devices.map((d) => d.token),
+      devices.map((d) => ({ token: d.token, badge: badges.get(d.user_id) ?? 0 })),
     ),
   );
   const gone = receipts.filter((r) => r.status === "error" && r.error === "DeviceNotRegistered").map((r) => r.to);
   if (gone.length) {
     must("push_send: cannot forget a phone that is gone", await ctx.db.from("push_devices").delete().in("token", gone));
+  }
+  // A ticket says the service took the message; whether the phone did arrives in its receipt, a quarter of an hour
+  // on (00189). One job carries every ticket of this send.
+  const tickets: PushTicket[] = receipts.flatMap((r) => (r.status === "ok" && r.id ? [{ id: r.id, to: r.to }] : []));
+  if (tickets.length) {
+    try {
+      await ctx.schedule("push_receipts", new Date(Date.now() + PUSH_RECEIPTS_AFTER_MS), {
+        tickets: tickets.map((t) => ({ id: t.id, to: t.to })),
+      });
+    } catch {
+      // The alert has left; a receipts job that cannot be written (a ledger whose CHECK predates 00189, in the
+      // window between the edge's deploy and the migration) is a dead phone forgotten a send later, not a reason
+      // to throw and have the ledger send the alert again.
+    }
+  }
+}
+
+/**
+ * The bell's number for each reader (contracts unreadFor): the workspace's kept rows of the bell's window, each
+ * reader's seen moment and their own marks. Read once per send, for every reader at once.
+ */
+async function badgesFor(ctx: JobContext, tenantId: string, readers: readonly string[]): Promise<Map<string, number>> {
+  const since = new Date(Date.now() - BELL_WINDOW_DAYS * 86_400_000).toISOString();
+  const rows =
+    must(
+      "push_send: cannot read the bell",
+      await ctx.db.from("notifications").select("id, created_at").eq("tenant_id", tenantId).gte("created_at", since),
+    ) ?? [];
+  const seen =
+    must(
+      "push_send: cannot read when the bell was opened",
+      await ctx.db
+        .from("notification_reads")
+        .select("user_id, seen_at")
+        .eq("tenant_id", tenantId)
+        .in("user_id", readers),
+    ) ?? [];
+  const marks = rows.length
+    ? (must(
+        "push_send: cannot read the bell's marks",
+        await ctx.db
+          .from("notification_marks")
+          .select("notification_id, user_id, read_at, dismissed_at")
+          .in("user_id", readers)
+          .in(
+            "notification_id",
+            rows.map((r) => r.id),
+          ),
+      ) ?? [])
+    : [];
+  const out = new Map<string, number>();
+  for (const u of readers) {
+    const mine = seen.find((s) => s.user_id === u);
+    out.set(
+      u,
+      unreadFor(
+        rows,
+        mine?.seen_at ?? null,
+        marks.filter((m) => m.user_id === u),
+      ),
+    );
+  }
+  return out;
+}
+
+/**
+ * push_receipts: the receipts of one send, asked for by the tickets it kept (00189). payload: { tickets: [{id, to}] }.
+ * A phone the receipt says is gone is forgotten; any other error is the provider's to explain and this job's to
+ * leave alone: a receipt is read once, never a reason to send again. A transport failure throws, so the ledger asks
+ * again while the receipts still exist.
+ */
+async function pushReceipts(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.push) throw new Error("push_receipts: this runtime holds no push transport");
+  const raw = job.payload.tickets;
+  const tickets: PushTicket[] = Array.isArray(raw)
+    ? raw.flatMap((t) =>
+        t &&
+        typeof t === "object" &&
+        typeof (t as PushTicket).id === "string" &&
+        typeof (t as PushTicket).to === "string"
+          ? [{ id: (t as PushTicket).id, to: (t as PushTicket).to }]
+          : [],
+      )
+    : [];
+  if (!tickets.length) return;
+  const receipts = await ctx.push.receipts(tickets.map((t) => t.id));
+  const gone = tickets.filter((t) => receipts[t.id]?.error === "DeviceNotRegistered").map((t) => t.to);
+  if (gone.length) {
+    must(
+      "push_receipts: cannot forget a phone that is gone",
+      await ctx.db
+        .from("push_devices")
+        .delete()
+        .in("token", [...new Set(gone)]),
+    );
   }
 }
 
@@ -228,6 +324,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   lead_collect: leadCollect,
   lead_check: leadCheck,
   push_send: pushSend,
+  push_receipts: pushReceipts,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {

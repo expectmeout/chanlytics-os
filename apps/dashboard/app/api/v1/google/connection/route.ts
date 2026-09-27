@@ -9,7 +9,7 @@ import { edgeGoogle } from "@/server/connections/google";
  */
 export const DELETE = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "google_link",
   handle: async ({ member }) => {
     const a = await edgeGoogle({ op: "disconnect", tenant_id: member.tenantId }, 25_000);

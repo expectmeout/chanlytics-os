@@ -48,6 +48,28 @@ const knock = (body, headers = { "x-edge-token": token() }) =>
   );
 const answer = async (res) => [res.status, await res.json()];
 
+/** The admin_door_key_only lines the door wrote while `fn` ran, as fields. */
+async function logged(fn) {
+  const lines = [];
+  const real = console.log;
+  console.log = (...args) => {
+    for (const a of args) {
+      try {
+        const o = JSON.parse(String(a));
+        if (o.event === "admin_door_key_only") lines.push(o);
+      } catch {
+        /* not a log line */
+      }
+    }
+  };
+  try {
+    await fn();
+  } finally {
+    console.log = real;
+  }
+  return lines;
+}
+
 async function withEnv(vars, fn) {
   const before = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
   for (const [k, v] of Object.entries(vars)) {
@@ -948,12 +970,45 @@ test("a domain held twice in 30 days is the platform's to lift (D16): the owner'
     assert.equal(w.tables.sending_domains[0].state, "held", "neither lifted it");
 
     process.env.DIAG_KEY = "diag-key-for-this-file";
-    const [s3, b3] = await answer(
-      await knock(
-        { op: "resume", tenant_id: A, domain_id: D1, by: "platform" },
-        { "x-diag-key": process.env.DIAG_KEY },
-      ),
+    const keyOnly = { "x-diag-key": process.env.DIAG_KEY };
+    // The key alone, on an edge that holds the secret: every op but the platform's lift is a dashboard's, and is
+    // refused before a row is read -- logged as admin_door_key_only { ok: false } -- whatever workspace the body
+    // names. The lift itself still opens, logged as the knock that came in.
+    const lines = await logged(async () => {
+      assert.deepEqual(
+        await answer(await knock({ ...ADD, tenant_id: A }, keyOnly)),
+        [403, { ok: false, error: "token_required" }],
+        "add, with the key alone",
+      );
+      assert.deepEqual(
+        await answer(await knock({ op: "resume", tenant_id: A, domain_id: D1 }, keyOnly)),
+        [403, { ok: false, error: "token_required" }],
+        "the owner's resume, with the key alone",
+      );
+      assert.deepEqual(
+        await answer(await knock({ op: "check", tenant_id: A, domain_id: D1 }, keyOnly)),
+        [403, { ok: false, error: "token_required" }],
+        "check, with the key alone",
+      );
+      assert.deepEqual(
+        await answer(await knock({ op: "remove", tenant_id: A, domain_id: D1 }, keyOnly)),
+        [403, { ok: false, error: "token_required" }],
+        "remove, with the key alone",
+      );
+      assert.equal(w.tables.sending_domains[0].state, "held", "none of it touched the row");
+      assert.equal(w.tables.sending_domains.length, 1, "and nothing was added");
+    });
+    assert.deepEqual(
+      lines.map((l) => [l.door, l.ok]),
+      [
+        [AUD, false],
+        [AUD, false],
+        [AUD, false],
+        [AUD, false],
+      ],
+      "each key-only knock, refused",
     );
+    const [s3, b3] = await answer(await knock({ op: "resume", tenant_id: A, domain_id: D1, by: "platform" }, keyOnly));
     assert.equal(s3, 200, JSON.stringify(b3));
     const d = w.tables.sending_domains[0];
     assert.deepEqual(

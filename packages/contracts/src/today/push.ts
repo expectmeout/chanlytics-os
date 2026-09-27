@@ -8,6 +8,7 @@ export interface PushDevice {
   token: string;
   platform: PushPlatform;
   app_version: string | null;
+  activity_token: string | null;
 }
 
 const TOKEN_MAX = 200;
@@ -25,7 +26,11 @@ export function parseDevice(body: unknown): { ok: true; device: PushDevice } | {
   if (!platform) return { ok: false, reason: "A device is an iPhone or an Android phone." };
   const version =
     typeof b.app_version === "string" && b.app_version.trim() ? b.app_version.trim().slice(0, VERSION_MAX) : null;
-  return { ok: true, device: { token, platform, app_version: version } };
+  // The Live Activity's push-to-start token (00191), when the phone has one: iOS 17.2 and later, never Android.
+  const activity = typeof b.activity_token === "string" && b.activity_token.trim() ? b.activity_token.trim() : null;
+  if (activity && activity.length > TOKEN_MAX)
+    return { ok: false, reason: "That activity token is longer than any we know." };
+  return { ok: true, device: { token, platform, app_version: version, activity_token: activity } };
 }
 
 /**
@@ -55,7 +60,30 @@ export interface PushMessage {
   title: string;
   body: string;
   sound: "default";
+  /** The bell's unread count for this phone's person: the number on the icon while the app is closed (00189). */
+  badge: number;
   data: { route: string | null; notification_id: string; tenant_id: string };
+}
+
+/** A phone to tell, with the number its icon should wear. */
+export interface PushTarget {
+  token: string;
+  badge: number;
+}
+
+/**
+ * The bell's number, by the bell's own rule (notifications.ts serverNotificationRows): kept rows of the window newer
+ * than the person's seen moment, not marked read or dismissed by them. The edge counts it per reader before a push
+ * and the page counts it on every bell change; both must agree, so both count here.
+ */
+export function unreadFor(
+  rows: readonly { id: string; created_at: string }[],
+  seenAt: string | null,
+  marks: readonly { notification_id: string; read_at: string | null; dismissed_at: string | null }[],
+): number {
+  const seen = seenAt ? Date.parse(seenAt) : 0;
+  const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
+  return rows.filter((r) => Date.parse(r.created_at) > seen && !gone.has(r.id)).length;
 }
 
 /** The first line of a kept row's body: what the bell shows under the title, and what a phone shows. */
@@ -72,14 +100,20 @@ export function firstLine(body: string, max = 160): string {
 /** The bell's own words, once per device. */
 export function pushFor(
   n: { id: string; tenant_id: string; title: string; body: string; route: string | null },
-  tokens: readonly string[],
+  targets: readonly PushTarget[],
 ): PushMessage[] {
   const body = firstLine(n.body);
-  return tokens.map((to) => ({
-    to,
+  return targets.map((t) => ({
+    to: t.token,
     title: n.title,
     body,
     sound: "default",
+    badge: t.badge,
     data: { route: n.route, notification_id: n.id, tenant_id: n.tenant_id },
   }));
 }
+
+/** How long after a send its receipts are asked for: what Expo asks. */
+export const PUSH_RECEIPTS_AFTER_MS = 15 * 60_000;
+/** The window the bell counts over: the thirty days its route keeps. */
+export const BELL_WINDOW_DAYS = 30;

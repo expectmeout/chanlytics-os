@@ -352,6 +352,7 @@ export function enter(st: Core, next: CharacterState): boolean {
   const prev = st.state;
   if (prev === "thinking" && st.orb > 0) release(st, next);
   st.prevLive = st.state === "idle" ? 0 : 1;
+  st.glowOut = false;
   st.state = next;
   st.stateAt = st.clock;
   st.unattended = 0;
@@ -375,14 +376,17 @@ export function reaction(st: Core, kind: Reaction): boolean {
   return true;
 }
 
-/** Lit at rest (glow): the mark keeps its place and takes the AI's colour, with a turn now and another soon; 0 is the ink again. */
+/** Lit at rest (glow): the mark keeps its place and takes the AI's colour, with a turn now and more while it stays; 0 is the ink again. */
 export function glowTo(st: Core, v: number): Core {
   const on = unit(v);
-  // lit from dark, at rest: a turn now and the next soon, so the colour arrives with a move
+  // lit from dark, at rest: a turn now, so the colour arrives with a move; the next only if the light stays
   if (on > 0.5 && st.litTarget <= 0.5 && st.state === "idle" && !st.calm) {
     if (!st.moves.length) note(st, turns(st, [0.46, 0.71, 0.89]));
-    st.nextFidgetAt = st.clock + 1.1 + roll(st) * 0.7;
+    st.nextFidgetAt = st.clock + 1.3 + roll(st) * 0.8;
   }
+  // the light gone, its quicker turns go with it: the ink's own pace again, not a turn left over from the light
+  if (on <= 0.5 && st.litTarget > 0.5) st.nextFidgetAt = Math.max(st.nextFidgetAt, st.clock + 6 + roll(st) * 5);
+  st.glowOut = on <= 0.5 && st.state === "idle";
   st.litTarget = on;
   return st;
 }

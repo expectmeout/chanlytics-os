@@ -718,7 +718,7 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
 test("the dashboard: the way there is signed, the way back is proven before anything is trusted, and a reply is a ledger entry", () => {
   const connect = readCode("apps/dashboard/app/api/v1/google/connect/route.ts");
   assert.ok(
-    connect.includes('role: "owner",') &&
+    connect.includes('role: "partner",') &&
       /signState\(secret, \{\s*t: member\.tenantId,\s*u: ctx\.userId,\s*n: newNonce\(\),\s*exp: Date\.now\(\) \+ STATE_TTL_MS,?\s*\}\)/.test(
         connect,
       ),
@@ -754,7 +754,7 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
     ),
   );
   const locations = readCode("apps/dashboard/app/api/v1/google/locations/route.ts");
-  assert.equal((locations.match(/role: "owner",/g) ?? []).length, 2);
+  assert.equal((locations.match(/role: "partner",/g) ?? []).length, 2);
   const connection = readCode("apps/dashboard/app/api/v1/google/connection/route.ts");
   assert.ok(connection.includes("export const DELETE") && connection.includes('op: "disconnect"'));
   const rate = readCode("apps/dashboard/src/server/rate-limit.ts");

@@ -10,6 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  CARRIER_CONSENT_SOURCE,
   CONSENT_RESET_SOURCE,
   CONSENT_SOURCES,
   DECISION_VERBS,
@@ -62,6 +63,11 @@ test("sources: four a person can pick, one reset that is never offered, words fo
   assert.equal(consentSourceLabel("operator"), null, "the reset is not a way of hearing an answer");
   assert.equal(consentSourceLabel(null), null);
   assert.equal(consentSourceLabel("import"), "import", "an unknown source is shown as itself, never hidden");
+  // The carrier's report of a STOP (Twilio 21610) is not a way a MEMBER hears an answer, so it is not offered as
+  // one; it is a source the ledger holds, and it has its own words wherever a source is said.
+  assert.equal(CARRIER_CONSENT_SOURCE, "carrier");
+  assert.ok(!CONSENT_SOURCES.some((s) => s.id === CARRIER_CONSENT_SOURCE), "never offered to a member");
+  assert.equal(consentSourceLabel(CARRIER_CONSENT_SOURCE), "Reported by the carrier");
 });
 
 test("TWO lists, because there are two answers: one for messages, one for offers", () => {

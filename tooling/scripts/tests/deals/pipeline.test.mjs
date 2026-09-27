@@ -3198,3 +3198,43 @@ test("a proposal waiting that the follow-up has in hand says the day its run goe
   );
   assert.deepEqual(said(fixture(), "wes"), ["Nothing back", "warn"], "no follow-up running: as it was");
 });
+
+test("the Pipeline tells Ask what it draws (the Phase 2 plan, D3): the people of its open groups, in their order, and its view", async () => {
+  await fresh();
+  delete globalThis.window.__askOnScreen;
+  draw();
+  const s = globalThis.window.__askOnScreen;
+  assert.equal(s.key, "pipeline");
+  assert.deepEqual(s.ids, ["hana", "sara", "wes", "nia", "cat"], "the rows on screen; a folded group's are not");
+  assert.equal(s.view, "all");
+  assert.equal(s.labels.length, s.ids.length);
+});
+
+test("People tells Ask what it draws (the Phase 2 plan, D3): the rows of its table, in the table's order, and its view", async () => {
+  await fresh();
+  delete globalThis.window.__askOnScreen;
+  const tree = draw({ scope: "people" });
+  const s = globalThis.window.__askOnScreen;
+  assert.equal(s.key, "people");
+  assert.ok(s.ids.length > 0);
+  assert.deepEqual(s.ids, rowIds(tree).slice(0, 40), "the rows the table draws, in its order");
+  assert.equal(s.view, "all");
+});
+
+test("the Pipeline tells Ask its rows in the member's order: sorted by name, the second one is the second drawn", async () => {
+  await fresh();
+  let tree = draw();
+  const head = find(
+    tree,
+    (n) => n.props?.["data-testid"] === "pipe-sort-person" || n.props?.["data-sort"] === "person",
+  );
+  if (head && head.props.onClick) {
+    head.props.onClick();
+    tree = draw();
+  }
+  assert.deepEqual(
+    globalThis.window.__askOnScreen.ids,
+    rowIds(tree).slice(0, 40),
+    "what the table draws, in its order",
+  );
+});

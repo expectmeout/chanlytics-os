@@ -106,6 +106,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "lead_collect",
       "lead_check",
       "push_send",
+      "push_receipts",
     ],
   );
   const handlers = readCode("packages/jobs/src/handlers.ts");

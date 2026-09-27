@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const { expoPush, EXPO_PUSH_URL, PUSH_BATCH } = await import(
+const { expoPush, EXPO_PUSH_URL, EXPO_RECEIPTS_URL, PUSH_BATCH, RECEIPTS_BATCH } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/push.ts")).href
 );
 
@@ -52,7 +52,7 @@ test("one request per hundred, the receipts in the messages' order, a gone devic
   assert.equal(s.calls[0].auth, null, "no token, no header");
   assert.equal(receipts.length, PUSH_BATCH + 1);
   assert.deepEqual(receipts[1], { to: "tok-1", status: "error", error: "DeviceNotRegistered" });
-  assert.deepEqual(receipts[0], { to: "tok-0", status: "ok" });
+  assert.deepEqual(receipts[0], { to: "tok-0", status: "ok", id: "r" }, "the ticket's id, for its receipt");
 });
 
 test("the access token rides as a bearer when set; a refusal or a dead wire throws with what happened", async () => {
@@ -67,4 +67,33 @@ test("the access token rides as a bearer when set; a refusal or a dead wire thro
   await assert.rejects(expoPush(stub(503).fetchImpl).send([msg(0)]), /push_rejected 503/);
   await assert.rejects(expoPush(stub(new Error("ECONNRESET")).fetchImpl).send([msg(0)]), /ECONNRESET/);
   assert.deepEqual(await expoPush(stub().fetchImpl).send([]), [], "nothing to send is nothing sent");
+});
+
+test("the receipts, a thousand ids a request, by id; a phone gone in its receipt is named; a refusal throws", async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body);
+    calls.push({ url, n: body.ids.length });
+    if (body.ids.includes("boom")) return { ok: false, status: 500, text: async () => "down" };
+    const data = {};
+    for (const id of body.ids) {
+      if (id === "gone") data[id] = { status: "error", message: "gone", details: { error: "DeviceNotRegistered" } };
+      else if (id === "late")
+        continue; // no receipt yet: absent, not an answer
+      else data[id] = { status: "ok" };
+    }
+    return { ok: true, status: 200, json: async () => ({ data }) };
+  };
+  const ids = Array.from({ length: RECEIPTS_BATCH + 2 }, (_, i) => (i === 3 ? "gone" : i === 4 ? "late" : `t${i}`));
+  const got = await expoPush(fetchImpl).receipts(ids);
+  assert.deepEqual(
+    calls.map((c) => c.n),
+    [RECEIPTS_BATCH, 2],
+  );
+  assert.equal(calls[0].url, EXPO_RECEIPTS_URL);
+  assert.deepEqual(got.gone, { status: "error", error: "DeviceNotRegistered" });
+  assert.deepEqual(got.t0, { status: "ok" });
+  assert.equal(got.late, undefined, "no receipt yet is no answer");
+  await assert.rejects(expoPush(fetchImpl).receipts(["boom"]), /push_receipts_rejected 500/);
+  assert.deepEqual(await expoPush(fetchImpl).receipts([]), {}, "nothing asked is nothing answered");
 });

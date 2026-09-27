@@ -47,6 +47,14 @@ export const CONSENT_SOURCES: readonly { id: string; label: string }[] = [
 export const CONSENT_RESET_SOURCE = "operator";
 
 /**
+ * The carrier's report of a STOP we never heard: a text refused with Twilio
+ * 21610, the person having replied STOP to the number before it reached us. A
+ * source the ledger holds and the send door writes (core deliver.ts), never
+ * one a member is offered -- no member heard this answer, the carrier did.
+ */
+export const CARRIER_CONSENT_SOURCE = "carrier";
+
+/**
  * The ways a yes to OFFERS may have been given: in writing, and only in writing.
  *
  * Promotional texts need the customer's express WRITTEN consent. The carriers
@@ -107,11 +115,12 @@ export function ownMessageRefusal(
   return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
 }
 
-/** The words for a source; the reset has none, an unknown one is shown as itself. */
+/** The words for a source; the reset has none, the carrier's report its own, an unknown one is shown as itself. */
 export function consentSourceLabel(source: string | null | undefined): string | null {
   if (!source) return null;
   const known = CONSENT_SOURCES.find((s) => s.id === source);
   if (known) return known.label;
+  if (source === CARRIER_CONSENT_SOURCE) return "Reported by the carrier";
   return source === CONSENT_RESET_SOURCE ? null : source;
 }
 

@@ -84,6 +84,13 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
     "the room under every surface is the shell's tab bar, not the web's",
   );
   assert.ok(css.includes("html.in-app .pp-toast-stack { bottom: calc(14px + var(--app-inset-bottom, 0px)); }"));
+  // Google refuses OAuth in an embedded WebView: in-app the web's Google door and its "or" are not drawn (PR 1 of the app).
+  assert.ok(css.includes("html.in-app .auth-google, html.in-app .auth-or { display: none; }"));
+  assert.ok(
+    shell.includes('window.addEventListener("shell:menu", onMenu)') &&
+      shell.includes('window.addEventListener("shell:top", onTop)'),
+    "the native More tab opens the drawer and a re-tap scrolls to the top (legacy-bridge/app-bridge.ts)",
+  );
   // The ✦'s own lift lives in ask.css with the palette's rules (ask.test.mjs holds it there).
   assert.ok(
     css.includes("position: fixed;") && css.includes("left: 0; right: 0; bottom: 0;"),

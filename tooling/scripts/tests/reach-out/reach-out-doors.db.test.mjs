@@ -133,7 +133,10 @@ const member = (leadId, over = {}) =>
     }),
   );
 
-/** A send in a run, moved along the guard's own path to the state asked (00183: planned → claimed → queued → sent). */
+/**
+ * A send in a run, checked (00197: a claim takes a checked send only), moved along the guard's own path to the state
+ * asked (00183: planned → claimed → queued → sent).
+ */
 async function sendIn(over = {}, to = "planned", at = {}) {
   const id = crypto.randomUUID();
   ok(
@@ -144,6 +147,7 @@ async function sendIn(over = {}, to = "planned", at = {}) {
       playbook_id: root,
       root_id: root,
       send_at: iso(Date.now() - 60_000),
+      checked_at: iso(Date.now() - 60_000),
       ...over,
     }),
   );
@@ -695,7 +699,12 @@ test(
         params: [],
         name: "Paused",
         trigger: "lead_first",
-        lead_search_id: search,
+        // Over a search of its own: a search has one chain (00197).
+        lead_search_id: await one(
+          db
+            .from("lead_searches")
+            .insert({ tenant_id: A, via: "people", card: "movers", name: "Paused", asked: "movers", plan: {} }),
+        ),
         state: "paused",
       }),
     );

@@ -1,9 +1,10 @@
 /**
  * The three voice doors Retell calls besides the webhook -- the inbound-call webhook, the booking link and open times
- * -- run with what a knock carries: the shared secret, Retell's signature, both, neither. Until RETELL_DOORS_SIGNED=1
- * the secret opens them (compared in constant time) and each knock that comes in logs whether it was signed; after,
- * the signature alone does, as it does the webhook, over the raw body or the body as Retell's example re-serialises it.
- * lib/voice/voice-door-auth.ts says why it is reported before it is required.
+ * -- run with what a knock carries: the shared secret, Retell's signature, both, neither. Retell's signature opens
+ * every door on its own, over the raw body or the body as Retell's example re-serialises it, as it does the webhook.
+ * The secret opens a door only where that door says it still reads one (the URL for inbound, a header for the two
+ * tools; lib/voice/voice-door-auth.ts lists them and why), compared in constant time, and each knock that comes in
+ * logs whether it was signed; with RETELL_DOORS_SIGNED=1 no door reads the secret at all.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -55,12 +56,15 @@ const BODIES = {
   availability: { call: { call_id: "c1", agent_id: "agent_x" }, args: { day: "today" } },
 };
 
-/** A knock on `door`: the secret where that door takes it (URL for inbound, header for the tools), a signature, a body. */
-function knock(door, { secret = null, signature = null, raw = JSON.stringify(BODIES[door]) } = {}) {
+/**
+ * A knock on `door`: the secret where that door takes it (URL for inbound, header for the tools) -- or, `elsewhere`,
+ * in the other place, to prove it is not read there -- a signature, a body.
+ */
+function knock(door, { secret = null, elsewhere = false, signature = null, raw = JSON.stringify(BODIES[door]) } = {}) {
   const url = new URL(`https://edge.test/api/retell-${door}`);
   const headers = { "content-type": "application/json" };
   if (secret !== null) {
-    if (door === "inbound") url.searchParams.set("key", secret);
+    if ((door === "inbound") !== elsewhere) url.searchParams.set("key", secret);
     else headers["x-fn-secret"] = secret;
   }
   if (signature !== null) headers["x-retell-signature"] = signature;
@@ -102,17 +106,27 @@ async function withSigned(value, fn) {
 }
 
 for (const door of ["inbound", "fn", "availability"]) {
-  test(`${door}: until the signature is required, the secret opens it and the log says whether the knock was signed; nothing else does`, async () => {
+  test(`${door}: the secret opens it where this door reads one, Retell's signature opens it on its own, and the log says what each knock carried; nothing else does`, async () => {
     const raw = JSON.stringify(BODIES[door]);
     const lines = await logged(async () => {
       assert.notEqual((await knock(door, { secret: SECRET })).status, 401, "the secret");
       assert.notEqual((await knock(door, { secret: SECRET, signature: sign(raw) })).status, 401, "the secret, signed");
+      assert.notEqual(
+        (await knock(door, { signature: sign(raw) })).status,
+        401,
+        "the signature alone: the caller signs, so that is a credential before the switch says it is the only one",
+      );
       for (const [opts, why] of [
         [{}, "nothing"],
         [{ secret: "" }, "an empty secret"],
         [{ secret: SECRET.slice(0, -1) }, "all but the last character of the secret"],
         [{ secret: `${SECRET}x` }, "the secret and one more"],
-        [{ signature: sign(raw) }, "a signature alone, before it is required"],
+        [{ secret: SECRET, elsewhere: true }, "the secret where this door does not read it"],
+        [
+          { signature: sign(raw, { key: "api-key-for-this-file" }) },
+          "a signature with a key that is not the badged one",
+        ],
+        [{ signature: sign(raw, { at: Date.now() - 6 * 60_000 }) }, "a signature six minutes old"],
       ])
         assert.equal((await knock(door, opts)).status, 401, why);
     });
@@ -121,8 +135,9 @@ for (const door of ["inbound", "fn", "availability"]) {
       [
         [door, false, true, false, true],
         [door, true, true, false, true],
+        [door, true, false, false, true],
       ],
-      "each knock that came in, and whether it was signed; the refusals say nothing",
+      "each knock that came in, and what it carried; the refusals say nothing",
     );
     // An unset secret matches nothing, an empty knock included.
     const was = process.env.RETELL_FN_SECRET;

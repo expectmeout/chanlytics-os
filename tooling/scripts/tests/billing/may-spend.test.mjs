@@ -127,7 +127,8 @@ test("both money routes carry the second door", () => {
     // pipeline refuses a workspace that may not spend BEFORE it spends a
     // rate-limit token on a request that cannot proceed.
     const src = readCode(`apps/dashboard/app/api/v1/lines/${route}/route.ts`);
-    assert.ok(src.includes('role: "owner",'), `${route}: role`);
+    // The partner who brought the workspace gets its number (0012); the workspace's own plan pays for it.
+    assert.ok(src.includes('role: "partner",'), `${route}: role`);
     assert.ok(src.includes("spend: true,"), `${route}: spend`);
   }
 

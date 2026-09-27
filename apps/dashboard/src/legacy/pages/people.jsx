@@ -2860,6 +2860,14 @@ const usePeoplePlace = ({ controls, shown, tab, listId, savedId, q }) => {
   // already holds, whole (people-detail.ts warmPeople): a person not read yet opens on nothing of theirs until it is.
   const aheadKey = shownIds.slice(0, 12).join(",");
   React.useEffect(() => { if (aheadKey && window.__warmPeople) window.__warmPeople(aheadKey.split(",")); }, [aheadKey]);
+  // What Ask is told is on screen (legacy-bridge/ask/context.ts): the people this view draws, in its order after its list,
+  // search and sort, forty at most, and the view that chose them; taken back when the list goes.
+  React.useEffect(() => {
+    const drawn = shown.slice(0, 40);
+    window.__askOnScreen = { key: "people", ids: drawn.map((r) => r.id), labels: drawn.map((r) => r.name || ""), view: q.trim() ? `${peopleView}:search` : peopleView };
+    // Taken back when the list goes (a person's page, People's lists): its rows are no longer on screen.
+    return () => { if (window.__askOnScreen && window.__askOnScreen.key === "people") window.__askOnScreen = null; };
+  });
   return { filtered, shownIds, cursor, setCursor, rowBudget, keysWith, toggleAll };
 };
 const peoplePhoneSheetActs = ({ addDraft, setAddDraft, setAddOpen, listAct, setListAct, listDraft, setListDraft, activeSaved, viewRule, shownIds, openMade, setSavedId, plFlash, onOpenProfile }) => {

@@ -6,7 +6,14 @@
  * session role's grants.
  */
 import crypto from "node:crypto";
-import { lastInboundEmail, type Json } from "@chanlytics/db";
+import {
+  claimIdempotencyKey,
+  keepIdempotencyReceipt,
+  lastInboundEmail,
+  releaseIdempotencyKey,
+  takeIdempotencyKey,
+  type Json,
+} from "@chanlytics/db";
 import type { CancelSendPorts, EscalationPorts, ReplyPorts, ReplyReceipt, ThreadPorts } from "@chanlytics/core";
 import type { RouteContext } from "../with-route";
 import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resolveOpenEscalation } from "../verbs";
@@ -114,6 +121,9 @@ export function cancelSendPorts(ctx: RouteContext): CancelSendPorts {
   };
 }
 
+/** The `idempotency_keys.route` a reply's key is kept under. */
+const REPLY_KEY_ROUTE = "reply";
+
 export function replyPorts(ctx: RouteContext): ReplyPorts {
   const { pauseMs, takeControl, withdrawDrafts, record, resolveEscalation, now } = threadPorts(ctx);
   return {
@@ -129,20 +139,35 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
       freeze: (input) => freezeReply(ctx, input),
       newId: () => crypto.randomUUID(),
     },
-    priorReceipt: async (tenantId, key) => {
-      const { data, error } = await ctx.supabase
-        .from("idempotency_keys")
-        .select("response, created_at, request_hash")
-        .eq("tenant_id", tenantId)
-        .eq("key", key)
-        .maybeSingle();
-      if (error) throw new Error(`idempotency lookup: ${error.message}`);
-      if (!data?.response) return null;
+    claimKey: async (tenantId, key, requestHash, nowIso) => {
+      const claim = await claimIdempotencyKey(ctx.supabase, {
+        tenantId,
+        key,
+        route: REPLY_KEY_ROUTE,
+        requestHash,
+        nowIso,
+      });
+      if (claim.won) return claim;
+      const held = claim.held;
       return {
-        response: data.response as unknown as ReplyReceipt,
-        created_at: data.created_at,
-        request_hash: data.request_hash ?? null,
+        won: false,
+        held: held && {
+          response: held.response as unknown as ReplyReceipt | null,
+          created_at: held.created_at,
+          request_hash: held.request_hash,
+        },
       };
+    },
+    takeKey: (tenantId, key, requestHash, nowIso, from) =>
+      takeIdempotencyKey(ctx.supabase, { tenantId, key, requestHash, nowIso, from }),
+    releaseKey: async (tenantId, key, nowIso) => {
+      // The reply is already failing, and that failure is the caller's. A
+      // release that fails too is logged; the hold expires with the window.
+      try {
+        await releaseIdempotencyKey(ctx.supabase, { tenantId, key, nowIso });
+      } catch (e) {
+        console.error("idempotency_release_failed", tenantId, (e as Error).message);
+      }
     },
     template: async (tenantId, name, language) => {
       const { data } = await ctx.supabase
@@ -205,24 +230,16 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
     cancelOrphan: async (id) => {
       await ctx.supabase.from("messages").update({ status: "canceled" }).eq("id", id);
     },
-    storeReceipt: async (tenantId, key, requestHash, response) => {
-      // Upsert, not insert: an expired key for the same intent already exists.
-      // created_at is refreshed so the window runs from THIS send. Discarding
-      // this error is how a replay protection silently stops protecting: the
-      // send already happened, so it is logged rather than failed.
-      const { error } = await ctx.supabase.from("idempotency_keys").upsert(
-        {
-          tenant_id: tenantId,
-          key,
-          route: "reply",
-          request_hash: requestHash,
-          response: response as unknown as Json,
-          created_at: new Date().toISOString(),
-        },
-        { onConflict: "tenant_id,key" },
-      );
-      if (error) console.error("idempotency_record_failed", tenantId, error.message);
-    },
+    // A write that fails throws, like every other port here: before the job the
+    // verb fails the reply on it (nothing was sent); after, it lets it go.
+    storeReceipt: (tenantId, key, requestHash, response, stamp) =>
+      keepIdempotencyReceipt(ctx.supabase, {
+        tenantId,
+        key,
+        requestHash,
+        response: response as unknown as Json,
+        stamp,
+      }),
     hash: (s) => crypto.createHash("sha256").update(s).digest("hex").slice(0, 32),
   };
 }

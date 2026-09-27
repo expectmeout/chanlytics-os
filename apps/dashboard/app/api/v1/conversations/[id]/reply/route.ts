@@ -44,6 +44,15 @@ const ReplyBody = z
   .strict();
 
 /**
+ * The platform's ceiling on one reply, in seconds. Core's HOLD_EXPIRY_MS (two
+ * minutes) treats a claim on the idempotency key older than that as abandoned
+ * and lets the next caller under the key take it over, which is only safe
+ * because nothing can still be running here by then. core-reply.test.mjs
+ * holds the two in that order.
+ */
+export const maxDuration = 60;
+
+/**
  * POST /api/v1/conversations/:id/reply — the conversation is the row
  * (conversationScope): visible under RLS first, then the role judged where
  * the thread lives. Role before rate, by construction: a viewer must not

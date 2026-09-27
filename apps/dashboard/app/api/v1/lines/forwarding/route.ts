@@ -18,7 +18,7 @@ import { getTenantConfig } from "@chanlytics/db";
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lines_forwarding",
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => ({}))) as {

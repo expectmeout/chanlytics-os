@@ -5,9 +5,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importSrc } from "../_source.mjs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { importSrc, ROOT } from "../_source.mjs";
 
-const { replyToConversation, IDEMPOTENCY_WINDOW_MS, SEND_GRACE_MS } = await importSrc(
+const { replyToConversation, IDEMPOTENCY_WINDOW_MS, HOLD_EXPIRY_MS, SEND_GRACE_MS } = await importSrc(
   "packages/core/src/conversations/reply.ts",
 );
 const NOW = Date.parse("2026-09-11T12:00:00Z");
@@ -31,7 +33,7 @@ const approved = {
   meta_status: "approved",
   category: "utility",
 };
-const READS = new Set(["pauseMs", "replyChannel", "priorReceipt", "template", "templateFacts", "hash", "now"]);
+const READS = new Set(["pauseMs", "replyChannel", "template", "templateFacts", "hash", "now"]);
 
 /** Every port answers a value (or a function of its arguments); the writes log their call as [name, ...args]. */
 function fakes(over = {}) {
@@ -40,7 +42,9 @@ function fakes(over = {}) {
     pauseMs: 2 * HOUR,
     now: () => NOW,
     replyChannel: "whatsapp",
-    priorReceipt: null,
+    claimKey: { won: true },
+    takeKey: true,
+    releaseKey: undefined,
     template: approved,
     templateFacts: { business_name: "Marisa's", booking_link: "https://book.example/m" },
     hash: (s) => `h(${s})`,
@@ -52,7 +56,7 @@ function fakes(over = {}) {
     cancelOrphan: undefined,
     record: "d1",
     resolveEscalation: undefined,
-    storeReceipt: undefined,
+    storeReceipt: true,
     ...over,
   };
   const ports = {};
@@ -404,26 +408,41 @@ test("a replay: the same key and intent inside the window returns the stored rec
   };
   const key = "u1:k1";
   const intent = 'h({"text":"On our way."})';
-  const fresh = fakes({
-    priorReceipt: (t, k) =>
-      k === key ? { response: stored, created_at: iso(NOW - 5_000), request_hash: intent } : null,
+  /** The claim lost to a hold: the stored receipt, fresh and for these words unless said otherwise. */
+  const hold = (over = {}) => ({
+    won: false,
+    held: { response: stored, created_at: iso(NOW - 5_000), request_hash: intent, ...over },
   });
+  const fresh = fakes({ claimKey: (t, k) => (k === key ? hold() : { won: true }) });
   assert.deepEqual(await replyToConversation(fresh.ports, cmd({ idempotencyKey: "k1" })), stored);
-  assert.deepEqual(fresh.ops(), []);
-  const old = fakes({
-    priorReceipt: { response: stored, created_at: iso(NOW - IDEMPOTENCY_WINDOW_MS - 1), request_hash: intent },
-  });
+  assert.deepEqual(fresh.ops(), ["claimKey"], "the claim, and nothing after it");
+  const old = fakes({ claimKey: hold({ created_at: iso(NOW - IDEMPOTENCY_WINDOW_MS - 1) }) });
   assert.equal(
     (await replyToConversation(old.ports, cmd({ idempotencyKey: "k1" }))).message_id,
     "m1",
     "an old receipt does not answer",
   );
-  const other = fakes({ priorReceipt: { response: stored, created_at: iso(NOW - 5_000), request_hash: "h(other)" } });
+  assert.deepEqual(
+    old.call("takeKey"),
+    ["takeKey", "t1", key, intent, iso(NOW), iso(NOW - IDEMPOTENCY_WINDOW_MS - 1)],
+    "taken over by the stamp it was read at",
+  );
+  const other = fakes({ claimKey: hold({ request_hash: "h(other)" }) });
   assert.equal(
     (await replyToConversation(other.ports, cmd({ idempotencyKey: "k1" }))).message_id,
     "m1",
     "a different intent under the same key goes through",
   );
+  const taken = fakes({ claimKey: hold({ request_hash: "h(other)" }), takeKey: false });
+  await refused(replyToConversation(taken.ports, cmd({ idempotencyKey: "k1" })), "conflict", /already being sent/);
+  assert.deepEqual(
+    taken.ops(),
+    ["claimKey", "takeKey"],
+    "another caller took it first: nothing queued, nothing let go",
+  );
+  const gone = fakes({ claimKey: { won: false, held: null } });
+  await refused(replyToConversation(gone.ports, cmd({ idempotencyKey: "k1" })), "conflict", /already being sent/);
+  assert.deepEqual(gone.ops(), ["claimKey"], "a hold that went between the claim and the read is refused, not taken");
   assert.deepEqual(other.log.at(-1), [
     "storeReceipt",
     "t1",
@@ -437,10 +456,11 @@ test("a replay: the same key and intent inside the window returns the stored rec
       withdrawn_drafts: 1,
       decision_id: "d1",
     },
+    iso(NOW),
   ]);
-  // The receipt is kept the moment the send is certain: a ledger that fails
-  // after the job exists still leaves a retry under the same key something
-  // to find, or the customer receives the words twice.
+  // The receipt is kept before the job exists, on the claim's stamp: a ledger
+  // that fails after the job still leaves a retry under the same key
+  // something to find, or the customer receives the words twice.
   const ledgerDown = fakes({
     record: () => {
       throw new Error("decisions down");
@@ -448,12 +468,13 @@ test("a replay: the same key and intent inside the window returns the stored rec
   });
   await assert.rejects(replyToConversation(ledgerDown.ports, cmd({ idempotencyKey: "k1" })), /decisions down/);
   assert.deepEqual(ledgerDown.ops(), [
+    "claimKey",
     "claimForReply",
     "takeControl",
     "withdrawDrafts",
     "queue",
-    "schedule",
     "storeReceipt",
+    "schedule",
     "record",
   ]);
   assert.deepEqual(ledgerDown.call("storeReceipt"), [
@@ -468,10 +489,215 @@ test("a replay: the same key and intent inside the window returns the stored rec
       window_open: true,
       withdrawn_drafts: 1,
     },
+    iso(NOW),
   ]);
+  // A write of the second receipt (the decision's id) that fails is not the
+  // reply's failure: the send is certain, and the first receipt answers a replay.
+  let stores = 0;
+  const idDown = fakes({
+    storeReceipt: () => {
+      if (++stores === 2) throw new Error("keys down");
+      return true;
+    },
+  });
+  assert.equal((await replyToConversation(idDown.ports, cmd({ idempotencyKey: "k1" }))).decision_id, "d1");
+  assert.equal(stores, 2);
   const noKey = fakes();
   await replyToConversation(noKey.ports, cmd());
   assert.ok(!noKey.ops().includes("storeReceipt"), "no key, nothing stored");
+  assert.ok(!noKey.ops().includes("claimKey"), "no key, nothing claimed");
+});
+
+/* ------------------------------------------------------------ the key, claimed
+ * The key is a row the reply CLAIMS before anything else is written, on the
+ * table's unique (tenant_id, key). These fakes keep ONE table for every caller
+ * in a case, so what is proved is the race itself: the first claim wins, a
+ * second under the same key is shown the first's hold and what it left.
+ */
+function keyTable(seed = []) {
+  const rows = new Map(seed);
+  const shared = {
+    // What the reply READ before it claimed anything (the defect): the receipt
+    // under the key, or nothing. Answered from the same table, so the verb as
+    // it was runs these cases too, and fails them with two messages queued.
+    priorReceipt: (t, k) => (rows.get(k)?.response ? { ...rows.get(k) } : null),
+    claimKey: (t, k, hash, nowIso) => {
+      if (rows.has(k)) return { won: false, held: { ...rows.get(k) } };
+      rows.set(k, { response: null, created_at: nowIso, request_hash: hash });
+      return { won: true };
+    },
+    takeKey: (t, k, hash, nowIso, from) => {
+      const h = rows.get(k);
+      if (!h || h.created_at !== from) return false;
+      rows.set(k, { response: null, created_at: nowIso, request_hash: hash });
+      return true;
+    },
+    releaseKey: (t, k, nowIso) => {
+      if (rows.get(k)?.created_at === nowIso) rows.delete(k);
+    },
+    // Written only onto the row that still carries the caller's stamp, as the table's is.
+    storeReceipt: (t, k, hash, response, stamp) => {
+      const h = rows.get(k);
+      if (!h || h.created_at !== stamp) return false;
+      rows.set(k, { response, created_at: stamp, request_hash: hash });
+      return true;
+    },
+  };
+  return { rows, shared };
+}
+/** Callers over one table, each with its own log, and no two of them sharing a message id. */
+function callers(table, over = {}) {
+  let n = 0;
+  const one = () => fakes({ ...table.shared, queue: () => `m${++n}`, ...over });
+  return [one(), one()];
+}
+const writes = (...fs) => fs.flatMap((f) => f.log);
+const SAME_KEY = () => cmd({ idempotencyKey: "k1" });
+
+test("REGRESSION (audit 15.1): two replies under one key at once -- the key is claimed before anything is written, so one message is queued and one send scheduled; the other caller is refused as in progress, and once the receipt is kept the key answers with it", async () => {
+  const table = keyTable();
+  const [a, b] = callers(table);
+  const outcomes = await Promise.allSettled([
+    replyToConversation(a.ports, SAME_KEY()),
+    replyToConversation(b.ports, SAME_KEY()),
+  ]);
+  assert.equal(writes(a, b).filter((l) => l[0] === "queue").length, 1, "one message queued");
+  assert.equal(writes(a, b).filter((l) => l[0] === "schedule").length, 1, "one send scheduled");
+  const won = outcomes.filter((o) => o.status === "fulfilled");
+  const lost = outcomes.filter((o) => o.status === "rejected");
+  assert.equal(won.length, 1);
+  assert.equal(lost.length, 1);
+  assert.equal(won[0].value.status, "queued");
+  assert.equal(lost[0].reason.code, "conflict");
+  assert.equal(lost[0].reason.status, 409);
+  assert.match(lost[0].reason.message, /already being sent/);
+  // The loser held nothing, so it let nothing go: the winner's claim stands, completed by its receipt.
+  assert.ok(!writes(a, b).some((l) => l[0] === "releaseKey"));
+  assert.deepEqual(table.rows.get("u1:k1").response, won[0].value);
+  // A third call under the key, once the receipt is kept, is the replay: the receipt, and nothing queued.
+  const [c] = callers(table);
+  assert.deepEqual(await replyToConversation(c.ports, SAME_KEY()), won[0].value);
+  assert.deepEqual(c.ops(), ["claimKey"]);
+});
+
+test("a reply that fails after its claim and before its receipt lets the key go, so a retry is not told it is in progress; one that fails after the receipt keeps it", async () => {
+  const table = keyTable();
+  const { ports, ops } = fakes({ ...table.shared, claimForReply: false });
+  await refused(replyToConversation(ports, SAME_KEY()), "conflict", /nothing was sent/);
+  assert.deepEqual(ops(), ["claimKey", "claimForReply", "releaseKey"]);
+  assert.equal(table.rows.size, 0, "the claim is gone");
+  const again = fakes(table.shared);
+  assert.equal(
+    (await replyToConversation(again.ports, SAME_KEY())).message_id,
+    "m1",
+    "the retry claims afresh, and sends",
+  );
+  // A refusal of the words themselves, after the claim, lets it go the same way.
+  const empty = fakes(keyTable().shared);
+  await refused(
+    replyToConversation(empty.ports, cmd({ idempotencyKey: "k1", body: { text: "  " } })),
+    "validation",
+    /required/,
+  );
+  assert.deepEqual(empty.ops(), ["claimKey", "releaseKey"]);
+  // After the receipt, the ledger failing keeps it: the send is certain, and a retry must find it.
+  const kept = keyTable();
+  const ledgerDown = fakes({
+    ...kept.shared,
+    record: () => {
+      throw new Error("decisions down");
+    },
+  });
+  await assert.rejects(replyToConversation(ledgerDown.ports, SAME_KEY()), /decisions down/);
+  assert.ok(!ledgerDown.ops().includes("releaseKey"), "kept");
+  assert.equal(kept.rows.get("u1:k1").response.message_id, "m1");
+});
+
+test("a hold with no receipt is the other caller's reply on its way until it is older than HOLD_EXPIRY_MS (past the replay window is not enough); older, it is abandoned and taken over -- by exactly one of two callers who both read it", async () => {
+  const INTENT = 'h({"text":"On our way."})';
+  const live = keyTable([
+    ["u1:k1", { response: null, created_at: iso(NOW - HOLD_EXPIRY_MS + 1), request_hash: INTENT }],
+  ]);
+  const [x, y] = callers(live);
+  await refused(replyToConversation(x.ports, SAME_KEY()), "conflict", /already being sent/);
+  await refused(replyToConversation(y.ports, SAME_KEY()), "conflict", /already being sent/);
+  assert.deepEqual(
+    writes(x, y).map((l) => l[0]),
+    ["claimKey", "claimKey"],
+    "a hold a reply could still be writing under is never taken: nothing queued, nothing let go",
+  );
+  assert.equal(live.rows.get("u1:k1").response, null);
+
+  const stale = keyTable([["u1:k1", { response: null, created_at: iso(NOW - HOLD_EXPIRY_MS), request_hash: INTENT }]]);
+  const [a, b] = callers(stale);
+  const outcomes = await Promise.allSettled([
+    replyToConversation(a.ports, SAME_KEY()),
+    replyToConversation(b.ports, SAME_KEY()),
+  ]);
+  assert.equal(writes(a, b).filter((l) => l[0] === "queue").length, 1, "one message queued");
+  assert.equal(outcomes.filter((o) => o.status === "fulfilled").length, 1);
+  assert.equal(outcomes.filter((o) => o.status === "rejected").length, 1);
+  assert.equal(writes(a, b).filter((l) => l[0] === "takeKey").length, 2, "both tried; the table let one through");
+  assert.equal(stale.rows.get("u1:k1").response.status, "queued", "and completed it");
+});
+
+test("a caller slow past HOLD_EXPIRY_MS is taken over and cannot complete: its receipt is refused on its stamp, the row it queued is canceled before any job exists, and the taker's is the one send scheduled", async () => {
+  const table = keyTable();
+  let wake;
+  const stalled = new Promise((r) => (wake = r));
+  const a = fakes({ ...table.shared, queue: () => "m1", withdrawDrafts: () => stalled.then(() => 1) });
+  const b = fakes({ ...table.shared, queue: () => "m2", now: () => NOW + HOLD_EXPIRY_MS });
+  const pa = replyToConversation(a.ports, SAME_KEY());
+  // A claims and stalls after the thread is its: past its hold, before its row.
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(a.ops(), ["claimKey", "claimForReply", "takeControl", "withdrawDrafts"]);
+  const rb = await replyToConversation(b.ports, SAME_KEY());
+  assert.equal(rb.message_id, "m2", "B took the abandoned hold over and sent");
+  assert.deepEqual(b.call("takeKey"), [
+    "takeKey",
+    "t1",
+    "u1:k1",
+    'h({"text":"On our way."})',
+    iso(NOW + HOLD_EXPIRY_MS),
+    iso(NOW),
+  ]);
+  wake();
+  await refused(pa, "conflict", /already being sent/);
+  assert.deepEqual(a.ops(), [
+    "claimKey",
+    "claimForReply",
+    "takeControl",
+    "withdrawDrafts",
+    "queue",
+    "storeReceipt",
+    "cancelOrphan",
+    "releaseKey",
+  ]);
+  assert.deepEqual(
+    a.call("cancelOrphan"),
+    ["cancelOrphan", "m1"],
+    "A's row is canceled, and no job was ever made for it",
+  );
+  assert.equal(writes(a, b).filter((l) => l[0] === "schedule").length, 1, "exactly one send scheduled");
+  assert.equal(b.call("schedule")[3].message_id, "m2");
+  assert.equal(
+    table.rows.get("u1:k1").response.message_id,
+    "m2",
+    "B's receipt stands: A's release named a stamp that had moved",
+  );
+});
+
+test("a hold outlives any reply the route can run: HOLD_EXPIRY_MS is above the reply route's maxDuration, which the route pins", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
+  const route = await import(
+    pathToFileURL(path.join(ROOT, "apps/dashboard/app/api/v1/conversations/[id]/reply/route.ts")).href
+  );
+  assert.equal(route.maxDuration, 60, "the reply route pins its lifetime, in seconds");
+  assert.ok(
+    HOLD_EXPIRY_MS > route.maxDuration * 1000,
+    "a hold this old was left by a caller the platform has already ended",
+  );
 });
 
 /* ------------------------------------------------------------------ email
@@ -678,4 +904,63 @@ test("the facts port answers with the business name alone: no link is null, and 
   );
   assert.equal(await at({ brain: { booking_link: "https://book.example/harbor" } }), null, "no name, no facts");
   assert.equal(await at({}), null, "and no receptionist, none");
+});
+
+test("the key ports over the fake table: a claim wins once and the next is shown the hold; the receipt completes it on its own stamp only; a hold is taken over on its stamp once, and the caller taken over cannot complete; a release removes the row the caller stamped, and only that", async () => {
+  const { replyPorts } = await import("../../../../apps/dashboard/src/server/ports/core-ports.ts");
+  const { fakeDb } = await import("../_fake-db.mjs");
+  const tables = { idempotency_keys: [] };
+  const ports = replyPorts({ supabase: fakeDb(tables), userId: "u1" });
+  const row = () => tables.idempotency_keys[0];
+  const T = iso(NOW);
+  assert.deepEqual(await ports.claimKey("t1", "u1:k1", "h1", T), { won: true });
+  assert.deepEqual(
+    await ports.claimKey("t1", "u1:k1", "h2", iso(NOW + 1)),
+    { won: false, held: { response: null, created_at: T, request_hash: "h1" } },
+    "the winner's stamp and words, not the loser's",
+  );
+  assert.equal(tables.idempotency_keys.length, 1);
+  assert.equal(row().route, "reply");
+  const receipt = {
+    message_id: "m1",
+    status: "queued",
+    cancelable_until: iso(NOW + SEND_GRACE_MS),
+    window_open: true,
+    withdrawn_drafts: 0,
+  };
+  assert.equal(
+    await ports.storeReceipt("t1", "u1:k1", "h1", receipt, iso(NOW + 1)),
+    false,
+    "not the row's stamp: kept nothing",
+  );
+  assert.equal(row().response, null);
+  assert.equal(await ports.storeReceipt("t1", "u1:k1", "h1", receipt, T), true, "the claim's own stamp keeps it");
+  const completed = await ports.claimKey("t1", "u1:k1", "h1", iso(NOW + 2));
+  assert.equal(completed.won, false);
+  assert.deepEqual(
+    completed.held,
+    { response: receipt, created_at: T, request_hash: "h1" },
+    "the stamp stays: the window runs from the claim",
+  );
+  // Taken over on the stamp it was read at; a second reader of the same stamp changes nothing, and the caller taken
+  // over finds its stamp gone when it comes to keep its receipt.
+  const from = completed.held.created_at;
+  assert.equal(await ports.takeKey("t1", "u1:k1", "h3", iso(NOW + 3), from), true);
+  assert.equal(await ports.takeKey("t1", "u1:k1", "h4", iso(NOW + 4), from), false);
+  assert.deepEqual([row().request_hash, row().response, row().created_at], ["h3", null, iso(NOW + 3)]);
+  assert.equal(
+    await ports.storeReceipt("t1", "u1:k1", "h1", receipt, T),
+    false,
+    "the caller taken over cannot complete",
+  );
+  assert.equal(row().response, null, "and the taker's hold is untouched");
+  // A release names its own stamp: another's removes nothing; its own goes, whatever it holds.
+  await ports.releaseKey("t1", "u1:k1", iso(NOW + 4));
+  assert.equal(tables.idempotency_keys.length, 1);
+  await ports.releaseKey("t1", "u1:k1", iso(NOW + 3));
+  assert.equal(tables.idempotency_keys.length, 0, "the claim is gone");
+  assert.deepEqual(await ports.claimKey("t1", "u1:k1", "h5", T), { won: true }, "free again");
+  assert.equal(await ports.storeReceipt("t1", "u1:k1", "h5", receipt, T), true);
+  await ports.releaseKey("t1", "u1:k1", T);
+  assert.equal(tables.idempotency_keys.length, 0, "a receipt kept before a job that then failed goes with its stamp");
 });
