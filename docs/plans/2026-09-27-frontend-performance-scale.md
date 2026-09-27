@@ -81,10 +81,11 @@ that backs off when the provider says so; replies never queued behind bulk work.
   the way (27 September), a CTE that a later read looked in once per row, materialised, so each look scanned all of
   it: `people_list`'s messages, once per person (its three reads for 2,000 people with ten messages each, modelled on
   PGlite: 12.9 s against 95 ms), and `first_replies`' replies, twice per question, under Today and Reports (a week of
-  2,800 questions: 21.3 s against 124 ms). 00223 reads each row through its own index. Still quadratic in the
-  period: `report_series` runs the whole contacts pass again for every day it draws, and it and `campaign_series`
-  scan their CTEs once per day; the fix is one `group by` per source, joined to the days. What remains of
-  `people_list` grows with the workspace's history once per page, and is what the rollups are for.
+  2,800 questions: 21.3 s against 124 ms). 00223 reads each row through its own index. And a report drew each day of
+  its two periods from a scan of every source, `report_series` running its whole contacts pass again for every day
+  (90 days of 400 people, modelled on PGlite: 20.9 s against 179 ms): 00224 reads each source once and groups it by
+  the day, in `report_series` and `campaign_series`. What remains of `people_list` grows with the workspace's history
+  once per page, and is what the rollups are for.
 - **Realtime.** A channel per surface instead of one subscription carrying 24 tables to every tab.
 
 ## 3. The order
