@@ -446,7 +446,11 @@ Nothing sends until a build carries push credentials, and nothing is signed unti
 
 1. **Credentials, once per platform**, from `apps/mobile`: `eas credentials --platform ios` and say yes to the push
    key (needs the Apple Developer Program); `eas credentials --platform android` and upload the FCM V1 service
-   account JSON from the Firebase project (Project settings, Service accounts). Then a new build of each.
+   account JSON from the Firebase project (Project settings, Service accounts). Android also needs the app's own
+   `google-services.json` from the same project (Project settings, Your apps, the Android app `com.chanlytics.app`),
+   as `android.googleServicesFile` in `app.config.ts`, from an EAS file variable in the preview and production
+   environments (its identifiers are public, so committing it is fine too); without it a phone never gets a push
+   token, and the app's `askForToken` answers null without a word. Then a new build of each.
 2. **Enhanced push security**, in the Expo dashboard under Access tokens: turn it on for the project, then set
    `EXPO_ACCESS_TOKEN` on the edge (Vercel, the messaging project) to a token of that account. In that order: the
    variable first is harmless, the switch first refuses every send until the variable lands.
