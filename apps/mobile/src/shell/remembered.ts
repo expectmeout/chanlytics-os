@@ -10,7 +10,7 @@ import { getState, recalled, setState, subscribe } from "./state";
 const SLUG_KEY = "chanlytics.workspace";
 const THEME_KEY = "chanlytics.theme";
 
-function read(key: string): string | null {
+function storedValue(key: string): string | null {
   try {
     return SecureStore.getItem(key);
   } catch {
@@ -18,7 +18,7 @@ function read(key: string): string | null {
   }
 }
 
-function write(key: string, value: string | null): void {
+function storeValue(key: string, value: string | null): void {
   try {
     if (value) SecureStore.setItem(key, value);
     else void SecureStore.deleteItemAsync(key);
@@ -29,11 +29,11 @@ function write(key: string, value: string | null): void {
 
 /** Recall what the last launch kept, then keep what the pages say from now on. Once, at the root, before any page. */
 export function recallAndKeep(): void {
-  setState(recalled(read(SLUG_KEY), read(THEME_KEY)));
+  setState(recalled(storedValue(SLUG_KEY), storedValue(THEME_KEY)));
   let { slug, theme } = getState();
   subscribe(() => {
     const now = getState();
-    if (now.slug !== slug) write(SLUG_KEY, (slug = now.slug));
-    if (now.theme !== theme) write(THEME_KEY, (theme = now.theme));
+    if (now.slug !== slug) storeValue(SLUG_KEY, (slug = now.slug));
+    if (now.theme !== theme) storeValue(THEME_KEY, (theme = now.theme));
   });
 }
