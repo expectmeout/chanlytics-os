@@ -231,7 +231,7 @@ test("GET partner: the caller's row and their balance, or null and nothing; a da
   assert.deepEqual(
     await partner.GET.run(get(), ctxFor(tables({ partners: [row] }), { partner_balance: () => lines })),
     {
-      partner: { ...row, brought: 0 },
+      partner: { ...row, brought: 0, letters: null },
       balance: [
         { currency: "usd", state: "held", earned_cents: 10000, next_payable_at: "2026-10-26T00:00:00Z" },
         { currency: "usd", state: "paid", earned_cents: 20000, next_payable_at: null },
@@ -246,8 +246,14 @@ test("GET partner: the caller's row and their balance, or null and nothing; a da
   };
   assert.deepEqual(
     await partner.GET.run(get(), ctxFor(tables({ partners: [row] }), noLedger)),
-    { partner: { ...row, brought: 0 }, balance: [] },
+    { partner: { ...row, brought: 0, letters: null }, balance: [] },
     "no ledger yet is nothing earned yet",
+  );
+  assert.equal(
+    (await partner.GET.run(get(), ctxFor(tables({ partners: [{ ...row, letters: false }] }), noLedger))).partner
+      .letters,
+    false,
+    "the daily letter's switch, as kept (00209)",
   );
   const older = ctxFor(tables());
   older.supabase = fakeDb(tables(), { "partners.select": { message: 'relation "public.partners" does not exist' } });
@@ -292,6 +298,38 @@ test("POST partner: the code judged in contracts' words before the door, then th
   const out = await partner.POST.run(send("POST", { code: " Ada ", terms: true }), ctxFor(tables(), rpcs));
   assert.equal(out.partner.code, "ada");
   assert.deepEqual(asked.at(-1), { p_code: "ada" }, "as it is stored");
+});
+
+test("PATCH partner: the daily letter on or off through the caller's own door, its refusals mapped", async () => {
+  const asked = [];
+  const rpcs = {
+    partner_letters_set: (a) => {
+      asked.push(a);
+      if (a.p_on === true && asked.length > 2)
+        throw Object.assign(new Error("You are not a partner."), { code: "P0002" });
+      return a.p_on;
+    },
+  };
+  await refused(partner.PATCH.run(send("PATCH", { letters: "yes" }), ctxFor(tables(), rpcs)), "validation", 400);
+  await refused(
+    partner.PATCH.run(send("PATCH", { letters: true, extra: 1 }), ctxFor(tables(), rpcs)),
+    "validation",
+    400,
+  );
+  assert.equal(asked.length, 0, "nothing reached the function");
+  assert.deepEqual(await partner.PATCH.run(send("PATCH", { letters: false }), ctxFor(tables(), rpcs)), {
+    letters: false,
+  });
+  assert.deepEqual(await partner.PATCH.run(send("PATCH", { letters: true }), ctxFor(tables(), rpcs)), {
+    letters: true,
+  });
+  await refused(
+    partner.PATCH.run(send("PATCH", { letters: true }), ctxFor(tables(), rpcs)),
+    "not_found",
+    404,
+    /not a partner/,
+  );
+  assert.deepEqual(asked, [{ p_on: false }, { p_on: true }, { p_on: true }]);
 });
 
 test("a new workspace: the cookie's code goes to the function only with the person's yes, and on a database without the argument the call is made again without it", async () => {

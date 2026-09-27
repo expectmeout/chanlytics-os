@@ -3,7 +3,9 @@
  * workspace a partner brought has paid and awaits its standing, or an earning's thirty days are up. The work is one
  * door, partner_earnings_sweep: it judges each such workspace once (the card of a workspace the partner owns, or a
  * Google listing an older workspace already has, is held for a person; anything else qualifies), makes what is due
- * payable on a qualified workspace for an active partner, and voids what a disqualified one still held.
+ * payable on a qualified workspace for an active partner, and voids what a disqualified one still held. Then each
+ * partner with news since their last letter is written to (decision 0014, lib/partners/letters.ts), after the sweep so
+ * tonight's letter says what tonight made payable. A letter that fails is tomorrow's; it never fails the tick.
  *
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps.
  */
@@ -11,6 +13,7 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
+import { sendPartnerLetters } from "../../lib/partners/letters.js";
 
 interface Swept {
   judged: number;
@@ -37,6 +40,7 @@ export async function POST(request: Request): Promise<Response> {
   const out = (data ?? { judged: 0, review: 0, payable: 0, void: 0 }) as unknown as Swept;
   // A workspace held for review is a person's to look at: said at warn, so it is seen without a query.
   if (out.review > 0) L.warn("partners_review_waiting", { review: out.review });
-  L.info("partners_swept", { ...out });
-  return json(200, { ok: true, ...out });
+  const letters = await sendPartnerLetters(db, new Date());
+  L.info("partners_swept", { ...out, letters: letters.sent, letters_failed: letters.failed });
+  return json(200, { ok: true, ...out, letters });
 }

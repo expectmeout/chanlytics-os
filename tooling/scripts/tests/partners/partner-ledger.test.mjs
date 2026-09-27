@@ -16,7 +16,7 @@ const { setStripeClient } = await import(at("apps/edge/lib/billing.ts"));
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const hook = await import(at("apps/edge/api/stripe-webhook.ts"));
 const clock = await import(at("apps/edge/api/cron/partners.ts"));
-const { planInvoice, cardFingerprintOf } = await import(at("apps/edge/lib/partner-earnings.ts"));
+const { planInvoice, cardFingerprintOf } = await import(at("apps/edge/lib/partners/earnings.ts"));
 
 const sdk = new Stripe("sk_test_only");
 const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -337,6 +337,7 @@ test("the clock: the cron key or nothing, then the one door, its counts answered
       {
         ...vault,
         partner_earnings_sweep: (a) => (swept.push(a), { judged: 2, review: 1, payable: 3, void: 0 }),
+        partner_letters_due: () => [],
       },
     ),
   );
@@ -344,7 +345,13 @@ test("the clock: the cron key or nothing, then the one door, its counts answered
   assert.equal(refused, 401);
   assert.equal(swept.length, 0, "nothing is asked of a caller without the key");
   const [status, body] = await answer(await knock(clock.POST, "partners"));
-  assert.deepEqual([status, body], [200, { ok: true, judged: 2, review: 1, payable: 3, void: 0 }]);
+  assert.deepEqual(
+    [status, body],
+    [
+      200,
+      { ok: true, judged: 2, review: 1, payable: 3, void: 0, letters: { due: 0, sent: 0, failed: 0, deferred: 0 } },
+    ],
+  );
   assert.equal(swept.length, 1);
   assert.ok(!Number.isNaN(Date.parse(swept[0].p_now)), "the clock's own now");
 });
