@@ -2756,6 +2756,7 @@ var PartnerBecomeSchema = z14.object({
   code: z14.string().trim().min(1).max(64),
   terms: z14.literal(true, { message: "The terms have to be accepted." })
 }).strict();
+var PartnerLettersSchema = z14.object({ letters: z14.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -2789,8 +2790,37 @@ var PARTNER_WORDS = {
    */
   joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
-  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting"
 };
+var letterCents = z14.coerce.number();
+var letterSum = z14.object({ currency: z14.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z14.object({
+  /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
+  written: z14.array(z14.object({ kind: z14.string(), currency: z14.string(), count: z14.coerce.number(), cents: letterCents })).default([]),
+  /** Rows written before the last letter that became payable since. */
+  matured: z14.array(letterSum).default([]),
+  /** Shares written before that will not be paid: their workspace was disqualified. */
+  voided: z14.array(letterSum).default([]),
+  paid: z14.array(z14.object({ currency: z14.string(), cents: letterCents, reference: z14.string(), sent_at: z14.string() })).default([]),
+  /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
+  standing: z14.array(z14.object({ workspace: z14.string().nullable(), standing: z14.string(), why: z14.string().nullable() })).default([]),
+  /** Workspaces that came through the link since. */
+  brought: z14.array(z14.string().nullable()).default([]),
+  /** The partner's own status, when it changed since. */
+  status: z14.object({ status: z14.string(), why: z14.string().nullable() }).nullable().default(null),
+  balance: z14.array(
+    z14.object({
+      currency: z14.string(),
+      held: letterCents,
+      payable: letterCents,
+      paid: letterCents,
+      next_payable_at: z14.string().nullable()
+    })
+  ).default([])
+});
 
 // ../channels/dist/index.js
 import { z as z15 } from "zod";
@@ -10287,6 +10317,7 @@ var PartnerBecomeSchema2 = z142.object({
   code: z142.string().trim().min(1).max(64),
   terms: z142.literal(true, { message: "The terms have to be accepted." })
 }).strict();
+var PartnerLettersSchema2 = z142.object({ letters: z142.boolean() }).strict();
 var PARTNER_WORDS2 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -10320,8 +10351,37 @@ var PARTNER_WORDS2 = {
    */
   joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
-  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting"
 };
+var letterCents2 = z142.coerce.number();
+var letterSum2 = z142.object({ currency: z142.string(), cents: letterCents2 });
+var PartnerLetterNewsSchema2 = z142.object({
+  /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
+  written: z142.array(z142.object({ kind: z142.string(), currency: z142.string(), count: z142.coerce.number(), cents: letterCents2 })).default([]),
+  /** Rows written before the last letter that became payable since. */
+  matured: z142.array(letterSum2).default([]),
+  /** Shares written before that will not be paid: their workspace was disqualified. */
+  voided: z142.array(letterSum2).default([]),
+  paid: z142.array(z142.object({ currency: z142.string(), cents: letterCents2, reference: z142.string(), sent_at: z142.string() })).default([]),
+  /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
+  standing: z142.array(z142.object({ workspace: z142.string().nullable(), standing: z142.string(), why: z142.string().nullable() })).default([]),
+  /** Workspaces that came through the link since. */
+  brought: z142.array(z142.string().nullable()).default([]),
+  /** The partner's own status, when it changed since. */
+  status: z142.object({ status: z142.string(), why: z142.string().nullable() }).nullable().default(null),
+  balance: z142.array(
+    z142.object({
+      currency: z142.string(),
+      held: letterCents2,
+      payable: letterCents2,
+      paid: letterCents2,
+      next_payable_at: z142.string().nullable()
+    })
+  ).default([])
+});
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -13930,6 +13990,7 @@ var PartnerBecomeSchema3 = z143.object({
   code: z143.string().trim().min(1).max(64),
   terms: z143.literal(true, { message: "The terms have to be accepted." })
 }).strict();
+var PartnerLettersSchema3 = z143.object({ letters: z143.boolean() }).strict();
 var PARTNER_WORDS3 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -13963,8 +14024,37 @@ var PARTNER_WORDS3 = {
    */
   joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
-  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting"
 };
+var letterCents3 = z143.coerce.number();
+var letterSum3 = z143.object({ currency: z143.string(), cents: letterCents3 });
+var PartnerLetterNewsSchema3 = z143.object({
+  /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
+  written: z143.array(z143.object({ kind: z143.string(), currency: z143.string(), count: z143.coerce.number(), cents: letterCents3 })).default([]),
+  /** Rows written before the last letter that became payable since. */
+  matured: z143.array(letterSum3).default([]),
+  /** Shares written before that will not be paid: their workspace was disqualified. */
+  voided: z143.array(letterSum3).default([]),
+  paid: z143.array(z143.object({ currency: z143.string(), cents: letterCents3, reference: z143.string(), sent_at: z143.string() })).default([]),
+  /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
+  standing: z143.array(z143.object({ workspace: z143.string().nullable(), standing: z143.string(), why: z143.string().nullable() })).default([]),
+  /** Workspaces that came through the link since. */
+  brought: z143.array(z143.string().nullable()).default([]),
+  /** The partner's own status, when it changed since. */
+  status: z143.object({ status: z143.string(), why: z143.string().nullable() }).nullable().default(null),
+  balance: z143.array(
+    z143.object({
+      currency: z143.string(),
+      held: letterCents3,
+      payable: letterCents3,
+      paid: letterCents3,
+      next_payable_at: z143.string().nullable()
+    })
+  ).default([])
+});
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
   {
@@ -16694,6 +16784,7 @@ var PartnerBecomeSchema22 = z1422.object({
   code: z1422.string().trim().min(1).max(64),
   terms: z1422.literal(true, { message: "The terms have to be accepted." })
 }).strict();
+var PartnerLettersSchema22 = z1422.object({ letters: z1422.boolean() }).strict();
 var PARTNER_WORDS22 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -16727,8 +16818,37 @@ var PARTNER_WORDS22 = {
    */
   joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
-  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting"
 };
+var letterCents22 = z1422.coerce.number();
+var letterSum22 = z1422.object({ currency: z1422.string(), cents: letterCents22 });
+var PartnerLetterNewsSchema22 = z1422.object({
+  /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
+  written: z1422.array(z1422.object({ kind: z1422.string(), currency: z1422.string(), count: z1422.coerce.number(), cents: letterCents22 })).default([]),
+  /** Rows written before the last letter that became payable since. */
+  matured: z1422.array(letterSum22).default([]),
+  /** Shares written before that will not be paid: their workspace was disqualified. */
+  voided: z1422.array(letterSum22).default([]),
+  paid: z1422.array(z1422.object({ currency: z1422.string(), cents: letterCents22, reference: z1422.string(), sent_at: z1422.string() })).default([]),
+  /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
+  standing: z1422.array(z1422.object({ workspace: z1422.string().nullable(), standing: z1422.string(), why: z1422.string().nullable() })).default([]),
+  /** Workspaces that came through the link since. */
+  brought: z1422.array(z1422.string().nullable()).default([]),
+  /** The partner's own status, when it changed since. */
+  status: z1422.object({ status: z1422.string(), why: z1422.string().nullable() }).nullable().default(null),
+  balance: z1422.array(
+    z1422.object({
+      currency: z1422.string(),
+      held: letterCents22,
+      payable: letterCents22,
+      paid: letterCents22,
+      next_payable_at: z1422.string().nullable()
+    })
+  ).default([])
+});
 z162.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -19262,6 +19382,7 @@ var PartnerBecomeSchema32 = z1432.object({
   code: z1432.string().trim().min(1).max(64),
   terms: z1432.literal(true, { message: "The terms have to be accepted." })
 }).strict();
+var PartnerLettersSchema32 = z1432.object({ letters: z1432.boolean() }).strict();
 var PARTNER_WORDS32 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -19295,8 +19416,37 @@ var PARTNER_WORDS32 = {
    */
   joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
-  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting"
 };
+var letterCents32 = z1432.coerce.number();
+var letterSum32 = z1432.object({ currency: z1432.string(), cents: letterCents32 });
+var PartnerLetterNewsSchema32 = z1432.object({
+  /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
+  written: z1432.array(z1432.object({ kind: z1432.string(), currency: z1432.string(), count: z1432.coerce.number(), cents: letterCents32 })).default([]),
+  /** Rows written before the last letter that became payable since. */
+  matured: z1432.array(letterSum32).default([]),
+  /** Shares written before that will not be paid: their workspace was disqualified. */
+  voided: z1432.array(letterSum32).default([]),
+  paid: z1432.array(z1432.object({ currency: z1432.string(), cents: letterCents32, reference: z1432.string(), sent_at: z1432.string() })).default([]),
+  /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
+  standing: z1432.array(z1432.object({ workspace: z1432.string().nullable(), standing: z1432.string(), why: z1432.string().nullable() })).default([]),
+  /** Workspaces that came through the link since. */
+  brought: z1432.array(z1432.string().nullable()).default([]),
+  /** The partner's own status, when it changed since. */
+  status: z1432.object({ status: z1432.string(), why: z1432.string().nullable() }).nullable().default(null),
+  balance: z1432.array(
+    z1432.object({
+      currency: z1432.string(),
+      held: letterCents32,
+      payable: letterCents32,
+      paid: letterCents32,
+      next_payable_at: z1432.string().nullable()
+    })
+  ).default([])
+});
 async function recordCarrierOptOut(db, p) {
   const { data, error } = await db.from("contacts").update({
     consent: "opted_out",
@@ -22562,6 +22712,7 @@ var PartnerBecomeSchema4 = z144.object({
   code: z144.string().trim().min(1).max(64),
   terms: z144.literal(true, { message: "The terms have to be accepted." })
 }).strict();
+var PartnerLettersSchema4 = z144.object({ letters: z144.boolean() }).strict();
 var PARTNER_WORDS4 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -22595,8 +22746,37 @@ var PARTNER_WORDS4 = {
    */
   joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
-  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting"
 };
+var letterCents4 = z144.coerce.number();
+var letterSum4 = z144.object({ currency: z144.string(), cents: letterCents4 });
+var PartnerLetterNewsSchema4 = z144.object({
+  /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
+  written: z144.array(z144.object({ kind: z144.string(), currency: z144.string(), count: z144.coerce.number(), cents: letterCents4 })).default([]),
+  /** Rows written before the last letter that became payable since. */
+  matured: z144.array(letterSum4).default([]),
+  /** Shares written before that will not be paid: their workspace was disqualified. */
+  voided: z144.array(letterSum4).default([]),
+  paid: z144.array(z144.object({ currency: z144.string(), cents: letterCents4, reference: z144.string(), sent_at: z144.string() })).default([]),
+  /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
+  standing: z144.array(z144.object({ workspace: z144.string().nullable(), standing: z144.string(), why: z144.string().nullable() })).default([]),
+  /** Workspaces that came through the link since. */
+  brought: z144.array(z144.string().nullable()).default([]),
+  /** The partner's own status, when it changed since. */
+  status: z144.object({ status: z144.string(), why: z144.string().nullable() }).nullable().default(null),
+  balance: z144.array(
+    z144.object({
+      currency: z144.string(),
+      held: letterCents4,
+      payable: letterCents4,
+      paid: letterCents4,
+      next_payable_at: z144.string().nullable()
+    })
+  ).default([])
+});
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,

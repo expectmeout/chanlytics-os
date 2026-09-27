@@ -113,7 +113,7 @@
   "apps/edge/lib/ops/notify.ts": 1,
   "apps/edge/lib/ops/page-operator.ts": 3,
   "apps/edge/lib/ops/sweep-rotation.ts": 4,
-  "apps/edge/lib/partner-earnings.ts": 1,
+  "apps/edge/lib/partners/earnings.ts": 1,
   "apps/edge/lib/playbooks.ts": 10,
   "apps/edge/lib/reach-out/clock.ts": 2,
   "apps/edge/lib/reach-out/replan.ts": 4,

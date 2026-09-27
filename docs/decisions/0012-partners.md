@@ -1,15 +1,15 @@
 # 0012 · A partner brings a workspace, sets it up, and earns a share
 
 **Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) merged (#1151); P4 (the partner's table)
-merged (#1156); P5 (standing and payouts) built on the branch this note ships with (00205), with the pause the
-Risks promise (00206), and what a review of 00201–00206 found fixed in 00207. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
+merged (#1156); P5 (standing and payouts, 00205), the pause the Risks promise (00206), and what a review of
+00201–00206 found (00207) merged (#1159). The first later step, email to a partner, is 0014 (00209). A closed partner may delete their account (00210, over 00208's door). Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
 at that commit, before P1, so the Context describes the code P1 to P3 changed: `memberships.role` admits `partner`,
 `has_permission()` and `ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, `requireRole`
 refuses a role it does not know (00201, `with-route.ts`); `partners` and `partner_tenants` exist, `create_workspace`
 takes the code the link's cookie left, `GET /workspaces` carries each role and the partner, and Settings › Partner is
 the offer or the link (00202, `app/p/[code]`, `partner-real.jsx`); `partner_earnings` is written by the Stripe webhook
 through `partner_earn` and `partner_reverse`, the daily clock `partners` runs `partner_earnings_sweep`, and the pane
-says held, payable and paid from `partner_balance` (00203, `lib/partner-earnings.ts`, `api/cron/partners.ts`).
+says held, payable and paid from `partner_balance` (00203, `lib/partner-earnings.ts`, since moved to `lib/partners/earnings.ts`, `api/cron/partners.ts`).
 
 What moved from the Shape below as written, each for a reason found in the code:
 
@@ -320,7 +320,7 @@ know the role before any row carries it, and P1's migration creates none.
    office's column and two actions, the review words on the partner's pane ("Under review · we'll write to you").
    Built as 00205 with `platform_partner_balances` and `platform_partner_workspaces` for the back office's card;
    either order, since the overview reads no partners on a database without it.
-6. **Later, each its own note:** email to a partner (earned, payable, paid, under review); Stripe Connect Express
+6. **Later, each its own note:** email to a partner (earned, payable, paid, under review: 0014, built); Stripe Connect Express
    for identity, tax forms and transfers; a partner making the workspace and inviting the owner (needs "invite as
    owner" and a hand-over); presets per trade on top of `firstReceptionistOf`; a directory of partners a business
    can pick from; white label; reselling.

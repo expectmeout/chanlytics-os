@@ -16,7 +16,7 @@
  * A partner's ledger (0012) rides on the same deliveries: a paid plan
  * invoice writes the share of the partner who brought the workspace, and a
  * refund or a dispute of it writes what that does to the share
- * (lib/partner-earnings.ts). A workspace nobody brought costs one read and
+ * (lib/partners/earnings.ts). A workspace nobody brought costs one read and
  * no call to Stripe.
  */
 import type Stripe from "stripe";
@@ -43,7 +43,7 @@ import {
   isAttributed,
   reverseForInvoice,
   type LedgerOutcome,
-} from "../lib/partner-earnings.js";
+} from "../lib/partners/earnings.js";
 import { receptionistOn } from "../lib/packages/contracts.js";
 import { env } from "../lib/env.js";
 
