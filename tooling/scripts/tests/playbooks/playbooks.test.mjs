@@ -405,7 +405,10 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   ])
     assert.deepEqual(
       AFTER[k]().map((o) => o.key),
-      ["playbooks", "broadcasts"],
+      // A reach-out's row moves with its first step's pause and resume, and with its run's approval (Part 4 PR 8).
+      ["PUT playbooks/[id]", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"].includes(k)
+        ? ["playbooks", "broadcasts", "reach_outs"]
+        : ["playbooks", "broadcasts"],
       `${k}: every write re-fetches both surfaces`,
     );
   const pools = readCode("apps/dashboard/src/server/campaigns/playbooks.ts");

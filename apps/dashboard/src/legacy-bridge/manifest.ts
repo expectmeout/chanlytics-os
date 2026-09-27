@@ -117,9 +117,13 @@ import "@/legacy/demo/pages/outbound.jsx";
 import "@/legacy/pages/playbook-bits.jsx";
 import "@/legacy/pages/playbook-card.jsx";
 import "@/legacy/pages/playbook-composer.jsx";
+// A reach-out's chain as one row (Reach out Part 4 PR 8): before the page, which draws it.
+import "@/legacy/pages/reach-out/reach-out-row.jsx";
 import "@/legacy/pages/outbound.jsx";
 import "@/legacy/demo/pages/content-cal.jsx";
 import "@/legacy/pages/templates-real.jsx";
+// A reach-out's email as a Templates row (Reach out Part 4 PR 8): before the page, which draws it.
+import "@/legacy/pages/reach-out/email-template-row.jsx";
 import "@/legacy/pages/messages.jsx";
 import "@/legacy/demo/pages/broadcasts.jsx";
 // A run and the ledger of runs (moved whole from the page, broadcasts-real.jsx then): before it, which draws them.

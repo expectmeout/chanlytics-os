@@ -5,6 +5,7 @@
  * 72 by phone, 30 a day, 12 minutes.
  */
 import { test } from "node:test";
+import * as contracts from "@chanlytics/contracts";
 import assert from "node:assert/strict";
 import {
   REACH_OUT_REFUSALS,
@@ -361,4 +362,53 @@ test("the doors' refusals are one set of sentences, the ones the database raises
     "Lead not found.",
   ])
     assert.equal(isReachOutRefusal(w), true, w);
+});
+
+test("the chain row's own words: its pace from its domains, its path, the held with their run, its slots as parts (PR 8)", () => {
+  const { chainPaceOf, chainPathWords, chainReportWordsOf: report, slotParts, REACH_OUT_ROW_WORDS } = contracts;
+  assert.deepEqual(chainPaceOf({ domains: [{ host: "a.example", sent_days: 0 }] }), { host: "a.example", share: 30 });
+  assert.deepEqual(
+    chainPaceOf({
+      domains: [
+        { host: "a.example", sent_days: 20 },
+        { host: "b.example", sent_days: 40 },
+      ],
+    }),
+    { host: null, share: 300 },
+    "two domains: their days summed, no one host",
+  );
+  assert.deepEqual(chainPaceOf({ domains: [] }), { host: null, share: 0 });
+  assert.deepEqual(chainPathWords(CHAIN), {
+    steps: [
+      { id: "r", label: "Your email", after: null },
+      { id: "n", label: "A short nudge", after: "after 4 days, nothing back" },
+    ],
+    stops: "Stops for anyone who writes back, books or says no.",
+  });
+  const held = {
+    ...REPORT,
+    steps: REPORT.steps.map((s, i) => ({ ...s, held: i === 1 ? 3 : 0 })),
+    runs: [
+      { id: "b3", step_id: "n", run_for: "2026-09-26", state: "sending", planned: 3, written: 0, held: 3 },
+      ...REPORT.runs,
+    ],
+  };
+  assert.deepEqual(report(CHAIN, held, REACH, { host: null, share: 30 }).waiting, {
+    text: "3 wait for your say",
+    run_id: "b3",
+  });
+  assert.equal(report(CHAIN, REPORT, REACH, { host: null, share: 30 }).waiting, null);
+  assert.match(
+    report(CHAIN, REPORT, REACH, { host: null, share: 0 }).sentence,
+    /^Add a domain you send from in Settings › Connections › Email first\. 72 written/,
+    "no domain: never a pace of 0 a day",
+  );
+  assert.deepEqual(slotParts("Hi {{ Business }}, {{opening}}!"), [
+    { text: "Hi ", slot: false },
+    { text: "business", slot: true },
+    { text: ", ", slot: false },
+    { text: "opening", slot: true },
+    { text: "!", slot: false },
+  ]);
+  assert.equal(REACH_OUT_ROW_WORDS.paused("Movers"), "Movers is paused — nothing more is planned until you resume it");
 });

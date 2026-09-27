@@ -70,6 +70,7 @@ import { installWhatsAppConnect } from "./whatsapp-connect";
 import { installTemplates } from "./templates";
 import { installBroadcasts } from "./broadcast-verbs";
 import { installPlaybooks } from "./playbooks";
+import { installReachOuts, reachOutsOverride } from "./reach-out/reach-outs";
 import { installCalendar } from "./calendar";
 import { installToday } from "./today";
 import { installMascot } from "./mascot";
@@ -118,6 +119,7 @@ installWhatsAppConnect();
 installTemplates();
 installBroadcasts();
 installPlaybooks();
+installReachOuts();
 installCalendar();
 installToday();
 // The three, Today's face: the character, its driver and the turn reducer (mascot/index.ts).
@@ -171,6 +173,8 @@ const SURFACES = [
   liveOverride,
   broadcastsOverride,
   playbooksOverride,
+  // A reach-out's chains and their emails (Part 4 PR 8): Playbooks' rows and Templates' email rows.
+  reachOutsOverride,
   // The partner's account (0012): on the person, read once, beside the rest.
   partnerOverride,
   calendarOverride,

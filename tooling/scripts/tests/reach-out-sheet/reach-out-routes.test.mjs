@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
-import { REACH_OUT_REFUSALS, startWords } from "@chanlytics/contracts";
+import { REACH_OUT_REFUSALS, reachOutSendsFrom, startWords } from "@chanlytics/contracts";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
@@ -146,6 +146,7 @@ const tables = (role = "operator", over = {}) => ({
   decisions: [],
   ...over,
 });
+const CLEAN = "2026-09-01T00:00:00Z";
 const ctxFor = (t, params = {}, rpcs = {}) => ({
   supabase: fakeDb(t, {}, rpcs),
   userId: USER,
@@ -633,6 +634,45 @@ test("the chains read the step's run's own readings: a paused workspace may not 
     ),
   );
   assert.equal(never.chains[0].next.mode, "never");
+  // The domains it sends from: every verified one when it names none, with the days each has sent (PR 8's pace).
+  const withDomains = await chains.GET.run(
+    get(),
+    ctxFor(
+      tables("viewer", {
+        sending_domains: [
+          { id: "d1", tenant_id: A, host: "harbor-mail.example", state: "verified", clean_since: CLEAN, sent_days: 12 },
+          { id: "d2", tenant_id: A, host: "pending.example", state: "pending", clean_since: null, sent_days: 0 },
+        ],
+      }),
+    ),
+  );
+  assert.deepEqual(withDomains.chains[0].domains, [{ host: "harbor-mail.example", sent_days: 12 }]);
+  // A domain the chain names is its pace only as the run reads it (contracts reachOutSendsFrom): verified and clean. A
+  // named held one, a named one still verifying and a named verified one with no clean clock (the run's share of 0) are
+  // not said, and neither is a verified one it does not name.
+  const domains = [
+    { id: "d1", tenant_id: A, host: "harbor-mail.example", state: "verified", clean_since: CLEAN, sent_days: 12 },
+    { id: "d2", tenant_id: A, host: "other.example", state: "verified", clean_since: CLEAN, sent_days: 30 },
+    { id: "d3", tenant_id: A, host: "held.example", state: "held", clean_since: CLEAN, sent_days: 40 },
+    { id: "d4", tenant_id: A, host: "verifying.example", state: "verifying", clean_since: null, sent_days: 0 },
+    { id: "d5", tenant_id: A, host: "unclean.example", state: "verified", clean_since: null, sent_days: 0 },
+  ];
+  const names = ["d1", "d3", "d4", "d5"];
+  const named = await chains.GET.run(
+    get(),
+    ctxFor(
+      tables("viewer", {
+        playbooks: tables("viewer").playbooks.map((p) => (p.id === ROOT_ID ? { ...p, domain_ids: names } : p)),
+        sending_domains: domains,
+      }),
+    ),
+  );
+  assert.deepEqual(named.chains[0].domains, [{ host: "harbor-mail.example", sent_days: 12 }]);
+  // The run's own rule, the same function: the edge's timetable and re-plan filter by it (run-context.ts, replan.ts).
+  assert.deepEqual(
+    domains.map((d) => reachOutSendsFrom(d, names)),
+    [true, false, false, false, false],
+  );
   const none = await chains.GET.run(get(), ctxFor(tables("viewer", { policies: [] })));
   assert.equal(none.chains[0].next.mode, "ask", "no row reads as ask, as the run reads it");
 });

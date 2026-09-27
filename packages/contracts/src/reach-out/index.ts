@@ -65,6 +65,7 @@ export {
   slotsNamed,
   replaceSlots,
   slotCount,
+  slotParts,
   wordsNeedOpening,
   wordCount,
   emailWordCount,
@@ -144,4 +145,10 @@ export {
   chainHintOf,
   chainReportWordsOf,
   emailTemplateWords,
+  emailTemplateRowsOf,
+  emailRowWrittenOf,
+  EMAIL_TEMPLATE_LIST_WORDS,
+  chainPaceOf,
+  chainPathWords,
+  REACH_OUT_ROW_WORDS,
 } from "./reach-out-sheet";

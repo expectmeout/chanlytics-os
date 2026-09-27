@@ -41,6 +41,17 @@ it is deleted in the same change. The plan that orders the work is
 | `DIAG_KEY`, the platform's shared key. Since #1141 it opens nothing alone on an edge that holds `EDGE_CALL_SECRET`, except the two knocks that name it (`platformKey`: `/api/diag`, and the platform's lift of a sending domain); on a preview, which holds no secret, it still opens every admin door                                                                    | No door names the key: the runbook's knock, the golden probe and the lift mint a token for their door from `EDGE_CALL_SECRET`, as `eval-brain.mjs` does since #1141; previews hold the secret; and `DIAG_KEY` leaves `env.ts`, `.env.example` and both projects with `platformKey` | Read `admin_door_key_only` on production from 3 October 2026, a week of knocks after #1141: every `ok: true` line is a caller to move to a token. Then the preview's secret, then the change that deletes the key. Scorecard move 9                                                                                                                                                                           |
 | The Retell shared secret, `RETELL_FN_SECRET`, on three voice doors: `?key=` on the inbound webhook and `x-fn-secret` on the two custom functions (`KEY_READ_FROM`, `apps/edge/lib/voice/voice-door-auth.ts`). Since #1141 Retell's signature opens every voice door alone                                                                                                 | Signature-only: `KEY_READ_FROM` is empty, provisioning stops writing the secret (the inbound URL's `?key=`, the tools' header, the converger's drift check), and `RETELL_FN_SECRET` leaves `env.ts` and the edge                                                                   | Read `voice_door_auth` on production from 3 October 2026: when each of the three doors shows `sig: true` on real deliveries, set `RETELL_DOORS_SIGNED=1`, and after a clean week under it, the change that empties `KEY_READ_FROM`. A `sig: false` on the functions while the webhook shows `true` can mean the wrong key, not an unsigned delivery: the verifier tries only the badged key. Scorecard move 9 |
 
+## Rises, each with its reason
+
+A number that rises is banked with `UPDATE_BASELINES=1 corepack pnpm test` in the same change as its row here: what
+rose and by how much, why nothing that exists would do, and what takes it back down. The row leaves when its number
+falls back.
+
+| Rise                                                                                                                                                               | Why                                                                                                                                                                                                                                                                                                              | Falls when                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Window globals +2 (Reach out, Part 4 PR 8): `__REACH_OUTS`, the chains, and `__reachOuts`, their verbs and contracts' words                                        | The shell's pages read the bridge only through window. The chains are a surface of their own so the moments' read (`surface-data.ts`, at its file and function caps) takes nothing more; Templates' email rows are drawn from the same `__REACH_OUTS` through contracts' `emailTemplateRowsOf`, not a third name | Playbooks and Templates leave the shell (the shell's exit decision) |
+| Window publishers +3 (Reach out, Part 4 PR 8): the bridge's `installReachOuts`, and `Object.assign(window, …)` in `reach-out-row.jsx` and `email-template-row.jsx` | The legacy tree's only way to share a component between files; the two rows are files of their own in `pages/reach-out/` so neither page, both at their function caps, grows                                                                                                                                     | The same                                                            |
+
 ## The numbers
 
 Written by `UPDATE_BASELINES=1 corepack pnpm test` from the baselines; `debt-register.test.mjs`
@@ -49,11 +60,11 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            269   of which over 200 lines: 66
+functions over the limit            269   of which over 200 lines: 65
 files over 800 lines                 35
 directories over 20 modules           8
-window globals                      193   names
-window publishers                   388   sites in 141 files
+window globals                      195   names
+window publishers                   391   sites in 144 files
 copies                              129   of 35 names
 as unknown as                       223
 table names outside packages/db     535
