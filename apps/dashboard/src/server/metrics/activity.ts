@@ -1,4 +1,5 @@
 import "server-only";
+import { z } from "zod";
 import {
   ACTIVITY_KINDS,
   ACTIVITY_NOISE_PREFIXES,
@@ -24,6 +25,34 @@ const ACTIVITY_PAGE = 100;
  * handful written in one transaction does.
  */
 const TIE_SLACK = 50;
+
+/**
+ * The filter as GET activity takes it, checked (and Ask's workspace.activity, which reads the same log): a person's
+ * id, a kind as the ledgers spell it, a day, and where the last page ended.
+ */
+export const ActivityQuerySchema = z.object({
+  person: z.string().uuid().optional(),
+  kind: z
+    .string()
+    .max(60)
+    .regex(/^[a-z_.]+$/)
+    .optional(),
+  day: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  // "<created_at>|<row id>", as a page hands back in next_cursor: the instant
+  // exactly as the row carries it, a bar, then `d-` or `e-` and the ledger
+  // row's own id. The zone suffix is optional because it is PostgREST's to
+  // spell -- "…+00:00", "…Z" or neither -- and a cursor the page was just
+  // handed must not come back refused. It is never parsed, only compared to
+  // created_at, so the shape is all this has to hold.
+  cursor: z
+    .string()
+    .max(120)
+    .regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-][\d:]+)?\|[de]-[\w-]+$/)
+    .optional(),
+});
 
 export interface ActivityFilter {
   /** A person: their own rows, and those of their threads and calls. */
@@ -99,7 +128,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
     .limit(reach);
   let eq = sb
     .from("events")
-    .select("id, kind, subject_type, subject_id, data, created_at")
+    .select("id, kind, category, subject_type, subject_id, data, created_at")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
@@ -147,6 +176,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
       actor_user_id: d.actor_user_id,
       actor_type: d.actor_type,
       text: activityWords(d.verb, d.payload),
+      category: null,
     })),
     ...(events.data ?? [])
       // Belt and braces for a database that answers the like() differently: the rule, in code too.
@@ -161,6 +191,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
         actor_user_id: null,
         actor_type: null,
         text: activityWords(e.kind, e.data),
+        category: e.category,
       })),
   ].sort(newestFirst);
   const after = cut ? merged.filter((r) => newestFirst(r, cut) > 0) : merged;
