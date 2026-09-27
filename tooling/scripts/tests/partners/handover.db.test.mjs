@@ -176,6 +176,11 @@ test("the partner hears it in the letter, and brought counts it now", { skip }, 
 });
 
 test("the sweep holds for review a handover accepted from the partner's own company domain", { skip }, async () => {
+  // The sweep reads every partner, and partner.db.test.mjs runs beside this file on the same stack with its own
+  // clock (a share paid 1 August). So this one is judged by its card mark, at an instant before that share can be
+  // judged or mature: the other file's workspace is left for its own sweeps.
+  const AT = "2026-06-01T12:00:00Z";
+  ok(await db.from("billing_card_marks").insert({ tenant_id: made.id, card_fingerprint: `fp_${RUN}` }));
   ok(
     await db.rpc("partner_earn", {
       p_tenant_id: made.id,
@@ -183,10 +188,10 @@ test("the sweep holds for review a handover accepted from the partner's own comp
       p_event_id: `evt_${RUN}`,
       p_amount_cents: 10000,
       p_currency: "usd",
-      p_paid_at: new Date(Date.now() - 8 * 86_400_000).toISOString(),
+      p_paid_at: AT,
     }),
   );
-  ok(await db.rpc("partner_earnings_sweep", { p_now: new Date().toISOString() }));
+  ok(await db.rpc("partner_earnings_sweep", { p_now: "2026-06-02T00:00:00Z" }));
   const [link] = ok(await db.from("partner_tenants").select("standing, standing_why, checks").eq("tenant_id", made.id));
   assert.equal(link.standing, "review");
   assert.equal(link.checks.same_domain, true);

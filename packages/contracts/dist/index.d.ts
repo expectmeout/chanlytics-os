@@ -77,6 +77,7 @@ declare const SCHEMA_SETS: {
     readonly "partner_earnings.kind": readonly ["share", "refund", "dispute", "dispute_won"];
     readonly "partner_earnings.state": readonly ["held", "payable", "paid", "void"];
     readonly "partner_reversals_waiting.kind": readonly ["refund", "dispute", "dispute_won"];
+    readonly "partner_tenants.origin": readonly ["link", "handover"];
     readonly "partner_tenants.standing": readonly ["qualified", "review", "disqualified"];
     readonly "partners.status": readonly ["active", "paused", "closed"];
     readonly "person_notes.author_kind": readonly ["member", "receptionist"];
