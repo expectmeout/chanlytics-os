@@ -1,6 +1,6 @@
 /**
  * A session that showed its second factor (decision 0013), for the database suites: a partner's seat asks for one
- * (00216), so a suite that acts as a partner enrols an authenticator on the Auth server the stack runs and answers
+ * (00218), so a suite that acts as a partner enrols an authenticator on the Auth server the stack runs and answers
  * its first code, computed here as an authenticator app would (RFC 6238: HMAC-SHA1 over thirty-second steps, six
  * digits). The session is aal2 from then on, as a person's is after the second step.
  */

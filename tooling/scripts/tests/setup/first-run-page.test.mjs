@@ -187,14 +187,6 @@ const byTestId = (tree, id) => {
   });
   return hit;
 };
-/** A Setup row the page drew, by its own test id (AttnRow is not loaded here, so a row is its element's props). */
-const rowIn = (tree, id) => {
-  let hit = null;
-  walk(tree, (n) => {
-    if (!hit && n.props?.testid === `setup-row-${id}`) hit = n.props;
-  });
-  return hit;
-};
 const textOf = (n) => {
   if (n == null || typeof n === "boolean") return "";
   if (typeof n === "string" || typeof n === "number") return String(n);

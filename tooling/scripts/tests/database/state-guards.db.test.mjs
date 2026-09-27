@@ -230,7 +230,20 @@ test(
     const unqueued = await recipient("queued");
     assert.equal((await mark(unqueued, { state: "failed", reason: "outcome_unknown" })).error, null);
     const back = await mark(unqueued, { state: "queued" });
-    assert.match(back.error?.message ?? "", /terminal/, "a claim never goes back to the queue");
+    assert.match(back.error?.message ?? "", /terminal/, "a claim never goes back to the queue unless it says why");
+    // WhatsApp's "not now" (00216): nothing was taken, so the claim is released, as throttled and only so, once.
+    const released = await mark(unqueued, { state: "queued", reason: "throttled" });
+    assert.equal(released.error, null, `a throttled claim goes back to the queue: ${released.error?.message}`);
+    const retried = await mark(unqueued, { state: "sent", reason: null });
+    assert.equal(retried.error, null, `and is sent from there like anyone queued: ${retried.error?.message}`);
+    const sentThrottled = await recipient("queued");
+    await mark(sentThrottled, { state: "failed", reason: "send_failed" });
+    const notAClaim = await mark(sentThrottled, { state: "queued", reason: "throttled" });
+    assert.match(
+      notAClaim.error?.message ?? "",
+      /terminal/,
+      "a failure that is a verdict is not released, whatever it says",
+    );
     const claimed = await recipient("queued");
     const claim = await mark(claimed, { state: "failed", reason: "outcome_unknown" });
     assert.equal(claim.error, null, claim.error?.message);

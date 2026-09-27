@@ -1,4 +1,9 @@
--- 00216 · A partner's seat needs a session that showed its second factor.
+-- 00218 · A partner's seat needs a session that showed its second factor.
+--
+-- Merged as 00216 (#1195). Production had already recorded 00216 for the
+-- throttled broadcast's release (#1175), and the CLI applies by version, so this
+-- one was skipped there and never applied. Renumbered, statements unchanged; every
+-- one of them is re-runnable, so a database that did run it runs it again harmlessly.
 --
 -- Decision 0013, M3, with no grace (Ruben's answer). A partner (0012) sits on the team of every workspace they
 -- brought, so a stolen password must not open any of them: a session acts from a partner's seat only once it has

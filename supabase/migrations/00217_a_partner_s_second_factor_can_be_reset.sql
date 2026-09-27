@@ -1,4 +1,9 @@
--- 00215 · A partner's second factor can be reset by the platform.
+-- 00217 · A partner's second factor can be reset by the platform.
+--
+-- Merged as 00215 (#1192). Production had already recorded 00215 for the
+-- finished-jobs purge (#1175), and the CLI applies by version, so this one was
+-- skipped there and never applied. Renumbered, statements unchanged; every one
+-- of them is re-runnable, so a database that did run it runs it again harmlessly.
 --
 -- Decision 0013, M2. A partner signs in with a second factor (an authenticator app); one who loses it cannot work
 -- until a person at Chanlytics removes it, and they enrol again at their next sign-in. The factor itself lives in

@@ -56,8 +56,6 @@ const draw = (Comp, props = {}) => {
 };
 /** The same tree again, over the same hook cells, as React draws it after a state change. */
 const redraw = (Comp, props = {}) => again(() => W.React.createElement(Comp, props));
-/** Everything in a tree that a press acts on. */
-const pressable = (tree) => all(tree, (n) => typeof n.props?.onClick === "function");
 const byId = (tree, id) => find(tree, (n) => n.props?.id === id);
 
 /* ------------------------------------ the row ------------------------------------ */

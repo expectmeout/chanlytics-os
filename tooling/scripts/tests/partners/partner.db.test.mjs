@@ -37,7 +37,7 @@ let brought; // the workspace the customer made through the link
 
 /**
  * A real session for a fresh user; `factor`, past its second factor: a partner's seat and the partner account's doors
- * ask for one (0013, 00216). A session without it is second-factor.db.test.mjs's subject, not this suite's.
+ * ask for one (0013, 00218). A session without it is second-factor.db.test.mjs's subject, not this suite's.
  */
 async function person(label, { factor = false } = {}) {
   const email = `partner-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;

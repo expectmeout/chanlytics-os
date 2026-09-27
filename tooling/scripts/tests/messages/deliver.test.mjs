@@ -645,6 +645,25 @@ test("WhatsApp's wire comes from credentials alone, and hands Graph bare digits"
   }
 });
 
+test("Graph's refusal keeps its code even when its message runs past the 200 characters the body is cut to", async () => {
+  const realFetch = globalThis.fetch;
+  const message = `(#130429) Rate limit hit. ${"Cloud API message throughput has been reached. ".repeat(6)}`;
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ error: { message, type: "OAuthException", code: 130429, fbtrace_id: "x" } }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  try {
+    const r = await whatsappSender({ phoneId: "p1", accessToken: "tok" })("+13475550101", { body: "hi" });
+    assert.equal(r.ok, false);
+    assert.equal(r.errorBody.length, 200, "the body is still cut where it was");
+    assert.ok(!r.errorBody.includes("130429,"), "and the code no longer fits in it");
+    assert.equal(r.code, 130429, "so it is read before the cut");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
 test("a broadcast is a person's words but an automated send: it respects the thread's pause and the workspace's pause", async () => {
   for (const [row, expected] of [
     [thread({ paused_until: new Date(NOW + 60_000).toISOString() }), "human_has_it"],
@@ -999,6 +1018,51 @@ test("a refusal the mail provider gives for a limit of its own is named at the d
   assert.equal("limit" in waOut, false, "WhatsApp's 429 is not the mail provider's");
   const noWire = tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail()] });
   assert.equal("limit" in (await deliver(ports(noWire, wireOf()), emailed())), false, "no wire is ours, not a limit");
+});
+
+test('WhatsApp\'s own "too many, too fast" is named at the door, and only that: a timeout or a 5xx may have been taken', async () => {
+  const graph = (status, code) => ({
+    ok: false,
+    wamid: null,
+    status,
+    errorBody: JSON.stringify({ error: { code } }),
+    code,
+  });
+  for (const [status, code] of [
+    [429, null],
+    [400, 130429],
+    [400, 131056],
+    [400, 131048],
+    [400, 80007],
+    [400, 4],
+  ]) {
+    const t = tables();
+    const out = await deliver(ports(t, wireOf(graph(status, code))), words());
+    assert.deepEqual([out.outcome, out.reason, out.throttled], ["failed", "provider", true], `${status} ${code}`);
+    assert.equal(t.messages[0].status, "failed", `${status} ${code}: the thread still shows it tried`);
+  }
+  for (const [status, code] of [
+    [0, null],
+    [500, null],
+    [400, 131026],
+    [400, 100],
+    [401, 190],
+  ]) {
+    const out = await deliver(ports(tables(), wireOf(graph(status, code))), words());
+    assert.equal(out.outcome, "failed");
+    assert.equal("throttled" in out, false, `${status} ${code} is not a throttle`);
+  }
+  // The mail provider's 429 is its limit (resendLimitOf), never WhatsApp's "not now".
+  const mail = tables({ conversations: [thread({ contacts: onEmail() })], messages: [queuedEmail()] });
+  const mailOut = await deliver(
+    ports(
+      mail,
+      emailWire({ ok: false, wamid: null, status: 429, errorBody: JSON.stringify({ name: "rate_limit_exceeded" }) }),
+    ),
+    emailed(),
+  );
+  assert.equal(mailOut.limit, "rate");
+  assert.equal("throttled" in mailOut, false);
 });
 
 test("a row the door writes after the send is on the channel it went out on: a text is a text, sent or failed", async () => {

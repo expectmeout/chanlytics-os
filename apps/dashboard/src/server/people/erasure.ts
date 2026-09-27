@@ -1,5 +1,6 @@
 import "server-only";
 import { erasedEmailHash, erasedPhoneHash } from "@chanlytics/contracts";
+import { readAllRowsByKey } from "@chanlytics/db";
 import { serviceDb } from "../service-db";
 
 /**
@@ -56,34 +57,68 @@ export async function removeMediaObjects(
 }
 
 /**
- * After an erasure: the jobs that carried the customer's number or words.
+ * After an erasure: the jobs that carried the customer's number, address or words.
  *
  * erase_contact cancels what is still scheduled and touches nothing else, so
- * done, failed and canceled outbound_send rows kept `to_phone` and `body` in
- * their payload — a copy of the conversation the erasure promised to remove.
- * Matched by contact id or by the number in any of its forms.
+ * done, failed and canceled outbound_send rows kept `to_phone` or `to_email` and
+ * `body` in their payload — a copy of the conversation the erasure promised to
+ * remove. Matched by contact id, by the number in any of its forms, or by the
+ * address, cased as it may be.
+ *
+ * Every job of the workspace is read, a page at a time. One select answered at
+ * most 1,000 rows, silently (PostgREST's max_rows), so in any workspace past its
+ * thousandth job the scrub looked at the first thousand and left the rest holding
+ * the person's number and words (the scorecard of 26 September 2026). Each page
+ * is read after the last id of the one before (readAllRowsByKey), not by offset:
+ * the nightly purge (00215) deletes finished jobs, and a row deleted during an
+ * offset read moves the rest back a place, so one would never be read. A read
+ * that stops short is a failure, never a scrub believed whole: the route refuses
+ * before anything is deleted.
  */
 /** The states a job is finished in: its payload is a copy nothing will read again, so an erasure may scrub it. */
 export const FINISHED_JOB_STATES = ["done", "failed", "canceled"] as const;
 
+/** More jobs than any workspace holds; a read that reaches it throws rather than scrub a part and call it all. */
+const SCRUB_READ_CAP = 500_000;
+
 export async function scrubErasedJobs(
   tenantId: string,
   contactId: string,
-  phones: string[],
+  /** Every spelling of the person's number, and their address: an email send carries `to_email`, never a number. */
+  identifiers: readonly string[],
   /** Only these states; every state when absent (after erase_contact has canceled what was scheduled). */
   states?: readonly string[],
 ): Promise<number> {
   const db = serviceDb();
-  let q = db.from("jobs").select("id, payload").eq("tenant_id", tenantId);
-  if (states) q = q.in("state", [...states]);
-  const { data: rows, error } = await q;
-  if (error) throw new Error(`scrub_jobs_read: ${error.message}`);
-  const digits = new Set(phones.map((p) => p.replace(/\D/g, "")).filter(Boolean));
-  const hit = (rows ?? []).filter((j) => {
+  const rows = await readAllRowsByKey<{ id: string; payload: unknown }>(
+    "scrub_jobs_read",
+    (job) => job.id,
+    (after, size) => {
+      let q = db.from("jobs").select("id, payload").eq("tenant_id", tenantId);
+      if (states) q = q.in("state", [...states]);
+      if (after) q = q.gt("id", after);
+      return q.order("id").limit(size);
+    },
+    SCRUB_READ_CAP,
+    (what, cap) => {
+      throw new Error(`${what}: more than ${cap} jobs; none scrubbed`);
+    },
+  );
+  const isAddress = (s: string) => s.includes("@");
+  const digits = new Set(
+    identifiers
+      .filter((s) => !isAddress(s))
+      .map((s) => s.replace(/\D/g, ""))
+      .filter(Boolean),
+  );
+  const addresses = new Set(identifiers.filter(isAddress).map((s) => s.trim().toLowerCase()));
+  const hit = rows.filter((j) => {
     const p = (j.payload ?? {}) as Record<string, unknown>;
     if (p.contact_id === contactId) return true;
     const to = typeof p.to_phone === "string" ? p.to_phone.replace(/\D/g, "") : "";
-    return !!to && digits.has(to);
+    if (to && digits.has(to)) return true;
+    const address = typeof p.to_email === "string" ? p.to_email.trim().toLowerCase() : "";
+    return !!address && addresses.has(address);
   });
   for (const j of hit) {
     const { error: uerr } = await db

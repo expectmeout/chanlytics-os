@@ -94,7 +94,7 @@ export const GET = read({
     const partner = partnerRow ? { code: partnerRow.code, status: partnerRow.status } : null;
     // A partner account opens the app on a session that showed its second factor (0013, M3, no grace): the refusal
     // sends the tab to the second step, where an account with no authenticator sets one up. Their seats are refused
-    // on their own (memberContext) and hidden by the database (00216); this is the one place that says so at boot.
+    // on their own (memberContext) and hidden by the database (00218); this is the one place that says so at boot.
     if (partner) requireSecondFactor(ctx);
     // A workspace a partner set up and handed to this person (0016), on the same payload: the shell asks before it
     // opens anything else, the create screen included. None on a database 00214 has not reached; a failed read is
