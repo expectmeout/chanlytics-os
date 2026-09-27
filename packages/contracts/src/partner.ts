@@ -33,6 +33,8 @@ export const PARTNER_STANDINGS = ["qualified", "review", "disqualified"] as cons
 export const PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"] as const;
 /** Where a movement stands: held thirty days, payable once the workspace qualifies, paid (P5), void if disqualified. */
 export const PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"] as const;
+/** What can happen to a share after it is written: a refund, a dispute, a dispute won (00203; waiting, 00207). */
+export const PARTNER_REVERSAL_KINDS = ["refund", "dispute", "dispute_won"] as const;
 /** Days a share is held before it may be paid: what 00203 adds to the invoice's paid_at. */
 export const PARTNER_HOLD_DAYS = 30;
 

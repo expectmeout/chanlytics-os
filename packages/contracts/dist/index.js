@@ -20182,6 +20182,7 @@ var PARTNER_SHARE_BP_DEFAULT = 2500;
 var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
 var PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"];
 var PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"];
+var PARTNER_REVERSAL_KINDS = ["refund", "dispute", "dispute_won"];
 var PARTNER_HOLD_DAYS = 30;
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
@@ -22874,6 +22875,7 @@ var SCHEMA_SETS = {
   ],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
+  "partner_reversals_waiting.kind": ["refund", "dispute", "dispute_won"],
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],
@@ -24963,6 +24965,7 @@ export {
   PARTNER_EARNING_KINDS,
   PARTNER_EARNING_STATES,
   PARTNER_HOLD_DAYS,
+  PARTNER_REVERSAL_KINDS,
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_STANDINGS,
   PARTNER_STANDING_VERBS,
