@@ -3,7 +3,7 @@
 // The raw communication layer: every call, chat, and email, newest first. A row opens the one thread (thread-pane.jsx)
 // -- a call opens its thread at the call -- and a call no thread holds opens alone, in the thread's own frame.
 
-const { useState: useCvState, useMemo: useCvMemo, useEffect: useCvEffect } = React;
+const { useState: useCvState, useMemo: useCvMemo, useEffect: useCvEffect, useRef: useCvRef } = React;
 
 // Keyed on what the view model says (writtenChannelOf): "email", not "mail".
 // The map carried "mail" while nothing ever sent it, so the day a real email
@@ -26,8 +26,9 @@ window.CV_IN_CHANNEL = inChannel;
 // ONE rule for the word after "conversations/", which the shell asks: a tab either kind of workspace draws -- a wire a
 // row can be on, in the view model's words (CV_ICON's keys; a real workspace draws one tab per wire, surface-data.ts
 // conversationTabs), or one of the mockup's grouped tabs -- or a row's id, a conversation's or a call's (cv-) -- or
-// both, `<tab>:<id>`: the tab in view and the row open on it, which is what the page writes as a row opens (cvAddress,
-// replaced, never pushed), so a refresh opens the same row on the same tab and Back leaves the page.
+// both, `<tab>:<id>`: the tab in view and the row open on it, which is what the page writes as a row opens (cvAddress),
+// so a refresh opens the same row on the same tab. Replaced on a desktop, where Back leaves the page; pushed on a
+// phone, where the row is the screen and Back closes it to its list (ConversationsPage openRow).
 // The shell knew only the mockup's three tabs, so on a real workspace WhatsApp and Email were read as the ids of
 // conversations nobody could find: the list stayed on All, and the pane said the conversation wasn't shown. And the
 // address held a tab OR a row, so the row a person had open was nobody's after a refresh.
@@ -203,10 +204,37 @@ const cvOpens = (c) => {
 };
 
 // ---------- Page ----------
+// The phone's layout, where the list and the viewer take turns: mobile.css's breakpoint, the Inbox's (inbox.jsx ixOnPhone).
+const cvOnPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+
+/**
+ * The page's door to the address (inbox.jsx useInboxAddress's twin). A row opened is the address's: a refresh opens it
+ * again. On a desktop it is said more exactly (replaced), and Back leaves the page. On a phone it is the screen, an
+ * entry of its own: Back -- the browser's, Android's, the viewer's own -- closes it to its list, where it used to leave
+ * Conversations with the row still open. One the address brought (a link, a cold boot) closes to its list in place.
+ */
+const useCvAddress = (channel, setSelectedId, setPhoneOpen) => {
+  // The entry a tap pushed on a phone, while it is the address: the viewer's own Back steps back through it.
+  const phoneEntryRef = useCvRef(null);
+  const openRow = (id) => {
+    setSelectedId(id);
+    setPhoneOpen(true);
+    if (!window.appNavigate) return;
+    if (!cvOnPhone()) return window.appNavigate(cvAddress(channel, id), { replace: true });
+    phoneEntryRef.current = `#/${cvAddress(channel, id)}`;
+    window.appNavigate(cvAddress(channel, id));
+  };
+  const closeRow = () => {
+    if (phoneEntryRef.current && phoneEntryRef.current === window.location.hash) return window.history.back();
+    setPhoneOpen(false);
+  };
+  return { openRow, closeRow };
+};
+
 const ConversationsPage = ({ channel = "all", initialId = null }) => {
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = window.CONVERSATIONS_DATA;
   // The box's words, per tab: typed here this visit, else what the tab kept. The page is one mount across its tabs
-  // (app-shell.jsx PARAM_FOLLOWED_AS_PROP), so a tab pressed reads its own words at once, with no draw in between.
+  // (its route row's `mount`, app-routes.jsx), so a tab pressed reads its own words at once, with no draw in between.
   const [typed, setTyped] = useCvState({});
   const query = typed[channel] !== undefined ? typed[channel] : cvPlace(channel).q || "";
   const setQuery = (v) => { setTyped((t) => ({ ...t, [channel]: v })); cvKeepPlace(channel, { q: v }); };
@@ -214,9 +242,11 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
   // Phone: the list and the viewer take turns (mobile.css owns the breakpoint).
   const [phoneOpen, setPhoneOpen] = useCvState(!!initialId);
   const [tick, setTick] = useCvState(0);
+  const { openRow, closeRow } = useCvAddress(channel, setSelectedId, setPhoneOpen);
 
-  // Deep-link follows later navigations; decisions flip pills live
-  useCvEffect(() => { if (initialId) { setSelectedId(initialId); setPhoneOpen(true); } }, [initialId]);
+  // Deep-link follows later navigations; decisions flip pills live. An address naming no row is the list: Back from a
+  // row on a phone lands here, and the viewer closes.
+  useCvEffect(() => { if (initialId) { setSelectedId(initialId); setPhoneOpen(true); } else setPhoneOpen(false); }, [initialId]);
   useCvEffect(() => {
     const bump = () => setTick(n => n + 1);
     window.addEventListener("inbox:decisions", bump);
@@ -254,12 +284,6 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
   const requestedMissing = !!initialId && selectedId === initialId && visible.length > 0 && !asked;
   // A tab pressed is a new list, opened on its first row.
   useCvEffect(() => { if (!initialId) setSelectedId(null); }, [channel]);
-  // A row opened is the address's, said more exactly (replaced): a refresh opens it again, and Back leaves the page.
-  const openRow = (id) => {
-    setSelectedId(id);
-    setPhoneOpen(true);
-    if (window.appNavigate) window.appNavigate(cvAddress(channel, id), { replace: true });
-  };
 
   // Counted from the tabs THIS workspace has, by the same rule that filters
   // them: a tab that is drawn always carries the number of rows it will show.
@@ -328,11 +352,11 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
             key={selected.id}
             threadId={selected.threadId}
             focusMessageId={selected.callId ? selected.messageId : null}
-            onBack={() => setPhoneOpen(false)}
+            onBack={closeRow}
             onOpenClient={(id) => window.CHANLY.nav(window.CHANLY.R.client(id))}
           />
         ) : cvOpens(selected) === "call" ? (
-          <CallPane key={selected.id} c={selected} onBack={() => setPhoneOpen(false)} />
+          <CallPane key={selected.id} c={selected} onBack={closeRow} />
         ) : (
           <EmptyState
             kind="page"

@@ -1,10 +1,10 @@
 /** The sample's open escalations: two on the usual day, four more on a busy one, each about a thread the day holds. */
 import type { EscalationDto } from "@chanlytics/contracts";
-import type { SampleClock } from "./clock";
+import type { SampleClock, SampleDay } from "./clock";
 
 export type SampleEscalation = EscalationDto & { conversation_id: string };
 
-export function sampleEscalations({ ago }: SampleClock, busy: boolean): SampleEscalation[] {
+export function sampleEscalations({ ago }: SampleClock, day: SampleDay): SampleEscalation[] {
   const escalations: SampleEscalation[] = [
     {
       id: "e-ana",
@@ -23,7 +23,7 @@ export function sampleEscalations({ ago }: SampleClock, busy: boolean): SampleEs
       created_at: ago(40),
     },
   ];
-  if (busy)
+  if (day === "busy")
     escalations.push(
       {
         id: "e-lucia",

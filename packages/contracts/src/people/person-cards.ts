@@ -65,7 +65,8 @@ interface PersonReply {
 
 /** What every card of a person's page reads, computed once. */
 export interface PersonCardContext {
-  d: PersonDetailDto;
+  /** What the profile read: this person's rows in full, every thread, call, escalation and decision. */
+  profile: PersonDetailDto;
   tz: string;
   now: Date;
   nowMs: number;
@@ -220,7 +221,7 @@ export function personCardContext(
   // carries the version a move is checked against, which the columns do not.
   const current = dealsOn ? (deals.find((x) => x.id === base.deal?.id) ?? base.deal) : null;
   return {
-    d,
+    profile: d,
     tz,
     now,
     nowMs,
@@ -237,8 +238,8 @@ export function personCardContext(
 }
 
 /** Last exchange: the customer's last line and the last reply, verbatim, from their latest thread. */
-export function lastExchangeOf({ d, stamp }: PersonCardContext): PersonLastExchange {
-  const latestConv = [...d.conversations].sort(
+export function lastExchangeOf({ profile, stamp }: PersonCardContext): PersonLastExchange {
+  const latestConv = [...profile.conversations].sort(
     (a, b) => (ts(b.last_message_at) ?? 0) - (ts(a.last_message_at) ?? 0),
   )[0];
   let customer: PersonLastExchange["customer"] = null;
@@ -275,7 +276,7 @@ export function lastExchangeOf({ d, stamp }: PersonCardContext): PersonLastExcha
  * reason and what happens next -- never the receptionist's name again, never the state a second time. Ask
  * reads `title` and `detail` together (server/ask/tools.ts), so the title keeps the state for it.
  */
-export function rightNowOf({ d, tz, now, nowMs, row: r, base }: PersonCardContext): PersonRightNow {
+export function rightNowOf({ profile, tz, now, nowMs, row: r, base }: PersonCardContext): PersonRightNow {
   const threadTo = r.latest_conversation_id ? `inbox/th-${r.latest_conversation_id}` : null;
   // One door, one label: the header's "Open thread" and this card's "Open in Inbox" went to the same thread.
   const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
@@ -335,10 +336,13 @@ export function rightNowOf({ d, tz, now, nowMs, row: r, base }: PersonCardContex
       cta: null,
     };
   }
-  if (["never", "ask"].includes(d.receptionist_mode ?? "") || ["never", "ask"].includes(d.workspace_reply_mode ?? "")) {
+  if (
+    ["never", "ask"].includes(profile.receptionist_mode ?? "") ||
+    ["never", "ask"].includes(profile.workspace_reply_mode ?? "")
+  ) {
     // "Answering" sat two inches from "Receptionist for Dani: Never".
-    const theirs = ["never", "ask"].includes(d.receptionist_mode ?? "");
-    const mode = theirs ? d.receptionist_mode : d.workspace_reply_mode;
+    const theirs = ["never", "ask"].includes(profile.receptionist_mode ?? "");
+    const mode = theirs ? profile.receptionist_mode : profile.workspace_reply_mode;
     const word = PERSON_MODE_WORDS[mode === "never" ? "never" : "ask"];
     return {
       tone: "paused",
@@ -372,7 +376,7 @@ const receptionistMeta = (label: string) =>
   label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase();
 
 /** Facts strip: first and last contact, conversations, calls, the receptionist's standing, the deal, the next visit. */
-export function personFactsOf({ d, tz, nowMs, base, current, firstChannel }: PersonCardContext): PersonFact[] {
+export function personFactsOf({ profile, tz, nowMs, base, current, firstChannel }: PersonCardContext): PersonFact[] {
   const lc = base.lastContact;
   const lastMeta =
     lc.who === "they"
@@ -412,8 +416,8 @@ export function personFactsOf({ d, tz, nowMs, base, current, firstChannel }: Per
   // Their appointments, when the workspace's calendar is connected: the next
   // one is the fact an owner asks for first, and the one the receptionist
   // is given when they call.
-  if (d.visits) {
-    const v = d.visits;
+  if (profile.visits) {
+    const v = profile.visits;
     facts.push({
       label: "Next visit",
       value: v.next ? visitDay(v.next.start, v.timezone, nowMs) : "—",
@@ -430,7 +434,7 @@ export function personFactsOf({ d, tz, nowMs, base, current, firstChannel }: Per
 
 /** About rail: the wires, the proposal's host, first contact, channels, where a reply may go, their visits, when they were added. */
 export function aboutOf({
-  d,
+  profile,
   tz,
   nowMs,
   base,
@@ -455,8 +459,8 @@ export function aboutOf({
     const v = repliesWords(REPLY_VIA[reply.via], reply.window);
     if (v) about.push({ k: "Replies", v });
   }
-  if (d.visits) {
-    const v = d.visits;
+  if (profile.visits) {
+    const v = profile.visits;
     const nextLine = v.next
       ? `${visitLine(v.next, v.timezone, nowMs)} · ${visitTitleFor(v.next.title, base.name)}`
       : v.state === "ok"
@@ -469,15 +473,15 @@ export function aboutOf({
         v: `${visitLine(v.last, v.timezone, nowMs)} · ${visitTitleFor(v.last.title, base.name)}`,
       });
   }
-  if (d.added) {
-    const at = ts(d.added.at);
+  if (profile.added) {
+    const at = ts(profile.added.at);
     about.push({
       k: "Added",
-      v: `${at !== null ? clockDateYear(at, tz) : "—"} · ${addedBy(d.added).how}`,
+      v: `${at !== null ? clockDateYear(at, tz) : "—"} · ${addedBy(profile.added).how}`,
     });
-  } else if (d.lead) {
+  } else if (profile.lead) {
     // Found as a lead, with no row saying when they were added: the lead's own day says it.
-    const found = ts(d.lead.found_at);
+    const found = ts(profile.lead.found_at);
     about.push({
       k: "Added",
       v: `${found !== null ? clockDateYear(found, tz) : "—"} · ${addedBy({ source: "lead", title: null }).how}`,

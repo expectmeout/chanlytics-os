@@ -602,7 +602,7 @@ export interface BookingRulesWordsVM {
 }
 
 const isNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
-const plural = (n: number, one: string, many: string): string => `${count(n)} ${n === 1 ? one : many}`;
+const pluralGrouped = (n: number, one: string, many: string): string => `${count(n)} ${n === 1 ? one : many}`;
 
 /**
  * The booking rules at rest, in ONE sentence: each of the five numbers that is set, and the email switch where it is
@@ -626,10 +626,10 @@ export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefin
     parts.push(
       r.buffer_min === 0
         ? "no gap between appointments"
-        : `${plural(r.buffer_min, "minute", "minutes")} between appointments`,
+        : `${pluralGrouped(r.buffer_min, "minute", "minutes")} between appointments`,
     );
-  if (isNumber(r.max_days_ahead)) parts.push(`up to ${plural(r.max_days_ahead, "day", "days")} ahead`);
-  if (isNumber(r.party_max)) parts.push(`up to ${plural(r.party_max, "person", "people")}`);
+  if (isNumber(r.max_days_ahead)) parts.push(`up to ${pluralGrouped(r.max_days_ahead, "day", "days")} ahead`);
+  if (isNumber(r.party_max)) parts.push(`up to ${pluralGrouped(r.party_max, "person", "people")}`);
   if (r.ask_email) parts.push("asks for an email when sending the booking link");
   const joined = parts.join(" · ");
   // A stored list that is not one (a hand-edited record) is none, never a throw: the row is drawn from what is stored.
@@ -643,7 +643,7 @@ export function bookingRulesWords(rules: BookingRulesWordsInput | null | undefin
   return {
     line: joined ? `${joined[0]!.toUpperCase()}${joined.slice(1)}` : null,
     notes: notes.length ? notes.join(" ") : null,
-    none: `The calendar's own — at least ${plural(d.lead_hours, "hour's", "hours'")} notice, up to ${plural(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`,
+    none: `The calendar's own — at least ${pluralGrouped(d.lead_hours, "hour's", "hours'")} notice, up to ${pluralGrouped(d.max_days_ahead, "day", "days")} ahead, in ${count(d.slot_min)}-minute slots`,
   };
 }
 
@@ -666,13 +666,13 @@ export function bookingRuleRefusal(key: BookingRuleKey): string {
   >;
   const words: Record<BookingRuleKey, (lo: number, hi: number) => string> = {
     lead_hours: (lo, hi) =>
-      `Least notice is ${lo} to ${hi} hours; leave it empty to use ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+      `Least notice is ${lo} to ${hi} hours; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
     slot_min: (lo, hi) =>
-      `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar’s ${plural(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
+      `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar’s ${pluralGrouped(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
     buffer_min: (lo, hi) =>
-      `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : plural(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
+      `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : pluralGrouped(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
     max_days_ahead: (lo, hi) =>
-      `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${plural(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
+      `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
     party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`,
   };
   const say = Object.prototype.hasOwnProperty.call(words, key) ? words[key] : null;
@@ -697,7 +697,7 @@ export function bookingRuleRefusal(key: BookingRuleKey): string {
 export const BOOKING_RULE_HINTS: Readonly<
   Record<"lead_hours" | "slot_min" | "buffer_min" | "max_days_ahead" | "party_max", string | null>
 > = /* @__PURE__ */ (() => ({
-  lead_hours: `Empty uses ${plural(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
+  lead_hours: `Empty uses ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
   slot_min: `Empty uses the calendar's ${count(BOOKING_DEFAULTS.slot_min)}.`,
   buffer_min: null,
   max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
@@ -854,7 +854,7 @@ export function handoffWords(
   const number = typeof transfer === "string" ? transfer.trim() : "";
   const phone = number ? `transfers to ${number}` : "takes a message";
   return {
-    line: `${n ? `For ${plural(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} · on a call, ${phone}`,
+    line: `${n ? `For ${pluralGrouped(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} · on a call, ${phone}`,
     phone,
   };
 }
@@ -1469,14 +1469,14 @@ export function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: strin
   const chars = (max: number): string =>
     `At most ${count(max)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`;
   const lines = (max: number, one: string, many: string): string =>
-    `At most ${plural(max, one, many)}, one to a line${seen === undefined ? "." : ` — this is ${count(seen)}.`}`;
+    `At most ${pluralGrouped(max, one, many)}, one to a line${seen === undefined ? "." : ` — this is ${count(seen)}.`}`;
   const words: Record<ProfileRefusalKey, () => string> = {
     tone: () => chars(L.tone),
-    services: () => `At most ${plural(L.services, "service", "services")}.`,
+    services: () => `At most ${pluralGrouped(L.services, "service", "services")}.`,
     serviceName: () => chars(L.serviceName),
     serviceMinutes: () => `At most ${count(L.serviceMinutes)} minutes, a whole day.`,
     servicePrice: () => chars(L.servicePrice),
-    languages: () => `At most ${plural(L.languages, "language", "languages")}.`,
+    languages: () => `At most ${pluralGrouped(L.languages, "language", "languages")}.`,
     language: () => `“${of ?? ""}” is not a language's name: ${L.languageMin} to ${L.languageMax} characters.`,
     reasons: () => lines(L.reasons, "reason", "reasons"),
     reason: () => `Each reason is at most ${count(L.reason)} characters.`,
@@ -1484,15 +1484,15 @@ export function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: strin
     consultFirstLine: () => `Each service is at most ${count(L.consultFirstLine)} characters.`,
     ruleNotes: () => lines(L.ruleNotes, "note", "notes"),
     ruleNote: () => `Each note is at most ${count(L.ruleNote)} characters.`,
-    notes: () => `At most ${plural(L.notes, "note", "notes")}.`,
+    notes: () => `At most ${pluralGrouped(L.notes, "note", "notes")}.`,
     noteTitle: () =>
       `A note's title is at most ${count(L.noteTitle)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`,
     noteText: () =>
       `A note's text is at most ${count(L.noteText)} characters${seen === undefined ? "." : ` — this is ${count(seen)}.`}`,
-    closures: () => `At most ${plural(L.closures, "closed day", "closed days")}. Dates that have passed can go.`,
+    closures: () => `At most ${pluralGrouped(L.closures, "closed day", "closed days")}. Dates that have passed can go.`,
     closureNote: () => chars(L.closureNote),
     shifts: () =>
-      `At most ${plural(L.shifts, "shift", "shifts")} in a day — ${of ?? "that day"} has ${count(seen ?? 0)}.`,
+      `At most ${pluralGrouped(L.shifts, "shift", "shifts")} in a day — ${of ?? "that day"} has ${count(seen ?? 0)}.`,
     instructions: () => chars(L.instructions),
     message: () => chars(L.message),
   };

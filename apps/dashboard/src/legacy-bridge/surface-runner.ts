@@ -10,11 +10,12 @@
  * side-effecting half.
  */
 import type { subscribeMessagesInserts, SubscribeOptions } from "@chanlytics/db";
+import { MIN_MS } from "@chanlytics/contracts";
 import { activateOverride, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
 import { api } from "./api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
-import { isSurfaceReady, setConnection, setStatus } from "./surface-status";
+import { getConnection, getSurfaceStatuses, isSurfaceReady, setConnection, setStatus } from "./surface-status";
 import { ROUTE_WAIT_MS, routeDrawsFor, routeSurfaceFor } from "./surface-registry";
 import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh } from "./surface-realtime";
 import { getActiveWorkspace, signInHref } from "./workspace";
@@ -43,6 +44,12 @@ let activeRefresh: ((o: SurfaceOverride) => Promise<void>) | null = null;
 let activeOverrides: SurfaceOverride[] = [];
 /** The running runner's boot, settled once its last surface is in, whether each read worked or not. */
 let activeBoot: Promise<void> = Promise.resolve();
+/**
+ * A return to the tab this soon after it was hidden reads nothing again, while the live feed is up and every surface
+ * is live: the feed kept them current meanwhile. Every return used to read every surface -- about 28 reads on a
+ * workspace, for a glance at another app; the phone app's five pages each did it on every return to the app.
+ */
+const AWAY_BEFORE_READ_AGAIN_MS = MIN_MS / 2;
 /** A surface whose first read failed is read once more after this: one retry covers boot blips. */
 const BOOT_RETRY_MS = 800;
 /** A refresh waits this long after the last one asked for, unless the surface names its own debounce. */
@@ -148,6 +155,27 @@ function screenOwn(win: Window): (o: SurfaceOverride) => boolean {
 }
 
 let runnerSeq = 0;
+
+/**
+ * What a return to the tab reads: every surface, unless the tab was away less than AWAY_BEFORE_READ_AGAIN_MS with the
+ * live feed up and every one of these surfaces live. A failed surface is the one that MOST needs retrying -- it used to
+ * be the one excluded, which is how a boot blip became permanent for the session. The visibilitychange listener.
+ */
+function onReturn(overrides: readonly SurfaceOverride[], readEverySurfaceAgain: () => void): () => void {
+  let hiddenAt: number | null = null;
+  return () => {
+    if (document.visibilityState !== "visible") {
+      hiddenAt ??= Date.now();
+      return;
+    }
+    const away = hiddenAt === null ? Infinity : Date.now() - hiddenAt;
+    hiddenAt = null;
+    const statuses = getSurfaceStatuses();
+    const allLive = overrides.every((o) => statuses.get(o.key) === "live");
+    if (away < AWAY_BEFORE_READ_AGAIN_MS && allLive && !getConnection().realtimeDown) return;
+    readEverySurfaceAgain();
+  };
+}
 
 /**
  * How the runner joins the live feed: the one subscription, over the client the page holds. Handed in rather than
@@ -372,12 +400,7 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
     });
   };
 
-  const onVisible = () => {
-    if (document.visibilityState !== "visible") return;
-    // A failed surface is the one that MOST needs retrying — it used to be the
-    // one excluded, which is how a boot blip became permanent for the session.
-    readEverySurfaceAgain();
-  };
+  const onVisible = onReturn(overrides, readEverySurfaceAgain);
   document.addEventListener("visibilitychange", onVisible);
 
   // The browser says when this device loses its connection and when it has it

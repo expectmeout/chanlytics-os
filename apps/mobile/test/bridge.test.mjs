@@ -15,7 +15,7 @@ import {
   registrationKey,
   signedOut,
 } from "../src/shell/bridge.ts";
-import { INITIAL } from "../src/shell/state.ts";
+import { INITIAL, recalled, registerReloader, reloadEveryPage } from "../src/shell/state.ts";
 
 test("a page's messages move the state; 'out' is the signed-out state the root layout draws the sign-in screen for", () => {
   let s = INITIAL;
@@ -27,6 +27,15 @@ test("a page's messages move the state; 'out' is the signed-out state the root l
   r = onPageMessage(r.state, '{"t":"needs","inbox":4}');
   assert.equal(r.state.needs, 4);
   r = onPageMessage(r.state, '{"t":"route","route":"inbox"}');
+  assert.equal(r.effect, "nothing");
+  // What stands over one page is that page's own (Surface.tsx, for Android's Back), never the shell's state.
+  const held = r.state;
+  r = onPageMessage(r.state, '{"t":"overlay","open":true}');
+  assert.equal(r.state, held);
+  assert.equal(r.effect, "nothing");
+  // A file is the Surface's to share (files.ts), never the shell's state.
+  r = onPageMessage(r.state, '{"t":"file","name":"a.csv","type":"text/csv","text":"x"}');
+  assert.equal(r.state, held);
   assert.equal(r.effect, "nothing");
   const before = r.state;
   r = onPageMessage(r.state, "garbage");
@@ -45,6 +54,11 @@ test("an ask is one injectable line that ends in true", () => {
   assert.ok(askPage({ t: "menu" }).endsWith("true;"));
   assert.equal(insetScript(83.4), 'document.documentElement.style.setProperty("--app-inset-bottom","83px");true;');
   assert.equal(insetScript(-5), 'document.documentElement.style.setProperty("--app-inset-bottom","0px");true;');
+  // Where the app shrinks the page above the keyboard (Android), the page is told so before it paints.
+  assert.equal(
+    insetScript(0, true),
+    'document.documentElement.style.setProperty("--app-inset-bottom","0px");document.documentElement.classList.add("app-keys-resize");true;',
+  );
 });
 
 test("the bottom inset: iOS's bar plus the safe area; Android none", () => {
@@ -133,4 +147,30 @@ test("the page's theme is the shell's: kept in the state and acted on, and Today
   r = onPageMessage(INITIAL, JSON.stringify({ t: "today", snapshot: snap }));
   assert.equal(r.state, INITIAL, "the widget's snapshot is the Surface's to hand on; the state does not change");
   assert.equal(r.effect, "nothing");
+});
+
+test("a launch opens in what the last one kept: a workspace that reads as one, and a theme the page knows", () => {
+  assert.deepEqual(recalled("acme-plumbing", "light"), { slug: "acme-plumbing", theme: "light" });
+  assert.deepEqual(recalled(" acme-plumbing ", "dark"), { slug: "acme-plumbing", theme: "dark" });
+  // Nothing kept, or nothing that reads as a workspace or a theme: the state keeps its own defaults.
+  assert.deepEqual(recalled(null, null), {});
+  assert.deepEqual(recalled("", "sepia"), {});
+  assert.deepEqual(recalled("two words", null), {});
+  assert.deepEqual(recalled("x".repeat(201), null), {});
+  // A sign-out forgets the workspace, so the next launch keeps nobody's (remembered.ts writes what the state holds).
+  const out = signedOut({ ...INITIAL, ...recalled("acme-plumbing", "light"), session: "in" });
+  assert.equal(out.slug, null);
+  assert.equal(out.theme, "light");
+});
+
+test("after a deploy every page out of sight reloads, and the page in front is left to the site's own notice", () => {
+  const reloaded = [];
+  const today = () => reloaded.push("today");
+  const inbox = () => reloaded.push("inbox");
+  const offs = [registerReloader(today), registerReloader(inbox)];
+  reloadEveryPage(today);
+  assert.deepEqual(reloaded, ["inbox"], "REGRESSION: the page in front reloaded under the person's typing");
+  reloadEveryPage();
+  assert.deepEqual(reloaded, ["inbox", "today", "inbox"], "a retry still reloads every page");
+  offs.forEach((off) => off());
 });

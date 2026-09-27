@@ -109,6 +109,18 @@ test("a run's report counts who said yes and who asked to stop AFTER it reached 
   assert.equal(by["c-held"].consent_at, null);
 });
 
+test("a run over a thousand people is read whole: its recipients page past PostgREST's 1,000 rows, and each is counted", async () => {
+  const world = {
+    broadcasts: [bRow()],
+    broadcast_recipients: Array.from({ length: 1500 }, (_, i) => rec(`c-${String(i).padStart(4, "0")}`)),
+    messages: [],
+    events: [],
+  };
+  const d = await getBroadcast({ supabase: fakeDb(world, {}, {}, { maxRows: 1000 }) }, TID, B);
+  assert.equal(d.recipients.length, 1500, "REGRESSION: a large run's report stopped at the thousandth person");
+  assert.equal(new Set(d.recipients.map((r) => r.contact_id)).size, 1500, "each once: no page repeats or skips a row");
+});
+
 test("the latest answer inside the window is the one that stands: a yes, then a stop, is a stop", async () => {
   const world = {
     broadcasts: [bRow()],

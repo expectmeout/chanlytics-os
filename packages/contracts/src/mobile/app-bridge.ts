@@ -32,7 +32,25 @@ export type PageMessage =
    * resolveTheme), which the device's setting is not. The shell paints its bars, its tab bar and its own screens
    * in it, so nothing native stands in the other theme beside the page.
    */
-  | { t: "theme"; theme: Theme };
+  | { t: "theme"; theme: Theme }
+  /**
+   * Whether something stands over the page (a sheet, a dialog, the bell's panel), at install and on every change:
+   * Android's Back closes it before it walks the page's history, where it used to leave the page from under it.
+   */
+  | { t: "overlay"; open: boolean }
+  /**
+   * A file the page made (a chart's CSV), for the phone's share sheet: a WebView cannot save a file made in the page
+   * (a blob: link, which Android's download manager refuses), so the page hands the app its name, type and words.
+   */
+  | { t: "file"; name: string; type: AppFileType; text: string };
+
+/** What a page may hand the app as a file: words only, never a binary or a script. */
+const APP_FILE_TYPES = ["text/csv", "text/plain"] as const;
+type AppFileType = (typeof APP_FILE_TYPES)[number];
+/** The most a handed file may hold: a chart's CSV is a few KB; a whole workspace export goes through the server. */
+const APP_FILE_MAX_CHARS = 2_000_000;
+/** A file's name: letters, digits, spaces, dots, dashes, underscores and brackets, ending in .csv or .txt. */
+const APP_FILE_NAME_RE = /^[\w .()-]{1,100}\.(csv|txt)$/;
 
 /** A phone's push token, as expo-notifications hands it out. */
 export const PUSH_TOKEN_MAX = 200;
@@ -45,6 +63,8 @@ export type ShellMessage =
   | { t: "navigate"; route: string; workspace?: string }
   | { t: "menu" }
   | { t: "top" }
+  /** Close what stands over the page, as a keyboard's Escape would: Android's Back, while the page says one is open. */
+  | { t: "close" }
   /**
    * Register this phone for the person signed in: the page calls PUT me/devices through its own client, and forgets
    * it again on its own before a sign-out (legacy-bridge/app-bridge.ts forgetPhone), so no ask says "forget".
@@ -73,6 +93,15 @@ const PAGE_MESSAGES: { [K in PageMessage["t"]]: (v: Record<string, unknown>) => 
   },
   calls: (v) => (isCount(v.live) ? { t: "calls", live: v.live } : null),
   theme: (v) => (v.theme === "light" || v.theme === "dark" ? { t: "theme", theme: v.theme } : null),
+  overlay: (v) => (typeof v.open === "boolean" ? { t: "overlay", open: v.open } : null),
+  file: (v) =>
+    typeof v.name === "string" &&
+    APP_FILE_NAME_RE.test(v.name) &&
+    (APP_FILE_TYPES as readonly unknown[]).includes(v.type) &&
+    typeof v.text === "string" &&
+    v.text.length <= APP_FILE_MAX_CHARS
+      ? { t: "file", name: v.name, type: v.type as AppFileType, text: v.text }
+      : null,
 };
 
 /** What the page said, or null when it is not one of its shapes. */
@@ -105,6 +134,8 @@ export function parseShellMessage(v: unknown): ShellMessage | null {
       return { t: "menu" };
     case "top":
       return { t: "top" };
+    case "close":
+      return { t: "close" };
     case "device": {
       const tok = token(v.token);
       const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;

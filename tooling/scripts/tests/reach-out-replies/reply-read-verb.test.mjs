@@ -8,10 +8,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readingPlan, parseReplyReading, replyNoticeWords, REPLY_REREADS } from "@chanlytics/contracts";
-import { importSrc } from "../_source.mjs";
+import { readReply, rereadOf } from "../../../../packages/core/src/messages/reply-read.ts";
 import { loadFixtures } from "../../evals/reply-intents.mjs";
-
-const { readReply, rereadOf } = await importSrc("packages/core/src/messages/reply-read.ts");
 
 const T = "t1";
 const M = "m1";

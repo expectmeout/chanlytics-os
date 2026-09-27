@@ -29,11 +29,10 @@
   "apps/dashboard/src/server/people/lists.ts": 2,
   "apps/dashboard/src/server/public/app-links.ts": 1,
   "apps/dashboard/src/server/public/unsubscribe.ts": 1,
-  "apps/dashboard/src/server/rate-limit.ts": 9,
+  "apps/dashboard/src/server/rate-limit.ts": 5,
   "apps/dashboard/src/server/readers/index.ts": 2,
   "apps/dashboard/src/server/receptionist/prompt-preview.ts": 1,
   "apps/dashboard/src/server/service-db.ts": 1,
-  "apps/dashboard/src/server/verbs.ts": 17,
   "apps/dashboard/src/server/workspace/billing.ts": 2,
   "apps/edge/lib/ask-gateway.ts": 8,
   "apps/edge/lib/billing/billing.ts": 2,
@@ -71,7 +70,6 @@
   "apps/mobile/src/shell/bridge.ts": 1,
   "apps/mobile/src/shell/deploy.ts": 1,
   "apps/mobile/src/shell/sign-in.ts": 1,
-  "apps/mobile/src/shell/state.ts": 1,
   "apps/mobile/src/site.ts": 1,
   "apps/mobile/src/widgets/TodayWidget.tsx": 1
 }

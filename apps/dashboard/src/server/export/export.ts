@@ -127,7 +127,11 @@ export function transcriptText(
   return [...head, ...lines, ""].join("\n");
 }
 
-function mmss(seconds: number | undefined): string {
+/**
+ * "2:05" from a count of SECONDS (a transcript turn's start), floored, "--:--" for none: the file's own, since
+ * contracts' mmss takes milliseconds and rounds.
+ */
+function mmssFromSeconds(seconds: number | undefined): string {
   if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "--:--";
   const t = Math.max(0, Math.floor(seconds));
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
@@ -139,7 +143,7 @@ export function callText(call: CallDto, opts: ExportOpts): string {
   const who = named !== "Unknown" ? named : (call.from_e164 ?? "Unknown caller");
   const phone = call.contact?.phone_e164 ?? call.from_e164;
   const at = opts.exportedAt ?? new Date();
-  const dur = call.duration_ms ? mmss(call.duration_ms / 1000) : null;
+  const dur = call.duration_ms ? mmssFromSeconds(call.duration_ms / 1000) : null;
   const head = [
     `Phone call with ${who}${phone && phone !== who ? ` (${phone})` : ""}`,
     `${opts.business} · ${call.direction === "outbound" ? "Outbound" : "Inbound"} call · ${stamp(call.started_at, opts.tz) || "time unknown"}${dur ? ` · ${dur}` : ""} · exported ${stamp(at.toISOString(), opts.tz)} · times in ${opts.tz}`,
@@ -152,7 +156,7 @@ export function callText(call: CallDto, opts: ExportOpts): string {
   if (call.sentiment) facts.push(`Caller sentiment: ${call.sentiment}`);
   const summary = call.summary ? ["Summary", call.summary.trim(), ""] : [];
   const turns = (call.transcript_object ?? []).map((t) => {
-    const clock = mmss(t.start ?? t.words?.[0]?.start);
+    const clock = mmssFromSeconds(t.start ?? t.words?.[0]?.start);
     if (t.role === "injected") return `[${clock}] You whispered: ${whisperText(t.content)}`;
     const name = t.role === "agent" ? "Receptionist" : t.role === "user" ? who : t.role || "Unknown";
     return `[${clock}] ${name}: ${(t.content ?? "").trim()}`;

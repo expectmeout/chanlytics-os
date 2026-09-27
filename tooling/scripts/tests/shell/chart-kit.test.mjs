@@ -293,6 +293,24 @@ test("a card's CSV is spelled by contracts' csvCell: a spreadsheet reads it as U
     ["Source,Sent", '"\'=HYPERLINK(""x"")",4', '"Win-back, again",'],
     "a formula made text, a comma quoted, a missing value an empty cell (#679's rule, not a second one)",
   );
+  // Inside the phone app a WebView cannot save a file made in the page: the same words go to the app's share sheet.
+  const handed = [];
+  // The app's bridge, as installed in the phone's WebView: it takes the file and cancels the ask.
+  globalThis.window.dispatchEvent = (e) => {
+    if (e.type === "app:file") (handed.push(e.detail), e.preventDefault());
+    return !e.defaultPrevented;
+  };
+  try {
+    const inApp = await saving(() => press(byTestId(tree, "card-csv")));
+    assert.deepEqual(inApp.clicked, [], "REGRESSION: a blob download the phone's WebView drops without a word");
+    assert.equal(handed.length, 1);
+    assert.equal(handed[0].name, "by-playbook-and-broadcast.csv");
+    assert.equal(handed[0].type, "text/csv");
+    // The same words the browser saves, with its byte-order mark (Blob.text() drops it as it decodes).
+    assert.equal(handed[0].text, String.fromCharCode(0xfeff) + (await saved[0].text()), "the same file, mark and all");
+  } finally {
+    delete globalThis.window.dispatchEvent;
+  }
 });
 
 /* ------------------------------------------ the tooltip and the keyboard ------------------------------------------ */

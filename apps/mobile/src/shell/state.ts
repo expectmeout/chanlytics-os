@@ -64,6 +64,20 @@ export const INITIAL: ShellState = {
   theme: "dark",
 };
 
+/**
+ * What the phone kept from the last launch (remembered.ts): the workspace, so the first page opens at its own
+ * address rather than the site's home (which loads a second time on its way there), and the theme, so the splash,
+ * the tab bar and the paper under the first page are the member's own from the first frame. What does not read as
+ * one is not kept.
+ */
+export function recalled(slug: string | null, theme: string | null): Partial<Pick<ShellState, "slug" | "theme">> {
+  const s = slug?.trim();
+  return {
+    ...(s && s.length <= 200 && !/\s/.test(s) ? { slug: s } : {}),
+    ...(theme === "light" || theme === "dark" ? { theme } : {}),
+  };
+}
+
 let state: ShellState = INITIAL;
 const listeners = new Set<() => void>();
 /** Every mounted page's reload, so a deploy can reload them all. */
@@ -98,6 +112,9 @@ export function registerReloader(fn: () => void): () => void {
   return () => reloaders.delete(fn);
 }
 
-export function reloadEveryPage(): void {
-  reloaders.forEach((fn) => fn());
+/** Reload every page, or every page but one: after a deploy, the page in front is left to the site's own notice. */
+export function reloadEveryPage(except?: () => void): void {
+  reloaders.forEach((fn) => {
+    if (fn !== except) fn();
+  });
 }
