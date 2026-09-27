@@ -450,3 +450,98 @@ test("a partner's link: the screen asks before the partner joins the team, sends
     delete globalThis.document;
   }
 });
+
+/* ------------------------------ a handover (0016) ------------------------------ */
+
+const { useHandoverAsk } = screenModule;
+const WAITING = {
+  tenantId: "11111111-1111-4111-8111-111111111111",
+  workspace: "Luna Studio",
+  partnerCode: "ada-co",
+  expiresAt: "2026-10-11T12:00:00Z",
+};
+const ask = (ready = true) => {
+  at = 0;
+  dirty = false;
+  last = useHandoverAsk(ready, globalThis.window.__ME?.handovers);
+  return last;
+};
+const settleAsk = async () => {
+  for (let i = 0; i < 8; i++) {
+    await flush();
+    if (dirty) ask();
+  }
+  return last;
+};
+
+test("a handover (0016): asked before anything opens, in the partner's name, and Accept makes the owner and opens it at its first run", async () => {
+  const w = standIn({
+    status: 200,
+    body: { ok: true, data: { workspace: { id: WAITING.tenantId, slug: "luna-studio", name: "Luna Studio" } } },
+  });
+  w.location.pathname = "/w/mine/";
+  w.location.hash = "";
+  w.__ME = { email: "owner@luna.example", handovers: [WAITING] };
+  globalThis.window = w;
+  cells = [];
+  assert.equal(ask(false), null, "nothing is asked before the workspace list is read");
+  let tree = ask();
+  assert.ok(byTestId(tree, "handover"), "the screen, instead of the app");
+  assert.equal(
+    textOf(byTestId(tree, "handover-body")),
+    "ada-co set Luna Studio up for you. Accept to become its owner: you'll choose a plan and pay for it, and ada-co stays on your team as your partner, whom you can remove in Team at any time.",
+  );
+  assert.equal(textOf(byTestId(tree, "handover-until")), "Open until Oct 11.");
+  await byTestId(tree, "handover-accept").props.onClick();
+  await settleAsk();
+  assert.deepEqual(
+    w.asked.map((r) => [r.method, r.url.split("?")[0]]),
+    [["POST", `/api/v1/handovers/${WAITING.tenantId}/accept`]],
+  );
+  assert.match(w.went.at(-1) ?? "", /\/w\/luna-studio\/?#\/start$/, "into it, at its first run, by its slug");
+});
+
+test("a handover: Decline says no through its door and the app opens; Not now asks nothing and the app opens; a refusal is said", async () => {
+  const w = standIn({ status: 200, body: { ok: true, data: { declined: true } } });
+  w.__ME = { handovers: [WAITING, { ...WAITING, tenantId: "22222222-2222-4222-8222-222222222222", workspace: "Sol" }] };
+  globalThis.window = w;
+  cells = [];
+  let tree = ask();
+  await byTestId(tree, "handover-decline").props.onClick();
+  tree = await settleAsk();
+  assert.deepEqual(
+    w.asked.map((r) => r.url),
+    [`/api/v1/handovers/${WAITING.tenantId}/decline`],
+  );
+  assert.match(textOf(byTestId(tree, "handover-body")), /set Sol up for you/, "then the next one");
+  byTestId(tree, "handover-later").props.onClick();
+  assert.equal(ask(), null, "passed over: the app opens as it would have");
+  assert.equal(w.asked.length, 1, "Not now asks nothing of the server");
+
+  const refused = standIn({
+    status: 409,
+    body: {
+      ok: false,
+      error: { code: "conflict", message: "This invitation has expired. Ask your partner to send it again." },
+    },
+  });
+  refused.__ME = { handovers: [WAITING] };
+  globalThis.window = refused;
+  cells = [];
+  tree = ask();
+  await byTestId(tree, "handover-accept").props.onClick();
+  tree = await settleAsk();
+  assert.equal(
+    textOf(byTestId(tree, "handover-error")),
+    "This invitation has expired. Ask your partner to send it again.",
+    "the database's own words",
+  );
+  assert.deepEqual(refused.went, [], "and nothing opened");
+});
+
+test("no handover, or none on an older server: nothing is asked", () => {
+  globalThis.window = standIn(ON_THE_LIST);
+  globalThis.window.__ME = { email: "owner@luna.example" };
+  cells = [];
+  assert.equal(ask(), null);
+});

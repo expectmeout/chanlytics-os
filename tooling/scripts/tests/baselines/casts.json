@@ -13,7 +13,7 @@
   "apps/dashboard/app/api/v1/segments/route.ts": 1,
   "apps/dashboard/app/api/v1/team/[id]/route.ts": 1,
   "apps/dashboard/app/api/v1/workspaces/route.ts": 1,
-  "apps/dashboard/src/legacy-bridge/LegacyApp.tsx": 9,
+  "apps/dashboard/src/legacy-bridge/LegacyApp.tsx": 8,
   "apps/dashboard/src/legacy-bridge/api.ts": 1,
   "apps/dashboard/src/legacy-bridge/app-bridge.ts": 1,
   "apps/dashboard/src/legacy-bridge/arrival.ts": 2,

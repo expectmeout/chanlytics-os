@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PARTNER_WORDS } from "@chanlytics/contracts";
+import { HANDOVER_WORDS, PARTNER_WORDS } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
 
 installLegacyReact();
@@ -211,4 +211,124 @@ test("the daily letter (0014): a switch showing what is kept, pressed through th
   await byTestId(redraw(), "partner-letters").props.onChange({ target: { checked: false } });
   assert.equal(flashes.length, 1);
   assert.equal(flashes[0].tone, "warn", "a refusal is said, and the switch stays what the server kept");
+});
+
+/* ------------------------------------------------------------ a workspace set up for a business (0016) */
+
+const EMPTY = { summary: "No workspace has come through your link yet.", rows: [] };
+const waitingRow = (over = {}) => ({
+  tenantId: "t9",
+  name: "Luna Studio",
+  email: "owner@luna.example",
+  state: "waiting",
+  sentence: "Waiting for its owner: sent to o…@luna.example, open until Oct 11.",
+  canResend: true,
+  ...over,
+});
+
+test("set up a workspace for a business: said before it starts, one form, the database's words on a refusal, and a send that failed said", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
+  const asked = [];
+  globalThis.window.__partner.setUp = async (input) => {
+    asked.push(input);
+    if (input.email === "ada@example.com")
+      return { ok: false, message: "That is your own address. Enter the business owner's." };
+    return { ok: true, sent: false };
+  };
+  draw();
+  await settle();
+  let tree = redraw();
+  assert.equal(
+    textOf(byTestId(tree, "partner-setup-intro")),
+    HANDOVER_WORDS.intro,
+    "what happens, before anything is made",
+  );
+  assert.equal(byTestId(tree, "partner-setup-form"), null, "a press opens the form");
+  press(byTestId(tree, "partner-setup-open"));
+  tree = redraw();
+  assert.equal(
+    byTestId(tree, "partner-setup-make").props.disabled,
+    true,
+    "nothing to send before a name and an address",
+  );
+  byTestId(tree, "partner-setup-name").props.onChange({ target: { value: "Luna Studio" } });
+  byTestId(redraw(), "partner-setup-email").props.onChange({ target: { value: "ada@example.com" } });
+  tree = redraw();
+  await byTestId(tree, "partner-setup-form").props.onSubmit({ preventDefault() {} });
+  await settle();
+  tree = redraw();
+  assert.equal(textOf(byTestId(tree, "partner-setup-error")), "That is your own address. Enter the business owner's.");
+  byTestId(tree, "partner-setup-email").props.onChange({ target: { value: "owner@luna.example" } });
+  await byTestId(redraw(), "partner-setup-form").props.onSubmit({ preventDefault() {} });
+  await settle();
+  assert.deepEqual(asked.at(-1), { name: "Luna Studio", email: "owner@luna.example" });
+  assert.equal(flashes.at(-1).tone, "warn");
+  assert.match(textOf(flashes.at(-1).msg), /its invitation did not go/);
+});
+
+test("a paused partner is offered no set-up; ten waiting says why, instead of the form", async () => {
+  globalThis.window.__PARTNER = { dto: { ...ROW, status: "paused" }, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
+  draw();
+  await settle();
+  assert.equal(byTestId(redraw(), "partner-setup"), null);
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: "10 workspaces are waiting for their owners." };
+  draw();
+  await settle();
+  const tree = redraw();
+  assert.equal(textOf(byTestId(tree, "partner-setup-full")), "10 workspaces are waiting for their owners.");
+  assert.equal(byTestId(tree, "partner-setup-open"), null);
+});
+
+test("handed over: each waiting or declined one says where it stands, and Send again goes to the address typed", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = {
+    ok: true,
+    vm: EMPTY,
+    handovers: {
+      t9: waitingRow(),
+      t8: waitingRow({
+        tenantId: "t8",
+        name: "Sol",
+        state: "accepted",
+        sentence: "Its owner accepted it on Sep 30.",
+        canResend: false,
+      }),
+    },
+    full: null,
+  };
+  const sent = [];
+  globalThis.window.__partner.resend = async (id, email) => {
+    sent.push([id, email]);
+    return { ok: true, sent: true };
+  };
+  draw();
+  await settle();
+  let tree = redraw();
+  assert.equal(textOf(byTestId(tree, "partner-handover-sentence-t9")), waitingRow().sentence);
+  assert.equal(byTestId(tree, "partner-handover-t8"), null, "an accepted one is a workspace brought, listed below");
+  press(byTestId(tree, "partner-resend-open-t9"));
+  tree = redraw();
+  assert.equal(
+    byTestId(tree, "partner-resend-email-t9").props.value,
+    "owner@luna.example",
+    "from the address it went to",
+  );
+  byTestId(tree, "partner-resend-email-t9").props.onChange({ target: { value: "boss@luna.example" } });
+  await byTestId(redraw(), "partner-resend-t9").props.onSubmit({ preventDefault() {} });
+  await settle();
+  assert.deepEqual(sent, [["t9", "boss@luna.example"]]);
+  assert.equal(textOf(flashes.at(-1).msg), HANDOVER_WORDS.sentAgain);
+});
+
+test("an older server sends no handovers: the pane draws as before", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: true, vm: EMPTY };
+  draw();
+  await settle();
+  const tree = redraw();
+  assert.ok(byTestId(tree, "partner-workspaces"));
+  assert.equal(byTestId(tree, "partner-handovers"), null);
 });

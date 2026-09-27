@@ -90,7 +90,8 @@ import { installActivity } from "./activity";
 import { installIdentity } from "./identity";
 import { installShell, publishShellStatus, shellStatusOf } from "./shell";
 import { installClock } from "./zone";
-import CreateWorkspace from "./CreateWorkspace";
+import CreateWorkspace, { useHandoverAsk } from "./CreateWorkspace";
+import type { OpenHandoverDto } from "@chanlytics/contracts";
 
 // First: every page says a time by the workspace's clock (zone.ts), from the first paint.
 installClock();
@@ -315,6 +316,8 @@ export default function LegacyApp() {
     () => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [],
   );
   const [, setStatusTick] = useState(0);
+  const me = (window as unknown as { __ME?: { email?: string | null; handovers?: OpenHandoverDto[] } }).__ME;
+  const handover = useHandoverAsk(isSurfaceReady("workspace"), me?.handovers);
   // What the shell alone knows — the connection, the live feed, a newer
   // build, surfaces that stopped refreshing — goes to the line under the top
   // bar through the shell bridge, which is where the floating pill used to
@@ -423,8 +426,9 @@ export default function LegacyApp() {
    * workspaces, and flashing "create your workspace" at an owner who has one
    * is the same class of lie as painting mockup data during a load.
    */
+  if (handover) return handover;
+  const email = me?.email ?? null;
   if (isSurfaceReady("workspace") && allWorkspaces.length === 0) {
-    const me = (window as unknown as { __ME?: { email?: string | null } }).__ME;
     // What sign-up kept: the name and clock they typed before the code, so
     // the first workspace is one press rather than the same form twice.
     const pending =
@@ -435,14 +439,12 @@ export default function LegacyApp() {
       (window as unknown as { __SIGNUP_POSTURE?: "open" | "waitlist" | "invite" }).__SIGNUP_POSTURE ?? "open";
     return (
       <CreateWorkspace
-        email={me?.email ?? null}
+        email={email}
         initial={pending}
         posture={posture}
         onCreated={(w) => {
-          // switchWorkspace persists the choice and re-runs every surface, so
-          // the new workspace is the one the app opens on, on its first run
-          // (#/start). By its slug: it is not in __WORKSPACES yet, and by id the
-          // app boots twice.
+          // switchWorkspace persists the choice and re-runs every surface, so the new workspace is the one the app
+          // opens on, on its first run (#/start). By its slug: it is not in __WORKSPACES yet, and by id it boots twice.
           switchWorkspace(w.id, w.slug, `#/${FIRST_RUN_ROUTE}`);
         }}
       />
@@ -450,10 +452,9 @@ export default function LegacyApp() {
   }
 
   if (creating) {
-    const me = (window as unknown as { __ME?: { email?: string | null } }).__ME;
     return (
       <CreateWorkspace
-        email={me?.email ?? null}
+        email={email}
         onCancel={() => setCreating(false)}
         onCreated={(w) => {
           setCreating(false);

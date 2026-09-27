@@ -146,6 +146,7 @@ import { z as z11 } from "zod";
 import { z as z12 } from "zod";
 import { z as z13 } from "zod";
 import { z as z14 } from "zod";
+import { z as z15 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -1129,7 +1130,11 @@ var EVENT_KINDS = [
   "partner.reversed",
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid"
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -3584,6 +3589,9 @@ var PartnerLetterNewsSchema = z14.object({
   standing: z14.array(z14.object({ workspace: z14.string().nullable(), standing: z14.string(), why: z14.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z14.array(z14.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z14.array(z14.string().nullable()).default([]),
+  declined: z14.array(z14.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z14.object({ status: z14.string(), why: z14.string().nullable() }).nullable().default(null),
   balance: z14.array(
@@ -3596,6 +3604,42 @@ var PartnerLetterNewsSchema = z14.object({
     })
   ).default([])
 });
+var HANDOVER_DAYS = 14;
+var ownerEmail = z15.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z15.object({
+  name: z15.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z15.string().trim().max(64).nullish(),
+  email: ownerEmail
+}).strict();
+var HandoverResendSchema = z15.object({ email: ownerEmail }).strict();
+var HANDOVER_WORDS = {
+  start: "Set up a workspace for a business",
+  intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
+  nameLabel: "The business's name",
+  emailLabel: "Its owner's email",
+  emailHint: "They'll be asked to accept it when they sign in with this address.",
+  make: "Set it up",
+  making: "Setting it up\u2026",
+  cancel: "Cancel",
+  resend: "Send again",
+  resendTo: "Send to",
+  resending: "Sending\u2026",
+  failed: "the workspace",
+  failedResend: "the invitation",
+  waiting: "Handed to their owners",
+  sentAgain: "Sent again.",
+  notSent: "The workspace is set up, but its invitation did not go. Send it again from its row below.",
+  unnamed: "A workspace you set up",
+  /** The accept screen. */
+  title: (workspace) => `${workspace} is ready for you`,
+  body: (partnerCode, workspace) => `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+  accept: "Accept and open it",
+  accepting: "Opening\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026",
+  later: "Not now",
+  failedAnswer: "your answer"
+};
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -3838,7 +3882,7 @@ var APIFY_RUN_END_EVENTS = [
 ];
 
 // ../contracts/dist/index.js
-import { z as z15 } from "zod";
+import { z as z16 } from "zod";
 import { z as z82 } from "zod";
 import { z as z42 } from "zod";
 import { z as z32 } from "zod";
@@ -3852,7 +3896,8 @@ import { z as z112 } from "zod";
 import { z as z122 } from "zod";
 import { z as z132 } from "zod";
 import { z as z142 } from "zod";
-z15.config({ jitless: true });
+import { z as z152 } from "zod";
+z16.config({ jitless: true });
 var NO_LINK_DETAILS = "their name, what they need, and where and when";
 function offersBookingLink(brain) {
   return !brain || !!brain.booking_link;
@@ -4249,7 +4294,11 @@ var EVENT_KINDS2 = [
   "partner.reversed",
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid"
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
 ];
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS2 = [
@@ -8602,6 +8651,9 @@ var PartnerLetterNewsSchema2 = z142.object({
   standing: z142.array(z142.object({ workspace: z142.string().nullable(), standing: z142.string(), why: z142.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z142.array(z142.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z142.array(z142.string().nullable()).default([]),
+  declined: z142.array(z142.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z142.object({ status: z142.string(), why: z142.string().nullable() }).nullable().default(null),
   balance: z142.array(
@@ -8614,9 +8666,45 @@ var PartnerLetterNewsSchema2 = z142.object({
     })
   ).default([])
 });
+var HANDOVER_DAYS2 = 14;
+var ownerEmail2 = z152.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema2 = z152.object({
+  name: z152.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z152.string().trim().max(64).nullish(),
+  email: ownerEmail2
+}).strict();
+var HandoverResendSchema2 = z152.object({ email: ownerEmail2 }).strict();
+var HANDOVER_WORDS2 = {
+  start: "Set up a workspace for a business",
+  intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS2} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
+  nameLabel: "The business's name",
+  emailLabel: "Its owner's email",
+  emailHint: "They'll be asked to accept it when they sign in with this address.",
+  make: "Set it up",
+  making: "Setting it up\u2026",
+  cancel: "Cancel",
+  resend: "Send again",
+  resendTo: "Send to",
+  resending: "Sending\u2026",
+  failed: "the workspace",
+  failedResend: "the invitation",
+  waiting: "Handed to their owners",
+  sentAgain: "Sent again.",
+  notSent: "The workspace is set up, but its invitation did not go. Send it again from its row below.",
+  unnamed: "A workspace you set up",
+  /** The accept screen. */
+  title: (workspace) => `${workspace} is ready for you`,
+  body: (partnerCode, workspace) => `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+  accept: "Accept and open it",
+  accepting: "Opening\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026",
+  later: "Not now",
+  failedAnswer: "your answer"
+};
 
 // ../db/dist/index.js
-import { z as z16 } from "zod";
+import { z as z17 } from "zod";
 import { z as z83 } from "zod";
 import { z as z43 } from "zod";
 import { z as z33 } from "zod";
@@ -8630,7 +8718,8 @@ import { z as z113 } from "zod";
 import { z as z123 } from "zod";
 import { z as z133 } from "zod";
 import { z as z143 } from "zod";
-z16.config({ jitless: true });
+import { z as z153 } from "zod";
+z17.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -8798,7 +8887,11 @@ var EVENT_KINDS3 = [
   "partner.reversed",
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid"
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
 ];
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS3 = [
@@ -11246,6 +11339,9 @@ var PartnerLetterNewsSchema3 = z143.object({
   standing: z143.array(z143.object({ workspace: z143.string().nullable(), standing: z143.string(), why: z143.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z143.array(z143.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z143.array(z143.string().nullable()).default([]),
+  declined: z143.array(z143.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z143.object({ status: z143.string(), why: z143.string().nullable() }).nullable().default(null),
   balance: z143.array(
@@ -11258,6 +11354,42 @@ var PartnerLetterNewsSchema3 = z143.object({
     })
   ).default([])
 });
+var HANDOVER_DAYS3 = 14;
+var ownerEmail3 = z153.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema3 = z153.object({
+  name: z153.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z153.string().trim().max(64).nullish(),
+  email: ownerEmail3
+}).strict();
+var HandoverResendSchema3 = z153.object({ email: ownerEmail3 }).strict();
+var HANDOVER_WORDS3 = {
+  start: "Set up a workspace for a business",
+  intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS3} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
+  nameLabel: "The business's name",
+  emailLabel: "Its owner's email",
+  emailHint: "They'll be asked to accept it when they sign in with this address.",
+  make: "Set it up",
+  making: "Setting it up\u2026",
+  cancel: "Cancel",
+  resend: "Send again",
+  resendTo: "Send to",
+  resending: "Sending\u2026",
+  failed: "the workspace",
+  failedResend: "the invitation",
+  waiting: "Handed to their owners",
+  sentAgain: "Sent again.",
+  notSent: "The workspace is set up, but its invitation did not go. Send it again from its row below.",
+  unnamed: "A workspace you set up",
+  /** The accept screen. */
+  title: (workspace) => `${workspace} is ready for you`,
+  body: (partnerCode, workspace) => `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+  accept: "Accept and open it",
+  accepting: "Opening\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026",
+  later: "Not now",
+  failedAnswer: "your answer"
+};
 async function recordCarrierOptOut(db, p) {
   const { data, error } = await db.from("contacts").update({
     consent: "opted_out",
@@ -46036,14 +46168,14 @@ function haversineM(a, b) {
   return Math.round(2 * R * Math.asin(Math.sqrt(s)));
 }
 function zctaCenter(zip) {
-  const z17 = zip.trim();
+  const z18 = zip.trim();
   let lo = 0;
   let hi = TABLE.length - 1;
   while (lo <= hi) {
     const mid = lo + hi >> 1;
     const row = TABLE[mid];
-    if (row[0] === z17) return { lat: row[1], lng: row[2] };
-    if (row[0] < z17) lo = mid + 1;
+    if (row[0] === z18) return { lat: row[1], lng: row[2] };
+    if (row[0] < z18) lo = mid + 1;
     else hi = mid - 1;
   }
   return null;
