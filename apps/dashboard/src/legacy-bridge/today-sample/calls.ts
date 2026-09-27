@@ -1,9 +1,9 @@
 /** The sample's calls: three on the usual day, four more on a busy one, as the voice provider would have kept them. */
 import type { CallDto } from "@chanlytics/contracts";
-import { phone, type SampleClock } from "./clock";
+import { phone, type SampleClock, type SampleDay } from "./clock";
 import { MIN_MS } from "@chanlytics/contracts";
 
-export function sampleCalls({ nowMs, ago }: SampleClock, busy: boolean): CallDto[] {
+export function sampleCalls({ nowMs, ago }: SampleClock, day: SampleDay): CallDto[] {
   // Kept inside the builder on purpose: `call` is already a top-level name in six files (the copies ratchet).
   const call = (id: string, startedMin: number, durationS: number, over: Partial<CallDto> = {}): CallDto => ({
     id,
@@ -63,7 +63,7 @@ export function sampleCalls({ nowMs, ago }: SampleClock, busy: boolean): CallDto
       disconnection_reason: "voicemail_reached",
     }),
   ];
-  if (busy)
+  if (day === "busy")
     calls.push(
       call("k-omar", 210, 95, {
         from_e164: phone("0117"),

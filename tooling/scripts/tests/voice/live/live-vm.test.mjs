@@ -114,6 +114,13 @@ test("a live call carries its real start for the page's clock and no invented du
   assert.equal(fmtClock(0), "0:00");
 });
 
+test('REGRESSION: the clock face never reads below "0:00" -- a length below zero, or one that is not a number, which said "NaN:NaN"', () => {
+  assert.equal(fmtClock(-3), "0:00");
+  assert.equal(fmtClock(NaN), "0:00");
+  assert.equal(fmtClock(0.4), "0:00");
+  assert.equal(fmtClock(125), "2:05");
+});
+
 test("still marked live: a silent heartbeat, or a call past the long mark, says 'checking'", () => {
   const silent = toLiveCallVM(call("s", { updated_at: ago(LIVE_STALE_MS + 60_000) }), ZONE, NOW);
   assert.equal(silent.live, true, "inside the heartbeat window it is still live…");
