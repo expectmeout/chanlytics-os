@@ -168,7 +168,21 @@ export async function pgIngest(
   }
 }
 
-export async function pgSafe<T>(label: string, fn: () => Promise<T>): Promise<T | undefined> {
+/** The steps pgSafe guards; each logs `pg_<step>_failed`, a name in LOG_EVENTS, when it throws. */
+type PgStep =
+  | "allowlist_evt"
+  | "echo"
+  | "escalation"
+  | "media_fetch"
+  | "note_email"
+  | "pause"
+  | "processed"
+  | "status"
+  | "unreachable_evt"
+  | "usage"
+  | "veto_fallback_evt";
+
+export async function pgSafe<T>(label: PgStep, fn: () => Promise<T>): Promise<T | undefined> {
   try {
     return await fn();
   } catch (e) {

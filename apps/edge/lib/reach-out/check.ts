@@ -65,7 +65,7 @@ import {
 } from "../packages/db.js";
 import { askJson, type JsonAnswer } from "../model.js";
 import { checkedWordsOf } from "./request.js";
-import type { Logger } from "../log.js";
+import type { LogEvent, Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -408,7 +408,7 @@ export async function checkSends(p: {
     calls_failed: 0,
     tokens: { input: 0, output: 0 },
   };
-  const error = (event: string, fields: Record<string, unknown>, e: unknown) => {
+  const error = (event: LogEvent, fields: Record<string, unknown>, e: unknown) => {
     out.errors += 1;
     log.error(event, { ...fields, error: e instanceof Error ? e.message : String(e) });
   };
