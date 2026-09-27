@@ -99,7 +99,7 @@
   "apps/edge/api/diag.ts": 4,
   "apps/edge/api/retell-webhook.ts": 1,
   "apps/edge/lib/ask-gateway.ts": 1,
-  "apps/edge/lib/billing.ts": 14,
+  "apps/edge/lib/billing/billing.ts": 14,
   "apps/edge/lib/calendar/calendar-people.ts": 5,
   "apps/edge/lib/erased.ts": 2,
   "apps/edge/lib/google/google.ts": 34,

@@ -5,12 +5,11 @@
  * rest) and their decisions are contracts' (planBilling). What the door adds
  * is small and used to be repeated per op: which status each refusal earns
  * on the wire, which line each op logs, and what the body may say about
- * Checkout. Beside billing.ts rather than under a billing/ directory because
- * billing.ts is imported by its path from the registrations sweep and the
- * billing tests, and a move is not this change's.
+ * Checkout.
  */
-import { isCheckoutReturn, type CheckoutReturn } from "./packages/contracts.js";
-import type { LogEvent } from "./log.js";
+import { isCheckoutReturn, type CheckoutReturn } from "../packages/contracts.js";
+import type { LogEvent } from "../log.js";
+import type { DoorAnswer } from "../admin-door.js";
 
 /** The body as the dashboard's /api/v1/billing verbs send it. */
 export interface BillingBody {
@@ -24,7 +23,7 @@ export interface BillingBody {
 /** The ops past status, each over the workspace's row. */
 export type BillingOp = "checkout" | "portal" | "invoices" | "sync" | "resume" | "start_now";
 
-export const UNKNOWN_BILLING_OP = {
+export const UNKNOWN_BILLING_OP: DoorAnswer = {
   status: 400,
   body: { ok: false, error: "op must be status, checkout, portal, invoices, sync, resume or start_now" },
 };

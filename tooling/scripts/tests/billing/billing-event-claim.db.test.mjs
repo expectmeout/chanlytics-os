@@ -21,7 +21,9 @@ import { createClient } from "@supabase/supabase-js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { keepEvent, completeEvent, forgetEvent, BILLING_EVENT_LEASE_MS } = await import(at("apps/edge/lib/billing.ts"));
+const { keepEvent, completeEvent, forgetEvent, BILLING_EVENT_LEASE_MS } = await import(
+  at("apps/edge/lib/billing/billing.ts")
+);
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

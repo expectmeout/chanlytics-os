@@ -78,8 +78,8 @@ export const LEAD_OPERATION_KINDS = [
   "bulk",
 ] as const;
 export const LEAD_PREFERENCE_KINDS = ["chain", "wrong_kind", "too_far"] as const;
-export const LEAD_SUPPRESSION_KINDS = ["email", "place", "phone"] as const;
-export const LEAD_SUPPRESSION_WHATS = ["email_opt_out", "customer", "erased"] as const;
+export const LEAD_SUPPRESSION_KINDS = ["email", "place", "phone", "domain"] as const;
+export const LEAD_SUPPRESSION_WHATS = ["email_opt_out", "customer", "erased", "said_no"] as const;
 
 /* -------------------------------------------------- the caps (§13.3, §16) -- */
 

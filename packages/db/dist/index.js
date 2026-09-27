@@ -2584,6 +2584,14 @@ var NOTE_SUGGEST_SCHEMA = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
+async function keyedDigest(tenantId, identifier) {
+  const bytes = new TextEncoder().encode(`${tenantId}:${identifier}`);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function leadSuppressionHash(tenantId, value) {
+  return keyedDigest(tenantId, value);
+}
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_SUBJECT_MAX = 80;
@@ -3394,6 +3402,23 @@ async function outreachFactsOf(db, p) {
     } : null,
     sent_since: Number(f.sent_since ?? 0) || 0
   };
+}
+async function addressesSuppressed(db, tenantId, addresses) {
+  const asked = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter((a) => a !== ""))];
+  if (!asked.length) return /* @__PURE__ */ new Set();
+  const { data, error } = await db.rpc("lead_addresses_suppressed", { p_tenant_id: tenantId, p_addresses: asked });
+  if (error && missingDoor(error)) return addressesHeldBefore00220(db, tenantId, asked);
+  if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
+  return new Set((data ?? []).filter((a) => typeof a === "string"));
+}
+var missingDoor = (e) => e.code === "PGRST202" || e.code === "42883" || /could not find the function/i.test(e.message);
+async function addressesHeldBefore00220(db, tenantId, asked) {
+  const byHash = new Map(
+    await Promise.all(asked.map(async (a) => [await leadSuppressionHash(tenantId, a), a]))
+  );
+  const { data, error } = await db.from("lead_suppressions").select("hash").eq("tenant_id", tenantId).eq("kind", "email").in("hash", [...byHash.keys()]);
+  if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
+  return new Set((data ?? []).flatMap((r2) => byHash.get(r2.hash) ?? []));
 }
 
 // src/repositories/reach-out-sheet.ts
@@ -4903,6 +4928,7 @@ export {
   PEOPLE_PAGE,
   acceptHandover,
   addToList,
+  addressesSuppressed,
   applyDomainCheck,
   archiveList,
   assembleHistory,

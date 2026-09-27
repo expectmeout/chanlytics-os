@@ -65,12 +65,24 @@ export interface PersonVisitAheadVM {
  */
 export function consentChangeWords(c: ConsentChange): { who: string; text: string; sub?: string } {
   // Marketing email is its own answer (00174), and the one thing a person says to it is no: a press of the
-  // Unsubscribe link in a campaign email. Texting and WhatsApp are untouched by it.
+  // Unsubscribe link in a campaign email, a complaint, or a reply to a reach-out read as no (00220). A reply's no is
+  // the one a member may take back ("read as no · undo"), to the answer it had. Texting and WhatsApp are untouched.
   if (c.purpose === "email_marketing")
     return {
       who: "Email",
-      text: c.consent === "opted_out" ? "Unsubscribed from your emails" : "Marketing email: back to not asked",
-      ...(c.source === "unsubscribe" ? { sub: "Pressed Unsubscribe in an email" } : {}),
+      text:
+        c.consent === "opted_out"
+          ? c.source === "reply"
+            ? "Said no in a reply to your reach-out"
+            : "Unsubscribed from your emails"
+          : c.consent === "opted_in"
+            ? "Marketing email: back to yes"
+            : "Marketing email: back to not asked",
+      ...(c.source === "unsubscribe"
+        ? { sub: "Pressed Unsubscribe in an email" }
+        : c.source === "reply_undone"
+          ? { sub: "A reply read as no, undone" }
+          : {}),
     };
   const offers = c.purpose === "marketing";
   const text =
