@@ -256,6 +256,7 @@ export const LOG_EVENTS = [
   "reach_out_replan_failed",
   "reach_out_rewrite_failed",
   "reach_out_run_failed",
+  "reach_out_run_now",
   "reach_out_run_unstarted",
   "reach_out_send_held",
   "reach_out_sweep_failed",
