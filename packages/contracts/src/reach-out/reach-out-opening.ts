@@ -66,8 +66,11 @@ export function openingSystemPrompt(): string {
   ].join("\n");
 }
 
-// One line per field, whatever the field holds: a line break in a listing's about text never starts a line of our own.
-const line = (key: string, value: string | number | null | undefined): string | null => {
+/**
+ * One line per field, whatever the field holds: a line break in a listing's about text never starts a line of our own.
+ * The one fence rule for what others wrote: the check's record here, and a reply's words (reach-out-replies.ts).
+ */
+export const fenceLine = (key: string, value: string | number | null | undefined): string | null => {
   const v = value === null || value === undefined ? "" : String(value).replace(/\s+/g, " ").trim();
   return v ? `${key}: ${v}` : null;
 };
@@ -75,15 +78,15 @@ const line = (key: string, value: string | number | null | undefined): string | 
 /** The business's record, fenced: everything inside is data written by others. */
 function recordLines(r: OpeningRecord): string[] {
   const lines = [
-    line("name", r.business_name),
-    line("category", r.category),
-    line("city", [r.city, r.region].filter(Boolean).join(", ") || null),
-    line("rating", r.rating),
-    line("reviews", r.reviews),
-    line("website", r.website),
-    line("hours", r.hours),
-    line("about", r.about),
-    line("why_it_fits", r.why_it_fits),
+    fenceLine("name", r.business_name),
+    fenceLine("category", r.category),
+    fenceLine("city", [r.city, r.region].filter(Boolean).join(", ") || null),
+    fenceLine("rating", r.rating),
+    fenceLine("reviews", r.reviews),
+    fenceLine("website", r.website),
+    fenceLine("hours", r.hours),
+    fenceLine("about", r.about),
+    fenceLine("why_it_fits", r.why_it_fits),
   ].filter((l): l is string => l !== null);
   return ["<record>", ...lines, "</record>"];
 }
@@ -99,7 +102,7 @@ export function openingUserContent(p: {
     ...recordLines(p.record),
     "",
     ...(p.record.what_you_asked
-      ? [line("What the owner searched for (not about this business)", p.record.what_you_asked)!]
+      ? [fenceLine("What the owner searched for (not about this business)", p.record.what_you_asked)!]
       : []),
     `The owner's business: ${p.workspace.name}`,
     ...(p.workspace.what_we_do ? [`What they do: ${p.workspace.what_we_do}`] : []),

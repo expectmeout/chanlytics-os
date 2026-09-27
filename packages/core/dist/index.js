@@ -4180,7 +4180,7 @@ var activeChannel = (known, kind) => {
   const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
   return trimmed(row2?.number_e164);
 };
-var keptReaching = (known, line2) => line2 ? trimmed((known?.forwarding ?? []).find((r22) => trimmed(r22.from_e164) && samePhone(r22.to_e164, line2))?.from_e164) : null;
+var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r22) => trimmed(r22.from_e164) && samePhone(r22.to_e164, line))?.from_e164) : null;
 function sameAddress(a, b) {
   const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
   const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
@@ -5191,9 +5191,9 @@ var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(t
 var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
 function fillDetails(text, values) {
   if (!namesADetail(text)) return text;
-  return text.split("\n").map((line2) => {
-    if (!namesADetail(line2)) return line2;
-    return line2.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
+  return text.split("\n").map((line) => {
+    if (!namesADetail(line)) return line;
+    return line.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
   }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 function fallbackMessages(brain, known) {
