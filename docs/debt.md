@@ -86,14 +86,14 @@ files over 800 lines                 34
 directories over 20 modules           7
 window globals                      198   names
 window publishers                   442   sites in 151 files
-copies                              155   of 39 names
+copies                              152   of 38 names
 as unknown as                       222
 table names outside packages/db     535
 unnamed durations                    78   in 34 files
-dead exports, types and modules     199
+dead exports, types and modules     190
 source-text reads in tests          831
 lint warnings                       130   in 36 files, 129 of them exhaustive-deps
-workspace route JS, KB gzipped     1006   the shell included
+workspace route JS, KB gzipped      962   the shell included
 workspace route CSS, KB gzipped     122
 ```
 

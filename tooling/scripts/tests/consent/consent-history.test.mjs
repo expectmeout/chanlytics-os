@@ -170,6 +170,46 @@ test("an unsubscribe is email's own answer: read as one, and never said as a sto
   );
 });
 
+test("a reply to a reach-out read as no, and that no undone, are said as what they were (00220)", () => {
+  const of = (data) =>
+    consentChangeWords(
+      consentChangeOf({
+        id: "ev-r",
+        subject_id: "p1",
+        created_at: "2026-09-29T14:00:00Z",
+        data: { purpose: "email_marketing", ...data },
+      }),
+    );
+  assert.deepEqual(of({ consent: "opted_out", source: "reply", message_id: "m1" }), {
+    who: "Email",
+    text: "Said no in a reply to your reach-out",
+  });
+  assert.deepEqual(of({ consent: "unknown", source: "reply_undone", message_id: "m1" }), {
+    who: "Email",
+    text: "Marketing email: back to not asked",
+    sub: "A reply read as no, undone",
+  });
+  assert.deepEqual(of({ consent: "opted_in", source: "reply_undone" }), {
+    who: "Email",
+    text: "Marketing email: back to yes",
+    sub: "A reply read as no, undone",
+  });
+  // The other sources are said as they were.
+  assert.deepEqual(of({ consent: "opted_out", source: "unsubscribe" }), {
+    who: "Email",
+    text: "Unsubscribed from your emails",
+    sub: "Pressed Unsubscribe in an email",
+  });
+  assert.deepEqual(of({ consent: "opted_out", source: "complaint" }), {
+    who: "Email",
+    text: "Unsubscribed from your emails",
+  });
+  assert.deepEqual(of({ consent: "unknown", source: "erasure" }), {
+    who: "Email",
+    text: "Marketing email: back to not asked",
+  });
+});
+
 test("the person VM puts every change on the timeline, newest first, beside what was said", () => {
   const row = {
     id: "p1",

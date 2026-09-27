@@ -26,9 +26,17 @@
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
-import { pg } from "../../lib/pg.js";
+import {
+  errorMessage,
+  readBody,
+  respond,
+  stop,
+  workspaceOf,
+  workspaceRow,
+  type Refused,
+} from "../../lib/admin-door.js";
 import { emitEvent } from "../../lib/packages/db.js";
-import { SPEND_NUMBER, SPEND_TEXTING, type SpendWords } from "../../lib/packages/contracts.js";
+import { SPEND_NUMBER, SPEND_TEXTING, UUID, type SpendWords } from "../../lib/packages/contracts.js";
 import { lineForClient, lineProviderFromEnv, type LineProviderChoice } from "../../lib/lines/lines.js";
 import { releaseLine } from "../../lib/lines/line-release.js";
 import {
@@ -40,12 +48,11 @@ import {
 } from "../../lib/lines/a2p.js";
 import { scheduleJob } from "../../lib/packages/jobs.js";
 import { claimLineForResume, type LineDbRow } from "../../lib/lines/line-resume.js";
-import { dashboardOrigin } from "../../lib/billing.js";
+import { dashboardOrigin } from "../../lib/dashboard-origin.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../lib/packages/db.js";
 import { env } from "../../lib/env.js";
 import {
-  type LineAnswer,
   type LinesBody,
   type FilingPlan,
   type FilingPages,
@@ -81,8 +88,6 @@ import {
 
 type Db = SupabaseClient<Database>;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** A writing op's call: the knock verified, the provider chosen, the keys and the database present, the workspace on record. */
 interface LineCall {
   body: LinesBody;
@@ -105,29 +110,10 @@ const WRITES: Record<WritingOp, (c: LineCall) => Promise<Response>> = {
   "registration-status": registrationStatus,
 };
 
-const respond = (a: LineAnswer): Response => json(a.status, a.body);
-const stop = (response: Response): { ok: false; response: Response } => ({ ok: false, response });
-const failure = (e: unknown): string => (e instanceof Error ? e.message : String(e));
-
-/** The body as sent; not JSON is an empty body, validated below like any other. */
-async function readBody(request: Request): Promise<LinesBody> {
-  try {
-    return JSON.parse(await request.text());
-  } catch {
-    return {};
-  }
-}
-
-async function tenantOf(db: Db, id: string) {
-  const r = await db.from("tenants").select("id, name, slug").eq("id", id).maybeSingle();
-  if (r.error) throw new Error(r.error.message);
-  return r.data;
-}
-
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/lines");
   if (!auth.ok) return auth.response;
-  const body = await readBody(request);
+  const body = await readBody<LinesBody>(request);
   const op = typeof body.op === "string" ? body.op : "";
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
@@ -152,7 +138,7 @@ async function search(choice: LineProviderChoice, body: LinesBody): Promise<Resp
     const numbers = await choice.provider.searchLocal(choice.master, { areaCode: plan.areaCode, limit: 8 });
     return respond(searchAnswer(choice, plan.areaCode, numbers));
   } catch (e) {
-    return json(502, { ok: false, error: failure(e) });
+    return json(502, { ok: false, error: errorMessage(e) });
   }
 }
 
@@ -160,22 +146,22 @@ async function search(choice: LineProviderChoice, body: LinesBody): Promise<Resp
 async function writingCall(
   body: LinesBody,
   choice: LineProviderChoice,
-): Promise<{ ok: true; value: LineCall } | { ok: false; response: Response }> {
+): Promise<{ ok: true; value: LineCall } | Refused> {
   const apiKey = env.RETELL_API_KEY;
   const fnSecret = env.RETELL_FN_SECRET;
   if (!apiKey || !fnSecret) return stop(json(503, { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret" }));
-  const db = pg();
-  if (!db) return stop(json(503, { ok: false, error: "no_database" }));
-  const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
-  if (!UUID.test(tenantId)) return stop(json(400, { ok: false, error: "tenant_id (a workspace id) is required" }));
-  let tenant: { id: string; name: string; slug: string } | null;
+  const ws = workspaceOf(body.tenant_id);
+  if (!ws.ok) return ws;
+  let read;
   try {
-    tenant = await tenantOf(db, tenantId);
+    read = await ws.db.from("tenants").select("id, name, slug").eq("id", ws.tenantId).maybeSingle();
   } catch (e) {
-    return stop(json(503, { ok: false, error: failure(e) }));
+    // This door answers a read that throws as one that failed; the Google and billing doors let it throw.
+    return stop(json(503, { ok: false, error: errorMessage(e) }));
   }
-  if (!tenant) return stop(json(404, { ok: false, error: "no such workspace" }));
-  return { ok: true, value: { body, choice, apiKey, db, tenantId, tenant } };
+  const tenant = workspaceRow(read);
+  if (!tenant.ok) return tenant;
+  return { ok: true, value: { body, choice, apiKey, db: ws.db, tenantId: ws.tenantId, tenant: tenant.row } };
 }
 
 /**
@@ -189,7 +175,7 @@ async function spendGate(c: LineCall, doing: SpendWords): Promise<Response | nul
 }
 
 /** The named line of the named workspace, or the refusal: another workspace's row does not exist as far as this one can see. */
-async function lineRowOf(c: LineCall): Promise<{ ok: true; row: LineDbRow } | { ok: false; response: Response }> {
+async function lineRowOf(c: LineCall): Promise<{ ok: true; row: LineDbRow } | Refused> {
   const lineId = typeof c.body.line_id === "string" ? c.body.line_id.trim() : "";
   if (!UUID.test(lineId)) return stop(json(400, { ok: false, error: "line_id is required" }));
   const row = await c.db.from("lines").select("*").eq("id", lineId).eq("tenant_id", c.tenantId).maybeSingle();
@@ -270,7 +256,7 @@ async function retry(c: LineCall): Promise<Response> {
   try {
     taken = await claimLineForResume(c.db, read.row, now.getTime(), plan.by);
   } catch (e) {
-    return json(503, { ok: false, error: failure(e) });
+    return json(503, { ok: false, error: errorMessage(e) });
   }
   if (!taken) return respond(retryTakenAnswer(read.row));
   return queue(c, taken, plan.by, now);

@@ -273,7 +273,7 @@ and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 | A new operator verb                    | A core verb in `packages/core/src/conversations`, a route under `/api/v1/conversations/[id]`, a row in `route-policy.json`, the shell's `inbox-verbs.ts` |
 | A new job kind                         | `JOB_KINDS` in contracts, a handler in `packages/jobs`, its caller, and the `jobs.kind` CHECK, in one change                                             |
 | A new sweep                            | A cron door, a `sweep_status` registration, the pg_cron schedule                                                                                         |
-| Billing                                | `apps/edge/lib/billing.ts`, `apps/edge/api/stripe-webhook.ts`                                                                                            |
+| Billing                                | `apps/edge/lib/billing/`, `apps/edge/api/stripe-webhook.ts`                                                                                              |
 | The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/leads.ts`, migration `00140`                                         |
 | Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/ask.ts`                                                                                   |
 | The calendar                           | `apps/dashboard/src/server/calendar/calendar.ts`, `packages/contracts/src/calendar/availability.ts`, `apps/edge/api/cron/calendar.ts`                    |

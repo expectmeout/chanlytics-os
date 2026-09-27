@@ -112,6 +112,16 @@ export function leadWorld({
 
   const rpcs = {
     get_cron_sweep_key: () => "sweep-key-for-this-file",
+    // 00220's one predicate for an address: its own email row, or a domain row for the part after its last "@", each
+    // asked lower-cased and trimmed, by the keyed digest (lead_suppression_hash is sha256 of "<tenant>:<value>").
+    lead_addresses_suppressed: ({ p_tenant_id, p_addresses }) => {
+      const held = (kind, v) =>
+        T.lead_suppressions.some(
+          (s) => s.tenant_id === p_tenant_id && s.kind === kind && s.hash === sha256(`${p_tenant_id}:${v}`),
+        );
+      const asked = [...new Set(p_addresses.map((a) => a.trim().toLowerCase()).filter(Boolean))];
+      return asked.filter((a) => held("email", a) || (a.includes("@") && held("domain", a.split("@").pop())));
+    },
     lead_searches_on: ({ p_tenant_id }) =>
       T.lead_platform[0].searches_on || T.lead_platform[0].tenants_on.includes(p_tenant_id),
     lead_search_create: ({ p_tenant_id, p_plan, p_via, p_estimate_usd }) => {
