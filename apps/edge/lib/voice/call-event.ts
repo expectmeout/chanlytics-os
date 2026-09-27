@@ -216,7 +216,7 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
     steps.push({ kind: "log", event: "retell_event_stale", fields: { retell_event: event, call_id: n.retellCallId } });
   }
   // The call on the phones' Lock Screens (00191, lib/voice/call-activity.ts): as it starts, to the phones of the
-  // people who take calls; once, since a redelivered call_started finds the start claimed (00220). Best effort beside
+  // people who take calls; once, since a redelivered call_started finds the start claimed (00221). Best effort beside
   // the call's own door.
   if (event === "call_started" && !res.skipped && n.status === "ongoing") {
     steps.push({
