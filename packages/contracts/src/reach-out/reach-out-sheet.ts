@@ -213,12 +213,14 @@ export function nextRunWords(
 const clock = (iso: string, tz: string): string => clockTime(Date.parse(iso), tz);
 
 /**
- * The approval sheet for a reach-out run (F13; canvas board 05; R21, R22). `today` is the workspace's date: a run from
- * an earlier day goes from now, re-timed in their hours, never at a time already past.
+ * The approval sheet for a reach-out run (F13; canvas board 05; R21, R22). `today` is the workspace's date and `now`
+ * the moment it is said: a run from an earlier day goes from now, re-timed in their hours, and one whose first time has
+ * passed today goes from now; never a time already past.
  */
-export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share: number; today: string }) {
+export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share: number; today: string; now: number }) {
   const earlier = !!r.run_for && r.run_for < p.today;
-  const at = earlier ? null : r.first_at ? clock(r.first_at, p.timezone) : null;
+  const passed = !earlier && !!r.first_at && Date.parse(r.first_at) <= p.now;
+  const at = earlier || passed ? null : r.first_at ? clock(r.first_at, p.timezone) : null;
   const total = r.today + r.later;
   const why: Array<{ tone: "warn" | "plain" | "info"; text: string; door: string | null }> = [];
   if (r.later > 0)
@@ -246,9 +248,11 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
         : null;
   const goes = earlier
     ? " · goes from now, re-timed in their hours, once you approve it"
-    : at
-      ? ` · goes from ${at} once you approve it`
-      : "";
+    : passed
+      ? " · goes from now, in their hours, once you approve it"
+      : at
+        ? ` · goes from ${at} once you approve it`
+        : "";
   // A run whose step was dropped from its chain since (R17) says so, never another step's name.
   const step =
     r.step_n === null ? "a step since removed" : `step ${r.step_n + 1}, ${stepLabel(r.step_n).toLowerCase()}`;
@@ -268,7 +272,7 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
     reader: r.first
       ? `as ${r.first.business_name} reads it · every opening is its own; your offer and ask are the same for all ${total}`
       : null,
-    approve: `Approve — ${r.today}${earlier ? " from now" : at ? ` from ${at}` : ""}`,
+    approve: `Approve — ${r.today}${earlier || passed ? " from now" : at ? ` from ${at}` : ""}`,
     approveNote: r.checking > 0 ? `${r.checking} more are being checked; they go once they pass.` : null,
     note: "Skipping loses this run only — the reach-out keeps its place and asks again tomorrow.",
     recheck: r.held.some((h) => h.reason === "check_unavailable" && h.detail === null)

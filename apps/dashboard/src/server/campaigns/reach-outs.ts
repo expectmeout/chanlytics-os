@@ -357,12 +357,13 @@ export async function reachOutRunOf(
     first_at: c.checked[0]?.send_at ?? null,
     checking: c.planned.length - c.checked.length,
     held: rows.filter((s) => s.state === "held" && isReachOutHold(s.reason)).map(heldOf),
-    planned: c.planned.map((s) => ({
-      send_id: s.id,
-      business_name: s.lead?.business_name ?? "",
-      send_at: s.send_at ?? "",
-      checked: !!s.checked_at,
-    })),
+    // A planned send always has its time (00183 reach_out_sends_planned_is_timed); one read without it is not listed
+    // with a time it does not have.
+    planned: c.planned.flatMap((s) =>
+      s.send_at
+        ? [{ send_id: s.id, business_name: s.lead?.business_name ?? "", send_at: s.send_at, checked: !!s.checked_at }]
+        : [],
+    ),
     skipped: c.skipped,
     first,
     domains,

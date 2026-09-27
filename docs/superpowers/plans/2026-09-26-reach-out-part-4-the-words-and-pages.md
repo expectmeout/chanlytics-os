@@ -4390,6 +4390,49 @@ A refusal comes back as the route's sentence, with `refusalToast`'s shape.
 
 ## PR 7 — The approval sheet's words (`reach-out-4g-approval`)
 
+> **As built (after PR 6; dashboard and edge, no migration).** On main's layout (#1161). What departs from the task
+> below:
+>
+> - **The block** is its own file, `pages/reach-out/reach-out-approval.jsx` (`ReachOutRun`), not a branch in `BcSheet`:
+>   `broadcasts-run.jsx` is at its function caps. `BroadcastDetail` hands any live reach-out run (pending, scheduled or
+>   sending, R20) to it through one helper (`bcReachOutBlock`); a run that has finished keeps its report. It uses the
+>   `bc-sheet*` classes and the outreach `PolicyChip`, so a keyboard and a screen reader meet the same sheet.
+> - **The words are contracts'** (`reach-out/reach-out-approval.ts`): `reachOutRunWordsOf` wraps `approvalWordsOf` and
+>   adds the state's head, the skipped by reason, who gets it (the checked, ready sends only, by name and time, R21),
+>   Skip's question and the block's labels. A run not waiting has no Approve and keeps the run's own verbs (Cancel,
+>   Stop); its held list is open at once, since the notice and Playbooks' "N wait for your say" land on it. The share
+>   a day is the run's own domains' (`chainPaceOf`), and the domains and their days are the run's sends' (R22).
+> - **The doors** press `__reachOuts.decide` and "Check the held again" presses the new `__reachOuts.recheck`
+>   (`POST broadcasts/[id]/recheck`); each reads the run again when it lands, and a refusal is said at its row. They are
+>   out of sight for a role that may not approve, and the block says why once.
+> - **Live (R21).** While the check still reads some of a live run, `__reachOuts.watchRun` reads its detail again every
+>   `REACH_OUT_RUN_REREAD_MS` (15 s) through the broadcasts courier's own read and read cache: one timer, stopped by
+>   the first answer with nothing being checked and by the run closing (`useBcRunWatch`'s cleanup).
+> - **The notice (R20)** is the check's (`apps/edge/lib/reach-out/held-notice.ts`), each tick, from a read and not a
+>   tick's memory: the live reach-out runs (scheduled or sending) holding sends held in the last fourteen days whose
+>   owner was not told yet (packages/db `heldNoticeDue`). **No migration:** the mark is the run's own,
+>   `audience.held_notice` (`markHeldNotice`). A tick claims a run onto the row as it read it (`updated_at`, which
+>   moddatetime moves on every write), so of two ticks that read one run one claims it and the other finds it moved.
+>   The owner is told through `ops/notify.ts`'s new `notifyOnce`: the bell's row first and no mail without it; a mail
+>   that failed takes its row back (no bell twin) and is not told; a workspace the mail cannot address is told by its
+>   row. Only a told owner marks the run sent; a notice that failed keeps its claim, which goes stale in ten minutes and
+>   is asked again then, and is the tick's `reach_out_check_error`, never the check's. The words are contracts'
+>   `heldNoticeWords`, with the doors the holds offer (`holdDoors`). A run approved with holds its sheet showed is told
+>   once too, when it goes: its held still wait for a say.
+> - **Times (R21).** Approve says "from now" for a run from an earlier day and for one whose first time has passed
+>   (`approvalWordsOf` takes `now`). Who gets it says each business's day and time (`clockWhen`), and "re-timed in
+>   their hours" for a time already past or an earlier day's run; "See the 30 today and 12 later" counts them as the
+>   reach line does. After Approve the flash says the block's today count, never the run's `recipient_count`.
+> - **The watch** stops on a 4xx as it does on nothing being checked. A planned send without a time is not listed.
+> - **Not built:** the ledger's name by the chain (the list's rows carry no `reach_out` block; the row keeps the
+>   run's own name), and the `sheetFor` pool skip (the block never reads the sheet's template).
+> - It was not seen in the real app here: the worktree has no workspace to run against. The page harness
+>   (`tests/reach-out-sheet/reach-out-approval.test.mjs`) draws each state, and `reach-out-check.test.mjs` runs the
+>   notice through the tick.
+> - **Ratchets.** Each rise is a row in `docs/debt.md`: window publishers +1 (the block's file), `__clock` +1 and
+>   `__reachOuts` +2 readers, `BroadcastDetail` +2 lines and +1 branch (the helper and the watch), `checkSends` +3
+>   lines and no branch (the notice's call and its count).
+
 **Files:** Modify `broadcasts-run.jsx:57-154` (`BcSheet`), `broadcasts-real.jsx:485-508` (`sheetFor`), `broadcasts-ledger.jsx:262-264`; Test `tooling/scripts/tests/broadcasts-reach-out.test.mjs` (the harness)
 
 - [ ] **Step 1: Tests first.** Each case gives a reach-out run pending approval, with its `reach_out` block:

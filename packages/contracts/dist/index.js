@@ -20307,7 +20307,8 @@ function nextRunWords(c, tz, now) {
 var clock2 = (iso, tz) => clockTime(Date.parse(iso), tz);
 function approvalWordsOf(r2, p) {
   const earlier = !!r2.run_for && r2.run_for < p.today;
-  const at2 = earlier ? null : r2.first_at ? clock2(r2.first_at, p.timezone) : null;
+  const passed = !earlier && !!r2.first_at && Date.parse(r2.first_at) <= p.now;
+  const at2 = earlier || passed ? null : r2.first_at ? clock2(r2.first_at, p.timezone) : null;
   const total = r2.today + r2.later;
   const why = [];
   if (r2.later > 0)
@@ -20328,7 +20329,7 @@ function approvalWordsOf(r2, p) {
   }
   const hosts = r2.domains.map((d) => d.host);
   const from = r2.domains.length === 1 ? `all from ${r2.domains[0].host}, ${plural(r2.domains[0].sent_days, "clean day", "clean days")}` : r2.domains.length > 1 ? `from ${hosts.slice(0, -1).join(", ")} and ${hosts[hosts.length - 1]}` : null;
-  const goes = earlier ? " \xB7 goes from now, re-timed in their hours, once you approve it" : at2 ? ` \xB7 goes from ${at2} once you approve it` : "";
+  const goes = earlier ? " \xB7 goes from now, re-timed in their hours, once you approve it" : passed ? " \xB7 goes from now, in their hours, once you approve it" : at2 ? ` \xB7 goes from ${at2} once you approve it` : "";
   const step2 = r2.step_n === null ? "a step since removed" : `step ${r2.step_n + 1}, ${stepLabel(r2.step_n).toLowerCase()}`;
   return {
     title: r2.chain_name,
@@ -20344,7 +20345,7 @@ function approvalWordsOf(r2, p) {
     ],
     words: words4,
     reader: r2.first ? `as ${r2.first.business_name} reads it \xB7 every opening is its own; your offer and ask are the same for all ${total}` : null,
-    approve: `Approve \u2014 ${r2.today}${earlier ? " from now" : at2 ? ` from ${at2}` : ""}`,
+    approve: `Approve \u2014 ${r2.today}${earlier || passed ? " from now" : at2 ? ` from ${at2}` : ""}`,
     approveNote: r2.checking > 0 ? `${r2.checking} more are being checked; they go once they pass.` : null,
     note: "Skipping loses this run only \u2014 the reach-out keeps its place and asks again tomorrow.",
     recheck: r2.held.some((h) => h.reason === "check_unavailable" && h.detail === null) ? REACH_OUT_SHEET_WORDS.recheck : null,
@@ -20665,6 +20666,89 @@ var REACH_OUT_SHEET_PARTS = {
   footLine: "At the foot",
   repliesLine: "Replies"
 };
+
+// src/reach-out/reach-out-approval.ts
+function skippedReasonWords(reason) {
+  switch (reason) {
+    case "closed_every_day":
+      return "keep no open hour all week";
+    case "missing_value":
+      return "missing a value your words name";
+    case "owner_skipped":
+      return "skipped by you";
+    case "not_a_fit":
+      return "marked Not a fit";
+    case "kept_waiting":
+      return "waited past fourteen days";
+    case "step_removed":
+      return "their step was removed";
+    case "run_canceled":
+      return "the run was stopped";
+    case "erased":
+      return "their record was erased";
+    default:
+      return "could not be written to";
+  }
+}
+function skippedWordsOf(skipped) {
+  return Object.entries(skipped).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([reason, n]) => `${n} skipped \xB7 ${skippedReasonWords(reason)}`);
+}
+var STATE_WORDS = {
+  pending_approval: "Waiting on you",
+  scheduled: "Scheduled",
+  sending: "Sending"
+};
+function reachOutRunWordsOf(r2, p) {
+  const share2 = chainPaceOf(r2).share;
+  const a = approvalWordsOf(r2, { timezone: p.timezone, share: share2, today: p.today, now: p.now });
+  const waiting = p.state === "pending_approval";
+  const earlier = !!r2.run_for && r2.run_for < p.today;
+  const checked = r2.planned.filter((x) => x.checked);
+  const step2 = r2.step_n === null ? "a step since removed" : `step ${r2.step_n + 1}`;
+  return {
+    ...a,
+    k: STATE_WORDS[p.state] ?? "Reach-out",
+    sub: waiting ? a.sub : `Reach-out \xB7 ${step2} \xB7 ${p.state === "sending" ? "going now" : "goes"}, one every ${r2.gap_minutes} minutes as each business opens`,
+    approve: waiting ? a.approve : null,
+    approveNote: waiting ? a.approveNote : null,
+    note: waiting ? a.note : null,
+    skipped: skippedWordsOf(r2.skipped),
+    // Today's and the coming days' as the reach line counts them: "See the 30 today and 12 later".
+    see: checked.length === 0 ? null : checked.length > r2.today ? `See the ${r2.today} today and ${checked.length - r2.today} later` : `See the ${checked.length}`,
+    // By day and time; a run from an earlier day, or a time already past, is re-timed when it goes, never a past time.
+    list: checked.map((x) => {
+      const ms2 = Date.parse(x.send_at);
+      const retimed = earlier || Number.isNaN(ms2) || ms2 <= p.now;
+      return { id: x.send_id, name: x.business_name, at: retimed ? RETIMED : clockWhen(ms2, p.timezone, p.now) };
+    }),
+    skipAsk: `Skip ${r2.chain_name}'s run?`,
+    // What Approve released, as the flash says it: the checked sends due today, never the run's whole count (R21).
+    approved: `${r2.chain_name} approved \u2014 ${plural(r2.today, "email", "emails")} today, in their hours`,
+    labels: REACH_OUT_RUN_LABELS,
+    listHead: r2.checking > 0 ? `Who gets it \xB7 ${plural(r2.checking, "more is", "more are")} being checked` : "Who gets it"
+  };
+}
+var RETIMED = "re-timed in their hours";
+var REACH_OUT_RUN_LABELS = {
+  back: "Back to Broadcasts",
+  approving: "Approving\u2026",
+  skip: "Skip this run",
+  skipYes: "Yes, skip it",
+  hide: "Hide the list",
+  hideHeld: "Hide them",
+  deciding: "Saying so\u2026",
+  rechecking: "Checking again\u2026",
+  gated: "decide a held email or approve a run"
+};
+var REACH_OUT_RUN_REREAD_MS = 15e3;
+function heldNoticeWords(p) {
+  const doors = [...new Set(p.reasons.flatMap(holdDoors))].map((d) => HOLD_DOOR_WORDS[d].toLowerCase());
+  const say2 = doors.length > 1 ? `${doors.slice(0, -1).join(", ")} or ${doors[doors.length - 1]}` : doors[0] ?? "";
+  return {
+    subject: `The check held ${plural(p.held, "email", "emails")} in ${p.name}`,
+    body: `${p.held === 1 ? "It waits" : "They wait"} for your say on the run in Broadcasts${say2 ? `: ${say2}` : ""}. The rest of the run goes as planned.`
+  };
+}
 
 // src/reports/campaign-report.ts
 var sum2 = (xs) => xs.reduce((a, b) => a + b, 0);
@@ -26622,6 +26706,7 @@ export {
   REACH_OUT_PREVIEW_WORDS,
   REACH_OUT_REFUSALS,
   REACH_OUT_ROW_WORDS,
+  REACH_OUT_RUN_REREAD_MS,
   REACH_OUT_SEND_STATES,
   REACH_OUT_SHEET_PARTS,
   REACH_OUT_SHEET_WORDS,
@@ -27070,6 +27155,7 @@ export {
   hasProfile,
   heardSinceProposal,
   heardWords,
+  heldNoticeWords,
   holdDoors,
   holdWords,
   hoursFromGoogle,
@@ -27456,6 +27542,7 @@ export {
   reachOutMayAddStep,
   reachOutMayPickDomain,
   reachOutPreviewOf,
+  reachOutRunWordsOf,
   reachOutSavedWords,
   reachOutSendsFrom,
   reachOutSheetPaceOf,

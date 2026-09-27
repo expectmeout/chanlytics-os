@@ -3370,6 +3370,49 @@ async function tenantZoneOf(db, tenantId) {
   const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
   return error ? null : data?.timezone ?? null;
 }
+var markOf = (v) => v && typeof v === "object" && !Array.isArray(v) && typeof v.claimed_at === "string" ? { claimed_at: v.claimed_at, ...typeof v.sent_at === "string" ? { sent_at: v.sent_at } : {} } : null;
+async function heldNoticeDue(db, p) {
+  let sends = db.from("reach_out_sends").select("tenant_id, broadcast_id, reason").eq("state", "held").gte("updated_at", p.since).limit(p.limit);
+  if (p.tenantId) sends = sends.eq("tenant_id", p.tenantId);
+  const held = await sends;
+  if (held.error) throw new Error(`cannot read the held: ${held.error.message}`);
+  const byRun = /* @__PURE__ */ new Map();
+  for (const s of held.data ?? []) {
+    if (!s.broadcast_id) continue;
+    const r2 = byRun.get(s.broadcast_id) ?? { held: 0, reasons: /* @__PURE__ */ new Set() };
+    r2.held += 1;
+    if (s.reason) r2.reasons.add(s.reason);
+    byRun.set(s.broadcast_id, r2);
+  }
+  if (byRun.size === 0) return [];
+  const runs = await db.from("broadcasts").select("id, tenant_id, name, state, audience, updated_at").in("id", [...byRun.keys()]).in("state", ["scheduled", "sending"]);
+  if (runs.error) throw new Error(`cannot read the held's runs: ${runs.error.message}`);
+  return (runs.data ?? []).flatMap((b) => {
+    const audience = b.audience && typeof b.audience === "object" && !Array.isArray(b.audience) ? b.audience : {};
+    if (audience.kind !== "reach_out") return [];
+    const mark = markOf(audience.held_notice);
+    if (mark && (mark.sent_at || mark.claimed_at >= p.staleBefore)) return [];
+    const r2 = byRun.get(b.id);
+    return [
+      {
+        id: b.id,
+        tenant_id: b.tenant_id,
+        name: b.name,
+        audience,
+        updated_at: b.updated_at,
+        held: r2.held,
+        reasons: [...r2.reasons]
+      }
+    ];
+  });
+}
+async function markHeldNotice(db, p) {
+  let q = db.from("broadcasts").update({ audience: { ...p.audience, held_notice: { ...p.mark } } }).eq("tenant_id", p.tenantId).eq("id", p.id);
+  if (p.ifUpdatedAt) q = q.eq("updated_at", p.ifUpdatedAt);
+  const { data, error } = await q.select("id");
+  if (error) throw new Error(`cannot mark the run: ${error.message}`);
+  return (data ?? []).length === 1;
+}
 
 // src/repositories/reach-out.ts
 async function domainCapacityOf(db, domainId, at) {
@@ -3750,6 +3793,12 @@ async function workspaceAbout(db, tenantId) {
   const { data, error } = await db.from("business_records").select("about").eq("tenant_id", tenantId).maybeSingle();
   if (error) throw new Error(`cannot read the business record: ${error.message}`);
   return data?.about?.trim() || null;
+}
+
+// src/repositories/notifications.ts
+async function forgetNotification(db, p) {
+  const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
+  if (error) throw new Error(`cannot take the notification back: ${error.message}`);
 }
 
 // src/repositories/routing.ts
@@ -4656,6 +4705,7 @@ export {
   everyoneIn,
   finishableRuns,
   followUpTouchesSince,
+  forgetNotification,
   getOwnPartner,
   getPartnerBalance,
   getPartnerBroughtCount,
@@ -4663,6 +4713,7 @@ export {
   getPartnerWorkspaces,
   getPlatformPartners,
   getTenantConfig,
+  heldNoticeDue,
   heldStale,
   ingestCall,
   ingestInbound,
@@ -4680,6 +4731,7 @@ export {
   mailboxById,
   mailboxFor,
   mailboxOfTenant,
+  markHeldNotice,
   markPartnerPaid,
   markProcessed,
   monthSent,
