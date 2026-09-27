@@ -7,6 +7,7 @@
 import type { SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
+import { IDS_PER_READ } from "./people";
 
 type Db = SupabaseClient<Database>;
 
@@ -111,6 +112,29 @@ export async function linkCallMessage(db: Db, tenantId: string, callId: string, 
   if (error) console.error("link_call_message_failed", error.message);
   else if (!data || data.length === 0)
     console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
+}
+
+/**
+ * What these calls' lines showed, by id -- the number (from_e164) and what the line handed over raw (from_raw), which
+ * contracts' callerName names a call by -- in one read for a hundred ids or fewer (IDS_PER_READ), under the caller's row
+ * security and the workspace's own filter: a call the caller cannot read is not answered. A read that fails THROWS.
+ */
+export async function callersOf(
+  db: Db,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<Array<{ id: string; from_e164: string | null; from_raw: string | null }>> {
+  const out: Array<{ id: string; from_e164: string | null; from_raw: string | null }> = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db
+      .from("calls")
+      .select("id, from_e164, from_raw")
+      .eq("tenant_id", tenantId)
+      .in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`callersOf: ${error.message}`);
+    out.push(...(data ?? []));
+  }
+  return out;
 }
 
 /**

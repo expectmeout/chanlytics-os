@@ -335,7 +335,7 @@ test("--list says every case, its page, the turns and their cost, with no creden
     run.stdout.includes(`${n} cases × 3 = ${n * 3} turns ≈ $${(n * 3 * 0.012).toFixed(2)}`),
     run.stdout.slice(-600),
   );
-  assert.match(run.stdout, /inbox: 4 case\(s\) \(4 with the page\) × 3 = 12 turns/);
+  assert.match(run.stdout, /inbox: 5 case\(s\) \(5 with the page\) × 3 = 15 turns/);
   assert.match(run.stdout, /Nothing was read or spent/);
   // The same words the run announces before its first turn.
   assert.ok(
