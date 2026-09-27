@@ -200,6 +200,30 @@ function transport(result = true) {
 }
 const inserts = (db) => db.seen.filter((q) => q.table === "notifications" && q.op === "insert");
 
+test("a failed push job's alert is kept and mailed but tells no phone, so a refusing push service does not loop", async () => {
+  // A push_send that failed for good alerted job_failed, a push kind, which scheduled another push_send, which failed
+  // the same way twelve minutes later and alerted again, for as long as the service refused. The mail still goes.
+  const { alertFor } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/ops/job-alert.ts")).href);
+  const news = (kind) => ({
+    kind: "job_failed",
+    route: "today",
+    subject: "Something in the background did not finish",
+    body: `Reference: job j1 (${kind}).`,
+  });
+  for (const [kind, pushes] of [
+    ["push_send", 0],
+    ["push_receipts", 0],
+    ["lead_collect", 1],
+  ]) {
+    const jobs = [];
+    const db = fakeDb({ notifications: [], jobs });
+    const t = transport();
+    await withEnv(PLATFORM_ENV, () => alertFor(null, { tenant_id: TENANT, kind }, { db, send: t.send })(news(kind)));
+    assert.equal(inserts(db).length, 1, `${kind}: the row is kept`);
+    assert.equal(jobs.filter((j) => j.kind === "push_send").length, pushes, `${kind}: pushes scheduled`);
+  }
+});
+
 test("a tenant with its own mailbox: the row is kept BEFORE the mail leaves, and the mail carries the full detail to that address", async () => {
   const rows = [];
   const db = fakeDb({ notifications: rows });
