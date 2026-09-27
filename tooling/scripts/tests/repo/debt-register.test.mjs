@@ -10,20 +10,25 @@
  * is held the same way: it was typed by hand on 21 September, and by the 26th
  * the scorecard found it stale in fifteen places.
  *
- * In bank mode this file measures for itself (_measures.mjs) rather than reading
- * the baselines, because the runner starts test files in parallel and the
- * ratchets may still be writing them; the plain run then checks the page against
- * the files, which by then agree.
+ * In bank mode this file works out what the bank writes, from the measures
+ * (_measures.mjs) banked against the baselines by the ratchets' own `bank`, rather
+ * than waiting for the ratchets to write it: the runner starts test files in
+ * parallel. A baseline is written whole, by a rename, and banking what was just
+ * banked changes nothing, so the block is the same whether a baseline is read
+ * before its ratchet banked it or after. A rise that was not raised is therefore
+ * not printed either: the page says what the baselines hold, never what the code
+ * would like them to. The plain run then checks the page against the files.
  *
- *   UPDATE_BASELINES=1 pnpm test   # rewrite both blocks after banking a reduction
+ *   UPDATE_BASELINES=1 pnpm test       # rewrite both blocks after banking a reduction
+ *   UPDATE_BASELINES=raise pnpm test   # and after raising a number
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "../_source.mjs";
-import { BASELINES_DIR, BANK, BANK_HINT, readBaseline } from "../_ratchet.mjs";
-import { MEASURES, sourceScan } from "../_measures.mjs";
+import { BASELINES_DIR, BANK, RAISE, BANK_HINT, bank, readBaseline } from "../_ratchet.mjs";
+import { MEASURES, sourceScan, bankedSourceScan, SOURCE_SCAN_BASELINE } from "../_measures.mjs";
 
 const REGISTER = "docs/debt.md";
 /** The pages that print the numbers: the register, and the takeover checklist scored from it. */
@@ -78,14 +83,19 @@ function blockFrom(by, scanCounts) {
   return "```text\n" + lines.join("\n") + "\n```";
 }
 
-const fromFiles = () =>
-  blockFrom(
-    Object.fromEntries(baselineFiles.map((f) => [f, readBaseline(f)])),
-    JSON.parse(readText("tooling/scripts/tests/source-scan-baseline.json")).counts,
-  );
+const sourceScanBaseline = () => JSON.parse(readText(SOURCE_SCAN_BASELINE));
 
-const fromMeasures = () =>
-  blockFrom(Object.fromEntries(MEASURES.map((m) => [m.file, m.measure()])), sourceScan().counts);
+const fromFiles = () =>
+  blockFrom(Object.fromEntries(baselineFiles.map((f) => [f, readBaseline(f)])), sourceScanBaseline().counts);
+
+/** What the bank is writing: each measure banked against its baseline, as its ratchet banks it. */
+const fromBank = () =>
+  blockFrom(
+    Object.fromEntries(
+      MEASURES.map((m) => [m.file, bank(m.measure(), readBaseline(m.file), { mode: m.mode, raise: RAISE })]),
+    ),
+    bankedSourceScan(sourceScan().counts, sourceScanBaseline(), RAISE),
+  );
 
 const page = () => readText(REGISTER);
 
@@ -98,7 +108,7 @@ function written(rel) {
 }
 
 if (BANK) {
-  const block = fromMeasures();
+  const block = fromBank();
   for (const rel of PAGES) {
     const now = readText(rel);
     const a = now.indexOf(START);
@@ -121,7 +131,7 @@ for (const rel of PAGES) {
     rel === REGISTER
       ? "the numbers on the register are the baselines' numbers"
       : `the numbers on ${rel} are the register's numbers`,
-    { skip: BANK && "banked from the measures; the next plain run checks the files" },
+    { skip: BANK && "written from the bank; the next plain run checks the files" },
     () => {
       const block = written(rel);
       assert.ok(block !== null, `${rel} has no measured block (${START} … ${END})`);
