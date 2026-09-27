@@ -648,7 +648,7 @@ test("the loop and its reads: several at once, the stable block cached, through 
       ["calendar", ["week", "openings"]],
       ["calls", ["list", "get"]],
       ["campaigns", ["audiences", "playbooks", "broadcasts", "broadcast"]],
-      ["inbox", ["list", "thread"]],
+      ["inbox", ["list", "thread", "search"]],
       ["leads", ["searches", "leads", "lead", "search"]],
       ["people", ["search", "get", "lists", "pipeline"]],
       ["report", []],

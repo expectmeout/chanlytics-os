@@ -9,16 +9,21 @@
  *
  * The real People surface, the real save and the real cache, over a window with sessionStorage and a fake fetch.
  */
-import { test } from "node:test";
+import { test, mock } from "node:test";
 import assert from "node:assert/strict";
 
 const TID = "t-salon";
 const CACHE = "chanlytics.surfaces.v1";
+/** The tab's storage, counting the writes to the cache's slot. */
+let cacheWrites = 0;
 const storage = () => {
   const m = new Map();
   return {
     getItem: (k) => (m.has(k) ? m.get(k) : null),
-    setItem: (k, v) => m.set(k, String(v)),
+    setItem: (k, v) => {
+      if (k === CACHE) cacheWrites++;
+      m.set(k, String(v));
+    },
     removeItem: (k) => m.delete(k),
   };
 };
@@ -27,6 +32,7 @@ const json = (status, body) =>
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+const heard = {};
 /** This member's views as the server holds them (a read always answers with these), every view saved to it, and while `held`, a save's reply waits for it. */
 const server = { views: { people: { sortBy: "last", sortDir: "desc", columns: {} } }, saved: [], held: null };
 globalThis.window = {
@@ -41,7 +47,8 @@ globalThis.window = {
   },
   sessionStorage: globalThis.sessionStorage,
   localStorage: globalThis.localStorage,
-  addEventListener() {},
+  // What the page listens for: the cache writes what waits as the page is hidden.
+  addEventListener: (type, fn) => (heard[type] ||= []).push(fn),
   removeEventListener() {},
   dispatchEvent() {
     return true;
@@ -84,13 +91,19 @@ const { peopleOverride } = await quietly(
   () => import("../../../../../apps/dashboard/src/legacy-bridge/surface-data.ts"),
 );
 const { saveView } = await import("../../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
-const { snapshotSurface, hydrateSurfaceCache, clearSurfaceCache } =
-  await import("../../../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
+const {
+  snapshotSurface,
+  hydrateSurfaceCache,
+  clearSurfaceCache,
+  flushSurfaceCache,
+  cachedTenant: cachedTenantNow,
+} = await import("../../../../../apps/dashboard/src/legacy-bridge/surface-cache.ts");
+/** The cache's slot as the next load reads it: after the page's hide, which writes what waits. */
+const stored = () => (flushSurfaceCache(), globalThis.sessionStorage.getItem(CACHE));
 
 const HIDDEN = { sortBy: "last", sortDir: "desc", columns: { came_from: false } };
 /** The People view in the tab's cache, as a reload would paint it. */
-const cachedPeopleView = () =>
-  JSON.parse(globalThis.sessionStorage.getItem(CACHE) ?? "null")?.surfaces?.people?.__PEOPLE?.views?.people;
+const cachedPeopleView = () => JSON.parse(stored() ?? "null")?.surfaces?.people?.__PEOPLE?.views?.people;
 /** People read as the runner reads it, over an empty cache; with `cachedFor`, then cached as the runner caches a read, under that workspace. */
 const peopleRead = async ({ cachedFor = null } = {}) => {
   clearSurfaceCache();
@@ -139,22 +152,22 @@ test("REGRESSION: a reload keeps the view a member saved -- the tab's cached Peo
 test("with no People cached, a save caches nothing -- an entry made here could carry no workspace, and the runner's guard skips one with none", async () => {
   await peopleRead();
   await saveView("people", HIDDEN);
-  assert.equal(globalThis.sessionStorage.getItem(CACHE), null, "no cache is made");
+  assert.equal(stored(), null, "no cache is made");
   // This workspace's cache holding another surface: People is not added to it.
   globalThis.window.__TODAY_PROBE = { n: 1 };
   snapshotSurface("today", ["__TODAY_PROBE"], TID);
-  const before = globalThis.sessionStorage.getItem(CACHE);
+  const before = stored();
   await saveView("people", { ...HIDDEN, sortBy: "name" });
-  assert.equal(globalThis.sessionStorage.getItem(CACHE), before, "and a cache without People gains no People");
+  assert.equal(stored(), before, "and a cache without People gains no People");
   delete globalThis.window.__TODAY_PROBE;
 });
 
 test("a cache of another workspace is left as it is: a save here writes nothing into it", async () => {
   await peopleRead({ cachedFor: "t-other" });
-  const before = globalThis.sessionStorage.getItem(CACHE);
+  const before = stored();
   assert.ok(before, "cached, under the other workspace");
   await saveView("people", HIDDEN);
-  assert.equal(globalThis.sessionStorage.getItem(CACHE), before, "not a byte of it changed");
+  assert.equal(stored(), before, "not a byte of it changed");
 });
 
 test("a save still waiting on its reply when a read of People begins is not undone by the read -- the server can answer the read before it takes the save", async () => {
@@ -184,12 +197,12 @@ test("with no workspace active, a save writes nothing into the cache -- not even
   await peopleRead();
   // Cached before any workspace was known, so the entry names none.
   snapshotSurface(peopleOverride.key, peopleOverride.globals, null);
-  const before = globalThis.sessionStorage.getItem(CACHE);
+  const before = stored();
   const active = globalThis.window.__ACTIVE_WORKSPACE;
   delete globalThis.window.__ACTIVE_WORKSPACE;
   try {
     await saveView("people", HIDDEN);
-    assert.equal(globalThis.sessionStorage.getItem(CACHE), before, "not a byte of it changed");
+    assert.equal(stored(), before, "not a byte of it changed");
   } finally {
     globalThis.window.__ACTIVE_WORKSPACE = active;
   }
@@ -229,14 +242,14 @@ test("a cache that would be too big sheds its biggest surfaces until it fits, ra
   snapshotSurface("today", ["__TODAY_PROBE"], TID);
   snapshotSurface("people", ["__PEOPLE_PROBE"], TID);
   snapshotSurface("leads", ["__LEADS_PROBE"], TID);
-  const kept = JSON.parse(globalThis.sessionStorage.getItem(CACHE) ?? "null");
+  const kept = JSON.parse(stored() ?? "null");
   assert.ok(kept, "REGRESSION: the whole cache was removed, and every page booted cold");
   assert.deepEqual(
     Object.keys(kept.surfaces).sort(),
     ["people", "today"],
     "the surface that did not fit is the one left out",
   );
-  assert.ok(globalThis.sessionStorage.getItem(CACHE).length < 2_000_000);
+  assert.ok(stored().length < 2_000_000);
   delete globalThis.window.__TODAY_PROBE;
   delete globalThis.window.__PEOPLE_PROBE;
   delete globalThis.window.__LEADS_PROBE;
@@ -255,7 +268,7 @@ test("a surface may say what of itself the cache holds: Leads keeps its first hu
     ...snap,
     __LEADS_PROBE: { ...snap.__LEADS_PROBE, rows: snap.__LEADS_PROBE.rows.slice(0, 100), next: null, offered: 0 },
   }));
-  const kept = JSON.parse(globalThis.sessionStorage.getItem(CACHE)).surfaces.leads.__LEADS_PROBE;
+  const kept = JSON.parse(stored()).surfaces.leads.__LEADS_PROBE;
   assert.deepEqual(
     [kept.rows.length, kept.next, kept.offered, kept.view],
     [100, null, 0, { list: "all" }],
@@ -264,4 +277,67 @@ test("a surface may say what of itself the cache holds: Leads keeps its first hu
   assert.equal(globalThis.window.__LEADS_PROBE.rows.length, 500, "and the page's own rows are untouched");
   delete globalThis.window.__LEADS_PROBE;
   clearSurfaceCache();
+});
+
+test("a boot's snapshots are one write, a second after the last: each used to parse, re-serialise and write the whole cache", () => {
+  mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  try {
+    clearSurfaceCache();
+    cacheWrites = 0;
+    for (const k of ["today", "inbox", "calendar", "people", "settings"]) {
+      globalThis.window[`__${k}_PROBE`] = { k };
+      snapshotSurface(k, [`__${k}_PROBE`], TID);
+      mock.timers.tick(300);
+    }
+    assert.equal(cacheWrites, 0, "nothing written while snapshots keep landing");
+    assert.equal(cachedTenantNow(), TID, "yet the tab reads what it holds: the runner's guard sees it");
+    mock.timers.tick(1000);
+    assert.equal(cacheWrites, 1, "one write for the boot");
+    assert.deepEqual(Object.keys(JSON.parse(globalThis.sessionStorage.getItem(CACHE)).surfaces).sort(), [
+      "calendar",
+      "inbox",
+      "people",
+      "settings",
+      "today",
+    ]);
+    // Snapshots that never stop still reach the tab's storage within five seconds of the first one waiting.
+    cacheWrites = 0;
+    for (let i = 0; i < 12; i++) {
+      snapshotSurface("today", ["__today_PROBE"], TID);
+      mock.timers.tick(600);
+    }
+    assert.ok(cacheWrites >= 1, `written while they kept coming: ${cacheWrites}`);
+  } finally {
+    for (const k of ["today", "inbox", "calendar", "people", "settings"]) delete globalThis.window[`__${k}_PROBE`];
+    mock.timers.reset();
+    clearSurfaceCache();
+  }
+});
+
+test("the page's hide writes what waits, so a reload paints the latest; a sign-out drops it, so nothing is written after", () => {
+  mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  try {
+    clearSurfaceCache();
+    globalThis.window.__HIDE_PROBE = { n: 1 };
+    snapshotSurface("today", ["__HIDE_PROBE"], TID);
+    assert.equal(globalThis.sessionStorage.getItem(CACHE), null, "waiting");
+    for (const fn of heard.pagehide ?? []) fn(new Event("pagehide"));
+    assert.ok(
+      globalThis.sessionStorage.getItem(CACHE),
+      "REGRESSION: a reload straight after a read painted the older cache",
+    );
+    // Signed out with a snapshot waiting: the clear drops it, and the write it was waiting for never comes.
+    snapshotSurface("today", ["__HIDE_PROBE"], TID);
+    clearSurfaceCache();
+    mock.timers.tick(10_000);
+    assert.equal(
+      globalThis.sessionStorage.getItem(CACHE),
+      null,
+      "REGRESSION: customer rows written back after the session ended",
+    );
+    assert.equal(cachedTenantNow(), null);
+  } finally {
+    delete globalThis.window.__HIDE_PROBE;
+    mock.timers.reset();
+  }
 });

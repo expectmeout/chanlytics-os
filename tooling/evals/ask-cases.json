@@ -352,6 +352,54 @@
     }
   },
   {
+    "id": "search_parking_today",
+    "text": "did anyone mention parking this month?",
+    "surface": "today",
+    "context": {
+      "surface": "today",
+      "route": "today",
+      "rows": "GET conversations+calls:20"
+    },
+    "expect": {
+      "tools_any": ["inbox.search"],
+      "cites_or_says_nothing": true,
+      "no_invented_citations": true,
+      "no_write": true
+    }
+  },
+  {
+    "id": "search_parking_inbox",
+    "text": "did anyone mention parking this month?",
+    "surface": "inbox",
+    "context": {
+      "surface": "inbox",
+      "route": "inbox",
+      "rows": "GET conversations:40"
+    },
+    "expect": {
+      "tools_any": ["inbox.search"],
+      "cites_or_says_nothing": true,
+      "no_invented_citations": true,
+      "no_write": true
+    }
+  },
+  {
+    "id": "search_call_transcript",
+    "text": "did anyone say \"tomorrow\" to us this week, in a message or on a call?",
+    "surface": "today",
+    "context": {
+      "surface": "today",
+      "route": "today",
+      "rows": "GET conversations+calls:20"
+    },
+    "expect": {
+      "tools_any": ["inbox.search"],
+      "includes_any": ["Casey"],
+      "no_invented_citations": true,
+      "no_write": true
+    }
+  },
+  {
     "id": "people_on_page",
     "text": "how many people are on this list?",
     "surface": "people",

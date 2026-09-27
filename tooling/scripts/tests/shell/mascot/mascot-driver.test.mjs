@@ -4,8 +4,8 @@
  * motion draws once per change; a word heard pushes the level up and lets it fall; an icon (a face in a button) goes
  * quiet alone and draws nothing it has already drawn, wakes when the pointer comes near its button, and gathers under
  * a press; any face looks at a pointer near it, never one across the page; at rest the mark is drawn in 2D, while the
- * tiles may fuse the page's liquid drawing is copied into the face's own canvas (its share given back at the end),
- * and where it cannot draw, the 2D drawing stands in.
+ * tiles may fuse the page's liquid drawing -- asked for then, never at mount -- is copied into the face's own canvas
+ * (its share given back at the end), and where it cannot draw, the 2D drawing stands in.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -314,15 +314,18 @@ test("at rest the mark is drawn in 2D; while the tiles may fuse the page's liqui
   };
   const C = fakeCanvas();
   const F = fakeEnv();
-  F.env.liquid = () => drawing;
+  let opened = 0;
+  F.env.liquid = () => (opened++, drawing);
   const m = mountCharacter(C.canvas, { env: F.env });
   F.run(0.5);
   assert.equal(copied, 0, "at rest nothing fuses: the GPU is not asked");
+  assert.equal(opened, 0, "REGRESSION: a WebGL context made at mount for a mark drawn in 2D");
   const atRest = C.draws();
   assert.ok(atRest > 20, `the mark in 2D: ${atRest}`);
   m.set("listening");
   F.run(0.5);
   assert.ok(copied > 20, `listening, copied into the face's own canvas: ${copied}`);
+  assert.equal(opened, 1, "the context is asked for once, as the tiles first may fuse");
   assert.equal(C.draws(), atRest, "and no 2D drawing of its own meanwhile");
   can = false;
   F.run(0.5);
@@ -330,6 +333,16 @@ test("at rest the mark is drawn in 2D; while the tiles may fuse the page's liqui
   assert.equal(C.fills().length, 3);
   m.destroy();
   assert.equal(released, 1, "its share of the context given back");
+  // a face that never fused never took a share, and gives none back
+  const Q = fakeCanvas();
+  const H = fakeEnv();
+  let taken = 0;
+  H.env.liquid = () => (taken++, drawing);
+  const q = mountCharacter(Q.canvas, { env: H.env });
+  H.run(1);
+  q.destroy();
+  assert.equal(taken, 0);
+  assert.equal(released, 1);
   // under reduced motion the still frames are drawn in 2D, and no share is taken
   const R = fakeCanvas();
   const G = fakeEnv();
