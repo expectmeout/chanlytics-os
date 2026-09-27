@@ -13,7 +13,8 @@
  * nine times. Each ratchet below is still its own pair of tests, named for the
  * number it holds.
  *
- *   UPDATE_BASELINES=1 pnpm test   # bank a reduction, or seed a baseline
+ *   UPDATE_BASELINES=1 pnpm test       # bank a reduction, and nothing else
+ *   UPDATE_BASELINES=raise pnpm test   # raise a number, or seed a baseline (argued in docs/debt.md)
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
