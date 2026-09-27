@@ -40,7 +40,7 @@ const arScopeLabel = (page, param) => {
   return null;
 };
 
-const arScopeIcon = (s) => (s.kind === "call" ? "phone" : s.kind === "person" ? "users" : s.kind === "page" ? "arrow-right" : "chat");
+const arScopeIcon = (s) => window.AskAnswerKit.askKindGlyph(s.kind);
 
 const arFailed = (id, text) => ({ id, role: "assistant", text, failed: true, citations: [], followups: [], proposals: [], atMs: Date.now() });
 
