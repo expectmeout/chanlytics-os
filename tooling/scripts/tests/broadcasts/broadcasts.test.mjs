@@ -405,8 +405,12 @@ test("the job's ports fail CLOSED: a read that did not happen never answers 'not
   );
 });
 
-test('the job carries WhatsApp\'s "not now" through: the person back in the queue, the next batch after the next wait with the count, the run still sending', async () => {
+test('the job carries WhatsApp\'s "not now" through: the person back in the queue, the next batch after the next wait with the count, the run still sending', async (t) => {
   const { BROADCAST_THROTTLE_WAITS_MS } = await import("@chanlytics/contracts");
+  // The job reads the machine's clock, and a wait that would end outside the day's sending hours stops the run
+  // instead (core backOff): run at night, this would prove the stop, not the wait. A June weekday at 14:00 UTC is
+  // inside the hours by any clock the job may read, and the next wait stays inside them.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-06-10T14:00:00Z") });
   const w = world();
   // The person's thread, as the door reads it: the contact's answers and the workspace's status beside the row.
   w.conversations = [

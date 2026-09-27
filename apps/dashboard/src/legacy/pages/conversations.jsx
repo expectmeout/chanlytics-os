@@ -206,7 +206,7 @@ const cvOpens = (c) => {
 const ConversationsPage = ({ channel = "all", initialId = null }) => {
   const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = window.CONVERSATIONS_DATA;
   // The box's words, per tab: typed here this visit, else what the tab kept. The page is one mount across its tabs
-  // (app-shell.jsx PARAM_FOLLOWED_AS_PROP), so a tab pressed reads its own words at once, with no draw in between.
+  // (its route row's `mount`, app-routes.jsx), so a tab pressed reads its own words at once, with no draw in between.
   const [typed, setTyped] = useCvState({});
   const query = typed[channel] !== undefined ? typed[channel] : cvPlace(channel).q || "";
   const setQuery = (v) => { setTyped((t) => ({ ...t, [channel]: v })); cvKeepPlace(channel, { q: v }); };
