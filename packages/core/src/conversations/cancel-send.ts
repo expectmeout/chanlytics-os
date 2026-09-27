@@ -1,10 +1,10 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, type TenantId } from "@chanlytics/contracts";
 import type { CancelSendPorts } from "./ports";
 
 /** The honest undo (§6): inside the grace window a queued send cancels cleanly; after fire it is out, and this says so. */
 export async function cancelSend(
   ports: CancelSendPorts,
-  cmd: { msg: { id: string; tenant_id: string; status: string } },
+  cmd: { msg: { id: string; tenant_id: TenantId; status: string } },
 ): Promise<{ status: "canceled"; decision_id: string }> {
   const { msg } = cmd;
   if (msg.status !== "queued") throw new AppError("conflict", "Too late — this message has already been sent.");

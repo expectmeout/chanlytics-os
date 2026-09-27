@@ -1,6 +1,6 @@
 # 0006 · A proposal waiting gets a follow-up
 
-**Status:** built (the Pipeline, worked, PR 6: 6a #974 and 6b, 24 September
+**Status:** built (the Pipeline, worked, PR 6: 6a #974 and 6b #978, 24 September
 2026): the trigger, its class, 00167, the run and the link it freezes on each
 recipient; the Playbooks page, the Autonomy row, the starter and Ask, each only
 where deals are on; one per workspace. The wait is the workspace's pace
@@ -8,8 +8,12 @@ where deals are on; one per workspace. The wait is the workspace's pace
 one. Where a follow-up runs, each proposal waiting says on the Pipeline when its
 run goes ("Follow-up tomorrow", "Follow-up to approve tomorrow" under ask), and
 Today's leak counts only the people it will not reach. Written against commit `e3d9dc6c` (PR #885,
-23 September 2026), and verified against the code at it. Where this note and
-the code disagree, the code wins. It is the second item
+23 September 2026), and verified against the code at it. The status was verified again at `519724e9c` (27 September
+2026): 00167, the trigger `proposal_waiting` in the class `follow_up`
+(`packages/contracts/src/playbooks/playbook-triggers.ts`), the link each run freezes (`proposalFactsFor`,
+`packages/contracts/src/playbooks/playbooks.ts`), the utility starter (`packages/contracts/src/templates/template-library.ts`),
+the page (`apps/dashboard/src/legacy/pages/playbook-bits.jsx`) and Ask (`apps/dashboard/src/server/ask/tools/act/playbook.ts`).
+Where this note and the code disagree, the code wins. It is the second item
 [0004](0004-deals-record.md) held for later: _"a follow-up playbook, which needs
 an Autonomy class because every list trigger but booking is promotional today"_
 (0004, step 5).

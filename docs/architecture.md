@@ -296,9 +296,10 @@ and helpers at the root, and the runner globs every depth. Playwright specs in
 
 ## What is decided and not yet built
 
-`docs/decisions/` holds the designs. The four that change the shape of the
-system: a channel-neutral inbound pipeline, an appointment as a first-class
-record, assignment for a team, and a deal as a record. Smaller and known: the shell's hash routes
-and the five route names, `contracts` carrying view models that belong to the
-dashboard, and tests living in one directory rather than beside the code they
-prove.
+`docs/decisions/` holds the designs, and its README says which are built. The
+four not built that change the shape of the system: a channel-neutral inbound
+pipeline (0001), an appointment as a first-class record (0002), assignment for
+a team (0003), and the shell leaving surface by surface (0015, proposed). A deal
+as a record (0004) is built. Smaller and known: the shell's hash routes and the
+five route names, and `contracts` carrying view models that belong to the
+dashboard.

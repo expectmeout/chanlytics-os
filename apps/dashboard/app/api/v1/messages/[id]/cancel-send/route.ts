@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, asTenantId } from "@chanlytics/contracts";
 import { cancelSend } from "@chanlytics/core";
 import { write, row } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
@@ -14,7 +14,7 @@ const theMessage = row(async (ctx, params) => {
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!msg) throw new AppError("not_found", "Message not found.");
-  return msg;
+  return { ...msg, tenant_id: asTenantId(msg.tenant_id) };
 });
 
 /** The honest undo (§6): inside the grace window a queued send cancels cleanly; after fire it is out, and this says so. */

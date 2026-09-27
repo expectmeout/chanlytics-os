@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { EmailRequest, ResendLimit, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, DeliveryRefusal, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
+import { SendPurpose, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
@@ -198,7 +198,7 @@ declare function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<Delive
 /** The thread as the route's scope loaded it. A verb names only the fields it reads. */
 interface Thread {
     id: string;
-    tenant_id: string;
+    tenant_id: TenantId;
     state: string;
     paused_until: string | null;
     phone_e164: string | null;
@@ -206,7 +206,7 @@ interface Thread {
 /** What the thread verbs need of the world. */
 interface ThreadPorts {
     /** How long a person's touch keeps the receptionist off a thread: the reply policy's pause_hours, or a day. */
-    pauseMs(tenantId: string): Promise<number>;
+    pauseMs(tenantId: TenantId): Promise<number>;
     /** needs_human, paused until, snooze cleared, claimed by the user. True iff a row changed. */
     claim(conversationId: string, untilIso: string, userId: string): Promise<boolean>;
     /** open, pause and snooze cleared, unassigned. True iff a row changed. */
@@ -225,15 +225,15 @@ interface ThreadPorts {
      * never refused, so this answers with nothing -- a failure throws, because a
      * hold we could not take is not a hold we have.
      */
-    takeControl(tenantId: string, conversationId: string, userId: string, seconds: number): Promise<void>;
+    takeControl(tenantId: TenantId, conversationId: string, userId: string, seconds: number): Promise<void>;
     /** This person's hold, let go. Somebody else's is left alone. */
-    letControlGo(tenantId: string, conversationId: string, userId: string): Promise<void>;
+    letControlGo(tenantId: TenantId, conversationId: string, userId: string): Promise<void>;
     /** The receptionist's held drafts on the thread withdrawn, rows then jobs; how many. */
-    withdrawDrafts(tenantId: string, conversationId: string): Promise<number>;
+    withdrawDrafts(tenantId: TenantId, conversationId: string): Promise<number>;
     /** The open escalation on the thread resolved by this decision, when there is one. */
     resolveEscalation(conversationId: string, decisionId: string): Promise<void>;
     /** The ledger: who did what to which row. The decision's id. */
-    record(tenantId: string, subject: DecisionSubject, id: string, verb: DecisionVerb, payload?: Json): Promise<string>;
+    record(tenantId: TenantId, subject: DecisionSubject, id: string, verb: DecisionVerb, payload?: Json): Promise<string>;
     now(): number;
 }
 interface EscalationPorts {
@@ -247,7 +247,7 @@ interface CancelSendPorts {
     /** queued → canceled, only while queued: zero rows means the send job won. */
     cancelQueued(messageId: string): Promise<boolean>;
     /** The outbound_send job for the message withdrawn; how many. */
-    cancelJob(tenantId: string, messageId: string): Promise<number>;
+    cancelJob(tenantId: TenantId, messageId: string): Promise<number>;
     record: ThreadPorts["record"];
 }
 
@@ -332,7 +332,7 @@ type ResolveResult = {
 declare function resolveEscalation(ports: EscalationPorts, cmd: {
     esc: {
         id: string;
-        tenant_id: string;
+        tenant_id: TenantId;
         state: string;
     };
 }): Promise<ResolveResult>;
@@ -341,7 +341,7 @@ declare function resolveEscalation(ports: EscalationPorts, cmd: {
 declare function cancelSend(ports: CancelSendPorts, cmd: {
     msg: {
         id: string;
-        tenant_id: string;
+        tenant_id: TenantId;
         status: string;
     };
 }): Promise<{
@@ -397,7 +397,7 @@ interface ReplyReceipt {
     decision_id?: string;
 }
 interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
-    contact_id: string | null;
+    contact_id: ContactId | null;
     last_wa_inbound_at: string | null;
     consent: string | null;
     dnc: boolean | null;
@@ -410,9 +410,9 @@ interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
     email_suppressed_at?: string | null;
 }
 interface QueuedReply {
-    tenant_id: string;
+    tenant_id: TenantId;
     conversation_id: string;
-    contact_id: string | null;
+    contact_id: ContactId | null;
     channel: "whatsapp" | "sms" | "email";
     sent_by: string;
     type: "template" | "text";
@@ -462,11 +462,11 @@ interface EmailReplyPorts {
     /** The person's latest email on this thread; null when it holds none. Read inside this workspace and this conversation only. */
     parent(conv: {
         id: string;
-        tenant_id: string;
+        tenant_id: TenantId;
     }): Promise<EmailParentFacts | null>;
     /** The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send from. */
     freeze(input: {
-        tenantId: string;
+        tenantId: TenantId;
         messageId: string;
         to: string;
         parent: EmailParentFacts;
@@ -494,7 +494,7 @@ interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" | "with
     /** Where the person last wrote: a text and an email have no 24-hour window and no templates. */
     replyChannel(conv: {
         id: string;
-        tenant_id: string;
+        tenant_id: TenantId;
     }): Promise<"whatsapp" | "sms" | "email">;
     email: EmailReplyPorts;
     /**
@@ -503,23 +503,23 @@ interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" | "with
      * callers under one key at once. A loser is shown the hold, or null when it
      * went between the claim and the read.
      */
-    claimKey(tenantId: string, key: string, requestHash: string, nowIso: string): Promise<KeyClaim>;
+    claimKey(tenantId: TenantId, key: string, requestHash: string, nowIso: string): Promise<KeyClaim>;
     /**
      * A hold taken over by the stamp it was read at: true iff this caller holds the key now; false when another took it
      * first. Taking over a receipt for other words puts the first words' receipt out of reach, so a replay of those
      * words inside their window would send again. Accepted: the key is derived from the words (inbox-verbs.ts), so two
      * intents under one key is a client that changed what the key means, not a retry.
      */
-    takeKey(tenantId: string, key: string, requestHash: string, nowIso: string, from: string): Promise<boolean>;
+    takeKey(tenantId: TenantId, key: string, requestHash: string, nowIso: string, from: string): Promise<boolean>;
     /**
      * The row stamped `nowIso` let go, whatever it holds, and only that one: a caller lets go only when its send did not
      * happen, and another caller's takeover moved the stamp. A receipt kept before a job that then could not be
      * scheduled goes with it, so a replay of those words sends afresh instead of answering with a canceled message.
      * Never throws: the reply is already failing.
      */
-    releaseKey(tenantId: string, key: string, nowIso: string): Promise<void>;
+    releaseKey(tenantId: TenantId, key: string, nowIso: string): Promise<void>;
     /** The workspace's template by name and language, as Meta last told us about it; `variables` is one entry per slot, when the sync has filled it. */
-    template(tenantId: string, name: string, language: string): Promise<{
+    template(tenantId: TenantId, name: string, language: string): Promise<{
         name: string;
         language: string;
         body_preview: string | null;
@@ -531,7 +531,7 @@ interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" | "with
      * The facts a template's params come from, when the workspace has them: its name, and its booking link or null for
      * a business that quotes each job (the first run's decision 2).
      */
-    templateFacts(tenantId: string): Promise<{
+    templateFacts(tenantId: TenantId): Promise<{
         business_name: string;
         booking_link: string | null;
     } | null>;
@@ -540,7 +540,7 @@ interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" | "with
     /** The operator's words as a queued outbound row; its id. */
     queue(row: QueuedReply): Promise<string>;
     /** The send job, due after the grace window; throws when it could not be scheduled. */
-    schedule(tenantId: string, dueAt: Date, payload: SendPayload): Promise<void>;
+    schedule(tenantId: TenantId, dueAt: Date, payload: SendPayload): Promise<void>;
     /** A queued row with no job to send it, canceled so it never sits "Sending…" forever. */
     cancelOrphan(messageId: string): Promise<void>;
     /**
@@ -548,7 +548,7 @@ interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" | "with
      * does, false when another caller took the key over since. Throws when the write itself could not be made; where
      * the verb stands decides what that means.
      */
-    storeReceipt(tenantId: string, key: string, requestHash: string, response: ReplyReceipt, stamp: string): Promise<boolean>;
+    storeReceipt(tenantId: TenantId, key: string, requestHash: string, response: ReplyReceipt, stamp: string): Promise<boolean>;
     /** A stable digest of a string, for the intent and the content. */
     hash(s: string): string;
 }
@@ -1085,7 +1085,7 @@ interface TemplateValuesPorts {
 /** A run or broadcast as the route's scope loaded it. */
 interface BroadcastRef {
     id: string;
-    tenant_id: string;
+    tenant_id: TenantId;
     state: string;
     name: string;
     recipient_count: number | null;
@@ -1489,7 +1489,7 @@ interface RoundQuestion {
 }
 interface LeadRoundRow {
     id: string;
-    tenant_id: string;
+    tenant_id: TenantId;
     search_id: string;
     seq: number;
     purpose: LeadRoundPurpose;
@@ -1515,7 +1515,7 @@ interface LeadRoundRow {
 }
 interface LeadRunRow {
     id: string;
-    tenant_id: string;
+    tenant_id: TenantId;
     round_id: string;
     purpose: "discover" | "check";
     term: string | null;
@@ -1618,7 +1618,7 @@ interface LeadColumns {
 interface LeadShare {
     kind: "phone" | "email" | "host";
     lead_id?: string;
-    contact_id?: string;
+    contact_id?: ContactId;
     place_id?: string;
 }
 /**
@@ -1734,7 +1734,7 @@ interface LeadDb {
     /** Insert the run rows that are not there yet, by their deterministic ids, and answer every row of the round. */
     runsEnsure(rows: {
         id: string;
-        tenant_id: string;
+        tenant_id: TenantId;
         round_id: string;
         purpose: "discover" | "check";
         term: string | null;
@@ -1748,8 +1748,8 @@ interface LeadDb {
     runsOfRound(roundId: string): Promise<LeadRunRow[]>;
     membersOfRound(roundId: string): Promise<LeadMemberRow[]>;
     /** place id -> lead id, for the place ids this workspace already holds (leads and folded listings). */
-    placeIdsHeld(tenantId: string, placeIds: string[]): Promise<Map<string, string>>;
-    sharesOf(tenantId: string, keys: {
+    placeIdsHeld(tenantId: TenantId, placeIds: string[]): Promise<Map<string, string>>;
+    sharesOf(tenantId: TenantId, keys: {
         phones: string[];
         emails: string[];
         hosts: string[];
@@ -1757,15 +1757,15 @@ interface LeadDb {
         key: string;
         share: LeadShare;
     }[]>;
-    suppressed(tenantId: string, keys: {
+    suppressed(tenantId: TenantId, keys: {
         emails: string[];
         placeIds: string[];
     }): Promise<{
         emails: Set<string>;
         placeIds: Set<string>;
     }>;
-    zoneOf(tenantId: string): Promise<string>;
-    leadSearchesOn(tenantId: string): Promise<boolean>;
+    zoneOf(tenantId: TenantId): Promise<string>;
+    leadSearchesOn(tenantId: TenantId): Promise<boolean>;
 }
 interface LeadPorts {
     db: LeadDb;
