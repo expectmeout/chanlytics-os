@@ -18009,6 +18009,14 @@ type PageMessage = {
  | {
     t: "theme";
     theme: Theme;
+}
+/**
+ * Whether something stands over the page (a sheet, a dialog, the bell's panel), at install and on every change:
+ * Android's Back closes it before it walks the page's history, where it used to leave the page from under it.
+ */
+ | {
+    t: "overlay";
+    open: boolean;
 };
 /** A phone's push token, as expo-notifications hands it out. */
 declare const PUSH_TOKEN_MAX = 200;
@@ -18025,6 +18033,10 @@ type ShellMessage =
     t: "menu";
 } | {
     t: "top";
+}
+/** Close what stands over the page, as a keyboard's Escape would: Android's Back, while the page says one is open. */
+ | {
+    t: "close";
 }
 /**
  * Register this phone for the person signed in: the page calls PUT me/devices through its own client, and forgets

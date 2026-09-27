@@ -1,8 +1,8 @@
 /**
  * The frame: tick(dt) over the record, as phases in the order they have always run: attention, the voice, the beats
  * and the fidgets, the gaze, the moves, the springs, the breath, the fuse, the colour, the orbit, and where every
- * tile is now. Each phase is `(record, dt) → record`, and a later phase reads only what an earlier one left in the
- * record, so the order here is the contract. With them, the still frame under reduced motion.
+ * tile is now. Each phase applies dt to the record in place, and a later phase reads only what an earlier one left in
+ * the record, so the order here is the contract. With them, the still frame under reduced motion.
  */
 import { TAU, clamp, ease } from "./math";
 import {
@@ -82,48 +82,48 @@ function gazeAt(st: Core, dt: number): void {
 
 // springs toward where the state wants each tile
 function springs(st: Core, dt: number): void {
-  const spread = 1 + st.spreadAdd + (0.04 * st.perk - 0.06 * st.pressed) * st.W.idle;
+  const spread = 1 + st.spreadAdd + (0.04 * st.perk - 0.06 * st.pressed) * st.blend.idle;
   const steps = Math.max(1, Math.ceil(dt * 240));
   const h = dt / steps;
   for (const b of st.bodies) {
     const want = pose(st.state, b.step, st.level, spread);
-    const tl = want.lift + (0.25 * st.perk - 0.4 * st.pressed) * st.W.idle;
+    const tl = want.lift + (0.25 * st.perk - 0.4 * st.pressed) * st.blend.idle;
     const w = FOLLOW[clamp(b.step, 0, 2)];
     for (let k = 0; k < steps && h > 0; k++) {
       b.vx += (w * w * (want.x - b.x) - 2 * Z_POS * w * b.vx) * h;
       b.x += b.vx * h;
       b.vy += (w * w * (want.y - b.y) - 2 * Z_POS * w * b.vy) * h;
       b.y += b.vy * h;
-      b.vsc += (SIZE.w * SIZE.w * (want.scale - b.sc) - 2 * SIZE.z * SIZE.w * b.vsc) * h;
-      b.sc += b.vsc * h;
+      b.vscale += (SIZE.w * SIZE.w * (want.scale - b.scale) - 2 * SIZE.z * SIZE.w * b.vscale) * h;
+      b.scale += b.vscale * h;
       b.vrot += (TURN.w * TURN.w * (want.rot - b.rot) - 2 * TURN.z * TURN.w * b.vrot) * h;
       b.rot += b.vrot * h;
-      b.vlf += (LIFT.w * LIFT.w * (tl - b.lf) - 2 * LIFT.z * LIFT.w * b.vlf) * h;
-      b.lf += b.vlf * h;
+      b.vlift += (LIFT.w * LIFT.w * (tl - b.lift) - 2 * LIFT.z * LIFT.w * b.vlift) * h;
+      b.lift += b.vlift * h;
     }
   }
 }
 
 // what never stops while it is awake: a breath of elevation, the voice, the glance
 function breathe(st: Core): void {
-  const { W, clock, light } = st;
-  const glance = (W.idle + 0.4 * W.listening + 0.2 * W.speaking) * (0.55 + 0.3 * st.g);
+  const { blend, clock, light } = st;
+  const glance = (blend.idle + 0.4 * blend.listening + 0.2 * blend.speaking) * (0.55 + 0.3 * st.sizeGain);
   for (const b of st.bodies) {
     const k = clamp(b.step, 0, 2);
     // the shadows rise and settle down the stack; the tiles themselves stay put
     const br = 0.5 + 0.5 * (0.65 * Math.sin(clock * 1.43 - k * 0.7) + 0.35 * Math.sin(clock * 0.83 + k * 1.1));
-    b.obreath += W.idle * st.awake * 0.16 * br;
+    b.obreath += blend.idle * st.awake * 0.16 * br;
     if (light) {
       // the standby light: every 6.5 s a little charge runs down the stack
       const p = (((clock / 6.5 - k * 0.1) % 1) + 1) % 1;
-      b.ch += W.idle * st.awake * 0.22 * (p < 0.34 ? Math.sin((Math.PI * p) / 0.34) ** 2 : 0);
+      b.ch += blend.idle * st.awake * 0.22 * (p < 0.34 ? Math.sin((Math.PI * p) / 0.34) ** 2 : 0);
     }
     const Ld = levelAt(st, clock - k * 0.085);
-    b.oy -= W.speaking * Ld * 0.1 * gain(st);
-    b.olift += W.speaking * Ld * 0.3;
-    if (light) b.ch += W.speaking * Ld * 0.3 + W.listening * st.level * (k === 1 ? 0.6 : 0.25);
+    b.oy -= blend.speaking * Ld * 0.1 * gain(st);
+    b.olift += blend.speaking * Ld * 0.3;
+    if (light) b.ch += blend.speaking * Ld * 0.3 + blend.listening * st.level * (k === 1 ? 0.6 : 0.25);
     const sway = 0.65 * Math.sin(clock * 1.6) + 0.35 * Math.sin(clock * 0.97 + 2);
-    b.ox += W.listening * (k - 1) * 0.02 * sway;
+    b.ox += blend.listening * (k - 1) * 0.02 * sway;
     // parallax: the top of the stack moves most toward where it looks
     b.ox += st.gaze[0] * [0.03, 0.05, 0.07][k] * glance;
     b.oy += st.gaze[1] * [0.025, 0.04, 0.055][k] * glance;
@@ -134,7 +134,12 @@ function breathe(st: Core): void {
 // the corners round while it listens, and the tiles may fuse while it listens, reads or answers
 function fuse(st: Core, dt: number): void {
   st.corner = ease(st.corner, st.state === "listening" ? 0.28 : CORNER, dt, 0.25);
-  st.liquid = ease(st.liquid, clamp(st.W.listening * 0.75 + st.W.thinking + st.W.speaking * 0.2, 0, 1), dt, 0.2);
+  st.liquid = ease(
+    st.liquid,
+    clamp(st.blend.listening * 0.75 + st.blend.thinking + st.blend.speaking * 0.2, 0, 1),
+    dt,
+    0.2,
+  );
 }
 
 // colour: its step, and whether it is at work. Addressed, it lights at once; done, it keeps its colour through
@@ -170,13 +175,13 @@ function output(st: Core, dt: number): void {
   for (const b of st.bodies) {
     const o = b.out;
     // the pose's elevation (what the draw order follows), and with the gestures on it
-    let held = b.lf;
-    let lift = Math.max(-0.5, b.lf + b.olift);
+    let held = b.lift;
+    let lift = Math.max(-0.5, b.lift + b.olift);
     let x = b.x + b.ox;
     let y = b.y + b.oy;
-    let size = b.sc + b.osc + 0.05 * Math.max(0, lift);
+    let size = b.scale + b.oscale + 0.05 * Math.max(0, lift);
     let shade = b.shade;
-    let charge = b.ch + b.ech;
+    let charge = b.ch + b.afterglow;
     if (orb > 0) {
       const [rx, ry, z] = ring(b.phase + st.orbPhase, st.clock);
       const near = RING_LIFT.far + RING_LIFT.near * z;
@@ -188,7 +193,7 @@ function output(st: Core, dt: number): void {
       shade += (1 + z - shade) * orb;
       charge += orb * (0.12 + 0.35 * Math.max(0, z));
     }
-    b.ech = ease(b.ech, 0, dt, 0.35);
+    b.afterglow = ease(b.afterglow, 0, dt, 0.35);
     if (dt > 0) {
       const f = 1 - Math.exp(-dt / 0.03);
       b.vox += ((x - b.pox) / dt - b.vox) * f;
@@ -213,7 +218,7 @@ function output(st: Core, dt: number): void {
 export function advance(st: Core, dtIn: number): Core {
   const dt = dtIn > 0 ? dtIn : 0;
   st.clock += dt;
-  for (const s of STATES) st.W[s] = ease(st.W[s], s === st.state ? 1 : 0, dt, 0.16);
+  for (const s of STATES) st.blend[s] = ease(st.blend[s], s === st.state ? 1 : 0, dt, 0.16);
   attention(st, dt);
   voice(st, dt);
   if (!st.calm) {
@@ -242,7 +247,7 @@ export function stillPose(st: Core): Core {
   st.liquid = 0;
   st.fidgetGaze = [0, 0];
   st.gaze[0] = st.gaze[1] = st.gazeV[0] = st.gazeV[1] = 0;
-  for (const s of STATES) st.W[s] = s === st.state ? 1 : 0;
+  for (const s of STATES) st.blend[s] = s === st.state ? 1 : 0;
   st.corner = st.state === "listening" ? 0.28 : CORNER;
   st.orb = st.state === "thinking" ? 1 : 0;
   st.bodies
@@ -250,19 +255,19 @@ export function stillPose(st: Core): Core {
     .sort((a, b) => a.step - b.step)
     .forEach((b, k) => {
       b.step = k;
-      b.ech = 0;
+      b.afterglow = 0;
       const want = pose(st.state, k, 0, 1);
       Object.assign(b, {
         x: want.x,
         y: want.y,
         vx: 0,
         vy: 0,
-        sc: want.scale,
-        vsc: 0,
+        scale: want.scale,
+        vscale: 0,
         rot: want.rot,
         vrot: 0,
-        lf: want.lift,
-        vlf: 0,
+        lift: want.lift,
+        vlift: 0,
         shade: k,
         live: st.state === "idle" ? 0 : 1,
       });

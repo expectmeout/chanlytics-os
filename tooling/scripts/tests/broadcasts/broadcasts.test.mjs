@@ -8,7 +8,7 @@
  * statuses. This file pins the rules by execution (contracts) and by source
  * (the door, the job, the routes, the page).
  */
-import { test, mock } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -407,10 +407,10 @@ test("the job's ports fail CLOSED: a read that did not happen never answers 'not
 
 test('the job carries WhatsApp\'s "not now" through: the person back in the queue, the next batch after the next wait with the count, the run still sending', async (t) => {
   const { BROADCAST_THROTTLE_WAITS_MS } = await import("@chanlytics/contracts");
-  // Midday in the workspace's zone (UTC, having none): the next wait falls inside the day's sending hours whenever
-  // the suite runs. Unpinned, a run after about 20:55 UTC stopped the broadcast instead, as it should at that hour.
-  mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-03-10T12:00:00Z") });
-  t.after(() => mock.timers.reset());
+  // The job reads the machine's clock, and a wait that would end outside the day's sending hours stops the run
+  // instead (core backOff): run at night, this would prove the stop, not the wait. A June weekday at 14:00 UTC is
+  // inside the hours by any clock the job may read, and the next wait stays inside them.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-06-10T14:00:00Z") });
   const w = world();
   // The person's thread, as the door reads it: the contact's answers and the workspace's status beside the row.
   w.conversations = [

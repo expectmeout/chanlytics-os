@@ -65,8 +65,8 @@ const useLeads = () => {
 const leadsViewAt = (leadsRoute) => {
   const leadView = window.__leadsRouteParse ? (window.__leadsRouteParse(leadsRoute || "clients/leads") || { searchId: null, list: "all", cls: null, chips: {}, peek: null }) : null;
   // The view's own route, with no lead open over it, and the lead the address names. The page stays mounted across
-  // its views (app-shell.jsx shellMountKey), so what belongs to a view follows `viewRoute`, never `leadsRoute`: a
-  // lead opened over a view is the same view, and must not read it again or drop what is selected in it.
+  // its views (its route row's `mount`, app-routes.jsx), so what belongs to a view follows `viewRoute`, never
+  // `leadsRoute`: a lead opened over a view is the same view, and must not read it again or drop what is selected.
   const viewRoute = leadView && window.__leadsRouteOf ? window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls }) : null;
   const addrPeek = (leadView && leadView.peek) || null;
   // The rail's row, as a name of its own: what a saved view carries and what a read is keyed by, and a name a
@@ -75,29 +75,41 @@ const leadsViewAt = (leadsRoute) => {
   return { leadView, viewRoute, addrPeek, leadList };
 };
 
-// The page's own state, every cell in the order the page has always made them.
+// The plan panel's state (Tasks 9, 10; spec F5): whether it is open and at which stage, the words, the card an answer
+// brought back (`proposal`), what was refused, the plan the card shows and the owner is editing, the trace line while
+// Claude reads, which of the sentence's words has its picker open (`pick`), and whose round a plan opened from a
+// strip's next step belongs to (`more`): `answer: true` answers the question that is still waiting, else it is another
+// round on the same search (Task 10 step 6). A plan opens one way, with everything the card shows at once and the last
+// card's refusal and picker gone, and the panel closes one way; between, the panel and the amend turn set a field at a
+// time. A move that changes nothing keeps the state, as a setter handed the value it holds did.
+const LEAD_FINDER_SHUT = { open: false, stage: "compose", words: "", proposal: null, refusal: null, plan: null, trace: null, pick: null, more: null };
+const leadFinderStep = (f, move) => {
+  const next = move.open
+    ? { ...f, ...move.open, open: true, refusal: null, pick: null }
+    : move.close
+      ? { ...f, open: false, more: null }
+      : { ...f, ...move.set };
+  return Object.keys(next).every((k) => Object.is(next[k], f[k])) ? f : next;
+};
+// The moves: open a plan (`{ stage, words, proposal, plan, more }`), close the panel, and set fields.
+const leadFinderMoves = (moveFinder) => ({
+  openFinder: (card) => moveFinder({ open: card }),
+  closeFinder: () => moveFinder({ close: true }),
+  setFinder: (fields) => moveFinder({ set: fields }),
+});
+
+// The page's own state.
 const useLeadsState = () => {
   // The phone's list picker: the rail, as a sheet.
   const [listsOpen, setListsOpen] = useState(false);
   const [peekId, setPeekId] = useState(null);
-  const [finderOpen, setFinderOpen] = useState(false);
-  const [finderStage, setFinderStage] = useState("compose");
-  const [finderWords, setFinderWords] = useState("");
-  const [finderProposal, setFinderProposal] = useState(null);
-  const [finderRefusal, setFinderRefusal] = useState(null);
+  // The plan panel, one state and three moves on it (leadFinderStep, above).
+  const [finder, moveFinder] = React.useReducer(leadFinderStep, LEAD_FINDER_SHUT);
   // The first day's "Not right? Change it" (Task 17): the line the owner is
   // rewriting, or null when the form is closed. Saving it keeps the line with
   // no items, so the read that follows asks Claude again -- which is the only
   // control that renews the suggestions, and why their age is never drawn.
   const [leadLine, setLeadLine] = useState(null);
-  // The plan the card is showing and the owner is editing, the trace line while Claude reads, and which of the
-  // sentence's words has its picker open (Task 9). A plan opened from a strip's next step carries whose round it
-  // belongs to and what approving it does -- `answer: true` answers the question that is still waiting, else it
-  // is another round on the same search (Task 10 step 6).
-  const [finderPlan, setFinderPlan] = useState(null);
-  const [finderTrace, setFinderTrace] = useState(null);
-  const [finderPick, setFinderPick] = useState(null);
-  const [finderMore, setFinderMore] = useState(null);
   // The five whys, asked once for a whole selection (Task 15).
   const [bulkWhy, setBulkWhy] = useState(false);
   // The peek's own pane ("info" while it is just showing the lead; "why" and "draft" are Tasks 15 and 13) and
@@ -125,9 +137,8 @@ const useLeadsState = () => {
   const [leadBusy, setLeadBusy] = useState(false);
   const [removeError, setRemoveError] = useState(null);
   return {
-    listsOpen, setListsOpen, peekId, setPeekId, finderOpen, setFinderOpen, finderStage, setFinderStage, finderWords, setFinderWords,
-    finderProposal, setFinderProposal, finderRefusal, setFinderRefusal, leadLine, setLeadLine, finderPlan, setFinderPlan, finderTrace,
-    setFinderTrace, finderPick, setFinderPick, finderMore, setFinderMore, bulkWhy, setBulkWhy, peekMode, setPeekMode, draft, setDraft,
+    listsOpen, setListsOpen, peekId, setPeekId, finder, ...leadFinderMoves(moveFinder), leadLine, setLeadLine, bulkWhy, setBulkWhy,
+    peekMode, setPeekMode, draft, setDraft,
     armed, setArmed, values, setValues, lightboxId, setLightboxId, fitChip, setFitChip, benchGroup, setBenchGroup, mapOpen, setMapOpen,
     mapPick, setMapPick, chip, setChip, renaming, setRenaming, removing, setRemoving, leadBusy, setLeadBusy, removeError, setRemoveError,
   };
@@ -334,19 +345,20 @@ const leadActs = ({ leads, leadView, leadBusy, setLeadBusy, plFlash, setSel, set
 };
 
 /* ---------------------------------------- the plan panel (Tasks 9, 10; spec F5) */
-const leadFinderActs = ({ leadView, nav, plFlash, finderMore, setFinderMore, finderProposal, setFinderOpen, setFinderStage, setFinderWords, setFinderTrace, setFinderRefusal, setFinderProposal, setFinderPlan, setFinderPick }) => {
-  // The setters leadAnswerPlan and leadFinderApprove take (leads-finder.jsx), and `more`, which says whose round
-  // an approval belongs to when the plan was opened from a strip, and whether it answers that round's question.
+const leadFinderActs = ({ leadView, nav, plFlash, finder, openFinder, setFinder }) => {
+  // The setters leadAnswerPlan and leadFinderApprove take (leads-finder.jsx), a field each, and `more`, which says
+  // whose round an approval belongs to when the plan was opened from a strip, and whether it answers its question.
+  const field = (key) => (value) => setFinder({ [key]: value });
   const finderSet = {
-    open: setFinderOpen, stage: setFinderStage, words: setFinderWords, trace: setFinderTrace,
-    refusal: setFinderRefusal, proposal: setFinderProposal, plan: setFinderPlan, pick: setFinderPick,
-    more: finderMore,
+    open: field("open"), stage: field("stage"), words: field("words"), trace: field("trace"),
+    refusal: field("refusal"), proposal: field("proposal"), plan: field("plan"), pick: field("pick"),
+    more: finder.more,
   };
   const finderAnswer = (words) => window.leadAnswerPlan(words, finderSet);
   const finderApprove = async (plan) => {
-    const answering = !!(finderMore && finderMore.answer);
-    const r = await window.leadFinderApprove(finderProposal, plan, finderSet);
-    if (r && r.ok) setFinderMore(null);
+    const answering = !!(finder.more && finder.more.answer);
+    const r = await window.leadFinderApprove(finder.proposal, plan, finderSet);
+    if (r && r.ok) setFinder({ more: null });
     if (r && r.ok && answering) plFlash({ msg: <>Carrying on with your change.</> });
     // A new search lands the owner on it: the strip narrating the run, the
     // classes filling, the address the search's own. Without this they stayed
@@ -380,20 +392,13 @@ const leadFinderActs = ({ leadView, nav, plFlash, finderMore, setFinderMore, fin
   const openPlanFor = (s, plan, how) => {
     // Answering, the answer row behind the card (Change what I asked) is the owner's answer: what they first asked
     // sent back as the answer amended nothing. Otherwise the words are what was asked, for Ask's field (onFinderBack).
-    setFinderWords(how === "answer" ? "" : s.asked);
-    setFinderProposal(null);
-    setFinderPlan(plan);
-    setFinderMore({ searchId: s.id, purpose: "topup", ...(how === "answer" ? answerOf(s) : { answer: false }) });
-    setFinderRefusal(null);
-    setFinderPick(null);
-    setFinderStage("plan");
-    setFinderOpen(true);
+    openFinder({ stage: "plan", words: how === "answer" ? "" : s.asked, proposal: null, plan, more: { searchId: s.id, purpose: "topup", ...(how === "answer" ? answerOf(s) : { answer: false }) } });
   };
   return { finderAnswer, finderApprove, answerOf, openFind, openPlanFor };
 };
 
 // A kept search's own acts, and the first day's line: each through its door, the toast saying what happened.
-const leadSearchActs = ({ leads, nav, plFlash, leadBusy, setLeadBusy, leadUndo, leadAct, searchById, setRenaming, setRemoving, setRemoveError, leadLine, setLeadLine, setFinderWords, setFinderMore, setFinderProposal, setFinderPlan, setFinderPick, setFinderRefusal, setFinderStage, setFinderOpen }) => {
+const leadSearchActs = ({ leads, nav, plFlash, leadBusy, setLeadBusy, leadUndo, leadAct, searchById, setRenaming, setRemoving, setRemoveError, leadLine, setLeadLine, openFinder }) => {
   // Undo removes the leads nobody has touched and gives their month back; the toast says both numbers and offers
   // the operation the door answered, which is the only thing an undo names (E9).
   const undoRound = async (searchId) => {
@@ -451,15 +456,8 @@ const leadSearchActs = ({ leads, nav, plFlash, leadBusy, setLeadBusy, leadUndo, 
   const searchAgain = (s) => {
     const dto = searchById(s.id);
     if (!dto) return;
-    setFinderWords(dto.asked);
-    setFinderMore(null);
-    setFinderProposal({ searchId: dto.id, plan: dto.plan, purpose: "renew" });
-    // The card draws the plan it is handed: without this it drew the last strip-born plan, or nothing at all.
-    setFinderPlan(dto.plan);
-    setFinderPick(null);
-    setFinderRefusal(null);
-    setFinderStage("plan");
-    setFinderOpen(true);
+    // The card draws the plan it is handed: without it the card drew the last strip-born plan, or nothing at all.
+    openFinder({ stage: "plan", words: dto.asked, proposal: { searchId: dto.id, plan: dto.plan, purpose: "renew" }, plan: dto.plan, more: null });
   };
   const searchWordsFor = (id) => (window.__leadSearchWords ? window.__leadSearchWords(searchById(id), leads.tz) : { askedLine: "", keepsLine: "" });
   const exportHrefFor = (s) => (window.__href ? window.__href("GET leads/export", undefined, { search: s.id, list: "all", sort: "fit", dir: "asc" }) : null);
@@ -506,7 +504,7 @@ const leadRailRoutes = ({ leadView, nav, searchById }) => {
 // What each strip control does (Task 10 step 6). Every act goes out through its route; the six that would
 // make a new round open the plan card instead, because nothing that counts against the month may start
 // without the owner approving what runs.
-const leadStripActs = ({ openSearch, leadAct, answerOf, openPlanFor, goto, undoRound, setSortBy, setSortDir, setFinderWords, setFinderProposal, setFinderPlan, setFinderRefusal, setFinderPick, setFinderMore, setFinderStage, setFinderOpen }) => {
+const leadStripActs = ({ openSearch, leadAct, answerOf, openPlanFor, goto, undoRound, setSortBy, setSortDir, openFinder }) => {
   // The strip's view model: contracts' where contracts has it (Task 10 step 7a puts `leadStrip` in the
   // derivations bag), and until then the page's own file, published beside the component that draws it.
   const ldStrip = (window.__LEAD_VM && window.__LEAD_VM.leadStrip) || window.leadStrip;
@@ -522,14 +520,7 @@ const leadStripActs = ({ openSearch, leadAct, answerOf, openPlanFor, goto, undoR
     // back from Ask is a card that amends this search, and approving it commits through Ask's door, which answers
     // the round; it never starts a second search.
     if (id === "change") {
-      setFinderWords("");
-      setFinderProposal(null);
-      setFinderPlan(null);
-      setFinderRefusal(null);
-      setFinderPick(null);
-      setFinderMore({ searchId: s.id, purpose: "topup", ...answerOf(s) });
-      setFinderStage("compose");
-      setFinderOpen(true);
+      openFinder({ stage: "compose", words: "", proposal: null, plan: null, more: { searchId: s.id, purpose: "topup", ...answerOf(s) } });
       return undefined;
     }
     // Include takes the thing it asked about back out of the plan, which planVersionOf makes a new version of:
@@ -563,7 +554,7 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   const controls = usePlControls({ scope: "leads", cols: LEAD_COLUMNS, phoneCols: LEAD_PHONE_COLUMNS, colCtx: { hasCenter }, people, sortFirst: { by: "fit", dir: "asc" }, railRow: leadList });
   const { phone, bulkSheet, setBulkSheet, canExport, plFlash, setSel, setAllMatching, sortBy, setSortBy, sortDir, setSortDir, columns, q } = controls;
   const st = useLeadsState();
-  const { listsOpen, peekId, setPeekId, finderOpen, setFinderOpen, setFinderMore, peekMode, setPeekMode, armed, setArmed, values, lightboxId, setLightboxId, chip, setChip, fitChip, setFitChip, setBenchGroup, mapOpen, setMapOpen, setMapPick, setBulkWhy } = st;
+  const { listsOpen, peekId, setPeekId, finder, closeFinder, peekMode, setPeekMode, armed, setArmed, values, lightboxId, setLightboxId, chip, setChip, fitChip, setFitChip, setBenchGroup, mapOpen, setMapOpen, setMapPick, setBulkWhy } = st;
   const { leadsMoreBusy, leadsMore } = useLeadsRead({ leadView, viewRoute, sortBy, sortDir, plFlash });
   const { leadShown, filtered, shownIds, viewLanded } = useLeadRows({ leads, q, chip, fitChip, leadView, viewRoute, sortBy, sortDir });
   // Each view keeps its place by the address's view (viewRoute), its map with it. A view opened after the first starts
@@ -580,10 +571,13 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   useLeadPeekAddress({ leadView, viewRoute, addrPeek, peekId, setPeekId, setCursor, setPeekMode, setArmed, setDraft: st.setDraft, nav });
   const acts = leadActs({ leads, leadView, plFlash, setSel, setAllMatching, ...st });
   const { canFind, callLead } = acts;
-  const finder = leadFinderActs({ leadView, nav, plFlash, ...st });
-  const { openFind } = finder;
+  const finderActs = leadFinderActs({ leadView, nav, plFlash, ...st });
+  const { openFind } = finderActs;
   const searches = leadSearchActs({ leads, nav, plFlash, ...acts, ...st });
 
+  // One press backs out one step: the question the peek asked, then the pane it opened, then the peek itself
+  // (leadPeekEscape, leads-peek.jsx, Task 12). Esc and the peek's own close.
+  const closePeek = () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId });
   // The Leads cells' doors (see cellCtxLeads below): the latest closures, behind one context that holds still.
   const leadCellActs = React.useRef({});
   const leadCellKept = React.useRef(null);
@@ -595,13 +589,11 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
     sheetOpen: listsOpen || (phone && !!bulkSheet),
     closeSheet: phone && bulkSheet ? () => setBulkSheet(null) : null,
     peekOpen: !!peekId || !!lightboxId,
-    // One press backs out one step: the question the peek asked, then the pane it opened, then the peek itself
-    // (leadPeekEscape, leads-peek.jsx, Task 12). The order OUT here is the page's: the peek, the plan panel, the
-    // Columns menu, the selection.
-    closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
-    finderOpen,
+    // The order OUT here is the page's: the peek, the plan panel, the Columns menu, the selection.
+    closePeek,
+    finderOpen: finder.open,
     // Esc lets an answer go as the close button does.
-    closeFinder: () => { setFinderOpen(false); setFinderMore(null); },
+    closeFinder,
     canFind,
     find: openFind,
     call: callLead,
@@ -621,8 +613,8 @@ const LeadsReal = ({ onOpenProfile = () => {}, leadsRoute = null, onNavigate = n
   const stageShown = columns.some((c) => c.key === "stage");
   const cellCtxLeads = leadCellCtxFor(leadCellActs, leadCellKept, values, !!(band && band.mixed), hasCenter, canFind, people.rows, stageShown);
   const routes = leadRailRoutes({ leadView, nav, searchById: acts.searchById });
-  const strip = leadStripActs({ openSearch, ...acts, ...finder, ...searches, ...routes, setSortBy, setSortDir, ...st });
-  const p = { ...controls, ...st, ...acts, ...finder, ...searches, ...routes, ...strip, people, leads, nav, onOpenProfile, leadView, leadShown, filtered, shownIds, viewLanded, cursor, setCursor, rowBudget, toggleAll, deckMove, leadsMore, leadsMoreBusy, rail, standing, openSearch, band, cellCtxLeads };
+  const strip = leadStripActs({ openSearch, ...acts, ...finderActs, ...searches, ...routes, setSortBy, setSortDir, ...st });
+  const p = { ...controls, ...st, ...acts, ...finderActs, ...searches, ...routes, ...strip, people, leads, nav, onOpenProfile, leadView, leadShown, filtered, shownIds, viewLanded, cursor, setCursor, rowBudget, toggleAll, deckMove, closePeek, leadsMore, leadsMoreBusy, rail, standing, openSearch, band, cellCtxLeads };
   return <LeadsScope {...leadsListProps(p)} {...leadsBandProps(p)} {...leadsBulkProps(p)} {...leadsPeekProps(p)} {...leadsFootProps(p)} />;
 };
 
@@ -728,24 +720,25 @@ const leadsBulkProps = (p) => {
 
 // A kept search's acts, the plan panel, and the peek.
 const leadsPeekProps = (p) => {
-  const { renaming, setRenaming, renameSearch, removing, setRemoveError, setRemoving, undoRound, removeSearch, leadBusy, removeError, findNewOnes, searchAgain, openFind, finderOpen, finderStage, finderWords, finderProposal, finderRefusal, finderPlan, finderTrace, finderPick, setFinderWords, finderAnswer, finderApprove, setFinderPlan, setFinderPick, finderMore, setFinderStage, setFinderOpen, setFinderMore, peekId, shownIds, deckMove, peekMode, setPeekMode, armed, setArmed, draft, setDraft, phone, leadShown, sel, toggleSel, setPeekId, onOpenProfile, plFlash, lightboxId, setLightboxId, callLead, keepLead, excludeLead, putBackLead, copyLead, copyPhone, logLeadCall } = p;
+  const { renaming, setRenaming, renameSearch, removing, setRemoveError, setRemoving, undoRound, removeSearch, leadBusy, removeError, findNewOnes, searchAgain, openFind, finder, setFinder, closeFinder, finderAnswer, finderApprove, peekId, shownIds, deckMove, closePeek, peekMode, setPeekMode, armed, setArmed, draft, setDraft, phone, leadShown, sel, toggleSel, setPeekId, onOpenProfile, plFlash, lightboxId, setLightboxId, callLead, keepLead, excludeLead, putBackLead, copyLead, copyPhone, logLeadCall } = p;
   return {
     renaming, onRename: setRenaming, onRenameSave: renameSearch, onRenameCancel: () => setRenaming(null),
     removing, onRemoveAsk: (s) => { setRemoveError(null); setRemoving(s); }, onUndo: (s) => undoRound(s.id), onRemoveYes: removeSearch,
     onRemoveNo: () => { setRemoving(null); setRemoveError(null); }, removeBusy: leadBusy, removeError,
     onFindNewOnes: findNewOnes, onSearchAgain: searchAgain, onFind: openFind,
-    finderOpen, finderStage, finderWords, finderProposal, finderRefusal, finderBusy: leadBusy, finderPlan, finderTrace, finderPick,
-    onFinderWords: setFinderWords, onFinderAnswer: finderAnswer, onFinderApprove: finderApprove, onFinderChangePlan: setFinderPlan, onFinderPick: setFinderPick,
+    finderOpen: finder.open, finderStage: finder.stage, finderWords: finder.words, finderProposal: finder.proposal, finderRefusal: finder.refusal,
+    finderBusy: leadBusy, finderPlan: finder.plan, finderTrace: finder.trace, finderPick: finder.pick,
+    onFinderWords: (words) => setFinder({ words }), onFinderAnswer: finderAnswer, onFinderApprove: finderApprove,
+    onFinderChangePlan: (plan) => setFinder({ plan }), onFinderPick: (pick) => setFinder({ pick }),
     // Change what I asked: under a question it is the answer row; on a plan born from the strip it is Ask, with
     // what the search asked for in the field (the panel composes nothing, spec F5).
     onFinderBack: () => {
-      if (finderMore && finderMore.answer) { setFinderStage("compose"); return; }
-      setFinderOpen(false);
-      setFinderMore(null);
-      openFind(finderWords);
+      if (finder.more && finder.more.answer) { setFinder({ stage: "compose" }); return; }
+      closeFinder();
+      openFind(finder.words);
     },
-    onCloseFinder: () => { setFinderOpen(false); setFinderMore(null); },
-    finderAnswering: finderMore && finderMore.answer ? finderMore : null,
+    onCloseFinder: closeFinder,
+    finderAnswering: finder.more && finder.more.answer ? finder.more : null,
     peek: peekId && window.__leadPeekVM ? window.__leadPeekVM(peekId) : null,
     // Where this lead sits in the pile, and the two ways through it (D5). Moving the deck moves the page's own
     // cursor as J and K do, so the rows behind the peek move with it.
@@ -756,7 +749,7 @@ const leadsPeekProps = (p) => {
     // On a phone, while anyone is selected a tap on a row selects it, as on People (the face is the checkbox).
     onPeek: phone && leadShown.some((l) => sel.has(l.id)) ? toggleSel : setPeekId,
     onPeekId: setPeekId, onOpenPerson: onOpenProfile, flash: plFlash,
-    onClosePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
+    onClosePeek: closePeek,
     onExpandPhoto: setLightboxId,
     lightbox: lightboxId && window.__leadPeekVM ? window.__leadPeekVM(lightboxId) : null,
     onCloseLightbox: () => setLightboxId(null),
