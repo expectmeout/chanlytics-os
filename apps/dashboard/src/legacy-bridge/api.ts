@@ -9,7 +9,7 @@ import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../
 import { clearReadCaches, staleReadCaches } from "./read-cache";
 import { clearSurfaceCache } from "./surface-cache";
 import { getActiveWorkspace, rememberWorkspace, signInHref } from "./workspace";
-import { PREFETCH_SLOT } from "@chanlytics/contracts";
+import { PREFETCH_SLOT, SECOND_FACTOR_REQUIRED_PATH } from "@chanlytics/contracts";
 
 let instance: Api | null = null;
 
@@ -36,6 +36,17 @@ function forgetWorkspaceAndReboot(win: Window): void {
     // storage blocked: nothing to remember with, and nothing to loop on either
   }
   win.location.assign("/");
+}
+
+/**
+ * A partner's seat, or the partner account, asked for the second factor this session has not shown (0013). The rows
+ * read so far are dropped, as at a sign-out, and the tab goes to the second step, which asks for the code or, for an
+ * account without an authenticator, sets one up; it comes back in from there.
+ */
+function toSecondFactor(win: Window): void {
+  clearSurfaceCache();
+  clearReadCaches();
+  win.location.assign(SECOND_FACTOR_REQUIRED_PATH);
 }
 
 /**
@@ -77,6 +88,7 @@ export function apiFor(win: Window): Api {
       win.location.assign(signInHref(win.location.hash));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(win),
+    onSecondFactor: () => toSecondFactor(win),
     // A write landed, so every on-demand answer this tab is holding -- a
     // person's page, the activity log, the back office -- describes the world
     // as it was. The surfaces have their own path through the refresh map;
@@ -105,6 +117,7 @@ export function api(): Api {
       window.location.assign(signInHref(window.location.hash));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(window),
+    onSecondFactor: () => toSecondFactor(window),
     // A write landed, so every on-demand answer this tab is holding -- a
     // person's page, the activity log, the back office -- describes the world
     // as it was. The surfaces have their own path through the refresh map;
