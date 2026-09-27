@@ -85,6 +85,19 @@ export function domainDailyCap(sentDays: number): number {
   return cap;
 }
 
+/**
+ * Whether a reach-out's step sends from this domain (00183): one the step names, or any of the workspace's when it
+ * names none, that is verified and has a clean clock for its ramp to count from (without one its share is 0). The one
+ * reading the run's timetable, its re-plan and the chain's row on Playbooks share, so the row never names a domain the
+ * run would not send from.
+ */
+export function reachOutSendsFrom(
+  d: { id: string; state: string; clean_since: string | null },
+  named: readonly string[],
+): boolean {
+  return d.state === "verified" && !!d.clean_since && (named.length === 0 || named.includes(d.id));
+}
+
 export function normalizeHost(typed: string): string {
   return typed.trim().toLowerCase().replace(/\.$/, "");
 }

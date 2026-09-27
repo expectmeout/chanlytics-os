@@ -2555,6 +2555,15 @@ button.pb-tile-next:focus-visible { outline: none; box-shadow: var(--focus-ring)
 /* Open, the detail sits under the row's words: the message beside its sentence, its runs, its verbs. */
 .pb-row-open { padding: 2px 14px 16px 50px; }
 .pb-row-open .ob-card-detail { display: flex; flex-direction: column; gap: var(--space-3); container-type: inline-size; }
+/* A reach-out's chain as one row (Reach out Part 4 PR 8): its steps in a line, their counts in a quiet table. */
+.ro-open { display: flex; flex-direction: column; gap: var(--space-3); }
+.ro-chain { margin: 0; color: var(--ink); }
+.ro-chain-gap, .ro-chain-stops { color: var(--ink-muted); }
+.ro-steps { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ro-steps th, .ro-steps td { padding: 6px 10px 6px 0; text-align: left; border-bottom: 1px solid var(--line); font-weight: 400; }
+.ro-steps thead th { color: var(--ink-muted); font-size: var(--text-xs); }
+.ro-history { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.ro-acts { display: flex; align-items: center; gap: var(--space-3); }
 .ob-head-bare { justify-content: flex-start; }
 /* The moments nothing is doing yet: two lines each -- the moment, what starts it and who it would reach today --
    and Set up. What each is for is its hover. */
@@ -3229,6 +3238,11 @@ html.legacy-on .msg-use-link { position: relative; }
 .msg-new-sent .icon { color: var(--ok-ink); }
 /* The message itself, under the row it belongs to and in line with its words. */
 .msg-row-open { padding: 0 14px 14px 54px; display: flex; flex-direction: column; gap: 10px; }
+/* A reach-out's email (Part 4 PR 8): its words with their slots as quiet chips, read-only. */
+.em-words { display: flex; flex-direction: column; gap: 6px; }
+.em-subject { margin: 0; font-weight: 600; }
+.em-body { margin: 0; white-space: pre-wrap; }
+.em-slot { vertical-align: baseline; }
 .msg-row-open .mp-frame { max-width: none; }
 .msg-row-open .mp-bubble { max-width: 300px; }
 .msg-card-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-dim); margin-top: auto; }

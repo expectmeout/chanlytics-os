@@ -14,6 +14,7 @@ import {
   isReachOutRun,
   localDate,
   parseTenantConfig,
+  reachOutSendsFrom,
   reachOutSlots,
   validateReachOutChain,
   type ReachOutChainDto,
@@ -99,14 +100,19 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
   if (roots.length === 0) return [];
   const templateIds = steps.map((s) => s.template_id).filter((x): x is string => !!x);
   const searchIds = roots.map((r) => r.lead_search_id).filter((x): x is string => !!x);
-  const [words, names, waiting, mode, spend] = await Promise.all([
+  const [words, names, waiting, domains, mode, spend] = await Promise.all([
     emailWordsByTemplate(sb, tenantId, templateIds),
     searchNamesByIds(sb, tenantId, searchIds),
     runsWaitingOf(sb, tenantId),
+    sendingDomainsOf(sb, tenantId),
     // The step's run's own readings (packages/db): its outreach mode, and whether the workspace may spend.
     outreachModeOf(sb, tenantId),
     workspaceMaySpend(sb, tenantId),
   ]);
+  // The domains the chain's run sends from, by the run's own rule (contracts reachOutSendsFrom): its named ones, or every
+  // one when it names none, verified and clean. A held or unverified domain it names is not its pace.
+  const domainsOf = (ids: string[]) =>
+    domains.filter((d) => reachOutSendsFrom(d, ids)).map((d) => ({ host: d.host, sent_days: d.sent_days ?? 0 }));
   const waitingOf = new Map<string, string>();
   for (const w of waiting)
     if (isReachOutRun(w.audience)) waitingOf.set(String((w.audience as { root_id?: unknown }).root_id), w.id);
@@ -135,6 +141,7 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
       domain_ids: root.domain_ids ?? [],
       signed_by: root.signed_by,
       steps: stepDtos,
+      domains: domainsOf(root.domain_ids ?? []),
       next: {
         run_hour: root.run_hour,
         last_run_for: root.last_run_for,

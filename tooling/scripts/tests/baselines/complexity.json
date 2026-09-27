@@ -720,13 +720,13 @@
     "depth": 5
   },
   "apps/dashboard/src/legacy/pages/messages.jsx::MessagesReal#1": {
-    "lines": 274,
-    "branches": 90,
+    "lines": 251,
+    "branches": 82,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/outbound.jsx::PlaybooksReal#1": {
-    "lines": 207,
-    "branches": 54,
+    "lines": 180,
+    "branches": 51,
     "depth": 2
   },
   "apps/dashboard/src/legacy/pages/people-import.jsx::PeopleImportSheet#1": {

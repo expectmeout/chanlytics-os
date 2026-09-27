@@ -77,6 +77,20 @@ export function replaceSlots(text: string, fill: (key: string) => string | null)
   return text.replace(SLOT, (whole, name: string) => fill(slotKey(name)) ?? whole);
 }
 
+/** The words as runs of text and slots, in order, for a page that draws each slot as a chip (the one slot rule). */
+export function slotParts(text: string): Array<{ text: string; slot: boolean }> {
+  const out: Array<{ text: string; slot: boolean }> = [];
+  let at = 0;
+  for (const m of text.matchAll(SLOT)) {
+    const i = m.index ?? 0;
+    if (i > at) out.push({ text: text.slice(at, i), slot: false });
+    out.push({ text: slotKey(m[1] ?? ""), slot: true });
+    at = i + m[0].length;
+  }
+  if (at < text.length) out.push({ text: text.slice(at), slot: false });
+  return out;
+}
+
 /** How many times the words name one slot. */
 export function slotCount(text: string, slot: ReachOutSlot): number {
   let n = 0;
