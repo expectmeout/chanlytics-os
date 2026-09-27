@@ -773,6 +773,8 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
   const answers = {
     ...ANSWERS,
     [`POST /api/v1/contacts/${P1}/notes`]: { note: { id: "n1" } },
+    [`POST /api/v1/contacts/${P1}/notes/remove`]: { removed: "n1" },
+    [`PUT /api/v1/contacts/${P1}/details`]: { contact_id: P1, email: "rosa@example.com" },
     "POST /api/v1/lead-searches": { search_id: S1, round_id: "r1" },
     [`POST /api/v1/lead-searches/${S1}/stop`]: { ok: true },
     [`POST /api/v1/lead-searches/${S1}/answer`]: { round_id: "r2", answered: "include" },
@@ -795,6 +797,8 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
     card("deal", { contact_id: P1, stage: "won", who: "Maria" }, { step: { body: "Call", due_on: "2026-09-18" } }),
     card("lead_search", { plan }),
     card("lead_search", { plan, amends: { search_id: S1, name: "Dentists" } }),
+    card("note", { contact_id: P1, body: "Prefers mornings.", team_only: false, who: "Rosa" }),
+    card("person_details", { contact_id: P1, email: "rosa@example.com", who: "Rosa", previous: { email: null } }),
   ];
   const undone = [];
   for (const p of cards) {
@@ -836,6 +840,8 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
     "broadcast",
     "playbook",
     "lead_search",
+    "note",
+    "person_details",
   ]);
 });
 

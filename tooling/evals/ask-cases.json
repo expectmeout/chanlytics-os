@@ -185,7 +185,7 @@
     }
   },
   {
-    "id": "propose_note",
+    "id": "propose_business_fact",
     "text": "remember that parking is behind the building and the receptionist should say so when people ask where to park",
     "surface": "today",
     "expect": {
@@ -445,6 +445,54 @@
       "on_page": true,
       "names_focus": true,
       "tools_any": ["people.get", "people.search", "inbox.list", "calls.list"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "person_note_team",
+    "text": "put a note on this person that they prefer mornings, just for the team",
+    "surface": "people",
+    "context": {
+      "surface": "people",
+      "route": "clients/<row:1>",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "tools_any": ["propose_person.note"],
+      "proposals_any": ["note"],
+      "card_fields": { "note": { "team_only": true } },
+      "no_write": true
+    }
+  },
+  {
+    "id": "person_note_receptionist",
+    "text": "note on this person that they only come in on weekends, so the receptionist offers weekend times when it answers them",
+    "surface": "people",
+    "context": {
+      "surface": "people",
+      "route": "clients/<row:1>",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "tools_any": ["propose_person.note"],
+      "proposals_any": ["note"],
+      "card_fields": { "note": { "team_only": false } },
+      "no_write": true
+    }
+  },
+  {
+    "id": "person_details_email",
+    "text": "they told us their email is jordan.reyes@example.com, put it on their profile",
+    "surface": "people",
+    "context": {
+      "surface": "people",
+      "route": "clients/<row:1>",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "tools_any": ["propose_person.details"],
+      "proposals_any": ["person_details"],
+      "card_fields": { "person_details": { "email": "jordan.reyes@example.com" } },
       "no_write": true
     }
   },
