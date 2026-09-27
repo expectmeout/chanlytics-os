@@ -999,7 +999,7 @@ test("an answer never carries tags: the leak seen on production is cut", () => {
   // fourteen reads run against the database in memory" (each row's `recent`).
 });
 
-test("the eval checks that an Open asked for is followed, and what the words decided on a card: a note's reader, which has no default, and the address a details card sets (card_fields, PR 4.6)", async () => {
+test("the eval checks that an Open asked for is followed, and what the words decided on a card: a note's reader, which has no default, the address a details card sets (card_fields, PR 4.6), a run's verb, which has none either, and a list's rule and what it left out (card_fields and list_card, PR 4.7)", async () => {
   // Open/show/see goes there as the answer lands, and what an answer shows is the contract's: both executed in
   // ask-palette.test.mjs ("open, show or see", "a turn since the Line"); where the browser cannot listen, the field's
   // one button is Send alone, executed there too ("one button at the field's end").
@@ -1007,6 +1007,8 @@ test("the eval checks that an Open asked for is followed, and what the words dec
   assert.ok(judge.includes("e.navigate_now"));
   assert.ok(judge.includes("Object.entries(e.card_fields ?? {})"), "every kind a case names");
   assert.ok(judge.includes("p.payload?.[k] !== v"), "each field of each card of that kind, compared");
+  assert.ok(judge.includes('if (!rule.includes(`"field":"${f}"`))'), "each field a list card's rule must name");
+  assert.ok(judge.includes("!!p.payload?.cannot !== e.list_card.cannot"), "and what it left out, kept or not");
   const { readFile } = await import("node:fs/promises");
   const cases = JSON.parse(await readFile(path.join(here, "../../../evals/ask-cases.json"), "utf8"));
   assert.deepEqual(
@@ -1015,6 +1017,15 @@ test("the eval checks that an Open asked for is followed, and what the words dec
       person_note_team: { note: { team_only: true } },
       person_note_receptionist: { note: { team_only: false } },
       person_details_email: { person_details: { email: "jordan.reyes@example.com" } },
+      run_approve: { run: { verb: "approve" } },
+      run_skip: { run: { verb: "skip" } },
+    },
+  );
+  assert.deepEqual(
+    Object.fromEntries(cases.filter((c) => c.expect?.list_card).map((c) => [c.id, c.expect.list_card])),
+    {
+      list_lapsed: { fields: ["last_visit"] },
+      list_left_out: { fields: ["last_heard"], cannot: true },
     },
   );
 });
