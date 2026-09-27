@@ -37,6 +37,8 @@ interface FB {
 
 const SDK_SRC = "https://connect.facebook.net/en_US/sdk.js";
 const META_ORIGINS = new Set(["https://www.facebook.com", "https://web.facebook.com"]);
+/** How long a message from the popup may trail its callback and still be heard. */
+const LATE_MESSAGE_MS = 300;
 
 /** Load Meta's SDK once; resolve with the global it defines. */
 export function loadSdk(win: Window, appId: string, version: string): Promise<FB> {
@@ -130,7 +132,7 @@ export function installWhatsAppConnect(win: Window = window): void {
       });
     });
     // A late message can follow the callback by a tick.
-    await new Promise((r) => win.setTimeout(r, 300));
+    await new Promise((r) => win.setTimeout(r, LATE_MESSAGE_MS));
     win.removeEventListener("message", onMessage);
     if (!code || cancelled)
       return {

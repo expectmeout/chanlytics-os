@@ -14,6 +14,7 @@ import { logger, errField } from "../log.js";
 import { phoneTail } from "../packages/contracts.js";
 
 type Db = SupabaseClient<Database>;
+const SUBACCOUNT_READ_TIMEOUT_MS = 15000;
 export type SmsLine = Pick<
   Database["public"]["Tables"]["lines"]["Row"],
   "id" | "tenant_id" | "e164" | "provider" | "subaccount_sid" | "messaging_service_sid" | "sms_state" | "voice_state"
@@ -86,7 +87,7 @@ export async function refreshLineToken(
   const master = choice.master;
   const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${line.subaccount_sid}.json`, {
     headers: { Authorization: `Basic ${Buffer.from(`${master.sid}:${master.token}`).toString("base64")}` },
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(SUBACCOUNT_READ_TIMEOUT_MS),
   }).catch(() => null);
   if (!r || !r.ok) {
     // The MASTER credentials are wrong, which is a different and worse fault:

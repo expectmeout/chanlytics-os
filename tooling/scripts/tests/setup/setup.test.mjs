@@ -988,7 +988,7 @@ test("wiring: manifest, bridge, routes, rate bucket, event kind, migration", () 
   );
   assert.ok(
     readCode("apps/dashboard/src/server/rate-limit.ts").includes(
-      'setup_request: { limit: 5, windowMs: 3_600_000, noun: "setup requests" },',
+      'setup_request: { limit: 5, windowMs: HOUR_MS, noun: "setup requests" },',
     ),
   );
   assert.ok(EVENT_KINDS.includes("setup.requested"));

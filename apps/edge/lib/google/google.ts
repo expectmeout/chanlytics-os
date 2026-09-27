@@ -44,6 +44,8 @@ import {
   type GoogleAudience,
   type ReviewReplyFacts,
   type ReviewReplyMode,
+  MIN_MS,
+  HOUR_MS,
 } from "../packages/contracts.js";
 import { draftReviewReply } from "./review-reply.js";
 import { siteBookingPage } from "./booking-page.js";
@@ -58,7 +60,7 @@ type Db = SupabaseClient<Database>;
 
 const BUSINESS_SCOPE = "https://www.googleapis.com/auth/business.manage";
 /** An access token is refreshed this long before it expires. */
-const TOKEN_SLACK_MS = 60_000;
+const TOKEN_SLACK_MS = MIN_MS;
 
 export function placesKey(): string | null {
   return env.GOOGLE_PLACES_API_KEY || null;
@@ -391,7 +393,7 @@ export async function checkListing(
 }
 
 /** How long a listing or a profile rests between reads: once a day, with room for the sweep's own drift. */
-const CHECK_EVERY_MS = 20 * 3600 * 1000;
+const CHECK_EVERY_MS = 20 * HOUR_MS;
 
 /** The listings the sweep reads this tick: never read first, then the oldest. */
 export async function listingsDue(db: Db, now: Date, limit: number): Promise<ListingRow[]> {

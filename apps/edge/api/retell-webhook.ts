@@ -59,7 +59,7 @@ import { tellPhonesCallStarted } from "../lib/voice/call-activity.js";
 import { apns, apnsKeys } from "../lib/ops/apns.js";
 import { erasedBeforeCall } from "../lib/erased.js";
 import { upsertEscalation } from "../lib/packages/jobs.js";
-import { frameGuardrail, offersBookingLink } from "../lib/packages/contracts.js";
+import { frameGuardrail, offersBookingLink, MIN_MS, HOUR_MS } from "../lib/packages/contracts.js";
 import type { ChannelLookup, RoutedChannel } from "../lib/packages/db.js";
 import { env } from "../lib/env.js";
 import { retellSigned } from "../lib/voice/voice-door-auth.js";
@@ -90,7 +90,7 @@ const corrected = new Set<string>();
  * the readback /api/diag offers for "is the signature working"; the throttle is
  * because the door is public and the insert is now awaited.
  */
-const REFUSED_AUTH_ROW_MS = 60_000;
+const REFUSED_AUTH_ROW_MS = MIN_MS;
 let lastRefusedAuthRow = 0;
 /** A long-lived instance must not accumulate call ids for ever. */
 const CORRECTED_MAX = 500;
@@ -400,7 +400,7 @@ async function handToPerson(db: Db, routed: RoutedChannel, s: Extract<CallStep, 
     db,
     routed.tenantId,
     s.conversationId,
-    new Date(Date.now() + pauseHours * 3_600_000).toISOString(),
+    new Date(Date.now() + pauseHours * HOUR_MS).toISOString(),
   );
   const opened = await upsertEscalation(db, routed.tenantId, s.conversationId, "callback", s.details);
   L.info("call_callback_needed", { tenant: routed.tenantId, call: s.callId, escalation: opened });

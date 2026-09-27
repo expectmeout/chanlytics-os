@@ -343,22 +343,19 @@ test("the prompt on Leads: the page is named and words that describe businesses 
     turnWords({ ...facts, surface: "pipeline" }).includes("They are on the pipeline page."),
     "a new surface, named",
   );
-  // A row a page opens that no tool reads by its id (a lead, a run) is never one the model is sent to read.
+  // Every row a scope names has a read by its id since PR 4.3 (a lead, a search and a run among them): one whose read did
+  // not ride in is one the model reads, and none is said to be unreadable.
   const on = (kind) => turnWords({ ...facts, surface: "leads", scope: { kind, id: "x1", label: `this ${kind}` } });
-  for (const kind of ["lead", "run"]) {
-    assert.ok(on(kind).includes("No tool reads it by its id yet"), kind);
-    assert.ok(!on(kind).includes("Read it before answering about it."), kind);
-  }
-  for (const kind of ["thread", "call", "person"])
+  for (const kind of ["thread", "call", "person", "lead", "search", "run"]) {
     assert.ok(on(kind).includes("Read it before answering about it."), kind);
+    assert.ok(!on(kind).includes("No tool reads it by its id yet"), kind);
+  }
   // A row read for the question is said as given, never as one still to read; the page is not claimed with it.
-  const given = turnWords({ ...facts, scope: { kind: "call", id: "x1", label: "this call" }, scopeRead: true });
-  assert.ok(given.includes("It was read for this question and is in the search results"), given);
-  assert.ok(!given.includes("Read it before answering about it.") && !given.includes("page://"), given);
-  assert.ok(
-    on("search").includes("Read leads with action searches, which lists it by that id"),
-    "a search is found in its list",
-  );
+  for (const kind of ["call", "lead", "search", "run"]) {
+    const given = turnWords({ ...facts, scope: { kind, id: "x1", label: `this ${kind}` }, scopeRead: true });
+    assert.ok(given.includes("It was read for this question and is in the search results"), given);
+    assert.ok(!given.includes("Read it before answering about it.") && !given.includes("page://"), given);
+  }
 });
 
 test("the three quick questions are told by their words; the answers are ask-answer.ts's (ask-answer.test.mjs)", () => {
@@ -650,13 +647,13 @@ test("the loop and its reads: several at once, the stable block cached, through 
     [
       ["calendar", ["week", "openings"]],
       ["calls", ["list", "get"]],
-      ["campaigns", ["audiences", "playbooks"]],
+      ["campaigns", ["audiences", "playbooks", "broadcasts", "broadcast"]],
       ["inbox", ["list", "thread"]],
-      ["leads", ["searches"]],
-      ["people", ["search", "get"]],
+      ["leads", ["searches", "leads", "lead", "search"]],
+      ["people", ["search", "get", "lists", "pipeline"]],
       ["report", []],
       ["today", []],
-      ["workspace", ["settings"]],
+      ["workspace", ["settings", "connections", "notifications", "activity"]],
     ],
   );
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");

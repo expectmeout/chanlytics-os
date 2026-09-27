@@ -23,6 +23,7 @@ import {
   type BillingStatus,
   type SchemaSet,
   type SubscriptionFacts,
+  MIN_MS,
 } from "./packages/contracts.js";
 import { recordNotification } from "./ops/notify.js";
 import { logger, errField } from "./log.js";
@@ -56,13 +57,15 @@ let injected: Stripe | null = null;
 export function setStripeClient(c: Stripe | null): void {
   injected = c;
 }
+/** How long one call through the shared Stripe client may take. */
+const STRIPE_TIMEOUT_MS = 20_000;
 export function stripe(): Stripe | null {
   if (injected) return injected;
   const key = env.STRIPE_SECRET_KEY;
   if (!key) return null;
   // Built on first use, not at import: the webhook and the ops share it, and
   // a deployment without a key must still answer "not ready".
-  client ??= new Stripe(key, { timeout: 20_000, maxNetworkRetries: 1 });
+  client ??= new Stripe(key, { timeout: STRIPE_TIMEOUT_MS, maxNetworkRetries: 1 });
   return client;
 }
 
@@ -115,7 +118,7 @@ async function accountOf(db: Db, tenantId: string): Promise<BillingRow | null> {
 
 /** The plan as Stripe states it, cached a few minutes per instance: the amount is never a literal here. */
 let priceCache: { at: number; value: BillingPriceDto | null } | null = null;
-const PRICE_TTL_MS = 5 * 60_000;
+const PRICE_TTL_MS = 5 * MIN_MS;
 function cachedPrice(): BillingPriceDto | null | undefined {
   return priceCache && Date.now() - priceCache.at < PRICE_TTL_MS ? priceCache.value : undefined;
 }
@@ -523,7 +526,7 @@ export async function forgetCustomer(db: Db, row: BillingRow): Promise<void> {
  * over: longer than the door's whole budget (vercel.json gives it thirty
  * seconds), so only a delivery that is gone ever loses one.
  */
-export const BILLING_EVENT_LEASE_MS = 2 * 60_000;
+export const BILLING_EVENT_LEASE_MS = 2 * MIN_MS;
 /**
  * A webhook read of Stripe's own budget: a timeout inside the door's thirty
  * seconds, and no retry of the SDK's own -- the door's 503 is the retry. The

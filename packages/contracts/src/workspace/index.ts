@@ -45,7 +45,14 @@ export {
   RECORDING_RETENTION_DAYS,
   RECORDING_PURGED_WORDS,
 } from "./retention";
-export { activityWords, activityTone, isActivityNoise, ACTIVITY_NOISE_PREFIXES, ACTIVITY_KINDS } from "./activity";
+export {
+  activityWords,
+  activityTone,
+  isActivityMoney,
+  isActivityNoise,
+  ACTIVITY_NOISE_PREFIXES,
+  ACTIVITY_KINDS,
+} from "./activity";
 export type { ActivityRowDto, ActivityPageDto, ActivityVerb } from "./activity";
 export {
   signupPosture,
@@ -191,12 +198,16 @@ export {
 export type { HandoverState, OpenHandoverDto, PartnerHandoverDto, PartnerHandoverVM } from "./handover";
 export {
   PartnerSecondFactorResetSchema,
+  SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
+  SECOND_FACTOR_REQUIRED_PATH,
   SECOND_FACTOR_WORDS,
   cleanFactorCode,
   enrolRefusalWords,
   factorCodeWords,
   factorStepNeeded,
+  seatNeedsSecondFactor,
   secondFactorResetWords,
+  secondFactorShown,
 } from "./second-factor";
 export type { AssuranceLevels } from "./second-factor";

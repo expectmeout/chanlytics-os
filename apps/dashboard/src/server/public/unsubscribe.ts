@@ -17,7 +17,13 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient, type Database } from "@chanlytics/db";
 import { addressOf, verifyUnsubscribeToken } from "@chanlytics/channels";
-import { escapeHtml, UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, type UnsubscribeView } from "@chanlytics/contracts";
+import {
+  escapeHtml,
+  UNSUBSCRIBE_PAGE_HEADER,
+  unsubscribePageWords,
+  type UnsubscribeView,
+  MIN_MS,
+} from "@chanlytics/contracts";
 
 /** The largest body a one click or the page's button sends. Anything larger is not one. */
 const MAX_BODY_BYTES = 4096;
@@ -48,7 +54,7 @@ function secrets(): string[] | null {
 }
 
 /** How often at most the door says each thing: a scanner fetching every link must not flood the log. */
-const SAID_EVERY_MS = 60_000;
+const SAID_EVERY_MS = MIN_MS;
 const saidAt = new Map<string, number>();
 
 /** One line to the platform, once a minute at most for each event; whether it was said. Never the link. */

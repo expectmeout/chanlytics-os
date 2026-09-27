@@ -18,6 +18,7 @@ import {
   type AudienceKind,
   listToken,
   type ListRef,
+  DAY_MS,
 } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import { templateValues } from "./template-values";
@@ -152,7 +153,7 @@ export async function createBroadcast(
   const open = nextOpenMoment(tz, when);
   const movedFrom = open.moved ? when.toISOString() : null;
   when = open.at;
-  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 86_400_000)
+  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * DAY_MS)
     throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   // Named for the business's day, not the server's (UTC on Vercel).
   const name =

@@ -13,6 +13,8 @@
 import { env } from "../env.js";
 
 export const GRAPH_VERSION = "v25.0";
+/** How long one Graph API request may take. */
+export const GRAPH_TIMEOUT_MS = 15_000;
 
 /**
  * The Meta app this deployment speaks for. Its id is public by nature (the
@@ -39,7 +41,7 @@ async function call<T>(path: string, init: RequestInit & { token?: string }): Pr
     res = await fetch(`${GRAPH}${path}`, {
       ...rest,
       headers: { ...(rest.headers ?? {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
     });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e), code: null, status: 0 };

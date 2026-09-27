@@ -4,6 +4,8 @@
  * of tenant #1: NO dollar prices, ever.
  */
 
+import { MIN_MS, HOUR_MS } from "../shared/time";
+
 // $45 / $ 45 / 45 dollars / 45 usd / 45 bucks / 45 dólares / 45 pesos —
 // while ignoring bare durations/times the salon bot legitimately says.
 const PRICE_PATTERNS: RegExp[] = [
@@ -127,7 +129,7 @@ export function guardSpokenTurns(o: {
 
 /** The WhatsApp 24h customer-service window (Blueprint §4/§6). Pure — imported
  *  by BOTH the reply endpoint (enforcement) and the composer (honest display). */
-export const WA_WINDOW_MS = 24 * 3600 * 1000;
+export const WA_WINDOW_MS = 24 * HOUR_MS;
 
 export interface WaWindow {
   open: boolean;
@@ -200,7 +202,7 @@ export const REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => 
  * This is a DISPLAY guard, not the fix. It bounds how long a phantom can be
  * shown; only reconciling against the provider makes the row itself honest.
  */
-export const CALL_HEARTBEAT_MS = 10 * 60 * 1000;
+export const CALL_HEARTBEAT_MS = 10 * MIN_MS;
 
 export function isLiveCall(
   call: { status: string; updated_at?: string | null; started_at?: string | null },
@@ -230,7 +232,7 @@ export function isLiveCall(
  */
 export const REPLY_DELAY_DEFAULT_MS = 30_000;
 export const REPLY_DELAY_MIN_MS = 5_000;
-export const REPLY_DELAY_MAX_MS = 600_000;
+export const REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 
 /**
  * The two limits a workspace is seeded with and Autonomy states: automatic

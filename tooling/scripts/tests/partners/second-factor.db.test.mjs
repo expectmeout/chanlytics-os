@@ -1,12 +1,23 @@
 /**
- * A partner's second factor reset by the platform (decision 0013, M2), against the replayed stack: only a platform
- * admin may record it, with why; the record is kept on the partner and written as platform.acted on each workspace
- * the partner sits on as partner; and the answer is the account to remove the factor from. Skips without a local
- * database.
+ * A partner's second factor (decision 0013), against the replayed stack.
+ *
+ * M3 (00216): a partner's seat needs a session that showed its second factor. On a session that has not, the seat and
+ * its workspace are not visible, is_acting_member and caller_has_permission answer false, and becoming a partner or
+ * setting a workspace up for a business is refused. Every other role is unchanged, and the SQL says what contracts'
+ * seatNeedsSecondFactor says, role by role. The sessions that show it enrol a real authenticator on the stack's Auth
+ * server (_second-factor.mjs).
+ *
+ * M2 (00215): only a platform admin may record a reset, with why; the record is kept on the partner and written as
+ * platform.acted on each workspace the partner sits on as partner; and the answer is the account to remove the factor
+ * from.
+ *
+ * Skips without a local database.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { seatNeedsSecondFactor } from "@chanlytics/contracts";
+import { showSecondFactor } from "../_second-factor.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -33,22 +44,29 @@ let partner;
 let owner;
 let admin;
 
-async function person(label) {
+/** A signed-in session for this address: the first factor alone, as a password gives it. */
+async function signIn(email, password) {
+  const client = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+  const s = await client.auth.signInWithPassword({ email, password });
+  assert.equal(s.error, null, s.error?.message);
+  return client;
+}
+
+async function person(label, { factor = false } = {}) {
   const email = `factor-${label}-${RUN}@example.com`;
   const password = `pw-${Math.random().toString(36).slice(2)}-Aa1!`;
   const u = await db.auth.admin.createUser({ email, password, email_confirm: true });
   assert.equal(u.error, null, u.error?.message);
   users.push(u.data.user.id);
-  const client = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
-  const s = await client.auth.signInWithPassword({ email, password });
-  assert.equal(s.error, null, s.error?.message);
-  return { client, userId: u.data.user.id };
+  const client = await signIn(email, password);
+  if (factor) await showSecondFactor(client);
+  return { client, userId: u.data.user.id, email, password };
 }
 
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  partner = await person("partner");
+  partner = await person("partner", { factor: true });
   owner = await person("owner");
   admin = await person("admin");
   partner.code = `fa-${Math.random().toString(36).slice(2, 8)}`;
@@ -104,4 +122,59 @@ test("only a platform admin records a reset, with why; the answer is the partner
   ).filter((e) => e.data?.action === "partner_second_factor_reset");
   assert.equal(acted.length, 1, "on the workspace the partner sits on");
   assert.equal(acted[0].data.by, admin.userId);
+});
+
+/* ---------------------------------------------------------------------------------------------- M3: the seat */
+
+test("becoming a partner asks for the second factor first; a session that showed it may", { skip }, async () => {
+  const fresh = await person("fresh");
+  const refused = await fresh.client.rpc("partner_become", { p_code: `fr-${Math.random().toString(36).slice(2, 8)}` });
+  assert.equal(refused.error?.code, "42501", "a password alone does not make a partner");
+  assert.match(refused.error?.message ?? "", /authenticator/);
+  const setUp = await fresh.client.rpc("create_workspace_for_business", {
+    p_name: "Nope Shop",
+    p_timezone: "America/Chicago",
+    p_owner_email: `nope-${RUN}@example.com`,
+  });
+  assert.equal(setUp.error?.code, "42501");
+  await showSecondFactor(fresh.client);
+  ok(await fresh.client.rpc("partner_become", { p_code: `fr-${Math.random().toString(36).slice(2, 8)}` }));
+});
+
+test("a partner's seat on a session without the code: not visible, not acting, no permission", { skip }, async () => {
+  const shown = partner.client;
+  const password = await signIn(partner.email, partner.password);
+  const seats = async (c) => ok(await c.from("memberships").select("tenant_id, role").eq("tenant_id", owner.tenant));
+  const named = async (c) => ok(await c.from("tenants").select("id").eq("id", owner.tenant)).map((t) => t.id);
+  const acting = async (c) => ok(await c.rpc("is_acting_member", { p_tenant: owner.tenant }));
+  const may = async (c) =>
+    ok(await c.rpc("caller_has_permission", { p_tenant_id: owner.tenant, p_permission: "settings" }));
+
+  assert.deepEqual(await seats(shown), [{ tenant_id: owner.tenant, role: "partner" }]);
+  assert.deepEqual(await named(shown), [owner.tenant]);
+  assert.equal(await acting(shown), true);
+  assert.equal(await may(shown), true);
+
+  assert.deepEqual(await seats(password), [], "the seat is hidden");
+  assert.deepEqual(await named(password), [], "and the workspace with it");
+  assert.equal(await acting(password), false);
+  assert.equal(await may(password), false);
+  assert.equal(ok(await password.rpc("session_shows_second_factor")), false);
+  assert.equal(ok(await shown.rpc("session_shows_second_factor")), true);
+
+  // The owner signed in with a password alone, as ever.
+  assert.deepEqual(await named(owner.client), [owner.tenant]);
+  assert.equal(await acting(owner.client), true);
+});
+
+test("the SQL says what contracts says, role by role, on a session without the code", { skip }, async () => {
+  const ACTS = { owner: true, operator: true, partner: true, viewer: false };
+  for (const role of Object.keys(ACTS)) {
+    const who = await person(`seat-${role}`);
+    ok(await db.from("memberships").insert({ tenant_id: owner.tenant, user_id: who.userId, role }));
+    const acting = ok(await who.client.rpc("is_acting_member", { p_tenant: owner.tenant }));
+    assert.equal(acting, ACTS[role] && !seatNeedsSecondFactor(role), `${role} acts`);
+    const seen = ok(await who.client.from("memberships").select("role").eq("tenant_id", owner.tenant)).length;
+    assert.equal(seen, seatNeedsSecondFactor(role) ? 0 : 1, `${role} sees its seat`);
+  }
 });

@@ -80,6 +80,7 @@ test("out is one state, whichever way the shell learns it: nothing of the person
     registered: "tok|",
     refused: null,
     pendingRoute: "inbox/th-1",
+    pendingWorkspace: "22222222-2222-4222-8222-222222222222",
     theme: "light",
   };
   const out = signedOut(inside);
@@ -92,6 +93,7 @@ test("out is one state, whichever way the shell learns it: nothing of the person
     registered: null,
     refused: null,
     pendingRoute: null,
+    pendingWorkspace: null,
   });
   assert.equal(out.token, "tok", "the phone's own token stays: it is the phone's, not the person's");
   assert.equal(out.theme, "light", "the last page's theme stays until the next page says");

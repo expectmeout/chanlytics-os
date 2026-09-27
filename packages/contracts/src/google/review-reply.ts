@@ -8,6 +8,8 @@
  * the prompt built here; the tests read the same functions.
  */
 
+import { DAY_MS } from "../shared/time";
+
 export type ReviewReplyMode = "auto" | "ask" | "never";
 
 /** The row's mode, from the workspace's policy rows. No row, or a mode the class cannot take, reads as ask: a draft on request, nothing posted alone. */
@@ -47,7 +49,7 @@ export const REVIEW_REPLY_MAX_CHARS = 1000;
 /** How many unreplied reviews the auto mode answers in one sync; the rest wait for the next hour. */
 export const REVIEW_AUTO_REPLIES_PER_SYNC = 3;
 /** The auto mode answers reviews written within this long; older ones are the owner's. */
-export const REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 86_400_000;
+export const REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
 
 function firstName(author: string | null): string | null {
   const a = (author ?? "").trim();

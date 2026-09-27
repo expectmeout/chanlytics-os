@@ -1,4 +1,4 @@
-import { agoShort as spanAgo, DAY_MS } from "../shared/time";
+import { agoShort as spanAgo, DAY_MS, MIN_MS } from "../shared/time";
 import { FINISH_SETTING_UP } from "../setup/first-run";
 import { firstLine } from "./push";
 import type { JobKind } from "../shared/enums";
@@ -90,7 +90,7 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
       // An absolute moment, never "minutes ago" from the clock: a time derived
       // from `now` drifts forward on every read and undoes Mark all read.
       const at =
-        t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * 60_000 : (t.lastAtMs ?? now));
+        t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * MIN_MS : (t.lastAtMs ?? now));
       items.push({
         key: `needs:${t.id}`,
         kind: "needs_you",

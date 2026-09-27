@@ -12,13 +12,14 @@ import { formatPhoneDisplay, normalizePhone, samePhone, whyNotAHandoff } from ".
 import { forwardingTestOpen } from "../voice/forwarding";
 import type { LiveCallVM } from "../voice/live";
 import { forwardedLineOf, type SetupDto, type SetupVM } from "./setup";
+import { MIN_MS } from "../shared/time";
 
 export type FirstRunTryStage = "listen" | "quiet" | "call" | "done" | "rows";
 
 /** How long the step listens before it asks what may have gone wrong (V7). */
-export const TRY_QUIET_AFTER_MS = 3 * 60_000;
+export const TRY_QUIET_AFTER_MS = 3 * MIN_MS;
 /** A call is the test call if it started no earlier than this before the screen opened: phone clocks disagree. */
-const TRY_SLACK_MS = 60_000;
+const TRY_SLACK_MS = MIN_MS;
 
 export type TryTransferKey = "caller" | "current" | "message";
 
@@ -179,7 +180,7 @@ export function firstRunTryOf({ dto, vm, calls, since, nowMs }: FirstRunTryInput
   if (!call) {
     const f = fw?.forwarding ?? null;
     const open = !!f && fw!.forwarding_state !== "verified" && forwardingTestOpen(f, nowMs);
-    const left = open && f!.test_until ? Math.max(1, Math.ceil((Date.parse(f!.test_until) - nowMs) / 60_000)) : null;
+    const left = open && f!.test_until ? Math.max(1, Math.ceil((Date.parse(f!.test_until) - nowMs) / MIN_MS)) : null;
     const quiet = nowMs - since >= TRY_QUIET_AFTER_MS;
     return {
       ...base,

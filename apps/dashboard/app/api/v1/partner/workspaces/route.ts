@@ -1,4 +1,5 @@
 import { read, write, account } from "@/server/route";
+import { requireSecondFactor } from "@/server/with-route";
 import {
   HandoverCreateSchema,
   type PartnerHandoverDto,
@@ -44,6 +45,8 @@ export const POST = write({
   rate: "partner_handover",
   input: HandoverCreateSchema,
   handle: async ({ ctx, input }): Promise<{ workspace: { id: string; slug: string; name: string }; sent: boolean }> => {
+    // The workspace seats the partner as partner: the seat's rule, before it exists (0013, M3; the function asks too).
+    requireSecondFactor(ctx);
     const r = await createWorkspaceForBusiness(ctx.supabase, {
       name: input.name,
       timezone: input.timezone ?? null,

@@ -10,6 +10,7 @@ import {
   leadReachLine,
   LeadSuggestAnswerSchema,
   type LeadSuggestionsDto,
+  DAY_MS,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { SUGGEST_SYSTEM, workspaceOffer } from "./lead-helpers";
@@ -81,7 +82,7 @@ export async function suggestionsFor(
   const kept = await keptSuggestions(ctx, tenantId);
   const keptItems = Array.isArray(kept?.items) ? (kept.items as SuggestItem[]) : [];
   const byOwner = kept?.by_owner === true;
-  if (kept && keptItems.length > 0 && Date.now() - Date.parse(kept.made_at) < LEAD_SUGGEST_DAYS * 86_400_000) {
+  if (kept && keptItems.length > 0 && Date.now() - Date.parse(kept.made_at) < LEAD_SUGGEST_DAYS * DAY_MS) {
     return {
       business_line: kept.business_line,
       by_owner: byOwner,

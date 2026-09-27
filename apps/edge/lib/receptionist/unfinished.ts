@@ -31,7 +31,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
-import { isCampaignEmail } from "../packages/contracts.js";
+import { isCampaignEmail, MIN_MS, HOUR_MS } from "../packages/contracts.js";
 import type { EscalationOutcome } from "../packages/jobs.js";
 import type { logger } from "../log.js";
 import type { notify as notifyFn, reachesTenant as reachesFn, NotifyTarget, NotifyMessage } from "../ops/notify.js";
@@ -59,11 +59,11 @@ type Db = SupabaseClient<Database>;
 const INLINE_INTAKE = ["whatsapp", "sms"] as const;
 
 /** A customer's message older than this with no processed_at stamp was never finished with. */
-const UNANSWERED_INBOUND_AFTER_MS = 3 * 60_000;
+const UNANSWERED_INBOUND_AFTER_MS = 3 * MIN_MS;
 /** A queued reply older than this with no live job is nobody's. */
-const ORPHAN_QUEUED_AFTER_MS = 10 * 60_000;
+const ORPHAN_QUEUED_AFTER_MS = 10 * MIN_MS;
 /** Older than this is not this sweep's to raise. */
-const LOOKBACK_MS = 24 * 3_600_000;
+const LOOKBACK_MS = 24 * HOUR_MS;
 const BATCH = 100;
 
 const ORPHAN_NOTE = "no job was left to send this";
@@ -159,7 +159,7 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
       try {
         const replied = !!r.conversation_id && (repliesBy.get(r.conversation_id) ?? []).some((t) => t > r.created_at);
         if (!replied && r.conversation_id) {
-          const waitedMin = Math.max(1, Math.round((now - new Date(r.created_at).getTime()) / 60_000));
+          const waitedMin = Math.max(1, Math.round((now - new Date(r.created_at).getTime()) / MIN_MS));
           const words = short(r.body);
           const detail = `The receptionist never answered this: the message arrived ${waitedMin} minutes ago and its handling did not finish (a crash or a timeout after it was accepted). Nothing has been sent — ${words ? `"${words}"` : "no text"}`;
           await p.upsertEscalation(p.db, r.tenant_id, r.conversation_id, "brain_error", detail.slice(0, 400));

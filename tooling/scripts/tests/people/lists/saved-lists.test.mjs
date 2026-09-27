@@ -76,7 +76,7 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
   );
   assert.ok(
     readCode("apps/dashboard/src/server/rate-limit.ts").includes(
-      'lists: { limit: 60, windowMs: 60_000, noun: "list changes" }',
+      'lists: { limit: 60, windowMs: MIN_MS, noun: "list changes" }',
     ),
   );
 });

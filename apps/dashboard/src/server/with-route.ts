@@ -6,6 +6,9 @@ import {
   ok,
   whyCannotSpend,
   roleAtLeast,
+  seatNeedsSecondFactor,
+  secondFactorShown,
+  SECOND_FACTOR_WORDS,
   type BillingMode,
   type BillingStatus,
   type Role,
@@ -34,6 +37,11 @@ export interface RouteContext {
    * workspace, contracts/signup.ts); nothing in it is a permission.
    */
   metadata: Record<string, unknown>;
+  /**
+   * How the session was signed in: its token's `aal` claim, `aal2` once a second factor was shown (0013). A partner's
+   * seat asks for it (memberContext); absent reads as not shown.
+   */
+  aal?: string;
   /**
    * Where the request came from inside the app, when it says. The Ask
    * palette commits through the same routes a button does; the one thing
@@ -144,6 +152,7 @@ export function withRoute<T>(
         userId: String(user.sub),
         email: typeof user.email === "string" ? user.email : undefined,
         metadata,
+        ...(typeof user.aal === "string" ? { aal: user.aal } : {}),
         params,
         ...(via ? { via } : {}),
         ...(undoOf ? { undoOf } : {}),
@@ -222,11 +231,23 @@ export async function memberContext(
   if (!wanted && rows.length > 1 && !opts.defaultAllowed) throw new AppError("choose_workspace", AMBIGUOUS);
   const m = wanted ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted) : rows[0];
   if (!m) throw new AppError("not_found", "No workspace found for this account.", 404);
+  // A partner's seat asks for the second factor (0013, M3), on a read as on a write: the one door every workspace
+  // request passes. The database refuses the same session on its own (00216).
+  if (seatNeedsSecondFactor(m.role)) requireSecondFactor(ctx);
 
   return {
     tenantId: m.tenant_id,
     role: m.role as MemberContext["role"],
   };
+}
+
+/**
+ * A session that has not shown its second factor is refused here (0013, M3): a partner's seat, and the partner
+ * account's own doors (becoming one, handing a workspace over). `mfa_required`, so the client sends the tab to the
+ * second step rather than saying the role is wrong.
+ */
+export function requireSecondFactor(ctx: Pick<RouteContext, "aal">): void {
+  if (!secondFactorShown(ctx.aal)) throw new AppError("mfa_required", SECOND_FACTOR_WORDS.required, 403);
 }
 
 /**

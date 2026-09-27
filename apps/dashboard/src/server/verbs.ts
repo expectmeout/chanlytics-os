@@ -15,6 +15,7 @@ import {
   type DecisionVerb,
   type DecisionSubject,
   type TenantId,
+  HOUR_MS,
 } from "@chanlytics/contracts";
 import { listRow, reachOutRootOf, reachOutSendRefOf, type Json } from "@chanlytics/db";
 import { memberContext, requireRole, type RouteContext } from "./with-route";
@@ -276,7 +277,7 @@ export async function resolveOpenEscalation(
   else if (!data || data.length === 0) console.log("resolve_escalation_noop", conversationId);
 }
 
-export const PAUSE_MS = 24 * 3600 * 1000;
+export const PAUSE_MS = 24 * HOUR_MS;
 export { SEND_GRACE_MS } from "@chanlytics/core"; // the cancelable window IS the undo (§6); one home, in core
 
 /**

@@ -1,6 +1,7 @@
 /** The sample's calls: three on the usual day, four more on a busy one, as the voice provider would have kept them. */
 import type { CallDto } from "@chanlytics/contracts";
-import { MIN, phone, type SampleClock } from "./clock";
+import { phone, type SampleClock } from "./clock";
+import { MIN_MS } from "@chanlytics/contracts";
 
 export function sampleCalls({ nowMs, ago }: SampleClock, busy: boolean): CallDto[] {
   // Kept inside the builder on purpose: `call` is already a top-level name in six files (the copies ratchet).
@@ -14,8 +15,8 @@ export function sampleCalls({ nowMs, ago }: SampleClock, busy: boolean): CallDto
     from_raw: null,
     to_e164: "+13055550100",
     started_at: ago(startedMin),
-    ended_at: new Date(nowMs - startedMin * MIN + durationS * 1000).toISOString(),
-    updated_at: new Date(nowMs - startedMin * MIN + durationS * 1000).toISOString(),
+    ended_at: new Date(nowMs - startedMin * MIN_MS + durationS * 1000).toISOString(),
+    updated_at: new Date(nowMs - startedMin * MIN_MS + durationS * 1000).toISOString(),
     duration_ms: durationS * 1000,
     disconnection_reason: "user_hangup",
     sentiment: "Positive",

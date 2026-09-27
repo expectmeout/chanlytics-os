@@ -7,6 +7,8 @@
  * be tested.
  */
 
+import { HOUR_MS } from "../packages/contracts.js";
+
 /** One row of public.sweep_health(). */
 export interface SweepHealthRow {
   sweep: string;
@@ -26,7 +28,7 @@ export interface SweepHealthRow {
  * the NEXT real alert is missed. Four a day is noticed at the start of a
  * working day and again mid-day, and survives the overnight gap.
  */
-export const ALERT_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
+export const ALERT_SUPPRESSION_MS = 6 * HOUR_MS;
 
 interface SweepAlertPlan {
   /** Every sweep currently failing, for the response body and the log. */

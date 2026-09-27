@@ -17,14 +17,16 @@
  * sweep that runs twice does nothing twice.
  */
 
-export const RUN_MAX_AGE_MS = 45 * 60_000;
-export const STARTING_STALE_MS = 10 * 60_000;
+import { MIN_MS, HOUR_MS } from "../packages/contracts.js";
+
+export const RUN_MAX_AGE_MS = 45 * MIN_MS;
+export const STARTING_STALE_MS = 10 * MIN_MS;
 /** A run row made and never claimed: its start job died before the claim and was given up. */
-export const CLAIMED_STALE_MS = 60 * 60_000;
-export const LEASE_STALE_MS = 2 * 60_000;
-export const QUESTION_WAIT_MS = 24 * 60 * 60_000;
+export const CLAIMED_STALE_MS = 60 * MIN_MS;
+export const LEASE_STALE_MS = 2 * MIN_MS;
+export const QUESTION_WAIT_MS = 24 * HOUR_MS;
 /** A round this old with no run of its own still live is stuck: a run is capped at 45 minutes, so an hour is past every way it could still be working. */
-export const ROUND_STUCK_MS = 60 * 60_000;
+export const ROUND_STUCK_MS = 60 * MIN_MS;
 /** The run states that mean a round still has work at the provider. */
 const LIVE_RUN_STATES: ReadonlySet<string> = new Set(["claimed", "starting", "running", "unknown"]);
 
@@ -65,7 +67,7 @@ type SweepAction =
 
 export function planLeadSweep(rows: { runs: SweepRunRow[]; rounds: SweepRoundRow[] }, now: number): SweepAction[] {
   const out: SweepAction[] = [];
-  const seq = `s${Math.floor(now / 60_000)}`;
+  const seq = `s${Math.floor(now / MIN_MS)}`;
   for (const r of rows.runs) {
     if (r.lease_owner && r.lease_until && Date.parse(r.lease_until) < now - LEASE_STALE_MS) {
       out.push({ kind: "release_lease", runId: r.id, owner: r.lease_owner, gen: r.lease_gen });
@@ -80,7 +82,7 @@ export function planLeadSweep(rows: { runs: SweepRunRow[]; rounds: SweepRoundRow
       continue;
     }
     if (r.state === "claimed" && !r.claimed_by && Date.parse(r.created_at) < now - CLAIMED_STALE_MS) {
-      out.push({ kind: "orphan", runId: r.id, owner: `sweep:${Math.floor(now / 60_000)}` });
+      out.push({ kind: "orphan", runId: r.id, owner: `sweep:${Math.floor(now / MIN_MS)}` });
       continue;
     }
     if (r.state !== "running" || !r.apify_run_id) continue;

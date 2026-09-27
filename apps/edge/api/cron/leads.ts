@@ -20,6 +20,8 @@ import type { Json } from "../../lib/packages/db.js";
 
 /** Reconciliation calls the provider per unknown run; the rest of a backlog waits for the next tick. */
 const RECONCILE_PER_TICK = 10;
+/** The deadline the sweep hands the lead runner, from its start, inside the function's sixty seconds (vercel.json). */
+const SWEEP_DEADLINE_MS = 50_000;
 
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "leads" });
@@ -95,7 +97,7 @@ export async function POST(request: Request): Promise<Response> {
               payload: payload as unknown as Json,
             });
         },
-        deadline: now + 50_000,
+        deadline: now + SWEEP_DEADLINE_MS,
       }
     : null;
   const unknown: LeadRunRow[] = [];

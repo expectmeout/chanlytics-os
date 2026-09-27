@@ -13,6 +13,7 @@
  * run it without a network.
  */
 import type { PlacesRequest } from "./google-places";
+import { MIN_MS } from "@chanlytics/contracts";
 
 export const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -20,7 +21,7 @@ export const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 /** Business Profile, plus the email so the card can say whose account it is. */
 export const PROFILE_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/business.manage"] as const;
 /** How long the way to Google and back may take. */
-export const STATE_TTL_MS = 10 * 60_000;
+export const STATE_TTL_MS = 10 * MIN_MS;
 
 export interface OAuthClient {
   clientId: string;
