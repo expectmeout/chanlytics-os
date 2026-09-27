@@ -74,7 +74,7 @@ window globals                      195   names
 window publishers                   394   sites in 147 files
 copies                              125   of 34 names
 as unknown as                       222
-table names outside packages/db     535
+table names outside packages/db     533
 dead exports, types and modules     206
 source-text reads in tests          832
 lint warnings allowed                46

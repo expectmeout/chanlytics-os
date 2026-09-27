@@ -215,13 +215,21 @@ export function planCallEvent(e: CallEvent, f: CallEventFacts): CallEventPlan {
     // partial transcript after the final one. Nothing was written.
     steps.push({ kind: "log", event: "retell_event_stale", fields: { retell_event: event, call_id: n.retellCallId } });
   }
-  // The call on the phones' Lock Screens (00191, lib/voice/call-activity.ts): once, as it starts, to every
-  // phone that handed the site its push-to-start token. Best effort beside the call's own door.
+  // The call on the phones' Lock Screens (00191, lib/voice/call-activity.ts): as it starts, to the phones of the
+  // people who take calls; once, since a redelivered call_started finds the start claimed (00216). Best effort beside
+  // the call's own door.
   if (event === "call_started" && !res.skipped && n.status === "ongoing") {
     steps.push({
       kind: "call_activity",
       retellCallId: n.retellCallId,
-      call: { from_e164: n.fromE164, from_raw: n.fromRaw ?? null, to_e164: n.toE164, started_at: n.startedAtIso },
+      call: {
+        call_id: res.call_id,
+        contact_id: res.contact_id,
+        from_e164: n.fromE164,
+        from_raw: n.fromRaw ?? null,
+        to_e164: n.toE164,
+        started_at: n.startedAtIso,
+      },
     });
   }
   // Awaited: this row IS /api/diag's answer to "what did the provider
