@@ -19,7 +19,16 @@ import { archivedListWords, poolList } from "../../../people/audience";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
 import { lists as listsReader } from "../../../readers/lists";
-import { UUID, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import {
+  AUDIENCES_CALL,
+  UUID,
+  actAction,
+  propose,
+  refuse,
+  str,
+  type ProposalOutcome,
+  type ToolContext,
+} from "../context";
 
 async function proposeBroadcast(
   t: ToolContext,
@@ -35,13 +44,13 @@ async function proposeBroadcast(
   const templateId = str(input.template_id, 40);
   const kind = str(input.audience_kind, 10);
   const audienceId = str(input.audience_id, 60) || null;
-  if (!UUID.test(templateId)) return refuse("template_id must be an id list_audiences returned");
+  if (!UUID.test(templateId)) return refuse(`template_id must be an id ${AUDIENCES_CALL} returned`);
   if (!(AUDIENCE_KINDS as readonly string[]).includes(kind))
     return refuse("audience_kind must be everyone, list or saved");
   if (kind === "list" && !BUILTIN_LISTS.some((l) => l.id === audienceId))
-    return refuse("audience_id must be a People list id, as list_audiences names them");
+    return refuse(`audience_id must be a People list id, as ${AUDIENCES_CALL} names them`);
   if (kind === "saved" && !(audienceId && UUID.test(audienceId)))
-    return refuse("audience_id must be a saved list id from list_audiences");
+    return refuse(`audience_id must be a saved list id from ${AUDIENCES_CALL}`);
   const specs: ParamSpec[] = [];
   for (const p of Array.isArray(input.params) ? (input.params as unknown[]) : []) {
     const spec = parseParamSpec(p);
@@ -63,7 +72,7 @@ async function proposeBroadcast(
     .eq("channel", "whatsapp")
     .maybeSingle();
   if (!tpl || tpl.meta_status !== "approved")
-    return refuse("that template is not approved by WhatsApp; list_audiences names the approved ones");
+    return refuse(`that template is not approved by WhatsApp; ${AUDIENCES_CALL} names the approved ones`);
   const expected = Array.isArray(tpl.variables) ? tpl.variables.length : 0;
   if (params.length !== expected)
     return refuse(`this template takes ${expected} value${expected === 1 ? "" : "s"}, in order`);
@@ -74,7 +83,7 @@ async function proposeBroadcast(
   const pool = (await load(t.rc, audiencePool, undefined)).data;
   // Any list, counted the way the send will count it (audience.ts poolList): a built-in or a saved list alike, and
   // one that can't be counted here refused with why. One of the workspace's own is counted from the lists the turn
-  // holds (readers/lists.ts, as list_audiences read them), never read again.
+  // holds (readers/lists.ts, as campaigns.audiences read them), never read again.
   let members: Set<string> | null = null;
   let label = EVERYONE_LABEL;
   if (kind !== "everyone") {
@@ -89,7 +98,7 @@ async function proposeBroadcast(
       },
       kept,
     );
-    if (!found) return refuse("no such list; list_audiences names them");
+    if (!found) return refuse(`no such list; ${AUDIENCES_CALL} names them`);
     if (found.archived) return refuse(archivedListWords(found.label, "send"));
     if ("unknown" in found) return refuse(`${found.label} can't be counted here: ${found.unknown}`);
     members = new Set(found.memberIds);
@@ -134,10 +143,9 @@ async function proposeBroadcast(
   });
 }
 
-export const propose_broadcast = defineAct({
-  name: "propose_broadcast",
-  description:
-    "Propose a broadcast: one approved WhatsApp template to an audience, everyone who said yes or any list list_audiences names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the template's values in order (typed text, or @first_name, @business_name or @booking_link to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), and an optional name. Read list_audiences first, for the template ids, the audiences and their counts; propose_playbook is the sibling for a standing rule that sends on its own. When nobody can be sent it, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to; never propose a broadcast to nobody. It becomes a card the person approves; nobody without a recorded yes is ever included, and the card says how many it reaches.",
+/** A broadcast, one message sent once: propose_campaign's action broadcast (campaign.ts), once propose_broadcast. */
+export const broadcastAction = actAction({
+  kind: "broadcast",
   input: z.object({
     template_id: z.string(),
     audience_kind: z.enum(["everyone", "list", "saved"]),

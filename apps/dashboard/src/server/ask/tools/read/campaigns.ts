@@ -31,7 +31,7 @@ import * as readers from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { playbooks } from "../../../readers/playbooks";
 import { templates as templatesReader, type TemplatesRead } from "../../../readers/templates";
-import { defineRead, unread, type ToolContext } from "../context";
+import { defineActions, readAction, unread, type ToolContext } from "../context";
 
 /**
  * The audiences a broadcast may go to, counted by the same contracts
@@ -46,10 +46,13 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     // The composers' read of the templates (readers/templates.ts), once a turn: approved and not hidden by the
     // workspace (ledger #9), each with why this product cannot send it. A read that fails is its own state, as the
     // Broadcasts page keeps it, never "no template yet"; the audiences still answer.
-    load(t.rc, templatesReader, { all: false }).then((r) => r.data.templates, unread(t, "list_audiences", "templates")),
-    // The channels as the Broadcasts page reads them (readers/channels.ts), once a turn: get_settings reads the same.
-    // A read that fails is no number known, as the page takes it -- said as such, never as no number.
-    load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "list_audiences", "channels")),
+    load(t.rc, templatesReader, { all: false }).then(
+      (r) => r.data.templates,
+      unread(t, "campaigns.audiences", "templates"),
+    ),
+    // The channels as the Broadcasts page reads them (readers/channels.ts), once a turn: workspace.settings reads the
+    // same. A read that fails is no number known, as the page takes it -- said as such, never as no number.
+    load(t.rc, channelsReader, undefined).then((r) => r.data.channels, unread(t, "campaigns.audiences", "channels")),
   ]);
   const rows = pool.rows;
   // FOUR sizes for every audience: this listing is read BEFORE a template is
@@ -71,8 +74,8 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     };
   };
   // Every list the pool can offer (contracts listsFor): People's lists this workspace can count, then its own. Each
-  // with its token (search_people's list) and its kind and id (propose_broadcast's audience). The three consent lists
-  // are never audiences: each restates the yes every audience is already crossed with. A list of the workspace's own
+  // with its token (people.search's list) and its kind and id (propose_campaign.broadcast's audience). The three
+  // consent lists are never audiences: each restates the yes every audience is already crossed with. A list of the workspace's own
   // that can't be counted here is listed with why, and no counts.
   const offered = listsFor(pool.listCtx, lists).filter(
     (d) => !(d.ref.kind === "builtin" && ["opted_in", "offers_ok", "opted_out"].includes(d.ref.id)),
@@ -249,7 +252,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
       label: x.label,
       when: x.hint,
       policy_class: x.cls,
-      // On a list, the counts are the list's: list_audiences has each list's.
+      // On a list, the counts are the list's: campaigns.audiences has each list's.
       ...(x.kind === "saved" ? { counted_per_list: true } : counted(x.id)),
       starter_template: starterForTrigger(x.id)?.title ?? null,
     })),
@@ -257,19 +260,25 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   };
 }
 
-export const list_audiences = defineRead({
-  name: "list_audiences",
-  description: `The audiences a broadcast may go to, read before any broadcast: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (propose_broadcast's audience), its list token (search_people's list), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}. Call it before proposing a broadcast, and to say who a message would reach; list_playbooks is the sibling for the standing rules and their moments. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. A list that cannot be counted here carries cannot_count and no counts.`,
-  input: z.object({}),
-  label: "Reading the lists and templates",
-  run: listAudiences,
-});
-
-export const list_playbooks = defineRead({
-  name: "list_playbooks",
-  description:
-    "The playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Call it to say what is running, and before proposing a playbook; list_audiences is the sibling for a one-off broadcast's audiences and templates. When can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so, and never send the owner to get a yes they already have. A null count means the page could not count it just now, and nothing has run because it was read.",
-  input: z.object({}),
-  label: "Reading the playbooks",
-  run: listPlaybooksTool,
+/**
+ * What goes out to the people who said yes (D11): a broadcast's audiences and templates (audiences, once
+ * list_audiences) and the playbooks (playbooks, once list_playbooks).
+ */
+export const campaignsTool = defineActions({
+  name: "campaigns",
+  description: `What goes out to the people who said yes, by action; neither action takes anything more. Action audiences, read before any broadcast, lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}. Action playbooks reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.`,
+  actions: {
+    audiences: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading the lists and templates",
+      run: listAudiences,
+    }),
+    playbooks: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading the playbooks",
+      run: listPlaybooksTool,
+    }),
+  },
 });
