@@ -3,7 +3,7 @@
  * message does to the shell's state, and the JavaScript that carries the shell's ask into a page. The WebView
  * (Surface.tsx) is the only caller, and test/bridge.test.mjs runs both without one.
  */
-import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
+import { APP_KEYS_RESIZE_CLASS, parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
 import type { ShellState } from "./state";
 
 /** What the Surface does beyond keeping the state: the sign-in screen and the widget follow the state and the message. */
@@ -83,10 +83,14 @@ export function askPage(m: ShellMessage): string {
   return `window.__appBridge&&window.__appBridge.receive(${JSON.stringify(JSON.stringify(m))});true;`;
 }
 
-/** The script that sets the page's bottom inset before it paints (the PRD, M4). */
-export function insetScript(px: number): string {
+/**
+ * The script that readies a page before it paints: its bottom inset (the PRD, M4), and where the app shrinks the page
+ * above the keyboard (Android, Surface.tsx), the class that says so, so the page makes no room of its own for one.
+ */
+export function insetScript(px: number, keysResize = false): string {
   const n = Math.max(0, Math.round(px));
-  return `document.documentElement.style.setProperty("--app-inset-bottom","${n}px");true;`;
+  const keys = keysResize ? `document.documentElement.classList.add(${JSON.stringify(APP_KEYS_RESIZE_CLASS)});` : "";
+  return `document.documentElement.style.setProperty("--app-inset-bottom","${n}px");${keys}true;`;
 }
 
 /** iOS draws the tab bar over the page: the standard bar plus the home indicator's inset. Android keeps the page above it. */

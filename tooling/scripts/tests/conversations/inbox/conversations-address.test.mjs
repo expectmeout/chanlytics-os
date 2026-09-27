@@ -4,8 +4,9 @@
  *
  * - The address held a tab OR a row (`conversations/phone`, `conversations/cv-4`), so the row a person had open on a
  *   tab was nobody's after a refresh, and no link could name it. The page's one rule (CV_ROUTE) reads `<tab>:<id>`
- *   too, its twin (CV_ADDRESS) spells it, and a row pressed writes it (replaced, never pushed, as the Inbox and Live
- *   do), so a refresh opens the same row on the same tab and Back leaves the page.
+ *   too, its twin (CV_ADDRESS) spells it, and a row pressed writes it, so a refresh opens the same row on the same
+ *   tab: replaced on a desktop, where Back leaves the page; pushed on a phone, where the row is the screen and Back
+ *   closes it to its list.
  * - A search typed on Phone was gone after a trip to People: it is kept per tab in the tab's storage (tab-memory.ts),
  *   and a tab pressed opens with the words last typed on it.
  * Run against the page on a stub React, with the tab's memory installed as the app installs it.
@@ -49,7 +50,7 @@ globalThis.window = {
     replace() {},
     reload() {},
   },
-  history: { replaceState() {} },
+  history: { replaceState() {}, back: () => went.push(["back"]) },
   innerHeight: 800,
   localStorage: globalThis.localStorage,
   sessionStorage: globalThis.sessionStorage,
@@ -335,7 +336,7 @@ test("the one rule reads a tab, a row, or a row on its tab -- and its twin spell
   }
 });
 
-test("a row pressed is the address's, on its tab, replaced -- and the pane opens it; a tab pressed is a new entry", () => {
+test("on a desktop a row pressed is the address's, on its tab, replaced -- and the pane opens it; a tab pressed is a new entry", () => {
   let tree = ConversationsPage({ channel: "phone", initialId: null });
   assert.equal(rows(tree).length, 1, "the phone's rows");
   press(rows(tree)[0]);
@@ -368,6 +369,45 @@ test("a row pressed is the address's, on its tab, replaced -- and the pane opens
     ["nav", "conversations/phone"],
     ["nav", "conversations"],
   ]);
+});
+
+test("on a phone a row pressed is an entry of its own: the viewer's Back steps back through it, and the list returns", () => {
+  const phone = (tree) =>
+    String(find(tree, (n) => String(n.props?.className || "").startsWith("conversations")).props.className);
+  const viewerBack = (tree) => find(tree, (n) => typeof n.props?.onBack === "function").props.onBack;
+  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 720px)" });
+  try {
+    let tree = ConversationsPage({ channel: "phone", initialId: null });
+    press(rows(tree)[0]);
+    assert.deepEqual(
+      went,
+      [["app", "conversations/phone:cv-k7", null]],
+      "REGRESSION: a row replaced the address on a phone, so Back left Conversations with the row open",
+    );
+    globalThis.window.location.hash = "#/conversations/phone:cv-k7";
+    tree = redraw({ channel: "phone", initialId: "cv-k7" });
+    assert.ok(phone(tree).includes("phone-detail"), "the row is the screen");
+    viewerBack(tree)();
+    assert.deepEqual(went.at(-1), ["back"], "the viewer's own Back is the same step as the system's");
+    // Back lands on the list's address: the viewer closes.
+    globalThis.window.location.hash = "#/conversations/phone";
+    redraw({ channel: "phone", initialId: null });
+    tree = redraw({ channel: "phone", initialId: null });
+    assert.ok(!phone(tree).includes("phone-detail"), "the list, not the row");
+
+    // A row the address brought (a link, a cold boot) has no entry of its own: it closes to its list in place.
+    fresh();
+    globalThis.window.location.hash = "#/conversations/phone:cv-k7";
+    tree = ConversationsPage({ channel: "phone", initialId: "cv-k7" });
+    tree = redraw({ channel: "phone", initialId: "cv-k7" });
+    viewerBack(tree)();
+    assert.ok(!went.some((w) => w[0] === "back"), "never a step back out of the page");
+    tree = redraw({ channel: "phone", initialId: "cv-k7" });
+    assert.ok(!phone(tree).includes("phone-detail"));
+  } finally {
+    delete globalThis.window.matchMedia;
+    globalThis.window.location.hash = "#/conversations";
+  }
 });
 
 test("a link to a row on a tab opens that row on that tab, and a search that hides it keeps it open", () => {

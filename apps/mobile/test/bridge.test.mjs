@@ -50,6 +50,11 @@ test("an ask is one injectable line that ends in true", () => {
   assert.ok(askPage({ t: "menu" }).endsWith("true;"));
   assert.equal(insetScript(83.4), 'document.documentElement.style.setProperty("--app-inset-bottom","83px");true;');
   assert.equal(insetScript(-5), 'document.documentElement.style.setProperty("--app-inset-bottom","0px");true;');
+  // Where the app shrinks the page above the keyboard (Android), the page is told so before it paints.
+  assert.equal(
+    insetScript(0, true),
+    'document.documentElement.style.setProperty("--app-inset-bottom","0px");document.documentElement.classList.add("app-keys-resize");true;',
+  );
 });
 
 test("the bottom inset: iOS's bar plus the safe area; Android none", () => {
