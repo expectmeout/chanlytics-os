@@ -61,6 +61,9 @@ export interface NotifyMessage {
   /** What the PLATFORM operator may safely be told about a tenant we cannot
    *  address. Must contain no customer content. Omit to send nothing at all. */
   redactedBody?: string;
+  /** False keeps the row and sends the mail but tells no phone: for news about the phones themselves, whose push
+   *  would be the thing that failed (job-alert.ts). Unsaid, a kept row of a PUSH_KINDS kind is pushed. */
+  push?: boolean;
 }
 
 export function platformFrom(): string | null {
@@ -250,7 +253,7 @@ export async function notify(target: NotifyTarget, msg: NotifyMessage, ports: No
     { kind: msg.kind, title: msg.subject, body: msg.body, route: msg.route, about: msg.about },
     db,
   );
-  if (kept && target.tenantId) await schedulePush(target.tenantId, kept, db);
+  if (kept && target.tenantId && msg.push !== false) await schedulePush(target.tenantId, kept, db);
   return mail(target, msg, ports);
 }
 

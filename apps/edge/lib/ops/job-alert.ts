@@ -38,6 +38,14 @@ const REDACTED: Record<JobNewsKind, (jobKind: string) => string> = {
   handoff: (k) => `A reply could not be delivered for a workspace, and its thread is flagged (job kind: ${k}).`,
 };
 
+/**
+ * The jobs whose failure is never pushed. A failed push_send's alert is a job_failed row, a push kind, so it used to
+ * schedule another push_send, which failed the same way and alerted again: a bell row, an owner email and a new job
+ * every twelve minutes for as long as the push service refused (a revoked EXPO_ACCESS_TOKEN, an outage). The mail
+ * still goes; the phones are what is broken.
+ */
+const NEVER_PUSHED = new Set(["push_send", "push_receipts"]);
+
 /** `ports` is notify's own, for a test that runs this seam against a database in memory. */
 export function alertFor(db: ReturnType<typeof pg>, job: AlertableJob, ports: NotifyPorts = {}) {
   return async (news: JobNews): Promise<void> => {
@@ -53,6 +61,7 @@ export function alertFor(db: ReturnType<typeof pg>, job: AlertableJob, ports: No
         subject: news.subject,
         body: news.body,
         redactedBody: REDACTED[news.kind](job.kind),
+        push: !NEVER_PUSHED.has(job.kind),
       },
       ports,
     );
