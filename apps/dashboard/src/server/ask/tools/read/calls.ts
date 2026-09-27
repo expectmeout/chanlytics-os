@@ -90,8 +90,7 @@ async function getCall(t: ToolContext, input: { call_id: string }): Promise<unkn
 
 export const list_calls = defineRead({
   name: "list_calls",
-  description:
-    "Phone calls. filter: missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), recent (newest first).",
+  description: `Phone calls as the Calls page lists them, newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person. filter: missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first). Call it to count or find calls, and to find a live call before proposing a whisper; call get_call instead for one call's transcript and full summary. It returns at most ${ASK_CAPS.calls} calls from the newest hundred; nothing changes because it was read.`,
   input: z.object({ filter: z.enum(["missed", "abandoned", "today", "live", "recent"]) }),
   label: "Reading the calls",
   run: listCalls,
@@ -99,8 +98,7 @@ export const list_calls = defineRead({
 
 export const get_call = defineRead({
   name: "get_call",
-  description:
-    "One phone call: who, when, how it ended, the summary and the transcript (capped). Use the call id from list_calls or get_person.",
+  description: `One phone call: who, when, how long, how it ended, its summary, the state of its recording, the caller's contact id, and the transcript turn by turn. Call it when the transcript or the full summary is needed and the page on screen holds only the call's row; list_calls is the sibling that finds calls by day, outcome or whether they are live. call_id is the id list_calls, get_today or get_person returned. The transcript is capped at ${ASK_CAPS.transcript} turns, with transcript_turns saying how many there are; a call the workspace does not hold is an error, said in words.`,
   input: z.object({ call_id: z.string() }),
   label: "Reading the call",
   run: getCall,

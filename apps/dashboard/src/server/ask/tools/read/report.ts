@@ -48,7 +48,7 @@ async function getReport(t: ToolContext, input: { days: number }): Promise<unkno
 export const get_report = defineRead({
   name: "get_report",
   description:
-    "The Reports page for 7, 30 or 90 days: answered by the receptionist vs by a person, reply time, calls, new people, escalation reasons, and the change against the previous period.",
+    "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time, calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; get_today has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
   // The three periods as literals, not a number: the schema refuses 8, and says the three it takes.
   input: z.object({ days: z.literal([7, 30, 90]) }),
   label: "Reading Reports",

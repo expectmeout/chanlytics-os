@@ -22,7 +22,9 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { newToolContext, runTool, buildProposal } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+const { newToolContext, runTool, buildProposal, READ_TOOLS } = await import(
+  at("apps/dashboard/src/server/ask/tools/index.ts")
+);
 const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
 const { commitProposal, undoProposal } = await import(at("apps/dashboard/src/legacy-bridge/ask/commit.ts"));
 const { readerCache } = await import(at("apps/dashboard/src/server/readers/index.ts"));
@@ -371,8 +373,14 @@ test("list_lead_searches says what was asked, in the owner's words, and how each
   assert.equal(s.searches[2].question, "Most of the first 25 are chain gyms. Include them?");
   // Beside them, the rail's six counts as the Leads page shows them (ledger #12): the door's own answer.
   assert.deepEqual(s.counts, DOORS.lead_list_counts());
-  assert.match(s.note, /propose_lead_search with amends set to its id/);
-  assert.match(s.note, /Yes, keep going or Stop here on Leads/);
+  // Since PR 3.3 (D9) the note keeps the rows' facts alone; how a waiting search is answered is the tool's description.
+  assert.equal(
+    s.note,
+    "Counted is what came off this month's leads; a search with a question is waiting for the owner's answer.",
+  );
+  const description = READ_TOOLS.find((d) => d.name === "list_lead_searches").description;
+  assert.match(description, /propose_lead_search with amends set to that search's id/);
+  assert.match(description, /Yes, keep going or Stop here on Leads/);
 });
 
 test("propose_lead_search with amends answers a waiting search: the plan at the round's next version and count, the question on the card, no undo", async () => {

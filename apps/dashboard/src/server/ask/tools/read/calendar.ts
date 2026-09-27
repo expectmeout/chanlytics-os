@@ -62,14 +62,14 @@ async function getCalendar(t: ToolContext, input: { day: string; days?: number }
       })),
       open: d.windows.map((w) => w.label),
     })),
-    note: "Taken is the owner's own calendar; open is what the receptionist would offer a caller. Nothing is booked from here: customers book through the booking link, or with the team where there is none.",
+    note: "Taken is the owner's own calendar; open is what the receptionist would offer a caller.",
   };
 }
 
 export const get_openings = defineRead({
   name: "get_openings",
   description:
-    "Open times from the connected calendar against the business hours, closures and booking rules. day: a weekday (mon..sun) or a date (YYYY-MM-DD), or empty for the next days. service: the service name to size the slot, or empty.",
+    "Open times from the connected calendar, against the business hours, closures and booking rules, as the receptionist would offer them to a caller: a state, a sentence, and the open windows day by day, sized for a service when one is named. day is a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the next days; service is the service's name to size the slot, or empty. Call it for when there is room, or what is free on a day; get_calendar is the sibling that shows what is taken beside what is open. It needs a connected calendar feed, said in the workspace's facts above; nothing is booked from here.",
   input: z.object({ day: z.string(), service: z.string() }),
   label: "Checking the calendar",
   run: getOpenings,
@@ -78,7 +78,7 @@ export const get_openings = defineRead({
 export const get_calendar = defineRead({
   name: "get_calendar",
   description:
-    "The owner's calendar as the receptionist reads it, for a day or a few: what is taken (the calendar's own words, with the person in People when the title names one), whether the business is closed, and the windows the receptionist would offer. day: today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for today. days: how many from there, at most 14. Nothing is booked from here.",
+    "The owner's calendar as the receptionist reads it, for a day or a few: what is taken (in the calendar's own words, with the person in People when the title names one), whether the business is closed that day, and the windows the receptionist would offer. day is today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the page's own week; days is how many from there, at most 14. Call it for what a day looks like or who is booked when; get_openings is the sibling for the free slots alone, sized to a service. Taken is the owner's own calendar and open is what the receptionist would offer; nothing is booked from here, since customers book through the booking link, or with the team where there is none.",
   input: z.object({ day: z.string(), days: z.number().optional() }),
   label: "Reading the calendar",
   run: getCalendar,

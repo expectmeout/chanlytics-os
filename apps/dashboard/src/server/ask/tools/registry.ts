@@ -35,8 +35,10 @@ import { propose_lead_search } from "./act/lead-search";
 /**
  * The registry: one definition per tool, in a file of its family; the JSON schema the model is shown generated
  * from the definition's zod; the input parsed by that zod before the handler runs; dispatch a map. What was two
- * files with a switch each (the Phase 3 plan, PR 3.1) -- the same twenty-six tools, names, order and descriptions,
- * and the same schemas, held to a frozen fixture by ask-registry.test.mjs.
+ * files with a switch each (the Phase 3 plan, PR 3.1) -- the same twenty-six tools, names, order and schemas, held
+ * to the fixture frozen then by ask-registry.test.mjs. The descriptions are PR 3.3's (D9): what each reads, when to
+ * call it and when its sibling, what it returns and its limits, with the rules that described one tool moved in
+ * from the prompt; the same suite holds their length, their siblings and the role words each act tool says.
  */
 
 /**

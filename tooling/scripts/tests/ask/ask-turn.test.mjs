@@ -1958,11 +1958,14 @@ test("get_calendar reads the people it names: a person on the calendar enters th
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
     const out = await runTool(tc, { name: "get_calendar", input: { day: "tomorrow" } });
     assert.equal(out.isError, false, out.result);
+    assert.equal(
+      JSON.parse(out.result).note,
+      "Taken is the owner's own calendar; open is what the receptionist would offer a caller.",
+      "the note keeps the rows' facts; that nothing is booked from here is the tool's description now (PR 3.3)",
+    );
     assert.ok(
-      JSON.parse(out.result).note.includes(
-        "Nothing is booked from here: customers book through the booking link, or with the team where there is none.",
-      ),
-      "the read says nothing is booked from here (pinned as text in calendar.test.mjs until PR 3.1)",
+      READ_TOOLS.find((d) => d.name === "get_calendar").description.includes("nothing is booked from here"),
+      "the description says nothing is booked from here",
     );
     assert.deepEqual(
       JSON.parse(out.result).days[0].taken.map((b) => b.person && b.person.contact_id),
@@ -2279,8 +2282,12 @@ test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
   assert.ok(
-    read.note.endsWith("Nothing here has run because you read it."),
-    "nothing ran because it was read (pinned as text in playbooks.test.mjs until PR 3.1)",
+    read.note.startsWith("A run is a broadcast, and ") && !read.note.includes("say so"),
+    "the note keeps the rows' facts; what to say of a zero, and that nothing ran, are the description's now (PR 3.3)",
+  );
+  assert.ok(
+    READ_TOOLS.find((d) => d.name === "list_playbooks").description.includes("nothing has run because it was read"),
+    "the description says nothing ran because it was read",
   );
   /** One trigger's two counts: who its moment names that said the yes it needs, and who of them a run can reach. */
   const counts = (id) => {
@@ -2345,11 +2352,15 @@ test("REGRESSION: a proposed playbook's card says who said yes apart from who a 
   assert.ok(reaches.includes(" · 1 person on the list said yes to offers · "), reaches);
 });
 
-test("the rule the model reads before any broadcast tells nobody's yes from a yes with no number to send to", () => {
-  const rule = ASK_RULES.find((r) => r.includes("never propose a broadcast to nobody"));
-  assert.ok(rule.includes(NO_NUMBER_REACH), rule);
-  assert.ok(rule.includes("how many said yes and how many can be sent it"), rule);
-  assert.ok(rule.includes("or the ones who did have no number to send to"), rule);
+test("what the model reads before any broadcast tells nobody's yes from a yes with no number to send to: since PR 3.3 the rule is list_audiences' and propose_broadcast's descriptions, and no rule of the prompt's", () => {
+  assert.ok(!ASK_RULES.some((r) => r.includes("never propose a broadcast to nobody")), "out of the rules");
+  const audiences = READ_TOOLS.find((d) => d.name === "list_audiences").description;
+  assert.ok(audiences.includes(NO_NUMBER_REACH), audiences);
+  assert.ok(audiences.includes("read before any broadcast"), audiences);
+  const broadcast = ACT_TOOLS.find((d) => d.name === "propose_broadcast").description;
+  assert.ok(broadcast.includes("Read list_audiences first"), broadcast);
+  assert.ok(broadcast.includes("or the ones who did have no number to send to"), broadcast);
+  assert.ok(broadcast.includes("never propose a broadcast to nobody"), broadcast);
 });
 
 test("the answers the model is shown fit the format key for key, ride in the cached block, and the count's breakdown adds up", () => {
@@ -4302,6 +4313,59 @@ test("the bytes before the messages are the same on two pages and for two people
   const prefix = (r) => JSON.stringify({ system: r.system, tools: r.tools, model: r.model });
   assert.equal(prefix(requests[1]), prefix(requests[0]), "another page");
   assert.equal(prefix(requests[2]), prefix(requests[0]), "another person of the same role");
+});
+
+test("a rule that described one tool is that tool's description now, and out of the rules block (PR 3.3, D9); a rule about answering in general stays", async () => {
+  const s = scripted([ROUND([answer("Fine.")])]);
+  await runAskTurn(turn(ctxFor()).input, ports(s.round));
+  const rules = s.requests[0].system[0].text;
+  const said = (name) => s.requests[0].tools.find((t) => t.name === name).description;
+  // [what left the rules, the tool it landed in, how that tool says it]
+  const moved = [
+    [
+      "get_settings is for the reply policy's dials, the channels and the notifications",
+      "get_settings",
+      "Call it for the reply policy's dials, the channels and the notifications",
+    ],
+    ["(get_thread, get_call)", "get_thread", "when the whole conversation is needed and the page on screen holds only"],
+    ["(get_today, list_threads, list_calls)", "list_threads", "for what the page on screen does not hold"],
+    [
+      "(a reply, a rewrite, an Inbox action, a setting, an invitation, a whisper, a broadcast, a lead search)",
+      "propose_steer",
+      "Propose a rewrite",
+    ],
+    ["Read list_audiences before any broadcast", "list_audiences", "read before any broadcast"],
+    ["never propose a broadcast to nobody", "propose_broadcast", "never propose a broadcast to nobody"],
+    [
+      "read list_lead_searches, then propose_lead_search: one plan, never a search",
+      "propose_lead_search",
+      "Read list_lead_searches first, so a plan is not repeated: one plan, never a search",
+    ],
+    [
+      "words that answer it are propose_lead_search with amends",
+      "list_lead_searches",
+      "words that answer it are propose_lead_search with amends set to that search's id",
+    ],
+    [
+      "never say a search has started until the card is approved",
+      "propose_lead_search",
+      "never say a search has started until the card is approved",
+    ],
+    ["(read list_audiences)", "propose_broadcast", "Read list_audiences first"],
+  ];
+  for (const [gone, name, landed] of moved) {
+    assert.ok(!rules.includes(gone), `out of the rules: ${gone}`);
+    assert.ok(said(name).includes(landed), `${name} says: ${landed}`);
+  }
+  for (const kept of [
+    "You never act.",
+    "Answer from it when it is enough, in one round.",
+    "Read only for what it does not hold: a whole conversation or transcript, a person's profile",
+    "name the door: a broadcast reaches only the people who said yes, and anyone else",
+    "Leads are businesses Claude found for the owner to reach",
+    "Only in the US.",
+  ])
+    assert.ok(rules.includes(kept), `kept, about answering in general: ${kept}`);
 });
 
 test("a row the page carried can be cited; one it did not, and one another workspace holds, cannot; a figure answered from the page is grounded, and with no page it is not", async () => {

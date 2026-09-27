@@ -2,7 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { PERSON_MODES, PROPOSAL_SPECS, proposalBelowNeeds } from "@chanlytics/contracts";
 import { roleAtLeast } from "../../../with-route";
-import { UUID, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import { UUID, approverOf, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
 async function proposePersonMode(
   t: ToolContext,
@@ -47,8 +47,7 @@ async function proposePersonMode(
 
 export const propose_person_mode = defineAct({
   name: "propose_person_mode",
-  description:
-    "Propose how the receptionist treats one person: auto (answers), ask (asks a person first), never (stays silent), inherit (the workspace's rule). Owner-only.",
+  description: `Propose how the receptionist treats one person: auto (answers them), ask (asks a person first), never (stays silent with them), or inherit (follows the workspace's rule). contact_id is the id a read returned. Call it when they want the receptionist to stop, resume or check first with one person; propose_policy changes a whole class instead, and propose_thread_verb acts on one thread. Only ${approverOf("person_mode")} can approve it: for anyone else, say so and that an owner can ask.`,
   input: z.object({ contact_id: z.string(), mode: z.enum(["auto", "ask", "never", "inherit"]) }),
   label: "Preparing a receptionist change",
   build: proposePersonMode,

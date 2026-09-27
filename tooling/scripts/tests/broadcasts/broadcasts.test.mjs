@@ -610,7 +610,9 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   // counts, and propose_broadcast as a card of kind broadcast that an operator may approve ("the proposal builders
   // run against the database in memory"), refused with the cause it has when nobody can receive it -- the same yes
   // the route asks for, from the template's own category ("a broadcast to nobody is refused with the cause it has").
-  const { READ_TOOLS, newToolContext, buildProposal } = await importSrc("apps/dashboard/src/server/ask/tools/index.ts");
+  const { READ_TOOLS, ACT_TOOLS, newToolContext, buildProposal } = await importSrc(
+    "apps/dashboard/src/server/ask/tools/index.ts",
+  );
   assert.ok(READ_TOOLS.some((t) => t.name === "list_audiences"));
   // Only an approved template: a pending one is refused before anyone is counted.
   const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -652,7 +654,11 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   assert.ok(
     prompt.includes('"said yes":') && /\n\s+"?broadcast"?:\s*\n/.test(prompt) && prompt.includes('"held back":'),
   );
-  assert.ok(prompt.includes("never propose a broadcast to nobody"));
+  // The rule that described one tool lives in that tool since PR 3.3 (D9): the registry's own description says it.
+  assert.ok(
+    ACT_TOOLS.find((t) => t.name === "propose_broadcast").description.includes("never propose a broadcast to nobody"),
+    "a broadcast to nobody is never proposed",
+  );
   assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes('broadcast: "wave"'));
   assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-text.jsx").includes('kBroadcast: "broadcast"'));
   const s = buildAskSuggestions({

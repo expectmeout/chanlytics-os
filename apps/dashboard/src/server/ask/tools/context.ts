@@ -7,6 +7,7 @@ import {
   type AskProposal,
   type AskReadSet,
   type MembershipRole,
+  type ProposalKindAboveOperator,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../../with-route";
 import { readerContext, type ReaderContext } from "../../readers";
@@ -136,6 +137,15 @@ export function newToolContext(
   rc: ReaderContext = readerContext(ctx, { tenantId, role }, now),
 ): ToolContext {
   return { ctx, tenantId, role, timezone, read: emptyReadSet(), now, rc };
+}
+
+/**
+ * Who may approve a card of this kind, for its tool's description: read from the spec's `needs` (contracts
+ * ask-proposals/), the same role the builder refuses below (proposalBelowNeeds), so a description never says a second
+ * thing about who may approve. A partner's door is the owner's and the partner's; an owner's is the owner's alone.
+ */
+export function approverOf(kind: ProposalKindAboveOperator): string {
+  return PROPOSAL_SPECS[kind].needs === "partner" ? "an owner or a partner" : "an owner";
 }
 
 let seq = 0;
