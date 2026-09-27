@@ -440,8 +440,8 @@
     "depth": 2
   },
   "apps/dashboard/src/legacy/pages/broadcasts-run.jsx::BroadcastDetail#1": {
-    "lines": 158,
-    "branches": 58,
+    "lines": 160,
+    "branches": 59,
     "depth": 2
   },
   "apps/dashboard/src/legacy/pages/business-can.jsx::BtCanCard#1": {
@@ -1010,7 +1010,7 @@
     "depth": 2
   },
   "apps/edge/lib/reach-out/check.ts::checkSends#1": {
-    "lines": 185,
+    "lines": 188,
     "branches": 40,
     "depth": 3
   },

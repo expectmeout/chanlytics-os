@@ -10,6 +10,7 @@
  */
 import {
   HOLD_DOOR_WORDS,
+  REACH_OUT_RUN_REREAD_MS,
   REACH_OUT_GAP_MINUTES,
   REACH_OUT_PREVIEW_WORDS,
   REACH_OUT_ROW_WORDS,
@@ -30,6 +31,7 @@ import {
   reachOutDraftOf,
   reachOutDropStep,
   reachOutMayAddStep,
+  reachOutRunWordsOf,
   reachOutMayPickDomain,
   reachOutPreviewOf,
   reachOutSavedWords,
@@ -55,9 +57,11 @@ import {
   type ReachOutDecision,
   type ReachOutPreviewInput,
   type ReachOutReachDto,
+  type BroadcastDetailDto,
 } from "@chanlytics/contracts";
 import { api, read } from "../api";
 import { readCache } from "../read-cache";
+import { broadcasts } from "../broadcast-verbs";
 import type { SurfaceOverride } from "../surface-data";
 
 /**
@@ -118,6 +122,52 @@ export const reachOuts = {
   /** An owner's answer to one held email (R18). */
   decide: (sendId: string, decision: ReachOutDecision) =>
     api()("POST reach-out-sends/[id]/decide", { params: { id: sendId }, body: { decision } }),
+  /** A run's "Check the held again": every email the check could not answer, back to be checked in one call (R18). */
+  recheck: (runId: string) => api()("POST broadcasts/[id]/recheck", { params: { id: runId } }),
+  /**
+   * A live reach-out run as its block says it (R20–R22): contracts' reachOutRunWordsOf by the business's clock, whose
+   * day tells a run from an earlier one; null for a run that is not a reach-out's.
+   */
+  run: (d: BroadcastDetailDto) => {
+    if (!d.reach_out) return null;
+    const clock = window.__clock;
+    const now = Date.now();
+    return reachOutRunWordsOf(d.reach_out, {
+      state: d.broadcast.state,
+      timezone: clock ? clock.zone() : "UTC",
+      today: clock ? clock.dayKey(now) : new Date(now).toISOString().slice(0, 10),
+      now,
+    });
+  },
+  /**
+   * While the check still has sends of a run to read, the run's detail read again every fifteen seconds (R21), through
+   * the broadcasts courier's own read (and its read cache), each answer handed to `onRead`. It stops by itself once an
+   * answer says nothing is being checked, and when the returned stop is called (the block closed): one timer, never two.
+   */
+  watchRun: (runId: string, onRead: (d: BroadcastDetailDto) => void): (() => void) => {
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const stop = () => {
+      stopped = true;
+      if (timer !== null) clearTimeout(timer);
+      timer = null;
+    };
+    const next = () => {
+      timer = setTimeout(async () => {
+        timer = null;
+        const r = await broadcasts.detail(runId).catch(() => null);
+        if (stopped) return;
+        if (r && r.ok) onRead(r.data);
+        // A run no longer checking anything is left alone, and so is one this member may not read or that is gone (a
+        // 4xx asks again for nothing); a failed read otherwise tries again at the next beat.
+        if (r && r.ok && !(r.data.reach_out && r.data.reach_out.checking > 0)) return stop();
+        if (r && !r.ok && r.status >= 400 && r.status < 500) return stop();
+        next();
+      }, REACH_OUT_RUN_REREAD_MS);
+    };
+    next();
+    return stop;
+  },
   /** Every sentence a chain's row, an email row, the sheet and the Leads door say (contracts reach-out-*.ts). */
   words: {
     HOLD_DOOR_WORDS,

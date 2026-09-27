@@ -6,7 +6,7 @@
  * fails throws: "we could not read" is never "none".
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../database.types";
+import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
 
@@ -214,4 +214,104 @@ export async function outreachModeOf(db: Db, tenantId: string): Promise<Outreach
 export async function tenantZoneOf(db: Db, tenantId: string): Promise<string | null> {
   const { data, error } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
   return error ? null : (data?.timezone ?? null);
+}
+
+/** A run's held-notice mark, kept in its audience (Reach out, Part 4 PR 7, R20): claimed by a tick, then sent. */
+export interface HeldNoticeMark {
+  claimed_at: string;
+  sent_at?: string;
+}
+
+type JsonObject = { [key: string]: Json | undefined };
+
+/** A mark as the audience holds it; anything else is no mark. */
+const markOf = (v: Json | undefined): HeldNoticeMark | null =>
+  v && typeof v === "object" && !Array.isArray(v) && typeof v.claimed_at === "string"
+    ? { claimed_at: v.claimed_at, ...(typeof v.sent_at === "string" ? { sent_at: v.sent_at } : {}) }
+    : null;
+
+/** A live reach-out run with holds whose owner has not been told of them yet, as the check's notice reads it. */
+export interface HeldNoticeRun {
+  id: string;
+  tenant_id: string;
+  name: string;
+  audience: JsonObject;
+  updated_at: string;
+  held: number;
+  reasons: string[];
+}
+
+/**
+ * The live reach-out runs (scheduled or sending) holding sends held since `since` whose owner was not told yet: no
+ * mark, or a claim older than `staleBefore` that never went (a tick that stopped, or a notice that failed). A read,
+ * not a tick's memory, so a notice that failed is asked again. A read that fails throws.
+ */
+export async function heldNoticeDue(
+  db: Db,
+  p: { since: string; staleBefore: string; tenantId?: string; limit: number },
+): Promise<HeldNoticeRun[]> {
+  let sends = db
+    .from("reach_out_sends")
+    .select("tenant_id, broadcast_id, reason")
+    .eq("state", "held")
+    .gte("updated_at", p.since)
+    .limit(p.limit);
+  if (p.tenantId) sends = sends.eq("tenant_id", p.tenantId);
+  const held = await sends;
+  if (held.error) throw new Error(`cannot read the held: ${held.error.message}`);
+  const byRun = new Map<string, { held: number; reasons: Set<string> }>();
+  for (const s of held.data ?? []) {
+    if (!s.broadcast_id) continue;
+    const r = byRun.get(s.broadcast_id) ?? { held: 0, reasons: new Set<string>() };
+    r.held += 1;
+    if (s.reason) r.reasons.add(s.reason);
+    byRun.set(s.broadcast_id, r);
+  }
+  if (byRun.size === 0) return [];
+  const runs = await db
+    .from("broadcasts")
+    .select("id, tenant_id, name, state, audience, updated_at")
+    .in("id", [...byRun.keys()])
+    .in("state", ["scheduled", "sending"]);
+  if (runs.error) throw new Error(`cannot read the held's runs: ${runs.error.message}`);
+  return (runs.data ?? []).flatMap((b) => {
+    const audience: JsonObject =
+      b.audience && typeof b.audience === "object" && !Array.isArray(b.audience) ? b.audience : {};
+    if (audience.kind !== "reach_out") return [];
+    const mark = markOf(audience.held_notice);
+    if (mark && (mark.sent_at || mark.claimed_at >= p.staleBefore)) return [];
+    const r = byRun.get(b.id)!;
+    return [
+      {
+        id: b.id,
+        tenant_id: b.tenant_id,
+        name: b.name,
+        audience,
+        updated_at: b.updated_at,
+        held: r.held,
+        reasons: [...r.reasons],
+      },
+    ];
+  });
+}
+
+/**
+ * A run's held-notice mark written into its audience. With `ifUpdatedAt`, only onto the row as it was read (its
+ * updated_at, which moddatetime moves on every write): of two ticks that read one run, one claims it and the other finds
+ * it moved. Nothing else writes a run's audience after it is planned, so the mark after a claim is written plainly.
+ * True when the row took it.
+ */
+export async function markHeldNotice(
+  db: Db,
+  p: { tenantId: string; id: string; audience: JsonObject; mark: HeldNoticeMark; ifUpdatedAt?: string },
+): Promise<boolean> {
+  let q = db
+    .from("broadcasts")
+    .update({ audience: { ...p.audience, held_notice: { ...p.mark } } })
+    .eq("tenant_id", p.tenantId)
+    .eq("id", p.id);
+  if (p.ifUpdatedAt) q = q.eq("updated_at", p.ifUpdatedAt);
+  const { data, error } = await q.select("id");
+  if (error) throw new Error(`cannot mark the run: ${error.message}`);
+  return (data ?? []).length === 1;
 }

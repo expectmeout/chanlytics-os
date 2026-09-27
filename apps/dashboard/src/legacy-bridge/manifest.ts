@@ -130,6 +130,7 @@ import "@/legacy/pages/reach-out/email-template-row.jsx";
 import "@/legacy/pages/messages.jsx";
 import "@/legacy/demo/pages/broadcasts.jsx";
 // A run and the ledger of runs (moved whole from the page, broadcasts-real.jsx then): before it, which draws them.
+import "@/legacy/pages/reach-out/reach-out-approval.jsx";
 import "@/legacy/pages/broadcasts-run.jsx";
 import "@/legacy/pages/broadcasts-ledger.jsx";
 import "@/legacy/pages/broadcasts.jsx";
