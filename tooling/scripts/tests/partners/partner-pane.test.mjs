@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { HANDOVER_WORDS, PARTNER_WORDS } from "@chanlytics/contracts";
+import { HANDOVER_WORDS, PARTNER_WORDS, SECOND_FACTOR_WORDS } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, byTestId, textOf, press, settle } from "../_legacy-react.mjs";
 
 installLegacyReact();
@@ -331,4 +331,83 @@ test("an older server sends no handovers: the pane draws as before", async () =>
   const tree = redraw();
   assert.ok(byTestId(tree, "partner-workspaces"));
   assert.equal(byTestId(tree, "partner-handovers"), null);
+});
+
+/* ------------------------------------------------------------ two-step sign-in (0013) */
+
+const factorStub = (over = {}) => {
+  const asked = [];
+  return {
+    asked,
+    api: {
+      words: SECOND_FACTOR_WORDS,
+      state: async () => ({ ok: true, on: false }),
+      start: async () => {
+        asked.push("start");
+        return { ok: true, enrolment: { factorId: "f-new", qr: "data:image/svg+xml;utf-8,x", secret: "JBSWY3DP" } };
+      },
+      confirm: async (id, code) => {
+        asked.push(["confirm", id, code]);
+        return code === "123456" ? null : "That code didn't match. Open the app and type the code it shows now.";
+      },
+      ...over,
+    },
+  };
+};
+
+test("two-step sign-in: off says why and offers it; set up shows the code to scan and the key; the first code turns it on", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
+  const f = factorStub();
+  globalThis.window.__partner.secondFactor = f.api;
+  draw();
+  await settle();
+  let tree = redraw();
+  assert.equal(textOf(byTestId(tree, "partner-second-factor-intro")), SECOND_FACTOR_WORDS.intro);
+  press(byTestId(tree, "partner-second-factor-start"));
+  await settle();
+  tree = redraw();
+  assert.equal(byTestId(tree, "partner-second-factor-qr").props.src, "data:image/svg+xml;utf-8,x");
+  assert.equal(textOf(byTestId(tree, "partner-second-factor-key")), "JBSWY3DP");
+  assert.match(textOf(byTestId(tree, "partner-second-factor-lost")), /Lost your phone/);
+  byTestId(tree, "partner-second-factor-code").props.onChange({ target: { value: "000000" } });
+  await byTestId(redraw(), "partner-second-factor-setup").props.onSubmit({ preventDefault() {} });
+  await settle();
+  tree = redraw();
+  assert.match(textOf(byTestId(tree, "partner-second-factor-error")), /didn't match/, "a wrong code says so");
+  assert.ok(byTestId(tree, "partner-second-factor-setup"), "and the setup stays");
+  byTestId(tree, "partner-second-factor-code").props.onChange({ target: { value: "123456" } });
+  await byTestId(redraw(), "partner-second-factor-setup").props.onSubmit({ preventDefault() {} });
+  await settle();
+  tree = redraw();
+  assert.equal(textOf(byTestId(tree, "partner-second-factor-on")), SECOND_FACTOR_WORDS.on);
+  assert.deepEqual(f.asked, ["start", ["confirm", "f-new", "000000"], ["confirm", "f-new", "123456"]]);
+});
+
+test("two-step sign-in: on says so; a project without it switched on says that; a read that failed is not 'off'", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  workspacesSay = { ok: true, vm: EMPTY, handovers: {}, full: null };
+  globalThis.window.__partner.secondFactor = factorStub({ state: async () => ({ ok: true, on: true }) }).api;
+  draw();
+  await settle();
+  let tree = redraw();
+  assert.ok(byTestId(tree, "partner-second-factor-on"));
+  assert.equal(byTestId(tree, "partner-second-factor-start"), null);
+
+  globalThis.window.__partner.secondFactor = factorStub({
+    start: async () => ({ ok: false, unavailable: true, message: SECOND_FACTOR_WORDS.unavailable }),
+  }).api;
+  draw();
+  await settle();
+  press(byTestId(redraw(), "partner-second-factor-start"));
+  await settle();
+  tree = redraw();
+  assert.equal(textOf(byTestId(tree, "partner-second-factor-unavailable")), SECOND_FACTOR_WORDS.unavailable);
+
+  globalThis.window.__partner.secondFactor = factorStub({ state: async () => ({ ok: false, message: "offline" }) }).api;
+  draw();
+  await settle();
+  tree = redraw();
+  assert.match(textOf(byTestId(tree, "partner-second-factor-failed")), /offline/);
+  assert.equal(byTestId(tree, "partner-second-factor-start"), null, "never offered on a guess");
 });

@@ -1,3 +1,5 @@
+import { SECOND_FACTOR_PATH, factorStepNeeded, type AssuranceLevels } from "@chanlytics/contracts";
+
 /**
  * The provider's return, decided without a network: what to exchange, and
  * where to land. Pure, so the route stays a thin door and the decisions run in
@@ -76,4 +78,14 @@ export function callbackPlan(q: {
     };
   if (!q.code) return { exchange: null, to: "/login", refused: null };
   return { exchange: q.code, to: safeNext(q.next), refused: null };
+}
+
+/**
+ * Where a browser whose code exchanged lands: where the plan said, unless the account has an authenticator its new
+ * session has not shown (decision 0013). Google is the first factor, never the second, so that session shows its code
+ * on the second step's page before it lands anywhere. An assurance level that could not be read lands as planned: the
+ * partner door asks again.
+ */
+export function landingAfter(to: string, aal: AssuranceLevels | null | undefined): string {
+  return factorStepNeeded(aal) ? SECOND_FACTOR_PATH : to;
 }

@@ -147,6 +147,7 @@ import { z as z12 } from "zod";
 import { z as z13 } from "zod";
 import { z as z14 } from "zod";
 import { z as z15 } from "zod";
+import { z as z16 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -3656,6 +3657,10 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
+var PartnerSecondFactorResetSchema = z16.object({
+  partner_id: z16.string().uuid("That partner does not exist."),
+  why: z16.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -3898,7 +3903,7 @@ var APIFY_RUN_END_EVENTS = [
 ];
 
 // ../contracts/dist/index.js
-import { z as z16 } from "zod";
+import { z as z17 } from "zod";
 import { z as z82 } from "zod";
 import { z as z42 } from "zod";
 import { z as z32 } from "zod";
@@ -3913,7 +3918,8 @@ import { z as z122 } from "zod";
 import { z as z132 } from "zod";
 import { z as z142 } from "zod";
 import { z as z152 } from "zod";
-z16.config({ jitless: true });
+import { z as z162 } from "zod";
+z17.config({ jitless: true });
 var NO_LINK_DETAILS = "their name, what they need, and where and when";
 function offersBookingLink(brain) {
   return !brain || !!brain.booking_link;
@@ -8734,9 +8740,13 @@ var HANDOVER_WORDS2 = {
   later: "Not now",
   failedAnswer: "your answer"
 };
+var PartnerSecondFactorResetSchema2 = z162.object({
+  partner_id: z162.string().uuid("That partner does not exist."),
+  why: z162.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
 
 // ../db/dist/index.js
-import { z as z17 } from "zod";
+import { z as z18 } from "zod";
 import { z as z83 } from "zod";
 import { z as z43 } from "zod";
 import { z as z33 } from "zod";
@@ -8751,7 +8761,8 @@ import { z as z123 } from "zod";
 import { z as z133 } from "zod";
 import { z as z143 } from "zod";
 import { z as z153 } from "zod";
-z17.config({ jitless: true });
+import { z as z163 } from "zod";
+z18.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -11438,6 +11449,10 @@ var HANDOVER_WORDS3 = {
   later: "Not now",
   failedAnswer: "your answer"
 };
+var PartnerSecondFactorResetSchema3 = z163.object({
+  partner_id: z163.string().uuid("That partner does not exist."),
+  why: z163.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
 async function recordCarrierOptOut(db, p) {
   const { data, error } = await db.from("contacts").update({
     consent: "opted_out",
@@ -46216,14 +46231,14 @@ function haversineM(a, b) {
   return Math.round(2 * R * Math.asin(Math.sqrt(s)));
 }
 function zctaCenter(zip) {
-  const z18 = zip.trim();
+  const z19 = zip.trim();
   let lo = 0;
   let hi = TABLE.length - 1;
   while (lo <= hi) {
     const mid = lo + hi >> 1;
     const row = TABLE[mid];
-    if (row[0] === z18) return { lat: row[1], lng: row[2] };
-    if (row[0] < z18) lo = mid + 1;
+    if (row[0] === z19) return { lat: row[1], lng: row[2] };
+    if (row[0] < z19) lo = mid + 1;
     else hi = mid - 1;
   }
   return null;

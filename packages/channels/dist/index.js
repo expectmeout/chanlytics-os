@@ -14,6 +14,7 @@ import { z as z12 } from "zod";
 import { z as z13 } from "zod";
 import { z as z14 } from "zod";
 import { z as z15 } from "zod";
+import { z as z16 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -2918,6 +2919,10 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
+var PartnerSecondFactorResetSchema = z16.object({
+  partner_id: z16.string().uuid("That partner does not exist."),
+  why: z16.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";

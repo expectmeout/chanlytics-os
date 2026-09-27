@@ -6,6 +6,7 @@
  */
 import {
   FIRST_RUN_ROUTE,
+  SECOND_FACTOR_WORDS,
   HANDOVER_WORDS,
   handoverRoom,
   partnerHandoverVM,
@@ -23,6 +24,8 @@ import {
 import { switchWorkspace, type SurfaceOverride, type Workspace } from "./surface-data";
 import { api, read } from "./api";
 import { refreshSurfaces } from "./surface-runner";
+import { createClient } from "../lib/supabase/client";
+import { confirmEnrolment, factorState, startEnrolment, type Enrolment } from "../auth/second-factor";
 
 export interface PartnerSurface {
   dto: PartnerDto | null;
@@ -62,6 +65,14 @@ export interface PartnerApi {
   resend(tenantId: string, email: string): Promise<{ ok: true; sent: boolean } | { ok: false; message: string }>;
   /** Go into one of them: the switcher's own way. */
   open(tenantId: string): void;
+  /** The account's second factor (0013): whether it is on, and setting one up. Supabase Auth holds it. */
+  secondFactor: {
+    words: typeof SECOND_FACTOR_WORDS;
+    state(): Promise<{ ok: true; on: boolean } | { ok: false; message: string }>;
+    start(): Promise<{ ok: true; enrolment: Enrolment } | { ok: false; unavailable: boolean; message: string }>;
+    /** Finish with the first code: null when it worked, else the sentence to say. */
+    confirm(factorId: string, code: string): Promise<string | null>;
+  };
   /** The daily letter on or off (0014). The surface is written from the answer, so the switch shows what is kept. */
   setLetters(on: boolean): Promise<{ ok: boolean; message: string }>;
 }
@@ -95,6 +106,36 @@ export function installPartner(win: Window = window): void {
   win.__partner = {
     words: PARTNER_WORDS,
     handoverWords: HANDOVER_WORDS,
+    // Each makes its client when pressed, and answers rather than throws when it cannot: a page with no Supabase
+    // settings (a stand-in, a test) reads the step as unreadable, never a crash.
+    secondFactor: {
+      words: SECOND_FACTOR_WORDS,
+      state: async () => {
+        try {
+          return await factorState(createClient());
+        } catch (e) {
+          return { ok: false, message: e instanceof Error ? e.message : String(e) };
+        }
+      },
+      start: async () => {
+        try {
+          return await startEnrolment(createClient());
+        } catch {
+          return {
+            ok: false,
+            unavailable: false,
+            message: "We could not start the setup just now. Try again in a minute.",
+          };
+        }
+      },
+      confirm: async (factorId, code) => {
+        try {
+          return await confirmEnrolment(createClient(), factorId, code);
+        } catch {
+          return "We could not check that code just now. Try again in a minute.";
+        }
+      },
+    },
     offerShare: shareWords(PARTNER_SHARE_BP_DEFAULT),
     // The server's count (partner_tenants) when it sends one; the seats held, from an older server.
     vm: (dto, balance) => partnerVM(dto, win.location.origin, dto.brought ?? brought(), balance ?? []),
