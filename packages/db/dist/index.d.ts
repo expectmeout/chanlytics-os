@@ -8926,7 +8926,7 @@ interface HandoverInvite {
  */
 declare function getHandoverInvite(db: Db$1, tenantId: string): Promise<HandoverInvite | null>;
 /**
- * An existing workspace brings in a partner (decision 0018, 00222): its owner names them by code, and they accept.
+ * An existing workspace brings in a partner (decision 0018, 00225): its owner names them by code, and they accept.
  * Every write is a function that checks the caller; the verbs below answer the value, or the function's own code and
  * words, as the handover's do.
  */
@@ -8936,11 +8936,11 @@ interface PartnerInviteSent {
     sentAt: string;
     expiresAt: string;
 }
-/** The owner asks the partner with this code to join the workspace (00222 partner_invite). */
+/** The owner asks the partner with this code to join the workspace (00225 partner_invite). */
 declare function invitePartner(db: Db$1, tenantId: string, code: string): Promise<HandoverResult<PartnerInviteSent>>;
-/** The owner takes the invitation back before it is answered (00222 partner_invite_withdraw). */
+/** The owner takes the invitation back before it is answered (00225 partner_invite_withdraw). */
 declare function withdrawPartnerInvite(db: Db$1, tenantId: string): Promise<HandoverResult<null>>;
-/** The workspace's partner and the invitation waiting, as its owner reads them (00222 workspace_partner). */
+/** The workspace's partner and the invitation waiting, as its owner reads them (00225 workspace_partner). */
 interface WorkspacePartner {
     partner: {
         code: string;
@@ -8964,7 +8964,7 @@ interface PartnerInvitation {
     expiresAt: string;
 }
 /**
- * The open invitations to the calling partner (00222 partner_invitations_mine). None on a database 00222 has not
+ * The open invitations to the calling partner (00225 partner_invitations_mine). None on a database 00225 has not
  * reached, which is true there: nobody can have asked.
  */
 declare function getPartnerInvitations(db: Db$1): Promise<PartnerInvitation[]>;
@@ -8972,9 +8972,9 @@ declare function getPartnerInvitations(db: Db$1): Promise<PartnerInvitation[]>;
 interface PartnerJoined extends HandoverWorkspace {
     earns: boolean;
 }
-/** The caller, a partner, joins the workspace that asked (00222 partner_invite_accept). */
+/** The caller, a partner, joins the workspace that asked (00225 partner_invite_accept). */
 declare function acceptPartnerInvite(db: Db$1, tenantId: string): Promise<HandoverResult<PartnerJoined>>;
-/** The caller, a partner, says no (00222 partner_invite_decline). */
+/** The caller, a partner, says no (00225 partner_invite_decline). */
 declare function declinePartnerInvite(db: Db$1, tenantId: string): Promise<HandoverResult<null>>;
 /** What the edge needs to tell a partner a workspace asked for them: to whom, which workspace, until when. */
 interface PartnerInviteMail {

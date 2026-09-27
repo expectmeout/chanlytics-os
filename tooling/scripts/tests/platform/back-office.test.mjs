@@ -1964,7 +1964,7 @@ test("the partner card: what each partner is owed, the workspaces held for a per
 
 test("who brought it and who decided, in the back office's words: a link, a handover or an owner's invitation; the nightly check, a person, or the rule as the partner joined (0018)", () => {
   const WHY = "The card that pays for it also pays for a workspace the partner owns.";
-  assert.equal(platformPartnerStanding(brought()).by, "Brought by ada-co", "a database before 00222 says no origin");
+  assert.equal(platformPartnerStanding(brought()).by, "Brought by ada-co", "a database before 00225 says no origin");
   assert.equal(platformPartnerStanding(brought({ origin: "link" })).by, "Brought by ada-co");
   assert.equal(platformPartnerStanding(brought({ origin: "handover" })).by, "Set up and handed over by ada-co");
   assert.equal(platformPartnerStanding(brought({ origin: "invite" })).by, "ada-co, asked in by its owner");

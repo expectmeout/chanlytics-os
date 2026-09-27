@@ -405,7 +405,7 @@ export interface PlatformPartnerBalanceDto {
   last_paid_at: string | null;
 }
 
-/** One line of platform_partner_workspaces() (00205, 00222): who brought a workspace, how, and its standing. */
+/** One line of platform_partner_workspaces() (00205, 00225): who brought a workspace, how, and its standing. */
 export interface PlatformPartnerWorkspaceDto {
   tenant_id: string;
   partner_id: string;
@@ -420,7 +420,7 @@ export interface PlatformPartnerWorkspaceDto {
    */
   decided_by: string | null;
   checks: Record<string, unknown> | null;
-  /** How the partner came: link, handover or invite (0018). Absent from a database before 00222. */
+  /** How the partner came: link, handover or invite (0018). Absent from a database before 00225. */
   origin?: string | null;
 }
 

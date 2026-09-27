@@ -3612,7 +3612,7 @@ interface PlatformPartnerBalanceDto {
     paid_cents: number;
     last_paid_at: string | null;
 }
-/** One line of platform_partner_workspaces() (00205, 00222): who brought a workspace, how, and its standing. */
+/** One line of platform_partner_workspaces() (00205, 00225): who brought a workspace, how, and its standing. */
 interface PlatformPartnerWorkspaceDto {
     tenant_id: string;
     partner_id: string;
@@ -3627,7 +3627,7 @@ interface PlatformPartnerWorkspaceDto {
      */
     decided_by: string | null;
     checks: Record<string, unknown> | null;
-    /** How the partner came: link, handover or invite (0018). Absent from a database before 00222. */
+    /** How the partner came: link, handover or invite (0018). Absent from a database before 00225. */
     origin?: string | null;
 }
 /** A person's three decisions, as the back office's buttons say them. */
@@ -22830,11 +22830,11 @@ declare function secondFactorResetWords(code: string, removed: number): string;
  * An existing workspace brings in a partner (decision 0018).
  *
  * The pure half: what the owner types, what the owner's card and the partner's pane say, and the email the partner
- * is sent. The fourteen days and the rule on credit are the database's (00222); they are restated here only to be
+ * is sent. The fourteen days and the rule on credit are the database's (00225); they are restated here only to be
  * said, never enforced.
  */
 
-/** How long an owner's invitation to a partner is open (00222). */
+/** How long an owner's invitation to a partner is open (00225). */
 declare const PARTNER_INVITE_DAYS = 14;
 /**
  * A partner's code as the owner may give it: the code itself, or the partner's whole link, whose segment after `/p/`

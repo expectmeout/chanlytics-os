@@ -2,13 +2,13 @@
  * An existing workspace brings in a partner (decision 0018).
  *
  * The pure half: what the owner types, what the owner's card and the partner's pane say, and the email the partner
- * is sent. The fourteen days and the rule on credit are the database's (00222); they are restated here only to be
+ * is sent. The fourteen days and the rule on credit are the database's (00225); they are restated here only to be
  * said, never enforced.
  */
 import { z } from "zod";
 import { dayWords } from "./partner";
 
-/** How long an owner's invitation to a partner is open (00222). */
+/** How long an owner's invitation to a partner is open (00225). */
 export const PARTNER_INVITE_DAYS = 14;
 
 /** A code in a link: the characters a code is made of (partner.ts CODE_SHAPE), after `/p/`. */
