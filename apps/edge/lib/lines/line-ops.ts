@@ -40,15 +40,10 @@ import { lineForClient, type LineProviderChoice } from "./lines.js";
 import { campaignFactsFor, type RegisterResult } from "./a2p.js";
 import { retryRequestedBy, type LineDbRow } from "./line-resume.js";
 import type { LineReleaseResult } from "./line-release.js";
+import { errorMessage, type DoorAnswer } from "../admin-door.js";
 
 type LinesInsert = Database["public"]["Tables"]["lines"]["Insert"];
 type RecordRow = Database["public"]["Tables"]["business_records"]["Row"];
-
-/** What the door answers: the status and the JSON body. */
-export interface LineAnswer {
-  status: number;
-  body: unknown;
-}
 
 /** The body as the dashboard's /api/v1/lines verbs send it; every field is checked here before it is believed. */
 export interface LinesBody {
@@ -77,13 +72,13 @@ export interface LinesBody {
   replace?: boolean;
 }
 
-export const UNKNOWN_LINE_OP: LineAnswer = {
+export const UNKNOWN_LINE_OP: DoorAnswer = {
   status: 400,
   body: { ok: false, error: "op must be status, search, buy, retry, release, record, register or registration-status" },
 };
 
 /** Nothing to fake with and no credentials: the Setup page keeps "we set it up with you". */
-export const NO_LINE_PROVIDER: LineAnswer = {
+export const NO_LINE_PROVIDER: DoorAnswer = {
   status: 503,
   body: {
     ok: false,
@@ -93,7 +88,7 @@ export const NO_LINE_PROVIDER: LineAnswer = {
 };
 
 /** May this deployment get lines, and with which provider. */
-export function lineStatus(choice: LineProviderChoice | null): LineAnswer {
+export function lineStatus(choice: LineProviderChoice | null): DoorAnswer {
   return { status: 200, body: { ok: true, ready: !!choice, provider: choice?.name ?? null, costs: LINE_COSTS } };
 }
 
@@ -108,7 +103,7 @@ function areaCodeOf(v: unknown): number | null {
 /** A search is a question to the provider, once the area code is three digits. */
 export function planSearch(
   rawAreaCode: unknown,
-): { kind: "refuse"; answer: LineAnswer } | { kind: "search"; areaCode: number } {
+): { kind: "refuse"; answer: DoorAnswer } | { kind: "search"; areaCode: number } {
   const areaCode = areaCodeOf(rawAreaCode);
   if (!isAreaCode(areaCode)) {
     return {
@@ -119,7 +114,7 @@ export function planSearch(
   return { kind: "search", areaCode };
 }
 
-export function searchAnswer(choice: LineProviderChoice, areaCode: number, numbers: unknown): LineAnswer {
+export function searchAnswer(choice: LineProviderChoice, areaCode: number, numbers: unknown): DoorAnswer {
   return {
     status: 200,
     body: {
@@ -158,7 +153,7 @@ interface BillingRead {
  * describes. So the gate is not a question about a flag any more -- it is
  * asked where the ROW says what the filing will actually be (filingFlags).
  */
-export function spendRefusal(bill: BillingRead, doing: SpendWords): LineAnswer | null {
+export function spendRefusal(bill: BillingRead, doing: SpendWords): DoorAnswer | null {
   if (bill.error) return { status: 503, body: { ok: false, error: bill.error.message } };
   if (!bill.data) return { status: 402, body: { ok: false, error: "no_billing_record" } };
   const why = whyCannotSpend(bill.data.mode as BillingMode, bill.data.status as BillingStatus, doing);
@@ -173,7 +168,7 @@ export function spendRefusal(bill: BillingRead, doing: SpendWords): LineAnswer |
 export function buyRequest(
   rawNumber: unknown,
   rawAreaCode: unknown,
-): { kind: "refuse"; answer: LineAnswer } | { kind: "buy"; number: string; areaCode: number | null } {
+): { kind: "refuse"; answer: DoorAnswer } | { kind: "buy"; number: string; areaCode: number | null } {
   const number = typeof rawNumber === "string" ? rawNumber.trim() : "";
   if (!isE164(number)) {
     return {
@@ -202,7 +197,7 @@ export function planBuy(o: {
   areaCode: number | null;
   others: LineDbRow[];
   now: Date;
-}): { kind: "refuse"; answer: LineAnswer } | { kind: "provision"; row: LinesInsert } {
+}): { kind: "refuse"; answer: DoorAnswer } | { kind: "provision"; row: LinesInsert } {
   const live = liveLineOf(o.others);
   if (live)
     return {
@@ -246,15 +241,15 @@ export function provisionJob(
 }
 
 /** Accepted, not done: the saga is scheduled, and the page sees the row's public face. */
-export function queuedAnswer(choice: LineProviderChoice, row: LineDbRow): LineAnswer {
+export function queuedAnswer(choice: LineProviderChoice, row: LineDbRow): DoorAnswer {
   return { status: 202, body: { ok: true, queued: true, provider: choice.name, line: lineForClient(row) } };
 }
 
 /** The ledger refused the job: said as such, with the row it left (the lines sweep picks it up past the deadline). */
-export function notScheduledAnswer(e: unknown, row: LineDbRow): LineAnswer {
+export function notScheduledAnswer(e: unknown, row: LineDbRow): DoorAnswer {
   return {
     status: 503,
-    body: { ok: false, error: e instanceof Error ? e.message : String(e), line: lineForClient(row) },
+    body: { ok: false, error: errorMessage(e), line: lineForClient(row) },
   };
 }
 
@@ -274,7 +269,7 @@ export function planRetry(
   row: LineDbRow,
   rawBy: unknown,
   now: Date,
-): { kind: "refuse"; answer: LineAnswer } | { kind: "claim"; by: "owner" | "support" } {
+): { kind: "refuse"; answer: DoorAnswer } | { kind: "claim"; by: "owner" | "support" } {
   const refusal = lineRetryRefusal(lineForClient(row), now.getTime());
   if (refusal)
     return { kind: "refuse", answer: { status: 409, body: { ok: false, error: refusal, line: lineForClient(row) } } };
@@ -282,7 +277,7 @@ export function planRetry(
 }
 
 /** The take was somebody else's: the row read a moment ago is already setting up. */
-export function retryTakenAnswer(row: LineDbRow): LineAnswer {
+export function retryTakenAnswer(row: LineDbRow): DoorAnswer {
   return {
     status: 409,
     body: {
@@ -295,7 +290,7 @@ export function retryTakenAnswer(row: LineDbRow): LineAnswer {
 
 /* --------------------------------------------------------------- release */
 
-export function releaseAnswer(r: LineReleaseResult): LineAnswer {
+export function releaseAnswer(r: LineReleaseResult): DoorAnswer {
   if (!r.ok) return { status: r.status, body: { ok: false, error: r.error, released: r.released } };
   return { status: 200, body: { ok: true, released: r.released } };
 }
@@ -307,7 +302,7 @@ export function planRecord(
   rawRecord: unknown,
   rawPath: unknown,
   tenantId: string,
-): { kind: "refuse"; answer: LineAnswer } | { kind: "keep"; path: RegistrationPath; row: RecordDraft } {
+): { kind: "refuse"; answer: DoorAnswer } | { kind: "keep"; path: RegistrationPath; row: RecordDraft } {
   const b = rawRecord && typeof rawRecord === "object" ? (rawRecord as Record<string, unknown>) : null;
   if (!b) return { kind: "refuse", answer: { status: 400, body: { ok: false, error: "record is required" } } };
   const str = (k: string) => (typeof b[k] === "string" ? (b[k] as string).trim() : "");
@@ -370,13 +365,13 @@ type RecordDraft = ReturnType<typeof recordDraft>;
  * door that refuses a customer for a field nobody reads. The first problem,
  * in the owner's words, or nothing.
  */
-export function recordRefusal(row: RecordDraft, path: RegistrationPath, ourNumbers: string[]): LineAnswer | null {
+export function recordRefusal(row: RecordDraft, path: RegistrationPath, ourNumbers: string[]): DoorAnswer | null {
   const problems = businessRecordProblems(row, path, { ourNumbers });
   const first = Object.values(problems)[0];
   return first ? { status: 400, body: { ok: false, error: first } } : null;
 }
 
-export function recordAnswer(kept: Pick<RecordRow, "legal_name" | "ein" | "updated_at">): LineAnswer {
+export function recordAnswer(kept: Pick<RecordRow, "legal_name" | "ein" | "updated_at">): DoorAnswer {
   return {
     status: 200,
     body: {
@@ -457,7 +452,7 @@ interface FilingCheck {
 }
 
 export type FilingPlan =
-  | { kind: "refuse"; answer: LineAnswer }
+  | { kind: "refuse"; answer: DoorAnswer }
   /** The rejected campaign, corrected in place: the same resource, edited, as the subaccount. */
   | { kind: "resubmit"; facts: ReturnType<typeof campaignFactsFor>; check: FilingCheck }
   /** A filing, after what comes off first: the refused campaign for a replacement, the rehearsal for a real one, or nothing. */
@@ -516,7 +511,7 @@ export function planFiling(o: {
 }
 
 /** A filing that stands, a refusal without a refile, a rehearsal without one: each says what it is and what to send. */
-function refileRefusal(row: LineDbRow, flags: FilingFlags): LineAnswer | null {
+function refileRefusal(row: LineDbRow, flags: FilingFlags): DoorAnswer | null {
   const sids = { brand_sid: row.brand_sid, campaign_sid: row.campaign_sid };
   if (!row.reg_mock && !flags.rejected)
     return { status: 409, body: { ok: false, error: "already_registered", ...sids } };
@@ -555,7 +550,7 @@ interface RefileOutcome {
 }
 
 /** A refile door's word, decided: refused, or the row to go on from. */
-type RefileVerdict = { kind: "refuse"; answer: LineAnswer } | { kind: "ready"; row: LineDbRow };
+type RefileVerdict = { kind: "refuse"; answer: DoorAnswer } | { kind: "ready"; row: LineDbRow };
 
 /**
  * A pre-flight refusal is a 409 and carries the sentences: it is a fact about
@@ -577,7 +572,7 @@ export function resubmitVerdict(again: RefileOutcome): RefileVerdict {
 }
 
 /** Back with the carriers, under the same receipts; what the page sees is the row as it reads after. */
-export function resubmittedAnswer(row: LineDbRow, after: LineDbRow | null): LineAnswer {
+export function resubmittedAnswer(row: LineDbRow, after: LineDbRow | null): DoorAnswer {
   return {
     status: 200,
     body: { ok: true, resubmitted: true, smsState: row.sms_state, line: after ? lineForClient(after) : null },
@@ -600,7 +595,7 @@ export function takeOffVerdict(off: RefileOutcome, takeOff: "replace" | "unfile"
 }
 
 /** Same distinction as the refile path: a record the pre-flight refused is a 409 about this workspace, not a 502 about the carriers. */
-export function filingAnswer(result: RegisterResult, mock: boolean, after: LineDbRow | null): LineAnswer {
+export function filingAnswer(result: RegisterResult, mock: boolean, after: LineDbRow | null): DoorAnswer {
   const status = result.ok ? 200 : result.problems?.length ? 409 : 502;
   return { status, body: { ...result, mock, line: after ? lineForClient(after) : null } };
 }
@@ -626,11 +621,11 @@ export function campaignHeldFor(r: RegistrationSync, row: LineDbRow): boolean {
   return r.ok && r.brand === "APPROVED" && !row.campaign_sid;
 }
 
-export function syncAnswer(r: RegistrationSync): LineAnswer {
+export function syncAnswer(r: RegistrationSync): DoorAnswer {
   return { status: r.ok ? 200 : 502, body: r };
 }
 
-export function heldCampaignAnswer(r: RegistrationSync, filed: RegisterResult): LineAnswer {
+export function heldCampaignAnswer(r: RegistrationSync, filed: RegisterResult): DoorAnswer {
   return {
     status: 200,
     body: {

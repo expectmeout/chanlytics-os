@@ -12,7 +12,7 @@ import { fakeDb } from "../_fake-db.mjs";
 import { at, knock, answer, vault } from "../_cron-doors-world.mjs";
 
 process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_only";
-const { setStripeClient } = await import(at("apps/edge/lib/billing.ts"));
+const { setStripeClient } = await import(at("apps/edge/lib/billing/billing.ts"));
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const hook = await import(at("apps/edge/api/stripe-webhook.ts"));
 const clock = await import(at("apps/edge/api/cron/partners.ts"));

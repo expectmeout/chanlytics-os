@@ -3,10 +3,10 @@
  *
  * The signature is checked against the raw body before anything is read
  * (Stripe-Signature, the endpoint's secret). A delivery is kept by its
- * event id under a lease (lib/billing.ts keepEvent), so a retry or a replay
+ * event id under a lease (lib/billing/billing.ts keepEvent), so a retry or a replay
  * changes nothing while a delivery that died mid-way is retried. Subscription
  * events carry the subscription itself and are applied through the one
- * routine the ops use (lib/billing.ts applySubscription); a finished Checkout
+ * routine the ops use (lib/billing/billing.ts applySubscription); a finished Checkout
  * is read back from Stripe so the row is right when the browser returns;
  * payment events ring their bells. The answer is 200 once the change is made
  * and the claim completed; a failure to write is a 500, and a Stripe that
@@ -36,7 +36,7 @@ import {
   stripe,
   subscriptionFacts,
   tenantOf,
-} from "../lib/billing.js";
+} from "../lib/billing/billing.js";
 import {
   earnFromInvoice,
   invoiceOfPayment,

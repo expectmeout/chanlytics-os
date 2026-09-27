@@ -2791,6 +2791,7 @@ export type Database = {
           rank: number | null
           rating: number | null
           region: string | null
+          resume_at: string | null
           reviews: number | null
           reviews_dist: Json | null
           stage: string
@@ -2842,6 +2843,7 @@ export type Database = {
           rank?: number | null
           rating?: number | null
           region?: string | null
+          resume_at?: string | null
           reviews?: number | null
           reviews_dist?: Json | null
           stage?: string
@@ -2893,6 +2895,7 @@ export type Database = {
           rank?: number | null
           rating?: number | null
           region?: string | null
+          resume_at?: string | null
           reviews?: number | null
           reviews_dist?: Json | null
           stage?: string
@@ -4976,6 +4979,14 @@ export type Database = {
       is_platform_admin: { Args: never; Returns: boolean }
       is_workspace_owner: { Args: { p_tenant: string }; Returns: boolean }
       jobs_backlog: { Args: { p_wait?: string }; Returns: number }
+      lead_address_suppressed: {
+        Args: { p_address: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      lead_addresses_suppressed: {
+        Args: { p_addresses: string[]; p_tenant_id: string }
+        Returns: string[]
+      }
       lead_blank: { Args: { p_lead_id: string }; Returns: number }
       lead_bulk: {
         Args: {
@@ -5009,6 +5020,16 @@ export type Database = {
           p_page: Json
           p_run_id: string
           p_to_offset: number
+        }
+        Returns: Json
+      }
+      lead_convert_by: {
+        Args: {
+          p_any_stage?: boolean
+          p_data?: Json
+          p_how: string
+          p_lead_id: string
+          p_tenant_id: string
         }
         Returns: Json
       }
@@ -5631,6 +5652,17 @@ export type Database = {
           p_source: string
           p_source_id?: string
           p_tenant_id: string
+        }
+        Returns: Json
+      }
+      person_step_from_playbook: {
+        Args: {
+          p_contact_id: string
+          p_due_on: string
+          p_for_user_id?: string
+          p_source_id?: string
+          p_tenant_id: string
+          p_words: string
         }
         Returns: Json
       }

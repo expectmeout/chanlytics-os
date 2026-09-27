@@ -8,45 +8,36 @@
  */
 import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./packages/db.js";
-import { emitEvent } from "./packages/db.js";
+import type { Database, Json } from "../packages/db.js";
+import { emitEvent } from "../packages/db.js";
 import {
   BILLING_STATUSES,
   BILLING_TRIAL_DAYS,
   CHECKOUT_RETURN_ROUTE,
-  billingAccountDto,
   planBilling,
   type CheckoutReturn,
-  type BillingAccountDto,
   type BillingInvoiceDto,
   type BillingPriceDto,
   type BillingStatus,
   type SchemaSet,
   type SubscriptionFacts,
   MIN_MS,
-} from "./packages/contracts.js";
-import { recordNotification } from "./ops/notify.js";
-import { logger, errField } from "./log.js";
-import { env } from "./env.js";
-import { DEFAULT_DASHBOARD_ORIGIN, dashboardOrigin } from "./dashboard-origin.js";
-import { cardFingerprintOf, markCard } from "./partners/earnings.js";
+} from "../packages/contracts.js";
+import { recordNotification } from "../ops/notify.js";
+import { logger, errField } from "../log.js";
+import { env } from "../env.js";
+import { dashboardOrigin } from "../dashboard-origin.js";
+import { cardFingerprintOf, markCard } from "../partners/earnings.js";
 
 type Db = SupabaseClient<Database>;
-export type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
-
-/** The dashboard's address, where Stripe returns the browser (dashboard-origin.ts; kept exported here for its callers). */
-export { DEFAULT_DASHBOARD_ORIGIN, dashboardOrigin };
+type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
 
 /**
  * Back on the workspace's own page (/w/<slug>, plan 3.5), with the outcome in a word the page reads once: Settings ›
  * Billing, or the first run that asked for the card (contracts CHECKOUT_RETURNS, a closed list); the home when the
  * slug is unknown.
  */
-export function billingReturnUrl(
-  slug: string | null,
-  outcome: "success" | "cancel" | "portal",
-  back: CheckoutReturn,
-): string {
+function billingReturnUrl(slug: string | null, outcome: "success" | "cancel" | "portal", back: CheckoutReturn): string {
   const page = slug ? `/w/${encodeURIComponent(slug)}` : "/";
   return `${dashboardOrigin()}${page}?billing=${outcome}#/${CHECKOUT_RETURN_ROUTE[back]}`;
 }
@@ -69,7 +60,7 @@ export function stripe(): Stripe | null {
   return client;
 }
 
-export function priceId(): string | null {
+function priceId(): string | null {
   return env.STRIPE_PRICE_ID || null;
 }
 
@@ -104,10 +95,6 @@ export function stripeLivemode(): boolean | null {
   if (key.startsWith("sk_live_") || key.startsWith("rk_live_")) return true;
   if (key.startsWith("sk_test_") || key.startsWith("rk_test_")) return false;
   return null;
-}
-
-export function accountForClient(r: BillingRow): BillingAccountDto {
-  return billingAccountDto(r);
 }
 
 async function accountOf(db: Db, tenantId: string): Promise<BillingRow | null> {
@@ -288,7 +275,7 @@ async function customerFor(
   return c.id;
 }
 
-export type BillingFailure =
+type BillingFailure =
   | "not_ready"
   | "no_account"
   | "direct"
@@ -536,10 +523,10 @@ export const BILLING_EVENT_LEASE_MS = 2 * MIN_MS;
 export const STRIPE_READ_OPTIONS: Stripe.RequestOptions = { timeout: 8_000, maxNetworkRetries: 0 };
 
 /** Why a read of Stripe did not answer: the SDK's class (its `type`; it sets no `name`), Stripe's status when there was one, and the message. */
-export type StripeFailure = { type: string; status: number | null; message: string };
+type StripeFailure = { type: string; status: number | null; message: string };
 
 /** What a read of Stripe came back with: the object; Stripe's word that there is no such object; or no answer at all. */
-export type StripeRead<T> = { read: "found"; value: T } | { read: "gone" } | { read: "unreadable"; why: StripeFailure };
+type StripeRead<T> = { read: "found"; value: T } | { read: "gone" } | { read: "unreadable"; why: StripeFailure };
 
 /**
  * Stripe's "No such subscription": a 404 AND code resource_missing, which a
@@ -597,7 +584,7 @@ async function insertClaim(db: Db, id: string, type: string, tenantId: string | 
 }
 
 /** What a delivery gets for its claim: the lease it now holds; the event applied already; or held by a delivery still inside its lease. */
-export type EventClaim = { claim: "taken"; lease: string } | { claim: "applied" } | { claim: "held" };
+type EventClaim = { claim: "taken"; lease: string } | { claim: "applied" } | { claim: "held" };
 
 /**
  * A delivery kept by its id, under a lease.

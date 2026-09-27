@@ -6,13 +6,13 @@
  * the owner is told of: the invitation is on record, the partner's pane shows it, and it can be asked again. The
  * address is the partner's own account's, read here, never one the call carries, so this door writes to nobody but
  * the partner the workspace named. Every sentence is contracts' (partnerInviteEmail). Diagnostic-key only; the
- * address is never logged.
+ * address is never logged. The body, the workspace and the refusals around it are admin-door.ts's.
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
-import { pg } from "../../lib/pg.js";
+import { errorMessage, readBody, workspaceOf } from "../../lib/admin-door.js";
 import { platformFrom, post } from "../../lib/ops/notify.js";
-import { logger, errField } from "../../lib/log.js";
+import { logger } from "../../lib/log.js";
 import { dashboardOrigin } from "../../lib/dashboard-origin.js";
 import { getPartnerInviteMail } from "../../lib/packages/db.js";
 import { partnerInviteEmail } from "../../lib/packages/contracts.js";
@@ -24,25 +24,17 @@ export async function POST(request: Request): Promise<Response> {
   if (!auth.ok) return auth.response;
   const from = platformFrom();
   if (!from) return json(503, { ok: false, error: "no_sender" });
-  const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
-
-  let body: { tenant_id?: string } = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* validated below */
-  }
+  const body = await readBody<{ tenant_id: string }>(request);
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
-  const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId)) return json(400, { ok: false, error: "tenant_id is required" });
+  const at = workspaceOf(ws.tenantId);
+  if (!at.ok) return at.response;
 
   let invite;
   try {
-    invite = await getPartnerInviteMail(db, tenantId);
+    invite = await getPartnerInviteMail(at.db, at.tenantId);
   } catch (e) {
-    return json(503, { ok: false, error: errField(e) });
+    return json(503, { ok: false, error: errorMessage(e) });
   }
   // Answered, taken back, expired or never asked: there is nobody waiting to be told.
   if (!invite) return json(404, { ok: false, error: "no_open_invitation" });
@@ -53,6 +45,6 @@ export async function POST(request: Request): Promise<Response> {
     signInUrl: `${dashboardOrigin()}/login?email=${encodeURIComponent(invite.email)}`,
   });
   const sent = await post(from, [invite.email], message.subject, message.body);
-  L.info("partner_invite_sent", { tenant: tenantId, sent });
+  L.info("partner_invite_sent", { tenant: at.tenantId, sent });
   return json(sent ? 200 : 502, { ok: sent, sent });
 }

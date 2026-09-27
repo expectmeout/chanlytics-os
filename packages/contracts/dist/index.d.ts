@@ -52,8 +52,8 @@ declare const SCHEMA_SETS: {
     readonly "lead_search_members.class": readonly ["qualified", "review", "excluded"];
     readonly "lead_search_members.fit": readonly ["strong", "look", "long"];
     readonly "lead_searches.via": readonly ["people", "ask"];
-    readonly "lead_suppressions.kind": readonly ["email", "place", "phone"];
-    readonly "lead_suppressions.what": readonly ["email_opt_out", "customer", "erased"];
+    readonly "lead_suppressions.kind": readonly ["email", "place", "phone", "domain"];
+    readonly "lead_suppressions.what": readonly ["email_opt_out", "customer", "erased", "said_no"];
     readonly "leads.closed_reason": readonly ["said_no", "not_a_fit", "customer", "stale", "search_removed"];
     readonly "leads.email_state": readonly ["none", "checking", "ok", "catch_all", "unknown", "invalid"];
     readonly "leads.stage": readonly ["ready", "nurture", "converted", "archived"];
@@ -81,7 +81,7 @@ declare const SCHEMA_SETS: {
     readonly "partner_tenants.standing": readonly ["qualified", "review", "disqualified"];
     readonly "partners.status": readonly ["active", "paused", "closed"];
     readonly "person_notes.author_kind": readonly ["member", "receptionist"];
-    readonly "person_notes.source": readonly ["page", "bulk", "moved", "call", "thread"];
+    readonly "person_notes.source": readonly ["page", "bulk", "moved", "call", "thread", "reach_out"];
     readonly "person_notes.state": readonly ["kept", "suggested"];
     readonly "playbooks.kind": readonly ["moment", "reach_out"];
     readonly "playbooks.policy_class": readonly ["reengage", "campaign", "booking", "follow_up", "outreach"];
@@ -10329,8 +10329,8 @@ declare const LEAD_COUNTER_KINDS: readonly ["allowance", "budget", "day"];
 /** A's six, and release B's two: a lead's stage, and many at once. */
 declare const LEAD_OPERATION_KINDS: readonly ["undo_search", "keep", "exclude", "put_back", "include", "stop", "stage", "bulk"];
 declare const LEAD_PREFERENCE_KINDS: readonly ["chain", "wrong_kind", "too_far"];
-declare const LEAD_SUPPRESSION_KINDS: readonly ["email", "place", "phone"];
-declare const LEAD_SUPPRESSION_WHATS: readonly ["email_opt_out", "customer", "erased"];
+declare const LEAD_SUPPRESSION_KINDS: readonly ["email", "place", "phone", "domain"];
+declare const LEAD_SUPPRESSION_WHATS: readonly ["email_opt_out", "customer", "erased", "said_no"];
 /** §16.7, 18: Qualified leads a month, by the workspace's calendar month. */
 declare const LEAD_MONTHLY_ALLOWANCE = 500;
 /** §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. */
@@ -22261,7 +22261,7 @@ interface ActivityPageDto {
 declare const ACTIVITY_NOISE_PREFIXES: readonly ["usage.", "webhook.", "ingest."];
 /**
  * Whether a row of the log is about money: an event its emitter filed under billing -- the subscription's
- * (billing.updated, .paused, .resumed, apps/edge/lib/billing.ts) and a partner's share, its reversal, its payment and
+ * (billing.updated, .paused, .resumed, apps/edge/lib/billing/billing.ts) and a partner's share, its reversal, its payment and
  * its standing (partner.earned, .reversed, .paid, .standing_set, written by 00203/00205/00207/00214). Read from the row's
  * own category, which every emitter writes beside the kind, so a money kind added later is money here without a list
  * to keep; a decision carries none. Ask leaves these out (the charter: anything about money), and the page shows them.
@@ -22789,11 +22789,11 @@ declare function secondFactorResetWords(code: string, removed: number): string;
  * An existing workspace brings in a partner (decision 0018).
  *
  * The pure half: what the owner types, what the owner's card and the partner's pane say, and the email the partner
- * is sent. The fourteen days and the rule on credit are the database's (00220); they are restated here only to be
+ * is sent. The fourteen days and the rule on credit are the database's (00221); they are restated here only to be
  * said, never enforced.
  */
 
-/** How long an owner's invitation to a partner is open (00220). */
+/** How long an owner's invitation to a partner is open (00221). */
 declare const PARTNER_INVITE_DAYS = 14;
 /**
  * A partner's code as the owner may give it: the code itself, or the partner's whole link, whose last segment after
