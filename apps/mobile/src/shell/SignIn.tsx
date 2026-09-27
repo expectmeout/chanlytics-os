@@ -11,6 +11,7 @@ import { Surface } from "./Surface";
 import { doorForm, type DoorHandoff } from "./sign-in";
 import { appleAvailable, GOOGLE, signInWithApple, signInWithGoogle } from "./native-auth";
 import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts";
+import { setState } from "./state";
 
 // The sign-in stands in the web's default theme: no page has said the member's yet.
 const PAPER = THEME_COLORS.dark;
@@ -27,6 +28,12 @@ export function SignIn() {
   useEffect(() => {
     void appleAvailable().then(setApple);
   }, []);
+  // The chooser is the one screen an update may restart the app on (state.ts idle); the web door and the handoff
+  // are not, since a person may be typing there.
+  useEffect(() => {
+    setState({ idle: !email && !handoff });
+    return () => setState({ idle: false });
+  }, [email, handoff]);
 
   const run = useCallback(async (go: () => Promise<DoorHandoff | null>, failed: string) => {
     setBusy(true);

@@ -48,16 +48,29 @@ async function lookAtTheSite(): Promise<void> {
   }
 }
 
-async function lookAtUpdates(): Promise<void> {
-  if (__DEV__ || !Updates.isEnabled) return;
+/**
+ * EAS Update on every return to the foreground. Not at launch: expo-updates checks and fetches there on its own
+ * (checkAutomatically's default), and a second check right behind it bought nothing but a restart of the app the
+ * moment the download ended, before anyone was in, lock screen included. An update fetched here restarts the app at
+ * once only while nobody is in the middle of anything (state.ts idle) and the lock is not up; otherwise it runs on
+ * the next launch. A rollback the server ordered counts as an update. One look at a time.
+ */
+let looking = false;
+async function lookAtUpdates(locked: () => boolean): Promise<void> {
+  if (__DEV__ || !Updates.isEnabled || looking) return;
+  looking = true;
   try {
-    const { isAvailable } = await Updates.checkForUpdateAsync();
-    if (!isAvailable) return;
-    await Updates.fetchUpdateAsync();
-    // Only while nobody is mid-page: the sign-in screen, or the first look after a launch.
-    if (getState().session !== "in") await Updates.reloadAsync();
+    const check = await Updates.checkForUpdateAsync();
+    if (!check.isAvailable && !check.isRollBackToEmbedded) return;
+    const fetched = await Updates.fetchUpdateAsync();
+    if (!fetched.isNew && !fetched.isRollBackToEmbedded) return;
+    if (getState().idle && !locked()) {
+      await Updates.reloadAsync({ reloadScreenOptions: { backgroundColor: THEME_COLORS[getState().theme] } });
+    }
   } catch {
     /* an update that cannot be fetched is not the person's problem */
+  } finally {
+    looking = false;
   }
 }
 
@@ -137,13 +150,16 @@ export default function RootLayout() {
     };
   }, [router]);
 
+  const lockedNow = useRef(false);
+  useEffect(() => {
+    lockedNow.current = locked;
+  }, [locked]);
   useEffect(() => {
     void lookAtTheSite();
-    void lookAtUpdates();
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") {
         void lookAtTheSite();
-        void lookAtUpdates();
+        void lookAtUpdates(() => lockedNow.current);
         // A registration the site refused is asked for once more on each return, never in a loop (bridge.ts).
         setState({ refused: null });
       }
