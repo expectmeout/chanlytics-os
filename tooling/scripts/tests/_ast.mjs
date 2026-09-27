@@ -8,7 +8,11 @@
  * reads a file to search it.
  *
  * The file set is `git ls-files`, so a checkout and a desk measure the same
- * thing (the lesson the source-scan ratchet learned on its first CI run).
+ * thing (the lesson the source-scan ratchet learned on its first CI run), less
+ * what is not our source: built and generated files, and `apps/<app>/public/`, the
+ * files the browser loads as they are (the vendored MapLibre bundle, the service
+ * worker), which Prettier leaves alone for the same reason. It is dropped here,
+ * once, so no measure counts it.
  *
  * Definitions, so a number here can be re-derived by hand:
  *   lines     from a function's first token to its closing brace, inclusive
@@ -34,7 +38,8 @@ import { execFileSync } from "node:child_process";
 import { ROOT } from "./_source.mjs";
 
 export const SOURCE = /\.(ts|tsx|js|jsx|mjs)$/;
-const NOT_SOURCE = /(^|\/)(dist|node_modules|\.next)\/|\.generated\.ts$|database\.types\.ts$|\.d\.ts$/;
+const NOT_SOURCE =
+  /(^|\/)(dist|node_modules|\.next)\/|^apps\/[^/]+\/public\/|\.generated\.ts$|database\.types\.ts$|\.d\.ts$/;
 
 /** Repo-relative paths under `trees`, as the repository has them, that exist on disk. */
 export function repoFiles(trees, { keep = SOURCE, drop = NOT_SOURCE } = {}) {

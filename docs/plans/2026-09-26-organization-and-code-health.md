@@ -265,8 +265,9 @@ scorecard's, ordered by what Phases 0 to 3 already carry.
 ## 5. How the numbers are measured
 
 - **Functions** are every function declaration, expression, arrow and method with a body, in
-  `apps/**` and `packages/*/src/**`, excluding `dist`, generated files and `.d.ts`. **Lines** are
-  from the function's first token to its closing brace. **Branches** are cyclomatic complexity as
+  `apps/**` and `packages/*/src/**`, excluding `dist`, generated files, `.d.ts` and
+  `apps/*/public/**`. **Lines** are from the function's first token to its closing brace.
+  **Branches** are cyclomatic complexity as
   ESLint's `complexity` counts it: one, plus one per `if`, loop, `case`, `catch`, ternary, `&&`,
   `||`, `??`, logical assignment, `?.` and default value. **Depth** is the nesting ESLint's
   `max-depth` counts: `if`, `switch`, `try` and loops, an else-if chain flat. A nested function
@@ -280,4 +281,6 @@ scorecard's, ordered by what Phases 0 to 3 already carry.
 - **Casts** are `as unknown as` expressions, however written (`(x as unknown) as T`,
   `<T><unknown>x`); **tables** are `.from("<literal>")` calls outside `packages/db`.
 - **Dead exports** are knip's, with entries declared in `knip.json`.
-- The file set is `git ls-files`, so a checkout and a desk measure the same thing.
+- The file set is `git ls-files`, so a checkout and a desk measure the same thing, less `apps/*/public/**`
+  for every measure: the files the browser loads as they are (the vendored MapLibre bundle, the service
+  worker) are not our source, as Prettier already treats them.

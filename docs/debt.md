@@ -73,12 +73,12 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            221   of which over 200 lines: 65
+functions over the limit            207   of which over 200 lines: 65
 files over 800 lines                 34
 directories over 20 modules           7
 window globals                      198   names
 window publishers                   442   sites in 151 files
-copies                              164   of 42 names
+copies                              158   of 40 names
 as unknown as                       222
 table names outside packages/db     535
 dead exports, types and modules     206

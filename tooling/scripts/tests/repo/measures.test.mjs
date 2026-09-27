@@ -14,7 +14,7 @@ import ts from "typescript";
 import { Linter } from "eslint";
 import tseslint from "typescript-eslint";
 import { bank, compare } from "../_ratchet.mjs";
-import { functionsIn, windowUse, unknownCasts, copiesAmong } from "../_ast.mjs";
+import { functionsIn, windowUse, unknownCasts, copiesAmong, repoFiles } from "../_ast.mjs";
 import { bankedSourceScan } from "../_measures.mjs";
 import { knipCommand } from "../../check-dead-exports.mjs";
 
@@ -280,6 +280,19 @@ test("a value laundered through unknown is counted however it is written", () =>
   assert.equal(casts("const a = <T><unknown>x;"), 1);
   assert.equal(casts("const a = <T>(<unknown>x);"), 1);
   assert.equal(casts("const a = x as unknown; const b = y as T;"), 0);
+});
+
+/* ---- The file set ---- */
+
+// The vendored MapLibre bundle under apps/dashboard/public was measured as ours: its minified
+// functions sat in complexity.json and its one-letter names made copies with ours.
+test("what the browser loads as it is, under an app's public/, is no measure's; our own public/ modules are", () => {
+  const files = repoFiles(["apps"]);
+  assert.deepEqual(
+    files.filter((f) => f.split("/")[2] === "public"),
+    [],
+  );
+  assert.ok(files.includes("apps/dashboard/src/server/public/consent-page.ts"), "src/server/public is our code");
 });
 
 /* ---- Copies ---- */
