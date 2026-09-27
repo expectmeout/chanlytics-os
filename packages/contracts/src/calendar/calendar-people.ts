@@ -19,6 +19,7 @@
 import { dayInZone, dayPlusInZone, type FeedItem } from "./availability";
 import { normalizeEmail } from "../shared/email-address";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
+import { DAY_MS } from "../shared/time";
 
 export interface EventContacts {
   /** E.164. */
@@ -598,8 +599,8 @@ export function peopleFromItems(
   nowMs: number,
   window: { backDays?: number; aheadDays?: number } = {},
 ): CalendarPerson[] {
-  const from = nowMs - (window.backDays ?? 30) * 86_400_000;
-  const to = nowMs + (window.aheadDays ?? 90) * 86_400_000;
+  const from = nowMs - (window.backDays ?? 30) * DAY_MS;
+  const to = nowMs + (window.aheadDays ?? 90) * DAY_MS;
   const byPhone = new Map<string, CalendarPerson>();
   // Every number each address rode with, across the feed. An address beside one customer's number on one
   // appointment and beside another's on the next -- a co-host among the guests, a booking page's "email hello@…"
@@ -716,7 +717,7 @@ export function bookedAfterAsk(visits: Visits | null | undefined, askedMs: numbe
  */
 export function visitAnswersAsk(nextStartMs: number | null, lastStartMs: number | null, askedMs: number): boolean {
   if (nextStartMs !== null) return true;
-  return lastStartMs !== null && lastStartMs >= askedMs - 86_400_000;
+  return lastStartMs !== null && lastStartMs >= askedMs - DAY_MS;
 }
 
 export function toBookingReportVM(dto: BookingReportDto | null | undefined): BookingReportVM {

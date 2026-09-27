@@ -7,6 +7,7 @@ import { CLOCK, hourOf } from "./lead-helpers";
 import type { LeadSlot, LeadSlotState } from "./lead-row";
 import { LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord } from "./lead-search";
 import { LEAD_CHECK_WORDS, LEAD_LEFT_OUT_WORD, LEAD_MAILBOX_WORDS, LEAD_UNREACHABLE_WORD } from "./lead-words";
+import { DAY_MS } from "../shared/time";
 
 /**
  * Today, as an owner about to call needs it: whether they are open NOW. "Open today · 11 AM to 5 PM" made them work
@@ -31,7 +32,7 @@ export function leadTodayLine(hours: { day: string; hours: string }[], tz: strin
   const clock = (hh: string, mm: string | undefined, ap: string) =>
     `${hh}${mm && mm !== "00" ? `:${mm}` : ""} ${ap.toUpperCase()}`;
   // A night that runs past midnight belongs to the day it began: at 1 AM, a bar that opened at 5 PM "to 2 AM" is open.
-  const last = hoursOn(new Date(now.getTime() - 86_400_000))?.match(CLOCK);
+  const last = hoursOn(new Date(now.getTime() - DAY_MS))?.match(CLOCK);
   if (
     last &&
     hourOf(last[4], last[5], last[6]) <= hourOf(last[1], last[2], last[3]) &&
@@ -87,7 +88,7 @@ export function leadWhere(
 
 /** The owner's own word for the criterion a place was left out by; the plan holds it. */
 /** A day, from the round's end, in which the untouched leads may be removed and the month credited (§8.6). */
-export const LEAD_UNDO_MS = 24 * 60 * 60_000;
+export const LEAD_UNDO_MS = DAY_MS;
 
 /**
  * Whether a search's latest round may still be undone: ended within the day,

@@ -5,6 +5,7 @@
 import { shiftKey, zoneMidnight } from "../calendar/calendar";
 import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
+import { HOUR_MS } from "../shared/time";
 
 export type RunPlan =
   { kind: "send"; state: "scheduled"; at: Date } | { kind: "hold"; state: "pending_approval" } | { kind: "off" };
@@ -66,9 +67,9 @@ export function nextOpenMoment(tz: string, when: Date): { at: Date; moved: boole
   // Nine hours past midnight is not nine o'clock on the day the clocks change:
   // the offset at nine is what counts, so the guess is read back and corrected
   // by however far its hour landed from nine.
-  let at = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * 3_600_000;
+  let at = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * HOUR_MS;
   const landed = parts(tz, new Date(at)).hour;
-  if (landed !== PLAYBOOK_HOURS.min) at += (PLAYBOOK_HOURS.min - landed) * 3_600_000;
+  if (landed !== PLAYBOOK_HOURS.min) at += (PLAYBOOK_HOURS.min - landed) * HOUR_MS;
   return { at: new Date(at), moved: true };
 }
 

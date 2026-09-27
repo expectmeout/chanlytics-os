@@ -15,7 +15,7 @@
  * gained. Pure: the routes feed it rows, the tests feed it fixtures.
  */
 import type { SchemaSet } from "../shared/schema-sets";
-import { agoWords, DATE_FMT, WEEK_MS } from "../shared/time";
+import { agoWords, DATE_FMT, WEEK_MS, HOUR_MS, DAY_MS } from "../shared/time";
 import { plural } from "../shared/words";
 import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
 import { dayDate, fmtDay, deltaOf, type ReportTileVM } from "../reports/reports";
@@ -303,11 +303,11 @@ export interface SetupGoogleFacts {
 export const GOOGLE_SHOWN_REVIEWS = 5;
 
 /** A review first seen this recently is news on Today. */
-export const REVIEW_NEWS_MS = 36 * 3600 * 1000;
+export const REVIEW_NEWS_MS = 36 * HOUR_MS;
 /** …unless it was written long ago and merely resurfaced in the five Google shows. */
-export const REVIEW_NEWS_MAX_AGE_MS = 14 * 86_400_000;
+export const REVIEW_NEWS_MAX_AGE_MS = 14 * DAY_MS;
 /** The first read after linking is history, not news. */
-const BOOTSTRAP_MS = 3600 * 1000;
+const BOOTSTRAP_MS = HOUR_MS;
 
 /** "4.8 ★"; "no rating yet" when Google has none. */
 export function ratingWords(rating: number | null | undefined): string {

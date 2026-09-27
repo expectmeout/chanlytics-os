@@ -38,9 +38,10 @@ files over 800 lines                 34
 directories over 20 modules           7
 window globals                      198   names
 window publishers                   442   sites in 151 files
-copies                              158   of 40 names
+copies                              155   of 39 names
 as unknown as                       222
 table names outside packages/db     535
+unnamed durations                    78   in 34 files
 dead exports, types and modules     200
 source-text reads in tests          832
 lint warnings allowed                46

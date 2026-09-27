@@ -2,6 +2,9 @@ import "server-only";
 import { deployment } from "../deployment";
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 
+/** A note to the platform mailbox gives up after this; a failure is logged, not surfaced. */
+const TELL_TIMEOUT_MS = 8000;
+
 /**
  * Tell the platform mailbox that a workspace asked a person at Chanlytics
  * for something (a line, until lines provision themselves). The database
@@ -15,7 +18,7 @@ export async function tellPlatformOfSetupRequest(tenantId: string, what: string,
       method: "POST",
       headers: edgeHeaders("/api/admin/setup-request", { workspace: tenantId }),
       body: JSON.stringify({ tenant_id: tenantId, what, by }),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(TELL_TIMEOUT_MS),
     });
     if (!r.ok) console.error("setup_request_tell_failed", JSON.stringify({ tenant: tenantId, what, status: r.status }));
     return r.ok;
@@ -40,7 +43,7 @@ export async function tellOwnerLive(tenantId: string): Promise<boolean> {
       method: "POST",
       headers: edgeHeaders("/api/admin/you-are-live", { workspace: tenantId }),
       body: JSON.stringify({ tenant_id: tenantId }),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(TELL_TIMEOUT_MS),
     });
     if (!r.ok) console.error("you_are_live_tell_failed", JSON.stringify({ tenant: tenantId, status: r.status }));
     return r.ok;

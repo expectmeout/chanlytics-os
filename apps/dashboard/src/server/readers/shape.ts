@@ -1,5 +1,5 @@
 import "server-only";
-import { dealsAreOn, parseTenantConfig } from "@chanlytics/contracts";
+import { dealsAreOn, parseTenantConfig, MIN_MS } from "@chanlytics/contracts";
 import { connectionFor } from "../connections/google";
 import { emailSetupFor } from "../connections/email";
 import { listPlaybooks } from "../campaigns/playbooks";
@@ -33,7 +33,7 @@ const byText = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 export const shape: Reader<undefined, WorkspaceShape> = {
   name: "shape",
-  ttlMs: 5 * 60_000,
+  ttlMs: 5 * MIN_MS,
   async read(rc) {
     const [f, cfg, sells, chans, email, google, saved, playbooks] = await Promise.all([
       load(rc, facts.facts, undefined).then((r) => r.data),

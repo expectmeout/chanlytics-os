@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { SPEND_TEXTING, AppError, MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { edgeLines } from "@/server/connections/lines";
+import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
 
 const Body = z.object({
   line_id: z.string().trim().min(1, "Which line?"),
@@ -43,7 +43,10 @@ export const POST = write({
   spendWords: SPEND_TEXTING,
   input: Body,
   handle: async ({ member, input }) => {
-    const a = await edgeLines({ op: "register", tenant_id: member.tenantId, line_id: input.line_id }, 60_000);
+    const a = await edgeLines(
+      { op: "register", tenant_id: member.tenantId, line_id: input.line_id },
+      EDGE_LINES_TIMEOUT_MS,
+    );
     const b = a.body ?? {};
     if (a.status === 404) throw new AppError("not_found", "That line does not exist.", 404);
     if (a.status === 503 && b.error === "preview")

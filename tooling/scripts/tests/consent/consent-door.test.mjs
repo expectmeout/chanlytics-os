@@ -157,7 +157,7 @@ test("the route: operator or owner, a yes or a no needs its source, the reset ne
   assert.ok(r.includes('recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {'));
   assert.ok(
     readCode("apps/dashboard/src/server/rate-limit.ts").includes(
-      'consent: { limit: 60, windowMs: 60_000, noun: "consent changes" }',
+      'consent: { limit: 60, windowMs: MIN_MS, noun: "consent changes" }',
     ),
   );
 });

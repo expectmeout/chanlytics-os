@@ -36,6 +36,7 @@ import {
   type LeadRoundState,
   type LeadRunState,
   type LeadSearchPlan,
+  MIN_MS,
 } from "@chanlytics/contracts";
 import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels";
 import { CARDS, CHECKER_RUN_TIMEOUT_SECS, MAPS_RUN_TIMEOUT_SECS, areaCenter, type LeadCardRunner } from "./cards";
@@ -77,7 +78,7 @@ export const DEADLINE_MARGIN_MS = 8_000;
  */
 export const JUDGE_MARGIN_MS = JUDGE_TIMEOUT_MS;
 /** An unknown start with no run at the provider after this long is failed. */
-export const UNKNOWN_START_GRACE_MS = 10 * 60_000;
+export const UNKNOWN_START_GRACE_MS = 10 * MIN_MS;
 /** The key our runs carry in their input, so the sweep can tell ours from anyone else's. */
 export const INPUT_MARKER = "chanlyticsRunId";
 /**
@@ -109,7 +110,7 @@ const iso = (d: Date) => d.toISOString();
 const isRefused = (e: unknown): boolean => (e as { name?: string } | null)?.name === "ApifyRefused";
 const isRetryable = (e: unknown): e is { name: string; status: number | null } =>
   (e as { name?: string } | null)?.name === "ApifyRetryable";
-const minute = (p: LeadPorts) => Math.floor(p.now().getTime() / 60_000);
+const minute = (p: LeadPorts) => Math.floor(p.now().getTime() / MIN_MS);
 const outOfTime = (p: LeadPorts, marginMs: number = DEADLINE_MARGIN_MS) => p.now().getTime() + marginMs > p.deadline;
 const webhookUrl = (p: LeadPorts, runRowId: string, token: string) =>
   `${p.webhookBase}/api/apify-webhook?run=${encodeURIComponent(runRowId)}&token=${encodeURIComponent(token)}`;
@@ -136,7 +137,7 @@ async function findOurRun(
   actor: string,
   row: LeadRunRow,
 ): Promise<{ id: string; status: string; datasetId: string | null } | null> {
-  const since = new Date(Date.parse(row.claimed_at ?? row.created_at) - 5 * 60_000);
+  const since = new Date(Date.parse(row.claimed_at ?? row.created_at) - 5 * MIN_MS);
   const runs = await p.apify.listActorRuns(actor, iso(since));
   for (const r of runs.slice(0, PROVIDER_RUN_PAGE)) {
     const input = (await p.apify.runInput(r.id)) as Record<string, unknown> | null;

@@ -14,7 +14,7 @@
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
-import { ASK_TOKENS_DAY } from "../../lib/packages/contracts.js";
+import { ASK_TOKENS_DAY, MIN_MS } from "../../lib/packages/contracts.js";
 import {
   GATEWAY_MAX_BODY,
   GATEWAY_PURPOSES,
@@ -38,8 +38,10 @@ const API = "https://api.anthropic.com/v1/messages";
  * written on every round regardless.
  */
 const budgetSeen = new Map<string, { at: number; used: number }>();
-const BUDGET_TTL_MS = 60_000;
+const BUDGET_TTL_MS = MIN_MS;
 const VERSION = "2023-06-01";
+/** The model's answer is given this long, inside the function's sixty seconds (vercel.json). */
+const UPSTREAM_TIMEOUT_MS = 55_000;
 
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/llm");
@@ -92,7 +94,7 @@ export async function POST(request: Request): Promise<Response> {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": VERSION },
       body: JSON.stringify({ ...v.request, stream: true }),
-      signal: AbortSignal.timeout(55_000),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
   } catch (e) {
     L.error("ask_gateway_unreachable", { error: errField(e) });

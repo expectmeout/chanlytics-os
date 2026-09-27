@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EventKind } from "@chanlytics/contracts";
-import { CARRIER_CONSENT_SOURCE, normalizePhone, type PurposeBearing } from "@chanlytics/contracts";
+import { CARRIER_CONSENT_SOURCE, normalizePhone, type PurposeBearing, HOUR_MS } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 
 type Db = SupabaseClient<Database>;
@@ -374,7 +374,7 @@ export async function countSentToday(
   db: Db,
   p: { tenantId: string; conversationId: string; source: string },
 ): Promise<number> {
-  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const since = new Date(Date.now() - 24 * HOUR_MS).toISOString();
   const { count, error } = await db
     .from("messages")
     .select("id", { count: "exact", head: true })

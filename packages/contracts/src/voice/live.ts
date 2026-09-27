@@ -22,14 +22,15 @@ import { callerName } from "../people/person-name";
 import { DISCONNECTION_LABELS, initialsOf, shortTime, spokenDuration, type CallDto } from "../conversations/viewmodels";
 import { callOutcomeWords } from "./call-words";
 import type { ChannelDto } from "../lines/channels";
+import { MIN_MS } from "../shared/time";
 
 /** A live call whose heartbeat is older than this is "still marked live · checking". */
-export const LIVE_STALE_MS = 5 * 60 * 1000;
+export const LIVE_STALE_MS = 5 * MIN_MS;
 /** A call live longer than this is flagged the same way: long calls happen, rarely. */
-export const LIVE_OVERLONG_MS = 30 * 60 * 1000;
+export const LIVE_OVERLONG_MS = 30 * MIN_MS;
 /** Retell's analysis lands a little after call_ended; until then "no summary"
  *  is a fact about the clock, not the call. */
-export const ANALYSIS_GRACE_MS = 10 * 60 * 1000;
+export const ANALYSIS_GRACE_MS = 10 * MIN_MS;
 /** How many finished calls the page lists beside the live ones. */
 export const RECENT_MAX = 8;
 
@@ -221,10 +222,10 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     const sinceStart = startedAtMs === null ? 0 : nowMs - startedAtMs;
     if (sinceBeat > LIVE_STALE_MS) {
       checking = true;
-      checkingWhy = `no word from the phone provider for ${Math.round(sinceBeat / 60_000)} minutes`;
+      checkingWhy = `no word from the phone provider for ${Math.round(sinceBeat / MIN_MS)} minutes`;
     } else if (sinceStart > LIVE_OVERLONG_MS) {
       checking = true;
-      checkingWhy = `live for over ${Math.floor(sinceStart / 60_000)} minutes`;
+      checkingWhy = `live for over ${Math.floor(sinceStart / MIN_MS)} minutes`;
     }
   }
 

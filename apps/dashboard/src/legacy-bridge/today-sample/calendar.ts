@@ -9,8 +9,9 @@ import {
   zoneDayKey,
   type CalendarWeekDto,
   type CalendarVM,
+  MIN_MS,
 } from "@chanlytics/contracts";
-import { ZONE, MIN, type SampleClock, type SampleDay } from "./clock";
+import { ZONE, type SampleClock, type SampleDay } from "./clock";
 
 const person = (id: string, name: string) => ({ id, name, via: "phone" as const });
 
@@ -27,7 +28,7 @@ export function sampleCalendar(clock: SampleClock, day: SampleDay): { vm: Calend
     who: { id: string; name: string; via: "phone" } | null = null,
     dayOffset = 0,
   ) => ({ id, start: at(h, m, dayOffset), end: at(h, m + dur, dayOffset), title, all_day: false, person: who });
-  const dayKey = (offset: number) => zoneDayKey(midnight + offset * 24 * 60 * MIN + 12 * 60 * MIN, ZONE);
+  const dayKey = (offset: number) => zoneDayKey(midnight + offset * 24 * 60 * MIN_MS + 12 * 60 * MIN_MS, ZONE);
   const calendarDto: CalendarWeekDto = {
     timezone: ZONE,
     from: dayKey(0),

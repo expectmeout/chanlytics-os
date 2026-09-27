@@ -9,6 +9,7 @@ import type { Database } from "@chanlytics/db";
 import type { LineDto } from "@chanlytics/contracts";
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 import { deployment } from "../deployment";
+import { MIN_MS } from "@chanlytics/contracts";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
 const LINE_COLUMNS =
@@ -63,8 +64,11 @@ export interface EdgeAnswer {
   body: Record<string, unknown> | null;
 }
 
+/** How long a lines verb waits on the edge unless its caller says: buy, register, retry and the platform's line actions. */
+export const EDGE_LINES_TIMEOUT_MS = MIN_MS;
+
 /** One call to the edge's lines endpoint. Never throws: a failure is a status the caller reads. */
-export async function edgeLines(body: Record<string, unknown>, timeoutMs = 60_000): Promise<EdgeAnswer> {
+export async function edgeLines(body: Record<string, unknown>, timeoutMs = EDGE_LINES_TIMEOUT_MS): Promise<EdgeAnswer> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate every other provider door keeps (billing.ts, google.ts,
   // whatsapp.ts). This one did not, and EDGE_URL defaults to the production
@@ -108,7 +112,7 @@ interface LinesStatus {
 
 const DEFAULT_COSTS = { local_number_month_usd: 1.15, toll_free_month_usd: 2.15 };
 let statusCache: { at: number; value: LinesStatus } | null = null;
-const STATUS_TTL_MS = 5 * 60_000;
+const STATUS_TTL_MS = 5 * MIN_MS;
 /** A "not ready" answer is remembered briefly: a slow edge or a credential set a minute ago must not hide "Get a line" for five. */
 const STATUS_NOT_READY_TTL_MS = 30_000;
 

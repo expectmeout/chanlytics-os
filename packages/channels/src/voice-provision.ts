@@ -25,7 +25,7 @@ import {
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
 } from "./voice-shell";
-import { E164 } from "@chanlytics/contracts";
+import { E164, HOUR_MS } from "@chanlytics/contracts";
 
 /** The model behind the shell. Temperature 0: the facts are read, not improvised. */
 export const VOICE_LLM_DEFAULTS = {
@@ -48,7 +48,7 @@ export const VOICE_AGENT_DEFAULTS = {
   voice_id: "minimax-Tamsin",
   language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
   end_call_after_silence_ms: 30000,
-  max_call_duration_ms: 3600000,
+  max_call_duration_ms: HOUR_MS,
   data_storage_setting: "everything",
   data_storage_retention_days: 90,
   post_call_analysis_model: "gpt-4.1",

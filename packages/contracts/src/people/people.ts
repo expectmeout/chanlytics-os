@@ -1,4 +1,4 @@
-import { agoWords, WEEK_MS } from "../shared/time";
+import { agoWords, WEEK_MS, HOUR_MS } from "../shared/time";
 import { clockDate, inLocalWeek, localDaysBetween } from "../shared/clock";
 import { replyWaitsOnYou, standingOf, type StandingVerdict } from "../conversations/standing";
 /**
@@ -965,7 +965,7 @@ export function toPersonRowVM(
       const w = replyWindow(via, r.latest_wa_inbound_at, now);
       const win = {
         open: w.open,
-        hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0,
+        hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / HOUR_MS)) : 0,
       };
       return { replyWindow: win, replyVia: REPLY_VIA[via], bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
     })(),
