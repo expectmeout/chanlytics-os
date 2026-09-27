@@ -28,6 +28,11 @@ test("a page's messages move the state; 'out' is the signed-out state the root l
   assert.equal(r.state.needs, 4);
   r = onPageMessage(r.state, '{"t":"route","route":"inbox"}');
   assert.equal(r.effect, "nothing");
+  // What stands over one page is that page's own (Surface.tsx, for Android's Back), never the shell's state.
+  const held = r.state;
+  r = onPageMessage(r.state, '{"t":"overlay","open":true}');
+  assert.equal(r.state, held);
+  assert.equal(r.effect, "nothing");
   const before = r.state;
   r = onPageMessage(r.state, "garbage");
   assert.equal(r.state, before, "unparsed: untouched");

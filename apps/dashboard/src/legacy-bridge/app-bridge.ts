@@ -6,8 +6,8 @@
  * What the page says: the hash route it is on (at install and on every change), that a person is signed in (the
  * shell only ever boots this bundle for one: the proxy sends anyone else to /login, which the shell reads from the
  * address), the needs-you count the Inbox publishes (inbox:counts, the badge on the native tab), and the workspace
- * the address names. What the shell asks: go to a route, open the menu, scroll to the top. A message the page cannot
- * parse does nothing.
+ * the address names, and whether a sheet or a dialog stands over the page. What the shell asks: go to a route, open
+ * the menu, scroll to the top, close what stands over the page. A message the page cannot parse does nothing.
  */
 import {
   IN_APP_CLASS,
@@ -27,6 +27,10 @@ interface BridgeWindow {
       /** `data-theme`, the theme the page is drawn in (LegacyApp resolves it; app-shell paints it). */
       getAttribute?(name: string): string | null;
     };
+    /** The page's dialogs and sheets, what stands over it (watchOverlays); a test's window lists its own. */
+    querySelectorAll?(selector: string): ArrayLike<OverlayNode>;
+    activeElement?: unknown;
+    body?: unknown;
   };
   location: { hash: string; pathname: string; assign(url: string): void };
   /** The workspace this page is about, by id, once the page has read its workspaces (surface-data.ts). */
@@ -113,7 +117,8 @@ export function installAppBridge(
   // The phone this page registered for the person signed in, so a sign-out can forget it (shell.ts signOut).
   const phone: Phone = { token: null };
   const shell = shellEvents(win);
-  const answering: Answering = { win, doors, post, phone, shell };
+  const overlays = watchOverlays(win, post);
+  const answering: Answering = { win, doors, post, phone, shell, overlays };
   win.__appBridge = {
     receive: (raw: string) => answerShell(answering, raw),
     forgetPhone: () => forgetPhone(doors, post, phone),
@@ -128,6 +133,7 @@ export function installAppBridge(
   const stopTheme = watchTheme(win, post);
   workspace();
   route();
+  overlays.tell();
   badge();
   today();
   return () => {
@@ -137,6 +143,7 @@ export function installAppBridge(
     win.removeEventListener("surface:today", today);
     win.removeEventListener("surface:live", calls);
     stopTheme();
+    overlays.stop();
     shell.stop();
     offBell();
     delete win.__appBridge;
@@ -169,17 +176,18 @@ function watchTheme(win: BridgeWindow, post: Post): () => void {
   return () => watcher.disconnect();
 }
 
-/** What answering the shell needs: the page, its doors, its voice, its phone and its shell's events. */
+/** What answering the shell needs: the page, its doors, its voice, its phone, its shell's events and its overlays. */
 interface Answering {
   win: BridgeWindow;
   doors: DeviceDoors;
   post: Post;
   phone: Phone;
   shell: ShellEvents;
+  overlays: Overlays;
 }
 
 /** One ask from the shell, parsed and answered; a message that does not parse does nothing. */
-function answerShell({ win, doors, post, phone, shell }: Answering, raw: string): void {
+function answerShell({ win, doors, post, phone, shell, overlays }: Answering, raw: string): void {
   let v: unknown;
   try {
     v = JSON.parse(raw);
@@ -200,6 +208,10 @@ function answerShell({ win, doors, post, phone, shell }: Answering, raw: string)
     shell.say(m.t);
     return;
   }
+  if (m.t === "close") {
+    overlays.close();
+    return;
+  }
   // The phone registers through the page: the cookie, the same-origin rule and the rate bucket are the page's.
   const device = {
     token: m.token,
@@ -212,6 +224,87 @@ function answerShell({ win, doors, post, phone, shell }: Answering, raw: string)
     return ok;
   });
   sayDevice(registered, "registered", post);
+}
+
+/** A dialog or a sheet as the page holds it: enough to tell whether it shows, and to hand it a key. */
+interface OverlayNode {
+  isConnected: boolean;
+  getClientRects(): { length: number };
+  contains(other: unknown): boolean;
+  dispatchEvent(e: Event): boolean;
+}
+
+interface Overlays {
+  /** Say what stands over the page now, changed or not: at install. */
+  tell(): void;
+  close(): void;
+  stop(): void;
+}
+
+/** What stands over a page: a dialog, a sheet or an open menu (the ⋯ menus, the account's), by the roles they carry. */
+const OVERLAY_SELECTOR = '[role="dialog"], [aria-modal="true"], [role="menu"]';
+/**
+ * How long a close waits to see its overlay gone. React takes it away within a frame of the key; the still copy that
+ * plays it out (data-bits leaving) carries no role, so it is not counted as the overlay standing.
+ */
+const CLOSE_WAIT_MS = 250;
+
+/**
+ * Whether something stands over the page, for Android's Back: said at install and on every change, and closed on the
+ * shell's ask with the key every sheet and dialog closes on, Escape, handed to the topmost one (to what has the focus
+ * inside it, when something does, so a field's own Escape is the one that answers). A sheet that is saving keeps
+ * itself open, and that Back does nothing; one that Escape has left standing twice running is not asked again, and
+ * Back walks the page's history past it, as it did before, rather than stopping on it for ever. A window with no
+ * MutationObserver, a test's, says what stands at install and after each close.
+ */
+function watchOverlays(win: BridgeWindow, post: Post): Overlays {
+  const doc = win.document;
+  const deaf = new WeakSet<OverlayNode>();
+  let refused: OverlayNode | null = null;
+  const top = (): OverlayNode | null => {
+    const all = doc.querySelectorAll ? Array.from(doc.querySelectorAll(OVERLAY_SELECTOR)) : [];
+    for (let i = all.length - 1; i >= 0; i--)
+      if (!deaf.has(all[i]) && all[i].getClientRects().length > 0) return all[i];
+    return null;
+  };
+  let open = false;
+  const say = () => {
+    const now = top() !== null;
+    if (now !== open) post({ t: "overlay", open: (open = now) });
+  };
+  const body = doc.body;
+  const watcher = typeof MutationObserver === "function" && body instanceof Node ? new MutationObserver(say) : null;
+  watcher?.observe(body as Node, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["role", "aria-modal", "hidden", "open"],
+  });
+  return {
+    tell: () => post({ t: "overlay", open: (open = top() !== null) }),
+    close() {
+      const el = top();
+      if (!el) return say();
+      const focused = doc.activeElement;
+      const target = focused && el.contains(focused) ? (focused as OverlayNode) : el;
+      target.dispatchEvent(escapeKey());
+      setTimeout(() => {
+        const stands = el.isConnected && top() === el;
+        if (stands && refused === el) deaf.add(el);
+        refused = stands ? el : null;
+        say();
+      }, CLOSE_WAIT_MS);
+    },
+    stop: () => watcher?.disconnect(),
+  };
+}
+
+/** Escape, as a keyboard sends it: the key every sheet's and dialog's own handler listens for. */
+function escapeKey(): Event {
+  const init = { key: "Escape", code: "Escape", bubbles: true, cancelable: true };
+  return typeof KeyboardEvent === "function"
+    ? new KeyboardEvent("keydown", init)
+    : Object.assign(new Event("keydown", init), { key: "Escape", code: "Escape" });
 }
 
 interface ShellEvents {
