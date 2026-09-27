@@ -15,6 +15,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ASK_CITATION_KINDS,
+  ASK_MAX_TOKENS,
   ASK_PAGES,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
@@ -683,8 +684,8 @@ test("the gateway's usage tee reads the counts out of a passing stream and repor
   assert.equal(bad.ok, false);
   const ok = mod.validateGatewayRequest({ max_tokens: 99999, messages: [{ role: "user", content: "hi" }], tools: [] });
   assert.ok(
-    ok.ok && ok.request.max_tokens === 2000 && ok.request.model === mod.GATEWAY_FALLBACK_MODEL,
-    "a request that names no model gets the fallback every older caller expects; Ask's profile moves Ask alone",
+    ok.ok && ok.request.max_tokens === ASK_MAX_TOKENS && ok.request.model === mod.GATEWAY_FALLBACK_MODEL,
+    "a request that names no model gets the fallback every older caller expects and Ask's ceiling; Ask's profile moves Ask alone",
   );
 });
 

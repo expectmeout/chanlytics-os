@@ -70,8 +70,10 @@ import { askModel } from "./model";
 // the cap in the MIDDLE of that JSON. A cut-off tool call is not a smaller tool
 // call: it does not parse at all (see `argsOf`). The loop then asked for 2400,
 // but the edge clamped every round to 2000, so 2000 was the real ceiling; it is
-// one number now, raised only when an eval case stops at it. A cap is not a
-// spend, only a ceiling on what may be generated.
+// one number now, 4000 since the lead plan's card was cut at 2000 (D10), and an
+// older edge clamps to its own copy and refuses nothing. A cap is not a spend,
+// only a ceiling on what may be generated. Rounds are ASK_MAX_ROUNDS, three:
+// the page rides in first, so one round is the norm and the last is forced.
 const MAX_HISTORY = 12;
 const HISTORY_CHARS = 1200;
 /** Say is sent at most this often while it is written (spec 7.4). */
