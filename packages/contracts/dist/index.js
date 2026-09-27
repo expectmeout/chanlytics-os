@@ -18384,6 +18384,9 @@ function parseTodayWidgetSnapshot(v) {
 
 // src/mobile/app-bridge.ts
 var APP_ROUTE_RE = /^[a-z][a-z0-9-]*(?:\/[A-Za-z0-9:_-]+)*$/;
+var APP_FILE_TYPES = ["text/csv", "text/plain"];
+var APP_FILE_MAX_CHARS = 2e6;
+var APP_FILE_NAME_RE = /^[\w .()-]{1,100}\.(csv|txt)$/;
 var PUSH_TOKEN_MAX = 200;
 var isRecord = (v) => typeof v === "object" && v !== null;
 var isCount = (n) => typeof n === "number" && Number.isInteger(n) && n >= 0;
@@ -18400,7 +18403,8 @@ var PAGE_MESSAGES = {
   },
   calls: (v) => isCount(v.live) ? { t: "calls", live: v.live } : null,
   theme: (v) => v.theme === "light" || v.theme === "dark" ? { t: "theme", theme: v.theme } : null,
-  overlay: (v) => typeof v.open === "boolean" ? { t: "overlay", open: v.open } : null
+  overlay: (v) => typeof v.open === "boolean" ? { t: "overlay", open: v.open } : null,
+  file: (v) => typeof v.name === "string" && APP_FILE_NAME_RE.test(v.name) && APP_FILE_TYPES.includes(v.type) && typeof v.text === "string" && v.text.length <= APP_FILE_MAX_CHARS ? { t: "file", name: v.name, type: v.type, text: v.text } : null
 };
 function parsePageMessage(raw) {
   let v;

@@ -14,9 +14,9 @@ import { ASK_MAX_TOKENS, ASK_MODELS, DAY_MS } from "./packages/contracts.js";
 import type { Database, Json } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { logger, errField } from "./log.js";
+import { readAllRows } from "./paged.js";
 
 export const ASK_USAGE_KIND = "usage.ask_tokens" as const;
-const ROW_CAP = 2000;
 
 export interface AskUsage {
   input_tokens: number;
@@ -31,16 +31,21 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
 export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number> {
   const L = logger({ tenant: tenantId });
   try {
-    const { data, error } = await db
-      .from("events")
-      .select("data")
-      .eq("tenant_id", tenantId)
-      .eq("kind", ASK_USAGE_KIND)
-      .gte("created_at", new Date(Date.now() - DAY_MS).toISOString())
-      .order("created_at", { ascending: false })
-      .limit(ROW_CAP);
-    if (error) throw new Error(error.message);
-    return (data ?? []).reduce((sum, r) => {
+    // Every turn of the day, a page at a time: `.limit(2000)` was capped at PostgREST's 1,000 rows, so a day past a
+    // thousand turns was under-counted and the budget let the platform key spend on.
+    const since = new Date(Date.now() - DAY_MS).toISOString();
+    const rows = await readAllRows("ask usage, last day", (from, to) =>
+      db
+        .from("events")
+        .select("data")
+        .eq("tenant_id", tenantId)
+        .eq("kind", ASK_USAGE_KIND)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(from, to),
+    );
+    return rows.reduce((sum, r) => {
       const d = (r.data ?? {}) as Record<string, unknown>;
       return sum + num(d.input_tokens) + num(d.output_tokens);
     }, 0);

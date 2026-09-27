@@ -46,6 +46,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     infoPlist: {
       // The shell is a WebView of the product: nothing here needs a camera, contacts or location.
       UIBackgroundModes: [],
+      // The page's call, mail and text links go to the phone's own apps; iOS answers "can this open?" only for the
+      // schemes an app names here, and the WebView asks before it opens one.
+      LSApplicationQueriesSchemes: ["tel", "mailto", "sms"],
     },
     // The app's own manifest (docs/store/privacy-labels.md); the Expo modules ship theirs. No tracking, no tracking domain.
     privacyManifests: {
