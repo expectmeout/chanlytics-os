@@ -11,7 +11,9 @@ import type { ConsentChange } from "../consent/consent";
 import { amountWords, DEAL_LOST_REASON_WORDS, DEAL_STAGE_WORDS, isDealLostReason } from "../deals/deals";
 import { type PersonCampaignDto, reasonShort, visitTitleFor } from "./people";
 import { CARRIER_CONSENT_SOURCE, CONSENT_RESET_SOURCE, consentSourceLabel } from "./person-consent";
-import { addedBy, capitalize, mmss, ts } from "./person-helpers";
+import { addedBy, ts } from "./person-helpers";
+import { capitalize } from "../shared/words";
+import { mmss } from "../shared/clock";
 import {
   isIdentifierName,
   type MessageAuthor,
@@ -192,7 +194,7 @@ function callItems({ d, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   for (const k of d.calls) {
     const t = ts(k.started_at);
     if (t === null) continue;
-    const dur = mmss(k.duration_ms);
+    const dur = k.duration_ms == null || k.duration_ms <= 0 ? undefined : mmss(k.duration_ms);
     const wanted = (k.wanted || "").trim();
     const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";

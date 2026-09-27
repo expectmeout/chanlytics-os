@@ -16,6 +16,9 @@ z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -733,6 +736,7 @@ var LeadSearchPlanSchema = z3.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
+var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -868,8 +872,6 @@ var LeadSuggestAnswerSchema = z4.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var DAY_MS2 = 864e5;
-var WEEK_MS = 7 * DAY_MS2;
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -1108,9 +1110,7 @@ var PERSON_CAME_FROM_WORDS = {
   import: "Imported",
   lead: "A lead you found"
 };
-var DAY_MS4 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS4;
-var MONTH_MS = 30 * DAY_MS4;
+var MONTH_MS = 30 * DAY_MS;
 var NOTE_MAX = 600;
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -1250,7 +1250,6 @@ var WHATSAPP_LANGUAGES = [
   L("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
-var DAY_MS5 = 864e5;
 var SWEEP_TICK_MS = 5 * 6e4;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -1354,7 +1353,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -1857,7 +1856,7 @@ var LIMIT_TIERS = {
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
-var DATE_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -1893,7 +1892,7 @@ var LEAD_MAP_STATE_WORDS = {
   out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -2118,7 +2117,6 @@ var PageContextSchema = z9.object({
   askedAt: z9.number().int().nonnegative()
 }).strict();
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
@@ -2134,8 +2132,6 @@ function reviewSnippet(body, max = 90) {
   if (!t) return "";
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
 }
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS3 = 7 * 864e5;
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
@@ -2479,9 +2475,7 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var DAY_MS7 = 864e5;
-var QUIET_AFTER_MS = 7 * DAY_MS7;
-var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var QUIET_AFTER_MS = 7 * DAY_MS;
 var CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -2577,6 +2571,7 @@ var NOTE_SUGGEST_SCHEMA = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
+var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_SUBJECT_MAX = 80;
@@ -2626,11 +2621,11 @@ var OPENING_SCHEMA = {
   additionalProperties: false
 };
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
-var DAY_MS10 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS = 12 * 36e5;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
@@ -3494,13 +3489,12 @@ function voiceNumberBindBody(o, s, fnUrl = DEFAULT_FN_URL) {
     inbound_webhook_url: withKey(voiceEndpoints(fnUrl).inbound, s.fnSecret)
   };
 }
-var E1643 = /^\+[1-9]\d{6,14}$/;
 function planVoiceProvision(st) {
   const errors = [];
   const r2 = st.request;
   const number = r2.number ?? null;
   const area = r2.areaCode ?? null;
-  if (number !== null && !E1643.test(number)) errors.push("number must be E.164, like +13055550100");
+  if (number !== null && !E164.test(number)) errors.push("number must be E.164, like +13055550100");
   if (area !== null && !(Number.isInteger(area) && area >= 200 && area <= 999))
     errors.push("area_code must be three digits, like 305");
   if (number !== null && area !== null) errors.push("give a number to bind or an area code to buy in, not both");
@@ -3616,8 +3610,7 @@ function sipPassword(random) {
 function isValidSipPassword(p) {
   return p.length >= 12 && /\d/.test(p) && /[a-z]/.test(p) && /[A-Z]/.test(p);
 }
-var E1644 = /^\+[1-9]\d{6,14}$/;
-var isE164 = (s) => typeof s === "string" && E1644.test(s);
+var isE164 = (s) => typeof s === "string" && E164.test(s);
 var isAreaCode = (n) => typeof n === "number" && Number.isInteger(n) && n >= 200 && n <= 999;
 
 // src/lines-twilio.ts
@@ -4446,7 +4439,6 @@ function replySubject(parentSubject) {
   while (REPLY_PREFIX.test(s)) s = s.replace(REPLY_PREFIX, "");
   return `Re: ${s || "your message"}`.slice(0, SUBJECT_MAX);
 }
-var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 var LINK_IN_TEXT = /https?:\/\/[^\s<>]+/g;
 var linkify = (escaped) => escaped.replace(LINK_IN_TEXT, (m) => {
   const trail = /[.,;:!?)]+$/.exec(m)?.[0] ?? "";
@@ -4658,10 +4650,9 @@ var RECEIPT_TYPES = /* @__PURE__ */ new Set([
   "failed",
   "suppressed"
 ]);
-var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function tagOf(tags, name) {
   const v = Array.isArray(tags) ? tags.find((t) => t?.name === name)?.value : tags && typeof tags === "object" ? tags[name] : void 0;
-  return typeof v === "string" && UUID.test(v) ? v.toLowerCase() : null;
+  return typeof v === "string" && UUID3.test(v) ? v.toLowerCase() : null;
 }
 function emailReceiptFrom(payload) {
   const p = payload;
@@ -5780,7 +5771,6 @@ var PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
 // src/google-sync.ts
 var REVIEW_BELL_MAX = 3;
 var FRESH_SLACK_MS = 2 * 864e5;
-var plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 function overall(rating, count) {
   return `${ratingWords(rating)} overall${typeof count === "number" ? ` \xB7 ${plural(count, "review")}` : ""}`;
 }
@@ -6229,7 +6219,6 @@ var UNSUBSCRIBE_PATH = "/u/";
 var VERSION = 1;
 var PAYLOAD_BYTES = 1 + 16 * 3;
 var MAC_BYTES = 16;
-var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var TOKEN = /^[A-Za-z0-9_-]{87}$/;
 var bytesOf = (uuid) => Buffer.from(uuid.replace(/-/g, ""), "hex");
 var uuidOf = (b) => {
@@ -6240,7 +6229,7 @@ var macOf = (secret, payload) => createHmac2("sha256", secret).update("chanlytic
 function signUnsubscribeToken(secret, c) {
   if (!secret) throw new Error("signUnsubscribeToken: no secret");
   for (const id of [c.tenantId, c.contactId, c.messageId])
-    if (!UUID2.test(id)) throw new Error("signUnsubscribeToken: the workspace, the person and the email are uuids");
+    if (!UUID3.test(id)) throw new Error("signUnsubscribeToken: the workspace, the person and the email are uuids");
   const payload = Buffer.concat([
     Buffer.from([VERSION]),
     bytesOf(c.tenantId),

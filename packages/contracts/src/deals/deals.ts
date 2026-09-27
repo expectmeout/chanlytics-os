@@ -15,6 +15,8 @@ import { clockDate, wallClockAt, zoneDayKey } from "../shared/clock";
 import { isRealDate } from "../config/config";
 import { leadAnd } from "../leads/leads";
 import { linkHost } from "../shared/link";
+import { DAY_MS } from "../shared/time";
+import { plural } from "../shared/words";
 import type { PersonCameFrom } from "../people/people";
 import type { SchemaSet } from "../shared/schema-sets";
 
@@ -168,8 +170,6 @@ export const PACE_AFTER_YESES = 5;
 export const PACE_WINDOW_DAYS = 365;
 /** A consultation this recent with no proposal after it is the next step to take. */
 export const CONSULT_FOLLOW_DAYS = 7;
-
-const DAY_MS = 86_400_000;
 
 export function isDealStage(s: unknown): s is DealStage {
   return typeof s === "string" && (DEAL_STAGES as readonly string[]).includes(s);
@@ -870,7 +870,6 @@ const DEAL_LOST_REASON_SAID: Record<DealLostReason, string> = {
   other: "something else",
 };
 
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 const upper = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** "Median 9 days to a yes."; one client's wait is theirs, not a median. */

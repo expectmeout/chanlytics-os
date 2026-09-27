@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { AppError, sendingDomainDtoOf, type SendingDomainDto } from "@chanlytics/contracts";
-import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
+import { edgeConfigured, edgeHeaders, edgeUrl, READY_TTL_MS } from "../edge";
 import { deployment } from "../deployment";
 import type { EdgeAnswer } from "./lines";
 
@@ -52,7 +52,6 @@ export async function edgeDomains(body: Record<string, unknown>, timeoutMs = 25_
 }
 
 let readyCache: { at: number; ready: boolean } | null = null;
-const READY_TTL_MS = 5 * 60_000;
 /** A "not ready" answer is kept briefly: a key set a minute ago must not hide the block for five. */
 const NOT_READY_TTL_MS = 30_000;
 

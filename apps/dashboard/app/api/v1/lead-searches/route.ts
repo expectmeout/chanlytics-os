@@ -1,8 +1,7 @@
 import { z } from "zod";
-import { LeadSearchPlanSchema, SPEND_LEADS, type LeadSearchPlan } from "@chanlytics/contracts";
+import { isUuid, LeadSearchPlanSchema, SPEND_LEADS, type LeadSearchPlan } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
-import { isUuid } from "@/server/request-guards";
 import { answerOf, estimateForRound, refusalOf } from "@/server/leads/leads";
 import { load, readerContext } from "@/server/readers";
 import { searches } from "@/server/readers/searches";

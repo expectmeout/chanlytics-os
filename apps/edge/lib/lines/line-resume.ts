@@ -54,7 +54,8 @@ export function retryRequestedBy(raw: unknown): "owner" | "support" {
   return raw === "owner" ? "owner" : "support";
 }
 
-const factsOf = (row: Pick<LineDbRow, "facts">): Record<string, unknown> =>
+/** A line's facts as an object to read or spread into a write: anything else stored there (null, an array) is none. */
+export const factsOf = (row: Pick<LineDbRow, "facts">): Record<string, unknown> =>
   row.facts && typeof row.facts === "object" && !Array.isArray(row.facts)
     ? { ...(row.facts as Record<string, unknown>) }
     : {};

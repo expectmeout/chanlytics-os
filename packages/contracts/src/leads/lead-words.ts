@@ -16,6 +16,7 @@ import {
   type LeadRoundEnding,
 } from "./lead-search";
 import type { Tone } from "../shell/tone";
+import { plural } from "../shared/words";
 
 /** B's screen word for A's stored set (`lead_search_members.class`): one set, two names, never two lists. */
 export const LEAD_CLASSES = LEAD_MEMBER_CLASSES;
@@ -308,8 +309,6 @@ export interface LeadEndingLine {
   parts: string[];
   step: { id: string; label: string } | null;
 }
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** "Alpine and Fort Davis"; "Round Rock, Pflugerville and Kyle". */
 /**

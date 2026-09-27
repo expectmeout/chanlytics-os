@@ -20,7 +20,7 @@ import {
 } from "@chanlytics/contracts";
 import type { EdgeAnswer } from "./lines";
 
-import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
+import { edgeConfigured, edgeHeaders, edgeUrl, READY_TTL_MS } from "../edge";
 
 export const LISTING_COLUMNS =
   "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";
@@ -146,7 +146,6 @@ export interface GoogleReadiness {
 
 const NOT_READY: GoogleReadiness = { places: false, profile: false, audience: null, oauth: null };
 let readyCache: { at: number; value: GoogleReadiness } | null = null;
-const READY_TTL_MS = 5 * 60_000;
 
 /**
  * What this deployment can do with Google. Cached for five minutes per

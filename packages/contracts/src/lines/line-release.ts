@@ -11,6 +11,7 @@
  */
 import { receptionistOn, dayWords, type BillingMode, type BillingStatus } from "../workspace/billing";
 import { formatPhoneDisplay } from "../shared/phone";
+import { DAY_MS } from "../shared/time";
 
 /** The owner is told this many days before the number goes. */
 export const LINE_RELEASE_WARN_DAYS = 7;
@@ -18,8 +19,6 @@ export const LINE_RELEASE_WARN_DAYS = 7;
 export const LINE_RELEASE_MIN_DAYS = 14;
 /** The grace the sweep reports against while it only reports (LINE_RELEASE_AFTER_DAYS unset). */
 export const LINE_RELEASE_REPORT_DAYS = 30;
-
-const DAY_MS = 86_400_000;
 
 /** The grace a deployment set, in whole days, or null (unset, or less than the least allowed: then it only reports). */
 export function lineReleaseAfterDays(raw: string | null | undefined): number | null {

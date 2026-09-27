@@ -17,6 +17,7 @@
 import { injectedTurn } from "./whisper";
 import { CALL_HEARTBEAT_MS, isLiveCall } from "../config/policy";
 import { formatPhoneDisplay } from "../shared/phone";
+import { mmss } from "../shared/clock";
 import { callerName } from "../people/person-name";
 import { DISCONNECTION_LABELS, initialsOf, shortTime, spokenDuration, type CallDto } from "../conversations/viewmodels";
 import { callOutcomeWords } from "./call-words";
@@ -111,11 +112,6 @@ export interface LiveVM {
   heartbeatMs: number;
   fetchedAtMs: number;
 }
-
-const mmss = (ms: number): string => {
-  const total = Math.max(0, Math.round(ms / 1000));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-};
 
 /** Seconds → "m:ss", the page's clock format. */
 export function fmtClock(seconds: number): string {

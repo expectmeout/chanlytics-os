@@ -964,6 +964,9 @@ z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -1809,8 +1812,6 @@ var LeadSuggestAnswerSchema = z4.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var DAY_MS2 = 864e5;
-var WEEK_MS = 7 * DAY_MS2;
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -2034,9 +2035,7 @@ var PERSON_CAME_FROM_WORDS = {
   import: "Imported",
   lead: "A lead you found"
 };
-var DAY_MS4 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS4;
-var MONTH_MS = 30 * DAY_MS4;
+var MONTH_MS = 30 * DAY_MS;
 var NOTE_MAX = 600;
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -2176,7 +2175,6 @@ var WHATSAPP_LANGUAGES = [
   L("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
-var DAY_MS5 = 864e5;
 var SWEEP_TICK_MS = 5 * 6e4;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -2280,7 +2278,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -2783,7 +2781,7 @@ var LIMIT_TIERS = {
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
-var DATE_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -2815,7 +2813,7 @@ var LEAD_MAP_STATE_WORDS = {
   out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -3040,12 +3038,9 @@ var PageContextSchema = z9.object({
   askedAt: z9.number().int().nonnegative()
 }).strict();
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS3 = 7 * 864e5;
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
@@ -3278,9 +3273,7 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var DAY_MS7 = 864e5;
-var QUIET_AFTER_MS = 7 * DAY_MS7;
-var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var QUIET_AFTER_MS = 7 * DAY_MS;
 var CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -3371,7 +3364,6 @@ var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
-var DAY_MS10 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS = 12 * 36e5;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
@@ -3900,6 +3892,10 @@ function formatPhoneDisplay(e164) {
   if (digits2.length < 7) return `+${digits2}`;
   return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
 }
+var MIN_MS = 6e4;
+var DAY_MS2 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS2;
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST2 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT2 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V62 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -5670,8 +5666,6 @@ function visitStartTime(v, tz) {
   );
 }
 var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
-var DAY_MS22 = 864e5;
-var WEEK_MS4 = 7 * DAY_MS22;
 var BRAIN_INTENTS2 = [
   "booking",
   "pricing",
@@ -5912,7 +5906,6 @@ var SELLS_BY_WORDS2 = {
   }
 };
 var WAITING_AFTER_DAYS = 7;
-var DAY_MS3 = 864e5;
 function heardSinceProposal(r22) {
   const d = r22.deal;
   return !!d && d.stage === "proposed" && d.sinceMs !== null && r22.askedMs !== null && r22.askedMs >= d.sinceMs;
@@ -5921,7 +5914,7 @@ function waitingOnProposal(r22, nowMs, pace) {
   const d = r22.deal;
   if (!d || d.stage !== "proposed" || d.sinceMs === null) return false;
   const wait = pace && Number.isFinite(pace.waitDays) ? pace.waitDays : WAITING_AFTER_DAYS;
-  if (nowMs - d.sinceMs < wait * DAY_MS3) return false;
+  if (nowMs - d.sinceMs < wait * DAY_MS2) return false;
   return !heardSinceProposal(r22);
 }
 var REPLY_VIA2 = {
@@ -5966,9 +5959,7 @@ function saidYesTo(r22, purpose) {
     { proactive: true }
   ).ok;
 }
-var DAY_MS42 = 864e5;
-var WEEK_MS22 = 7 * DAY_MS42;
-var MONTH_MS2 = 30 * DAY_MS42;
+var MONTH_MS2 = 30 * DAY_MS2;
 var NOTE_MAX2 = 600;
 var NOTE_REFUSALS2 = {
   empty: "Write something first.",
@@ -6167,7 +6158,6 @@ function resolveParams(specs, f) {
     }
   });
 }
-var DAY_MS52 = 864e5;
 var SWEEP_TICK_MS2 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS2 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -6272,7 +6262,7 @@ var SENDING_HOURS_WORDS2 = {
   range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
   between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
 };
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS2;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
 var REACH_OUT_IS_NOT_A_MOMENT = "A reach-out is made on its own sheet, from a search's leads, not among the moments.";
@@ -7125,7 +7115,7 @@ function emptyAudienceRefusal(purpose, label, pool) {
   if (pool.some((r22) => saidYesTo(r22, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
   return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR on Broadcasts." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
 }
-var DATE_FMT5 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS2 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -7212,7 +7202,7 @@ function nextOpenMoment(tz, when) {
 }
 var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
 var FOLLOW_UP_NEEDS_LINK = "A proposal follow-up carries the proposal's link: pick a message with a slot for it, and fill that slot with their proposal's link.";
-var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS52;
+var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS2;
 function followUpNames(r22, nowMs, pace) {
   return waitingOnProposal(r22, nowMs, pace) && !!r22.deal?.proposal?.url && nowMs - (r22.deal.sinceMs ?? Number.NEGATIVE_INFINITY) <= PLAYBOOK_TOUCH_WINDOW_MS2;
 }
@@ -7251,8 +7241,8 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
     rows.filter((r22) => {
       if (!r22.calendarTz) return false;
       if (p.trigger === "visit_tomorrow")
-        return r22.nextVisitDate !== null && r22.nextVisitDate === localDate(r22.calendarTz, new Date(nowMs + DAY_MS52));
-      return r22.lastVisitDate !== null && r22.lastVisitDate === localDate(r22.calendarTz, new Date(nowMs - DAY_MS52)) && !r22.booked;
+        return r22.nextVisitDate !== null && r22.nextVisitDate === localDate(r22.calendarTz, new Date(nowMs + DAY_MS2));
+      return r22.lastVisitDate !== null && r22.lastVisitDate === localDate(r22.calendarTz, new Date(nowMs - DAY_MS2)) && !r22.booked;
     })
   ) : t.kind === "saved" ? audienceMembers(rows, "saved", null, listIds ?? /* @__PURE__ */ new Set()) : t.kind === "deal" ? rows.filter((r22) => followUpNames(r22, nowMs, pace)) : audienceMembers(rows, t.list ? "list" : "everyone", t.list ?? null, null);
   reach.pool = named.length;
@@ -7272,7 +7262,7 @@ function playbookRunReach(rows, p, touches, nowMs, pace, listIds = null) {
     reach.will = allowed.length;
     return { eligible: allowed, reach, saidYes };
   }
-  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS52;
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS2;
   const heardThis = (r22, mine) => t.kind === "deal" ? followUpIsFor(r22, mine) : nowMs - mine < gapMs;
   const picked = allowed.filter((r22) => {
     const mine = t.kind === "deal" ? touches.followUps.get(r22.id) : touches.byThis.get(r22.id);
@@ -7324,7 +7314,7 @@ function visitDayWord(visit, tz, sendAt, assumed) {
   if (!sendAt) return assumed;
   const visitDay2 = localDate(tz, new Date(visit.start));
   const sendDay = localDate(tz, sendAt);
-  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS52);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS2);
   if (delta === 1) return "tomorrow";
   if (delta === 0) return "today";
   if (delta === -1) return "yesterday";
@@ -7551,12 +7541,9 @@ var PageContextSchema2 = z92.object({
   askedAt: z92.number().int().nonnegative()
 }).strict();
 var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
-var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
 var BOOTSTRAP_MS2 = 3600 * 1e3;
-var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS32 = 7 * 864e5;
 var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
 function optInConfirmation(businessName, purpose) {
   const name = businessName.trim() || "This business";
@@ -7878,9 +7865,7 @@ function sha256Hex(text) {
 function judgeOpId(runId, fromOffset, batch) {
   return sha256Hex(`${runId}:${fromOffset}:${batch}`);
 }
-var DAY_MS72 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS72;
-var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var QUIET_AFTER_MS2 = 7 * DAY_MS2;
 var CHANNEL_KIND_WORDS2 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -8068,8 +8053,6 @@ function weekHoursOf(hours) {
 var SEND_WINDOW_MARGIN_MIN = 30;
 var SEND_DAY_FRAME2 = { from: 8 * 60, to: 20 * 60 };
 var TIMETABLE_HORIZON_DAYS = 7;
-var DAY_MS9 = 864e5;
-var MIN_MS2 = 6e4;
 var DAYS22 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 function inFrame(week) {
   const out = {};
@@ -8109,9 +8092,9 @@ function lowerBound(times, x) {
   return lo;
 }
 function fitsCap(times, t, cap2) {
-  const ends = [t, ...times.slice(lowerBound(times, t), lowerBound(times, t + DAY_MS9))];
+  const ends = [t, ...times.slice(lowerBound(times, t), lowerBound(times, t + DAY_MS2))];
   for (const q of ends) {
-    const already = lowerBound(times, q + 1) - lowerBound(times, q - DAY_MS9 + 1);
+    const already = lowerBound(times, q + 1) - lowerBound(times, q - DAY_MS2 + 1);
     if (already + 1 > cap2) return false;
   }
   return true;
@@ -8128,8 +8111,8 @@ function earliest(spans, times, cap2, gapMs, limitMs) {
         continue;
       }
       if (!fitsCap(times, t, cap2)) {
-        const j = lowerBound(times, t - DAY_MS9 + 1);
-        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS9;
+        const j = lowerBound(times, t - DAY_MS2 + 1);
+        t = (j < times.length && times[j] <= t ? times[j] : t) + DAY_MS2;
         floor = t;
         continue;
       }
@@ -8149,7 +8132,7 @@ function timetable(input) {
   if (!Number.isFinite(input.gapMinutes) || input.gapMinutes <= 0)
     throw new Error(`timetable: a gap is a number of minutes above zero (${input.gapMinutes})`);
   const horizon = input.horizonDays ?? TIMETABLE_HORIZON_DAYS;
-  const limitMs = input.nowMs + horizon * DAY_MS9;
+  const limitMs = input.nowMs + horizon * DAY_MS2;
   const draw = input.jitter ?? (() => Math.random() * 2 - 1);
   const jitter = () => {
     const j = draw();
@@ -8160,7 +8143,7 @@ function timetable(input) {
   const placed = [];
   const unplaced = [];
   for (const s of input.sends) {
-    const gapMs = Math.round(input.gapMinutes * MIN_MS2 * (1 + 0.25 * jitter()));
+    const gapMs = Math.round(input.gapMinutes * MIN_MS * (1 + 0.25 * jitter()));
     const key = `${s.zone}|${JSON.stringify(s.week)}`;
     let spans = spansOf.get(key);
     if (!spans) {
@@ -8269,11 +8252,11 @@ var DEFAULT_STATUS = {
   upstream_auth: 503,
   internal: 500
 };
+var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 var PUSH_RECEIPTS_AFTER_MS2 = 15 * 6e4;
-var DAY_MS102 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS2 = 12 * 36e5;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
@@ -8400,6 +8383,9 @@ z15.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
+var DAY_MS3 = 864e5;
+var WEEK_MS3 = 7 * DAY_MS3;
+var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST3 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT3 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V63 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -9245,8 +9231,6 @@ var LeadSuggestAnswerSchema3 = z43.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
-var DAY_MS23 = 864e5;
-var WEEK_MS5 = 7 * DAY_MS23;
 var BRAIN_INTENTS3 = [
   "booking",
   "pricing",
@@ -9463,9 +9447,7 @@ var PERSON_CAME_FROM_WORDS3 = {
   lead: "A lead you found"
 };
 var CARRIER_CONSENT_SOURCE2 = "carrier";
-var DAY_MS43 = 864e5;
-var WEEK_MS23 = 7 * DAY_MS43;
-var MONTH_MS3 = 30 * DAY_MS43;
+var MONTH_MS3 = 30 * DAY_MS3;
 var NOTE_MAX3 = 600;
 var NOTE_REFUSALS3 = {
   empty: "Write something first.",
@@ -9605,7 +9587,6 @@ var WHATSAPP_LANGUAGES3 = [
   L3("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l) => [l.id.toLowerCase(), l]));
-var DAY_MS53 = 864e5;
 var SWEEP_TICK_MS3 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS3 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -9709,7 +9690,7 @@ var SENDING_HOURS_WORDS3 = {
   range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
   between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
 };
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS3;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -10212,7 +10193,7 @@ var LIMIT_TIERS3 = {
 var REPLY_WINDOW_HOURS3 = 72;
 var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
 var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
-var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT23 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS3 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -10244,7 +10225,7 @@ var LEAD_MAP_STATE_WORDS3 = {
   out: `${LEAD_STAGE_WORDS3.archived} or ${LEAD_LEFT_OUT_WORD3.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
+var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS3;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
   campaign: POLICY_CLASS_WORDS3.campaign.short,
@@ -10469,12 +10450,9 @@ var PageContextSchema3 = z93.object({
   askedAt: z93.number().int().nonnegative()
 }).strict();
 var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
-var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
 var BOOTSTRAP_MS3 = 3600 * 1e3;
-var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS33 = 7 * 864e5;
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
@@ -10707,9 +10685,7 @@ var K3 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var DAY_MS73 = 864e5;
-var QUIET_AFTER_MS3 = 7 * DAY_MS73;
-var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var QUIET_AFTER_MS3 = 7 * DAY_MS3;
 var CHANNEL_KIND_WORDS3 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -10800,7 +10776,6 @@ var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
 var PUSH_RECEIPTS_AFTER_MS3 = 15 * 6e4;
-var DAY_MS103 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS3 = 12 * 36e5;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
@@ -10990,7 +10965,6 @@ async function outreachFactsOf(db, p) {
 }
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
-var DAY_MS = 24 * 3600 * 1e3;
 var CALL_CONTROL_S = 15 * 60;
 
 // src/deliver.ts
@@ -12095,9 +12069,8 @@ async function runPlaybook(ports, cmd) {
 }
 
 // src/campaigns/template-values.ts
-var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function templateValues(ports, cmd) {
-  if (!UUID.test(cmd.templateId)) throw new AppError("validation", "Pick a template.");
+  if (!UUID3.test(cmd.templateId)) throw new AppError("validation", "Pick a template.");
   const tpl = await ports.template(cmd.templateId);
   if (!tpl) throw new AppError("not_found", "Template not found.", 404);
   if (tpl.meta_status !== "approved")
@@ -12150,19 +12123,18 @@ async function templateValues(ports, cmd) {
 }
 
 // src/campaigns/create-broadcast.ts
-var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
 async function createBroadcast(ports, cmd) {
   const { now } = cmd;
   const body = cmd.body;
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
-  if (!UUID2.test(templateId)) throw new AppError("validation", "Pick a template.");
+  if (!UUID3.test(templateId)) throw new AppError("validation", "Pick a template.");
   const kind = body?.audience?.kind;
   if (typeof kind !== "string" || !AUDIENCE_KINDS.includes(kind)) {
     throw new AppError("validation", "Pick who this goes to.");
   }
   const audienceId = typeof body?.audience?.id === "string" ? body.audience.id : null;
-  if (kind === "saved" && (!audienceId || !UUID2.test(audienceId))) throw new AppError("validation", "Pick a list.");
+  if (kind === "saved" && (!audienceId || !UUID3.test(audienceId))) throw new AppError("validation", "Pick a list.");
   if (kind === "list" && (!audienceId || !BUILTIN_LISTS2.some((l) => l.id === audienceId)))
     throw new AppError("validation", "Pick a list.");
   const ref = kind === "list" ? { kind: "builtin", id: audienceId } : kind === "saved" ? { kind: "saved", id: audienceId } : null;
@@ -12356,7 +12328,6 @@ function int(v, fallback, min, max, what) {
     throw new AppError("validation", `${what} must be a whole number from ${min} to ${max}.`);
   return n;
 }
-var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 async function checkPlaybook(ports, body) {
   const name = typeof body?.name === "string" ? body.name.trim().replace(/\s+/g, " ").slice(0, PLAYBOOK_NAME_MAX) : "";
   const trig = typeof body?.trigger === "string" ? triggerOf(body.trigger) : null;

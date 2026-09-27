@@ -12,6 +12,7 @@
  * the secret can be rotated without closing a link already sent.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { UUID } from "@chanlytics/contracts";
 
 export interface UnsubscribeClaims {
   tenantId: string;
@@ -25,7 +26,6 @@ export const UNSUBSCRIBE_PATH = "/u/";
 const VERSION = 1;
 const PAYLOAD_BYTES = 1 + 16 * 3;
 const MAC_BYTES = 16;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TOKEN = /^[A-Za-z0-9_-]{87}$/;
 
 const bytesOf = (uuid: string): Buffer => Buffer.from(uuid.replace(/-/g, ""), "hex");

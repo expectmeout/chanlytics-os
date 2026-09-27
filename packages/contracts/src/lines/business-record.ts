@@ -33,6 +33,7 @@ import {
   DEFAULT_INDUSTRY,
 } from "./a2p-enums";
 import { registrationPathOf, SOLE_PROP_LIMITS, type RegistrationPath } from "./registration-path";
+import { E164 } from "../config/config";
 
 export interface BusinessRecordDto {
   legal_name: string;
@@ -294,7 +295,6 @@ export function emptyBusinessRecord(o: { websiteUrl?: string; email?: string } =
 
 const EIN = /^\d{2}-?\d{7}$/;
 const EMAIL = /^[^@\s]+@[^@\s.]+\.[^@\s]+$/;
-const E164 = /^\+[1-9]\d{6,14}$/;
 const REGION = /^[A-Za-z]{2}$/;
 const REGISTERABLE_COUNTRIES = ["US", "CA"];
 /** What `about` holds: one real sentence at least, and at most what the database keeps (00152). */

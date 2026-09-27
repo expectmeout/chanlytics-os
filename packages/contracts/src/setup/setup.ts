@@ -495,7 +495,6 @@ export function textingWords(
 }
 
 export const display = (e164: string | null | undefined): string | null => (e164 ? formatPhoneDisplay(e164) : null);
-export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 /**
  * The third claim a capability row makes, beside readiness and evidence: the

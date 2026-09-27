@@ -29,6 +29,7 @@ import {
 import { deletePhoneNumber, type RetellConfig } from "../packages/channels.js";
 import { emitEvent } from "../packages/db.js";
 import { releaseRoutingRows, rowToLine, type LineProviderChoice } from "./lines.js";
+import { factsOf } from "./line-resume.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../packages/db.js";
 import type { Logger } from "../log.js";
@@ -147,11 +148,6 @@ export interface EndedLinesResult {
 
 const BILLING_COLUMNS =
   "tenant_id, mode, status, trial_end, current_period_end, cancel_at, last_payment_failed_at, updated_at";
-
-const factsOf = (row: Pick<LineDbRow, "facts">): Record<string, unknown> =>
-  row.facts && typeof row.facts === "object" && !Array.isArray(row.facts)
-    ? { ...(row.facts as Record<string, unknown>) }
-    : {};
 
 function warnedOf(row: LineDbRow): LineReleaseWarned | null {
   const w = factsOf(row).release_warning;
