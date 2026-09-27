@@ -12,8 +12,9 @@ import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { playbooksDue, reachOutsDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../../lib/ops/sweep-rotation.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
-import { reachOutRunContext, type ReachOutRow } from "../../lib/reach-out/run-context.js";
-import { runReachOut } from "../../lib/packages/core.js";
+import type { ReachOutRow } from "../../lib/reach-out/run-context.js";
+import { runReachOutStep } from "../../lib/reach-out/run-step.js";
+import { stampReachOutStep, tenantZoneOf } from "../../lib/packages/db.js";
 import { localDate, runDueNow, type PlaybookDto } from "../../lib/packages/contracts.js";
 
 /** When the reach-outs stop for the tick: what is left runs next hour, as a step is due all day from its hour. */
@@ -86,33 +87,19 @@ export async function POST(request: Request): Promise<Response> {
       break;
     }
     if (!zones.has(row.tenant_id)) {
-      const { data: tenant } = await db.from("tenants").select("timezone").eq("id", row.tenant_id).maybeSingle();
-      zones.set(row.tenant_id, tenant?.timezone || "America/New_York");
+      zones.set(row.tenant_id, (await tenantZoneOf(db, row.tenant_id)) || "America/New_York");
     }
     const tz = zones.get(row.tenant_id) ?? "America/New_York";
     if (!runDueNow(row as unknown as PlaybookDto, tz, now)) continue;
     out.due += 1;
-    const runFor = localDate(tz, now);
-    const tried = () => db.from("playbooks").update({ last_run_at: now.toISOString() }).eq("id", row.id);
     try {
-      const ctx = await reachOutRunContext(db, row, now);
-      if ("error" in ctx) {
-        if (ctx.error === "paused") out.off += 1;
-        else {
-          L.error("reach_out_context_failed", { playbook_id: row.id, error: ctx.error });
-          out.failed += 1;
-        }
-        await tried();
-        continue;
-      }
-      const r = await runReachOut(ctx.ports, ctx.step, { runFor });
-      L.info("reach_out_ran", { tenant_id: row.tenant_id, playbook_id: row.id, ...r });
+      const r = await runReachOutStep(db, row, now, tz, L);
+      if (r.outcome === "failed") L.error("reach_out_context_failed", { playbook_id: row.id, error: r.reason });
       out[r.outcome] += 1;
-      await db.from("playbooks").update({ last_run_for: runFor, last_run_at: now.toISOString() }).eq("id", row.id);
     } catch (e) {
       L.error("reach_out_run_failed", { playbook_id: row.id, error: e instanceof Error ? e.message : String(e) });
       out.failed += 1;
-      await tried();
+      await stampReachOutStep(db, row.id, { at: now }).catch(() => undefined);
     }
   }
   // `remaining` counts RUNNING playbooks past the page, and due-ness is judged

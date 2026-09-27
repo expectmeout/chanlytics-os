@@ -9,7 +9,7 @@
  */
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ReachOutHold } from "../packages/contracts.js";
+import { REACH_OUT_PREVIEW_INDEX_MAX, type ReachOutHold } from "../packages/contracts.js";
 import { reachOutAudience, reachOutRecord, type Database } from "../packages/db.js";
 import {
   askReachOutModel,
@@ -24,8 +24,8 @@ import { reachOutRequest, type RequestRefusal } from "./request.js";
 
 type Db = SupabaseClient<Database>;
 
-/** The furthest business the sheet may page to: a run's cap is 200 (F11). */
-export const PREVIEW_INDEX_MAX = 199;
+/** The furthest business the sheet may page to: a run's cap is 200 (F11); contracts' one number. */
+export const PREVIEW_INDEX_MAX = REACH_OUT_PREVIEW_INDEX_MAX;
 /** The preview's door has 30 s (vercel.json): its calls stop at 20 s, and each ends by 28 s. */
 export const PREVIEW_LIMITS = { callsUntilMs: 20_000, doneByMs: 28_000 } as const;
 
@@ -54,6 +54,8 @@ export interface Preview {
   refused: RequestRefusal | null;
   /** The model could not answer: the owner may ask again. */
   unavailable: boolean;
+  /** What the model cost, counted in Ask's daily budget by the door (R12); never shown. */
+  tokens: { input: number; output: number };
 }
 
 // Stand-ins for what only a real send has: the preview's email is assembled, read, and dropped.
@@ -80,6 +82,7 @@ export async function previewOne(
     detail: null,
     refused: null,
     unavailable: false,
+    tokens: { input: 0, output: 0 },
   };
   // The door refuses any other (a 400): never a silent clamp to a business the owner did not ask for.
   if (!Number.isInteger(i.index) || i.index < 0 || i.index > PREVIEW_INDEX_MAX)
@@ -132,5 +135,6 @@ export async function previewOne(
     // An opening the model could not write is said as unavailable, not as a refusal of the words.
     refused: r.ok || (!checked && r.reason === "no_opening") ? null : r.reason,
     unavailable: !checked,
+    tokens: { ...c.tokens },
   };
 }

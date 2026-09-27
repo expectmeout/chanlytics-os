@@ -10,6 +10,7 @@
  * billing tests, and a move is not this change's.
  */
 import { isCheckoutReturn, type CheckoutReturn } from "./packages/contracts.js";
+import type { LogEvent } from "./log.js";
 
 /** The body as the dashboard's /api/v1/billing verbs send it. */
 export interface BillingBody {
@@ -49,7 +50,7 @@ export function billingStatusOf(r: BillingOutcome): number {
 }
 
 /** The ops that move the subscription log the status they left it in, or the refusal. */
-const MOVES: Record<"sync" | "resume" | "start_now", { done: string; refused: string }> = {
+const MOVES: Record<"sync" | "resume" | "start_now", { done: LogEvent; refused: LogEvent }> = {
   sync: { done: "billing_synced", refused: "billing_sync_refused" },
   resume: { done: "billing_resumed", refused: "billing_resume_refused" },
   start_now: { done: "billing_started_now", refused: "billing_start_now_refused" },
@@ -59,7 +60,7 @@ const MOVES: Record<"sync" | "resume" | "start_now", { done: string; refused: st
 export function billingLogOf(
   op: BillingOp,
   r: BillingOutcome,
-): { event: string; fields: Record<string, unknown> } | null {
+): { event: LogEvent; fields: Record<string, unknown> } | null {
   if (op === "checkout") {
     return r.ok
       ? { event: "billing_checkout_opened", fields: {} }

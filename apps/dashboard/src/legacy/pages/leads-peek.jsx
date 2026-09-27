@@ -1,7 +1,7 @@
-/* global React, Icon, LeadShape, LeadSlotShape, StatePill, LeadCallMenu */
+/* global React, Icon, LeadShape, LeadSlotShape, StatePill, LeadCallMenu, MoreMenu, Confirm */
 // The peek: one lead, beside the table (408px) or full height on a phone, and everything the owner does to it
-// without leaving the rows -- the stage, Not a fit, Keep and Exclude, Put back, a call from their own phone, and a
-// draft for their own inbox. Hookless, as the page's rules ask: every piece of state here is LeadsReal's
+// without leaving the rows -- the stage, Not a fit, Keep and Exclude, Put back, a call from their own phone, a
+// draft for their own inbox, and, from its ⋯, Erase (the owner's alone). Hookless, as the page's rules ask: every piece of state here is LeadsReal's
 // (peekId, peekMode, armed, draft), handed down, so the page's one keyboard listener backs out of it on Esc.
 //
 // Nothing in this file writes a sentence of its own. The words are contracts' (window.__LEAD_WORDS) and the view
@@ -281,6 +281,28 @@ const LeadNotFitWhy = ({ busy, on }) => {
   );
 };
 
+/**
+ * The lead's ⋯ (PR 9): what contracts' leadPeekMenu offers this member -- Erase, to the owner alone. A role that may
+ * not press it is offered no menu at all, never a gated item (an item's secondary act stays out of sight). It escapes
+ * the peek, which scrolls and would cut it off.
+ */
+const LeadPeekMore = ({ on }) => (on.menu && on.menu.length ? (
+  <MoreMenu
+    escape
+    title={window.__LEAD_WORDS.more}
+    testid="peek-more"
+    items={on.menu.map((m) => ({ label: m.label, icon: "x", danger: m.danger, onClick: m.id === "erase" ? on.onEraseAsk : undefined }))}
+  />
+) : null);
+
+/** What the peek asks under its top row: Not a fit's five whys, or whether to erase (PR 9), each in its own mode. */
+const LeadPeekAsk = ({ vm, mode, busy, on }) => {
+  const W = window.__LEAD_WORDS;
+  if (mode === "why") return <LeadNotFitWhy busy={busy} on={on} />;
+  if (mode !== "erase" && mode !== "erasing") return null;
+  return <Confirm question={W.erase.ask(vm.name)} yes={W.erase.yes} no={W.erase.no} danger block busy={busy || mode === "erasing"} busyLabel={W.erase.busy} onYes={on.onErase} onNo={on.onBack} testid="peek-erase" />;
+};
+
 /** "Did you send it?" -- asked when the owner comes back to the tab, never before (PRD 9.3). */
 const LeadSentAsk = ({ busy, on }) => {
   const W = window.__LEAD_WORDS;
@@ -401,8 +423,9 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
             <button type="button" className="btn btn-sm" data-testid="peek-put-back" onClick={() => on.onPutBack(vm.id)} {...window.gate("find", "put this lead back")}>{W.putBack}</button>
           </>
         )}
+        <LeadPeekMore on={on} />
       </div>
-      {mode === "why" ? <LeadNotFitWhy busy={busy} on={on} /> : null}
+      <LeadPeekAsk vm={vm} mode={mode} busy={busy} on={on} />
       <div className="pk-body" data-testid="peek-body" onScroll={pkScrolling}>
         {armed && armed.asked && armed.kind === "sent" ? <LeadSentAsk busy={busy} on={on} /> : null}
         {armed && armed.asked && armed.kind === "call" ? <LeadCallAsk armed={armed} busy={busy} on={on} deck={deck} /> : null}
@@ -571,6 +594,44 @@ const LeadPeek = ({ vm, mode = "info", armed = null, draft = null, busy = false,
   );
 };
 
+/** The leads an Erase is out for (PR 9): the page draws "Erasing…" a draw later, and a press lands before that. */
+const pkErasing = new Set();
+
+/**
+ * The ⋯ and Erase (PR 9), for LeadPeekActions: who may erase is contracts' rule over the member's role (View-as
+ * included), and a role the page cannot read is not an owner's, so the menu fails closed. Erase is asked in the peek
+ * first, since it cannot be undone; yes goes through the one door, the lead leaves the rows (the bridge's eraseLead),
+ * the peek closes on it, and a toast says it is gone. One erase at a time for a lead: a second press before the page
+ * has drawn "Erasing…" is a no-op.
+ */
+const leadEraseActs = (p, api, vm, refuse) => {
+  const V = window.__LEAD_VM || {};
+  const role = window.ST_STORE && window.ST_STORE.myRole ? window.ST_STORE.myRole() : "viewer";
+  return {
+    menu: V.leadPeekMenu ? V.leadPeekMenu(role) : [],
+    onEraseAsk: () => p.setMode("erase"),
+    onErase: async () => {
+      const W = window.__LEAD_WORDS;
+      const name = vm.name;
+      if (pkErasing.has(vm.id)) return;
+      pkErasing.add(vm.id);
+      p.setMode("erasing");
+      let r;
+      try {
+        r = await api.__leadErase(vm.id);
+      } finally {
+        pkErasing.delete(vm.id);
+      }
+      p.setMode("info");
+      if (!r.ok) { refuse(r, W.erase.refused); return; }
+      p.setArmed(null);
+      p.setDraft(null);
+      p.setPeekId(null);
+      p.flash({ msg: W.erase.done(name) });
+    },
+  };
+};
+
 /**
  * The peek's acts, as named functions over the page's state and the courier. A factory, not a hook: LeadsScope calls
  * it on every draw with what it holds, so nothing here keeps state of its own. Keep, Exclude, Put back and Copy are
@@ -606,6 +667,8 @@ const LeadPeekActions = (p) => {
     onStage: (stage) => post({ kind: "stage", stage }, "Not changed"),
     onBack: () => p.setMode("info"),
     onNotAFit: () => p.setMode("why"),
+    // The ⋯ and Erase (PR 9), built beside this (leadEraseActs).
+    ...leadEraseActs(p, api, vm, refuse),
     onWhy: async (why) => { p.setMode("info"); await post({ kind: "not_a_fit", why }, "Not set aside"); },
     onKeep: p.keep,
     onExclude: p.exclude,

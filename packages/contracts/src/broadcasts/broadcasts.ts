@@ -22,6 +22,7 @@
  * `purposeOfTemplate` — which fails CLOSED, because the column is null for
  * exactly the rows most likely to matter.
  */
+import type { ReachOutRunDto } from "../reach-out/reach-out-dtos";
 import { templateTitle } from "../templates/template-library";
 import { clockDate, clockWhen } from "../shared/clock";
 import { noNumberWords, saidYesTo, type PersonRowVM } from "../people/people";
@@ -259,4 +260,6 @@ export interface BroadcastRecipientDto {
 export interface BroadcastDetailDto {
   broadcast: BroadcastDto;
   recipients: BroadcastRecipientDto[];
+  /** A reach-out run's own block (Reach out, Part 4 F13): its sends are reach_out_sends, never recipients. */
+  reach_out?: ReachOutRunDto | null;
 }

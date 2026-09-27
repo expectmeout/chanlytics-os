@@ -163,8 +163,12 @@ export const LEAD_CHECK_UNSURE = "Couldn't tell";
 
 // LEAD_CHECK_KEYS and LeadCheckKey are 4.6's, written with the DTOs below; the
 // seven are four seen and three read. Nothing here declares them again.
-/** One label per check and answer; the particulars are the check's own reason. */
-export const LEAD_CHECK_WORDS: Record<LeadCheckKey, Record<"yes" | "no" | "unknown", string>> = {
+/**
+ * One label per check and answer; the particulars are the check's own reason. The seven, and `kind`: the engine's own
+ * first criterion, on every plan (lead-search.ts LEAD_KIND_KEY), which the judge answers for every place. A read check
+ * under any other key is the plan's, and `leadCheckWord` (lead-facts.ts) says it in the plan's words.
+ */
+export const LEAD_CHECK_WORDS: Record<LeadCheckKey | "kind", Record<"yes" | "no" | "unknown", string>> = {
   // Each unknown names what could not be told: four rows of "Couldn't tell" told the owner nothing.
   on_maps: { yes: "Open for business", no: "Not open for business", unknown: "Open for business: couldn't tell" },
   in_area: {
@@ -189,7 +193,23 @@ export const LEAD_CHECK_WORDS: Record<LeadCheckKey, Record<"yes" | "no" | "unkno
     no: "Not the business's own address",
     unknown: "Their own address: couldn't tell",
   },
+  kind: {
+    yes: "The kind of business you asked for",
+    no: "Not the kind of business you asked for",
+    unknown: "The kind of business: couldn't tell",
+  },
 };
+
+/** Erasing one lead, from the peek's ⋯ menu (Reach out Part 4, PR 9): the owner's alone, asked first, for good. */
+export const LEAD_ERASE_WORDS = {
+  act: "Erase this lead",
+  ask: (name: string) => `Erase ${name}? Its record and every trace of it go for good.`,
+  yes: "Yes, erase",
+  no: "No",
+  busy: "Erasing…",
+  done: (name: string) => `${name} is erased. It won't be found again.`,
+  refused: "Not erased",
+} as const;
 
 /** The mailbox check says the state it saw, never a word for it (§10.4, S12). */
 export const LEAD_MAILBOX_WORDS: Record<LeadEmailState, string> = {

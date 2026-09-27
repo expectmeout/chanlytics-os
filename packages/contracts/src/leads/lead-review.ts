@@ -29,7 +29,12 @@ export const LEAD_REVIEW_GROUP_WORDS = {
 
 export type LeadReviewGroupId = keyof typeof LEAD_REVIEW_GROUP_WORDS;
 
-export type LeadReviewAct = "check_again" | "find_email" | "keep" | "exclude";
+/**
+ * What resolves a pile. "Find an email" was one, with no door behind it (Reach out Part 4, PR 9): a pile it headed
+ * offered it in its group's words and priced it on the bench's column while no route could do it. A lead with no
+ * address, or one that bounces, is kept or excluded, and called.
+ */
+export type LeadReviewAct = "check_again" | "keep" | "exclude";
 
 /** The order an owner would work the pile: what resolves itself first, then what one press resolves, then what needs a look. */
 const REVIEW_GROUP_ORDER: LeadReviewGroupId[] = [
@@ -49,8 +54,8 @@ const REVIEW_GROUP_ACTS: Record<LeadReviewGroupId, LeadReviewAct[]> = {
   mailbox_waiting: [],
   checks_out: ["keep", "exclude"],
   mailbox_silent: ["check_again", "keep", "exclude"],
-  bad_email: ["find_email", "keep", "exclude"],
-  no_email: ["find_email", "keep", "exclude"],
+  bad_email: ["keep", "exclude"],
+  no_email: ["keep", "exclude"],
   no_phone: ["keep", "exclude"],
   catch_all: ["keep", "exclude"],
   unsure: ["keep", "exclude"],
@@ -78,7 +83,6 @@ function reviewGroupOf(reason: string): LeadReviewGroupId | null {
 
 export const LEAD_REVIEW_ACT_WORDS: Record<LeadReviewAct, string> = {
   check_again: "Check again",
-  find_email: "Find an email",
   keep: "Keep",
   exclude: "Exclude",
 };
@@ -123,8 +127,6 @@ export function leadReviewCosts(
         return "They don't count, and nothing is charged.";
       case "check_again":
         return `About ${leadCheckAgainCents(n)}¢. Their answer lands here in a few minutes.`;
-      case "find_email":
-        return "Claude reads their pages again for an address.";
     }
   };
   return acts.map((act) => ({ act, label: LEAD_REVIEW_ACT_WORDS[act], line: line(act) }));

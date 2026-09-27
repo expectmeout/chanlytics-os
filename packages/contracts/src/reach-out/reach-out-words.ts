@@ -255,7 +255,13 @@ export const ReachOutChainSchema = z.object({
   name: z.string().trim().min(1).max(REACH_OUT_NAME_MAX),
   search_id: z.string().uuid(),
   include_unconfirmed: z.boolean(),
-  gap_minutes: z.number().int().min(5).max(120),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
+  gap_minutes: z
+    .number()
+    .int()
+    .refine((g) => (REACH_OUT_GAP_MINUTES as readonly number[]).includes(g), {
+      message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`,
+    }),
   /** Empty: every verified domain of the workspace (00183). */
   domain_ids: z.array(z.string().uuid()).max(5),
   signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),

@@ -107,3 +107,41 @@ export type {
   ReachOutHold,
   HoldDoor,
 } from "./reach-out-words";
+export {
+  REACH_OUT_PREVIEW_INDEX_MAX,
+  ReachOutPreviewSchema,
+  REACH_OUT_DECISIONS,
+  ReachOutDecideSchema,
+} from "./reach-out-dtos";
+export type {
+  ReachOutStepDto,
+  ReachOutNextFacts,
+  ReachOutChainDto,
+  ReachOutStepCounts,
+  ReachOutRunLine,
+  ReachOutChainReportDto,
+  ReachOutReachDto,
+  ReachOutPreviewDto,
+  ReachOutStartDto,
+  ReachOutSavedDto,
+  ReachOutPreviewInput,
+  ReachOutDecision,
+  ReachOutHeldSend,
+  ReachOutRunDto,
+} from "./reach-out-dtos";
+export {
+  REACH_OUT_SHEET_WORDS,
+  REACH_OUT_REFUSALS,
+  isReachOutRefusal,
+  reachLineOf,
+  paceWords,
+  sheetFootWords,
+  stepLabel,
+  stepWhenWords,
+  startWords,
+  nextRunWords,
+  approvalWordsOf,
+  chainHintOf,
+  chainReportWordsOf,
+  emailTemplateWords,
+} from "./reach-out-sheet";

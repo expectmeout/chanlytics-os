@@ -9,11 +9,12 @@ import {
   AppError,
   isOptedOutContact,
   OPT_OUT_REFUSAL,
+  REACH_OUT_REFUSALS,
   writtenChannelOf,
   type DecisionVerb,
   type DecisionSubject,
 } from "@chanlytics/contracts";
-import { listRow, type Json } from "@chanlytics/db";
+import { listRow, reachOutRootOf, reachOutSendRefOf, type Json } from "@chanlytics/db";
 import { memberContext, requireRole, type RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
 import { row } from "./route";
@@ -433,3 +434,19 @@ export async function loadPlaybook(ctx: RouteContext, id: string) {
   return data;
 }
 export const playbookScope = row((ctx, params) => loadPlaybook(ctx, String(params.id ?? "")));
+
+/** A reach-out, by its root (its first step), read under RLS: a step that is not a chain's first is not one. */
+async function loadReachOut(ctx: RouteContext, id: string) {
+  const data = await reachOutRootOf(ctx.supabase, requireUuid(id, "reach-out"));
+  if (!data) throw new AppError("not_found", REACH_OUT_REFUSALS.notFound, 404);
+  return data;
+}
+export const reachOutScope = row((ctx, params) => loadReachOut(ctx, String(params.id ?? "")));
+
+/** One email of a reach-out run, read under RLS (R18): the decide door acts where it lives. */
+async function loadReachOutSend(ctx: RouteContext, id: string) {
+  const data = await reachOutSendRefOf(ctx.supabase, requireUuid(id, "email"));
+  if (!data) throw new AppError("not_found", REACH_OUT_REFUSALS.sendNotFound, 404);
+  return data;
+}
+export const reachOutSendScope = row((ctx, params) => loadReachOutSend(ctx, String(params.id ?? "")));

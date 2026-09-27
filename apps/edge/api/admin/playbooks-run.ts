@@ -8,12 +8,19 @@
  * unless the class is set to never -- at nine, if now is outside the hours a
  * send may go out in -- and the ledger names them. One run per local day, so
  * a playbook that already ran today says so.
+ *
+ * A reach-out's root (Part 4, R13) runs its first step now through the playbooks sweep's own step runner: the sheet's
+ * Start. It answers the outcome with its reason (billing, never, no_domain, no_room, nobody, waiting_for_you, …), and
+ * the run it planned. A later step of a chain runs on its day only (409).
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
 import { logger } from "../../lib/log.js";
+import { runReachOutStep } from "../../lib/reach-out/run-step.js";
+import { tenantZoneOf } from "../../lib/packages/db.js";
+import type { ReachOutRow } from "../../lib/reach-out/run-context.js";
 
 const L = logger();
 
@@ -46,8 +53,32 @@ export async function POST(request: Request): Promise<Response> {
     .maybeSingle();
   if (error) return json(500, { ok: false, error: "read_failed", detail: error.message });
   if (!p) return json(404, { ok: false, error: "not_found" });
-  // A reach-out step runs through its own verb, on its day (Reach out, Part 3): Run now is a moment's.
-  if ((p as { kind?: string }).kind === "reach_out") return json(409, { ok: false, error: "reach_out" });
+  // A reach-out's root runs its first step now through the sweep's own step runner (Part 4, R13): the sheet's Start.
+  // Its answer says what happened, with its reason (R14); a later step runs on its day only.
+  if ((p as { kind?: string }).kind === "reach_out") {
+    const row = p as ReachOutRow;
+    if (row.trigger !== "lead_first") return json(409, { ok: false, error: "reach_out_step" });
+    const tz = (await tenantZoneOf(db, tenantId)) || "America/New_York";
+    const r = await runReachOutStep(db, row, new Date(), tz, L);
+    L.info("reach_out_run_now", {
+      tenant_id: tenantId,
+      playbook_id: playbookId,
+      user_id: userId,
+      outcome: r.outcome,
+      reason: r.reason,
+      planned: r.planned,
+      run_id: r.runId,
+    });
+    if (r.outcome === "failed") return json(500, { ok: false, error: "run_failed", detail: r.reason });
+    return json(200, {
+      ok: true,
+      outcome: r.outcome,
+      reason: r.reason ?? null,
+      planned: r.planned,
+      run_id: r.runId,
+      run_for: r.runFor,
+    });
+  }
 
   const ctx = await loadTenantRunContext(db, tenantId, new Date());
   if ("error" in ctx) return json(500, { ok: false, error: "context_failed", detail: ctx.error });

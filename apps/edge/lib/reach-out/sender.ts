@@ -26,7 +26,6 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  checkResetPatch,
   claimSends,
   contactEmailOf,
   domainCapacityOf,
@@ -38,6 +37,7 @@ import {
   monthSent,
   moveSend,
   parentEmailOf,
+  recheckSends,
   reachOutPerson,
   runSending,
   sendJobScheduled,
@@ -62,7 +62,7 @@ import { coldReplyDomain } from "../email/email.js";
 import { env } from "../env.js";
 import { checkedWordsOf, reachOutRequest, reachOutWords } from "./request.js";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan } from "./replan.js";
-import type { Logger } from "../log.js";
+import type { LogEvent, Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -263,7 +263,7 @@ async function writeOne(t: Tick, s: ReachOutSendRow): Promise<Outcome> {
     (await move({ state: "skipped", reason: reason.slice(0, 60) })) ? "skipped" : "lost";
   /** Back to be checked, keeping its time and its owner's inclusions; a check under way for older words writes nothing. */
   const recheck = async (): Promise<Outcome> =>
-    (await move({ ...checkResetPatch(s.check_gen ?? 0), state: "planned", claimed_at: null })) ? "rechecked" : "lost";
+    (await recheckSends(db, { tenantId: s.tenant_id, ids: [s.id], fromState: "claimed" })) === 1 ? "rechecked" : "lost";
   const hold = (reason: string): Outcome => {
     t.later.push({ send: s, wrote: false });
     const key = `${s.tenant_id}:${reason}`;
@@ -465,7 +465,7 @@ export async function claimAndWrite(p: {
     said: new Set(),
   };
   const late = () => Date.now() - p.started > CLAIM_YIELD_AT_MS;
-  const failed = (event: string, fields: Record<string, unknown>, e: unknown) => {
+  const failed = (event: LogEvent, fields: Record<string, unknown>, e: unknown) => {
     out.errors += 1;
     p.log.error(event, { ...fields, error: e instanceof Error ? e.message : String(e) });
   };
