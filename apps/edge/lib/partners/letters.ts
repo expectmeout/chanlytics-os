@@ -19,9 +19,9 @@ import { logger, errField } from "../log.js";
 type Db = SupabaseClient<Database>;
 
 /** The longest the letters may take inside the clock's 55 seconds, the sweep having gone first. */
-export const LETTERS_BUDGET_MS = 30_000;
+const LETTERS_BUDGET_MS = 30_000;
 
-export interface LettersOutcome {
+interface LettersOutcome {
   due: number;
   sent: number;
   failed: number;
@@ -29,7 +29,7 @@ export interface LettersOutcome {
   deferred: number;
 }
 
-export interface LetterPorts {
+interface LetterPorts {
   send?: typeof post;
   from?: string | null;
   origin?: string;

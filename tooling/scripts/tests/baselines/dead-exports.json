@@ -103,7 +103,7 @@
   "apps/edge/lib/ops/sweep-health.ts": 2,
   "apps/edge/lib/ops/sweep-rotation.ts": 1,
   "apps/edge/lib/paged.ts": 2,
-  "apps/edge/lib/partner-earnings.ts": 2,
+  "apps/edge/lib/partners/earnings.ts": 2,
   "apps/edge/lib/pg.ts": 2,
   "apps/edge/lib/playbooks.ts": 4,
   "apps/edge/lib/reach-out/check.ts": 15,

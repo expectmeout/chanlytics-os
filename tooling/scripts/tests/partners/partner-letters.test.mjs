@@ -10,7 +10,7 @@ import { PARTNER_WORDS, partnerLetter, partnerPaneUrl } from "@chanlytics/contra
 import { fakeDb } from "../_fake-db.mjs";
 import { at, knock, answer, vault, withEnv } from "../_cron-doors-world.mjs";
 
-const { sendPartnerLetters, LETTERS_BUDGET_MS } = await import(at("apps/edge/lib/partners/letters.ts"));
+const { sendPartnerLetters } = await import(at("apps/edge/lib/partners/letters.ts"));
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const clock = await import(at("apps/edge/api/cron/partners.ts"));
 
@@ -174,7 +174,8 @@ test("the budget: a letter that could not finish inside it waits for tomorrow, u
   const out = await sendPartnerLetters(db, NOW, {
     from: "hello@example.com",
     nowMs: () => t,
-    send: async () => ((t += LETTERS_BUDGET_MS), true),
+    // Each send takes a minute: the first fits the budget, the second would not.
+    send: async () => ((t += 60_000), true),
   });
   assert.deepEqual(out, { due: 2, sent: 1, failed: 0, deferred: 1 });
   assert.deepEqual(
