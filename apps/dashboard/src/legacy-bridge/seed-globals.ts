@@ -54,6 +54,7 @@ import {
   leadReviewGroups,
   leadBand,
   leadReviewCosts,
+  leadPeekMenu,
   leadCheckAgainCents,
   leadAskedFor,
   LEAD_REVIEW_ACT_WORDS,
@@ -116,6 +117,7 @@ declare global {
       leadReviewGroups: typeof leadReviewGroups;
       leadBand: typeof leadBand;
       leadReviewCosts: typeof leadReviewCosts;
+      leadPeekMenu: typeof leadPeekMenu;
       leadCheckAgainCents: typeof leadCheckAgainCents;
       leadAskedFor: typeof leadAskedFor;
       leadMapPlot: typeof leadMapPlot;
@@ -223,6 +225,8 @@ if (typeof window !== "undefined") {
     leadReviewGroups,
     leadBand,
     leadReviewCosts,
+    // Who the peek's ⋯ offers Erase to (PR 9): the owner, by contracts' rule, never the page's.
+    leadPeekMenu,
     leadCheckAgainCents,
     leadAskedFor,
     LEAD_REVIEW_ACT_WORDS,

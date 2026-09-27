@@ -948,6 +948,15 @@ var LEAD_NOT_A_FIT_WORDS = {
 var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
 var LEAD_REVIEW_WORD = "Needs review";
 var LEAD_LEFT_OUT_WORD = "Left out";
+var LEAD_ERASE_WORDS = {
+  act: "Erase this lead",
+  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  yes: "Yes, erase",
+  no: "No",
+  busy: "Erasing\u2026",
+  done: (name2) => `${name2} is erased. It won't be found again.`,
+  refused: "Not erased"
+};
 var LEAD_SENT_QUESTION = "Did you send it?";
 var LEAD_CALL_QUESTION = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
@@ -967,6 +976,7 @@ var LeadsQuerySchema = z4.object({
   after_id: z4.string().uuid().optional(),
   limit: z4.coerce.number().int().min(1).max(500).default(500)
 });
+var LeadOneQuerySchema = z4.object({ search: z4.string().uuid().optional() });
 var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
 var LeadStageInputSchema = z4.discriminatedUnion("kind", [
   z4.object({ kind: z4.literal("stage"), stage: z4.enum(["ready", "nurture", "converted"]) }),
@@ -1217,7 +1227,13 @@ var LEAD_WORDS = {
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
-  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
+  /**
+   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
+   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
+   */
+  more: "More for this lead",
+  erase: LEAD_ERASE_WORDS
 };
 var SELLS_BY_QUESTION = "How customers buy";
 var SELLS_BY_WORDS = {
@@ -8505,6 +8521,15 @@ var LEAD_NOT_A_FIT_WORDS2 = {
 var LEAD_NOT_A_FIT_TITLE2 = "What makes it not a fit?";
 var LEAD_REVIEW_WORD2 = "Needs review";
 var LEAD_LEFT_OUT_WORD2 = "Left out";
+var LEAD_ERASE_WORDS2 = {
+  act: "Erase this lead",
+  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  yes: "Yes, erase",
+  no: "No",
+  busy: "Erasing\u2026",
+  done: (name2) => `${name2} is erased. It won't be found again.`,
+  refused: "Not erased"
+};
 var LEAD_SENT_QUESTION2 = "Did you send it?";
 var LEAD_CALL_QUESTION2 = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER2 = "A note for next time, if you like";
@@ -8524,6 +8549,7 @@ var LeadsQuerySchema2 = z42.object({
   after_id: z42.string().uuid().optional(),
   limit: z42.coerce.number().int().min(1).max(500).default(500)
 });
+var LeadOneQuerySchema2 = z42.object({ search: z42.string().uuid().optional() });
 var LeadsViewSchema2 = LeadsQuerySchema2.omit({ after_key: true, after_id: true, limit: true });
 var LeadStageInputSchema2 = z42.discriminatedUnion("kind", [
   z42.object({ kind: z42.literal("stage"), stage: z42.enum(["ready", "nurture", "converted"]) }),
@@ -8782,7 +8808,13 @@ var LEAD_WORDS2 = {
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
-  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
+  /**
+   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
+   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
+   */
+  more: "More for this lead",
+  erase: LEAD_ERASE_WORDS2
 };
 var SELLS_BY_QUESTION2 = "How customers buy";
 var SELLS_BY_WORDS2 = {
@@ -12140,6 +12172,15 @@ var LEAD_NOT_A_FIT_WORDS3 = {
 var LEAD_NOT_A_FIT_TITLE3 = "What makes it not a fit?";
 var LEAD_REVIEW_WORD3 = "Needs review";
 var LEAD_LEFT_OUT_WORD3 = "Left out";
+var LEAD_ERASE_WORDS3 = {
+  act: "Erase this lead",
+  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  yes: "Yes, erase",
+  no: "No",
+  busy: "Erasing\u2026",
+  done: (name2) => `${name2} is erased. It won't be found again.`,
+  refused: "Not erased"
+};
 var LEAD_SENT_QUESTION3 = "Did you send it?";
 var LEAD_CALL_QUESTION3 = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER3 = "A note for next time, if you like";
@@ -12159,6 +12200,7 @@ var LeadsQuerySchema3 = z43.object({
   after_id: z43.string().uuid().optional(),
   limit: z43.coerce.number().int().min(1).max(500).default(500)
 });
+var LeadOneQuerySchema3 = z43.object({ search: z43.string().uuid().optional() });
 var LeadsViewSchema3 = LeadsQuerySchema3.omit({ after_key: true, after_id: true, limit: true });
 var LeadStageInputSchema3 = z43.discriminatedUnion("kind", [
   z43.object({ kind: z43.literal("stage"), stage: z43.enum(["ready", "nurture", "converted"]) }),
@@ -12417,7 +12459,13 @@ var LEAD_WORDS3 = {
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
-  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
+  /**
+   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
+   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
+   */
+  more: "More for this lead",
+  erase: LEAD_ERASE_WORDS3
 };
 var SELLS_BY_QUESTION3 = "How customers buy";
 var SELLS_BY_WORDS3 = {
@@ -14810,6 +14858,15 @@ var LEAD_NOT_A_FIT_WORDS22 = {
 var LEAD_NOT_A_FIT_TITLE22 = "What makes it not a fit?";
 var LEAD_REVIEW_WORD22 = "Needs review";
 var LEAD_LEFT_OUT_WORD22 = "Left out";
+var LEAD_ERASE_WORDS22 = {
+  act: "Erase this lead",
+  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  yes: "Yes, erase",
+  no: "No",
+  busy: "Erasing\u2026",
+  done: (name2) => `${name2} is erased. It won't be found again.`,
+  refused: "Not erased"
+};
 var LEAD_SENT_QUESTION22 = "Did you send it?";
 var LEAD_CALL_QUESTION22 = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER22 = "A note for next time, if you like";
@@ -14829,6 +14886,7 @@ var LeadsQuerySchema22 = z422.object({
   after_id: z422.string().uuid().optional(),
   limit: z422.coerce.number().int().min(1).max(500).default(500)
 });
+var LeadOneQuerySchema22 = z422.object({ search: z422.string().uuid().optional() });
 var LeadsViewSchema22 = LeadsQuerySchema22.omit({ after_key: true, after_id: true, limit: true });
 var LeadStageInputSchema22 = z422.discriminatedUnion("kind", [
   z422.object({ kind: z422.literal("stage"), stage: z422.enum(["ready", "nurture", "converted"]) }),
@@ -15095,7 +15153,13 @@ var LEAD_WORDS22 = {
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
-  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
+  /**
+   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
+   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
+   */
+  more: "More for this lead",
+  erase: LEAD_ERASE_WORDS22
 };
 var SELLS_BY_QUESTION22 = "How customers buy";
 var SELLS_BY_WORDS22 = {
@@ -17463,6 +17527,15 @@ var LEAD_NOT_A_FIT_WORDS32 = {
 var LEAD_NOT_A_FIT_TITLE32 = "What makes it not a fit?";
 var LEAD_REVIEW_WORD32 = "Needs review";
 var LEAD_LEFT_OUT_WORD32 = "Left out";
+var LEAD_ERASE_WORDS32 = {
+  act: "Erase this lead",
+  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  yes: "Yes, erase",
+  no: "No",
+  busy: "Erasing\u2026",
+  done: (name2) => `${name2} is erased. It won't be found again.`,
+  refused: "Not erased"
+};
 var LEAD_SENT_QUESTION32 = "Did you send it?";
 var LEAD_CALL_QUESTION32 = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER32 = "A note for next time, if you like";
@@ -17482,6 +17555,7 @@ var LeadsQuerySchema32 = z432.object({
   after_id: z432.string().uuid().optional(),
   limit: z432.coerce.number().int().min(1).max(500).default(500)
 });
+var LeadOneQuerySchema32 = z432.object({ search: z432.string().uuid().optional() });
 var LeadsViewSchema32 = LeadsQuerySchema32.omit({ after_key: true, after_id: true, limit: true });
 var LeadStageInputSchema32 = z432.discriminatedUnion("kind", [
   z432.object({ kind: z432.literal("stage"), stage: z432.enum(["ready", "nurture", "converted"]) }),
@@ -17732,7 +17806,13 @@ var LEAD_WORDS32 = {
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
-  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
+  /**
+   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
+   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
+   */
+  more: "More for this lead",
+  erase: LEAD_ERASE_WORDS32
 };
 var SELLS_BY_QUESTION32 = "How customers buy";
 var SELLS_BY_WORDS32 = {
@@ -20757,6 +20837,15 @@ var LEAD_NOT_A_FIT_WORDS4 = {
 var LEAD_NOT_A_FIT_TITLE4 = "What makes it not a fit?";
 var LEAD_REVIEW_WORD4 = "Needs review";
 var LEAD_LEFT_OUT_WORD4 = "Left out";
+var LEAD_ERASE_WORDS4 = {
+  act: "Erase this lead",
+  ask: (name2) => `Erase ${name2}? Its record and every trace of it go for good.`,
+  yes: "Yes, erase",
+  no: "No",
+  busy: "Erasing\u2026",
+  done: (name2) => `${name2} is erased. It won't be found again.`,
+  refused: "Not erased"
+};
 var LEAD_SENT_QUESTION4 = "Did you send it?";
 var LEAD_CALL_QUESTION4 = "How did the call go?";
 var LEAD_NOTE_PLACEHOLDER4 = "A note for next time, if you like";
@@ -20776,6 +20865,7 @@ var LeadsQuerySchema4 = z44.object({
   after_id: z44.string().uuid().optional(),
   limit: z44.coerce.number().int().min(1).max(500).default(500)
 });
+var LeadOneQuerySchema4 = z44.object({ search: z44.string().uuid().optional() });
 var LeadsViewSchema4 = LeadsQuerySchema4.omit({ after_key: true, after_id: true, limit: true });
 var LeadStageInputSchema4 = z44.discriminatedUnion("kind", [
   z44.object({ kind: z44.literal("stage"), stage: z44.enum(["ready", "nurture", "converted"]) }),
@@ -21026,7 +21116,13 @@ var LEAD_WORDS4 = {
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
-  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
+  /**
+   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
+   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
+   */
+  more: "More for this lead",
+  erase: LEAD_ERASE_WORDS4
 };
 var SELLS_BY_QUESTION4 = "How customers buy";
 var SELLS_BY_WORDS4 = {
