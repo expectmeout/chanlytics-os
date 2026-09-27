@@ -28,11 +28,12 @@ import {
   type FeedItem,
   type Opening,
   type ParsedFeed,
+  MIN_MS,
 } from "../packages/contracts.js";
 import type { TenantRuntime } from "../tenant-runtime.js";
 import { logger, errField } from "../log.js";
 
-const CACHE_MS = 5 * 60 * 1000;
+const CACHE_MS = 5 * MIN_MS;
 const FETCH_TIMEOUT_MS = 6000;
 
 /**

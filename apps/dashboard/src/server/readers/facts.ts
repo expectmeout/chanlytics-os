@@ -3,6 +3,7 @@ import { getTenantConfig, listPolicies } from "@chanlytics/db";
 import { tenantFacts } from "../tenant";
 import { sellsByOf } from "../people/deals";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
+import { MIN_MS } from "@chanlytics/contracts";
 
 /**
  * The workspace's facts, read once.
@@ -17,7 +18,7 @@ import { load, stamp, type Reader, type ReaderContext } from "./index";
 
 export const facts: Reader<undefined, { name: string; timezone: string }> = {
   name: "facts",
-  ttlMs: 5 * 60_000,
+  ttlMs: 5 * MIN_MS,
   async read(rc) {
     return { data: await tenantFacts(rc.ctx.supabase, rc.tenantId), rows: [], stamp: stamp() };
   },

@@ -174,6 +174,8 @@ z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -783,7 +785,7 @@ function parseTenantConfig(raw) {
 }
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
-var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
+var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 var US_STATES = {
   alabama: "AL",
   alaska: "AK",
@@ -1043,7 +1045,6 @@ var LeadSuggestAnswerSchema = z4.object({
     })
   ).min(1).max(4)
 });
-var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -1104,14 +1105,15 @@ var BrainOutputSchema = z5.object({
   ),
   language: z5.enum(BRAIN_LANGUAGES).catch("other")
 });
-var WA_WINDOW_MS = 24 * 3600 * 1e3;
+var WA_WINDOW_MS = 24 * HOUR_MS;
 var REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
   sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
   email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
 };
 var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
+var CALL_HEARTBEAT_MS = 10 * MIN_MS;
+var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var RETENTION_DAYS = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
   call_recordings: 90,
@@ -1405,7 +1407,7 @@ var WHATSAPP_LANGUAGES = [
   L("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l2) => [l2.id.toLowerCase(), l2]));
-var SWEEP_TICK_MS = 5 * 6e4;
+var SWEEP_TICK_MS = 5 * MIN_MS;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -1509,7 +1511,7 @@ var SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -2009,7 +2011,7 @@ var LIMIT_TIERS = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var REPLY_WINDOW_HOURS = 72;
-var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
@@ -2031,7 +2033,7 @@ var REGISTRATION_COST_WORDS = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
-var PROVISIONING_DEADLINE_MS = 5 * 6e4;
+var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -2267,17 +2269,16 @@ var PageContextSchema = z9.object({
   rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
   askedAt: z9.number().int().nonnegative()
 }).strict();
-var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
-var BOOTSTRAP_MS = 3600 * 1e3;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
+var REVIEW_NEWS_MS = 36 * HOUR_MS;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * DAY_MS;
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REPUTATION_MEMORY_MS = 30 * 864e5;
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-var TRY_QUIET_AFTER_MS = 3 * 6e4;
+var FORWARDING_TEST_WINDOW_MS = 30 * MIN_MS;
+var TRY_QUIET_AFTER_MS = 3 * MIN_MS;
 var FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
@@ -2528,7 +2529,7 @@ var KIND_META = {
   email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
-var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
+var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
 var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA = {
   type: "object",
@@ -2674,9 +2675,9 @@ var REACH_OUT_SHEET_PARTS = {
   repliesLine: "Replies"
 };
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
+var LIVE_STALE_MS = 5 * MIN_MS;
+var LIVE_OVERLONG_MS = 30 * MIN_MS;
+var ANALYSIS_GRACE_MS = 10 * MIN_MS;
 function unreadFor(rows, seenAt, marks) {
   const seen = seenAt ? Date.parse(seenAt) : 0;
   const gone = new Set(marks.filter((m) => m.read_at || m.dismissed_at).map((m) => m.notification_id));
@@ -2696,7 +2697,7 @@ function pushFor(n2, targets) {
     data: { route: n2.route, notification_id: n2.id, tenant_id: n2.tenant_id }
   }));
 }
-var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
+var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var BELL_WINDOW_DAYS = 30;
 var JOB_WORK = {
   outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
@@ -2715,7 +2716,7 @@ function jobNewsWords(jobKind, end, attempts = 1) {
   const lead = end === "unfinished" ? jobKind === "outbound_send" ? "It started and never reported back, so it may or may not have reached the customer. Check the conversation before sending it again." : "It started and never reported back, so how it ended is unknown." : end === "unknown_kind" ? "Nothing ran: this is work the app does not know how to do." : `It stopped${attempts > 1 ? ` after ${attempts} tries` : ""} and will not start again on its own.`;
   return { title: w.stopped, lead, to: w.to };
 }
-var SEARCH_WARN_MS = 12 * 36e5;
+var SEARCH_WARN_MS = 12 * HOUR_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var InviteCodeSchema = z13.string().trim().max(80);
@@ -7812,6 +7813,8 @@ z15.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
+var MIN_MS2 = 6e4;
+var HOUR_MS2 = 36e5;
 var DAY_MS2 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS2;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -8409,7 +8412,7 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
 });
 var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES2 = 1e3;
-var LEAD_QUESTION_WAIT_MS2 = 24 * 36e5;
+var LEAD_QUESTION_WAIT_MS2 = 24 * HOUR_MS2;
 var US_STATES2 = {
   alabama: "AL",
   alaska: "AK",
@@ -8669,7 +8672,6 @@ var LeadSuggestAnswerSchema2 = z42.object({
     })
   ).min(1).max(4)
 });
-var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
 var BRAIN_INTENTS2 = [
   "booking",
   "pricing",
@@ -8730,14 +8732,15 @@ var BrainOutputSchema2 = z52.object({
   ),
   language: z52.enum(BRAIN_LANGUAGES2).catch("other")
 });
-var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
+var WA_WINDOW_MS2 = 24 * HOUR_MS2;
 var REPLY_LIMITS2 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
   sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
   email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
 };
 var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
+var CALL_HEARTBEAT_MS2 = 10 * MIN_MS2;
+var REPLY_DELAY_MAX_MS2 = 10 * MIN_MS2;
 var CALL_OUTCOMES = [
   "answered",
   "booking_link_sent",
@@ -9039,7 +9042,7 @@ var WHATSAPP_LANGUAGES2 = [
   L2("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l2) => [l2.id.toLowerCase(), l2]));
-var SWEEP_TICK_MS2 = 5 * 6e4;
+var SWEEP_TICK_MS2 = 5 * MIN_MS2;
 var PLAYBOOK_TRIGGERS2 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -9143,7 +9146,7 @@ var SENDING_HOURS_WORDS2 = {
   between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
 };
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS2;
-var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
+var PLAYBOOK_VETO_DELAY_MS2 = 30 * MIN_MS2;
 var FIRST2 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS2 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK2 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -9643,7 +9646,7 @@ var LIMIT_TIERS2 = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var REPLY_WINDOW_HOURS2 = 72;
-var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
+var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * HOUR_MS2;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
 var DATE_FMT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS2 = {
@@ -9665,7 +9668,7 @@ var REGISTRATION_COST_WORDS2 = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second.`
 };
-var PROVISIONING_DEADLINE_MS2 = 5 * 6e4;
+var PROVISIONING_DEADLINE_MS2 = 5 * MIN_MS2;
 var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS2.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -9901,17 +9904,16 @@ var PageContextSchema2 = z92.object({
   rows: z92.array(z92.object({ kind: z92.enum(ASK_CONTEXT_ROW_KINDS2), id: Id2 }).strict()).max(ASK_CONTEXT_MAX_ROWS2),
   askedAt: z92.number().int().nonnegative()
 }).strict();
-var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
-var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
-var BOOTSTRAP_MS2 = 3600 * 1e3;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * DAY_MS2;
+var REVIEW_NEWS_MS2 = 36 * HOUR_MS2;
+var REVIEW_NEWS_MAX_AGE_MS2 = 14 * DAY_MS2;
 var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
 var DAY_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REPUTATION_MEMORY_MS2 = 30 * 864e5;
-var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
-var TRY_QUIET_AFTER_MS2 = 3 * 6e4;
+var FORWARDING_TEST_WINDOW_MS2 = 30 * MIN_MS2;
+var TRY_QUIET_AFTER_MS2 = 3 * MIN_MS2;
 var FIRST_RUN_PHONE_WORDS2 = {
   chooseHeading: "How should calls reach your receptionist?",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
@@ -10162,7 +10164,7 @@ var KIND_META2 = {
   email: { name: CHANNEL_KIND_WORDS2.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
-var CALL_ACTIVITY_STALE_MS2 = 15 * 6e4;
+var CALL_ACTIVITY_STALE_MS2 = 15 * MIN_MS2;
 var NOTE_SUGGEST_KINDS2 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA2 = {
   type: "object",
@@ -10303,11 +10305,11 @@ var REACH_OUT_SHEET_PARTS2 = {
   repliesLine: "Replies"
 };
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS2 = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
-var PUSH_RECEIPTS_AFTER_MS2 = 15 * 6e4;
-var SEARCH_WARN_MS2 = 12 * 36e5;
+var LIVE_STALE_MS2 = 5 * MIN_MS2;
+var LIVE_OVERLONG_MS2 = 30 * MIN_MS2;
+var ANALYSIS_GRACE_MS2 = 10 * MIN_MS2;
+var PUSH_RECEIPTS_AFTER_MS2 = 15 * MIN_MS2;
+var SEARCH_WARN_MS2 = 12 * HOUR_MS2;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
 var InviteCodeSchema2 = z132.string().trim().max(80);
@@ -10544,8 +10546,8 @@ function emailPlainText(e2) {
 var RESEND_API = "https://api.resend.com";
 var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var RESEND_DOMAINS = `${RESEND_API}/domains`;
-var FRESH_SLACK_MS = 2 * 864e5;
-var STATE_TTL_MS = 10 * 6e4;
+var FRESH_SLACK_MS = 2 * DAY_MS2;
+var STATE_TTL_MS = 10 * MIN_MS2;
 var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
@@ -11516,6 +11518,8 @@ z16.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
+var MIN_MS3 = 6e4;
+var HOUR_MS3 = 36e5;
 var DAY_MS3 = 864e5;
 var WEEK_MS3 = 7 * DAY_MS3;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -12113,7 +12117,7 @@ var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
 });
 var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES3 = 1e3;
-var LEAD_QUESTION_WAIT_MS3 = 24 * 36e5;
+var LEAD_QUESTION_WAIT_MS3 = 24 * HOUR_MS3;
 var US_STATES3 = {
   alabama: "AL",
   alaska: "AK",
@@ -12373,7 +12377,6 @@ var LeadSuggestAnswerSchema3 = z43.object({
     })
   ).min(1).max(4)
 });
-var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
 var BRAIN_INTENTS3 = [
   "booking",
   "pricing",
@@ -12434,14 +12437,15 @@ var BrainOutputSchema3 = z53.object({
   ),
   language: z53.enum(BRAIN_LANGUAGES3).catch("other")
 });
-var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
+var WA_WINDOW_MS3 = 24 * HOUR_MS3;
 var REPLY_LIMITS3 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
   sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
   email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
 };
 var REPLY_MAX_ANY3 = Math.max(...Object.values(REPLY_LIMITS3).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
+var CALL_HEARTBEAT_MS3 = 10 * MIN_MS3;
+var REPLY_DELAY_MAX_MS3 = 10 * MIN_MS3;
 var CALL_OUTCOMES2 = [
   "answered",
   "booking_link_sent",
@@ -12743,7 +12747,7 @@ var WHATSAPP_LANGUAGES3 = [
   L3("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l2) => [l2.id.toLowerCase(), l2]));
-var SWEEP_TICK_MS3 = 5 * 6e4;
+var SWEEP_TICK_MS3 = 5 * MIN_MS3;
 var PLAYBOOK_TRIGGERS3 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -12847,7 +12851,7 @@ var SENDING_HOURS_WORDS3 = {
   between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
 };
 var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS3;
-var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
+var PLAYBOOK_VETO_DELAY_MS3 = 30 * MIN_MS3;
 var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK3 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -13347,7 +13351,7 @@ var LIMIT_TIERS3 = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var REPLY_WINDOW_HOURS3 = 72;
-var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
+var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * HOUR_MS3;
 var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
 var DATE_FMT23 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS3 = {
@@ -13369,7 +13373,7 @@ var REGISTRATION_COST_WORDS3 = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second.`
 };
-var PROVISIONING_DEADLINE_MS3 = 5 * 6e4;
+var PROVISIONING_DEADLINE_MS3 = 5 * MIN_MS3;
 var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS3.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
 var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -13605,17 +13609,16 @@ var PageContextSchema3 = z93.object({
   rows: z93.array(z93.object({ kind: z93.enum(ASK_CONTEXT_ROW_KINDS3), id: Id3 }).strict()).max(ASK_CONTEXT_MAX_ROWS3),
   askedAt: z93.number().int().nonnegative()
 }).strict();
-var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
-var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
-var BOOTSTRAP_MS3 = 3600 * 1e3;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * DAY_MS3;
+var REVIEW_NEWS_MS3 = 36 * HOUR_MS3;
+var REVIEW_NEWS_MAX_AGE_MS3 = 14 * DAY_MS3;
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
 var DAY_FMT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REPUTATION_MEMORY_MS3 = 30 * 864e5;
-var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
-var TRY_QUIET_AFTER_MS3 = 3 * 6e4;
+var FORWARDING_TEST_WINDOW_MS3 = 30 * MIN_MS3;
+var TRY_QUIET_AFTER_MS3 = 3 * MIN_MS3;
 var FIRST_RUN_PHONE_WORDS3 = {
   chooseHeading: "How should calls reach your receptionist?",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
@@ -13866,7 +13869,7 @@ var KIND_META3 = {
   email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
-var CALL_ACTIVITY_STALE_MS3 = 15 * 6e4;
+var CALL_ACTIVITY_STALE_MS3 = 15 * MIN_MS3;
 var NOTE_SUGGEST_KINDS3 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA3 = {
   type: "object",
@@ -14007,11 +14010,11 @@ var REACH_OUT_SHEET_PARTS3 = {
   repliesLine: "Replies"
 };
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS3 = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
-var PUSH_RECEIPTS_AFTER_MS3 = 15 * 6e4;
-var SEARCH_WARN_MS3 = 12 * 36e5;
+var LIVE_STALE_MS3 = 5 * MIN_MS3;
+var LIVE_OVERLONG_MS3 = 30 * MIN_MS3;
+var ANALYSIS_GRACE_MS3 = 10 * MIN_MS3;
+var PUSH_RECEIPTS_AFTER_MS3 = 15 * MIN_MS3;
+var SEARCH_WARN_MS3 = 12 * HOUR_MS3;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
 var InviteCodeSchema3 = z133.string().trim().max(80);
@@ -14236,8 +14239,8 @@ function resendLimitOf(r222) {
 var RESEND_API2 = "https://api.resend.com";
 var RESEND_RECEIVED2 = `${RESEND_API2}/emails/receiving`;
 var RESEND_DOMAINS2 = `${RESEND_API2}/domains`;
-var FRESH_SLACK_MS2 = 2 * 864e5;
-var STATE_TTL_MS2 = 10 * 6e4;
+var FRESH_SLACK_MS2 = 2 * DAY_MS3;
+var STATE_TTL_MS2 = 10 * MIN_MS3;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
@@ -14255,6 +14258,8 @@ function normalizeEmail(raw) {
   if (!m || m[1].length > MAX_LOCAL) return null;
   return s2;
 }
+var MIN_MS22 = 6e4;
+var HOUR_MS22 = 36e5;
 var DAY_MS22 = 864e5;
 var WEEK_MS22 = 7 * DAY_MS22;
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -14852,7 +14857,7 @@ var TenantConfigWriteSchema22 = TenantConfigSchema22.superRefine((cfg, ctx) => {
 });
 var LEAD_MEMBER_CLASSES22 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES22 = 1e3;
-var LEAD_QUESTION_WAIT_MS22 = 24 * 36e5;
+var LEAD_QUESTION_WAIT_MS22 = 24 * HOUR_MS22;
 var US_STATES22 = {
   alabama: "AL",
   alaska: "AK",
@@ -15112,7 +15117,6 @@ var LeadSuggestAnswerSchema22 = z422.object({
     })
   ).min(1).max(4)
 });
-var LEAD_UNDO_MS22 = 24 * 60 * 6e4;
 var BRAIN_INTENTS22 = [
   "booking",
   "pricing",
@@ -15189,14 +15193,15 @@ function mayMessageFor(c2, purpose, opts = {}) {
 function purposeOfTemplate(category) {
   return category === "utility" || category === "authentication" ? "conversational" : "marketing";
 }
-var WA_WINDOW_MS22 = 24 * 3600 * 1e3;
+var WA_WINDOW_MS22 = 24 * HOUR_MS22;
 var REPLY_LIMITS22 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
   sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
   email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
 };
 var REPLY_MAX_ANY22 = Math.max(...Object.values(REPLY_LIMITS22).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS22 = 10 * 60 * 1e3;
+var CALL_HEARTBEAT_MS22 = 10 * MIN_MS22;
+var REPLY_DELAY_MAX_MS22 = 10 * MIN_MS22;
 var RETENTION_DAYS22 = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
   call_recordings: 90,
@@ -15534,7 +15539,7 @@ function resolveParams(specs, f) {
     }
   });
 }
-var SWEEP_TICK_MS22 = 5 * 6e4;
+var SWEEP_TICK_MS22 = 5 * MIN_MS22;
 var PLAYBOOK_TRIGGERS22 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -15638,7 +15643,7 @@ var SENDING_HOURS_WORDS22 = {
   between: `between ${PLAYBOOK_HOURS22.min}:00 and ${PLAYBOOK_HOURS22.max}:59`
 };
 var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS22;
-var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
+var PLAYBOOK_VETO_DELAY_MS22 = 30 * MIN_MS22;
 var FIRST22 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS22 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK22 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -16138,7 +16143,7 @@ var LIMIT_TIERS22 = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var REPLY_WINDOW_HOURS22 = 72;
-var REPLY_WINDOW_MS22 = REPLY_WINDOW_HOURS22 * 36e5;
+var REPLY_WINDOW_MS22 = REPLY_WINDOW_HOURS22 * HOUR_MS22;
 var REPLY_WINDOW_WORDS22 = `within ${REPLY_WINDOW_HOURS22 / 24} days`;
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
@@ -16169,7 +16174,7 @@ var REGISTRATION_COST_WORDS22 = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second.`
 };
-var PROVISIONING_DEADLINE_MS22 = 5 * 6e4;
+var PROVISIONING_DEADLINE_MS22 = 5 * MIN_MS22;
 var SOLE_PROP_CEILING_SENTENCE22 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE22 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE22}`;
 var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -16405,10 +16410,9 @@ var PageContextSchema22 = z922.object({
   rows: z922.array(z922.object({ kind: z922.enum(ASK_CONTEXT_ROW_KINDS22), id: Id22 }).strict()).max(ASK_CONTEXT_MAX_ROWS22),
   askedAt: z922.number().int().nonnegative()
 }).strict();
-var REVIEW_AUTO_REPLY_MAX_AGE_MS22 = 14 * 864e5;
-var REVIEW_NEWS_MS22 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS22 = 14 * 864e5;
-var BOOTSTRAP_MS22 = 3600 * 1e3;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS22 = 14 * DAY_MS22;
+var REVIEW_NEWS_MS22 = 36 * HOUR_MS22;
+var REVIEW_NEWS_MAX_AGE_MS22 = 14 * DAY_MS22;
 var NAME_MAX22 = BrainConfigSchema22.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
 var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
@@ -16424,8 +16428,8 @@ function domainDailyCap(sentDays) {
   for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap2 = step2.perDay;
   return cap2;
 }
-var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
-var TRY_QUIET_AFTER_MS22 = 3 * 6e4;
+var FORWARDING_TEST_WINDOW_MS22 = 30 * MIN_MS22;
+var TRY_QUIET_AFTER_MS22 = 3 * MIN_MS22;
 var FIRST_RUN_PHONE_WORDS22 = {
   chooseHeading: "How should calls reach your receptionist?",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
@@ -16676,7 +16680,7 @@ var KIND_META22 = {
   email: { name: CHANNEL_KIND_WORDS22.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS22.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
-var CALL_ACTIVITY_STALE_MS22 = 15 * 6e4;
+var CALL_ACTIVITY_STALE_MS22 = 15 * MIN_MS22;
 var NOTE_SUGGEST_KINDS22 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA22 = {
   type: "object",
@@ -16832,11 +16836,11 @@ var REACH_OUT_SHEET_PARTS22 = {
   repliesLine: "Replies"
 };
 var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS22 = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS22 = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS22 = 10 * 60 * 1e3;
-var PUSH_RECEIPTS_AFTER_MS22 = 15 * 6e4;
-var SEARCH_WARN_MS22 = 12 * 36e5;
+var LIVE_STALE_MS22 = 5 * MIN_MS22;
+var LIVE_OVERLONG_MS22 = 30 * MIN_MS22;
+var ANALYSIS_GRACE_MS22 = 10 * MIN_MS22;
+var PUSH_RECEIPTS_AFTER_MS22 = 15 * MIN_MS22;
+var SEARCH_WARN_MS22 = 12 * HOUR_MS22;
 var SIGNUP_NAME_MIN22 = 2;
 var SIGNUP_NAME_MAX22 = 120;
 var InviteCodeSchema22 = z1322.string().trim().max(80);
@@ -16977,6 +16981,8 @@ z162.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
+var MIN_MS32 = 6e4;
+var HOUR_MS32 = 36e5;
 var DAY_MS32 = 864e5;
 var WEEK_MS32 = 7 * DAY_MS32;
 var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -17574,7 +17580,7 @@ var TenantConfigWriteSchema32 = TenantConfigSchema32.superRefine((cfg, ctx) => {
 });
 var LEAD_MEMBER_CLASSES32 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES32 = 1e3;
-var LEAD_QUESTION_WAIT_MS32 = 24 * 36e5;
+var LEAD_QUESTION_WAIT_MS32 = 24 * HOUR_MS32;
 var US_STATES32 = {
   alabama: "AL",
   alaska: "AK",
@@ -17834,7 +17840,6 @@ var LeadSuggestAnswerSchema32 = z432.object({
     })
   ).min(1).max(4)
 });
-var LEAD_UNDO_MS32 = 24 * 60 * 6e4;
 var BRAIN_INTENTS32 = [
   "booking",
   "pricing",
@@ -17895,14 +17900,15 @@ var BrainOutputSchema32 = z532.object({
   ),
   language: z532.enum(BRAIN_LANGUAGES32).catch("other")
 });
-var WA_WINDOW_MS32 = 24 * 3600 * 1e3;
+var WA_WINDOW_MS32 = 24 * HOUR_MS32;
 var REPLY_LIMITS32 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
   sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
   email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
 };
 var REPLY_MAX_ANY32 = Math.max(...Object.values(REPLY_LIMITS32).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS32 = 10 * 60 * 1e3;
+var CALL_HEARTBEAT_MS32 = 10 * MIN_MS32;
+var REPLY_DELAY_MAX_MS32 = 10 * MIN_MS32;
 var RETENTION_DAYS32 = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
   call_recordings: 90,
@@ -18197,7 +18203,7 @@ var WHATSAPP_LANGUAGES32 = [
   L32("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID32 = new Map(WHATSAPP_LANGUAGES32.map((l2) => [l2.id.toLowerCase(), l2]));
-var SWEEP_TICK_MS32 = 5 * 6e4;
+var SWEEP_TICK_MS32 = 5 * MIN_MS32;
 var PLAYBOOK_TRIGGERS32 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -18301,7 +18307,7 @@ var SENDING_HOURS_WORDS32 = {
   between: `between ${PLAYBOOK_HOURS32.min}:00 and ${PLAYBOOK_HOURS32.max}:59`
 };
 var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS32;
-var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
+var PLAYBOOK_VETO_DELAY_MS32 = 30 * MIN_MS32;
 var FIRST32 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS32 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK32 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -18801,7 +18807,7 @@ var LIMIT_TIERS32 = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var REPLY_WINDOW_HOURS32 = 72;
-var REPLY_WINDOW_MS32 = REPLY_WINDOW_HOURS32 * 36e5;
+var REPLY_WINDOW_MS32 = REPLY_WINDOW_HOURS32 * HOUR_MS32;
 var REPLY_WINDOW_WORDS32 = `within ${REPLY_WINDOW_HOURS32 / 24} days`;
 var DATE_FMT232 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS32 = {
@@ -18823,7 +18829,7 @@ var REGISTRATION_COST_WORDS32 = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second.`
 };
-var PROVISIONING_DEADLINE_MS32 = 5 * 6e4;
+var PROVISIONING_DEADLINE_MS32 = 5 * MIN_MS32;
 var SOLE_PROP_CEILING_SENTENCE32 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS32.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE32 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE32}`;
 var SHORT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -19059,17 +19065,16 @@ var PageContextSchema32 = z932.object({
   rows: z932.array(z932.object({ kind: z932.enum(ASK_CONTEXT_ROW_KINDS32), id: Id32 }).strict()).max(ASK_CONTEXT_MAX_ROWS32),
   askedAt: z932.number().int().nonnegative()
 }).strict();
-var REVIEW_AUTO_REPLY_MAX_AGE_MS32 = 14 * 864e5;
-var REVIEW_NEWS_MS32 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS32 = 14 * 864e5;
-var BOOTSTRAP_MS32 = 3600 * 1e3;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS32 = 14 * DAY_MS32;
+var REVIEW_NEWS_MS32 = 36 * HOUR_MS32;
+var REVIEW_NEWS_MAX_AGE_MS32 = 14 * DAY_MS32;
 var NAME_MAX32 = BrainConfigSchema32.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE32 = OFFERS_OPT_IN_PHRASES32.en;
 var CONSENT_PHRASE_ES32 = OFFERS_OPT_IN_PHRASES32.es;
 var DAY_FMT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REPUTATION_MEMORY_MS32 = 30 * 864e5;
-var FORWARDING_TEST_WINDOW_MS32 = 30 * 6e4;
-var TRY_QUIET_AFTER_MS32 = 3 * 6e4;
+var FORWARDING_TEST_WINDOW_MS32 = 30 * MIN_MS32;
+var TRY_QUIET_AFTER_MS32 = 3 * MIN_MS32;
 var FIRST_RUN_PHONE_WORDS32 = {
   chooseHeading: "How should calls reach your receptionist?",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
@@ -19320,7 +19325,7 @@ var KIND_META32 = {
   email: { name: CHANNEL_KIND_WORDS32.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS32.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
-var CALL_ACTIVITY_STALE_MS32 = 15 * 6e4;
+var CALL_ACTIVITY_STALE_MS32 = 15 * MIN_MS32;
 var NOTE_SUGGEST_KINDS32 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA32 = {
   type: "object",
@@ -19461,11 +19466,11 @@ var REACH_OUT_SHEET_PARTS32 = {
   repliesLine: "Replies"
 };
 var WHEN232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS32 = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS32 = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS32 = 10 * 60 * 1e3;
-var PUSH_RECEIPTS_AFTER_MS32 = 15 * 6e4;
-var SEARCH_WARN_MS32 = 12 * 36e5;
+var LIVE_STALE_MS32 = 5 * MIN_MS32;
+var LIVE_OVERLONG_MS32 = 30 * MIN_MS32;
+var ANALYSIS_GRACE_MS32 = 10 * MIN_MS32;
+var PUSH_RECEIPTS_AFTER_MS32 = 15 * MIN_MS32;
+var SEARCH_WARN_MS32 = 12 * HOUR_MS32;
 var SIGNUP_NAME_MIN32 = 2;
 var SIGNUP_NAME_MAX32 = 120;
 var InviteCodeSchema32 = z1332.string().trim().max(80);
@@ -19682,8 +19687,7 @@ async function outreachFactsOf(db, p) {
     sent_since: Number(f.sent_since ?? 0) || 0
   };
 }
-var POS_TTL_MS = 5 * 60 * 1e3;
-var NEG_TTL_MS = 60 * 1e3;
+var POS_TTL_MS = 5 * MIN_MS32;
 var CALL_CONTROL_S = 15 * 60;
 function kindOf(d) {
   if (d.purpose === "outreach") return "broadcast";
@@ -19953,10 +19957,10 @@ async function templatePurpose(db, tenantId, template) {
   return purposeOfTemplate(data?.category);
 }
 var PERSON_CONTROL_MAX_S = 24 * 60 * 60;
-var MAX_SNOOZE_MS = 30 * 24 * 3600 * 1e3;
+var MAX_SNOOZE_MS = 30 * DAY_MS22;
 var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
-var HOLD_EXPIRY_MS = 120 * 1e3;
+var HOLD_EXPIRY_MS = 2 * MIN_MS22;
 async function sendQueued(ports, cmd) {
   const p = cmd.payload;
   let msg;
@@ -20306,7 +20310,8 @@ var CHECKER_RUN_TIMEOUT_SECS = 15 * 60;
 var enc4 = new TextEncoder();
 var UNSAFE_IN_AN_ADDRESS = ` "'<>{}|^` + String.fromCharCode(92, 96, 9, 10, 13);
 var MARK_MAX_BYTES = 512 * 1024;
-var UNKNOWN_START_GRACE_MS = 10 * 6e4;
+var DEADLINE_MARGIN_MS = 8e3;
+var UNKNOWN_START_GRACE_MS = 10 * MIN_MS22;
 var VISION_MAX_BYTES = 4 * 1024 * 1024;
 var PAUSE_MS = 24 * 3600 * 1e3;
 var STALE_MS = 10 * 60 * 1e3;
@@ -20339,6 +20344,8 @@ function normalizePhone(raw) {
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
+var MIN_MS4 = 6e4;
+var HOUR_MS4 = 36e5;
 var DAY_MS4 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS4;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -20936,7 +20943,7 @@ var TenantConfigWriteSchema4 = TenantConfigSchema4.superRefine((cfg, ctx) => {
 });
 var LEAD_MEMBER_CLASSES4 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES4 = 1e3;
-var LEAD_QUESTION_WAIT_MS4 = 24 * 36e5;
+var LEAD_QUESTION_WAIT_MS4 = 24 * HOUR_MS4;
 var US_STATES4 = {
   alabama: "AL",
   alaska: "AK",
@@ -21196,7 +21203,6 @@ var LeadSuggestAnswerSchema4 = z44.object({
     })
   ).min(1).max(4)
 });
-var LEAD_UNDO_MS4 = 24 * 60 * 6e4;
 var BRAIN_INTENTS4 = [
   "booking",
   "pricing",
@@ -21257,14 +21263,15 @@ var BrainOutputSchema4 = z54.object({
   ),
   language: z54.enum(BRAIN_LANGUAGES4).catch("other")
 });
-var WA_WINDOW_MS4 = 24 * 3600 * 1e3;
+var WA_WINDOW_MS4 = 24 * HOUR_MS4;
 var REPLY_LIMITS4 = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
   sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
   email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
 };
 var REPLY_MAX_ANY4 = Math.max(...Object.values(REPLY_LIMITS4).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS4 = 10 * 60 * 1e3;
+var CALL_HEARTBEAT_MS4 = 10 * MIN_MS4;
+var REPLY_DELAY_MAX_MS4 = 10 * MIN_MS4;
 var RETENTION_DAYS4 = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
   call_recordings: 90,
@@ -21558,7 +21565,7 @@ var WHATSAPP_LANGUAGES4 = [
   L4("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID4 = new Map(WHATSAPP_LANGUAGES4.map((l2) => [l2.id.toLowerCase(), l2]));
-var SWEEP_TICK_MS4 = 5 * 6e4;
+var SWEEP_TICK_MS4 = 5 * MIN_MS4;
 var PLAYBOOK_TRIGGERS4 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -21662,7 +21669,7 @@ var SENDING_HOURS_WORDS4 = {
   between: `between ${PLAYBOOK_HOURS4.min}:00 and ${PLAYBOOK_HOURS4.max}:59`
 };
 var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS4;
-var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
+var PLAYBOOK_VETO_DELAY_MS4 = 30 * MIN_MS4;
 var FIRST4 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS4 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK4 = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -22162,7 +22169,7 @@ var LIMIT_TIERS4 = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var REPLY_WINDOW_HOURS4 = 72;
-var REPLY_WINDOW_MS4 = REPLY_WINDOW_HOURS4 * 36e5;
+var REPLY_WINDOW_MS4 = REPLY_WINDOW_HOURS4 * HOUR_MS4;
 var REPLY_WINDOW_WORDS4 = `within ${REPLY_WINDOW_HOURS4 / 24} days`;
 var DATE_FMT24 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS4 = {
@@ -22184,7 +22191,7 @@ var REGISTRATION_COST_WORDS4 = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second.`
 };
-var PROVISIONING_DEADLINE_MS4 = 5 * 6e4;
+var PROVISIONING_DEADLINE_MS4 = 5 * MIN_MS4;
 var SOLE_PROP_CEILING_SENTENCE4 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS4.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE4 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE4}`;
 var SHORT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -22420,17 +22427,16 @@ var PageContextSchema4 = z94.object({
   rows: z94.array(z94.object({ kind: z94.enum(ASK_CONTEXT_ROW_KINDS4), id: Id4 }).strict()).max(ASK_CONTEXT_MAX_ROWS4),
   askedAt: z94.number().int().nonnegative()
 }).strict();
-var REVIEW_AUTO_REPLY_MAX_AGE_MS4 = 14 * 864e5;
-var REVIEW_NEWS_MS4 = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS4 = 14 * 864e5;
-var BOOTSTRAP_MS4 = 3600 * 1e3;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS4 = 14 * DAY_MS4;
+var REVIEW_NEWS_MS4 = 36 * HOUR_MS4;
+var REVIEW_NEWS_MAX_AGE_MS4 = 14 * DAY_MS4;
 var NAME_MAX4 = BrainConfigSchema4.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;
 var CONSENT_PHRASE_ES4 = OFFERS_OPT_IN_PHRASES4.es;
 var DAY_FMT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REPUTATION_MEMORY_MS4 = 30 * 864e5;
-var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
-var TRY_QUIET_AFTER_MS4 = 3 * 6e4;
+var FORWARDING_TEST_WINDOW_MS4 = 30 * MIN_MS4;
+var TRY_QUIET_AFTER_MS4 = 3 * MIN_MS4;
 var FIRST_RUN_PHONE_WORDS4 = {
   chooseHeading: "How should calls reach your receptionist?",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
@@ -22681,7 +22687,7 @@ var KIND_META4 = {
   email: { name: CHANNEL_KIND_WORDS4.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS4.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
-var CALL_ACTIVITY_STALE_MS4 = 15 * 6e4;
+var CALL_ACTIVITY_STALE_MS4 = 15 * MIN_MS4;
 var NOTE_SUGGEST_KINDS4 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA4 = {
   type: "object",
@@ -22822,11 +22828,11 @@ var REACH_OUT_SHEET_PARTS4 = {
   repliesLine: "Replies"
 };
 var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS4 = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS4 = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS4 = 10 * 60 * 1e3;
-var PUSH_RECEIPTS_AFTER_MS4 = 15 * 6e4;
-var SEARCH_WARN_MS4 = 12 * 36e5;
+var LIVE_STALE_MS4 = 5 * MIN_MS4;
+var LIVE_OVERLONG_MS4 = 30 * MIN_MS4;
+var ANALYSIS_GRACE_MS4 = 10 * MIN_MS4;
+var PUSH_RECEIPTS_AFTER_MS4 = 15 * MIN_MS4;
+var SEARCH_WARN_MS4 = 12 * HOUR_MS4;
 var SIGNUP_NAME_MIN4 = 2;
 var SIGNUP_NAME_MAX4 = 120;
 var InviteCodeSchema4 = z134.string().trim().max(80);
@@ -23099,8 +23105,7 @@ async function stampMailboxReceived(db, mailboxId, at) {
   const { error } = await db.from("mailboxes").update({ last_received_at: at, last_error: null }).eq("id", mailboxId);
   if (error) console.error("mailbox_stamp_failed", error.message);
 }
-var POS_TTL_MS2 = 5 * 60 * 1e3;
-var NEG_TTL_MS2 = 60 * 1e3;
+var POS_TTL_MS2 = 5 * MIN_MS4;
 var CALL_CONTROL_S2 = 15 * 60;
 
 // src/escalate.ts
@@ -23511,8 +23516,8 @@ async function dispatchJob(ctx, job) {
 var LEASE_SECONDS = 90;
 var CLAIM_FOR_MS = 2e4;
 var YIELD_AT_MS = 45e3;
-var FUNCTION_CEILING_MS = 6e4;
-var LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - 8e3;
+var FUNCTION_CEILING_MS = MIN_MS;
+var LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - DEADLINE_MARGIN_MS;
 var MAX_ATTEMPTS = 3;
 var MAX_RESUMES = 5;
 var SPEAKS_TO_A_PERSON = /* @__PURE__ */ new Set(["outbound_send", "broadcast_send"]);
@@ -23523,24 +23528,24 @@ function verdictFor(job) {
   return job.attempts > MAX_ATTEMPTS ? "give_up" : "run";
 }
 var RETRY_WAITS_MS = {
-  email_ingest: [5 * 6e4, 30 * 6e4],
+  email_ingest: [5 * MIN_MS, 30 * MIN_MS],
   // The lead finder's three (00140). Each is written to be run again: a start
   // claims its run row before it calls the provider, a collect commits a page
   // by compare-and-set on the offset, a check commits by lead id. A
   // provider's 429 or 5xx throws and lands here: two minutes covers a bad
   // minute, ten a short outage; the third claim fails the row and the round
   // ends "the source failed". Every wait outlasts the lease (jobs-ledger.test.mjs).
-  lead_round_start: [2 * 6e4, 10 * 6e4],
-  lead_collect: [2 * 6e4, 10 * 6e4],
-  lead_check: [2 * 6e4, 10 * 6e4],
+  lead_round_start: [2 * MIN_MS, 10 * MIN_MS],
+  lead_collect: [2 * MIN_MS, 10 * MIN_MS],
+  lead_check: [2 * MIN_MS, 10 * MIN_MS],
   // A phone told from a kept row (00162): the push service's bad minute, then
   // its short outage, each wait outlasting the lease like the three above. The
   // row is read again on each try, and a phone the service answered for is
   // answered for once.
-  push_send: [2 * 6e4, 10 * 6e4],
+  push_send: [2 * MIN_MS, 10 * MIN_MS],
   // The receipts of a send (00189): Expo keeps them a day, so a bad minute and
   // then a short outage are affordable waits, each outlasting the lease.
-  push_receipts: [5 * 6e4, 30 * 6e4]
+  push_receipts: [5 * MIN_MS, 30 * MIN_MS]
 };
 function retryWait(job) {
   if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;

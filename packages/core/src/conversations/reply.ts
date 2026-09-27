@@ -13,6 +13,7 @@ import {
   slotToWrite,
   type ContactId,
   type TenantId,
+  MIN_MS,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { Thread, ThreadPorts } from "./ports";
@@ -39,7 +40,7 @@ export const IDEMPOTENCY_WINDOW_MS = 30 * 1000;
  * still about to write. The receipt is written on the claim's stamp all the
  * same, so a caller that somehow outlived this could not complete either.
  */
-export const HOLD_EXPIRY_MS = 120 * 1000;
+export const HOLD_EXPIRY_MS = 2 * MIN_MS;
 /** What the second of two callers under one key hears while the first one's reply is still on its way. */
 export const REPLY_IN_PROGRESS_REFUSAL =
   "This reply is already being sent. Give it a moment, then check the thread before sending it again.";

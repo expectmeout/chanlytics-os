@@ -44,6 +44,8 @@ import { env } from "../env.js";
 type Db = SupabaseClient<Database>;
 type LineRow = Database["public"]["Tables"]["lines"]["Row"];
 type RecordRow = Database["public"]["Tables"]["business_records"]["Row"];
+const TWILIO_TIMEOUT_MS = 20000;
+const SYNC_READ_MS = 15000;
 
 /** Chanlytics' own approved primary customer profile; without it nothing may be filed. */
 export function primaryProfileSid(): string | null {
@@ -393,7 +395,7 @@ export async function unfileMockRegistration(
     const r = await fetch(req.url, {
       method: req.method,
       headers: { Authorization: `Basic ${Buffer.from(`${sub.sid}:${sub.token}`).toString("base64")}` },
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS),
     }).catch(() => null);
     const gone = !!r && (r.ok || r.status === 404);
     L.info("a2p.mock_campaign_deleted", { status: r?.status ?? 0, ok: gone });
@@ -573,7 +575,7 @@ export async function resubmitRejectedCampaign(
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: encodeForm(req.form ?? {}),
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS),
   }).catch(() => null);
   if (!r || !r.ok) {
     const detail = r ? (await r.text().catch(() => "")).slice(0, 200) : "no answer";
@@ -638,7 +640,7 @@ export async function replaceRejectedCampaign(
     const r = await fetch(req.url, {
       method: req.method,
       headers: { Authorization: `Basic ${Buffer.from(`${sub.sid}:${sub.token}`).toString("base64")}` },
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS),
     }).catch(() => null);
     const gone = !!r && (r.ok || r.status === 404);
     L.info("a2p.rejected_campaign_deleted", { status: r?.status ?? 0, ok: gone, campaign: line.campaign_sid });
@@ -777,7 +779,7 @@ export async function registerLine(
         ...(req.form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
       },
       body: req.form ? encodeForm(req.form) : undefined,
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS),
     });
     const text = await r.text();
     let body: Record<string, unknown> | null;
@@ -916,7 +918,7 @@ export async function syncRegistration(
   // defect below: a 401 and a brand the carriers are still thinking about
   // produced the same value -- null -- and null means "no answer yet".
   const read = async (url: string, acct: { sid: string; token: string }) => {
-    const r = await fetch(url, { headers: { Authorization: basic(acct) }, signal: AbortSignal.timeout(15000) });
+    const r = await fetch(url, { headers: { Authorization: basic(acct) }, signal: AbortSignal.timeout(SYNC_READ_MS) });
     return { status: r.status, body: (await r.json().catch(() => null)) as Record<string, unknown> | null };
   };
   // Both are the workspace's own, so both are read as its subaccount.

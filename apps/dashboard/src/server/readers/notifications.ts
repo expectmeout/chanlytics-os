@@ -1,6 +1,7 @@
 import "server-only";
 import type { NotificationDto, NotificationsDto } from "@chanlytics/contracts";
 import { stamp, type Reader } from "./index";
+import { DAY_MS } from "@chanlytics/contracts";
 
 const KEEP_DAYS = 30;
 const LIMIT = 60;
@@ -14,7 +15,7 @@ export const notifications: Reader<undefined, NotificationsDto> = {
   name: "notifications",
   async read(rc) {
     const tenantId = rc.tenantId;
-    const since = new Date(rc.now.getTime() - KEEP_DAYS * 86_400_000).toISOString();
+    const since = new Date(rc.now.getTime() - KEEP_DAYS * DAY_MS).toISOString();
     const sb = rc.ctx.supabase;
     const [rows, seen] = await Promise.all([
       sb

@@ -4,9 +4,11 @@
  * props as a JSON string), and the name both sides agree on. Pure; the wire is apps/edge/lib/ops/apns.ts.
  */
 
+import { MIN_MS } from "../shared/time";
+
 export const CALL_ACTIVITY_NAME = "CallActivity";
 /** A call that nobody ended is stale after this long: the phone stops trusting it (the app ends it earlier). */
-export const CALL_ACTIVITY_STALE_MS = 15 * 60_000;
+export const CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
 
 export interface CallActivityProps {
   /** Who is on the line, as the line's words say it: a name, else the number, else "Someone". */

@@ -43,6 +43,10 @@ let activeRefresh: ((o: SurfaceOverride) => Promise<void>) | null = null;
 let activeOverrides: SurfaceOverride[] = [];
 /** The running runner's boot, settled once its last surface is in, whether each read worked or not. */
 let activeBoot: Promise<void> = Promise.resolve();
+/** A surface whose first read failed is read once more after this: one retry covers boot blips. */
+const BOOT_RETRY_MS = 800;
+/** A refresh waits this long after the last one asked for, unless the surface names its own debounce. */
+const REFRESH_DEBOUNCE_MS = 400;
 
 /**
  * Once the boot is in: when work nobody is waiting for may start (people.ts reading a list's people ahead) without
@@ -210,7 +214,7 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
     try {
       let ok = await activateOverride(o);
       if (!ok && !cancelled) {
-        await new Promise((r) => setTimeout(r, 800)); // one retry covers boot blips
+        await new Promise((r) => setTimeout(r, BOOT_RETRY_MS)); // one retry covers boot blips
         if (cancelled) return;
         ok = await activateOverride(o);
       }
@@ -243,7 +247,7 @@ export function startSurfaces(overrides: SurfaceOverride[], joinFeed: JoinLiveFe
     if (prev) clearTimeout(prev);
     timers.set(
       o.key,
-      setTimeout(() => void refresh(o, "refresh"), o.debounceMs ?? 400),
+      setTimeout(() => void refresh(o, "refresh"), o.debounceMs ?? REFRESH_DEBOUNCE_MS),
     );
   };
 

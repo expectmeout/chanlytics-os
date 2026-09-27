@@ -48,6 +48,7 @@ import {
   resolveList,
   type PersonRowDto,
   type PersonVisitsDto,
+  DAY_MS,
 } from "./packages/contracts.js";
 import { feedItemsFor } from "./calendar/availability.js";
 
@@ -129,7 +130,7 @@ export async function loadTenantRunContext(
     ),
     // The workspace's last year of yeses, for its pace (contracts dealPaceFrom): when a proposal waits for the
     // follow-up. Unreadable is no pace -- a week's wait, as before one -- and said in the log, never this run's end.
-    yesesSince(db, tenantId, new Date(now.getTime() - PACE_WINDOW_DAYS * 86_400_000)).catch((e: unknown) => {
+    yesesSince(db, tenantId, new Date(now.getTime() - PACE_WINDOW_DAYS * DAY_MS)).catch((e: unknown) => {
       logger({ tenant_id: tenantId }).warn("playbooks_pace_read_failed", {
         error: e instanceof Error ? e.message : String(e),
       });

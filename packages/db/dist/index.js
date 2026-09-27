@@ -33,6 +33,8 @@ function normalizePhone(raw) {
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -630,7 +632,7 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
 });
 var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
-var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
+var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 var US_STATES = {
   alabama: "AL",
   alaska: "AK",
@@ -941,7 +943,6 @@ function clockDate(atMs, tz, nowMs) {
   const f = formatsFor(tz);
   return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
 }
-var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -1002,14 +1003,15 @@ var BrainOutputSchema = z5.object({
   ),
   language: z5.enum(BRAIN_LANGUAGES).catch("other")
 });
-var WA_WINDOW_MS = 24 * 3600 * 1e3;
+var WA_WINDOW_MS = 24 * HOUR_MS;
 var REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
   sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
   email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
 };
 var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
-var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
+var CALL_HEARTBEAT_MS = 10 * MIN_MS;
+var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var RETENTION_DAYS = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
   call_recordings: 90,
@@ -1364,7 +1366,7 @@ function parseParamSpec(raw) {
 function parseParamSpecs(raw) {
   return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
 }
-var SWEEP_TICK_MS = 5 * 6e4;
+var SWEEP_TICK_MS = 5 * MIN_MS;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -1468,7 +1470,7 @@ var SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -1968,7 +1970,7 @@ var LIMIT_TIERS = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var REPLY_WINDOW_HOURS = 72;
-var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 function maySpend(mode, status) {
   if (mode !== "stripe") return true;
@@ -1994,7 +1996,7 @@ var REGISTRATION_COST_WORDS = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
-var PROVISIONING_DEADLINE_MS = 5 * 6e4;
+var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -2250,17 +2252,16 @@ var PageContextSchema = z9.object({
   rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
   askedAt: z9.number().int().nonnegative()
 }).strict();
-var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
-var BOOTSTRAP_MS = 3600 * 1e3;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
+var REVIEW_NEWS_MS = 36 * HOUR_MS;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * DAY_MS;
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var DAY_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var REPUTATION_MEMORY_MS = 30 * 864e5;
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-var TRY_QUIET_AFTER_MS = 3 * 6e4;
+var FORWARDING_TEST_WINDOW_MS = 30 * MIN_MS;
+var TRY_QUIET_AFTER_MS = 3 * MIN_MS;
 var FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
@@ -2511,7 +2512,7 @@ var KIND_META = {
   email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
-var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
+var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
 var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA = {
   type: "object",
@@ -2652,11 +2653,11 @@ var REACH_OUT_SHEET_PARTS = {
   repliesLine: "Replies"
 };
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
-var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
-var SEARCH_WARN_MS = 12 * 36e5;
+var LIVE_STALE_MS = 5 * MIN_MS;
+var LIVE_OVERLONG_MS = 30 * MIN_MS;
+var ANALYSIS_GRACE_MS = 10 * MIN_MS;
+var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
+var SEARCH_WARN_MS = 12 * HOUR_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var InviteCodeSchema = z13.string().trim().max(80);
@@ -2928,7 +2929,7 @@ async function resolveOutboundTarget(db, p) {
   };
 }
 async function countSentToday(db, p) {
-  const since = new Date(Date.now() - 24 * 3600 * 1e3).toISOString();
+  const since = new Date(Date.now() - 24 * HOUR_MS).toISOString();
   const { count, error } = await db.from("messages").select("id", { count: "exact", head: true }).eq("tenant_id", p.tenantId).eq("conversation_id", p.conversationId).eq("direction", "outbound").gte("created_at", since).contains("meta", { source: p.source });
   if (error) throw new Error(`count_sent_today: ${error.message}`);
   return count ?? 0;
@@ -3802,8 +3803,8 @@ async function forgetNotification(db, p) {
 }
 
 // src/repositories/routing.ts
-var POS_TTL_MS = 5 * 60 * 1e3;
-var NEG_TTL_MS = 60 * 1e3;
+var POS_TTL_MS = 5 * MIN_MS;
+var NEG_TTL_MS = MIN_MS;
 var cache = /* @__PURE__ */ new Map();
 async function resolveChannelDetailed(db, kind, externalId) {
   const key = `${kind}:${externalId}`;
@@ -4054,7 +4055,7 @@ function describeLead(lead, now = /* @__PURE__ */ new Date(), tz = "UTC") {
   if (lead.hasEmail === true) bits.push("Their email address is on file.");
   else if (lead.hasEmail === false) bits.push("No email address on file.");
   if (lead.returning) {
-    const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / 864e5) : null;
+    const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / DAY_MS) : null;
     const when = days === null ? "" : days <= 0 ? " Last in touch today." : days === 1 ? " Last in touch yesterday." : ` Last in touch ${days} days ago.`;
     bits.push(`Returning contact.${when}`);
   } else {

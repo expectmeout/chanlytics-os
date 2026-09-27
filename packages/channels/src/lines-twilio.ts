@@ -25,6 +25,7 @@ export type TwilioHttp = (
 const API = "https://api.twilio.com/2010-04-01";
 const TRUNKING = "https://trunking.twilio.com/v1";
 const MESSAGING = "https://messaging.twilio.com/v1";
+const TWILIO_TIMEOUT_MS = 15000;
 
 export const twilioUrls = {
   subaccounts: `${API}/Accounts.json`,
@@ -69,7 +70,7 @@ export const fetchTwilio: TwilioHttp = async (acct, method, url, form) => {
       ...(form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
     },
     body: form ? new URLSearchParams(form).toString() : undefined,
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS),
   });
   const text = await r.text();
   let body: Record<string, unknown> | null;

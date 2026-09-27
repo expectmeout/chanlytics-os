@@ -35,6 +35,7 @@ import { capitalize } from "../shared/words";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
 import { replyWindow } from "../config/policy";
 import { messageAt, type MessageDto, messageText, shortTime, writtenChannelOf } from "../conversations/viewmodels";
+import { HOUR_MS } from "../shared/time";
 
 export interface PersonRightNow {
   tone: ReceptionistTone;
@@ -175,7 +176,7 @@ function replyOf(
   const exactWindow = via ? replyWindow(via, row.latest_wa_inbound_at, now) : null;
   if (!via || !exactWindow) return null;
   const hoursLeft = exactWindow.closesAtIso
-    ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 3_600_000))
+    ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / HOUR_MS))
     : 0;
   return { via, window: { open: exactWindow.open, hoursLeft } };
 }

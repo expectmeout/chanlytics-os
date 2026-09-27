@@ -31,6 +31,7 @@ import {
   topLevelNames,
   unknownCasts,
   tableNames,
+  durationsIn,
   SOURCE,
 } from "./_ast.mjs";
 
@@ -47,6 +48,16 @@ const TREES = repoFiles(["apps", "packages", "tooling/scripts", "e2e"]);
 const SHELL = SRC.filter((f) => f.startsWith("apps/dashboard/src/"));
 /** A route module exports what the framework names (GET, POST, default); those are not copies. */
 const notARoute = (f) => !/^apps\/dashboard\/app\/|^apps\/edge\/api\//.test(f);
+/**
+ * Where a length of time is measured: the shipped sources, less what cannot import the units' home — the shell's
+ * classic scripts (legacy/) and the static files the browser loads as they are (public/) — and less the home itself.
+ */
+const TIMED = SRC.filter(
+  (f) =>
+    !/^apps\/dashboard\/src\/legacy\/|^apps\/dashboard\/public\/|(^|\/)test\/|\.test\.|^packages\/[^/]+\/(?!src\/)/.test(
+      f,
+    ) && f !== "packages/contracts/src/shared/time.ts",
+);
 
 const shellUse = () => SHELL.map((f) => [f, windowUse(parse(f))]);
 
@@ -161,6 +172,20 @@ export const MEASURES = [
     },
     advice:
       "A table is typed once, in packages/db (CLAUDE.md, what not to introduce): add a repository or a reader there and call it.",
+  },
+  {
+    name: "unnamed durations",
+    file: "durations.json",
+    measure: () => {
+      const out = {};
+      for (const f of TIMED) {
+        const n = durationsIn(parse(f)).length;
+        if (n > 0) out[f] = n;
+      }
+      return out;
+    },
+    advice:
+      "Name the length of time: a whole minute, hour or day from contracts' shared/time.ts (5 * MIN_MS, DAY_MS), anything else a constant in its module that says what it is (const RETRY_MS = 800; const LEASE_MS = 5 * MIN_MS).",
   },
 ];
 

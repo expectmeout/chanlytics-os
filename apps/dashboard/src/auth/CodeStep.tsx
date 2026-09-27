@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { SIGNIN_RESEND_COOLDOWN_S, resendLeft } from "@chanlytics/contracts";
 
+/** The cooldown counts down a second at a time. */
+const COOLDOWN_TICK_MS = 1000;
+
 /**
  * The six-digit code screen, once, for the three places that need it:
  * confirming a new address, signing in without a password, and resetting a
@@ -58,7 +61,7 @@ export default function CodeStep({
       const left = resendLeft(sentAt.current, Date.now());
       setCooldown(left);
       if (left <= 0 && timer.current) clearInterval(timer.current);
-    }, 1000);
+    }, COOLDOWN_TICK_MS);
   }, []);
 
   // A code is already on its way when this renders, so the wait starts now.

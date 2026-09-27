@@ -4,7 +4,7 @@
  * and the Setup row. No Stripe client, no network: the edge applies what
  * planBilling decides, and the tests read the same functions.
  */
-import { agoWords } from "../shared/time";
+import { agoWords, DAY_MS } from "../shared/time";
 
 export const BILLING_MODES = ["stripe", "direct"] as const;
 export type BillingMode = (typeof BILLING_MODES)[number];
@@ -318,7 +318,7 @@ export function trialWords(trialEnd: string | null | undefined, nowMs: number): 
   if (!trialEnd) return "";
   const end = Date.parse(trialEnd);
   if (Number.isNaN(end)) return "";
-  const days = Math.ceil((end - nowMs) / 86_400_000);
+  const days = Math.ceil((end - nowMs) / DAY_MS);
   if (days <= 0) return "Trial ends today";
   return `${days} day${days === 1 ? "" : "s"} left on the trial, until ${dayWords(trialEnd)}`;
 }

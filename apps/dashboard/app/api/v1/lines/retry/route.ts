@@ -1,6 +1,6 @@
 import { write, workspace } from "@/server/route";
 import { AppError, isUuid } from "@chanlytics/contracts";
-import { edgeLines } from "@/server/connections/lines";
+import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
 
 /**
  * POST /api/v1/lines/retry — {line_id}: resume a line that stopped at a
@@ -17,7 +17,10 @@ export const POST = write({
     if (!isUuid(lineId)) throw new AppError("validation", "Which line?", 400);
     // `by`, because the edge cannot tell an owner's Retry from support's: both send the
     // same op, and it used to write "started by support" on every one of them.
-    const a = await edgeLines({ op: "retry", tenant_id: member.tenantId, line_id: lineId, by: "owner" }, 60_000);
+    const a = await edgeLines(
+      { op: "retry", tenant_id: member.tenantId, line_id: lineId, by: "owner" },
+      EDGE_LINES_TIMEOUT_MS,
+    );
     const b = a.body ?? {};
     if (a.status === 404) throw new AppError("not_found", "That line is not here any more.", 404);
     if (a.status === 409)

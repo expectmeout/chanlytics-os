@@ -9,6 +9,7 @@
 import { createPrivateKey, sign as signRaw } from "node:crypto";
 import http2 from "node:http2";
 import { env } from "../env.js";
+import { MIN_MS } from "../packages/contracts.js";
 
 export interface ApnsPort {
   /** Start a Live Activity on one phone by its push-to-start token. Throws on a refusal or a dead wire. */
@@ -17,7 +18,7 @@ export interface ApnsPort {
 
 export const APNS_PRODUCTION = "https://api.push.apple.com";
 export const APNS_SANDBOX = "https://api.sandbox.push.apple.com";
-const JWT_LIFE_MS = 50 * 60_000;
+const JWT_LIFE_MS = 50 * MIN_MS;
 
 interface ApnsKeys {
   teamId: string;

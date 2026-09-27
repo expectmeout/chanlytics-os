@@ -271,7 +271,7 @@ test("booking rules and the calendar feed are config the schemas accept, and the
 
 test("the edge reads the feed once per five minutes and tells both receptionists, after the clock", () => {
   const lib = readRaw("apps/edge/lib/calendar/availability.ts"); // raw: a regex with // in it is not a comment
-  assert.ok(lib.includes("const CACHE_MS = 5 * 60 * 1000;"));
+  assert.ok(lib.includes("const CACHE_MS = 5 * MIN_MS;"));
   assert.ok(lib.includes("AbortSignal.timeout(FETCH_TIMEOUT_MS)"));
   assert.ok(lib.includes('u.replace(/^webcal:\\/\\//i, "https://")'));
   assert.ok(
