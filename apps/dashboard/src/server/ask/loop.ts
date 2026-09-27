@@ -31,8 +31,8 @@ import { DROP_EVENTS, dropFor } from "./refusals";
 import {
   ACT_TOOL_NAMES,
   buildProposal,
+  calledName,
   newToolContext,
-  proposalLabel,
   runTool,
   toApiTools,
   toolLabel,
@@ -222,15 +222,15 @@ export function foldHistory(history: TurnInput["history"], last: string | unknow
 }
 
 /**
- * The row the scope names, read whole by the tool that reads it, to ride in with the page (as the snapshot's scoped row
- * did): a call, a person, a thread or a conversation. A lead, a search or a run is read by no tool until Phase 4, and a
- * page needs no read: none.
+ * The row the scope names, read whole by the tool and action that read it, to ride in with the page (as the snapshot's
+ * scoped row did): a call (calls.get), a person (people.get), a thread or a conversation (inbox.thread). A lead, a
+ * search or a run is read by no tool until Phase 4, and a page needs no read: none.
  */
 export function scopedRead(scope: AskScope | null): ToolRun | null {
-  if (scope?.kind === "call") return { name: "get_call", input: { call_id: scope.id } };
-  if (scope?.kind === "person") return { name: "get_person", input: { contact_id: scope.id } };
+  if (scope?.kind === "call") return { name: "calls", input: { action: "get", call_id: scope.id } };
+  if (scope?.kind === "person") return { name: "people", input: { action: "get", contact_id: scope.id } };
   if (scope?.kind === "thread" || scope?.kind === "conversation")
-    return { name: "get_thread", input: { conversation_id: scope.id, more: false } };
+    return { name: "inbox", input: { action: "thread", conversation_id: scope.id, more: false } };
   return null;
 }
 
@@ -296,7 +296,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   if (pageRead) reads++;
   const prefetched = preOuts.filter((p) => !p.out.isError);
   for (const p of prefetched) {
-    toolsUsed.push(p.run.name);
+    toolsUsed.push(calledName(p.run.name, p.run.input));
     reads++;
   }
   const scopedRow = scopedOut && !scopedOut.out.isError ? scopedOut : null;
@@ -383,7 +383,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       warm: built ? (built.failed ? "failed" : built.warm) : input.context ? "failed" : "none",
       context_ms: contextMs,
       context_dropped: dataDropped && (pageBlocks.length > 0 || crossBlocks.length > 0),
-      cross_page: plan.map((p) => p.name),
+      cross_page: plan.map((p) => calledName(p.name, p.input)),
       rounds: r.rounds,
       rounds_ms: roundsMs,
       tools_ms: toolsMs,
@@ -505,10 +505,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   };
 
   const propose = async (b: RoundBlock) => {
-    toolsUsed.push(b.name);
     const args = argsOf(b);
+    toolsUsed.push(calledName(b.name, args));
     if (!args) return cutOff(b);
-    return timed(b.name, async () => {
+    return timed(calledName(b.name, args), async () => {
       const p = await ports.propose(tc, b.name, args);
       if (p.proposal) proposals.push(p.proposal);
       return { result: p.result, isError: p.isError };
@@ -516,10 +516,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   };
 
   const read = async (b: RoundBlock) => {
-    toolsUsed.push(b.name);
     const args = argsOf(b);
+    toolsUsed.push(calledName(b.name, args));
     if (!args) return cutOff(b);
-    return timed(b.name, async () => {
+    return timed(calledName(b.name, args), async () => {
       const out = await ports.tool(tc, { name: b.name, input: args });
       if (!out.isError) reads++;
       return { result: out.result, isError: out.isError };
@@ -638,7 +638,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           "ask_round_hit_cap",
           JSON.stringify({
             round,
-            tools: blocks.filter((b) => b.type === "tool_use").map((b) => b.name),
+            tools: blocks.filter((b) => b.type === "tool_use").map((b) => calledName(b.name, argsOf(b))),
             tenant: input.tenantId,
           }),
         );
@@ -665,7 +665,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       if (written && calls.length > acts.length) {
         console.warn(
           "ask_answer_beside_read",
-          JSON.stringify({ tools: calls.map((b) => b.name), tenant: input.tenantId }),
+          JSON.stringify({ tools: calls.map((b) => calledName(b.name, argsOf(b))), tenant: input.tenantId }),
         );
         written = "";
         unsay();
@@ -680,8 +680,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       }
 
       // Reads and proposals, in parallel; every result goes back at once.
-      for (const b of calls)
-        input.emit({ t: "trace", text: ACT_TOOL_NAMES.has(b.name) ? proposalLabel(b.name) : toolLabel(b.name) });
+      for (const b of calls) input.emit({ t: "trace", text: toolLabel(b.name, argsOf(b)) });
       const before = proposals.length;
       const outcomes = await Promise.all(
         calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })),
@@ -695,7 +694,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       if (written && refused) {
         console.warn(
           "ask_answer_beside_refused_card",
-          JSON.stringify({ tools: acts.map((b) => b.name), tenant: input.tenantId }),
+          JSON.stringify({ tools: acts.map((b) => calledName(b.name, argsOf(b))), tenant: input.tenantId }),
         );
         written = "";
         unsay();

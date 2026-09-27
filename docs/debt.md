@@ -69,16 +69,16 @@ fails when this block and the baselines disagree.
 
 ```text
 functions over the limit            269   of which over 200 lines: 65
-files over 800 lines                 35
-directories over 20 modules           8
+files over 800 lines                 34
+directories over 20 modules           7
 window globals                      195   names
 window publishers                   394   sites in 147 files
-copies                              126   of 34 names
+copies                              122   of 33 names
 as unknown as                       223
 table names outside packages/db     535
 unnamed durations                    75   in 33 files
-dead exports, types and modules     212
-source-text reads in tests          833
+dead exports, types and modules     206
+source-text reads in tests          832
 lint warnings allowed                46
 ```
 

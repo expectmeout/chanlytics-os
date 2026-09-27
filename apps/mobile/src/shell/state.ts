@@ -30,8 +30,6 @@ export interface ShellState {
   badge: number;
   /** The site said this app is older than it speaks to (/api/version min_app): the update screen stands. */
   tooOld: boolean;
-  /** The session's access token for the shell's own calls (decision 0011), as the page last handed it over; memory only. */
-  access: { token: string; expires: number } | null;
   /**
    * The theme the page is drawn in, as the page last said (the member's own choice, not the device's): what every
    * native screen, the tab bar and the status bar follow. Dark until a page says otherwise, which is the web's own
@@ -53,7 +51,6 @@ export const INITIAL: ShellState = {
   pendingRoute: null,
   badge: 0,
   tooOld: false,
-  access: null,
   theme: "dark",
 };
 

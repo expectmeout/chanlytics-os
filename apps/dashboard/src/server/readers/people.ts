@@ -32,7 +32,7 @@ interface PeoplePage {
  * SQL by people_list under the caller's own RLS (a query matches a name, a WhatsApp name, an address or three digits
  * of the number, in the function's order), each person with their appointments and who their next step is for, and
  * beside them how the workspace's customers buy, its pace and the proposal follow-up's facts -- the route's body,
- * moved here whole, so People and Ask's search_people read the same rows the same way. The route trims the query and
+ * moved here whole, so People and Ask's people.search read the same rows the same way. The route trims the query and
  * checks the offset; this takes them as given. How the workspace's customers buy, and the calendar's zone and
  * settings, come through their readers, once in a turn. Each person is a row a citation may name, as People names them.
  */

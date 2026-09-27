@@ -3,7 +3,6 @@
   "apps/dashboard/src/legacy/components": 24,
   "apps/dashboard/src/legacy/pages": 76,
   "apps/dashboard/src/server/readers": 31,
-  "apps/mobile/src/shell": 21,
   "e2e": 48,
   "packages/channels/src": 25,
   "tooling/scripts": 27

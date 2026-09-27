@@ -796,7 +796,7 @@ test("Today for Ask as the page composes it: the day's metrics, the newest hundr
     [1],
     "the day's metrics",
   );
-  // list_threads and list_calls beside it in the turn: the Inbox reads only the ids the hundred did not hold.
+  // inbox.list and calls.list beside it in the turn: the Inbox reads only the ids the hundred did not hold.
   const theInbox = await kernel.load(rc, inbox, undefined);
   await kernel.load(rc, calls, {});
   assert.equal(theInbox.data.conversations[0].id, OUTSIDE);
@@ -3364,7 +3364,7 @@ test("the autonomy matrix, for the page: GET policies answers its reader's paylo
   await policiesRoute.GET.run(req(`?workspace=${A}`), twice);
   await policiesRoute.GET.run(req(`?workspace=${A}`), twice);
   assert.equal(selects(twice, "policies").length, 2, "fresh on every request");
-  // A turn that holds the rows and how the customers buy (get_settings, list_playbooks) reads neither again.
+  // A turn that holds the rows and how the customers buy (workspace.settings, campaigns.playbooks) reads neither again.
   const turn = memberIn(dayCtx(matrixWorld()), A, "viewer");
   await Promise.all([kernel.load(turn, policies, undefined), kernel.load(turn, sellsBy, undefined)]);
   const held = turn.ctx.supabase.seen.length;

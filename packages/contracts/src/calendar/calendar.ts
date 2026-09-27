@@ -704,7 +704,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       : dto.feed.state === "unavailable"
         ? [tried ? `tried ${tried}` : "", ago ? `last read ${ago}` : ""].filter(Boolean).join(" · ")
         : "";
-  // The whole sentence, for whoever reads the line without the pill: Ask's get_calendar.
+  // The whole sentence, for whoever reads the line without the pill: Ask's calendar.week.
   const feedLine =
     dto.feed.state === "ok"
       ? feedDetail

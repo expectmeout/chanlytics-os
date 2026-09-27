@@ -5,6 +5,13 @@
 first surface that is not a WebView: the Inbox thread. With it, the API takes a bearer token beside the cookie: a
 decision note in `docs/decisions/` before a line of code, because it is a new door."
 
+**Amended 27 September 2026:** the native thread is retired, and with it every client of the bearer. The Inbox
+is the page's own, its threads included: on a phone a thread opened by a tap is an entry of its own in the page's
+history, so Back closes it on the web and in the app alike. The phone's screen, its `api.ts`, the `{t:"token"}`
+messages, the page's `token` door and `native-thread.ts` are gone. The site's side stays as built (`bearer.ts`, the
+bearer path in `with-route.ts`, the proxy's pass-through, `bearer.test.mjs`): a door no client uses yet, kept for the
+first native screen that needs one. The Shape and Tests below are as built on 26 September.
+
 ## Context
 
 ### Every /api/v1 route is the cookie's

@@ -26,14 +26,14 @@ import { threadState } from "../thread-state";
  * them, so it is simply absent) and writes each row with the page's own view model, as Ask's tools do.
  */
 
-/** A draft held on the thread, as list_threads marks one. */
+/** A draft held on the thread, as inbox.list marks one. */
 const held = (v: InboxThreadVM): string | null => (v.veto || v.heldDraft ? "draft held" : null);
 
 /** A thread's line: who, its state, a held draft, the last word, when. */
 const threadLine = (v: InboxThreadVM, route: string): string =>
   line([v.who, threadState(v), held(v), v.preview, v.lastAtFull], route);
 
-/** A call's line, as list_calls says a call: who, how it went, when, how long, what it was about. */
+/** A call's line, as calls.list says a call: who, how it went, when, how long, what it was about. */
 const callLine = (v: CallVM): string =>
   line([v.who, v.outcome, v.at, v.duration, v.summary.headline], `conversations/cv-${v.callId}`);
 
@@ -84,7 +84,7 @@ export const today: Provider = async (rc, ctx) => {
   };
 };
 
-/** The Inbox: the threads in the bucket the page drew, and how many each bucket holds, counted as list_threads counts. */
+/** The Inbox: the threads in the bucket the page drew, and how many each bucket holds, counted as inbox.list counts. */
 export const inbox: Provider = async (rc, ctx) => {
   const [{ conversations, escalations }, tz] = await Promise.all([
     load(rc, inboxReader, undefined).then((r) => r.data),

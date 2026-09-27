@@ -517,9 +517,9 @@ test("REGRESSION: a playbook whose yes has no number to send to is not one nobod
 test("Ask knows playbooks: read as the page shows them, proposed as a card, committed through the app's route, undone by deleting; Today says what ran; a run's thread names its playbook", async () => {
   const { PROPOSAL_GATE, buildAskSuggestions, cardOpenRoute } = await import("@chanlytics/contracts");
   assert.equal(PROPOSAL_GATE.playbook, "approve");
-  // Both tools are the registry's, and run in ask-turn.test.mjs: list_playbooks against the page's own read, its
-  // rows, next-run words and counts the page's, saying nothing ran because it was read ("list_playbooks tells who
-  // said yes"); propose_playbook as a card of kind playbook undone by deleting, refusing an honest no-starter and
+  // Both tools are the registry's, and run in ask-turn.test.mjs: campaigns.playbooks against the page's own read, its
+  // rows, next-run words and counts the page's, saying nothing ran because it was read ("campaigns.playbooks tells who
+  // said yes"); propose_campaign.playbook as a card of kind playbook undone by deleting, refusing an honest no-starter and
   // asking for a typed slot's words rather than inventing them ("the proposal builders run against the database in
   // memory"), and checked the way the route checks it ("Ask reaches any list by its reference": a list about
   // whoever is looking is refused by the same check).

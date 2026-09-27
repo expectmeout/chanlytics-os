@@ -78,7 +78,6 @@ test("out is one state, whichever way the shell learns it: nothing of the person
     token: "tok",
     registered: "tok|",
     refused: null,
-    access: { token: "jwt", expires: 1800000000 },
     pendingRoute: "inbox/th-1",
     theme: "light",
   };
@@ -91,7 +90,6 @@ test("out is one state, whichever way the shell learns it: nothing of the person
     badge: 0,
     registered: null,
     refused: null,
-    access: null,
     pendingRoute: null,
   });
   assert.equal(out.token, "tok", "the phone's own token stays: it is the phone's, not the person's");
@@ -120,16 +118,6 @@ test("a page in front is asked to register once per token pair per person", () =
 test("the Live page's count of calls in progress ends the call's activity only at none", () => {
   assert.equal(onPageMessage(INITIAL, '{"t":"calls","live":0}').effect, "calls-over");
   assert.equal(onPageMessage(INITIAL, '{"t":"calls","live":1}').effect, "nothing");
-});
-
-test("the page's token lands in the state and leaves with the person", () => {
-  let r = onPageMessage(INITIAL, '{"t":"token","access":"tok","expires":1800000000}');
-  assert.deepEqual(r.state.access, { token: "tok", expires: 1800000000 });
-  assert.equal(r.effect, "nothing");
-  r = onPageMessage(r.state, '{"t":"token","access":null,"expires":0}');
-  assert.equal(r.state.access, null);
-  r = onPageMessage({ ...INITIAL, access: { token: "tok", expires: 1 } }, '{"t":"session","state":"out"}');
-  assert.equal(r.state.access, null);
 });
 
 test("the page's theme is the shell's: kept in the state and acted on, and Today's refresh keeps nothing", () => {

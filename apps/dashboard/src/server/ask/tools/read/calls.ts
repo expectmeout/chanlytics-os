@@ -4,7 +4,7 @@ import { ASK_CAPS, abandonedCall, toCallVM } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { call } from "../../../readers/call";
 import { calls as callsReader } from "../../../readers/calls";
-import { UUID, defineRead, str, unlessNotFound, type ToolContext } from "../context";
+import { UUID, defineActions, readAction, str, unlessNotFound, type ToolContext } from "../context";
 
 function dayKey(iso: string | null | undefined, tz: string): string | null {
   if (!iso) return null;
@@ -88,18 +88,22 @@ async function getCall(t: ToolContext, input: { call_id: string }): Promise<unkn
   };
 }
 
-export const list_calls = defineRead({
-  name: "list_calls",
-  description: `Phone calls as the Calls page lists them, newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person. filter: missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first). Call it to find calls, and a live call before proposing a whisper; a count of calls is get_today's or the page's own, since the rows here are capped. Call get_call instead for one call's transcript and full summary. It returns at most ${ASK_CAPS.calls} calls from the newest hundred; nothing changes because it was read.`,
-  input: z.object({ filter: z.enum(["missed", "abandoned", "today", "live", "recent"]) }),
-  label: "Reading the calls",
-  run: listCalls,
-});
-
-export const get_call = defineRead({
-  name: "get_call",
-  description: `One phone call: who, when, how long, how it ended, its summary, the state of its recording, the caller's contact id, and the transcript turn by turn. Call it when the transcript or the full summary is needed and the page on screen holds only the call's row; list_calls is the sibling that finds calls by day, outcome or whether they are live. call_id is the id list_calls, get_today or get_person returned. The transcript is capped at ${ASK_CAPS.transcript} turns, with transcript_turns saying how many there are; a call the workspace does not hold is an error, said in words.`,
-  input: z.object({ call_id: z.string() }),
-  label: "Reading the call",
-  run: getCall,
+/** Phone calls (D11): the list (list, once list_calls) and one call with its transcript (get, once get_call). */
+export const callsTool = defineActions({
+  name: "calls",
+  description: `Phone calls, as the Calls page and a call's page read them. Action list takes filter and lists calls newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person; filter is missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first). Action get takes call_id, the id a row here, the today tool or people with action get returned, and reads one call: who, when, how long, how it ended, its summary, the state of its recording, the caller's contact id, and the transcript turn by turn. Call action list to find calls by day, outcome or whether they are live, and a live call before proposing a whisper; a count of calls is the today tool's or the page's own, since the rows here are capped. Call action get when the transcript or the full summary is needed and the page on screen holds only the call's row. list returns at most ${ASK_CAPS.calls} calls from the newest hundred; nothing changes because it was read. get caps the transcript at ${ASK_CAPS.transcript} turns, with transcript_turns saying how many there are; a call the workspace does not hold is an error, said in words.`,
+  actions: {
+    list: readAction({
+      input: z.object({ filter: z.enum(["missed", "abandoned", "today", "live", "recent"]) }),
+      examples: [{ filter: "missed" }],
+      label: "Reading the calls",
+      run: listCalls,
+    }),
+    get: readAction({
+      input: z.object({ call_id: z.string() }),
+      examples: [{ call_id: "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f" }],
+      label: "Reading the call",
+      run: getCall,
+    }),
+  },
 });
