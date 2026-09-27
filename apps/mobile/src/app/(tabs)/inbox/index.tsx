@@ -1,8 +1,6 @@
-import { useCallback } from "react";
-import { Surface, type SurfaceHandle } from "@/shell/Surface";
-import { front } from "@/shell/front";
+import { Surface } from "@/shell/Surface";
 
+/** The Inbox is the page's own list; a thread opened on it is drawn natively over it (the stack in _layout.tsx). */
 export default function InboxTab() {
-  const onReady = useCallback((h: SurfaceHandle) => front.set("inbox", h), []);
-  return <Surface route="inbox" tab="inbox" onReady={onReady} />;
+  return <Surface route="inbox" tab="inbox" />;
 }

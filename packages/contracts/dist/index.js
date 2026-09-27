@@ -18192,6 +18192,8 @@ function parseShellMessage(v) {
       return { t: "menu" };
     case "top":
       return { t: "top" };
+    case "back":
+      return { t: "back" };
     case "token":
       return { t: "token" };
     case "device": {

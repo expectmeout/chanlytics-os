@@ -34,6 +34,7 @@ function windowOf({
       },
     },
     location: { hash, pathname },
+    history: { back: () => posted.push("history.back") },
     ...(native ? { ReactNativeWebView: { postMessage: (s) => posted.push(JSON.parse(s)) } } : {}),
     addEventListener: (t, fn) => listeners.set(t, [...(listeners.get(t) ?? []), fn]),
     removeEventListener: (t, fn) =>
@@ -94,14 +95,16 @@ test("at install the page says a person is in, its theme, the workspace and the 
   assert.equal(win.__appBridge, undefined);
 });
 
-test("the shell's navigate sets the hash; menu and top become the shell's events; a bad message does nothing", () => {
-  const { win, fire } = windowOf();
+test("the shell's navigate sets the hash and back steps the history; menu and top become the shell's events; a bad message does nothing", () => {
+  const { win, posted, fire } = windowOf();
   installAppBridge(win);
   const heard = [];
   win.addEventListener("shell:menu", () => heard.push("menu"));
   win.addEventListener("shell:top", () => heard.push("top"));
   win.__appBridge.receive('{"t":"navigate","route":"inbox"}');
   assert.equal(win.location.hash, "/inbox");
+  win.__appBridge.receive('{"t":"back"}');
+  assert.equal(posted.at(-1), "history.back", "the page's own history, one step: no entry is added");
   win.__appBridge.receive('{"t":"menu"}');
   win.__appBridge.receive('{"t":"top"}');
   win.__appBridge.receive('{"t":"navigate","route":"https://example.com/x"}');

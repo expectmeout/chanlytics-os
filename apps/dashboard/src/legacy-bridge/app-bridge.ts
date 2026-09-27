@@ -29,6 +29,7 @@ interface BridgeWindow {
     };
   };
   location: { hash: string; pathname: string };
+  history: { back(): void };
   ReactNativeWebView?: { postMessage(s: string): void };
   __appBridge?: { receive(raw: string): void; forgetPhone(): Promise<void> };
   /** The bell (notifications.ts), when it is installed: its number is the icon's. */
@@ -186,6 +187,10 @@ function answerShell(win: BridgeWindow, doors: DeviceDoors, post: Post, raw: str
   if (!m) return;
   if (m.t === "navigate") {
     win.location.hash = "/" + m.route;
+    return;
+  }
+  if (m.t === "back") {
+    win.history.back();
     return;
   }
   if (m.t === "menu" || m.t === "top") {

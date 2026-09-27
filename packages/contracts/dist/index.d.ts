@@ -17988,6 +17988,13 @@ type ShellMessage = {
     t: "top";
 }
 /**
+ * One step back in the page's own history: once the shell has drawn a thread natively over the Inbox, the list
+ * returns underneath without a new entry, so Back later does not land on the thread's address and open it again.
+ */
+ | {
+    t: "back";
+}
+/**
  * Register this phone for the person signed in: the page calls PUT me/devices through its own client, and forgets
  * it again on its own before a sign-out (legacy-bridge/app-bridge.ts forgetPhone), so no ask says "forget".
  */

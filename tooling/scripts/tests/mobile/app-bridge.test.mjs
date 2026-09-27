@@ -103,5 +103,6 @@ test("the shell's device ask carries a token, a platform and a version; forget c
     null,
     "the page forgets its own phone before a sign-out (forgetPhone); the shell has no such ask",
   );
+  assert.deepEqual(parseShellMessage({ t: "back" }), { t: "back" });
   assert.equal(parseShellMessage({ t: "forget" }), null);
 });
