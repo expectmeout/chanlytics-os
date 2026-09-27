@@ -74,9 +74,9 @@ directories over 20 modules           7
 window globals                      195   names
 window publishers                   394   sites in 147 files
 copies                              122   of 33 names
-as unknown as                       223
+as unknown as                       222
 table names outside packages/db     535
-unnamed durations                    75   in 33 files
+unnamed durations                    78   in 34 files
 dead exports, types and modules     206
 source-text reads in tests          832
 lint warnings allowed                46

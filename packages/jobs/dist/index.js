@@ -170,6 +170,7 @@ import { z as z11 } from "zod";
 import { z as z12 } from "zod";
 import { z as z13 } from "zod";
 import { z as z14 } from "zod";
+import { z as z15 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -340,7 +341,11 @@ var EVENT_KINDS = [
   "partner.reversed",
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid"
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -2840,6 +2845,9 @@ var PartnerLetterNewsSchema = z14.object({
   standing: z14.array(z14.object({ workspace: z14.string().nullable(), standing: z14.string(), why: z14.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z14.array(z14.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z14.array(z14.string().nullable()).default([]),
+  declined: z14.array(z14.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z14.object({ status: z14.string(), why: z14.string().nullable() }).nullable().default(null),
   balance: z14.array(
@@ -2852,9 +2860,45 @@ var PartnerLetterNewsSchema = z14.object({
     })
   ).default([])
 });
+var HANDOVER_DAYS = 14;
+var ownerEmail = z15.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z15.object({
+  name: z15.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z15.string().trim().max(64).nullish(),
+  email: ownerEmail
+}).strict();
+var HandoverResendSchema = z15.object({ email: ownerEmail }).strict();
+var HANDOVER_WORDS = {
+  start: "Set up a workspace for a business",
+  intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
+  nameLabel: "The business's name",
+  emailLabel: "Its owner's email",
+  emailHint: "They'll be asked to accept it when they sign in with this address.",
+  make: "Set it up",
+  making: "Setting it up\u2026",
+  cancel: "Cancel",
+  resend: "Send again",
+  resendTo: "Send to",
+  resending: "Sending\u2026",
+  failed: "the workspace",
+  failedResend: "the invitation",
+  waiting: "Handed to their owners",
+  sentAgain: "Sent again.",
+  notSent: "The workspace is set up, but its invitation did not go. Send it again from its row below.",
+  unnamed: "A workspace you set up",
+  /** The accept screen. */
+  title: (workspace) => `${workspace} is ready for you`,
+  body: (partnerCode, workspace) => `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+  accept: "Accept and open it",
+  accepting: "Opening\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026",
+  later: "Not now",
+  failedAnswer: "your answer"
+};
 
 // ../channels/dist/index.js
-import { z as z15 } from "zod";
+import { z as z16 } from "zod";
 import { z as z82 } from "zod";
 import { z as z42 } from "zod";
 import { z as z32 } from "zod";
@@ -2868,6 +2912,7 @@ import { z as z112 } from "zod";
 import { z as z122 } from "zod";
 import { z as z132 } from "zod";
 import { z as z142 } from "zod";
+import { z as z152 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -7808,7 +7853,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
-z15.config({ jitless: true });
+z16.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
@@ -7978,7 +8023,11 @@ var EVENT_KINDS2 = [
   "partner.reversed",
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid"
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
 ];
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS2 = [
@@ -10432,6 +10481,9 @@ var PartnerLetterNewsSchema2 = z142.object({
   standing: z142.array(z142.object({ workspace: z142.string().nullable(), standing: z142.string(), why: z142.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z142.array(z142.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z142.array(z142.string().nullable()).default([]),
+  declined: z142.array(z142.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z142.object({ status: z142.string(), why: z142.string().nullable() }).nullable().default(null),
   balance: z142.array(
@@ -10444,6 +10496,42 @@ var PartnerLetterNewsSchema2 = z142.object({
     })
   ).default([])
 });
+var HANDOVER_DAYS2 = 14;
+var ownerEmail2 = z152.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema2 = z152.object({
+  name: z152.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z152.string().trim().max(64).nullish(),
+  email: ownerEmail2
+}).strict();
+var HandoverResendSchema2 = z152.object({ email: ownerEmail2 }).strict();
+var HANDOVER_WORDS2 = {
+  start: "Set up a workspace for a business",
+  intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS2} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
+  nameLabel: "The business's name",
+  emailLabel: "Its owner's email",
+  emailHint: "They'll be asked to accept it when they sign in with this address.",
+  make: "Set it up",
+  making: "Setting it up\u2026",
+  cancel: "Cancel",
+  resend: "Send again",
+  resendTo: "Send to",
+  resending: "Sending\u2026",
+  failed: "the workspace",
+  failedResend: "the invitation",
+  waiting: "Handed to their owners",
+  sentAgain: "Sent again.",
+  notSent: "The workspace is set up, but its invitation did not go. Send it again from its row below.",
+  unnamed: "A workspace you set up",
+  /** The accept screen. */
+  title: (workspace) => `${workspace} is ready for you`,
+  body: (partnerCode, workspace) => `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+  accept: "Accept and open it",
+  accepting: "Opening\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026",
+  later: "Not now",
+  failedAnswer: "your answer"
+};
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -10551,7 +10639,7 @@ var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
 
 // ../core/dist/index.js
-import { z as z16 } from "zod";
+import { z as z17 } from "zod";
 import { z as z83 } from "zod";
 import { z as z43 } from "zod";
 import { z as z33 } from "zod";
@@ -10565,7 +10653,8 @@ import { z as z113 } from "zod";
 import { z as z123 } from "zod";
 import { z as z133 } from "zod";
 import { z as z143 } from "zod";
-import { z as z152 } from "zod";
+import { z as z153 } from "zod";
+import { z as z162 } from "zod";
 import { z as z822 } from "zod";
 import { z as z422 } from "zod";
 import { z as z322 } from "zod";
@@ -10579,7 +10668,8 @@ import { z as z1122 } from "zod";
 import { z as z1222 } from "zod";
 import { z as z1322 } from "zod";
 import { z as z1422 } from "zod";
-import { z as z162 } from "zod";
+import { z as z1522 } from "zod";
+import { z as z172 } from "zod";
 import { z as z832 } from "zod";
 import { z as z432 } from "zod";
 import { z as z332 } from "zod";
@@ -10593,6 +10683,7 @@ import { z as z1132 } from "zod";
 import { z as z1232 } from "zod";
 import { z as z1332 } from "zod";
 import { z as z1432 } from "zod";
+import { z as z1532 } from "zod";
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -11512,7 +11603,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
-z16.config({ jitless: true });
+z17.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -11682,7 +11773,11 @@ var EVENT_KINDS3 = [
   "partner.reversed",
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid"
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
 ];
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS3 = [
@@ -14136,6 +14231,9 @@ var PartnerLetterNewsSchema3 = z143.object({
   standing: z143.array(z143.object({ workspace: z143.string().nullable(), standing: z143.string(), why: z143.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z143.array(z143.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z143.array(z143.string().nullable()).default([]),
+  declined: z143.array(z143.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z143.object({ status: z143.string(), why: z143.string().nullable() }).nullable().default(null),
   balance: z143.array(
@@ -14148,6 +14246,42 @@ var PartnerLetterNewsSchema3 = z143.object({
     })
   ).default([])
 });
+var HANDOVER_DAYS3 = 14;
+var ownerEmail3 = z153.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema3 = z153.object({
+  name: z153.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z153.string().trim().max(64).nullish(),
+  email: ownerEmail3
+}).strict();
+var HandoverResendSchema3 = z153.object({ email: ownerEmail3 }).strict();
+var HANDOVER_WORDS3 = {
+  start: "Set up a workspace for a business",
+  intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS3} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
+  nameLabel: "The business's name",
+  emailLabel: "Its owner's email",
+  emailHint: "They'll be asked to accept it when they sign in with this address.",
+  make: "Set it up",
+  making: "Setting it up\u2026",
+  cancel: "Cancel",
+  resend: "Send again",
+  resendTo: "Send to",
+  resending: "Sending\u2026",
+  failed: "the workspace",
+  failedResend: "the invitation",
+  waiting: "Handed to their owners",
+  sentAgain: "Sent again.",
+  notSent: "The workspace is set up, but its invitation did not go. Send it again from its row below.",
+  unnamed: "A workspace you set up",
+  /** The accept screen. */
+  title: (workspace) => `${workspace} is ready for you`,
+  body: (partnerCode, workspace) => `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+  accept: "Accept and open it",
+  accepting: "Opening\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026",
+  later: "Not now",
+  failedAnswer: "your answer"
+};
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
   {
@@ -14241,7 +14375,7 @@ var STATE_TTL_MS2 = 10 * MIN_MS3;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
-z152.config({ jitless: true });
+z162.config({ jitless: true });
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -14421,7 +14555,11 @@ var EVENT_KINDS22 = [
   "partner.reversed",
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid"
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
 ];
 var OFFERS_OPT_IN_PHRASES22 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS22 = [
@@ -16961,6 +17099,9 @@ var PartnerLetterNewsSchema22 = z1422.object({
   standing: z1422.array(z1422.object({ workspace: z1422.string().nullable(), standing: z1422.string(), why: z1422.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z1422.array(z1422.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z1422.array(z1422.string().nullable()).default([]),
+  declined: z1422.array(z1422.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z1422.object({ status: z1422.string(), why: z1422.string().nullable() }).nullable().default(null),
   balance: z1422.array(
@@ -16973,7 +17114,43 @@ var PartnerLetterNewsSchema22 = z1422.object({
     })
   ).default([])
 });
-z162.config({ jitless: true });
+var HANDOVER_DAYS22 = 14;
+var ownerEmail22 = z1522.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema22 = z1522.object({
+  name: z1522.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z1522.string().trim().max(64).nullish(),
+  email: ownerEmail22
+}).strict();
+var HandoverResendSchema22 = z1522.object({ email: ownerEmail22 }).strict();
+var HANDOVER_WORDS22 = {
+  start: "Set up a workspace for a business",
+  intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS22} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
+  nameLabel: "The business's name",
+  emailLabel: "Its owner's email",
+  emailHint: "They'll be asked to accept it when they sign in with this address.",
+  make: "Set it up",
+  making: "Setting it up\u2026",
+  cancel: "Cancel",
+  resend: "Send again",
+  resendTo: "Send to",
+  resending: "Sending\u2026",
+  failed: "the workspace",
+  failedResend: "the invitation",
+  waiting: "Handed to their owners",
+  sentAgain: "Sent again.",
+  notSent: "The workspace is set up, but its invitation did not go. Send it again from its row below.",
+  unnamed: "A workspace you set up",
+  /** The accept screen. */
+  title: (workspace) => `${workspace} is ready for you`,
+  body: (partnerCode, workspace) => `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+  accept: "Accept and open it",
+  accepting: "Opening\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026",
+  later: "Not now",
+  failedAnswer: "your answer"
+};
+z172.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
@@ -17143,7 +17320,11 @@ var EVENT_KINDS32 = [
   "partner.reversed",
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid"
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
 ];
 var OFFERS_OPT_IN_PHRASES32 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS32 = [
@@ -19590,6 +19771,9 @@ var PartnerLetterNewsSchema32 = z1432.object({
   standing: z1432.array(z1432.object({ workspace: z1432.string().nullable(), standing: z1432.string(), why: z1432.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z1432.array(z1432.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z1432.array(z1432.string().nullable()).default([]),
+  declined: z1432.array(z1432.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z1432.object({ status: z1432.string(), why: z1432.string().nullable() }).nullable().default(null),
   balance: z1432.array(
@@ -19602,6 +19786,42 @@ var PartnerLetterNewsSchema32 = z1432.object({
     })
   ).default([])
 });
+var HANDOVER_DAYS32 = 14;
+var ownerEmail32 = z1532.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema32 = z1532.object({
+  name: z1532.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z1532.string().trim().max(64).nullish(),
+  email: ownerEmail32
+}).strict();
+var HandoverResendSchema32 = z1532.object({ email: ownerEmail32 }).strict();
+var HANDOVER_WORDS32 = {
+  start: "Set up a workspace for a business",
+  intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS32} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
+  nameLabel: "The business's name",
+  emailLabel: "Its owner's email",
+  emailHint: "They'll be asked to accept it when they sign in with this address.",
+  make: "Set it up",
+  making: "Setting it up\u2026",
+  cancel: "Cancel",
+  resend: "Send again",
+  resendTo: "Send to",
+  resending: "Sending\u2026",
+  failed: "the workspace",
+  failedResend: "the invitation",
+  waiting: "Handed to their owners",
+  sentAgain: "Sent again.",
+  notSent: "The workspace is set up, but its invitation did not go. Send it again from its row below.",
+  unnamed: "A workspace you set up",
+  /** The accept screen. */
+  title: (workspace) => `${workspace} is ready for you`,
+  body: (partnerCode, workspace) => `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+  accept: "Accept and open it",
+  accepting: "Opening\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026",
+  later: "Not now",
+  failedAnswer: "your answer"
+};
 async function recordCarrierOptOut(db, p) {
   const { data, error } = await db.from("contacts").update({
     consent: "opted_out",
@@ -20313,7 +20533,7 @@ var STALE_MS = 10 * 60 * 1e3;
 var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 
 // ../db/dist/index.js
-import { z as z17 } from "zod";
+import { z as z18 } from "zod";
 import { z as z84 } from "zod";
 import { z as z44 } from "zod";
 import { z as z34 } from "zod";
@@ -20327,7 +20547,8 @@ import { z as z114 } from "zod";
 import { z as z124 } from "zod";
 import { z as z134 } from "zod";
 import { z as z144 } from "zod";
-z17.config({ jitless: true });
+import { z as z154 } from "zod";
+z18.config({ jitless: true });
 var LABEL4 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL4 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE4 = new RegExp(`^(${LOCAL4})@(${LABEL4}(?:\\.${LABEL4})+)$`);
@@ -20505,7 +20726,11 @@ var EVENT_KINDS4 = [
   "partner.reversed",
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid"
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
 ];
 var OFFERS_OPT_IN_PHRASES4 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS4 = [
@@ -22951,6 +23176,9 @@ var PartnerLetterNewsSchema4 = z144.object({
   standing: z144.array(z144.object({ workspace: z144.string().nullable(), standing: z144.string(), why: z144.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z144.array(z144.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z144.array(z144.string().nullable()).default([]),
+  declined: z144.array(z144.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z144.object({ status: z144.string(), why: z144.string().nullable() }).nullable().default(null),
   balance: z144.array(
@@ -22963,6 +23191,42 @@ var PartnerLetterNewsSchema4 = z144.object({
     })
   ).default([])
 });
+var HANDOVER_DAYS4 = 14;
+var ownerEmail4 = z154.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema4 = z154.object({
+  name: z154.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z154.string().trim().max(64).nullish(),
+  email: ownerEmail4
+}).strict();
+var HandoverResendSchema4 = z154.object({ email: ownerEmail4 }).strict();
+var HANDOVER_WORDS4 = {
+  start: "Set up a workspace for a business",
+  intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS4} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
+  nameLabel: "The business's name",
+  emailLabel: "Its owner's email",
+  emailHint: "They'll be asked to accept it when they sign in with this address.",
+  make: "Set it up",
+  making: "Setting it up\u2026",
+  cancel: "Cancel",
+  resend: "Send again",
+  resendTo: "Send to",
+  resending: "Sending\u2026",
+  failed: "the workspace",
+  failedResend: "the invitation",
+  waiting: "Handed to their owners",
+  sentAgain: "Sent again.",
+  notSent: "The workspace is set up, but its invitation did not go. Send it again from its row below.",
+  unnamed: "A workspace you set up",
+  /** The accept screen. */
+  title: (workspace) => `${workspace} is ready for you`,
+  body: (partnerCode, workspace) => `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+  accept: "Accept and open it",
+  accepting: "Opening\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026",
+  later: "Not now",
+  failedAnswer: "your answer"
+};
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,

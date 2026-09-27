@@ -115,6 +115,8 @@ export const ROUTES = {
   "POST google/reviews/[id]/draft": { method: "POST", path: "/api/v1/google/reviews/[id]/draft" },
   "POST google/reviews/[id]/reply": { method: "POST", path: "/api/v1/google/reviews/[id]/reply" },
   "POST google/search": { method: "POST", path: "/api/v1/google/search" },
+  "POST handovers/[id]/accept": { method: "POST", path: "/api/v1/handovers/[id]/accept" },
+  "POST handovers/[id]/decline": { method: "POST", path: "/api/v1/handovers/[id]/decline" },
   "POST lead-operations/[id]/undo": { method: "POST", path: "/api/v1/lead-operations/[id]/undo" },
   "POST lead-searches": { method: "POST", path: "/api/v1/lead-searches" },
   "POST lead-searches/[id]/answer": { method: "POST", path: "/api/v1/lead-searches/[id]/answer" },
@@ -138,6 +140,8 @@ export const ROUTES = {
   "POST messages/[id]/cancel-send": { method: "POST", path: "/api/v1/messages/[id]/cancel-send" },
   "POST messages/[id]/steer": { method: "POST", path: "/api/v1/messages/[id]/steer" },
   "POST partner": { method: "POST", path: "/api/v1/partner" },
+  "POST partner/workspaces": { method: "POST", path: "/api/v1/partner/workspaces" },
+  "POST partner/workspaces/[id]/resend": { method: "POST", path: "/api/v1/partner/workspaces/[id]/resend" },
   "POST platform/lines/refile": { method: "POST", path: "/api/v1/platform/lines/refile" },
   "POST platform/lines/release": { method: "POST", path: "/api/v1/platform/lines/release" },
   "POST platform/lines/replace": { method: "POST", path: "/api/v1/platform/lines/replace" },
@@ -302,6 +306,8 @@ export type Routes = {
   "POST google/reviews/[id]/draft": typeof import("../../app/api/v1/google/reviews/[id]/draft/route").POST;
   "POST google/reviews/[id]/reply": typeof import("../../app/api/v1/google/reviews/[id]/reply/route").POST;
   "POST google/search": typeof import("../../app/api/v1/google/search/route").POST;
+  "POST handovers/[id]/accept": typeof import("../../app/api/v1/handovers/[id]/accept/route").POST;
+  "POST handovers/[id]/decline": typeof import("../../app/api/v1/handovers/[id]/decline/route").POST;
   "POST lead-operations/[id]/undo": typeof import("../../app/api/v1/lead-operations/[id]/undo/route").POST;
   "POST lead-searches": typeof import("../../app/api/v1/lead-searches/route").POST;
   "POST lead-searches/[id]/answer": typeof import("../../app/api/v1/lead-searches/[id]/answer/route").POST;
@@ -325,6 +331,8 @@ export type Routes = {
   "POST messages/[id]/cancel-send": typeof import("../../app/api/v1/messages/[id]/cancel-send/route").POST;
   "POST messages/[id]/steer": typeof import("../../app/api/v1/messages/[id]/steer/route").POST;
   "POST partner": typeof import("../../app/api/v1/partner/route").POST;
+  "POST partner/workspaces": typeof import("../../app/api/v1/partner/workspaces/route").POST;
+  "POST partner/workspaces/[id]/resend": typeof import("../../app/api/v1/partner/workspaces/[id]/resend/route").POST;
   "POST platform/lines/refile": typeof import("../../app/api/v1/platform/lines/refile/route").POST;
   "POST platform/lines/release": typeof import("../../app/api/v1/platform/lines/release/route").POST;
   "POST platform/lines/replace": typeof import("../../app/api/v1/platform/lines/replace/route").POST;

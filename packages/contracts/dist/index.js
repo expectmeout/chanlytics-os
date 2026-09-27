@@ -126,8 +126,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z15] = m;
-  if (z15) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z16] = m;
+  if (z16) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -1184,7 +1184,11 @@ var EVENT_KINDS = [
   "partner.reversed",
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid"
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -22776,6 +22780,7 @@ var SCHEMA_SETS = {
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
   "partner_reversals_waiting.kind": ["refund", "dispute", "dispute_won"],
+  "partner_tenants.origin": ["link", "handover"],
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],
@@ -22942,6 +22947,8 @@ var ROUTE_KEYS = [
   "POST google/reviews/[id]/draft",
   "POST google/reviews/[id]/reply",
   "POST google/search",
+  "POST handovers/[id]/accept",
+  "POST handovers/[id]/decline",
   "POST lead-operations/[id]/undo",
   "POST lead-searches",
   "POST lead-searches/[id]/answer",
@@ -22965,6 +22972,8 @@ var ROUTE_KEYS = [
   "POST messages/[id]/cancel-send",
   "POST messages/[id]/steer",
   "POST partner",
+  "POST partner/workspaces",
+  "POST partner/workspaces/[id]/resend",
   "POST platform/lines/refile",
   "POST platform/lines/release",
   "POST platform/lines/replace",
@@ -26077,6 +26086,9 @@ var PartnerLetterNewsSchema = z14.object({
   standing: z14.array(z14.object({ workspace: z14.string().nullable(), standing: z14.string(), why: z14.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z14.array(z14.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z14.array(z14.string().nullable()).default([]),
+  declined: z14.array(z14.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z14.object({ status: z14.string(), why: z14.string().nullable() }).nullable().default(null),
   balance: z14.array(
@@ -26092,6 +26104,7 @@ var PartnerLetterNewsSchema = z14.object({
 var partnerPaneUrl = (origin) => `${origin.replace(/\/+$/, "")}/#/admin/partner`;
 var money = (rows) => rows.map((r2) => moneyWords(Math.abs(r2.cents), r2.currency)).join(" and ");
 var workspaceWords = (name) => name && name.trim() ? name.trim() : "A workspace you brought";
+var setUpWords = (name) => name && name.trim() ? name.trim() : "A workspace you set up";
 var whyWords = (why) => why && why.trim() ? ` Why: ${why.trim()}` : "";
 var REVERSAL_LINES = {
   refund: (n, a) => `${n === 1 ? "A refund" : `${n} refunds`} took back ${a}.`,
@@ -26160,6 +26173,10 @@ function letterLines(news) {
   for (const s of news.standing) lines.push(standingLine(s));
   for (const b of news.brought)
     lines.push(`${b && b.trim() ? b.trim() : "A new workspace"} signed up through your link.`);
+  for (const a of news.accepted ?? [])
+    lines.push(`${setUpWords(a)} has its owner now: they accepted it. Its share runs from its first payment.`);
+  for (const d of news.declined ?? [])
+    lines.push(`${setUpWords(d)} was declined by the owner you sent it to. Send it again, or to someone else.`);
   return lines;
 }
 var LETTER_SUBJECTS = [
@@ -26171,11 +26188,98 @@ var LETTER_SUBJECTS = [
     () => "A workspace you brought is not eligible for a share"
   ],
   [(n) => n.standing.some((s) => s.standing === "review"), () => "A workspace you brought is under review"],
+  [(n) => (n.declined ?? []).length > 0, () => "A business declined the workspace you set up"],
+  [(n) => (n.accepted ?? []).length > 0, () => "A business took over the workspace you set up"],
   [(n) => sharesOf(n).length > 0, (n) => `You earned ${money(sharesOf(n))}`]
 ];
 function letterSubject(news) {
   const rule = LETTER_SUBJECTS.find(([holds2]) => holds2(news));
   return rule ? rule[1](news) : "What changed in your partner account";
+}
+
+// src/workspace/handover.ts
+import { z as z15 } from "zod";
+var HANDOVER_DAYS = 14;
+var HANDOVER_WAITING_MAX = 10;
+var ownerEmail = z15.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z15.object({
+  name: z15.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z15.string().trim().max(64).nullish(),
+  email: ownerEmail
+}).strict();
+var HandoverResendSchema = z15.object({ email: ownerEmail }).strict();
+var HANDOVER_WORDS = {
+  start: "Set up a workspace for a business",
+  intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
+  nameLabel: "The business's name",
+  emailLabel: "Its owner's email",
+  emailHint: "They'll be asked to accept it when they sign in with this address.",
+  make: "Set it up",
+  making: "Setting it up\u2026",
+  cancel: "Cancel",
+  resend: "Send again",
+  resendTo: "Send to",
+  resending: "Sending\u2026",
+  failed: "the workspace",
+  failedResend: "the invitation",
+  waiting: "Handed to their owners",
+  sentAgain: "Sent again.",
+  notSent: "The workspace is set up, but its invitation did not go. Send it again from its row below.",
+  unnamed: "A workspace you set up",
+  /** The accept screen. */
+  title: (workspace) => `${workspace} is ready for you`,
+  body: (partnerCode, workspace) => `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+  accept: "Accept and open it",
+  accepting: "Opening\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026",
+  later: "Not now",
+  failedAnswer: "your answer"
+};
+function maskedEmail(email) {
+  const at2 = email.lastIndexOf("@");
+  if (at2 < 1) return email;
+  return `${email[0]}\u2026${email.slice(at2)}`;
+}
+var handoverUntilWords = (expiresAt) => `Open until ${dayWords2(expiresAt)}.`;
+function partnerHandoverVM(h, nowMs = Date.now()) {
+  const to = maskedEmail(h.email);
+  const of = (state, sentence2) => ({
+    tenantId: h.tenantId,
+    name: h.name && h.name.trim() ? h.name.trim() : HANDOVER_WORDS.unnamed,
+    email: h.email,
+    state,
+    sentence: sentence2,
+    canResend: state !== "accepted"
+  });
+  if (h.acceptedAt) return of("accepted", `Its owner accepted it on ${dayWords2(h.acceptedAt)}.`);
+  if (h.declinedAt)
+    return of("declined", `Declined by ${to} on ${dayWords2(h.declinedAt)}. Send it again, or to someone else.`);
+  if (Date.parse(h.expiresAt) <= nowMs)
+    return of("expired", `The invitation to ${to} expired on ${dayWords2(h.expiresAt)}. Send it again.`);
+  return of("waiting", `Waiting for its owner: sent to ${to}, open until ${dayWords2(h.expiresAt)}.`);
+}
+function handoverRoom(rows) {
+  const waiting = rows.filter((r2) => !r2.acceptedAt).length;
+  const full = waiting >= HANDOVER_WAITING_MAX;
+  return {
+    waiting,
+    full,
+    words: full ? `${HANDOVER_WAITING_MAX} workspaces are waiting for their owners. When one is accepted, set up the next.` : null
+  };
+}
+function handoverInviteEmail(h) {
+  const workspace = h.workspace.trim() || "A workspace";
+  return {
+    subject: `${h.partnerCode} set up ${workspace} on Chanlytics for you`,
+    body: [
+      HANDOVER_WORDS.body(h.partnerCode, workspace),
+      "",
+      `Sign in to accept it or decline it: ${h.signInUrl}`,
+      "",
+      `${handoverUntilWords(h.expiresAt)} If you weren't expecting this, you can ignore it: nothing is yours, and nothing is charged, unless you accept.`
+    ].join("\n")
+  };
 }
 export {
   ABANDONED_MS,
@@ -26365,9 +26469,14 @@ export {
   GUARDRAIL_KEYS,
   GuardrailsSchema,
   HANDOFF_FORWARDS_BACK,
+  HANDOVER_DAYS,
+  HANDOVER_WAITING_MAX,
+  HANDOVER_WORDS,
   HELD_REASONS,
   HOLD_DOOR_WORDS,
   HOUR_MS,
+  HandoverCreateSchema,
+  HandoverResendSchema,
   HoursSchema,
   INSTRUCTIONS_MAX,
   INTENT_LABELS,
@@ -27125,6 +27234,9 @@ export {
   handoffChatWords,
   handoffE164,
   handoffWords,
+  handoverInviteEmail,
+  handoverRoom,
+  handoverUntilWords,
   hardLimitsWords,
   hasProfile,
   heardSinceProposal,
@@ -27290,6 +27402,7 @@ export {
   localDaysBetween,
   localHour,
   localToUtcMs,
+  maskedEmail,
   matchColumns,
   matchPerson,
   matchService,
@@ -27385,6 +27498,7 @@ export {
   partialSay,
   partnerCodeFromCookie,
   partnerEarningsWords,
+  partnerHandoverVM,
   partnerLetter,
   partnerLinkFor,
   partnerPaneUrl,

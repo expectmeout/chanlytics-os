@@ -870,6 +870,34 @@
       "rate": null,
       "spend": false
     },
+    "POST partner/workspaces": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "partner_handover",
+      "spend": false
+    },
+    "POST partner/workspaces/[id]/resend": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "partner_handover",
+      "spend": false
+    },
+    "POST handovers/[id]/accept": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "handover_answer",
+      "spend": false
+    },
+    "POST handovers/[id]/decline": {
+      "kind": "write",
+      "scope": "account",
+      "role": null,
+      "rate": "handover_answer",
+      "spend": false
+    },
     "POST platform/lines/refile": {
       "kind": "write",
       "scope": "platform",
