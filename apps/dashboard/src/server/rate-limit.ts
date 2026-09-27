@@ -127,6 +127,8 @@ export const RATE = {
   profile_set: { limit: 10, windowMs: 3_600_000, noun: "name changes" },
   /** Becoming a partner (0012): once per account, so the bucket is for the codes tried. */
   partner_become: { limit: 10, windowMs: 3_600_000, noun: "partner codes tried" },
+  /** A partner's daily letter on or off (0014): a switch, pressed by hand. */
+  partner_letters: { limit: 30, windowMs: 3_600_000, noun: "email settings changed" },
   /**
    * The back office's partner verbs (0012, P5): a person's decision on a workspace a partner brought, and a payout
    * recorded. Worked down a list like the waiting list, but each one moves money or a partner's standing, so the

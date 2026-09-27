@@ -63,6 +63,34 @@ const PartnerWorkspaces = ({ W, api }) => {
   );
 };
 
+// The daily letter (0014): shown only when the server says where it stands, so an older database shows no switch.
+const PartnerLettersRow = ({ W, api, letters, flash }) => {
+  const [busy, setBusy] = React.useState(false);
+  if (typeof letters !== "boolean") return null;
+  const toggle = async (on) => {
+    if (busy) return;
+    setBusy(true);
+    const r = await api.setLetters(on);
+    setBusy(false);
+    if (!r.ok) flash({ tone: "warn", msg: <>Couldn't change {W.lettersFailed}: {r.message}</> });
+  };
+  return (
+    <div className="set-row" data-testid="partner-letters-row">
+      <label className="set-check">
+        <input
+          type="checkbox"
+          checked={letters}
+          disabled={busy}
+          aria-busy={busy || undefined}
+          onChange={(e) => toggle(e.target.checked)}
+          data-testid="partner-letters"
+        />
+        <span>{W.letters}</span>
+      </label>
+    </div>
+  );
+};
+
 const PanePartner = ({ flash }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
@@ -190,6 +218,7 @@ const PanePartner = ({ flash }) => {
           <span className="set-row-hint" data-testid="partner-since">{vm.since}</span>
         </div>
       </div>
+      <PartnerLettersRow W={W} api={api} letters={P.dto.letters} flash={flash} />
     </section>
     <PartnerWorkspaces W={W} api={api} />
     </>

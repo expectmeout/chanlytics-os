@@ -192,3 +192,23 @@ test("a workspaces read that failed says so with a retry, and the account above 
   assert.ok(byTestId(tree, "partner-workspaces-failed"));
   assert.ok(byTestId(tree, "partner-link"), "the link is still there");
 });
+
+test("the daily letter (0014): a switch showing what is kept, pressed through the bridge; none on an older server", async () => {
+  globalThis.window.__PARTNER = { dto: ROW, balance: [], fetchedAt: 1 };
+  assert.equal(byTestId(draw(), "partner-letters-row"), null, "no letters on the row: no switch");
+  globalThis.window.__PARTNER = { dto: { ...ROW, letters: true }, balance: [], fetchedAt: 1 };
+  const asked = [];
+  let answer = { ok: true, message: "" };
+  globalThis.window.__partner.setLetters = async (on) => (asked.push(on), answer);
+  let tree = draw();
+  const box = byTestId(tree, "partner-letters");
+  assert.equal(box.props.checked, true);
+  assert.equal(textOf(byTestId(tree, "partner-letters-row")), PARTNER_WORDS.letters);
+  await box.props.onChange({ target: { checked: false } });
+  assert.deepEqual(asked, [false]);
+  flashes.length = 0;
+  answer = { ok: false, message: "Too many email settings changed. Try again in a while." };
+  await byTestId(redraw(), "partner-letters").props.onChange({ target: { checked: false } });
+  assert.equal(flashes.length, 1);
+  assert.equal(flashes[0].tone, "warn", "a refusal is said, and the switch stays what the server kept");
+});

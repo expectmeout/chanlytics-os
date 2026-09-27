@@ -26,7 +26,7 @@ import { createClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { cardFingerprintOf } from "../../apps/edge/lib/partner-earnings.ts";
+import { cardFingerprintOf } from "../../apps/edge/lib/partners/earnings.ts";
 
 /** The subscriptions to mark: a subscription to read, and no mark kept for its workspace yet. */
 export function planCardMarks(accounts, markedTenantIds) {

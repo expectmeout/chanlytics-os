@@ -18,11 +18,11 @@ once it is built: it is the record of why the code has that shape.
 | [0011](0011-a-bearer-token-beside-the-cookie.md)        | A bearer token beside the cookie                           | Built with the note (the phone app's PR 8)                                                                                                                        |
 | [0012](0012-partners.md)                                | A partner brings a workspace, sets it up and earns a share | Built, P1 to P5; step 6's items are each a later note of their own                                                                                                |
 | [0013](0013-a-partner-signs-in-with-a-second-factor.md) | A partner signs in with a second factor                    | Proposed, not built                                                                                                                                               |
+| [0014](0014-a-partner-hears-what-changed.md)            | A partner hears what changed, once a day                   | Built with the note (00209, #1165)                                                                                                                                |
 | [0015](0015-the-shell-leaves-surface-by-surface.md)     | The shell leaves, one surface at a time                    | Proposed, not built; Ruben's to accept                                                                                                                            |
 
-0014 is not missing. Open pull request #1165 writes it, a partner who hears what changed once a day, so the shell's
-exit took the next number after it. Open pull request #1039, the pricing note, is written as 0011, which the bearer
-token has held since #1149: it takes the next free number when it lands. A number never changes once it is on `main`.
+Open pull request #1039, the pricing note, is written as 0011, which the bearer token has held since #1149: it
+takes the next free number when it lands. A number never changes once it is on `main`.
 
 A superseded note is edited in place. Each opens with a **Status and commit** line, then Context (what the code does
 today, with the file and line that proves it), Decision, Shape, Steps, Tests, Risks, Open questions. Every note is

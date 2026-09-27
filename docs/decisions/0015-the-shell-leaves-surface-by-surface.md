@@ -4,8 +4,8 @@
 the organization program merged in #1161), and every file and line below was read at it. Where this note and the code
 disagree, the code wins. It is the exit the plan `docs/plans/2026-09-26-organization-and-code-health.md` asks for
 (§2, 40 · Technical debt: "an exit path written for the largest item") and the register names in its shell rows
-(`docs/debt.md`). The next free number was 0014, but open pull request #1165 writes 0014 for a partner who hears what
-changed, so this note takes 0015.
+(`docs/debt.md`). The next free number was 0014, which #1165 took for a partner who hears what changed, so this
+note takes 0015.
 
 ## Context
 

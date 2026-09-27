@@ -77,6 +77,7 @@ export const ROUTE_KEYS = [
   "GET views",
   "GET workspaces",
   "PATCH lead-searches/[id]",
+  "PATCH partner",
   "PATCH team/[id]",
   "PATCH workspaces",
   "POST ask",
