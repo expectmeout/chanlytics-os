@@ -133,8 +133,8 @@ export type TemplatesRead = Awaited<ReturnType<typeof templatesOf>>;
  * `all`, the composers' read: approved and not hidden by the workspace, since Meta refuses anything else at the wire,
  * each row the message as the customer receives it (templateParts) and why this product cannot send it (`blocked`).
  * `all` is Settings': every template with its status, what sends each and how many went out. The route's body, moved
- * here whole, so the composers and Ask's list_audiences read the same rows the same way; the route checks `?all=`. A
- * template is not a row a citation names until Phase 4.
+ * here whole, so the composers and Ask's campaigns.audiences read the same rows the same way; the route checks
+ * `?all=`. A template is not a row a citation names until Phase 4.
  */
 export const templates: Reader<{ all: boolean }, TemplatesRead> = {
   name: "templates",

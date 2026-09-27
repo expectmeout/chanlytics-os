@@ -213,7 +213,7 @@ const questionKeyOf = (q: { criterionKey?: unknown; criterion_key?: unknown }): 
 
 /**
  * The question a search is waiting on, or null: the round's sentence while its state is waiting_on_owner. The one
- * reader for Ask (list_lead_searches says it; a proposal that amends answers it); the DTO reads the question in
+ * reader for Ask (leads.searches says it; a proposal that amends answers it); the DTO reads the question in
  * every state, for the page.
  */
 export const waitingQuestionOf = (r: Pick<SearchViewRow, "state" | "question">): string | null =>

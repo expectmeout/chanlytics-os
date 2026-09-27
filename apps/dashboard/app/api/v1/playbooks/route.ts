@@ -23,7 +23,7 @@ import { playbooks } from "@/server/readers/playbooks";
  *      own words, so the body is the route's own to read); starts running;
  *      the ledger records the start.
  *
- * The GET's body is its reader's (readers/playbooks.ts), which Ask's list_playbooks reads too.
+ * The GET's body is its reader's (readers/playbooks.ts), which Ask's campaigns.playbooks reads too.
  */
 export const GET = read({
   scope: workspace,

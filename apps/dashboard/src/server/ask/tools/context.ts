@@ -17,8 +17,8 @@ import { readerContext, type ReaderContext } from "../../readers";
  *
  * The context, its outcomes and the small helpers (`UUID`, `str`, `json`, `unread`, `unlessNotFound`, `refuse`,
  * `propose`) were written twice, once in each of the two files this directory replaces; they live here once. The
- * definers (`defineRead`, `defineAct`) live here too and not in registry.ts, because the registry imports every
- * family to build the tools array, and a family that imported the registry back would be a cycle.
+ * definers (`defineRead`, `defineAct`, `defineActions`) live here too and not in registry.ts, because the registry
+ * imports every family to build the tools array, and a family that imported the registry back would be a cycle.
  */
 
 export interface ToolDef {
@@ -68,41 +68,76 @@ export interface ProposalOutcome {
 }
 
 /**
- * One read tool: its name and description as the model sees them, the zod its input is parsed by before it runs
- * (the JSON schema the model is shown is generated from it, registry.ts toolSchema), the trace line the palette
- * shows while it runs, and the handler, which takes the parsed input.
+ * One read as it runs: the zod its fields are parsed by before it runs (the JSON schema the model is shown is generated
+ * from it, registry.ts toolSchema), the trace line the palette shows while it runs, and the handler, which takes the
+ * parsed input. A tool with no action is one of these; a tool with actions (D11) holds one per action, each what one of
+ * the tools before the consolidation was.
  *
- * `examples` (D9): two or three inputs, typed by the zod so a wrong one fails to compile, on a tool whose input has
- * a shape a sentence does not pin (a day, a window, a list token, a change, a plan). They ride as the API's
- * `input_examples`; ask-registry.test.mjs parses each with the tool's own zod, since the API refuses a request whose
- * example does not fit its schema.
+ * `examples` (D9): inputs typed by the zod so a wrong one fails to compile, on an input with a shape a sentence does not
+ * pin (a day, a window, a list token, a change, a plan), and one on each action of a tool with actions, whose schema
+ * cannot say which fields each action takes. They ride as the API's `input_examples`, an action's with its `action`
+ * first; ask-registry.test.mjs parses each with the tool's own zod, since the API refuses a request whose example does
+ * not fit its schema.
  */
-export interface ReadTool<S extends z.ZodObject = z.ZodObject> {
-  name: string;
-  description: string;
+export interface ReadDef<S extends z.ZodObject = z.ZodObject> {
   input: S;
   examples?: z.input<S>[];
   label: string;
   run(t: ToolContext, input: z.output<S>): Promise<unknown>;
 }
 
-/** One act tool, shaped as a read is; its handler builds a card (a proposal) or refuses in words. */
-export interface ActTool<S extends z.ZodObject = z.ZodObject> {
-  name: string;
-  description: string;
+/**
+ * One act as it builds, shaped as a read is, with the kind of card it builds: its spec's `needs` is the least role the
+ * tool is offered to (D12). Its handler builds a card (a proposal) or refuses in words.
+ */
+export interface ActDef<S extends z.ZodObject = z.ZodObject> {
+  kind: AskProposal["kind"];
   input: S;
   examples?: z.input<S>[];
   label: string;
   build(t: ToolContext, input: z.output<S>): Promise<ProposalOutcome>;
 }
 
-export function defineRead<S extends z.ZodObject>(tool: ReadTool<S>): ReadTool<S> {
+/**
+ * One tool as the model is offered it (D11): its name and description, and what it runs, by action, in the order the
+ * model reads them. A tool with no action has one definition, under NO_ACTION; a tool with actions takes `action`,
+ * required, even with one action today, so an action added later does not change its shape.
+ */
+export interface Tool<D> {
+  name: string;
+  description: string;
+  actions: Readonly<Record<string, D>>;
+}
+export type ReadTool = Tool<ReadDef>;
+export type ActTool = Tool<ActDef>;
+
+/** The key of a tool's one definition when it takes no action. */
+export const NO_ACTION = "";
+
+export function defineRead<S extends z.ZodObject>(tool: { name: string; description: string } & ReadDef<S>): ReadTool {
+  const { name, description, ...def } = tool;
+  return { name, description, actions: { [NO_ACTION]: def } };
+}
+
+export function defineAct<S extends z.ZodObject>(tool: { name: string; description: string } & ActDef<S>): ActTool {
+  const { name, description, ...def } = tool;
+  return { name, description, actions: { [NO_ACTION]: def } };
+}
+
+/** A tool with actions (D11): each action a definition of its own, `readAction` or `actAction`, in the model's order. */
+export function defineActions<D>(tool: Tool<D>): Tool<D> {
   return tool;
 }
 
-export function defineAct<S extends z.ZodObject>(tool: ActTool<S>): ActTool<S> {
-  return tool;
-}
+/** One action's definition, typed by its own zod (so its examples and its handler's input are checked against it). */
+export const readAction = <S extends z.ZodObject>(def: ReadDef<S>): ReadDef<S> => def;
+export const actAction = <S extends z.ZodObject>(def: ActDef<S>): ActDef<S> => def;
+
+/**
+ * The read a refusal points to for a template's id, an audience's id or a list's token, said as the model calls it:
+ * the tool, and its action (D11). Once `list_audiences`; one spelling for every refusal that names it.
+ */
+export const AUDIENCES_CALL = "campaigns with action audiences";
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const str = (v: unknown, max = 200): string => (typeof v === "string" ? v.trim().slice(0, max) : "");

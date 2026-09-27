@@ -343,9 +343,10 @@ test("the planner's refusals are words for the model to say, and no card", async
   assert.match(JSON.parse(sellers.result).error, /I can find local businesses for now/);
 });
 
-test("list_lead_searches says what was asked, in the owner's words, and how each ended", async () => {
+test("leads.searches says what was asked, in the owner's words, and how each ended", async () => {
   const s = JSON.parse(
-    (await runTool(toolContext({ role: "viewer", tables: world() }), { name: "list_lead_searches", input: {} })).result,
+    (await runTool(toolContext({ role: "viewer", tables: world() }), { name: "leads", input: { action: "searches" } }))
+      .result,
   );
   assert.deepEqual(Object.keys(s.searches[0]).sort(), [
     "asked",
@@ -379,7 +380,7 @@ test("list_lead_searches says what was asked, in the owner's words, and how each
     s.note,
     "Counted is what came off this month's leads; a search with a question is waiting for the owner's answer.",
   );
-  const description = READ_TOOLS.find((d) => d.name === "list_lead_searches").description;
+  const description = READ_TOOLS.find((d) => d.name === "leads").description;
   assert.match(description, /propose_lead_search with amends set to that search's id/);
   assert.match(description, /Yes, keep going or Stop here on Leads/);
 });

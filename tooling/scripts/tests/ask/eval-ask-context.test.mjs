@@ -199,7 +199,7 @@ test("a context the eval cannot build is said in words before anything is read",
 
 test("the judge excuses a missing read only when the page answered: an on-page case's rows, or its page", () => {
   const onPage = {
-    expect: { on_page: true, tools_any: ["search_people"] },
+    expect: { on_page: true, tools_any: ["people.search"] },
     context: { surface: "people", route: "clients", rows: "GET contacts" },
   };
   const rode = { rows: [{ kind: "person", id: U(11) }] };
@@ -207,17 +207,17 @@ test("the judge excuses a missing read only when the page answered: an on-page c
   assert.equal(fromContext(onPage, { tools: [] }, { rows: [] }), false, "the GET drew nothing: no rows rode");
   assert.equal(fromContext(onPage, { tools: [] }, null), false, "no page was sent");
   assert.equal(
-    fromContext({ ...onPage, expect: { tools_any: ["search_people"] } }, { tools: [] }, rode),
+    fromContext({ ...onPage, expect: { tools_any: ["people.search"] } }, { tools: [] }, rode),
     false,
     "a case not marked on the page must read",
   );
   const aggregate = {
-    expect: { on_page: true, tools_any: ["get_report"] },
+    expect: { on_page: true, tools_any: ["report"] },
     context: { surface: "reports", route: "reports" },
   };
   assert.equal(fromContext(aggregate, { tools: [] }, { rows: [] }), true, "a page of no rows rides as itself");
   assert.equal(
-    fromContext({ expect: { tools_any: ["get_today"] } }, { tools: [] }, null),
+    fromContext({ expect: { tools_any: ["today"] } }, { tools: [] }, null),
     false,
     "the snapshot went in PR 2.4: a case with no page must read",
   );

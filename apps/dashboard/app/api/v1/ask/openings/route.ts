@@ -15,7 +15,7 @@ const Query = z.object({
  * the phone receptionist's availability tool runs, answered from the
  * connected calendar in the business's own zone. Counted with the other
  * aggregate reads. The body is its reader's (readers/openings.ts), which
- * Ask's get_openings reads too.
+ * Ask's calendar.openings reads too.
  */
 export const GET = read({
   scope: workspace,

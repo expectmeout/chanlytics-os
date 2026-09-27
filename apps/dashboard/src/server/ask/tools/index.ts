@@ -6,7 +6,7 @@ export {
   ACT_TOOL_NAMES,
   READ_DEFS,
   buildProposal,
-  proposalLabel,
+  calledName,
   runTool,
   toApiTools,
   toolLabel,
