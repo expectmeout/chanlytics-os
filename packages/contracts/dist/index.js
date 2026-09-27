@@ -8384,18 +8384,21 @@ var BROADCAST_FAILURE_WORDS = {
   paused: "the workspace was paused",
   template_not_approved: "WhatsApp no longer approves its template",
   wire_unavailable: "WhatsApp could not be reached",
-  run_interrupted: "its send stopped partway and did not start again"
+  run_interrupted: "its send stopped partway and did not start again",
+  throttled: "WhatsApp kept limiting how fast this number may send"
 };
 var BROADCAST_FAILURE_FIX = {
   paused: "Unpause it under Settings, then send it again.",
   template_not_approved: "Open it in Templates \u2014 it can be resubmitted.",
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
-  run_interrupted: "Nobody got it, so sending it again reaches nobody twice."
+  run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
+  throttled: "Nobody got it. WhatsApp lifts these limits on its own; send it again later."
 };
 var BROADCAST_FAILURE_FIX_AFTER = {
   paused: (n) => `Unpause it under Settings. Sending it again reaches the whole list, ${n === 1 ? "the one" : `the ${n}`} who got it included.`,
   wire_unavailable: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
-  run_interrupted: (n) => `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
+  run_interrupted: (n) => `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  throttled: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp limited the number. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
 };
 function broadcastFailureFix(failure, reached = 0) {
   if (!failure) return null;
@@ -9537,6 +9540,14 @@ var BROADCAST_STATE_LABELS = {
 };
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
+var BROADCAST_THROTTLE_WAITS_MS = [
+  MIN_MS,
+  2 * MIN_MS,
+  5 * MIN_MS,
+  10 * MIN_MS,
+  15 * MIN_MS,
+  30 * MIN_MS
+];
 var BROADCAST_MAX_RECIPIENTS = 2e3;
 var BROADCAST_PARAM_MAX = 1024;
 var BROADCAST_SCHEDULE_MAX_DAYS = 30;
@@ -26275,6 +26286,7 @@ export {
   BROADCAST_SCHEDULE_MAX_DAYS,
   BROADCAST_STATES,
   BROADCAST_STATE_LABELS,
+  BROADCAST_THROTTLE_WAITS_MS,
   BROKEN_CONFIG_WORDS,
   BUILTIN_LISTS,
   BUSINESS_INDUSTRIES,

@@ -22,6 +22,7 @@
  * `purposeOfTemplate` — which fails CLOSED, because the column is null for
  * exactly the rows most likely to matter.
  */
+import { MIN_MS } from "../shared/time";
 import type { ReachOutRunDto } from "../reach-out/reach-out-dtos";
 import { templateTitle } from "../templates/template-library";
 import { clockDate, clockWhen } from "../shared/clock";
@@ -61,6 +62,20 @@ export const BROADCAST_STATE_LABELS: Record<BroadcastState, string> = {
 /** How many go in one job, and the breath between two sends. */
 export const BROADCAST_CHUNK = 25;
 export const BROADCAST_GAP_MS = 300;
+/**
+ * How long a run waits each time WhatsApp says "not now" (channels graphThrottled), in order. The person the send was
+ * for goes back in the queue and the run tries again after the next wait; a batch that sends without one starts the
+ * count again. Past the last wait, or when the next try would fall outside the day's sending hours, the run stops and
+ * says why (core messages/broadcast.ts). About an hour in all.
+ */
+export const BROADCAST_THROTTLE_WAITS_MS: readonly number[] = [
+  MIN_MS,
+  2 * MIN_MS,
+  5 * MIN_MS,
+  10 * MIN_MS,
+  15 * MIN_MS,
+  30 * MIN_MS,
+];
 /** More than this is not a salon's list; it is a mistake. */
 export const BROADCAST_MAX_RECIPIENTS = 2000;
 /** Meta's ceiling for one body parameter. */

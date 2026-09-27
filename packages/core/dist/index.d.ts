@@ -154,6 +154,11 @@ type Delivered = {
     messageId: string | null;
     /** A mail provider's refusal for a limit of its own (channels resendLimitOf), named at the wire; email only. */
     limit?: ResendLimit;
+    /**
+     * WhatsApp said "not now" before it took the message (channels graphThrottled), named at the wire. Nothing left,
+     * so the caller may try this person again later; a failure without it may have been taken all the same.
+     */
+    throttled?: true;
 };
 interface DeliverPorts {
     db: Db;
@@ -634,7 +639,11 @@ interface ContactRow {
     wa_profile_name: string | null;
 }
 type RecipientMark = {
-    state: "sent" | "skipped" | "failed";
+    /**
+     * `queued` only releases a claim WhatsApp answered "not now", with the reason `throttled` (00216): the send was not
+     * taken, so it is tried again. The database refuses any other release.
+     */
+    state: "sent" | "skipped" | "failed" | "queued";
     reason?: string | null;
     message_id?: string | null;
     sent_at?: string | null;
@@ -652,10 +661,11 @@ interface BroadcastBatchPorts {
         body_preview: string | null;
         category: string | null;
     } | null>;
-    /** The workspace's own words for the slots that name it. */
+    /** The workspace's own words for the slots that name it, and its clock (IANA zone), which the sending hours are kept by. */
     facts(): Promise<{
         businessName: string;
         bookingLink: string | null;
+        timezone: string;
     }>;
     /** Up to `limit` people still queued; throws when it cannot be read. */
     batch(id: string, limit: number): Promise<RecipientRow[]>;
@@ -685,8 +695,12 @@ interface BroadcastBatchPorts {
     remaining(id: string): Promise<number>;
     /** The broadcast's state now; null when gone. Throws when it cannot be read: an unreadable state is not a cancel. */
     state(id: string): Promise<string | null>;
-    /** The next batch, as this tenant, through the same door the dashboard uses; now unless told when. */
-    scheduleNext(id: string, dueAt?: Date): Promise<void>;
+    /**
+     * The next batch, as this tenant, through the same door the dashboard uses; now unless told when. `waits` is how
+     * many times running WhatsApp has said "not now", carried to the next batch; a batch scheduled without it starts
+     * the count again.
+     */
+    scheduleNext(id: string, dueAt?: Date, waits?: number): Promise<void>;
     /** Who got it and who was held, once nobody is queued. */
     tally(id: string): Promise<{
         sent: number;
@@ -706,6 +720,8 @@ interface BroadcastBatchCommand {
     tenantId: string;
     broadcastId: string;
     deadline: number;
+    /** How many times running WhatsApp has said "not now" before this batch (BROADCAST_THROTTLE_WAITS_MS); 0 when absent. */
+    waits?: number;
 }
 
 interface SendQueuedCommand {

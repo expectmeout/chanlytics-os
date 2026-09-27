@@ -284,8 +284,10 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
     "the person's row still carries what the run needs",
   );
   assert.ok(
-    h.includes('await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id });'),
-    "the next batch is one more row, as this tenant, now unless the batch stalled",
+    h.includes(
+      'await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id, ...(waits ? { waits } : {}) });',
+    ),
+    "the next batch is one more row, as this tenant, now unless the batch stalled or WhatsApp said not now",
   );
   assert.ok(h.includes('kind: "broadcast.sent"'));
   // Not one port answers from a read whose error it dropped. Every one of them
@@ -400,6 +402,55 @@ test("the job's ports fail CLOSED: a read that did not happen never answers 'not
   await assert.rejects(
     dispatchJob(ctx(fakeDb(world(), { "tenant_config.select": blip })), job),
     /workspace's settings/,
+  );
+});
+
+test('the job carries WhatsApp\'s "not now" through: the person back in the queue, the next batch after the next wait with the count, the run still sending', async () => {
+  const { BROADCAST_THROTTLE_WAITS_MS } = await import("@chanlytics/contracts");
+  const w = world();
+  // The person's thread, as the door reads it: the contact's answers and the workspace's status beside the row.
+  w.conversations = [
+    {
+      id: "c1",
+      tenant_id: TID,
+      contact_id: "k1",
+      paused_until: null,
+      contacts: { consent: "opted_in", dnc: false, marketing_consent: "opted_in", erased_at: null },
+      tenants: { status: "active" },
+    },
+  ];
+  const later = [];
+  const tried = [];
+  const ctx = {
+    db: fakeDb(w),
+    // Graph's own answer to a number sending faster than it may: HTTP 400, code 130429.
+    wire: {
+      whatsapp: async (to) => {
+        tried.push(to);
+        return { ok: false, wamid: null, status: 400, errorBody: '{"error":{"code":130429}}', code: 130429 };
+      },
+    },
+    alert: async () => {},
+    schedule: async (kind, dueAt, payload) => later.push({ kind, dueAt, payload }),
+    deadline: Date.now() + 60_000,
+  };
+  const before = Date.now();
+  await dispatchJob(ctx, {
+    id: "j1",
+    tenant_id: TID,
+    kind: "broadcast_send",
+    payload: { broadcast_id: "b1", waits: 2 },
+  });
+  assert.equal(tried.length, 1, "the wire was asked once");
+  assert.equal(w.broadcast_recipients[0].state, "queued", "and the person it refused is queued again, not burned");
+  assert.equal(w.broadcasts[0].state, "sending", "the run is neither failed nor finished");
+  assert.equal(later.length, 1);
+  assert.equal(later[0].kind, "broadcast_send");
+  assert.deepEqual(later[0].payload, { broadcast_id: "b1", waits: 3 }, "the count rides to the next batch");
+  const wait = later[0].dueAt.getTime() - before;
+  assert.ok(
+    wait >= BROADCAST_THROTTLE_WAITS_MS[2] && wait < BROADCAST_THROTTLE_WAITS_MS[2] + 5_000,
+    `the third wait, ${wait} ms`,
   );
 });
 

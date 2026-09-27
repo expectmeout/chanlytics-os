@@ -965,6 +965,7 @@ z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+var MIN_MS = 6e4;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -2802,6 +2803,14 @@ var LIMIT_TIERS = {
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+var BROADCAST_THROTTLE_WAITS_MS = [
+  MIN_MS,
+  2 * MIN_MS,
+  5 * MIN_MS,
+  10 * MIN_MS,
+  15 * MIN_MS,
+  30 * MIN_MS
+];
 var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -3616,11 +3625,18 @@ async function postGraph(cfg, payload) {
       ok: r22.ok,
       wamid: out.messages?.[0]?.id ?? null,
       status: r22.status,
-      errorBody: r22.ok ? void 0 : JSON.stringify(out).slice(0, 200)
+      errorBody: r22.ok ? void 0 : JSON.stringify(out).slice(0, 200),
+      // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
+      code: !r22.ok && typeof out.error?.code === "number" ? out.error.code : null
     };
   } catch (e) {
     return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
   }
+}
+var GRAPH_THROTTLE_CODES = [4, 80007, 130429, 131048, 131056];
+function graphThrottled(r22) {
+  if (r22.ok) return false;
+  return r22.status === 429 || typeof r22.code === "number" && GRAPH_THROTTLE_CODES.includes(r22.code);
 }
 async function sendText(cfg, to, body) {
   return postGraph(cfg, { messaging_product: "whatsapp", to, type: "text", text: { body } });
@@ -4023,7 +4039,7 @@ function formatPhoneDisplay(e164) {
   if (digits2.length < 7) return `+${digits2}`;
   return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
 }
-var MIN_MS = 6e4;
+var MIN_MS2 = 6e4;
 var DAY_MS2 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS2;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -7240,6 +7256,14 @@ var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
+var BROADCAST_THROTTLE_WAITS_MS2 = [
+  MIN_MS2,
+  2 * MIN_MS2,
+  5 * MIN_MS2,
+  10 * MIN_MS2,
+  15 * MIN_MS2,
+  30 * MIN_MS2
+];
 var BROADCAST_MAX_RECIPIENTS = 2e3;
 var BROADCAST_PARAM_MAX = 1024;
 var BROADCAST_SCHEDULE_MAX_DAYS = 30;
@@ -8294,7 +8318,7 @@ function timetable(input) {
   const placed = [];
   const unplaced = [];
   for (const s of input.sends) {
-    const gapMs = Math.round(input.gapMinutes * MIN_MS * (1 + 0.25 * jitter()));
+    const gapMs = Math.round(input.gapMinutes * MIN_MS2 * (1 + 0.25 * jitter()));
     const key = `${s.zone}|${JSON.stringify(s.week)}`;
     let spans = spansOf.get(key);
     if (!spans) {
@@ -8650,6 +8674,7 @@ z16.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
+var MIN_MS3 = 6e4;
 var DAY_MS3 = 864e5;
 var WEEK_MS3 = 7 * DAY_MS3;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -10480,6 +10505,14 @@ var LIMIT_TIERS3 = {
 var REPLY_WINDOW_HOURS3 = 72;
 var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
 var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
+var BROADCAST_THROTTLE_WAITS_MS3 = [
+  MIN_MS3,
+  2 * MIN_MS3,
+  5 * MIN_MS3,
+  10 * MIN_MS3,
+  15 * MIN_MS3,
+  30 * MIN_MS3
+];
 var DATE_FMT23 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS3 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -11635,15 +11668,22 @@ async function deliver(ports, d) {
     });
   }
   await event(ports.db, d, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
-  const limit = d.channel === "email" && !sent.reason ? resendLimitOf(sent) : null;
   return {
     outcome: "failed",
     reason: sent.reason ?? "provider",
     status: sent.status,
     errorBody: sent.errorBody ?? null,
     messageId,
-    ...limit ? { limit } : {}
+    ...namedRefusal(d.channel, sent)
   };
+}
+function namedRefusal(channel, sent) {
+  if (sent.reason) return {};
+  if (channel === "email") {
+    const limit = resendLimitOf(sent);
+    return limit ? { limit } : {};
+  }
+  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true } : {};
 }
 async function templatePurpose(db, tenantId, template) {
   if (!template) return "conversational";
@@ -12161,7 +12201,7 @@ async function sendBroadcastBatch(ports, cmd) {
   }
   const purpose = purposeOfTemplate(tpl.category);
   const specs = parseParamSpecs(b.params);
-  const { businessName, bookingLink } = await ports.facts();
+  const { businessName, bookingLink, timezone } = await ports.facts();
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   const ids = batch.map((r4) => r4.contact_id);
   let people = /* @__PURE__ */ new Map();
@@ -12251,17 +12291,13 @@ async function sendBroadcastBatch(ports, cmd) {
       await skip(r4.contact_id, out.reason);
       return "go on";
     }
+    if (out.throttled) {
+      await releaseThrottled(ports, b.id, r4.contact_id);
+      return "wait";
+    }
     await mark(r4.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
     if (!wireIsDown(out)) return "go on";
-    const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
-    await ports.fail(b.id, "wire_unavailable");
-    await ports.alert({
-      kind: "broadcast_stopped",
-      route: "broadcasts",
-      about: { type: "broadcast", id: b.id },
-      subject: `Broadcast \u201C${b.name}\u201D stopped`,
-      body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`
-    });
+    await stopForTheWire(ports, b, out);
     return "stop";
   };
   for (const [i, r4] of batch.entries()) {
@@ -12277,6 +12313,7 @@ async function sendBroadcastBatch(ports, cmd) {
       continue;
     }
     if (verdict === "stop") return;
+    if (verdict === "wait") return backOff(ports, b, cmd, timezone);
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
   const remaining = await ports.remaining(b.id);
@@ -12295,6 +12332,40 @@ async function sendBroadcastBatch(ports, cmd) {
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D sent`,
     body: `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`
+  });
+}
+async function stopForTheWire(ports, b, out) {
+  const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
+  await ports.fail(b.id, "wire_unavailable");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`
+  });
+}
+async function releaseThrottled(ports, broadcastId, contactId) {
+  await ports.mark(broadcastId, contactId, { state: "queued", reason: "throttled", message_id: null }).catch((e) => {
+    console.error("broadcast_release_refused", contactId, e instanceof Error ? e.message : String(e));
+  });
+}
+async function backOff(ports, b, cmd, timezone) {
+  const waited = cmd.waits ?? 0;
+  const wait = BROADCAST_THROTTLE_WAITS_MS2[waited];
+  const at = wait === void 0 ? null : new Date(ports.now() + wait);
+  if (at && !nextOpenMoment(timezone, at).moved) {
+    await ports.scheduleNext(b.id, at, waited + 1);
+    return;
+  }
+  const { sent } = await ports.tally(b.id);
+  await ports.fail(b.id, "throttled");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    body: `WhatsApp kept limiting how fast this number may send ${at ? "until the day's sending hours ran out" : "for about an hour"}, so the rest was not sent. ${sent === 0 ? "Nobody got it" : sent === 1 ? "One person got it" : `${sent} people got it`}. WhatsApp lifts these limits on its own; send it again later.`
   });
 }
 

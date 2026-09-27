@@ -174,6 +174,7 @@ z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+var MIN_MS = 6e4;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -2015,6 +2016,14 @@ var LIMIT_TIERS = {
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+var BROADCAST_THROTTLE_WAITS_MS = [
+  MIN_MS,
+  2 * MIN_MS,
+  5 * MIN_MS,
+  10 * MIN_MS,
+  15 * MIN_MS,
+  30 * MIN_MS
+];
 var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -6445,7 +6454,7 @@ var InlineTextBuilder = class {
    * @returns { string[] }      Parts of the word.
    */
   splitLongWord(word) {
-    const parts = [];
+    const parts2 = [];
     let idx = 0;
     while (word.length > this.maxLineLength) {
       const firstLine2 = word.substring(0, this.maxLineLength);
@@ -6453,14 +6462,14 @@ var InlineTextBuilder = class {
       const splitIndex = firstLine2.lastIndexOf(this.wrapCharacters[idx]);
       if (splitIndex > -1) {
         word = firstLine2.substring(splitIndex + 1) + remainingChars;
-        parts.push(firstLine2.substring(0, splitIndex + 1));
+        parts2.push(firstLine2.substring(0, splitIndex + 1));
       } else {
         idx++;
         if (idx < this.wrapCharacters.length) {
           word = firstLine2 + remainingChars;
         } else {
           if (this.forceWrapOnLimit) {
-            parts.push(firstLine2);
+            parts2.push(firstLine2);
             word = remainingChars;
             if (word.length > this.maxLineLength) {
               continue;
@@ -6472,8 +6481,8 @@ var InlineTextBuilder = class {
         }
       }
     }
-    parts.push(word);
-    return parts;
+    parts2.push(word);
+    return parts2;
   }
 };
 var StackItem = class {
@@ -7816,6 +7825,7 @@ z15.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
+var MIN_MS2 = 6e4;
 var DAY_MS2 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS2;
 var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -9653,6 +9663,14 @@ var LIMIT_TIERS2 = {
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
+var BROADCAST_THROTTLE_WAITS_MS2 = [
+  MIN_MS2,
+  2 * MIN_MS2,
+  5 * MIN_MS2,
+  10 * MIN_MS2,
+  15 * MIN_MS2,
+  30 * MIN_MS2
+];
 var DATE_FMT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS2 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -11524,6 +11542,7 @@ z16.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
+var MIN_MS3 = 6e4;
 var DAY_MS3 = 864e5;
 var WEEK_MS3 = 7 * DAY_MS3;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -13361,6 +13380,14 @@ var LIMIT_TIERS3 = {
 var REPLY_WINDOW_HOURS3 = 72;
 var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
 var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
+var BROADCAST_THROTTLE_WAITS_MS3 = [
+  MIN_MS3,
+  2 * MIN_MS3,
+  5 * MIN_MS3,
+  10 * MIN_MS3,
+  15 * MIN_MS3,
+  30 * MIN_MS3
+];
 var DATE_FMT23 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS3 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -14160,6 +14187,11 @@ var PartnerLetterNewsSchema3 = z143.object({
     })
   ).default([])
 });
+var GRAPH_THROTTLE_CODES = [4, 80007, 130429, 131048, 131056];
+function graphThrottled(r222) {
+  if (r222.ok) return false;
+  return r222.status === 429 || typeof r222.code === "number" && GRAPH_THROTTLE_CODES.includes(r222.code);
+}
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
   {
@@ -14254,6 +14286,39 @@ var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
 z152.config({ jitless: true });
+function zoneParts(tz, at2) {
+  const parts2 = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).formatToParts(at2);
+  const get2 = (t2) => parts2.find((p) => p.type === t2)?.value ?? "";
+  return {
+    y: Number(get2("year")),
+    m: Number(get2("month")),
+    d: Number(get2("day")),
+    hh: Number(get2("hour")) % 24,
+    mm: Number(get2("minute")),
+    ss: Number(get2("second")),
+    weekday: get2("weekday").toLowerCase().slice(0, 3)
+  };
+}
+function zoneOffsetMs(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1e3) * 1e3;
+}
+function localToUtcMs(tz, y, m, d, hh, mm) {
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const first = guess - zoneOffsetMs(tz, guess);
+  const second = guess - zoneOffsetMs(tz, first);
+  return second;
+}
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -14267,6 +14332,7 @@ function normalizeEmail(raw) {
   if (!m || m[1].length > MAX_LOCAL) return null;
   return s2;
 }
+var MIN_MS22 = 6e4;
 var DAY_MS22 = 864e5;
 var WEEK_MS22 = 7 * DAY_MS22;
 var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -16158,6 +16224,14 @@ var REPLY_WINDOW_MS22 = REPLY_WINDOW_HOURS22 * 36e5;
 var REPLY_WINDOW_WORDS22 = `within ${REPLY_WINDOW_HOURS22 / 24} days`;
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
+var BROADCAST_THROTTLE_WAITS_MS22 = [
+  MIN_MS22,
+  2 * MIN_MS22,
+  5 * MIN_MS22,
+  10 * MIN_MS22,
+  15 * MIN_MS22,
+  30 * MIN_MS22
+];
 function renderTemplate(body, params) {
   return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n2) => {
     const v = params[Number(n2) - 1];
@@ -16188,7 +16262,20 @@ var REGISTRATION_COST_WORDS22 = {
 var PROVISIONING_DEADLINE_MS22 = 5 * 6e4;
 var SOLE_PROP_CEILING_SENTENCE22 = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS22.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE22 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE22}`;
+function keyParts(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return { y, m: m ?? 1, d: d ?? 1 };
+}
+function shiftKey(key, n2) {
+  const { y, m, d } = keyParts(key);
+  const at2 = new Date(Date.UTC(y, m - 1, d + n2));
+  return `${at2.getUTCFullYear()}-${String(at2.getUTCMonth() + 1).padStart(2, "0")}-${String(at2.getUTCDate()).padStart(2, "0")}`;
+}
 var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+function zoneMidnight(tz, key) {
+  const { y, m, d } = keyParts(key);
+  return localToUtcMs(tz, y, m, d, 0, 0);
+}
 var LEAD_MAP_STATE_WORDS22 = {
   talking: LEAD_STAGE_WORDS22.converted,
   contacted: LEAD_STAGE_WORDS22.nurture,
@@ -16196,6 +16283,32 @@ var LEAD_MAP_STATE_WORDS22 = {
   ready: LEAD_STAGE_WORDS22.ready,
   out: `${LEAD_STAGE_WORDS22.archived} or ${LEAD_LEFT_OUT_WORD22.toLowerCase()}`
 };
+function parts(tz, now) {
+  try {
+    const f = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false
+    });
+    const p = Object.fromEntries(f.formatToParts(now).map((x) => [x.type, x.value]));
+    const hour = Number(p.hour) % 24;
+    return { date: `${p.year}-${p.month}-${p.day}`, hour };
+  } catch {
+    return { date: now.toISOString().slice(0, 10), hour: now.getUTCHours() };
+  }
+}
+function nextOpenMoment(tz, when) {
+  const { date, hour } = parts(tz, when);
+  if (hour >= PLAYBOOK_HOURS22.min && hour <= PLAYBOOK_HOURS22.max) return { at: when, moved: false };
+  const day = hour < PLAYBOOK_HOURS22.min ? date : shiftKey(date, 1);
+  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS22.min * 36e5;
+  const landed = parts(tz, new Date(at2)).hour;
+  if (landed !== PLAYBOOK_HOURS22.min) at2 += (PLAYBOOK_HOURS22.min - landed) * 36e5;
+  return { at: new Date(at2), moved: true };
+}
 var FOLLOW_UP_NEEDS_DEALS22 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION22}\u201D with \u201C${SELLS_BY_WORDS22.proposal.label}\u201D.`;
 var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS22;
 var PLAYBOOK_CLASS_LABEL22 = {
@@ -16993,6 +17106,7 @@ z162.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
+var MIN_MS32 = 6e4;
 var DAY_MS32 = 864e5;
 var WEEK_MS32 = 7 * DAY_MS32;
 var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -18823,6 +18937,14 @@ var LIMIT_TIERS32 = {
 var REPLY_WINDOW_HOURS32 = 72;
 var REPLY_WINDOW_MS32 = REPLY_WINDOW_HOURS32 * 36e5;
 var REPLY_WINDOW_WORDS32 = `within ${REPLY_WINDOW_HOURS32 / 24} days`;
+var BROADCAST_THROTTLE_WAITS_MS32 = [
+  MIN_MS32,
+  2 * MIN_MS32,
+  5 * MIN_MS32,
+  10 * MIN_MS32,
+  15 * MIN_MS32,
+  30 * MIN_MS32
+];
 var DATE_FMT232 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS32 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -19956,15 +20078,22 @@ async function deliver(ports, d) {
     });
   }
   await event(ports.db, d, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
-  const limit = d.channel === "email" && !sent.reason ? resendLimitOf(sent) : null;
   return {
     outcome: "failed",
     reason: sent.reason ?? "provider",
     status: sent.status,
     errorBody: sent.errorBody ?? null,
     messageId,
-    ...limit ? { limit } : {}
+    ...namedRefusal(d.channel, sent)
   };
+}
+function namedRefusal(channel, sent) {
+  if (sent.reason) return {};
+  if (channel === "email") {
+    const limit = resendLimitOf(sent);
+    return limit ? { limit } : {};
+  }
+  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true } : {};
 }
 async function templatePurpose(db, tenantId, template) {
   if (!template) return "conversational";
@@ -20184,7 +20313,7 @@ async function sendBroadcastBatch(ports, cmd) {
   }
   const purpose = purposeOfTemplate(tpl.category);
   const specs = parseParamSpecs(b.params);
-  const { businessName, bookingLink } = await ports.facts();
+  const { businessName, bookingLink, timezone } = await ports.facts();
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   const ids = batch.map((r42) => r42.contact_id);
   let people = /* @__PURE__ */ new Map();
@@ -20274,17 +20403,13 @@ async function sendBroadcastBatch(ports, cmd) {
       await skip(r42.contact_id, out.reason);
       return "go on";
     }
+    if (out.throttled) {
+      await releaseThrottled(ports, b.id, r42.contact_id);
+      return "wait";
+    }
     await mark(r42.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
     if (!wireIsDown(out)) return "go on";
-    const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
-    await ports.fail(b.id, "wire_unavailable");
-    await ports.alert({
-      kind: "broadcast_stopped",
-      route: "broadcasts",
-      about: { type: "broadcast", id: b.id },
-      subject: `Broadcast \u201C${b.name}\u201D stopped`,
-      body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`
-    });
+    await stopForTheWire(ports, b, out);
     return "stop";
   };
   for (const [i, r42] of batch.entries()) {
@@ -20300,6 +20425,7 @@ async function sendBroadcastBatch(ports, cmd) {
       continue;
     }
     if (verdict === "stop") return;
+    if (verdict === "wait") return backOff(ports, b, cmd, timezone);
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
   const remaining = await ports.remaining(b.id);
@@ -20318,6 +20444,40 @@ async function sendBroadcastBatch(ports, cmd) {
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast \u201C${b.name}\u201D sent`,
     body: `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`
+  });
+}
+async function stopForTheWire(ports, b, out) {
+  const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
+  await ports.fail(b.id, "wire_unavailable");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`
+  });
+}
+async function releaseThrottled(ports, broadcastId, contactId) {
+  await ports.mark(broadcastId, contactId, { state: "queued", reason: "throttled", message_id: null }).catch((e2) => {
+    console.error("broadcast_release_refused", contactId, e2 instanceof Error ? e2.message : String(e2));
+  });
+}
+async function backOff(ports, b, cmd, timezone) {
+  const waited = cmd.waits ?? 0;
+  const wait = BROADCAST_THROTTLE_WAITS_MS22[waited];
+  const at = wait === void 0 ? null : new Date(ports.now() + wait);
+  if (at && !nextOpenMoment(timezone, at).moved) {
+    await ports.scheduleNext(b.id, at, waited + 1);
+    return;
+  }
+  const { sent } = await ports.tally(b.id);
+  await ports.fail(b.id, "throttled");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast \u201C${b.name}\u201D stopped`,
+    body: `WhatsApp kept limiting how fast this number may send ${at ? "until the day's sending hours ran out" : "for about an hour"}, so the rest was not sent. ${sent === 0 ? "Nobody got it" : sent === 1 ? "One person got it" : `${sent} people got it`}. WhatsApp lifts these limits on its own; send it again later.`
   });
 }
 var enc32 = new TextEncoder();
@@ -20359,6 +20519,7 @@ function normalizePhone(raw) {
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
+var MIN_MS4 = 6e4;
 var DAY_MS4 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS4;
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -22188,6 +22349,14 @@ var LIMIT_TIERS4 = {
 var REPLY_WINDOW_HOURS4 = 72;
 var REPLY_WINDOW_MS4 = REPLY_WINDOW_HOURS4 * 36e5;
 var REPLY_WINDOW_WORDS4 = `within ${REPLY_WINDOW_HOURS4 / 24} days`;
+var BROADCAST_THROTTLE_WAITS_MS4 = [
+  MIN_MS4,
+  2 * MIN_MS4,
+  5 * MIN_MS4,
+  10 * MIN_MS4,
+  15 * MIN_MS4,
+  30 * MIN_MS4
+];
 var DATE_FMT24 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS4 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -23211,19 +23380,7 @@ async function broadcastSend(ctx, job) {
           await db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", name2).eq("language", language).maybeSingle()
         );
       },
-      // An empty business name is not a fallback: it resolves to an empty slot,
-      // and the verb marks everyone in the batch permanently "missing_value".
-      facts: async () => {
-        const [tenantRes, cfgRes] = await Promise.all([
-          db.from("tenants").select("name").eq("id", job.tenant_id).maybeSingle(),
-          db.from("tenant_config").select("config").eq("tenant_id", job.tenant_id).maybeSingle()
-        ]);
-        const tenantRow = must("broadcast_send: cannot read the workspace", tenantRes);
-        const cfgRow = must("broadcast_send: cannot read the workspace's settings", cfgRes);
-        const parsedCfg = parseTenantConfig(cfgRow?.config ?? null);
-        const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";
-        return { businessName, bookingLink: parsedCfg?.brain?.booking_link ?? null };
-      },
+      facts: () => workspaceFacts(db, job.tenant_id),
       batch: async (id, limit) => {
         const { data, error } = await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("state", "queued").limit(limit);
         if (error) throw new Error(`broadcast_send: cannot read recipients: ${error.message}`);
@@ -23276,8 +23433,9 @@ async function broadcastSend(ctx, job) {
         );
         return row?.state ?? null;
       },
-      scheduleNext: async (id, dueAt) => {
-        await ctx.schedule("broadcast_send", dueAt ?? /* @__PURE__ */ new Date(), { broadcast_id: id });
+      // The count of WhatsApp's "not now" rides in the payload to the next batch, and only while it is running.
+      scheduleNext: async (id, dueAt, waits) => {
+        await ctx.schedule("broadcast_send", dueAt ?? /* @__PURE__ */ new Date(), { broadcast_id: id, ...waits ? { waits } : {} });
       },
       // This tally is written to the permanent record and read out to the owner,
       // so it is counted rather than tallied from a page of rows.
@@ -23309,8 +23467,26 @@ async function broadcastSend(ctx, job) {
       now: Date.now,
       sleep: (ms) => new Promise((res) => setTimeout(res, ms))
     },
-    { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline }
+    { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline, waits: waitsOf(p) }
   );
+}
+async function workspaceFacts(db, tenantId) {
+  const [tenantRes, cfgRes] = await Promise.all([
+    db.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
+    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle()
+  ]);
+  const tenantRow = must("broadcast_send: cannot read the workspace", tenantRes);
+  const cfgRow = must("broadcast_send: cannot read the workspace's settings", cfgRes);
+  const parsedCfg = parseTenantConfig(cfgRow?.config ?? null);
+  const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";
+  return {
+    businessName,
+    bookingLink: parsedCfg?.brain?.booking_link ?? null,
+    timezone: tenantRow?.timezone || "UTC"
+  };
+}
+function waitsOf(payload) {
+  return typeof payload.waits === "number" && Number.isInteger(payload.waits) && payload.waits > 0 ? payload.waits : 0;
 }
 
 // src/handlers.ts

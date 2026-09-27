@@ -17,6 +17,7 @@ z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+var MIN_MS = 6e4;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -1877,6 +1878,14 @@ var LIMIT_TIERS = {
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+var BROADCAST_THROTTLE_WAITS_MS = [
+  MIN_MS,
+  2 * MIN_MS,
+  5 * MIN_MS,
+  10 * MIN_MS,
+  15 * MIN_MS,
+  30 * MIN_MS
+];
 var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
@@ -2951,11 +2960,18 @@ async function postGraph(cfg, payload) {
       ok: r2.ok,
       wamid: out.messages?.[0]?.id ?? null,
       status: r2.status,
-      errorBody: r2.ok ? void 0 : JSON.stringify(out).slice(0, 200)
+      errorBody: r2.ok ? void 0 : JSON.stringify(out).slice(0, 200),
+      // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
+      code: !r2.ok && typeof out.error?.code === "number" ? out.error.code : null
     };
   } catch (e) {
     return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
   }
+}
+var GRAPH_THROTTLE_CODES = [4, 80007, 130429, 131048, 131056];
+function graphThrottled(r2) {
+  if (r2.ok) return false;
+  return r2.status === 429 || typeof r2.code === "number" && GRAPH_THROTTLE_CODES.includes(r2.code);
 }
 async function sendText(cfg, to, body) {
   return postGraph(cfg, { messaging_product: "whatsapp", to, type: "text", text: { body } });
@@ -6729,6 +6745,7 @@ export {
   getPlace,
   getRetellLlm,
   grantHasScope,
+  graphThrottled,
   greetingFor,
   hostedAddress,
   hostedIdentity,

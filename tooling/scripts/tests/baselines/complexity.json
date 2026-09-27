@@ -1295,8 +1295,8 @@
     "depth": 2
   },
   "packages/core/src/deliver.ts::deliver#1": {
-    "lines": 178,
-    "branches": 47,
+    "lines": 175,
+    "branches": 44,
     "depth": 3
   },
   "packages/core/src/inbound/answer.ts::answerInbound#1": {
@@ -1320,7 +1320,7 @@
     "depth": 4
   },
   "packages/core/src/messages/broadcast.ts::sendBroadcastBatch#1": {
-    "lines": 259,
+    "lines": 249,
     "branches": 50,
     "depth": 3
   },
@@ -1330,8 +1330,8 @@
     "depth": 7
   },
   "packages/jobs/src/broadcast-send.ts::broadcastSend#1": {
-    "lines": 195,
-    "branches": 19,
+    "lines": 184,
+    "branches": 16,
     "depth": 2
   },
   "packages/jobs/src/settle.ts::saySettled#1": {
