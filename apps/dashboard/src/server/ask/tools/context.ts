@@ -85,29 +85,42 @@ export interface ReadDef<S extends z.ZodObject = z.ZodObject> {
   input: S;
   examples?: z.input<S>[];
   label: string;
+  /**
+   * The least role that may use this read, where one is below it (the Phase 4 plan, D2): the action is offered only to
+   * that role and above, and refused in words to anyone else before it runs. Unset: every member.
+   */
+  needs?: MembershipRole;
+  /** An action's own sentences in its tool's description, said to a role it is offered to (D2). */
+  words?: string;
   run(t: ToolContext, input: z.output<S>): Promise<unknown>;
 }
 
 /**
  * One act as it builds, shaped as a read is, with the kind of card it builds: its spec's `needs` is the least role the
- * tool is offered to (D12). Its handler builds a card (a proposal) or refuses in words.
+ * action is offered to (D12, per action since Phase 4's D2). Its handler builds a card (a proposal) or refuses in words.
  */
 export interface ActDef<S extends z.ZodObject = z.ZodObject> {
   kind: AskProposal["kind"];
   input: S;
   examples?: z.input<S>[];
   label: string;
+  /** An action's own sentences in its tool's description, said to a role it is offered to (D2). */
+  words?: string;
   build(t: ToolContext, input: z.output<S>): Promise<ProposalOutcome>;
 }
 
 /**
  * One tool as the model is offered it (D11): its name and description, and what it runs, by action, in the order the
- * model reads them. A tool with no action has one definition, under NO_ACTION; a tool with actions takes `action`,
- * required, even with one action today, so an action added later does not change its shape.
+ * model reads them. A tool with no action has one definition, under NO_ACTION, and its description is said whole; a
+ * tool with actions takes `action`, required, even with one action today, so an action added later does not change its
+ * shape, and its description is said per role (the Phase 4 plan, D2): `description`, what the tool is, then the words
+ * of each action the role is offered, in the actions' order, then `tail`, what holds for every action. A tool whose
+ * actions all reach a role reads to it as one description; a tail names no action a role may not be offered.
  */
 export interface Tool<D> {
   name: string;
   description: string;
+  tail?: string;
   actions: Readonly<Record<string, D>>;
 }
 export type ReadTool = Tool<ReadDef>;
@@ -131,9 +144,27 @@ export function defineActions<D>(tool: Tool<D>): Tool<D> {
   return tool;
 }
 
-/** One action's definition, typed by its own zod (so its examples and its handler's input are checked against it). */
-export const readAction = <S extends z.ZodObject>(def: ReadDef<S>): ReadDef<S> => def;
-export const actAction = <S extends z.ZodObject>(def: ActDef<S>): ActDef<S> => def;
+/**
+ * One action's definition, typed by its own zod (so its examples and its handler's input are checked against it), with
+ * its own words in the tool's description (D2).
+ */
+export const readAction = <S extends z.ZodObject>(def: ReadDef<S> & { words: string }): ReadDef<S> => def;
+export const actAction = <S extends z.ZodObject>(def: ActDef<S> & { words: string }): ActDef<S> => def;
+
+/**
+ * The least role that may use a definition (D2): a read's own `needs`, or every member; an act's, its card kind's spec's
+ * (contracts ask-proposals/), the role that may approve the card, which its builder refuses below (proposalBelowNeeds).
+ */
+export const needsOf = (def: ReadDef | ActDef): MembershipRole =>
+  "kind" in def ? PROPOSAL_SPECS[def.kind].needs : (def.needs ?? "viewer");
+
+/** Whose a role's action is, in the words a refusal says it: "an owner's", "an owner's or a partner's". */
+export const WHOSE: Record<MembershipRole, string> = {
+  owner: "an owner's",
+  partner: "an owner's or a partner's",
+  operator: "an owner's, a partner's or an operator's",
+  viewer: "every member's",
+};
 
 /**
  * The read a refusal points to for a template's id, an audience's id or a list's token, said as the model calls it:
@@ -203,7 +234,8 @@ export function newToolContext(
  * Who may approve a card of this kind, and what to tell a member who may not, for its tool's description: one whole
  * clause, read from the spec's `needs` (contracts ask-proposals/), the same role the builder refuses below
  * (proposalBelowNeeds), so a description never says a second thing about who may approve. A partner's door is the
- * owner's and the partner's; an owner's is the owner's alone.
+ * owner's and the partner's; an owner's is the owner's alone. A tool with actions says it in the action's own words
+ * (D2), so a role the action is not offered to never reads it.
  */
 export function approvalWords(kind: ProposalKindAboveOperator): string {
   return PROPOSAL_SPECS[kind].needs === "partner"

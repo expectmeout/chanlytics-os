@@ -28,6 +28,11 @@ export interface ActivityRowDto {
   actor_type: string | null;
   /** The sentence. */
   text: string;
+  /**
+   * The family its emitter filed an event under (events.category: billing, contact, lead, ...), as it was written;
+   * null for a decision, which has none. What says a row is about money (isActivityMoney).
+   */
+  category: string | null;
 }
 
 export interface ActivityPageDto {
@@ -46,6 +51,15 @@ export interface ActivityPageDto {
 
 /** Ledger families that are evidence rather than activity: hidden unless asked for by name. */
 export const ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."] as const;
+
+/**
+ * Whether a row of the log is about money: an event its emitter filed under billing -- the subscription's
+ * (billing.updated, .paused, .resumed, apps/edge/lib/billing.ts) and a partner's share, its reversal, its payment and
+ * its standing (partner.earned, .reversed, .paid, .standing_set, written by 00203/00205/00207/00214). Read from the row's
+ * own category, which every emitter writes beside the kind, so a money kind added later is money here without a list
+ * to keep; a decision carries none. Ask leaves these out (the charter: anything about money), and the page shows them.
+ */
+export const isActivityMoney = (row: Pick<ActivityRowDto, "category">): boolean => row.category === "billing";
 
 const WORDS: Record<string, string> = {
   // decisions

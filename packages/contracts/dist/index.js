@@ -25824,6 +25824,7 @@ function platformQueue(q, nowMs = Date.now()) {
 
 // src/workspace/activity.ts
 var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
+var isActivityMoney = (row2) => row2.category === "billing";
 var WORDS = {
   // decisions
   approve: "Approved a reply",
@@ -27780,6 +27781,7 @@ export {
   instructionsWords,
   inviteState,
   invoiceStatusWords,
+  isActivityMoney,
   isActivityNoise,
   isBaselinePrompt,
   isCampaignEmail,

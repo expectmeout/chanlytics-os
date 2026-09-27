@@ -224,8 +224,11 @@ export const waitingQuestionOf = (r: Pick<SearchViewRow, "state" | "question">):
     ? (r.question as { sentence: string }).sentence
     : null;
 
-/** `asked_on` is the view's own created_at: the day the owner asked, said once. */
-function toSearchDto(r: SearchViewRow): LeadSearchDto {
+/**
+ * One search as the Leads page holds it (GET lead-searches maps each row through this), and as Ask says one it read by
+ * its id. `asked_on` is the view's own created_at: the day the owner asked, said once.
+ */
+export function toSearchDto(r: SearchViewRow): LeadSearchDto {
   const q =
     r.question && typeof r.question === "object"
       ? (r.question as { sentence?: unknown; criterionKey?: unknown; criterion_key?: unknown })
