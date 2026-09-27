@@ -16,6 +16,7 @@ import type {
   ListRef,
   Membership,
   PersonVisitsDto,
+  TenantId,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 
@@ -185,7 +186,7 @@ export interface TemplateValuesPorts {
 /** A run or broadcast as the route's scope loaded it. */
 export interface BroadcastRef {
   id: string;
-  tenant_id: string;
+  tenant_id: TenantId;
   state: string;
   name: string;
   recipient_count: number | null;

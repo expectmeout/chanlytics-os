@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, asTenantId } from "@chanlytics/contracts";
 import { resolveEscalation } from "@chanlytics/core";
 import { write, row } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
@@ -14,7 +14,7 @@ const theEscalation = row(async (ctx, params) => {
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!esc) throw new AppError("not_found", "Escalation not found.");
-  return esc;
+  return { ...esc, tenant_id: asTenantId(esc.tenant_id) };
 });
 
 /** Explicit resolve — "no change was needed" is also an answer (§4). */

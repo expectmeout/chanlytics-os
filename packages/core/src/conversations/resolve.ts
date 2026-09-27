@@ -1,4 +1,4 @@
-import { AppError } from "@chanlytics/contracts";
+import { AppError, type TenantId } from "@chanlytics/contracts";
 import type { EscalationPorts } from "./ports";
 
 export type ResolveResult = { state: "resolved"; already: true } | { state: "resolved"; decision_id: string };
@@ -6,7 +6,7 @@ export type ResolveResult = { state: "resolved"; already: true } | { state: "res
 /** Explicit resolve — "no change was needed" is also an answer (§4). */
 export async function resolveEscalation(
   ports: EscalationPorts,
-  cmd: { esc: { id: string; tenant_id: string; state: string } },
+  cmd: { esc: { id: string; tenant_id: TenantId; state: string } },
 ): Promise<ResolveResult> {
   const { esc } = cmd;
   if (esc.state === "resolved") return { state: "resolved", already: true };

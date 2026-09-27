@@ -11,6 +11,8 @@ import {
   replyWindow,
   resolveParams,
   slotToWrite,
+  type ContactId,
+  type TenantId,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { Thread, ThreadPorts } from "./ports";
@@ -62,7 +64,7 @@ export interface ReplyReceipt {
   decision_id?: string;
 }
 export interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
-  contact_id: string | null;
+  contact_id: ContactId | null;
   last_wa_inbound_at: string | null;
   consent: string | null;
   dnc: boolean | null;
@@ -75,9 +77,9 @@ export interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e1
   email_suppressed_at?: string | null;
 }
 export interface QueuedReply {
-  tenant_id: string;
+  tenant_id: TenantId;
   conversation_id: string;
-  contact_id: string | null;
+  contact_id: ContactId | null;
   channel: "whatsapp" | "sms" | "email";
   sent_by: string;
   type: "template" | "text";
@@ -115,10 +117,10 @@ export interface EmailParentFacts {
  */
 export interface EmailReplyPorts {
   /** The person's latest email on this thread; null when it holds none. Read inside this workspace and this conversation only. */
-  parent(conv: { id: string; tenant_id: string }): Promise<EmailParentFacts | null>;
+  parent(conv: { id: string; tenant_id: TenantId }): Promise<EmailParentFacts | null>;
   /** The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send from. */
   freeze(input: {
-    tenantId: string;
+    tenantId: TenantId;
     messageId: string;
     to: string;
     parent: EmailParentFacts;
@@ -141,7 +143,7 @@ export interface ReplyPorts extends Pick<
   "pauseMs" | "takeControl" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"
 > {
   /** Where the person last wrote: a text and an email have no 24-hour window and no templates. */
-  replyChannel(conv: { id: string; tenant_id: string }): Promise<"whatsapp" | "sms" | "email">;
+  replyChannel(conv: { id: string; tenant_id: TenantId }): Promise<"whatsapp" | "sms" | "email">;
   email: EmailReplyPorts;
   /**
    * The key claimed, before anything else is written: a row on the table's
@@ -149,24 +151,24 @@ export interface ReplyPorts extends Pick<
    * callers under one key at once. A loser is shown the hold, or null when it
    * went between the claim and the read.
    */
-  claimKey(tenantId: string, key: string, requestHash: string, nowIso: string): Promise<KeyClaim>;
+  claimKey(tenantId: TenantId, key: string, requestHash: string, nowIso: string): Promise<KeyClaim>;
   /**
    * A hold taken over by the stamp it was read at: true iff this caller holds the key now; false when another took it
    * first. Taking over a receipt for other words puts the first words' receipt out of reach, so a replay of those
    * words inside their window would send again. Accepted: the key is derived from the words (inbox-verbs.ts), so two
    * intents under one key is a client that changed what the key means, not a retry.
    */
-  takeKey(tenantId: string, key: string, requestHash: string, nowIso: string, from: string): Promise<boolean>;
+  takeKey(tenantId: TenantId, key: string, requestHash: string, nowIso: string, from: string): Promise<boolean>;
   /**
    * The row stamped `nowIso` let go, whatever it holds, and only that one: a caller lets go only when its send did not
    * happen, and another caller's takeover moved the stamp. A receipt kept before a job that then could not be
    * scheduled goes with it, so a replay of those words sends afresh instead of answering with a canceled message.
    * Never throws: the reply is already failing.
    */
-  releaseKey(tenantId: string, key: string, nowIso: string): Promise<void>;
+  releaseKey(tenantId: TenantId, key: string, nowIso: string): Promise<void>;
   /** The workspace's template by name and language, as Meta last told us about it; `variables` is one entry per slot, when the sync has filled it. */
   template(
-    tenantId: string,
+    tenantId: TenantId,
     name: string,
     language: string,
   ): Promise<{
@@ -181,13 +183,13 @@ export interface ReplyPorts extends Pick<
    * The facts a template's params come from, when the workspace has them: its name, and its booking link or null for
    * a business that quotes each job (the first run's decision 2).
    */
-  templateFacts(tenantId: string): Promise<{ business_name: string; booking_link: string | null } | null>;
+  templateFacts(tenantId: TenantId): Promise<{ business_name: string; booking_link: string | null } | null>;
   /** needs_human, paused until, snooze cleared, claimed by the user, and the thread touched now. True iff a row changed. */
   claimForReply(conversationId: string, untilIso: string, userId: string, nowIso: string): Promise<boolean>;
   /** The operator's words as a queued outbound row; its id. */
   queue(row: QueuedReply): Promise<string>;
   /** The send job, due after the grace window; throws when it could not be scheduled. */
-  schedule(tenantId: string, dueAt: Date, payload: SendPayload): Promise<void>;
+  schedule(tenantId: TenantId, dueAt: Date, payload: SendPayload): Promise<void>;
   /** A queued row with no job to send it, canceled so it never sits "Sending…" forever. */
   cancelOrphan(messageId: string): Promise<void>;
   /**
@@ -196,7 +198,7 @@ export interface ReplyPorts extends Pick<
    * the verb stands decides what that means.
    */
   storeReceipt(
-    tenantId: string,
+    tenantId: TenantId,
     key: string,
     requestHash: string,
     response: ReplyReceipt,
