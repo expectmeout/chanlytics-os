@@ -16558,7 +16558,7 @@ var FIRST_RUN_TRY_WORDS = {
   stay: "OK, I'll call",
   anyway: "Skip anyway"
 };
-function firstRunTryOf({ dto, vm, calls, since, nowMs }) {
+function firstRunTryOf({ dto, calls, since, nowMs }) {
   const W = FIRST_RUN_TRY_WORDS;
   const voice = dto.channels.voice;
   const own = voice.active ? normalizePhone(voice.number) : null;

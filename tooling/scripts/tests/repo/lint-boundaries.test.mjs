@@ -1,6 +1,6 @@
 /**
- * The layer boundaries and the edge's two house rules are lint rules in
- * eslint.config.mjs. A config is easy to loosen by accident (a glob that no
+ * The layer boundaries, the edge's two house rules and the refusal of an
+ * unused name are lint rules in eslint.config.mjs. A config is easy to loosen by accident (a glob that no
  * longer matches, a block moved above the one it overrides), so this runs the
  * real config over probe snippets, placed as if they lived in each layer, and
  * expects each forbidden thing to be refused and each allowed thing to pass.
@@ -146,7 +146,9 @@ test("ESLint applies the limits to a real file in every held tree", async () => 
 
 /** A function `lines` lines long, with `branches` branches and `depth` levels of nesting, taking `params` parameters. */
 function probe({ lines = 3, branches = 1, depth = 0, params = 1 }) {
-  const args = Array.from({ length: params }, (_, i) => `a${i}: number`).join(", ");
+  // Only the first is read. The rest start with `_`, as an unused name in our TypeScript must, so a limit is the one
+  // rule that fires; max-params counts them all the same.
+  const args = Array.from({ length: params }, (_, i) => `${i ? "_" : ""}a${i}: number`).join(", ");
   const body = [];
   for (let d = 0; d < depth; d++) body.push(`${"  ".repeat(d + 1)}if (a0 > ${d}) {`);
   if (depth > 0) body.push(`${"  ".repeat(depth + 1)}void a0;`);
@@ -179,4 +181,21 @@ test("in a held tree each limit is an error one past its number, and not at it",
   assert.deepEqual(await fired(wide, probe({ params: at.params + 1 })), [], `${WIDE_PARAMS[0]} waits for max-params`);
   // Where the ratchet still holds a function, the lint does not: a split is banked there, never a lint error.
   assert.deepEqual(await fired("packages/core/src/probe.ts", probe({ ...at, lines: at.lines + 1 })), []);
+});
+
+test("an unused name in our TypeScript is an error, as in the scripts, so the lint baseline cannot bank it", async () => {
+  const code = "export const kept = 1;\nconst unused = 2;\n";
+  for (const at of [
+    "packages/contracts/src/probe.ts",
+    "apps/edge/lib/probe.ts",
+    "apps/dashboard/src/server/probe.ts",
+    "apps/dashboard/src/client/probe.ts",
+  ]) {
+    assert.deepEqual(await rulesFiredOn(at, code), ["@typescript-eslint/no-unused-vars"], at);
+  }
+  // A name that says it is unused on purpose is still allowed.
+  assert.deepEqual(
+    await rulesFiredOn("packages/contracts/src/probe.ts", "export const kept = 1;\nconst _unused = 2;\n"),
+    [],
+  );
 });
