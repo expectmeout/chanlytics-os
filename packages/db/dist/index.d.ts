@@ -8589,7 +8589,7 @@ declare function setPartnerStatus(db: Db$1, partnerId: string, status: string, w
     seats: number;
 }>>;
 /**
- * A platform admin records the reset of a partner's second factor (00215 partner_second_factor_reset, decision 0013)
+ * A platform admin records the reset of a partner's second factor (00217 partner_second_factor_reset, decision 0013)
  * and learns whose account to act on; the factor itself is removed in Supabase Auth by the caller.
  */
 declare function recordPartnerSecondFactorReset(db: Db$1, partnerId: string, why: string): Promise<PartnerVerbResult<string>>;

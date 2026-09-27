@@ -1,6 +1,6 @@
 # 0013 · A partner signs in with a second factor
 
-**Status:** decided. M1 and M2 built on the branch this note ships with (00215), on `ef81c14a` (main, after #1177);
+**Status:** decided. M1 and M2 built on the branch this note ships with (00217, merged as 00215 and renumbered in #1175), on `ef81c14a` (main, after #1177);
 M3 is the next pull request and ships only once TOTP is switched on in the hosted project (M0). Written against
 commit `c1cce84a` (main, 27 September 2026). Ruben answered the open questions: no grace (M3 refuses from its first
 day), and partners only (owners are not offered a factor here). Where this note and the code disagree, the code wins.
@@ -69,7 +69,7 @@ Each shippable on its own, in either deploy order.
   the QR code and the key; the first code turns it on. A setup begun and never finished is cleared before the next.
   Supabase does not say ahead of time whether the project allows TOTP, so the row appears, and a project with it
   switched off says so when setup is pressed. A read that fails says so; it is never shown as off.
-- **The reset (00215)** is `POST platform/partners/second-factor` (rate `platform_partner_second_factor`, 10 an
+- **The reset (00217)** is `POST platform/partners/second-factor` (rate `platform_partner_second_factor`, 10 an
   hour), a button on the partner's first line in the back office. `partner_second_factor_reset` checks the caller,
   keeps who, when and why on the partner (`second_factor_reset_at`, `_by`, `_why`) and writes `platform.acted` on
   each workspace the partner sits on, before the dashboard's service client removes the factors in Supabase Auth.
