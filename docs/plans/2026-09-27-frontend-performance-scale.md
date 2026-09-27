@@ -4,7 +4,9 @@
 scorecard of 26 September left at 5: 17 Frontend architecture, 19 Performance, 36 Scalability. Every
 number below was measured at that commit; the organization categories have their own plan
 (`2026-09-26-organization-and-code-health.md`). Two items are owned elsewhere and are only
-referenced here: the sweep ceilings (#1146) and the shell's exit, decision 0015 (#1172).
+referenced here: the sweep ceilings (#1146) and the shell's exit, decision 0015 (#1172). Two more were settled
+after it was written, and say so where they stand: contracts shaking (19), measured and dropped, and lanes (36),
+now decision 0018.
 
 ## 1. The scorecard against the code
 
@@ -57,8 +59,11 @@ use, and no whole-shell re-render or whole-surface refetch for an event that con
 - **A bundle budget in CI.** After the dashboard build (already in the Typecheck job), a check measures the
   client JavaScript and CSS the workspace route loads, gzipped, against a baseline that may only fall; a
   feature that must grow it raises it in the same diff, with the reason.
-- **Contracts shaken.** The package is side-effect free except `zod-config.ts`; declaring that
-  (`sideEffects`) lets the bundler drop what the browser never calls. Measured before and after.
+- **Contracts shaken: measured, and dropped.** Built with one entry per domain, code splitting and `sideEffects`,
+  contracts made the workspace route's JavaScript larger, not smaller: 1,014.3 KB gzipped against 1,006.4 KB
+  (#1175's tree, 27 September). The shell loads every surface at once, so the browser uses most of the package: by
+  the strings in the client's chunks, about 1,091 KB of the split build's 1,297 KB reached it, and only about 58 KB
+  was surely left out. The saving is the shell's exit (0015), one surface at a time.
 - **Demo on demand.** Once the five seed readers are gone (0015), `manifest-demo.ts` behind a dynamic import.
 - **One surface's data, one surface's re-render.** A per-surface data signal replaces the global notice
   (above); message events go to the surfaces that draw messages. Each surface's freshness is a product
@@ -76,7 +81,9 @@ that backs off when the provider says so; replies never queued behind bulk work.
 - **Backpressure.** A 429 or a tier refusal stops and reschedules a broadcast instead of failing each
   remaining recipient (verify the current path first: only the workspace pause is read in the batch).
 - **Lanes and fairness.** Replies first, round-robin between workspaces, a few claims in parallel per
-  tick. A design note first: it is the ledger every send goes through.
+  tick. A design note first: it is the ledger every send goes through. That note is 0018, proposed: it measures
+  how late each job starts, puts replies ahead of bulk work, lets no workspace run two bulk jobs at once, and
+  claims in parallel only if the numbers still ask for it.
 - **Rollups.** Per-workspace daily rollups behind `metrics_summary` and `people_list`, with keyset paging.
 - **Realtime.** A channel per surface instead of one subscription carrying 24 tables to every tab.
 
@@ -85,8 +92,8 @@ that backs off when the provider says so; replies never queued behind bulk work.
 1. **Instrument** (one pull request, after #1172 lands, since both touch `docs/debt.md`): the per-file
    lint baseline with the wider effect alias, and the bundle budget. Nothing a customer sees changes.
 2. **Frontend**: `no-undef` over the shell, then `jsx-a11y` on a yes, then 0015's first surfaces.
-3. **Performance**: contracts tree-shaking (measured), then the per-surface data signal with the first
-   surface that moves in 0015.
-4. **Scale**: the purge clock, then backpressure, then the ledger's design note.
+3. **Performance**: the per-surface data signal with the first surface that moves in 0015. Contracts
+   tree-shaking was measured and dropped (§2).
+4. **Scale**: the purge clock (00215), then backpressure (00216), then the ledger's design note (0018).
 
 Each step is its own pull request, proven by a test that runs the code, with the full check line green.
