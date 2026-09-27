@@ -104,20 +104,35 @@ test("a person with history goes, and the history stays without them (00208)", {
   const t = await workspace("history");
   await member(a.id, t, "owner");
   await member(b.id, t, "owner");
-  const contact = (
-    await admin
+  const seed = async (what, q) => {
+    const { data, error } = await q;
+    assert.equal(error, null, `${what}: ${error?.message}`);
+    return data;
+  };
+  const contact = await seed(
+    "contact",
+    admin
       .from("contacts")
       .insert({ tenant_id: t, email: `robin-${Date.now()}@example.com` })
       .select("id")
-      .single()
-  ).data;
-  const conv = (
-    await admin
+      .single(),
+  );
+  const conv = await seed(
+    "conversation",
+    admin
       .from("conversations")
-      .insert({ tenant_id: t, contact_id: contact.id, assignee_user_id: b.id, control_by: b.id })
+      .insert({
+        tenant_id: t,
+        contact_id: contact.id,
+        assignee_user_id: b.id,
+        // A live hold (00132): a person is answering this thread right now.
+        control_kind: "person",
+        control_by: b.id,
+        control_until: new Date(Date.now() + 3_600_000).toISOString(),
+      })
       .select("id")
-      .single()
-  ).data;
+      .single(),
+  );
   const seeded = {
     message: admin.from("messages").insert({
       tenant_id: t,
@@ -165,13 +180,19 @@ test("a person with history goes, and the history stays without them (00208)", {
     decision: (await admin.from("decisions").select("actor_user_id, actor_type").eq("subject_id", conv.id).single())
       .data,
     invitation: (await admin.from("invitations").select("invited_by, role").eq("tenant_id", t).single()).data,
-    thread: (await admin.from("conversations").select("assignee_user_id, control_by").eq("id", conv.id).single()).data,
+    thread: (
+      await admin
+        .from("conversations")
+        .select("assignee_user_id, control_kind, control_by, control_until")
+        .eq("id", conv.id)
+        .single()
+    ).data,
   };
   assert.deepEqual(left.message, { sent_by: null, sender: "human" });
   assert.deepEqual(left.escalation, { resolved_by_user_id: null, state: "resolved" });
   assert.deepEqual(left.decision, { actor_user_id: null, actor_type: "user" });
   assert.deepEqual(left.invitation, { invited_by: null, role: "operator" });
-  assert.deepEqual(left.thread, { assignee_user_id: null, control_by: null });
+  assert.deepEqual(left.thread, { assignee_user_id: null, control_kind: null, control_by: null, control_until: null });
 });
 
 test("a partner whose record holds a workspace they brought is refused by name (00208)", { skip }, async () => {

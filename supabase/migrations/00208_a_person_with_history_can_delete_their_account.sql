@@ -1,18 +1,21 @@
 -- 00208 · A person with history can delete their account.
 --
--- 00190's door said everything that references auth.users cascades. Six columns did not: a message a person sent
+-- 00190's door said everything that references auth.users cascades. Five columns did not: a message a person sent
 -- (messages.sent_by), a handover they resolved (escalations.resolved_by_user_id), a decision they made
--- (decisions.actor_user_id), an invitation they sent (invitations.invited_by), and a thread assigned to or held by
--- them (conversations.assignee_user_id, control_by) all pointed at auth.users with no delete rule. So the delete of
--- the auth user was refused (23503) for anyone who had ever replied, resolved, decided or invited, the whole door
--- rolled back, and Settings showed Postgres's sentence. Only a brand-new account could go, which is what the test
--- deleted. The button is live on the web.
+-- (decisions.actor_user_id), an invitation they sent (invitations.invited_by) and a thread assigned to them
+-- (conversations.assignee_user_id) all pointed at auth.users with no delete rule. So the delete of the auth user was
+-- refused (23503) for anyone who had ever replied, resolved, decided or invited, the whole door rolled back, and
+-- Settings showed Postgres's sentence. Only a brand-new account could go, which is what the test deleted. The button
+-- is live on the web.
 --
 -- Now:
---   1. Those six columns are set null when the person goes. The row stays: the message was still sent, the handover
+--   1. Those five columns are set null when the person goes. The row stays: the message was still sent, the handover
 --      still resolved, the decision still made; only who did it is no longer a person on record. decisions' check
 --      tied actor_type = 'user' to a present id; a departed person's decision keeps its actor_type and loses the id.
---      invitations.invited_by was not null for the same reason and is not any more.
+--      invitations.invited_by was not null for the same reason and is not any more. conversations.control_by keeps
+--      its rule: a hold must name its holder (00132's check), and 00132's trigger releases every hold and assignment
+--      of a member as their membership goes, which the door deletes before the user. A hold that survived that would
+--      still refuse the delete, loudly, rather than leave a thread held by nobody.
 --   2. A partner (00202) whose record holds workspaces they brought (partner_tenants) or money they earned
 --      (partner_earnings) is refused by name, partner_records: both point at partners with on delete restrict, and
 --      money owed or paid outlives an account. The platform closes the record first.
@@ -46,9 +49,6 @@ alter table public.conversations drop constraint if exists conversations_assigne
 alter table public.conversations
   add constraint conversations_assignee_user_id_fkey
   foreign key (assignee_user_id) references auth.users (id) on delete set null;
-alter table public.conversations drop constraint if exists conversations_control_by_fkey;
-alter table public.conversations
-  add constraint conversations_control_by_fkey foreign key (control_by) references auth.users (id) on delete set null;
 
 create or replace function public.delete_my_account()
 returns jsonb
