@@ -5,7 +5,7 @@ import { handoverRefusal } from "@/server/workspace/handover";
 import { sendPartnerInvite } from "@/server/workspace/partner-invite";
 
 /**
- * The workspace's partner, as its owner manages it (decision 0018, 00219). Owner-only, as the rest of the team is:
+ * The workspace's partner, as its owner manages it (decision 0018, 00220). Owner-only, as the rest of the team is:
  * a partner changes the receptionist of the business, so bringing one in is the owner's call.
  */
 

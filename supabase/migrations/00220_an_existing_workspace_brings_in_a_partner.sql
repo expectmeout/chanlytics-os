@@ -1,4 +1,4 @@
--- 00219 · An existing workspace brings in a partner.
+-- 00220 · An existing workspace brings in a partner.
 --
 -- Decision 0018. A partner (0012) came onto a workspace two ways: the business signed up through their link, or the
 -- partner set it up and handed it over (0016). A workspace that already exists can now ask a partner to join it: its

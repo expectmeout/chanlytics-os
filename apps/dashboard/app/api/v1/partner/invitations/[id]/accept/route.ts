@@ -6,7 +6,7 @@ import { handoverRefusal } from "@/server/workspace/handover";
 
 /**
  * POST /api/v1/partner/invitations/:id/accept — the caller, a partner, joins the workspace that asked (decision 0018,
- * 00219 partner_invite_accept): seated as partner, and earning from its plan unless it was already paying. A partner's
+ * 00220 partner_invite_accept): seated as partner, and earning from its plan unless it was already paying. A partner's
  * seat needs a session that showed its second factor (0013), and so does taking one; the function asks again.
  */
 export const POST = write({

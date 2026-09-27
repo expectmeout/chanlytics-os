@@ -4,7 +4,7 @@ import { requireUuid } from "@/server/request-guards";
 import { handoverRefusal } from "@/server/workspace/handover";
 
 /**
- * POST /api/v1/partner/invitations/:id/decline — the caller, a partner, says no (decision 0018, 00219
+ * POST /api/v1/partner/invitations/:id/decline — the caller, a partner, says no (decision 0018, 00220
  * partner_invite_decline). The owner sees it on their card and may ask again, or ask someone else.
  */
 export const POST = write({
