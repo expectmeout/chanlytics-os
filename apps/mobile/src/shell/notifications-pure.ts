@@ -33,10 +33,3 @@ export function routeOfData(data: unknown): string | null {
   const route = (data as { route?: unknown }).route;
   return typeof route === "string" && APP_ROUTE_RE.test(route) ? route : null;
 }
-
-/** The badge a push carries, when it does. */
-export function badgeOfData(content: unknown): number | null {
-  if (!content || typeof content !== "object") return null;
-  const b = (content as { badge?: unknown }).badge;
-  return typeof b === "number" && Number.isInteger(b) && b >= 0 ? b : null;
-}
