@@ -43,6 +43,9 @@ standing` (`tenant_id`, `standing`, `why`) and `POST platform/partners/payout` (
   Risks and the terms promised it and nothing set `partners.status`. A pause or a close makes each partner seat a
   viewer's and releases what the partner held in those conversations, as a departure does (00132); the workspace keeps
   `seat_held_at`, and a restore gives back only those seats, where the owner has not removed the partner since.
+- **A partner joins a team only with the owner's yes.** The link's cookie credits nobody by itself: the create screen
+  names the partner and asks (the first workspace is not made on arrival when a link brought the person), the route
+  passes the code only when the body agrees with the cookie, and the cookie is cleared once a workspace is made.
 - **What a review found, fixed in 00207.**
   - A partner may erase their account: `partners.user_id` is set null and the row closes itself, instead of erasure
     failing on the ledger's keys.

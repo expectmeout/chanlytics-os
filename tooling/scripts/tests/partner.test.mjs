@@ -288,7 +288,7 @@ test("POST partner: the code judged in contracts' words before the door, then th
   assert.deepEqual(asked.at(-1), { p_code: "ada" }, "as it is stored");
 });
 
-test("a new workspace: the cookie's code goes to the function, and on a database without the argument the call is made again without it", async () => {
+test("a new workspace: the cookie's code goes to the function only with the person's yes, and on a database without the argument the call is made again without it", async () => {
   const made = [];
   const row = (a) => ({
     id: C,
@@ -299,8 +299,21 @@ test("a new workspace: the cookie's code goes to the function, and on a database
   });
   const withCode = ctxFor(tables(), { create_workspace: (a) => (made.push(a), row(a)) });
   const cookie = { cookie: `sb-a=1; ${PARTNER_COOKIE}=ada` };
-  await create.POST.run(send("POST", { name: "Harbor Two", timezone: "America/Chicago" }, cookie), withCode);
+  await create.POST.run(
+    send("POST", { name: "Harbor Two", timezone: "America/Chicago", partner: "ada" }, cookie),
+    withCode,
+  );
   assert.deepEqual(made, [{ p_name: "Harbor Two", p_timezone: "America/Chicago", p_partner_code: "ada" }]);
+
+  // A cookie the person did not say yes to, or a yes to some other code, seats and credits nobody (0012).
+  made.length = 0;
+  await create.POST.run(send("POST", { name: "Harbor Two" }, cookie), withCode);
+  await create.POST.run(send("POST", { name: "Harbor Two", partner: "someone-else" }, cookie), withCode);
+  assert.deepEqual(
+    made.map((a) => "p_partner_code" in a),
+    [false, false],
+    "no yes, no partner",
+  );
 
   made.length = 0;
   const bare = ctxFor(tables(), { create_workspace: (a) => (made.push(a), row(a)) });
@@ -319,7 +332,7 @@ test("a new workspace: the cookie's code goes to the function, and on a database
       return row(a);
     },
   });
-  const out = await create.POST.run(send("POST", { name: "Harbor Two" }, cookie), older);
+  const out = await create.POST.run(send("POST", { name: "Harbor Two", partner: "ada" }, cookie), older);
   assert.equal(out.workspace.slug, "harbor-two", "the workspace is made whichever deploys first");
   assert.deepEqual(
     made.map((a) => "p_partner_code" in a),

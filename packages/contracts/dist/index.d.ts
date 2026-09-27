@@ -4214,6 +4214,11 @@ declare const PARTNER_WORDS: {
     readonly readingWorkspaces: "Reading your workspaces…";
     readonly failedWorkspaces: "your workspaces";
     readonly noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.";
+    /**
+     * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+     * owner's yes. Their price does not change; the share is Chanlytics'.
+     */
+    readonly joinAsk: (code: string) => string;
     /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
     readonly spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.";
 };
