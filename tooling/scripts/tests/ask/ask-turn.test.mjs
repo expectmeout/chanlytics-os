@@ -48,14 +48,14 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runAskTurn, foldHistory, askPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
-const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, READ_DEFS } = await import(
+const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, READ_DEFS, ACT_DEFS } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
 // The tools as the loop offers them, sorted by name (D11), the acts among the reads: told apart by the act names the
 // loop itself tells apart.
 const READ_TOOLS = toApiTools("owner", true).filter((t) => !ACT_TOOL_NAMES.has(t.name));
 const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
-const { scopedRead } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
 const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );
@@ -1024,7 +1024,7 @@ test("the round keeps a thinking block whole -- its words and its signature, or 
   );
 });
 
-test("the fourteen reads, each an action of the nine read tools, run against the database in memory: each answers in its shape or refuses in words, and a read that fails says so to the model rather than throwing", async () => {
+test("the fourteen reads, each an action of the nine read tools, run against the database in memory: each answers in its shape or refuses in words, and a read that fails says so to the model rather than throwing; PR 4.3's ten run beside them (their answers are proven in their domains' suites)", async () => {
   const t = tables({
     escalations: [
       {
@@ -1067,17 +1067,27 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "calls.get",
       "calls.list",
       "campaigns.audiences",
+      "campaigns.broadcast",
+      "campaigns.broadcasts",
       "campaigns.playbooks",
       "inbox.list",
       "inbox.thread",
+      "leads.lead",
+      "leads.leads",
+      "leads.search",
       "leads.searches",
       "people.get",
+      "people.lists",
+      "people.pipeline",
       "people.search",
       "report",
       "today",
+      "workspace.activity",
+      "workspace.connections",
+      "workspace.notifications",
       "workspace.settings",
     ],
-    "the reads the loop offers: the fourteen old tools, each an action now",
+    "the reads the loop offers: the fourteen old tools, each an action now, and PR 4.3's ten",
   );
   const threads = JSON.parse(out["inbox.list"].result);
   assert.equal(out["inbox.list"].isError, false, out["inbox.list"].result);
@@ -1115,6 +1125,11 @@ test("the fourteen reads, each an action of the nine read tools, run against the
     JSON.parse(out["leads.searches"].result).searches,
     [],
     "no search asked for yet, said as an empty list",
+  );
+  assert.deepEqual(
+    [out["workspace.activity"].isError, JSON.parse(out["workspace.activity"].result).error],
+    [true, "workspace: action activity is an owner's"],
+    "an operator is refused the owner's log, before it is read",
   );
   assert.deepEqual(JSON.parse(out["people.search"].result).people, [], "nobody matched in an empty people list");
   assert.equal(out["people.get"].isError, true);
@@ -1489,28 +1504,44 @@ test("a card above an operator is refused to a member below it in its route's wo
   };
   // Each ask, and the refusal a member below its card's role hears: an owner's card names the owner; a partner's
   // names the owner and the workspace's partner, as the lead search's words do (#1159, decision 0012). A member below
-  // the card's role is not offered its tool (D12); should a call arrive anyway, its builder still refuses it.
+  // the card's role is not offered its tool (D12) or its action (D2); should a call arrive anyway, an action is refused
+  // by the registry in its words, and the builder, past it, still refuses in its route's.
   const ASKS = [
     [
       "propose_person",
       { action: "mode", contact_id: P1, mode: "never" },
       "only an owner can change how the receptionist treats one person; say so, and that an owner can ask",
+      "propose_person: action mode is an owner's",
     ],
     [
       "propose_settings",
       { change: { op: "add_closure", date: "2026-12-25", note: "Christmas" } },
       "only an owner or the workspace's partner can change the workspace's settings; say so, and that one of them can ask",
+      null,
     ],
     [
       "propose_team",
       { action: "invite", email: "ada@example.com", role: "viewer" },
       "only an owner can invite someone to the team; say so, and that an owner can ask",
+      "propose_team: action invite is an owner's",
     ],
   ];
-  for (const [name, input, refusal] of ASKS) {
+  /** The builder, past the registry: the action's own, or the tool's one. */
+  const builder = (name, input) => {
+    const def = READ_DEFS.concat(ACT_DEFS).find((d) => d.name === name);
+    const { action = "", ...rest } = input;
+    return (tc) => def.actions[action].build(tc, action ? rest : input);
+  };
+  for (const [name, input, refusal, registry] of ASKS) {
     const { ctx, tc } = as("operator");
     const out = await buildProposal(tc, name, input);
-    assert.deepEqual([out.proposal, out.isError, JSON.parse(out.result).error], [null, true, refusal], name);
+    assert.deepEqual(
+      [out.proposal, out.isError, JSON.parse(out.result).error],
+      [null, true, registry ?? refusal],
+      name,
+    );
+    const own = await builder(name, input)(tc);
+    assert.equal(JSON.parse(own.result).error, refusal, `${name}: its builder's own check stays`);
     assert.deepEqual(ctx.supabase.seen, [], `${name}: an operator is refused before anything is read`);
   }
   // REGRESSION (D7): an operator used to be handed these three cards, which the palette gated and the routes refused.
@@ -1518,8 +1549,10 @@ test("a card above an operator is refused to a member below it in its route's wo
   const settings = await buildProposal(partner, "propose_settings", ASKS[1][1]);
   assert.equal(settings.isError, false, settings.result);
   assert.deepEqual([settings.proposal.kind, settings.proposal.needs], ["settings", "partner"]);
-  for (const [name, input, refusal] of [ASKS[0], ASKS[2]])
-    assert.equal(JSON.parse((await buildProposal(partner, name, input)).result).error, refusal, name);
+  for (const [name, input, refusal, registry] of [ASKS[0], ASKS[2]]) {
+    assert.equal(JSON.parse((await buildProposal(partner, name, input)).result).error, registry, name);
+    assert.equal(JSON.parse((await builder(name, input)(partner)).result).error, refusal, name);
+  }
   // An owner gets all three, each needing its route's role and wearing its spec's undo words.
   const owner = as("owner").tc;
   const made = [];
@@ -4451,7 +4484,7 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
   assert.equal(noTemplates.lines.length, 1, "said once in the log");
 });
 
-test("the row the scope names rides in whole, read by its own tool: a call, a person, a thread; a lead, a search or a run has no read by its id yet, and a page needs no read", () => {
+test("the row the scope names rides in whole, read by its own tool and action: a call, a person, a thread; since PR 4.3 a lead, a search and a run (the Broadcasts row its address names) too; a page needs no read", () => {
   const X = "77777777-7777-4777-8777-777777777777";
   assert.deepEqual(scopedRead({ kind: "call", id: X, label: "this call" }), {
     name: "calls",
@@ -4466,9 +4499,36 @@ test("the row the scope names rides in whole, read by its own tool: a call, a pe
       name: "inbox",
       input: { action: "thread", conversation_id: X, more: false },
     });
-  for (const kind of ["lead", "search", "run", "page"])
-    assert.equal(scopedRead({ kind, id: X, label: kind }), null, kind);
+  assert.deepEqual(scopedRead({ kind: "lead", id: X, label: "Zilker Strength" }), {
+    name: "leads",
+    input: { action: "lead", lead_id: X },
+  });
+  // On a search's view, the lead is read as that search found it: the membership its peek shows, never its newest.
+  const S = "66666666-6666-4666-8666-666666666666";
+  assert.deepEqual(scopedRead({ kind: "lead", id: X, label: "Zilker Strength" }, `clients/leads:s-${S}:p-${X}`), {
+    name: "leads",
+    input: { action: "lead", lead_id: X, search_id: S },
+  });
+  assert.deepEqual(scopedRead({ kind: "lead", id: X, label: "Zilker Strength" }, `clients/leads:l-ready:p-${X}`), {
+    name: "leads",
+    input: { action: "lead", lead_id: X },
+  });
+  assert.deepEqual(scopedRead({ kind: "search", id: X, label: "Trainers" }), {
+    name: "leads",
+    input: { action: "search", search_id: X },
+  });
+  assert.deepEqual(scopedRead({ kind: "run", id: X, label: "Monday offer" }), {
+    name: "campaigns",
+    input: { action: "broadcast", broadcast_id: X },
+  });
+  assert.equal(scopedRead({ kind: "page", id: "reports", label: "Reports" }), null, "a page");
   assert.equal(scopedRead(null), null);
+  // Each is a read every role is offered: the scope's row is never refused for the role that looks at it.
+  for (const kind of ["call", "person", "thread", "lead", "search", "run"]) {
+    const run = scopedRead({ kind, id: X, label: kind });
+    const t = toApiTools("viewer", false).find((x) => x.name === run.name);
+    assert.ok(t.input_schema.properties.action.enum.includes(run.input.action), `${kind}: a viewer's`);
+  }
 });
 
 test("a run the person is looking at is the Broadcasts row the page drew: the answer cites it as a broadcast, opened at its run; run is no citation's kind", async () => {
@@ -4492,7 +4552,11 @@ test("a run the person is looking at is the Broadcasts row the page drew: the an
     ]),
   ]);
   const scope = { kind: "run", id: RUN, label: "Monday offer" };
-  assert.equal(scopedRead(scope), null, "no tool reads a run by its id yet");
+  assert.deepEqual(
+    scopedRead(scope),
+    { name: "campaigns", input: { action: "broadcast", broadcast_id: RUN } },
+    "a run is read by its id, as the broadcast it is",
+  );
   const r = await runAskTurn(
     turn(ctxFor(), {
       surface: "campaigns",
@@ -4507,6 +4571,29 @@ test("a run the person is looking at is the Broadcasts row the page drew: the an
     [["broadcast", RUN, `broadcasts/run:${RUN}`]],
   );
   assert.equal(r.answer.do.open, null, "a run is written as a broadcast, never as a run");
+});
+
+test("a lead the person has open on a search's view rides in read as that search found it: the turn hands scopedRead the page's address", async () => {
+  const LEAD = "abababab-0000-4000-8000-0000000000d1";
+  const SEARCH = "abababab-0000-4000-8000-0000000000e1";
+  const route = `clients/leads:s-${SEARCH}:p-${LEAD}`;
+  const runs = [];
+  const s = scripted([ROUND([answer("Zilker Strength is a strong fit.")])]);
+  const r = await runAskTurn(
+    turn(ctxFor(), {
+      surface: "leads",
+      scope: { kind: "lead", id: LEAD, label: "Zilker Strength" },
+      context: { ...PAGE, surface: "leads", route, view: "all" },
+    }).input,
+    ports(s.round, {
+      tool: async (_t, run) => {
+        runs.push(run);
+        return { result: "{}", isError: false, label: "" };
+      },
+    }),
+  );
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.deepEqual(runs, [{ name: "leads", input: { action: "lead", lead_id: LEAD, search_id: SEARCH } }]);
 });
 
 /* ------------------------------------------------ the turn reads the page (the Phase 2 plan, PR 2.4) */

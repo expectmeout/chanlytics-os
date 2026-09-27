@@ -30,13 +30,15 @@ async function proposeInvite(t: ToolContext, input: { email: string; role: strin
 /** The team (D11): an invitation (invite, once propose_invite), the one action until Phase 4. */
 export const propose_team = defineActions({
   name: "propose_team",
-  description: `Propose a change to the team, by action; action invite, its one action today, takes email and role and proposes an invitation to the workspace by email, as operator (replies and handles threads; no settings or team) or viewer (reads everything, changes nothing). Call it when they want to add someone to the team; a role not offered here, such as owner, is answered in words. It becomes a card the person approves, and nothing is sent before that. ${approvalWords("invite")}.`,
+  description: "Propose a change to the team, by action;",
   actions: {
     invite: actAction({
       kind: "invite",
       input: z.object({ email: z.string(), role: z.enum(SCHEMA_SETS["invitations.role"]) }),
       examples: [{ email: "sam@example.com", role: "operator" }],
       label: "Preparing an invitation",
+      // Its card's role clause, its own (approvalWords, one derivation): an action beside it may need another role.
+      words: `action invite, its one action today, takes email and role and proposes an invitation to the workspace by email, as operator (replies and handles threads; no settings or team) or viewer (reads everything, changes nothing). Call it when they want to add someone to the team; a role not offered here, such as owner, is answered in words. It becomes a card the person approves, and nothing is sent before that. ${approvalWords("invite")}.`,
       build: proposeInvite,
     }),
   },

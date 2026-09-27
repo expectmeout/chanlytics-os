@@ -1,14 +1,18 @@
 import { RenameLeadSearchSchema } from "@chanlytics/contracts";
 import { read, workspace, write } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { leadSearchScope, removeSearch, renameSearch, searchRow } from "@/server/leads/leads";
+import { leadSearchScope, removeSearch, renameSearch } from "@/server/leads/leads";
+import { load, readerContext } from "@/server/readers";
+import { search } from "@/server/readers/searches";
 
-/** GET /api/v1/lead-searches/:id: one search with its latest round, as lead_searches_view says it. */
+/**
+ * GET /api/v1/lead-searches/:id: one search with its latest round, as lead_searches_view says it. The body is its
+ * reader's (readers/searches.ts search), which Ask reads one search by too.
+ */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => ({
-    search: await searchRow(ctx, member.tenantId, requireUuid(ctx.params.id, "search")),
-  }),
+  handle: async ({ ctx, member }) =>
+    (await load(readerContext(ctx, member), search, { id: requireUuid(ctx.params.id, "search") })).data,
 });
 
 /** PATCH /api/v1/lead-searches/:id — rename. An operator's: a name changes nothing that is spent. */

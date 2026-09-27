@@ -42,7 +42,7 @@ import {
 } from "./tools";
 import { stableSystem, turnWords, type WorkspaceFacts } from "./prompt";
 import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
-import { crossPagePlan, readBlock } from "./cross-page";
+import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
 import { replayBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
@@ -222,19 +222,6 @@ export function foldHistory(history: TurnInput["history"], last: string | unknow
   return messages;
 }
 
-/**
- * The row the scope names, read whole by the tool and action that read it, to ride in with the page (as the snapshot's
- * scoped row did): a call (calls.get), a person (people.get), a thread or a conversation (inbox.thread). A lead, a
- * search or a run is read by no tool until Phase 4, and a page needs no read: none.
- */
-export function scopedRead(scope: AskScope | null): ToolRun | null {
-  if (scope?.kind === "call") return { name: "calls", input: { action: "get", call_id: scope.id } };
-  if (scope?.kind === "person") return { name: "people", input: { action: "get", contact_id: scope.id } };
-  if (scope?.kind === "thread" || scope?.kind === "conversation")
-    return { name: "inbox", input: { action: "thread", conversation_id: scope.id, more: false } };
-  return null;
-}
-
 export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
   const t0 = Date.now();
   const model = askModel();
@@ -262,7 +249,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // as data, so its rows enter the read set and the answer can cite them. A failure costs that block, never the turn.
   const tCtx = Date.now();
   const plan = crossPagePlan(input.text, input.surface, input.context?.view ?? null);
-  const scoped = scopedRead(input.scope);
+  const scoped = scopedRead(input.scope, input.context?.route);
   const guard =
     <T>(what: string, fallback: T) =>
     (e: unknown): T => {

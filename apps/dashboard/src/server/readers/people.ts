@@ -1,10 +1,16 @@
 import "server-only";
 import {
+  dealPaceOf,
   dealsAreOn,
+  followUpStandOf,
   personName,
+  pipelineOf,
+  poolRowOf,
   type DealPaceDto,
   type FollowUpFactsDto,
   type PersonRowDto,
+  type PersonRowVM,
+  type PipelineVM,
 } from "@chanlytics/contracts";
 import { PEOPLE_PAGE, countPeople, listPeople } from "../people/people";
 import { withVisits, type PeopleVisits } from "../calendar/calendar";
@@ -12,6 +18,7 @@ import { dealPaceRead } from "../people/deals";
 import { stepNamer } from "../people/person-notes";
 import { followUpFacts } from "../campaigns/playbooks";
 import { load, stamp, type Reader, type RowRef } from "./index";
+import { everyone } from "./everyone";
 import * as facts from "./facts";
 
 /** GET contacts' answer: one page of People with their appointments, and what the page draws beside the rows. */
@@ -99,5 +106,56 @@ export const people: Reader<{ q: string | null; offset: number }, PeoplePage> = 
       })),
       stamp: stamp(),
     };
+  },
+};
+
+/** The Pipeline's board: whether deals are on, the zone its days are judged in, and the board where they are. */
+interface DealBoard {
+  deals_on: boolean;
+  timezone: string;
+  /** Null where deals are off: the Pipeline's address draws People there. */
+  board: PipelineVM<PersonRowVM> | null;
+}
+
+/**
+ * The Pipeline, as the page builds it (contracts pipelineOf) over everyone in People (readers/everyone.ts), each row as
+ * People draws it for the member asking (poolRowOf) with their standing in the proposal follow-up laid on, and the
+ * workspace's pace and the follow-up's facts from People's first page -- the whole board, every group, on the turn's
+ * clock; where deals are off, none. Moved out of Ask's Pipeline context (server/ask/context/people.ts), which reads it
+ * now, as Ask's people.pipeline does. No route answers it: the page builds the same board in the tab from GET contacts.
+ * Each person on the board is a row a citation names, and each deal one too, opened on its person's page.
+ */
+export const dealBoard: Reader<undefined, DealBoard> = {
+  name: "dealBoard",
+  async read(rc) {
+    const [all, sells, tz] = await Promise.all([
+      load(rc, everyone, undefined).then((r) => r.data),
+      load(rc, facts.sellsBy, undefined).then((r) => r.data),
+      load(rc, facts.facts, undefined).then((r) => r.data.timezone),
+    ]);
+    const dealsOn = dealsAreOn(sells);
+    if (!dealsOn) return { data: { deals_on: false, timezone: tz, board: null }, rows: [], stamp: stamp() };
+    const first = (await load(rc, people, { q: null, offset: 0 })).data;
+    const pace = dealPaceOf(first.deal_pace);
+    const nowMs = rc.now.getTime();
+    const fu = first.follow_up;
+    const rowsVm = all.map((r) => {
+      const v = poolRowOf(r, { tz, now: rc.now, viewer: rc.userId, dealsOn });
+      return fu ? { ...v, followUp: followUpStandOf(v, fu, tz, nowMs, pace) } : v;
+    });
+    const board = pipelineOf(rowsVm, nowMs, tz, pace);
+    const rows: RowRef[] = board.groups.flatMap((g) =>
+      g.rows.flatMap((row): RowRef[] => {
+        const route = `clients/${row.id}`;
+        const deal = row.person.deal?.id;
+        return [
+          { kind: "person", id: row.id, route, label: row.name },
+          ...(deal
+            ? [{ kind: "deal" as const, id: deal, route, label: [row.name, row.service].filter(Boolean).join(" · ") }]
+            : []),
+        ];
+      }),
+    );
+    return { data: { deals_on: true, timezone: tz, board }, rows, stamp: stamp() };
   },
 };

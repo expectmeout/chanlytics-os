@@ -8,10 +8,10 @@ export {
   buildProposal,
   calledName,
   runTool,
-  toApiTools,
   toolLabel,
   toolSchema,
 } from "./registry";
+export { toApiTools } from "./offer";
 export { newToolContext } from "./context";
 export type { ProposalOutcome, ToolContext, ToolDef, ToolOutcome, ToolRun } from "./context";
 export { THREAD_VERBS } from "./act/thread-verb";

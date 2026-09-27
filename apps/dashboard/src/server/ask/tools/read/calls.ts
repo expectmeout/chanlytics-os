@@ -91,18 +91,23 @@ async function getCall(t: ToolContext, input: { call_id: string }): Promise<unkn
 /** Phone calls (D11): the list (list, once list_calls) and one call with its transcript (get, once get_call). */
 export const callsTool = defineActions({
   name: "calls",
-  description: `Phone calls, as the Calls page and a call's page read them. Action list takes filter and lists calls newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person; filter is missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first). Action get takes call_id, the id a row here, the today tool or people with action get returned, and reads one call: who, when, how long, how it ended, its summary, the state of its recording, the caller's contact id, and the transcript turn by turn. Call action list to find calls by day, outcome or whether they are live, and a live call before proposing a whisper; a count of calls is the today tool's or the page's own, since the rows here are capped. Call action get when the transcript or the full summary is needed and the page on screen holds only the call's row. list returns at most ${ASK_CAPS.calls} calls from the newest hundred; nothing changes because it was read. get caps the transcript at ${ASK_CAPS.transcript} turns, with transcript_turns saying how many there are; a call the workspace does not hold is an error, said in words.`,
+  description: "Phone calls, as the Calls page and a call's page read them.",
+  tail: `Call action list to find calls by day, outcome or whether they are live, and a live call before proposing a whisper; a count of calls is the today tool's or the page's own, since the rows here are capped. Call action get when the transcript or the full summary is needed and the page on screen holds only the call's row. list returns at most ${ASK_CAPS.calls} calls from the newest hundred; nothing changes because it was read. get caps the transcript at ${ASK_CAPS.transcript} turns, with transcript_turns saying how many there are; a call the workspace does not hold is an error, said in words.`,
   actions: {
     list: readAction({
       input: z.object({ filter: z.enum(["missed", "abandoned", "today", "live", "recent"]) }),
       examples: [{ filter: "missed" }],
       label: "Reading the calls",
+      words:
+        "Action list takes filter and lists calls newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person; filter is missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first).",
       run: listCalls,
     }),
     get: readAction({
       input: z.object({ call_id: z.string() }),
       examples: [{ call_id: "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f" }],
       label: "Reading the call",
+      words:
+        "Action get takes call_id, the id a row here, the today tool or people with action get returned, and reads one call: who, when, how long, how it ended, its summary, the state of its recording, the caller's contact id, and the transcript turn by turn.",
       run: getCall,
     }),
   },

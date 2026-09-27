@@ -1,6 +1,6 @@
 import "server-only";
 import { ROLE_PERMS, leadsRoute, type LeadsQuery } from "@chanlytics/contracts";
-import { leadsPage } from "../leads/lead-page";
+import { leadOne, leadsPage } from "../leads/lead-page";
 import { stamp, type Reader } from "./index";
 
 /**
@@ -24,6 +24,31 @@ export const leads: Reader<LeadsQuery, Awaited<ReturnType<typeof leadsPage>>> = 
         route: leadsRoute({ ...view, peek: r.id }),
         label: r.business_name,
       })),
+      stamp: stamp(),
+    };
+  },
+};
+
+/**
+ * GET leads/:id, as the route answers it: one lead as a row of the page (server/leads/lead-page.ts leadOne), built by
+ * the list's own builder, in the search the view is of when `search` names one, else its newest; a lead this workspace
+ * does not hold is the route's 404. What the peek reads for a lead the pages it holds do not have, and what Ask reads
+ * for one lead by its id. The lead is the row a citation names, opened at its peek on that search's view.
+ */
+export const lead: Reader<{ id: string; search?: string }, Awaited<ReturnType<typeof leadOne>>> = {
+  name: "lead",
+  async read(rc, { id, search }) {
+    const data = await leadOne(rc.ctx, rc.tenantId, id, search);
+    return {
+      data,
+      rows: [
+        {
+          kind: "lead",
+          id: data.row.id,
+          route: leadsRoute({ searchId: search ?? null, peek: data.row.id }),
+          label: data.row.business_name,
+        },
+      ],
       stamp: stamp(),
     };
   },
