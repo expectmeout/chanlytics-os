@@ -3,9 +3,10 @@
  *
  * What lives here is everything about Ask that is pure and shared: its limits,
  * the rule that keeps a citation honest and where a row opens, the
- * cards (what each kind does is its spec, ask-proposals.ts), the Line's jump index and suggestions, and the three
- * questions answered without a model. The answer itself -- its shape, the
- * format the model writes it in and how it is read back -- is ask-answer.ts's.
+ * cards (what each kind does is its spec, in ask-proposals/), the Line's
+ * jump index and suggestions, and the three questions answered without a
+ * model. The answer itself -- its shape, the format the model writes it in
+ * and how it is read back -- is ask-answer.ts's.
  * The route that runs the model lives in the dashboard; the Line that shows
  * the answer lives in the legacy pages; both read from here.
  */
@@ -204,7 +205,7 @@ export interface AskProposal {
     | "playbook"
     | "lead_search"
     | "deal";
-  /** The lowest role that may commit it, its spec's (ask-proposals.ts); the route re-checks on Approve. */
+  /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
   needs: "operator" | "partner" | "owner";
   title: string;
   /** The exact change, in the person's words. */
@@ -235,7 +236,7 @@ export interface AskProposalOutcome {
 /**
  * How long a committed card's undo stays open, for every verb whose route sets no window of its own. What each kind
  * does -- its route, its receipt, its undo and the gate before Approve (PROPOSAL_GATE, askUndoOpen) -- is its spec's,
- * ask-proposals.ts.
+ * ask-proposals/.
  */
 export const ASK_UNDO_MS = 10 * 60_000;
 

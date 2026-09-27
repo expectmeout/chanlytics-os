@@ -7,7 +7,7 @@
  *
  * Beside it, the same keys for contracts (`ROUTE_KEYS`, `ApiRouteKey`), which
  * depends on zod alone and may import nothing of the dashboard's: a contract
- * that names a route (the Ask cards' specs, ask-proposals.ts) names one of
+ * that names a route (the Ask cards' specs, ask-proposals/) names one of
  * these, and the dashboard's walk hands it to the typed client. What a route
  * takes and answers stays the dashboard's (client/api.ts `Input`, `Output`).
  * The precedent for a generated file in contracts is gen-schema-sets.mjs.

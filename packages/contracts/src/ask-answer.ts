@@ -115,7 +115,7 @@ export function answerText(a: AskAnswer): string {
 
 /**
  * Where a card's Open goes, or null for the kinds that have none (a reply, a rewrite, a whisper, an invite): its
- * spec's `open` (ask-proposals.ts). A lead search's, once approved, is the search the commit made. A kind no card has
+ * spec's `open` (ask-proposals/). A lead search's, once approved, is the search the commit made. A kind no card has
  * opens the thread its payload names, as a thread card does.
  */
 export function cardOpenRoute(p: Pick<AskProposal, "kind" | "payload" | "outcome">): string | null {
