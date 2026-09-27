@@ -43,8 +43,13 @@ test("every class offered is one the runtime consults, and each offers only the 
   // that hung on it are gone: the list itself is the claim.
   assert.deepEqual(
     UI_ROWS.map((r) => r.id).sort(),
-    ["book", "campaign", "faq", "follow_up", "money", "reengage", "reply", "reviews"],
-    "reply by the handlers; booking and faq in both prompts and after generation; reengage, campaign and follow_up by the playbooks sweep; reviews by the profile sync and the draft route; money is locked in the database",
+    ["book", "campaign", "faq", "follow_up", "money", "outreach", "reengage", "reply", "reviews"],
+    "reply by the handlers; booking and faq in both prompts and after generation; reengage, campaign and follow_up by the playbooks sweep; outreach by the reach-out step's run (Part 4); reviews by the profile sync and the draft route; money is locked in the database",
+  );
+  assert.deepEqual(
+    UI_ROWS.find((r) => r.id === "outreach").modes,
+    ["Veto", "Ask", "Never"],
+    "a reach-out's first run always waits; later ones give thirty minutes, wait, or do not run: never auto",
   );
   assert.deepEqual(
     UI_ROWS.find((r) => r.id === "follow_up").modes,
@@ -80,14 +85,14 @@ test("uiRows maps stored rows onto the mockup's ids, never invents a mode, and k
   assert.equal(by.money.mode, "Never");
   assert.deepEqual(
     rows.map((r) => r.id),
-    ["reply", "faq", "book", "reengage", "campaign", "reviews", "money"],
-    "a salon's pane: seven rows",
+    ["reply", "faq", "book", "reengage", "campaign", "outreach", "reviews", "money"],
+    "a salon's pane: eight rows, the reach-outs' beside the campaigns",
   );
   const deals = uiRows({ ...REAL, dealsOn: true, rows: [...REAL.rows, { class: "follow_up", mode: "ask" }] });
   assert.deepEqual(
     deals.map((r) => r.id),
-    ["reply", "faq", "book", "reengage", "follow_up", "campaign", "reviews", "money"],
-    "where deals are on, eight: the follow-ups' beside Win-back",
+    ["reply", "faq", "book", "reengage", "follow_up", "campaign", "outreach", "reviews", "money"],
+    "where deals are on, nine: the follow-ups' beside Win-back",
   );
   assert.equal(deals.find((r) => r.id === "follow_up").mode, "Ask");
   assert.equal(

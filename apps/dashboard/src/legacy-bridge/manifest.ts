@@ -118,6 +118,9 @@ import "@/legacy/pages/playbook-bits.jsx";
 import "@/legacy/pages/playbook-card.jsx";
 import "@/legacy/pages/playbook-composer.jsx";
 // A reach-out's chain as one row (Reach out Part 4 PR 8): before the page, which draws it.
+// The reach-out sheet and the Leads door to it (Reach out Part 4 PR 6): drawn by the rows below and by Leads.
+import "@/legacy/pages/reach-out/reach-out-sheet.jsx";
+import "@/legacy/pages/reach-out/reach-out-door.jsx";
 import "@/legacy/pages/reach-out/reach-out-row.jsx";
 import "@/legacy/pages/outbound.jsx";
 import "@/legacy/demo/pages/content-cal.jsx";

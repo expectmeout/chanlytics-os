@@ -152,3 +152,28 @@ export {
   chainPathWords,
   REACH_OUT_ROW_WORDS,
 } from "./reach-out-sheet";
+export {
+  REACH_OUT_FIRST_WORDS,
+  REACH_OUT_GAP_FIRST,
+  REACH_OUT_PREVIEW_WORDS,
+  REACH_OUT_SHEET_PARTS,
+  reachOutDefaultName,
+  reachOutDraftOf,
+  reachOutMayAddStep,
+  reachOutAddStep,
+  reachOutDropStep,
+  reachOutAfterDayChoices,
+  reachOutChainBodyOf,
+  reachOutDraftIssues,
+  insertSlotAt,
+  reachOutSheetPaceOf,
+  previewRefusedWords,
+  previewLinesOf,
+  reachOutDoorOf,
+  reachOutMayPickDomain,
+  reachOutPreviewOf,
+  reachOutSavedWords,
+  reachOutSheetUnreadOf,
+  reachOutWhoWords,
+} from "./reach-out-draft";
+export type { ReachOutDraft, ReachOutDraftStep, ReachOutDraftIssues } from "./reach-out-draft";

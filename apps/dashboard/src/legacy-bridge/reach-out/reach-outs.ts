@@ -9,8 +9,36 @@
  * through the typed client, and the refresh map reads the surfaces again behind it.
  */
 import {
+  HOLD_DOOR_WORDS,
+  REACH_OUT_GAP_MINUTES,
+  REACH_OUT_PREVIEW_WORDS,
   REACH_OUT_ROW_WORDS,
+  REACH_OUT_SHEET_PARTS,
   REACH_OUT_SHEET_WORDS,
+  REACH_OUT_SLOTS,
+  REACH_OUT_SLOT_WORDS,
+  firstNameOf,
+  insertSlotAt,
+  paceWords,
+  previewLinesOf,
+  reachLineOf,
+  reachOutAddStep,
+  reachOutAfterDayChoices,
+  reachOutChainBodyOf,
+  reachOutDoorOf,
+  reachOutDraftIssues,
+  reachOutDraftOf,
+  reachOutDropStep,
+  reachOutMayAddStep,
+  reachOutMayPickDomain,
+  reachOutPreviewOf,
+  reachOutSavedWords,
+  reachOutSheetPaceOf,
+  reachOutSheetUnreadOf,
+  reachOutWhoWords,
+  sheetFootWords,
+  startWords,
+  stepWhenWords,
   chainHintOf,
   chainPaceOf,
   chainPathWords,
@@ -23,8 +51,13 @@ import {
   slotParts,
   stepLabel,
   type ReachOutChainDto,
+  type ReachOutChainInput,
+  type ReachOutDecision,
+  type ReachOutPreviewInput,
+  type ReachOutReachDto,
 } from "@chanlytics/contracts";
 import { api, read } from "../api";
+import { readCache } from "../read-cache";
 import type { SurfaceOverride } from "../surface-data";
 
 /**
@@ -52,16 +85,49 @@ export const reachOutsOverride: SurfaceOverride = {
   },
 };
 
+/** The reaches read in this tab, by search, in memory: one read each until the next write. */
+const reaches = readCache<ReachOutReachDto>("reach_out_reach");
+
 export const reachOuts = {
   /** A chain's report and its search's reach, read when one of its rows opens (Playbooks' chain, a Templates email). */
   report: (rootId: string) => api()("GET reach-outs/[id]", { params: { id: rootId } }),
   pause: (rootId: string) => api()("PUT playbooks/[id]", { params: { id: rootId }, body: { state: "paused" } }),
   resume: (rootId: string) => api()("PUT playbooks/[id]", { params: { id: rootId }, body: { state: "running" } }),
   remove: (rootId: string) => api()("DELETE reach-outs/[id]", { params: { id: rootId } }),
-  /** Every sentence a chain's row and an email row say (contracts reach-out-sheet.ts). */
+  /** A new chain, saved and its first step run now (R13, R14): the answer carries what the run did. */
+  save: (body: ReachOutChainInput) => api()("POST reach-outs", { body }),
+  /** A chain changed whole: new words send what waits back to the check (R5); a dropped step's work goes (R17). */
+  update: (rootId: string, body: ReachOutChainInput) => api()("PUT reach-outs/[id]", { params: { id: rootId }, body }),
+  /** One business's email as the chain would write it (R11): it spends the model, so it is asked for by a press. */
+  preview: (body: ReachOutPreviewInput) => api()("POST reach-outs/preview", { body }),
+  /**
+   * A search's reach (the Leads door, the sheet): the answer held for the tab through read-cache.ts, so a door and its
+   * sheet read it once, and let go of by the one rule every on-demand read keeps: any write lands, every answer goes
+   * (api.ts refresh). Null when it could not be read: the door draws nothing then, never a count it did not read.
+   */
+  reach: async (searchId: string): Promise<ReachOutReachDto | null> => {
+    const held = reaches.peek(searchId);
+    if (held) return held;
+    try {
+      return await reaches.through(searchId, () => read("GET reach-outs/reach", { query: { search: searchId } }));
+    } catch (e) {
+      console.error("reach_out_reach_failed", e instanceof Error ? e.message : e);
+      return null;
+    }
+  },
+  /** An owner's answer to one held email (R18). */
+  decide: (sendId: string, decision: ReachOutDecision) =>
+    api()("POST reach-out-sends/[id]/decide", { params: { id: sendId }, body: { decision } }),
+  /** Every sentence a chain's row, an email row, the sheet and the Leads door say (contracts reach-out-*.ts). */
   words: {
+    HOLD_DOOR_WORDS,
+    REACH_OUT_GAP_MINUTES,
+    REACH_OUT_PREVIEW_WORDS,
     REACH_OUT_ROW_WORDS,
+    REACH_OUT_SHEET_PARTS,
     REACH_OUT_SHEET_WORDS,
+    REACH_OUT_SLOTS,
+    REACH_OUT_SLOT_WORDS,
     chainHintOf,
     chainPaceOf,
     chainPathWords,
@@ -70,9 +136,31 @@ export const reachOuts = {
     emailRowWrittenOf,
     emailTemplateRowsOf,
     emailTemplateWords,
+    firstNameOf,
+    insertSlotAt,
     nextRunWords,
+    paceWords,
+    previewLinesOf,
+    reachLineOf,
+    reachOutAddStep,
+    reachOutAfterDayChoices,
+    reachOutChainBodyOf,
+    reachOutDoorOf,
+    reachOutDraftIssues,
+    reachOutDraftOf,
+    reachOutDropStep,
+    reachOutMayAddStep,
+    reachOutMayPickDomain,
+    reachOutPreviewOf,
+    reachOutSavedWords,
+    reachOutSheetPaceOf,
+    reachOutSheetUnreadOf,
+    reachOutWhoWords,
+    sheetFootWords,
     slotParts,
+    startWords,
     stepLabel,
+    stepWhenWords,
   },
 };
 

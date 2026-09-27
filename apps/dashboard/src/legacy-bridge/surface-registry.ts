@@ -176,6 +176,9 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // surface, read beside each page's own.
   outbound: ["reach_outs"],
   messages: ["reach_outs"],
+  // A search's reach-out sheet (Part 4 PR 6) sends from Setup's sending domains and checks Settings' booking link: both
+  // read next on Leads, so a sheet opened on a cold boot is not left saying it is reading them.
+  leads: ["setup", "settings"],
 };
 
 /**
@@ -192,6 +195,8 @@ export const ROUTE_WAIT_MS = 3000;
 
 /** What a route draws beside its own surface: a person's page is one route of its own, whatever its id. */
 export function routeDrawsFor(page: string, param?: string | null): readonly string[] {
+  // Leads is `clients/leads…`, the scope asked about as routeSurfaceFor asks it, never as People.
+  if (page === "clients" && param && /^leads(:|$)/.test(param)) return ROUTE_DRAWS.leads ?? [];
   return ROUTE_DRAWS[personRouteId(page, param) ? PERSON_ROUTE : page] ?? [];
 }
 

@@ -674,13 +674,13 @@ test("offered here (0006): a proposal's moment and its Autonomy class only where
   assert.match(REACH_OUT_IS_NOT_A_MOMENT, /own sheet/);
   assert.deepEqual(
     POLICY_CLASSES.filter((c) => !policyClassOffered(c, false)),
-    ["follow_up", "outreach"],
-    "a salon's Autonomy: seven rows",
+    ["follow_up"],
+    "a salon's Autonomy: eight rows, the reach-outs' among them",
   );
   assert.deepEqual(
     POLICY_CLASSES.filter((c) => !policyClassOffered(c, true)),
-    ["outreach"],
-    "deals on: eight rows; the reach-outs' row waits for the reach-out sheet (Part 4)",
+    [],
+    "deals on: nine rows; the reach-outs' row is offered now that the sheet makes them (Part 4 PR 6)",
   );
   assert.ok(
     FOLLOW_UP_NEEDS_DEALS.includes("Settings › Business") &&

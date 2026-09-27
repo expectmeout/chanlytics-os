@@ -2701,6 +2701,33 @@ button.pb-tile-next::after,
 .pb-empty-line > .icon { flex: none; margin-top: 3px; color: var(--ink-dim); }
 .pb-empty-line.is-warn { color: var(--warn-ink); }
 .pb-warn { margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--warn-ink); }
+/* The reach-out sheet (Reach out Part 4 PR 6): the composer's parts, with a chain of steps and a preview of one email. */
+.pb-note { margin: 0; font-size: var(--text-xs); line-height: 1.5; color: var(--ink-dim); }
+.ro-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ro-field-k { font-size: var(--text-xs); color: var(--ink-dim); }
+.ro-body { width: 100%; min-height: 96px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--bg); font: inherit; font-size: var(--text-sm); line-height: 1.5; color: var(--ink); resize: vertical; }
+.ro-body:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.ro-issues { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.ro-issue { font-size: var(--text-xs); color: var(--warn-ink); }
+.ro-words { display: flex; flex-direction: column; gap: 10px; }
+.em-slots { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.em-slots-hint { font-size: var(--text-xs); color: var(--ink-dim); }
+.pb-chain { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); }
+.pb-chain-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 13px; font-size: var(--text-sm); color: var(--ink-muted); }
+.pb-chain-row + .pb-chain-row, .pb-chain-add { border-top: 1px solid var(--line); }
+.pb-chain-k { font-weight: var(--weight-medium); color: var(--ink); }
+.pb-chain-add { display: flex; align-items: center; gap: 6px; padding: 10px 13px; border-width: 1px 0 0; border-style: solid; border-color: var(--line); background: none; font: inherit; font-size: var(--text-sm); color: var(--ink); text-align: left; cursor: pointer; }
+.pb-chain-add:hover { background: var(--bg-hover); }
+.ro-domain { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--ink); }
+.em-preview { display: flex; flex-direction: column; gap: 8px; }
+.em-reader { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0; font-size: var(--text-xs); color: var(--ink-dim); }
+.em-frame { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg); }
+.em-frame-head { margin: 0; font-size: var(--text-xs); color: var(--ink-muted); }
+.em-frame-head > span { color: var(--ink-dim); margin-right: 6px; }
+.em-frame-body { margin: 6px 0 0; font-size: var(--text-sm); line-height: 1.55; color: var(--ink); white-space: pre-wrap; }
+/* The Leads door: beside it, Find leads steps back from primary; on a phone it is the full-width button above the tab bar. */
+.cl-controls-right:has(> .ro-door) > .btn-primary[data-testid="leads-find"] { background: var(--bg); color: var(--ink); border-color: var(--line-strong); }
+.ro-door-phone { position: sticky; top: 0; z-index: 2; width: 100%; justify-content: center; border-radius: 0; }
 .pb-foot { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .pb-foot-say { flex: 1 1 auto; min-width: 0; font-size: var(--text-sm); color: var(--ink-dim); }
 .pb-foot-say[data-tone="danger"] { color: var(--danger-ink); }
