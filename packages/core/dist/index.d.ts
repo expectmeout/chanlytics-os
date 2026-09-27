@@ -1448,6 +1448,7 @@ interface ReachOutFollower extends ReachOutLead {
         lead_stage: string | null;
         suppressed: boolean;
         wrote_back: boolean;
+        away?: boolean;
     };
     /** Any email of the chain to them bounced or failed for good (C4). */
     bounced: boolean;

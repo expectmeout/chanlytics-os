@@ -16,6 +16,8 @@ export interface OutreachLeadFacts {
   leadStage: string | null;
   suppressed: boolean;
   wroteBack: boolean;
+  /** An automatic out-of-office whose day is still ahead (00223, G8): the chain waits for it. */
+  away: boolean;
 }
 
 export function outreachRefusalOf(f: OutreachLeadFacts): DeliveryRefusal | null {
@@ -29,6 +31,8 @@ export function outreachRefusalOf(f: OutreachLeadFacts): DeliveryRefusal | null 
   // reach-out's next email (a nudge, a later run) is never sent to them. An out-of-office is not a person writing;
   // mail with a list's headers is, since a helpdesk sends a person's no with them too (00181).
   if (f.wroteBack) return "outreach_wrote_back";
+  // An automatic out-of-office (00223): the send is skipped, and the step takes the lead back after the day it names.
+  if (f.away) return "outreach_away";
   return null;
 }
 

@@ -8562,6 +8562,7 @@ function outreachRefusalOf(f) {
   if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
   if (f.suppressed) return "outreach_suppressed";
   if (f.wroteBack) return "outreach_wrote_back";
+  if (f.away) return "outreach_away";
   return null;
 }
 function isReachOutRun(audience) {
@@ -12019,6 +12020,8 @@ async function outreachFactsOf(db, p) {
     lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
     suppressed: f.suppressed === true,
     wrote_back: f.wrote_back,
+    // Absent before 00223: not away, as it was.
+    away: f.away === true,
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,
       from_local: String(f.domain.from_local ?? ""),
@@ -12094,6 +12097,7 @@ async function outreachFacts(db, d, f, nowMs) {
       leadStage: null,
       suppressed: false,
       wroteBack: false,
+      away: false,
       unsubscribable,
       domainState: null,
       cleanSince: null,
@@ -12121,6 +12125,7 @@ async function outreachFacts(db, d, f, nowMs) {
     leadStage: facts.lead_stage,
     suppressed: facts.suppressed,
     wroteBack: facts.wrote_back,
+    away: facts.away,
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
@@ -12141,7 +12146,12 @@ function refusalFor(d, f, nowMs, o) {
   if (!may.ok) return may.reason;
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
-    const lead = outreachRefusalOf({ leadStage: o.leadStage, suppressed: o.suppressed, wroteBack: o.wroteBack });
+    const lead = outreachRefusalOf({
+      leadStage: o.leadStage,
+      suppressed: o.suppressed,
+      wroteBack: o.wroteBack,
+      away: o.away
+    });
     if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
@@ -13612,7 +13622,8 @@ async function runReachOut(ports, step, cmd) {
       const refused = f.bounced ? "outreach_bounced" : outreachRefusalOf({
         leadStage: f.facts.lead_stage,
         suppressed: f.facts.suppressed,
-        wroteBack: f.facts.wrote_back
+        wroteBack: f.facts.wrote_back,
+        away: f.facts.away === true
       });
       if (refused) skips.push({ lead: f, reason: refused });
       else leads.push(f);

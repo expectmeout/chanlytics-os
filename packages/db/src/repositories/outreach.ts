@@ -19,6 +19,8 @@ export interface OutreachFactsRow {
    * answers or cites one sent to them, or a call they made. An out-of-office is not one.
    */
   wrote_back: boolean;
+  /** An automatic out-of-office whose day is still ahead (00223): the chain waits. A database before 00223 says nothing. */
+  away: boolean;
   /**
    * The From host's row as Connections set it up, with the days it has sent on since it was clean (D15, 00184); null
    * when the workspace owns no such domain.
@@ -60,6 +62,8 @@ export async function outreachFactsOf(
     lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
     suppressed: f.suppressed === true,
     wrote_back: f.wrote_back,
+    // Absent before 00223: not away, as it was.
+    away: f.away === true,
     domain:
       f.domain && typeof f.domain === "object" && typeof f.domain.state === "string"
         ? {

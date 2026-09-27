@@ -7532,6 +7532,8 @@ interface OutreachFactsRow {
      * answers or cites one sent to them, or a call they made. An out-of-office is not one.
      */
     wrote_back: boolean;
+    /** An automatic out-of-office whose day is still ahead (00223): the chain waits. A database before 00223 says nothing. */
+    away: boolean;
     /**
      * The From host's row as Connections set it up, with the days it has sent on since it was clean (D15, 00184); null
      * when the workspace owns no such domain.
@@ -7730,11 +7732,15 @@ interface FollowerLead {
     region: string | null;
     hours: unknown;
     parent_message_id: string;
-    /** The lead's own facts (outreach_lead_facts, keyed by it): the answer the send door will give about them. */
+    /**
+     * The lead's own facts (outreach_lead_facts, keyed by it): the answer the send door will give about them. `away` is
+     * absent before 00223, and read as not away.
+     */
     facts: {
         lead_stage: string | null;
         suppressed: boolean;
         wrote_back: boolean;
+        away?: boolean;
     };
     /** Any email of the chain to them bounced or failed for good (C4): the chain stops. */
     bounced: boolean;

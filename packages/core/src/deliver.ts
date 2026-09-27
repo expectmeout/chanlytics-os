@@ -320,6 +320,8 @@ interface OutreachFacts {
    * email sent to them, or phoned it: a conversation now, never cold again (00181).
    */
   wroteBack: boolean;
+  /** An automatic out-of-office whose day is still ahead (00223): the chain waits for it. */
+  away: boolean;
   /** The request carries RFC 8058's one-click unsubscribe, both headers. */
   unsubscribable: boolean;
   /**
@@ -354,6 +356,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       leadStage: null,
       suppressed: false,
       wroteBack: false,
+      away: false,
       unsubscribable,
       domainState: null,
       cleanSince: null,
@@ -383,6 +386,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
     leadStage: facts.lead_stage,
     suppressed: facts.suppressed,
     wroteBack: facts.wrote_back,
+    away: facts.away,
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
@@ -428,7 +432,12 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
     // The lead's own facts, in the one mapping the reach-out clock also asks before it claims a send.
-    const lead = outreachRefusalOf({ leadStage: o.leadStage, suppressed: o.suppressed, wroteBack: o.wroteBack });
+    const lead = outreachRefusalOf({
+      leadStage: o.leadStage,
+      suppressed: o.suppressed,
+      wroteBack: o.wroteBack,
+      away: o.away,
+    });
     if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";

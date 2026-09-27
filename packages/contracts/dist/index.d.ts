@@ -4344,7 +4344,7 @@ declare function mayMessageFor(c: PurposeBearing, purpose: SendPurpose, opts?: {
  * report without its words (both maps below are typed against it). Each is a fact about the person, the thread or
  * the workspace, never about us.
  */
-declare const DELIVERY_REFUSALS: readonly ["opted_out", "not_opted_in", "no_marketing_consent", "erased", "paused", "human_has_it", "superseded_by_human", "sms_carries_no_promotions", "email_marketing_disabled", "email_suppressed", "recipient_changed", "unsubscribed", "outreach_is_email_only", "outreach_not_a_lead", "outreach_lead_closed", "outreach_suppressed", "outreach_wrote_back", "outreach_without_unsubscribe", "outreach_needs_own_domain", "sending_domain_not_ready", "sending_domain_at_cap"];
+declare const DELIVERY_REFUSALS: readonly ["opted_out", "not_opted_in", "no_marketing_consent", "erased", "paused", "human_has_it", "superseded_by_human", "sms_carries_no_promotions", "email_marketing_disabled", "email_suppressed", "recipient_changed", "unsubscribed", "outreach_is_email_only", "outreach_not_a_lead", "outreach_lead_closed", "outreach_suppressed", "outreach_wrote_back", "outreach_away", "outreach_without_unsubscribe", "outreach_needs_own_domain", "sending_domain_not_ready", "sending_domain_at_cap"];
 type DeliveryRefusal = (typeof DELIVERY_REFUSALS)[number];
 /** Why a send was withheld, in the operator's words: every door refusal (the compiler holds it), and the job's own. */
 declare const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, string>;
@@ -18281,6 +18281,8 @@ interface OutreachLeadFacts {
     leadStage: string | null;
     suppressed: boolean;
     wroteBack: boolean;
+    /** An automatic out-of-office whose day is still ahead (00223, G8): the chain waits for it. */
+    away: boolean;
 }
 declare function outreachRefusalOf(f: OutreachLeadFacts): DeliveryRefusal | null;
 /**
