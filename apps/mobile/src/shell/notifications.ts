@@ -11,8 +11,8 @@ import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
-import { routeOfData } from "./notifications-pure";
-export { tabOf, routeOfData } from "./notifications-pure";
+import { tapOfData, type Tap } from "./notifications-pure";
+export { tabOf, type Tap } from "./notifications-pure";
 
 /** In the foreground a push is shown as a banner and kept in the list, with its sound and its badge. */
 export function installForegroundHandler(): void {
@@ -52,7 +52,10 @@ export async function askForToken(): Promise<string | null> {
     if (!projectId) return null;
     const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
     return data;
-  } catch {
+  } catch (e) {
+    // Said in the device's log, not swallowed: an Android build without its Firebase file fails here, and nothing
+    // else would say why the phone is never told.
+    console.warn("push_token_unavailable", e instanceof Error ? e.message : String(e));
     return null;
   }
 }
@@ -65,24 +68,24 @@ export async function setBadge(n: number): Promise<void> {
   }
 }
 
-/** The route of the tap that started the app, if a tap did; read once. */
-export async function coldStartRoute(): Promise<string | null> {
+/** The tap that started the app, if one did; read once. */
+export async function coldStartTap(): Promise<Tap | null> {
   try {
     const last = await Notifications.getLastNotificationResponseAsync();
     if (!last || last.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return null;
     await Notifications.clearLastNotificationResponseAsync();
-    return routeOfData(last.notification.request.content.data);
+    return tapOfData(last.notification.request.content.data);
   } catch {
     return null;
   }
 }
 
 /** Every tap while the app runs, and every token the service rotates. Returns the uninstall. */
-export function listen(on: { tap: (route: string) => void; token: (token: string) => void }): () => void {
+export function listen(on: { tap: (tap: Tap) => void; token: (token: string) => void }): () => void {
   const a = Notifications.addNotificationResponseReceivedListener((r) => {
     if (r.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
-    const route = routeOfData(r.notification.request.content.data);
-    if (route) on.tap(route);
+    const tap = tapOfData(r.notification.request.content.data);
+    if (tap) on.tap(tap);
   });
   const b = Notifications.addPushTokenListener(async () => {
     const token = await askForToken();

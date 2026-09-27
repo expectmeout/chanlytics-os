@@ -210,7 +210,7 @@ const PartnerLettersRow = ({ W, api, letters, flash }) => {
 // Two-step sign-in (0013): a partner's account changes the receptionist of every business they brought, so it asks
 // for an authenticator's code at sign-in. Read from Supabase Auth, which holds the factor; set up in two presses:
 // scan (or type the key), then the first code, which turns it on. A project with TOTP switched off says so.
-const PartnerSecondFactor = ({ api, flash }) => {
+const PartnerSecondFactor = ({ api, flash, onOn }) => {
   const F = api.secondFactor;
   const W = F.words;
   const [state, setState] = React.useState({ phase: "reading" });
@@ -224,6 +224,10 @@ const PartnerSecondFactor = ({ api, flash }) => {
     });
     return () => { live = false; };
   }, [F]);
+  // Before becoming a partner, the offer waits on this (M3): partner_become asks for a session that showed a code.
+  React.useEffect(() => {
+    if (state.phase === "on" && onOn) onOn();
+  }, [state.phase, onOn]);
   const start = async () => {
     setBusy(true);
     setError(null);
@@ -295,6 +299,8 @@ const PanePartner = ({ flash }) => {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
   const [copied, setCopied] = React.useState(false);
+  const [factorOn, setFactorOn] = React.useState(false);
+  const factorIsOn = React.useCallback(() => setFactorOn(true), []);
   const api = window.__partner;
   const P = window.__PARTNER;
   if (!api) return null;
@@ -314,9 +320,11 @@ const PanePartner = ({ flash }) => {
   }
 
   if (!P.dto) {
+    // Two-step sign-in comes first (0013, M3): the offer's own row, and the button waits for it to be on.
+    const needsFactor = !!api.secondFactor && !factorOn;
     const become = async (e) => {
       e.preventDefault();
-      if (busy || !agreed) return;
+      if (busy || !agreed || needsFactor) return;
       setBusy(true);
       setError(null);
       const r = await api.become(code);
@@ -330,6 +338,12 @@ const PanePartner = ({ flash }) => {
           <h2 className="rec-card-title" id="set-partner-title">{W.title}</h2>
         </div>
         <p className="set-row-hint" data-testid="partner-offer">{W.offer} The share is {api.offerShare}.</p>
+        {api.secondFactor ? (
+          <>
+            {needsFactor ? <p className="set-row-hint" data-testid="partner-factor-first">{api.secondFactor.words.becomeFirst}</p> : null}
+            <PartnerSecondFactor api={api} flash={flash} onOn={factorIsOn} />
+          </>
+        ) : null}
         <form onSubmit={become} className="set-form" data-testid="partner-become-form">
           <label className="set-field">
             <span className="set-field-label">{W.codeLabel}</span>
@@ -350,7 +364,7 @@ const PanePartner = ({ flash }) => {
             <span>{W.termsAgree}</span>
           </label>
           {error ? <p className="set-error" role="alert" data-testid="partner-error">{error}</p> : null}
-          <button type="submit" className="btn" disabled={busy || !agreed || !code.trim()} aria-busy={busy || undefined} data-testid="partner-become">
+          <button type="submit" className="btn" disabled={busy || !agreed || !code.trim() || needsFactor} aria-busy={busy || undefined} data-testid="partner-become">
             {busy ? W.becoming : W.become}
           </button>
         </form>

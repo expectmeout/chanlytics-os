@@ -181,7 +181,7 @@
   },
   "apps/dashboard/src/client/api.ts::createApi#1": {
     "lines": 148,
-    "branches": 50,
+    "branches": 49,
     "depth": 3
   },
   "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx::CreateWorkspace#1": {

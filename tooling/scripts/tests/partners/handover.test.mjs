@@ -63,6 +63,8 @@ const ctxFor = (t, rpcs = {}, params = {}) => ({
   supabase: fakeDb(t, {}, { is_platform_admin: () => false, ...rpcs }),
   userId: USER,
   email: "ada@example.com",
+  // Past the second factor (0013, M3): a partner's seat asks for it; second-factor.test.mjs proves the refusal.
+  aal: "aal2",
   params,
   headers: {},
 });

@@ -8202,6 +8202,7 @@ var KIND_META2 = {
   email: { name: CHANNEL_KIND_WORDS2.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var CALL_ACTIVITY_STALE_MS2 = 15 * 6e4;
 var NOTE_SUGGEST_KINDS2 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA2 = {
@@ -8638,6 +8639,7 @@ var DEFAULT_STATUS = {
   not_found: 404,
   validation: 400,
   choose_workspace: 400,
+  mfa_required: 403,
   conflict: 409,
   rate_limited: 429,
   payment_required: 402,
@@ -8649,7 +8651,6 @@ var DEFAULT_STATUS = {
   upstream_auth: 503,
   internal: 500
 };
-var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;

@@ -24,6 +24,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { showSecondFactor } from "../_second-factor.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -60,6 +61,9 @@ async function memberClient(role, tenant) {
   const client = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
   const s = await client.auth.signInWithPassword({ email, password });
   assert.equal(s.error, null, s.error?.message);
+  // A partner's seat reads nothing until the session shows its second factor (0013, 00218); this matrix is about
+  // what each role reads once it may, so the partner's session has.
+  if (role === "partner") await showSecondFactor(client);
   return { client, userId: made.data.user.id };
 }
 

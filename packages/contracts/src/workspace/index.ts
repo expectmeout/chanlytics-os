@@ -191,12 +191,16 @@ export {
 export type { HandoverState, OpenHandoverDto, PartnerHandoverDto, PartnerHandoverVM } from "./handover";
 export {
   PartnerSecondFactorResetSchema,
+  SECOND_FACTOR_LEVEL,
   SECOND_FACTOR_PATH,
+  SECOND_FACTOR_REQUIRED_PATH,
   SECOND_FACTOR_WORDS,
   cleanFactorCode,
   enrolRefusalWords,
   factorCodeWords,
   factorStepNeeded,
+  seatNeedsSecondFactor,
   secondFactorResetWords,
+  secondFactorShown,
 } from "./second-factor";
 export type { AssuranceLevels } from "./second-factor";

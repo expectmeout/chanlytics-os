@@ -8,6 +8,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { showSecondFactor } from "../_second-factor.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -37,8 +38,8 @@ let owner;
 let stranger;
 let made;
 
-/** A real session for a fresh user at this address. */
-async function person(email) {
+/** A real session for a fresh user at this address; `factor`, past its second factor (0013, 00218: a partner's seat asks). */
+async function person(email, { factor = false } = {}) {
   const password = `pw-${Math.random().toString(36).slice(2)}-Aa1!`;
   const u = await db.auth.admin.createUser({ email, password, email_confirm: true });
   assert.equal(u.error, null, u.error?.message);
@@ -46,15 +47,17 @@ async function person(email) {
   const client = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
   const s = await client.auth.signInWithPassword({ email, password });
   assert.equal(s.error, null, s.error?.message);
+  if (factor) await showSecondFactor(client);
   return { client, userId: u.data.user.id, email };
 }
 
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  partner = await person(`partner@${DOMAIN}`);
+  partner = await person(`partner@${DOMAIN}`, { factor: true });
   owner = await person(`owner@${DOMAIN}`);
-  stranger = await person(`stranger-${RUN}@example.com`);
+  // Past it too, so the refusal they meet is "only a partner", not the second factor's.
+  stranger = await person(`stranger-${RUN}@example.com`, { factor: true });
   const code = `hand-${Math.random().toString(36).slice(2, 8)}`;
   partner.id = ok(await partner.client.rpc("partner_become", { p_code: code })).id;
 });

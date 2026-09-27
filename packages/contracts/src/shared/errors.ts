@@ -11,6 +11,12 @@ export const ERROR_CODES = [
    * once read the generic 400 as a billing bug and a phone-number bug for a day.
    */
   "choose_workspace",
+  /**
+   * The request acts from a partner's seat (0012) on a session that has not shown its second factor (0013). Its own
+   * code, not `forbidden`, because the fix is a code from the person's authenticator rather than a different role:
+   * the client sends the tab to the second step.
+   */
+  "mfa_required",
   "conflict",
   "rate_limited",
   /**
@@ -72,6 +78,7 @@ const DEFAULT_STATUS: Record<ErrorCode, number> = {
   not_found: 404,
   validation: 400,
   choose_workspace: 400,
+  mfa_required: 403,
   conflict: 409,
   rate_limited: 429,
   payment_required: 402,

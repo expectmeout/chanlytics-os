@@ -25,6 +25,29 @@ export function factorStepNeeded(aal: AssuranceLevels | null | undefined): boole
 /** Where a person goes after the first factor: the second factor's page, or in. */
 export const SECOND_FACTOR_PATH = "/verify";
 
+/**
+ * Where a refusal sends a partner (M3): the same page, told the account must show a factor, so an account without one
+ * sets it up there rather than being sent straight back in.
+ */
+export const SECOND_FACTOR_REQUIRED_PATH = "/verify?for=partner";
+
+/** The assurance level a session reaches by showing its second factor. */
+export const SECOND_FACTOR_LEVEL = "aal2";
+
+/** Whether this session showed its second factor: its token's `aal` claim. */
+export function secondFactorShown(aal: unknown): boolean {
+  return aal === SECOND_FACTOR_LEVEL;
+}
+
+/**
+ * Whether a seat of this role needs a session that showed its second factor (0013, M3): a partner's, which can change
+ * the receptionist of every business they brought. An owner, an operator and a viewer are unchanged. The database says
+ * the same in is_acting_member and caller_has_permission (00218); second-factor.db.test.mjs holds the two together.
+ */
+export function seatNeedsSecondFactor(role: string | null | undefined): boolean {
+  return role === "partner";
+}
+
 export const SECOND_FACTOR_WORDS = {
   /** Settings › Partner. */
   title: "Protect your partner account",
@@ -58,6 +81,15 @@ export const SECOND_FACTOR_WORDS = {
     "They can sign in with their password or an email code, and set up a new authenticator on their partner pane. Check it's them before you do this.",
   resetYes: "Yes, reset it",
   resetTyped: "why, and how you checked it's them",
+  /** The refusal (M3): a partner's seat, or the partner account itself, on a session that has not shown its code. */
+  required:
+    "Your partner account asks for a code from your authenticator app. Enter it, or set the app up, and try again.",
+  /** The second step's page, for a partner account with no authenticator yet. */
+  enrolTitle: "Set up two-step sign-in",
+  enrolBody:
+    "Your partner account can change the receptionist of every business you brought, so it asks for a code from an authenticator app each time you sign in. Set it up once to continue.",
+  /** Settings › Partner, before becoming one. */
+  becomeFirst: "First, protect your account: a partner signs in with a code from an authenticator app.",
 } as const;
 
 /** How the Auth server's refusal of an enrolment reads: switched off for the project, or something else. */

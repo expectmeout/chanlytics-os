@@ -8,6 +8,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { showSecondFactor } from "../_second-factor.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -34,8 +35,11 @@ let customer; // a business that came through the link
 let other; // a business that typed a code that names nobody
 let brought; // the workspace the customer made through the link
 
-/** A real session for a fresh user. */
-async function person(label) {
+/**
+ * A real session for a fresh user; `factor`, past its second factor: a partner's seat and the partner account's doors
+ * ask for one (0013, 00218). A session without it is second-factor.db.test.mjs's subject, not this suite's.
+ */
+async function person(label, { factor = false } = {}) {
   const email = `partner-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;
   const password = `pw-${Math.random().toString(36).slice(2)}-Aa1!`;
   const made = await db.auth.admin.createUser({ email, password, email_confirm: true });
@@ -44,6 +48,7 @@ async function person(label) {
   const client = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
   const s = await client.auth.signInWithPassword({ email, password });
   assert.equal(s.error, null, s.error?.message);
+  if (factor) await showSecondFactor(client);
   return { client, userId: made.data.user.id };
 }
 
@@ -52,8 +57,9 @@ const CODE = `ada-${Math.random().toString(36).slice(2, 8)}`;
 before(async () => {
   if (skip) return;
   db = createClient(URL_, KEY, { auth: { persistSession: false } });
-  partner = await person("partner");
-  customer = await person("customer");
+  partner = await person("partner", { factor: true });
+  // Becomes one too, to be told the code is taken.
+  customer = await person("customer", { factor: true });
   other = await person("other");
 });
 
@@ -757,7 +763,7 @@ test("a payout records nothing when what is payable is not what the person saw",
 });
 
 test("closing a partner takes them off every team, and a partner may still erase their account", { skip }, async () => {
-  const p3 = await person("partner3");
+  const p3 = await person("partner3", { factor: true });
   const code = `cz-${Math.random().toString(36).slice(2, 8)}`;
   ok(await p3.client.rpc("partner_become", { p_code: code }));
   const shop = await person("shop3");
@@ -797,7 +803,7 @@ test(
   "a partner's letter: what changed since their mark, for the edge alone; written moves the mark; off is off, and on starts from now",
   { skip },
   async () => {
-    const p4 = await person("partner4");
+    const p4 = await person("partner4", { factor: true });
     const code = `lt-${Math.random().toString(36).slice(2, 8)}`;
     ok(await p4.client.rpc("partner_become", { p_code: code }));
     const [{ id: p4Id, letters }] = ok(await p4.client.from("partners").select("id, letters"));
