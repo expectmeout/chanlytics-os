@@ -2,16 +2,18 @@
  * What Today says, band by band: the standing line (the chips, the count above the work, the alert), what an empty
  * queue means, the headline ladder, Ask's four facts, the recap's one line and its sentences, and the quiet day.
  *
- * Every builder here is pure over the facts today.ts computes once (`TodayFacts`) and returns one band of the view
- * model. The rows — Ask's needs-you rows, the closing windows, who is waiting with nothing back, the receipts, the
- * calls worth an ear and the queue — are built beside the facts in today.ts, and `toTodayVM` there composes the two.
- * This module imports nothing from today.ts but types, so the two cannot form a cycle.
+ * Every builder here is pure over the facts today-facts.ts computes once (`TodayFacts`) and returns one band of the
+ * view model. The rows — Ask's needs-you rows, the closing windows, who is waiting with nothing back, the receipts,
+ * the calls worth an ear and the queue — are built from the same facts in today-rows.ts and today-queue.ts, and
+ * `toTodayVM` (today-brief.ts) composes them all. This module imports nothing from its neighbours but types, so it
+ * cannot form a cycle with them.
  *
  * The words every band is built from live here too: the list join and the seconds phrase.
  */
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
 import { CHANNEL_ANSWERED } from "../lines/channels";
-import type { TodayFacts, TodayFactVM, TodayNeedsRowVM, TodayQueueEmptyVM, TodaySentenceVM, TodayVM } from "./today";
+import type { TodayFacts } from "./today-facts";
+import type { TodayFactVM, TodayNeedsRowVM, TodayQueueEmptyVM, TodaySentenceVM, TodayVM } from "./today-vm";
 
 /** "Email", "WhatsApp and Email", "WhatsApp, Texting and Email". (calendar.ts, config.ts and
  *  reports.ts each hold their own copy of this join; one home for it is a tidy of its own.) */
