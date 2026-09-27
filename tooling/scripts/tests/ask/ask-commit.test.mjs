@@ -760,7 +760,7 @@ test("an undo names the decision it reverses: the inverse call carries the commi
   );
 });
 
-test("every kind, committed and undone: each call marked as a card's, each re-reading the surfaces of the route it reached, and the lead search's receipts and undo", async () => {
+test("every kind, committed and undone: each call marked as a card's, each re-reading the surfaces of the route it reached, and the lead search's receipts and undo; a list made and deleted, a run approved and cancelled, and a run skipped with nothing to undo", async () => {
   const { ROUTES } = await import(at("apps/dashboard/src/client/routes.generated.ts"));
   // A request's route key, from its method and path, as the refresh map is keyed.
   const keyOf = (sent) => {
@@ -770,6 +770,10 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
     )?.[0];
   };
   const S1 = "55555555-5555-4555-8555-555555555551";
+  const L1 = "5e5e5e5e-0000-4000-8000-000000000001";
+  const R1 = "88888888-8888-4888-8888-888888888881";
+  const R2 = "88888888-8888-4888-8888-888888888882";
+  const rule = { v: 2, all: [{ field: "last_visit", op: "more_than", days: 60 }] };
   const answers = {
     ...ANSWERS,
     [`POST /api/v1/contacts/${P1}/notes`]: { note: { id: "n1" } },
@@ -778,6 +782,21 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
     "POST /api/v1/lead-searches": { search_id: S1, round_id: "r1" },
     [`POST /api/v1/lead-searches/${S1}/stop`]: { ok: true },
     [`POST /api/v1/lead-searches/${S1}/answer`]: { round_id: "r2", answered: "include" },
+    // The lists route's answers (segments/route.ts, segments/[id]/route.ts): the list made, then deleted.
+    "POST /api/v1/segments": { id: L1, name: "Lapsed", ids: [], rule, archived_at: null },
+    [`DELETE /api/v1/segments/${L1}`]: { deleted: true, id: L1 },
+    // A waiting run's doors (core approveRun, cancelBroadcast): approved now; cancelled once it was scheduled.
+    [`POST /api/v1/broadcasts/${R1}/approve`]: {
+      id: R1,
+      state: "scheduled",
+      recipient_count: 12,
+      scheduled_for: "2026-09-12T15:00:00.000Z",
+      moved_from: null,
+      decision_id: D(9),
+    },
+    [`POST /api/v1/broadcasts/${R1}/cancel`]: { id: R1, state: "canceled", was: "scheduled", decision_id: "x" },
+    // Another run, skipped while it waited.
+    [`POST /api/v1/broadcasts/${R2}/cancel`]: { id: R2, state: "canceled", was: "pending_approval", decision_id: "x" },
   };
   const plan = { version: 1, count: 50, terms: ["dentists"] };
   const cards = [
@@ -799,6 +818,9 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
     card("lead_search", { plan, amends: { search_id: S1, name: "Dentists" } }),
     card("note", { contact_id: P1, body: "Prefers mornings.", team_only: false, who: "Rosa" }),
     card("person_details", { contact_id: P1, email: "rosa@example.com", who: "Rosa", previous: { email: null } }),
+    card("list", { name: "Lapsed", rule, cannot: "", count: 4 }),
+    card("run", { broadcast_id: R1, verb: "approve", name: "Win-back · 2026-09-12", people: 12, timezone: "UTC" }),
+    card("run", { broadcast_id: R2, verb: "skip", name: "Win-back · 2026-09-11", people: 9, timezone: "UTC" }),
   ];
   const undone = [];
   for (const p of cards) {
@@ -828,6 +850,31 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
           ? ["Answered. Dentists carries on with your answer; Leads shows it.", null, { answer: "include", plan }]
           : ["Finding 50 dentists. It carries on if you leave; Leads shows it.", { search_id: S1 }, plan],
       );
+    if (p.kind === "list")
+      assert.deepEqual(
+        [r.receipt, r.undo, t.sent.map((s) => [s.key, s.body])],
+        [
+          "Lapsed made. It keeps itself current.",
+          { list_id: L1 },
+          [
+            ["POST /api/v1/segments", { name: "Lapsed", rule }],
+            [`DELETE /api/v1/segments/${L1}`, undefined],
+          ],
+        ],
+      );
+    if (p.kind === "run")
+      assert.deepEqual(
+        [r.receipt, t.sent.map((s) => [s.key, s.undoOf ?? null])],
+        p.payload.verb === "approve"
+          ? [
+              "Win-back · 2026-09-12 approved — 12 people, sending now",
+              [
+                [`POST /api/v1/broadcasts/${R1}/approve`, null],
+                [`POST /api/v1/broadcasts/${R1}/cancel`, D(9)],
+              ],
+            ]
+          : ["Win-back · 2026-09-11 skipped — nothing will send", [[`POST /api/v1/broadcasts/${R2}/cancel`, null]]],
+      );
   }
   assert.deepEqual(undone, [
     "reply",
@@ -842,6 +889,8 @@ test("every kind, committed and undone: each call marked as a card's, each re-re
     "lead_search",
     "note",
     "person_details",
+    "list",
+    "run:approve",
   ]);
 });
 

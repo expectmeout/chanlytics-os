@@ -11053,6 +11053,9 @@ function reachLines(reach, p) {
   const lines = reasons.map((r2, rank) => ({ ...r2, rank })).filter((r2) => r2.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words4, tone, door }) => ({ n, words: `${n} ${words4}`, tone, door }));
   return { pool: reach.pool, held: reach.heardAny + (once ? 0 : reach.heardThis) + reach.overLimit, lines };
 }
+function runDayPassed(run, today) {
+  return run.playbook_id && run.run_for && run.run_for !== today ? `This run was made for ${run.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.` : null;
+}
 function toApprovalVM(d, opts) {
   const b = d.broadcast;
   const will = b.recipient_count;
@@ -12730,6 +12733,12 @@ var ownEntry = (m, k) => Object.prototype.hasOwnProperty.call(m, k) ? m[k] : voi
 var PEOPLE_CHANGED = { type: "surface:clients" };
 
 // src/ask-proposals/campaigns.ts
+var RUN_VERBS = ["approve", "skip"];
+var cancelCall = (u) => ({
+  route: "POST broadcasts/[id]/cancel",
+  params: { id: asText(u.broadcast_id) }
+});
+var canceled = (data) => rec(data).was === "sending" ? "Stopped \u2014 it ends after this batch" : "Canceled \u2014 nothing will send";
 var broadcastSpec = {
   needs: "operator",
   gate: "approve",
@@ -12752,8 +12761,8 @@ var broadcastSpec = {
     label: () => "Cancel it, if it has not finished",
     window: "ten_minutes",
     record: (_p, data) => ({ broadcast_id: rec(data).id, decision_id: decisionOf(data) }),
-    call: (u) => ({ route: "POST broadcasts/[id]/cancel", params: { id: asText(u.broadcast_id) } }),
-    receipt: (data) => rec(data).was === "sending" ? "Stopped \u2014 it ends after this batch" : "Canceled \u2014 nothing will send"
+    call: cancelCall,
+    receipt: canceled
   },
   open: () => "broadcasts"
 };
@@ -12785,6 +12794,51 @@ var playbookSpec = {
     receipt: () => "Deleted \u2014 nothing will run"
   },
   open: () => "outbound"
+};
+function runGoes(pl, data) {
+  const d = rec(data);
+  const at2 = Date.parse(asText(d.scheduled_for));
+  const from = Date.parse(asText(d.moved_from));
+  const tz = asText(pl.timezone);
+  return tz && Number.isFinite(at2) && Number.isFinite(from) ? `scheduled for ${clockWhen(at2, tz, from)} \u2014 messages go out ${SENDING_HOURS_WORDS.between} by your clock` : "sending now";
+}
+var skipped = (data) => {
+  const was = rec(data).was;
+  return was === "sending" ? "stops after this batch" : was === "pending_approval" ? "skipped \u2014 nothing will send" : "canceled \u2014 nothing will send";
+};
+var runSpec = {
+  needs: "operator",
+  gate: "approve",
+  // The run's own doors, as the Playbooks card and the Broadcasts sheet press them: approve sends it, skip is its
+  // cancel. The verb is the card's to say (no default, the Phase 4 plan, D11): a card that says neither is never sent.
+  commit: ({ payload: pl }) => {
+    const id = idIn(pl, "broadcast_id");
+    if (!id || !RUN_VERBS.includes(pl.verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    return {
+      route: pl.verb === "approve" ? "POST broadcasts/[id]/approve" : "POST broadcasts/[id]/cancel",
+      params: { id }
+    };
+  },
+  // The Broadcasts page's words: approved, with how many and when it goes; or what the skip did.
+  receipt: ({ payload: pl }, data) => {
+    const name = asText(pl.name) || "The run";
+    if (pl.verb !== "approve") return `${name} ${skipped(data)}`;
+    const n = Number(rec(data).recipient_count ?? pl.people ?? 0);
+    return `${name} approved \u2014 ${plural(n, "person", "people")}, ${runGoes(pl, data)}`;
+  },
+  // An approved run is canceled as a broadcast is; a skip has nothing to undo.
+  undo: {
+    label: ({ payload }) => payload.verb === "approve" ? "Cancel it, if it has not finished" : null,
+    window: "ten_minutes",
+    record: (p, data) => p.payload.verb === "approve" ? { broadcast_id: rec(data).id, decision_id: decisionOf(data) } : null,
+    call: cancelCall,
+    receipt: canceled
+  },
+  // The run's sheet, where Today and the Playbooks card open it.
+  open: ({ payload }) => {
+    const id = idIn(payload, "broadcast_id");
+    return id ? `broadcasts/run:${id}` : "broadcasts";
+  }
 };
 
 // src/ask-proposals/inbox.ts
@@ -12939,6 +12993,43 @@ var leadSearchSpec = {
     if (am) return leadQuestionRoute(am.search_id);
     const sid = idIn(rec(outcome?.undo), "search_id");
     return sid ? leadsRoute({ searchId: sid, list: "all", cls: null }) : "clients/leads";
+  }
+};
+
+// src/ask-proposals/lists.ts
+var namesIn = (d, k) => Array.isArray(d[k]) ? d[k].map(asText).filter(Boolean) : [];
+var listSpec = {
+  needs: "operator",
+  gate: "approve",
+  // The route's body: the name and the rule the builder checked (cleanListRule), a list that keeps itself current. A
+  // card with no rule is none: a list kept by hand is made on People, where its people are picked.
+  commit: ({ payload: pl }) => !asText(pl.name) || !pl.rule || typeof pl.rule !== "object" ? refuseWith(PROPOSAL_WORDS.cannotApprove) : { route: "POST segments", body: { name: asText(pl.name), rule: pl.rule } },
+  // People's words for a list made by its rule, named as the route stored it.
+  receipt: ({ payload: pl }, data) => `${asText(rec(data).name ?? pl.name)} made. It keeps itself current.`,
+  undo: {
+    label: () => "Delete it",
+    window: "ten_minutes",
+    // The list the route made, by the id it answered; the route answers no ledger row, so the undo names none.
+    record: (_p, data) => {
+      const id = idIn(rec(data), "id");
+      return id ? { list_id: id } : null;
+    },
+    call: (u) => ({ route: "DELETE segments/[id]", params: { id: asText(u.list_id) } }),
+    // Deleted, or archived where something came to depend on it since (a playbook on it, a list that reads it): the
+    // route's answer says which, in People's words.
+    receipt: (data) => {
+      const d = rec(data);
+      if (d.archived !== true) return "Deleted. The people stay.";
+      const paused = namesIn(d, "paused");
+      const readBy = namesIn(d, "read_by");
+      const why = paused.length ? `${paused.join(", ")} paused` : readBy.length ? `${readBy.join(", ")} reads it` : "a playbook runs on it";
+      return `Archived, not deleted: ${why}. It comes back from Archived under your lists.`;
+    }
+  },
+  // People, at the list the route made once it is approved (the commit kept its id for the undo); People before.
+  open: (_card, outcome) => {
+    const id = idIn(rec(outcome?.undo), "list_id");
+    return id ? `clients/${listToken({ kind: "saved", id })}` : "clients";
   }
 };
 
@@ -13178,7 +13269,9 @@ var PROPOSAL_SPECS = {
   lead_search: leadSearchSpec,
   deal: dealSpec,
   note: noteSpec,
-  person_details: personDetailsSpec
+  person_details: personDetailsSpec,
+  list: listSpec,
+  run: runSpec
 };
 function proposalSpec(kind) {
   return Object.prototype.hasOwnProperty.call(PROPOSAL_SPECS, kind) ? PROPOSAL_SPECS[kind] : null;
@@ -20885,8 +20978,8 @@ function skippedReasonWords(reason) {
       return "could not be written to";
   }
 }
-function skippedWordsOf(skipped) {
-  return Object.entries(skipped).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([reason, n]) => `${n} skipped \xB7 ${skippedReasonWords(reason)}`);
+function skippedWordsOf(skipped2) {
+  return Object.entries(skipped2).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([reason, n]) => `${n} skipped \xB7 ${skippedReasonWords(reason)}`);
 }
 var STATE_WORDS = {
   pending_approval: "Waiting on you",
@@ -27548,6 +27641,7 @@ export {
   RULES_WITHOUT_FIELDS_WORDS,
   RUN_FILTERS,
   RUN_REPORT_STEPS,
+  RUN_VERBS,
   ReachOutChainSchema,
   ReachOutDecideSchema,
   ReachOutPreviewSchema,
@@ -28425,6 +28519,7 @@ export {
   rulesKept,
   rulesLine,
   rulesWithoutFieldsWords,
+  runDayPassed,
   runDueNow,
   runningTotal,
   runsWords,

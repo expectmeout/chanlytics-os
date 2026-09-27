@@ -7620,6 +7620,9 @@ var PLAYBOOK_CLASS_LABEL2 = {
   follow_up: POLICY_CLASS_WORDS2.follow_up.short,
   outreach: POLICY_CLASS_WORDS2.outreach.short
 };
+function runDayPassed(run, today) {
+  return run.playbook_id && run.run_for && run.run_for !== today ? `This run was made for ${run.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.` : null;
+}
 function playbookListRef(p) {
   if (triggerOf(p.trigger)?.kind !== "saved") return null;
   if (p.list_key) return { kind: "builtin", id: p.list_key };
@@ -13438,13 +13441,8 @@ async function approveRun(ports, cmd) {
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
   if (isReachOutRun(b.audience)) return approveReachOut(ports, b, cmd.now);
   const tz = await ports.timezone();
-  if (b.playbook_id && b.run_for && localDate(tz, cmd.now) !== b.run_for) {
-    throw new AppError(
-      "conflict",
-      `This run was made for ${b.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`,
-      409
-    );
-  }
+  const late = runDayPassed(b, localDate(tz, cmd.now));
+  if (late) throw new AppError("conflict", late, 409);
   const open = nextOpenMoment(tz, cmd.now);
   const at = open.at;
   if (!await ports.release(b.id, at)) throw new AppError("conflict", "This run just changed state; look again.", 409);

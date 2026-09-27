@@ -1,4 +1,4 @@
-import { AppError, isReachOutRun, localDate, nextOpenMoment } from "@chanlytics/contracts";
+import { AppError, isReachOutRun, localDate, nextOpenMoment, runDayPassed } from "@chanlytics/contracts";
 import type { ApproveRunPorts, BroadcastRef } from "./ports";
 
 export interface ApproveReceipt {
@@ -32,16 +32,10 @@ export async function approveRun(
   // Read BEFORE the row moves: a clock that cannot be read leaves the run
   // waiting, as it was, rather than scheduled with no job to send it.
   const tz = await ports.timezone();
-  // A playbook's run is a day's run: its people were that day's eligible and
-  // its words were written for that day ("tomorrow at 2:00 PM"). Approved on
-  // a later day it is refused, and the next sweep reads the calendar again.
-  if (b.playbook_id && b.run_for && localDate(tz, cmd.now) !== b.run_for) {
-    throw new AppError(
-      "conflict",
-      `This run was made for ${b.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`,
-      409,
-    );
-  }
+  // A playbook's run is a day's run: approved on a later day it is refused (contracts runDayPassed, the words Ask's run
+  // card refuses in too).
+  const late = runDayPassed(b, localDate(tz, cmd.now));
+  if (late) throw new AppError("conflict", late, 409);
   const open = nextOpenMoment(tz, cmd.now);
   const at = open.at;
   if (!(await ports.release(b.id, at))) throw new AppError("conflict", "This run just changed state; look again.", 409);
