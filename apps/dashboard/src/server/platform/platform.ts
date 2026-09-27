@@ -208,7 +208,7 @@ export async function platformTenant(
   return data ?? null;
 }
 
-export interface PlatformEvent {
+interface PlatformEvent {
   kind: string;
   category: string;
   subject_type: string | null;
@@ -278,7 +278,7 @@ const EDGE_OP: Record<PlatformLineAction, (tenantId: string, lineId: string) => 
   release: (tenant_id, line_id) => ({ op: "release", tenant_id, line_id }),
 };
 
-export interface PlatformActionResult {
+interface PlatformActionResult {
   ok: boolean;
   status: number;
   body: Record<string, unknown> | null;

@@ -17,7 +17,7 @@ import type { Database } from "../packages/db.js";
 import type { CalendarPerson } from "../packages/contracts.js";
 import { erasedTombstones } from "../erased.js";
 
-export interface AddedFromCalendar {
+interface AddedFromCalendar {
   seen: number;
   added: number;
   named: number;

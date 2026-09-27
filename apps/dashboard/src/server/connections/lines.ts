@@ -11,7 +11,7 @@ import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 import { deployment } from "../deployment";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
-export const LINE_COLUMNS =
+const LINE_COLUMNS =
   "id, e164, kind, provider, area_code, voice_state, sms_state, reg_step, reg_mock, reg_sole_prop, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts";
 
 /** A forwarded line's facts, in words only — never a provider id from a provisioned line's facts. */
@@ -100,7 +100,7 @@ export async function edgeLines(body: Record<string, unknown>, timeoutMs = 60_00
   }
 }
 
-export interface LinesStatus {
+interface LinesStatus {
   ready: boolean;
   provider: string | null;
   costs: { local_number_month_usd: number; toll_free_month_usd: number };
@@ -133,9 +133,4 @@ export async function linesStatus(now = Date.now()): Promise<LinesStatus> {
       : { ready: false, provider: null, costs };
   statusCache = { at: now, value };
   return value;
-}
-
-/** For tests and for a route that must not read a stale answer. */
-export function forgetLinesStatus(): void {
-  statusCache = null;
 }

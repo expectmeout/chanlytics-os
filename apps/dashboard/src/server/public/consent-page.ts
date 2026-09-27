@@ -15,7 +15,7 @@ import "server-only";
  */
 import { serviceDb } from "../service-db";
 
-export interface ConsentPageRow {
+interface ConsentPageRow {
   businessName: string;
   /** The workspace's slug, for the links to its own privacy page and terms. */
   slug: string;

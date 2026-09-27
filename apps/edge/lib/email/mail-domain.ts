@@ -37,7 +37,7 @@ const VERIFIED = "verified";
  */
 const WAS_VERIFIED: ReadonlySet<string> = new Set(["temporary_failure"]);
 
-export type MailDomainTrouble =
+type MailDomainTrouble =
   /** The provider has no such domain. EMAIL_DOMAIN names something that was never added, or was deleted. */
   | { kind: "absent" }
   /** Never verified: added and not finished (`not_started`, `pending`), or a status this code has not heard of. */
@@ -150,7 +150,7 @@ export function describeMailDomainTrouble(t: MailDomainTrouble, domain: string):
   };
 }
 
-export interface MailDomainPorts {
+interface MailDomainPorts {
   /** The deployment's mail domain (lib/email.ts emailDomain); null when email is off here, and there is nothing to check. */
   domain: string | null;
   apiKey: string | undefined;

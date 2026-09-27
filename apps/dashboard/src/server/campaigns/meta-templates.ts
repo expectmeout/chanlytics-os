@@ -4,7 +4,7 @@ import { edgeHeaders, edgeUrl } from "../edge";
 
 /* ---- Templates as Meta holds them: the edge reads the number's account ---- */
 
-export type SyncOutcome =
+type SyncOutcome =
   | { ok: true; seen: number; approved: number; marketing: number; syncedAt: string }
   | { ok: false; reason: string; detail?: string };
 
@@ -39,7 +39,7 @@ export async function syncTemplates(tenantId: string): Promise<SyncOutcome> {
 
 /* ---- Templates written here: the edge submits to Meta and keeps the row ---- */
 
-export type TemplateCreateOutcome =
+type TemplateCreateOutcome =
   { ok: true; id: string; metaStatus: string } | { ok: false; reason: string; detail?: string };
 
 export async function createTemplate(
@@ -72,7 +72,7 @@ export async function createTemplate(
   return { ok: false, reason: j.error ? String(j.error) : `edge ${r.status}`, detail: j.detail };
 }
 
-export type TemplateDeleteOutcome = { ok: true; atMeta: boolean } | { ok: false; reason: string; detail?: string };
+type TemplateDeleteOutcome = { ok: true; atMeta: boolean } | { ok: false; reason: string; detail?: string };
 
 export async function deleteTemplate(tenantId: string, templateId: string): Promise<TemplateDeleteOutcome> {
   if (!deployment.providersLive) return { ok: false, reason: "preview" };

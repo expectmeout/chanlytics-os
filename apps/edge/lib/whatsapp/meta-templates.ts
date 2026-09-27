@@ -22,7 +22,7 @@ export interface MetaTemplateComponent {
   buttons?: unknown[];
 }
 
-export interface MetaTemplate {
+interface MetaTemplate {
   id: string;
   name: string;
   language: string;
@@ -34,10 +34,9 @@ export interface MetaTemplate {
 }
 
 /** The columns' own sets (templates.meta_status, templates.category), not copies of them. */
-export type { TemplateStatus };
-export type TemplateCategory = SchemaSet<"templates.category">;
+type TemplateCategory = SchemaSet<"templates.category">;
 
-export interface TemplateVariable {
+interface TemplateVariable {
   position: number;
   label: string;
   example: string | null;
@@ -142,7 +141,7 @@ export function labelsOf(variables: unknown): TemplateVariable[] {
     .map((v) => ({ position: v.position, label: v.label, example: null }));
 }
 
-export interface TemplateRow {
+interface TemplateRow {
   tenant_id: string;
   channel: "whatsapp";
   name: string;

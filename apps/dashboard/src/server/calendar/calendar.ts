@@ -198,7 +198,7 @@ async function calendarOf(
   };
 }
 
-export function spanFor(from: string | null, days: number, tz: string, now: Date): { from: string; days: number } {
+function spanFor(from: string | null, days: number, tz: string, now: Date): { from: string; days: number } {
   const todayKey = ((): string => {
     const f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" });
     return f.format(now);
@@ -572,7 +572,7 @@ export async function calendarWeek(
 
 /* ---- A feed checked before it is saved ---- */
 
-export interface FeedPreview {
+interface FeedPreview {
   ok: true;
   events: number;
   recurring_expanded: number;

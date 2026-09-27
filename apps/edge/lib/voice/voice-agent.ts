@@ -20,7 +20,7 @@ import {
   type ProvisionSecrets,
 } from "../packages/channels.js";
 
-export interface VoiceAgent {
+interface VoiceAgent {
   llmId: string;
   llmVersion: number | null;
   agentId: string;
@@ -32,7 +32,7 @@ export interface VoiceAgent {
   publish: Record<string, unknown>;
 }
 
-export type VoiceAgentResult =
+type VoiceAgentResult =
   | { ok: true; agent: VoiceAgent }
   | {
       ok: false;

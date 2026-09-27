@@ -157,7 +157,7 @@ export async function feedItemsFor(
 }
 
 /** The openings as data, for the phone tool that answers about one day. */
-export interface OpeningsData {
+interface OpeningsData {
   openings: Opening[];
   tz: string;
   daysAhead: number;

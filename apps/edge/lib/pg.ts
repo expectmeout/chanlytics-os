@@ -21,7 +21,7 @@ export function setPg(c: SupabaseClient<Database> | null): void {
   injected = c;
 }
 
-export function pgEnabled(): boolean {
+function pgEnabled(): boolean {
   return !!env.SUPABASE_URL && !!env.SUPABASE_SERVICE_ROLE_KEY;
 }
 

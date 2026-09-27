@@ -30,7 +30,7 @@ import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type Sig
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 import { serviceDb } from "../service-db";
 
-export interface SignupOutcome {
+interface SignupOutcome {
   /** A new person: the user was made this call. Their workspace waits for their first sign-in. */
   created: boolean;
   userId: string | null;

@@ -26,14 +26,14 @@
  */
 
 /** One cookie as @supabase/ssr hands it over. Options are its own; we do not read them. */
-export interface AuthCookie {
+interface AuthCookie {
   name: string;
   value: string;
   options?: unknown;
 }
 
 /** The part of a NextResponse this needs: somewhere for cookies, somewhere for headers. */
-export interface CookieSink {
+interface CookieSink {
   cookies: { set: (name: string, value: string, options?: never) => unknown };
   headers: { set: (name: string, value: string) => unknown };
 }

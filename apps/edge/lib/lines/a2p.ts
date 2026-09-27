@@ -52,11 +52,11 @@ export function primaryProfileSid(): string | null {
 
 /** Where Twilio writes about a bundle: the platform's mailbox, never a customer's. */
 /** Twilio's contact for the filing: one address, the first of LEAD_TO when there are several. */
-export function platformEmail(): string | null {
+function platformEmail(): string | null {
   return platformTo()[0] ?? null;
 }
 
-export function businessRecordFrom(r: RecordRow): BusinessRecord {
+function businessRecordFrom(r: RecordRow): BusinessRecord {
   return {
     legalName: r.legal_name,
     tradeName: r.trade_name,
@@ -81,7 +81,7 @@ export function businessRecordFrom(r: RecordRow): BusinessRecord {
 }
 
 /** The receipts, as the row keeps them. */
-export function a2pStateFrom(l: LineRow): A2PState {
+function a2pStateFrom(l: LineRow): A2PState {
   const f = (l.facts && typeof l.facts === "object" && !Array.isArray(l.facts) ? l.facts : {}) as Record<
     string,
     unknown

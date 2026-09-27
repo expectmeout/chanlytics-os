@@ -136,7 +136,7 @@ export async function tokensLast24h(
   }
 }
 
-export interface BrainSummary {
+interface BrainSummary {
   replies: number;
   with_record: number;
   avg_confidence: number | null;

@@ -18,7 +18,7 @@ import type { LogEvent } from "../log.js";
 
 export type DraftSource = "veto_window" | "low_confidence" | "steered";
 
-export interface DraftArgs {
+interface DraftArgs {
   tenantId: string;
   conversationId: string;
   contactId: string | null;
@@ -35,7 +35,7 @@ export interface DraftArgs {
   channel?: "whatsapp" | "sms";
 }
 
-export interface DraftLog {
+interface DraftLog {
   warn(event: LogEvent, fields?: Record<string, unknown>): void;
   error(event: LogEvent, fields?: Record<string, unknown>): void;
 }

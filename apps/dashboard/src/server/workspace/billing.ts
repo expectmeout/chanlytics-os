@@ -49,7 +49,7 @@ export async function edgeBilling(body: Record<string, unknown>, timeoutMs = 20_
   }
 }
 
-export interface BillingReadiness {
+interface BillingReadiness {
   ready: boolean;
   /** Which of Stripe's worlds the edge's key opens (BillingDto's livemode); null when the edge did not say or could not be read. */
   livemode: boolean | null;
