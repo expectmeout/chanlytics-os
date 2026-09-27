@@ -36,7 +36,7 @@ const ROOT = path.join(HERE, "../../..");
 const { incomingEmailOf } = await import(pathToFileURL(path.join(ROOT, "packages/jobs/dist/index.js")).href);
 const FIXTURES = path.join(HERE, "../fixtures/replies/replies.json");
 
-/** The fixture set: the lead the replies answer, the email they answer, and the fourteen replies. */
+/** The fixture set: the lead the replies answer, the email they answer, and the replies. */
 export function loadFixtures(file = FIXTURES) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }

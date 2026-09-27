@@ -107,6 +107,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
       "lead_check",
       "push_send",
       "push_receipts",
+      "reply_read",
     ],
   );
   const handlers = readCode("packages/jobs/src/handlers.ts");
@@ -123,7 +124,8 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
   ])
     assert.ok(!handlers.includes(`${dead}:`), `${dead} is not handled and not declared`);
   // Something schedules each kind: a `schedule(...)` / `scheduleJob(...)` /
-  // `ctx.schedule(...)` call, or the draft queue's row, naming it -- or a
+  // `ctx.schedule(...)` call, their once-per-subject forms (`scheduleOnce`,
+  // `scheduleJobOnce`: a reply's reading), or the draft queue's row, naming it -- or a
   // door in SQL that inserts the job itself (the lead finder's, 00140).
   const src = sourceTree(["apps/edge", "apps/dashboard/app", "apps/dashboard/src", "packages/jobs/src"]);
   const migrations = path.join(ROOT, "supabase/migrations");
@@ -133,7 +135,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
     .map((f) => fs.readFileSync(path.join(migrations, f), "utf8"))
     .join("\n");
   for (const k of JOB_KINDS) {
-    const named = new RegExp(`(schedule(?:Job)?\\([^;]*"${k}"|kind: "${k}")`, "s");
+    const named = new RegExp(`(schedule(?:Job)?(?:Once)?\\([^;]*"${k}"|kind: "${k}")`, "s");
     const inserted = new RegExp(`insert into (?:public\\.)?jobs\\b[^;]*'${k}'`, "s");
     assert.ok(named.test(src) || inserted.test(sql), `${k} is scheduled by something`);
   }

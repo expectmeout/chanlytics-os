@@ -1,5 +1,5 @@
 /**
- * The seventeen replies (fixtures/replies/replies.json; the Part 5 plan's Task 1.5), each run through the real code a
+ * The replies (fixtures/replies/replies.json; the Part 5 plan's Task 1.5, and what the live eval added), each run through the real code a
  * reading will take: the intake's claim (jobs' incomingEmailOf), the reply's own words, the reader's fenced input (the
  * live eval's own readerInputOf), a scripted reader's answer parsed, and the plan that answer makes, held to the row of
  * G6 its intent and claim name. The eval's judge is proved here too; the model itself is asked only by the eval.
@@ -111,9 +111,9 @@ const shapeOf = (p) => ({
   tell: p.tell,
 });
 
-test("the set: fourteen replies, every intent, an automatic no, on example.com, 555-01xx numbers", () => {
-  assert.equal(set.replies.length, 17);
-  assert.equal(new Set(set.replies.map((r) => r.email.id)).size, 17);
+test("the set: every intent, an automatic no, on example.com, 555-01xx numbers", () => {
+  assert.equal(set.replies.length, 19);
+  assert.equal(new Set(set.replies.map((r) => r.email.id)).size, 19);
   for (const intent of REPLY_INTENTS)
     assert.ok(
       set.replies.some((r) => r.expect.intent === intent),
