@@ -48,7 +48,7 @@ for (const k of [
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { setStripeClient } = await import(at("apps/edge/lib/billing.ts"));
+const { setStripeClient } = await import(at("apps/edge/lib/billing/billing.ts"));
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const door = await import(at("apps/edge/api/admin/billing.ts"));
 after(() => {
