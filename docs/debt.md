@@ -71,7 +71,6 @@ argued in its commit message, and takes no row here: nothing is owed that was no
 | File length: edge `lib/google/google.ts` 957 → 959 (durations named, #1182)                                                                                        | `MIN_MS` and `HOUR_MS` imported from the home, a line each in the import Prettier writes, for `TOKEN_SLACK_MS` and `CHECK_EVERY_MS`                                                                                                                                                                              | `google.ts` is split below 800 lines                                |
 | File length: edge `lib/lines/a2p.ts` 1076 → 1078 (durations named, #1182)                                                                                          | Two constants, a line each: `TWILIO_TIMEOUT_MS = 20000`, the one timeout of the four Twilio calls, and `SYNC_READ_MS = 15000`, the sync read's. Neither is a whole minute, so the home has no name for them                                                                                                      | `a2p.ts` is split below 800 lines                                   |
 | File length: contracts `leads/lead-search.ts` 1035 → 1036 (durations named, #1182)                                                                                 | `HOUR_MS` imported from the home for `LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS`                                                                                                                                                                                                                                      | `lead-search.ts` is split below 800 lines                           |
-| File length: core `leads/runner.ts` 1274 → 1275 (durations named, #1182)                                                                                           | `MIN_MS` imported from the home, which names three: `UNKNOWN_START_GRACE_MS`, the minute clock and the claim's look-back                                                                                                                                                                                         | `runner.ts` is split below 800 lines                                |
 | Tree shape: dashboard `server/readers/` 31 → 32 modules (Ask Rewired 4.5, the Phase 4 plan's D12)                                                                  | `readers/messages.ts`, the message search reader, is Phase 4's one new reader file: the others went into the domain files that exist (one lead into `leads.ts`, one search into `searches.ts`, the pipeline into `people.ts`), and no reader's domain holds what was written and said in every thread and call   | A move splits `server/readers/` (none planned; #1161 kept it whole) |
 
 ## The numbers
@@ -83,7 +82,7 @@ fails when this block and the baselines disagree.
 
 ```text
 functions over the limit            207   of which over 200 lines: 65
-files over 800 lines                 33
+files over 800 lines                 32
 directories over 20 modules           7
 window globals                      198   names
 window publishers                   442   sites in 151 files
