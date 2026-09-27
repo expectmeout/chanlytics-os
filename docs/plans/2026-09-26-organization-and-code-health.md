@@ -267,13 +267,17 @@ scorecard's, ordered by what Phases 0 to 3 already carry.
 - **Functions** are every function declaration, expression, arrow and method with a body, in
   `apps/**` and `packages/*/src/**`, excluding `dist`, generated files and `.d.ts`. **Lines** are
   from the function's first token to its closing brace. **Branches** are cyclomatic complexity as
-  ESLint counts it: one, plus one per `if`, loop, `case`, `catch`, ternary, `&&`, `||` and `??`.
-  **Depth** is the nesting of `if`, loops, `case`, `catch` and ternaries.
+  ESLint's `complexity` counts it: one, plus one per `if`, loop, `case`, `catch`, ternary, `&&`,
+  `||`, `??`, logical assignment, `?.` and default value. **Depth** is the nesting ESLint's
+  `max-depth` counts: `if`, `switch`, `try` and loops, an else-if chain flat. A nested function
+  is its own: its branches and depth are not its container's.
 - **Globals** are property accesses on `window` whose name starts with `__`; **publishers** are
-  `Object.assign(window, {…})` calls and `window.X =` assignments.
+  `Object.assign(window, {…})` calls and `window.X =` assignments. A cast hides neither:
+  `(window as T).__X`, `(<T>window).__X`, a name bound to it (`const w = window as T; w.__X`) and
+  `const { __X } = window` count.
 - **Copies** are names declared at top level (functions and `const`/`let`) in three or more
-  files, excluding route modules (`app/**`, `apps/edge/api/**`) and tests.
-- **Casts** are `as unknown as` expressions; **tables** are `.from("<literal>")` calls outside
-  `packages/db`.
+  files, whatever their length, excluding route modules (`app/**`, `apps/edge/api/**`) and tests.
+- **Casts** are `as unknown as` expressions, however written (`(x as unknown) as T`,
+  `<T><unknown>x`); **tables** are `.from("<literal>")` calls outside `packages/db`.
 - **Dead exports** are knip's, with entries declared in `knip.json`.
 - The file set is `git ls-files`, so a checkout and a desk measure the same thing.

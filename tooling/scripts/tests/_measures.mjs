@@ -28,11 +28,12 @@ import {
   functionsIn,
   linesOf,
   windowUse,
-  topLevelNames,
+  copiesAmong,
   unknownCasts,
   tableNames,
   SOURCE,
 } from "./_ast.mjs";
+import { bank } from "./_ratchet.mjs";
 
 const LIMIT = { lines: 150, branches: 30, depth: 5 };
 const FILE_LIMIT = 800;
@@ -48,7 +49,9 @@ const SHELL = SRC.filter((f) => f.startsWith("apps/dashboard/src/"));
 /** A route module exports what the framework names (GET, POST, default); those are not copies. */
 const notARoute = (f) => !/^apps\/dashboard\/app\/|^apps\/edge\/api\//.test(f);
 
-const shellUse = () => SHELL.map((f) => [f, windowUse(parse(f))]);
+/** `{ file: n }` for each of `files` whose syntax tree `count` puts over `floor`. */
+const perFile = (files, count, floor = 0) =>
+  Object.fromEntries(files.map((f) => [f, count(parse(f))]).filter(([, n]) => n > floor));
 
 /** One entry per baseline under tests/baselines/: what it holds, and what to do when it rises. */
 export const MEASURES = [
@@ -72,14 +75,7 @@ export const MEASURES = [
   {
     name: "files over the limit",
     file: "file-length.json",
-    measure: () => {
-      const out = {};
-      for (const f of SRC) {
-        const n = linesOf(parse(f));
-        if (n > FILE_LIMIT) out[f] = n;
-      }
-      return out;
-    },
+    measure: () => perFile(SRC, linesOf, FILE_LIMIT),
     advice: "Move a domain out of it into its own module; a file over 800 lines is two files.",
   },
   {
@@ -102,7 +98,7 @@ export const MEASURES = [
     mode: "set",
     measure: () => {
       const files = {};
-      for (const [, use] of shellUse()) for (const n of use.names) files[n] = (files[n] ?? 0) + 1;
+      for (const f of SHELL) for (const n of windowUse(parse(f)).names) files[n] = (files[n] ?? 0) + 1;
       return files;
     },
     advice: "No new global: feed the surface through the seam (surface-data.ts), or reuse one that exists.",
@@ -110,55 +106,31 @@ export const MEASURES = [
   {
     name: "window publishers",
     file: "window-publishers.json",
-    measure: () => {
-      const out = {};
-      for (const [f, use] of shellUse()) if (use.publishers > 0) out[f] = use.publishers;
-      return out;
-    },
+    measure: () => perFile(SHELL, (sf) => windowUse(sf).publishers),
     advice: "Publish nothing new on window: import it, or add the name to a component that already publishes.",
   },
   {
     name: "copies",
     file: "copies.json",
-    measure: () => {
-      const files = new Map();
-      for (const f of SRC.filter(notARoute)) {
-        for (const n of new Set(topLevelNames(parse(f)))) {
-          if (n.length < 4) continue;
-          if (!files.has(n)) files.set(n, new Set());
-          files.get(n).add(f);
-        }
-      }
-      return Object.fromEntries([...files].filter(([, s]) => s.size >= COPY_LIMIT).map(([n, s]) => [n, s.size]));
-    },
+    measure: () => copiesAmong(SRC.filter(notARoute).map(parse), COPY_LIMIT),
     advice:
       "Give it one home and import it from there — a helper declared in three files is a fact spelled out three times — or, when the new one is a different thing, give it a name that says which.",
   },
   {
     name: "as unknown as",
     file: "casts.json",
-    measure: () => {
-      const out = {};
-      for (const f of SRC) {
-        const n = unknownCasts(parse(f));
-        if (n > 0) out[f] = n;
-      }
-      return out;
-    },
+    measure: () => perFile(SRC, unknownCasts),
     advice:
       "Name the shape and parse it, or narrow it with a type guard; a value laundered through unknown is a type the compiler no longer checks.",
   },
   {
     name: "table names outside packages/db",
     file: "tables.json",
-    measure: () => {
-      const out = {};
-      for (const f of SRC.filter((f) => !f.startsWith("packages/db/"))) {
-        const n = tableNames(parse(f));
-        if (n > 0) out[f] = n;
-      }
-      return out;
-    },
+    measure: () =>
+      perFile(
+        SRC.filter((f) => !f.startsWith("packages/db/")),
+        tableNames,
+      ),
     advice:
       "A table is typed once, in packages/db (CLAUDE.md, what not to introduce): add a repository or a reader there and call it.",
   },
@@ -209,4 +181,23 @@ export function sourceScan() {
       .filter(([, n]) => n > 0),
   );
   return { files, counts };
+}
+
+export const SOURCE_SCAN_BASELINE = `${TESTS_DIR}/source-scan-baseline.json`;
+
+/**
+ * The counts a bank writes for the source-scan ratchet, by the rule every ratchet banks
+ * by (`bank`, _ratchet.mjs): a file's count falls or goes, and rises only with a raise.
+ * A file in `lint`, a repo-wide lint, is exempt from the ratchet but not from the
+ * record, so its count is written as measured.
+ */
+export function bankedSourceScan(counts, baseline, raise) {
+  const held = (o) => Object.fromEntries(Object.entries(o).filter(([f]) => !baseline.lint.includes(f)));
+  const exempt = Object.entries(counts).filter(([f]) => baseline.lint.includes(f));
+  const out = { ...bank(held(counts), held(baseline.counts), { raise }), ...Object.fromEntries(exempt) };
+  return Object.fromEntries(
+    Object.keys(out)
+      .sort()
+      .map((f) => [f, out[f]]),
+  );
 }
