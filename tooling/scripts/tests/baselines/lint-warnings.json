@@ -1,0 +1,140 @@
+{
+  "apps/dashboard/src/legacy/components/ask-face.jsx": {
+    "react-hooks/exhaustive-deps": 2
+  },
+  "apps/dashboard/src/legacy/components/chart-core.jsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/legacy/components/deal-sheet.jsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/legacy/components/record-field.jsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/legacy/components/record-fold.jsx": {
+    "react-hooks/exhaustive-deps": 8
+  },
+  "apps/dashboard/src/legacy/components/record-sheet.jsx": {
+    "react-hooks/exhaustive-deps": 2
+  },
+  "apps/dashboard/src/legacy/components/step-sheet.jsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/legacy/components/topbar.jsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/legacy/demo/pages/agent-fleet.jsx": {
+    "react-hooks/exhaustive-deps": 2
+  },
+  "apps/dashboard/src/legacy/demo/pages/agent-store.jsx": {
+    "react-hooks/exhaustive-deps": 4
+  },
+  "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx": {
+    "react-hooks/exhaustive-deps": 7
+  },
+  "apps/dashboard/src/legacy/demo/pages/calendar.jsx": {
+    "react-hooks/exhaustive-deps": 6
+  },
+  "apps/dashboard/src/legacy/demo/pages/live-monitor.jsx": {
+    "react-hooks/exhaustive-deps": 3
+  },
+  "apps/dashboard/src/legacy/demo/pages/outbound.jsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/legacy/demo/pages/pipeline.jsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/legacy/demo/pages/tasks.jsx": {
+    "react-hooks/exhaustive-deps": 2
+  },
+  "apps/dashboard/src/legacy/pages/app-shell.jsx": {
+    "react-hooks/exhaustive-deps": 7
+  },
+  "apps/dashboard/src/legacy/pages/ask-hooks.jsx": {
+    "react-hooks/exhaustive-deps": 2
+  },
+  "apps/dashboard/src/legacy/pages/ask-real.jsx": {
+    "react-hooks/exhaustive-deps": 19
+  },
+  "apps/dashboard/src/legacy/pages/business-tab-gestures.jsx": {
+    "react-hooks/exhaustive-deps": 2
+  },
+  "apps/dashboard/src/legacy/pages/business-tab-open.jsx": {
+    "react-hooks/exhaustive-deps": 5
+  },
+  "apps/dashboard/src/legacy/pages/business-tab.jsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/legacy/pages/client-profile.jsx": {
+    "react-hooks/exhaustive-deps": 3
+  },
+  "apps/dashboard/src/legacy/pages/conversations.jsx": {
+    "react-hooks/exhaustive-deps": 5
+  },
+  "apps/dashboard/src/legacy/pages/first-run.jsx": {
+    "react-hooks/exhaustive-deps": 5
+  },
+  "apps/dashboard/src/legacy/pages/inbox-thread.jsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/legacy/pages/inbox.jsx": {
+    "react-hooks/exhaustive-deps": 4
+  },
+  "apps/dashboard/src/legacy/pages/leads-bench.jsx": {
+    "react-hooks/exhaustive-deps": 2
+  },
+  "apps/dashboard/src/legacy/pages/leads-map.jsx": {
+    "react-hooks/exhaustive-deps": 10
+  },
+  "apps/dashboard/src/legacy/pages/leads-real.jsx": {
+    "react-hooks/exhaustive-deps": 5
+  },
+  "apps/dashboard/src/legacy/pages/live-monitor.jsx": {
+    "react-hooks/exhaustive-deps": 5
+  },
+  "apps/dashboard/src/legacy/pages/reports-sections.jsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "apps/dashboard/src/legacy/pages/reports.jsx": {
+    "react-hooks/exhaustive-deps": 2
+  },
+  "apps/dashboard/src/legacy/pages/segments.jsx": {
+    "react-hooks/exhaustive-deps": 3
+  },
+  "apps/dashboard/src/legacy/pages/settings.jsx": {
+    "react-hooks/exhaustive-deps": 4
+  },
+  "packages/contracts/src/setup/first-run-try.ts": {
+    "@typescript-eslint/no-unused-vars": 1
+  },
+  "tooling/scripts/tests/conversations/core-reply.test.mjs": {
+    "no-unused-vars": 8
+  },
+  "tooling/scripts/tests/conversations/core-thread-verbs.test.mjs": {
+    "no-unused-vars": 2
+  },
+  "tooling/scripts/tests/lines/line-recovery.test.mjs": {
+    "no-unused-vars": 1
+  },
+  "tooling/scripts/tests/playbooks/send-rails.test.mjs": {
+    "no-unused-vars": 1
+  },
+  "tooling/scripts/tests/receptionist/business-tab/business-tab-offer.test.mjs": {
+    "no-unused-vars": 1
+  },
+  "tooling/scripts/tests/setup/first-run-page.test.mjs": {
+    "no-unused-vars": 1
+  },
+  "tooling/scripts/tests/shell/empty-failed.test.mjs": {
+    "no-unused-vars": 1
+  },
+  "tooling/scripts/tests/shell/record-kit.test.mjs": {
+    "no-unused-vars": 1
+  },
+  "tooling/scripts/tests/today/today-page.test.mjs": {
+    "no-unused-vars": 1
+  },
+  "tooling/scripts/tests/voice/retell-fn-door.test.mjs": {
+    "no-unused-vars": 1
+  }
+}

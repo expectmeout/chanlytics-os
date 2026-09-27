@@ -74,6 +74,7 @@ jobs:
       # Static analysis across the WHOLE workspace. It covered only the
       # dashboard until apps/edge — the 1,600 lines a real customer message
       # travels through — turned out to be the one unlinted thing in the repo.
+      # Warnings may only fall, per file and rule (baselines/lint-warnings.json).
       - run: pnpm lint
       # Dead exports may only fall: knip over the whole import graph, against a
       # baseline (docs/debt.md). Its own step because the graph takes a minute

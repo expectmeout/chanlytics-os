@@ -27,7 +27,7 @@ it is deleted in the same change. The plan that orders the work is
 | Table names outside `packages/db`                              | `baselines/tables.json`                                           | Zero: every read and write of a table goes through a repository or a reader in `packages/db` (`CLAUDE.md`, what not to introduce) | A reader at a time, as `src/server` is grouped by domain                                                                                                                                                                                |
 | Dead exports, types and modules                                | `baselines/dead-exports.json`, `corepack pnpm check:dead-exports` | Zero                                                                                                                              | Phase 3: a look at each (a use knip cannot see is read through a string or a test double), then delete; `assertCanSend` and `schema-agreement.ts` first                                                                                 |
 | Source-text assertions in tests                                | `source-scan-baseline.json`                                       | Zero outside the eight repo-wide lints                                                                                            | A behaviour test replaces each pin as its module is touched                                                                                                                                                                             |
-| Lint warnings                                                  | `--max-warnings` in `package.json`                                | Zero, with `exhaustive-deps` and unused names as errors                                                                           | Fix the 27 effects and the 19 unused names, lowering the number as each lands                                                                                                                                                           |
+| Lint warnings, by file and rule                                | `baselines/lint-warnings.json`                                    | Zero, with `exhaustive-deps` and unused names as errors                                                                           | Fix the effects and the unused names file by file; `corepack pnpm lint -- --update` banks each                                                                                                                                          |
 
 ## What is named and not yet measured
 
@@ -59,7 +59,7 @@ as unknown as                       223
 table names outside packages/db     535
 dead exports, types and modules     212
 source-text reads in tests          833
-lint warnings allowed                46
+lint warnings                       148   in 46 files, 129 of them exhaustive-deps
 ```
 
 <!-- measured:end -->

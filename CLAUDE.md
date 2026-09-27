@@ -34,7 +34,7 @@ of the public will experience.
 corepack pnpm install
 corepack pnpm --filter "./packages/*" build   # apps typecheck against built dist; dist is committed
 corepack pnpm -r typecheck
-corepack pnpm lint
+corepack pnpm lint                            # ESLint, warnings held per file and rule; -- --update banks a fall
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite; database suites skip without credentials
 UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet's reduction (docs/debt.md)
