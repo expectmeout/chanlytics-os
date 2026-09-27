@@ -12,7 +12,7 @@
  * Pure: the feed text comes in, the windows come out, nothing is fetched
  * here. The edge fetches and caches; tests feed fixtures.
  */
-import type { Closure, Hours } from "../config/config";
+import type { Closure, Hours } from "../config/workspace-config/business-profile";
 import { NO_LINK_DETAILS } from "../config/no-booking-link";
 
 /** A taken stretch of time, epoch milliseconds. */

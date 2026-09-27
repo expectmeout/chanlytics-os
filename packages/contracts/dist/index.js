@@ -3,7 +3,7 @@ import { z } from "zod";
 z.config({ jitless: true });
 
 // src/ask/ask.ts
-import { z as z8 } from "zod";
+import { z as z11 } from "zod";
 
 // src/config/no-booking-link.ts
 var NO_LINK_DETAILS = "their name, what they need, and where and when";
@@ -126,8 +126,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z17] = m;
-  if (z17) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z20] = m;
+  if (z20) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -555,7 +555,7 @@ function offerLead(offer) {
 }
 
 // src/leads/lead-plan.ts
-import { z as z4 } from "zod";
+import { z as z5 } from "zod";
 
 // src/email/free-mail.ts
 var FREE_MAIL_DOMAINS = /* @__PURE__ */ new Set([
@@ -583,7 +583,7 @@ function isFreeMail(host) {
 }
 
 // src/leads/lead-search.ts
-import { z as z3 } from "zod";
+import { z as z4 } from "zod";
 
 // src/shared/email-address.ts
 var MAX_ADDRESS = 254;
@@ -705,141 +705,120 @@ function formatPhoneDisplay(e164) {
   return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
 }
 
-// src/shared/time.ts
-var MIN_MS = 6e4;
-var HOUR_MS = 36e5;
-var DAY_MS = 864e5;
-var WEEK_MS = 7 * DAY_MS;
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-function spanUnits(ms2) {
-  const gap = Math.max(0, ms2);
-  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
-  const minutes = Math.round(gap / MIN_MS);
-  if (minutes < 60) return { n: minutes, unit: "m" };
-  const hours = Math.round(gap / HOUR_MS);
-  if (hours < 24) return { n: hours, unit: "h" };
-  return { n: Math.round(gap / DAY_MS), unit: "d" };
-}
-function spanLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
-}
-function waitedLabel(ms2) {
-  const u = spanUnits(ms2);
-  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
-}
-function agoShort(atMs, nowMs) {
-  return spanLabel(nowMs - atMs);
-}
-function agoWords(atMs, nowMs, opts = {}) {
-  const gap = Math.max(0, nowMs - atMs);
-  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
-  if (gap >= dateAfter && opts.date) return opts.date(atMs);
-  const u = spanUnits(gap);
-  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
-}
-function timezoneCity(tz) {
-  const tail = tz.split("/").pop() || tz;
-  return tail.replace(/_/g, " ");
-}
+// src/config/workspace-config/brain-config.ts
+import { z as z3 } from "zod";
 
-// src/calendar/feed-url.ts
-var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
-var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
-var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
-function feedUrlOk(raw) {
-  if (!raw) return null;
-  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
-  let u;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
-  const h = u.hostname;
-  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
-    return null;
-  return u.toString();
+// src/config/workspace-config/business-profile.ts
+import { z as z2 } from "zod";
+var TIME = z2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema = z2.object({ open: TIME, close: TIME });
+var HoursSchema = z2.object({
+  /** "09:00". Absent or null = closed that day, which is a real answer. */
+  open: TIME.nullable().optional(),
+  close: TIME.nullable().optional(),
+  /**
+   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+   * actually keeps. Additive: a day that has always been one stretch keeps
+   * saying so with open/close, and no stored config is rewritten.
+   */
+  intervals: z2.array(IntervalSchema).optional()
+}).strip();
+var DATE = z2.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema = z2.object({
+  date: DATE,
+  until: DATE.optional(),
+  note: z2.string().max(200).optional()
+});
+var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+var ServiceSchema = z2.object({
+  name: z2.string().min(1).max(80),
+  /** Minutes. The receptionist is asked "how long does it take" constantly. */
+  duration_min: z2.number().int().min(1).max(1440).optional(),
+  /**
+   * Free text, not a number, and deliberately so: "from $45", "quoted at
+   * consult", "varies by length". A price the business cannot state flatly
+   * must not be forced into a field that looks like it can.
+   */
+  price_note: z2.string().max(120).optional()
+}).strip();
+var GuardrailsSchema = z2.object({
+  never_quote_prices: z2.boolean().optional(),
+  never_confirm_booking: z2.boolean().optional(),
+  disclose_ai: z2.boolean().optional(),
+  /**
+   * OPT-IN, unlike the three above. Those default on because absent means
+   * "the safe reading"; this one arrived after prompts were live, and a
+   * rule that defaulted on would have changed every composed prompt in
+   * production the moment it deployed.
+   */
+  no_health_advice: z2.boolean().optional()
+}).strip();
+function guardrailsInForce(g) {
+  return {
+    never_quote_prices: g?.never_quote_prices !== false,
+    never_confirm_booking: g?.never_confirm_booking !== false,
+    disclose_ai: g?.disclose_ai !== false,
+    no_health_advice: g?.no_health_advice === true
+  };
 }
-var FEED_REDIRECTS_MAX = 3;
-async function fetchPublic(fetchImpl, raw, init = {}) {
-  let at2 = feedUrlOk(raw);
-  for (let hop = 0; at2 && hop <= FEED_REDIRECTS_MAX; hop += 1) {
-    const res = await fetchImpl(at2, { ...init, redirect: "manual" });
-    if (res.status >= 300 && res.status < 400) {
-      const next = res.headers.get("location");
-      await res.body?.cancel().catch(() => void 0);
-      at2 = next ? feedUrlOk(URL.canParse(next, at2) ? new URL(next, at2).toString() : null) : null;
-      continue;
-    }
-    return res;
-  }
-  return null;
-}
-var FEED_GUIDES = [
-  {
-    name: "Google Calendar",
-    steps: [
-      "On a computer, open Google Calendar and go to Settings.",
-      "Under \u201CSettings for my calendars\u201D, pick the calendar your appointments land in.",
-      "Open \u201CIntegrate calendar\u201D and copy \u201CSecret address in iCal format\u201D."
-    ]
-  },
-  {
-    name: "Apple Calendar (iCloud)",
-    steps: [
-      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your appointments land in.",
-      "Turn on Public Calendar, then Share Link, and copy it."
-    ]
-  },
-  {
-    name: "Outlook",
-    steps: [
-      "In Outlook on the web, open Settings, then Calendar, then Shared calendars.",
-      "Under \u201CPublish a calendar\u201D, pick your calendar and \u201CCan view when I'm busy\u201D, then Publish.",
-      "Copy the ICS link."
-    ]
-  }
-];
-var FEED_CHECK_WORDS = {
-  guide: "Where do I find it?",
-  reading: "Reading it\u2026",
-  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new appointments as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
-};
-var FEED_MAX_BYTES = 2e6;
-function feedProblemWords(reason, status) {
-  switch (reason) {
-    case "address":
-      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
-    case "unreachable":
-      return "The calendar could not be reached. Check the address and try again.";
-    case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
-    case "too_large":
-      return "That feed is too large to read (over 2 MB).";
-    case "not_ical":
-      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
-    case "settings":
-      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
-    default:
-      return null;
-  }
-}
-function feedBodyProblem(text) {
-  if (text.length > FEED_MAX_BYTES) return "too_large";
-  if (!/BEGIN:VCALENDAR/i.test(text)) return "not_ical";
-  return null;
-}
-function offeringHorizon(now, daysAhead) {
-  return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
-}
-function seasonHorizon(now, daysAhead = 0) {
-  return { from: now.getTime() - DAY_MS * 90, to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS };
-}
-function previewHorizon(now) {
-  return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
-}
+var NoteSchema = z2.object({
+  title: z2.string().min(1).max(80),
+  text: z2.string().min(1).max(1200)
+}).strip();
+var BookingRulesSchema = z2.object({
+  /** Least notice for a slot, in hours. Absent = 2. */
+  lead_hours: z2.number().int().min(0).max(168).optional(),
+  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
+  buffer_min: z2.number().int().min(0).max(120).optional(),
+  /** How far ahead open times are offered, in days. Absent = 14. */
+  max_days_ahead: z2.number().int().min(1).max(90).optional(),
+  /** The shortest window worth naming, in minutes. Absent = 30. */
+  slot_min: z2.number().int().min(15).max(240).optional(),
+  /** Services that need a consultation before they can be booked. */
+  consult_first: z2.array(z2.string().min(1).max(80)).max(20).optional(),
+  party_max: z2.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z2.boolean().optional(),
+  /** Anything else about booking, one short line each. */
+  notes: z2.array(z2.string().min(1).max(200)).max(10).optional()
+}).strip();
+var E164 = /^\+[1-9]\d{6,14}$/;
+var INSTRUCTIONS_MAX = 2e4;
+var BusinessProfileSchema = z2.object({
+  address: z2.string().max(300).optional(),
+  hours: z2.partialRecord(z2.enum(DAYS), HoursSchema).optional(),
+  /** Dates the business is shut regardless of the weekly grid. */
+  closures: z2.array(ClosureSchema).optional(),
+  services: z2.array(ServiceSchema).max(60).optional(),
+  languages: z2.array(z2.string().min(2).max(40)).max(8).optional(),
+  guardrails: GuardrailsSchema.optional(),
+  /** What must reach a person. One short line each. */
+  escalate_when: z2.array(z2.string().min(1).max(200)).max(20).optional(),
+  tone: z2.string().max(200).optional(),
+  /**
+   * The line a PERSON answers. The phone receptionist warm-transfers here
+   * during opening hours; absent, it takes a message instead. Never the
+   * receptionist's own line — that would ring itself.
+   */
+  handoff_number: z2.string().regex(E164, "E.164, like +12125550143").optional(),
+  website: z2.string().url().max(500).optional(),
+  notes: z2.array(NoteSchema).max(10).optional(),
+  booking_rules: BookingRulesSchema.optional(),
+  /**
+   * Anything the owner wants said that no field covers.
+   *
+   * The escape hatch that keeps this model honest — without it, structuring
+   * the facts would mean losing whatever did not fit, and the first migration
+   * would be a downgrade.
+   *
+   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
+   * the form carries that prompt into it.
+   */
+  extra_instructions: z2.string().max(INSTRUCTIONS_MAX).optional()
+}).strip();
 
 // src/config/facts.ts
 var trimmed = (v) => {
@@ -993,1254 +972,7 @@ function changedConfigFields(before, after) {
   return keys.filter((k) => JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null));
 }
 
-// src/config/config.ts
-import { z as z2 } from "zod";
-
-// src/shared/enums.ts
-var TENANT_STATUSES = ["active", "paused", "test"];
-var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
-var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
-var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
-var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
-var MESSAGE_DIRECTIONS = ["inbound", "outbound"];
-var MESSAGE_SENDERS = ["customer", "ai", "human", "system"];
-var MESSAGE_TYPES = ["text", "template", "media", "call_summary", "note"];
-var MESSAGE_STATUSES = ["received", "queued", "sent", "delivered", "read", "failed", "canceled"];
-var CONSENT_STATES = ["unknown", "opted_in", "opted_out"];
-var JOB_KINDS = [
-  "outbound_send",
-  "broadcast_send",
-  /**
-   * A line's provisioning saga, run under the ledger's lease and resumed by
-   * the heartbeat if a worker dies (00109). The saga itself stays on the
-   * edge with the provider's credentials and is injected into the tick.
-   */
-  "line_provision",
-  /**
-   * One received email, fetched from the provider and taken in (00127). The
-   * webhook that announces it is a pointer, and a fetch can fail, so intake is
-   * a job: once per mailbox however often the webhook is replayed, and resumed
-   * where an interrupted run stopped. The fetch stays on the edge with the
-   * provider's key and is injected into the tick.
-   */
-  "email_ingest",
-  /**
-   * The lead finder (00140, PRD v3 §12.5). lead_round_start starts one round:
-   * a run per term, each claimed before the provider is called. lead_collect
-   * reads one page of one run, judges it and commits it in one transaction;
-   * seq is p<offset> for a page, final from the webhook, s<minute> from the
-   * sweep, stop from the stop door. lead_check checks one batch of emails. A
-   * provider's 429 or 5xx throws and is tried again by RETRY_WAITS_MS.
-   */
-  "lead_round_start",
-  "lead_collect",
-  "lead_check",
-  /**
-   * One kept notification (00057) to every phone of the people it is for
-   * (00162). Scheduled by the edge's notify when the row's kind is one of
-   * contracts PUSH_KINDS; a transport failure throws and is tried again by
-   * RETRY_WAITS_MS. Internal work: a second claim runs it again.
-   */
-  "push_send",
-  /**
-   * The receipts of one push_send, read a quarter of an hour on (00189):
-   * Expo's ticket says the service took a message, its receipt says whether
-   * the phone did, and a phone answered gone is forgotten here. Carries the
-   * tickets in its payload; a transport failure throws and is tried again.
-   */
-  "push_receipts"
-];
-var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
-var WABA_FIELDS = [
-  "phone_number_quality_update",
-  "account_update",
-  "message_template_status_update",
-  "account_review_update",
-  "message_template_quality_update",
-  "template_category_update"
-];
-var EVENT_KINDS = [
-  "message.received",
-  "message.sent",
-  "contact.consent_changed",
-  "usage.llm_tokens",
-  "usage.wa_conversation",
-  "ingest.allowlist_skip",
-  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
-  "ingest.unreachable_sender",
-  "message.send_failed",
-  "message.send_blocked",
-  "message.send_raced_cancel",
-  "conversation.reopened",
-  "conversation.pause_expired",
-  "contact.erased",
-  "setup.requested",
-  "voice.provisioned",
-  "line.answering",
-  "line.failed",
-  "line.released",
-  "line.forwarding_verified",
-  /**
-   * Somebody at Chanlytics acted on a workspace they are not a member of.
-   *
-   * The back office's write half. Recorded BEFORE the action, and the action is
-   * refused if it cannot be recorded: a cross-tenant write that nobody can be
-   * held to is worse than one that did not happen. What happened next is the
-   * line's own event, written by the edge, immediately after this one.
-   */
-  "platform.acted",
-  /** The carriers answered: texting is on, the business is through, or it came back. */
-  "line.texting_on",
-  "line.texting_approved",
-  "line.texting_rejected",
-  /** The business on record for the carriers, saved or changed. */
-  "business.recorded",
-  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
-  "google.linked",
-  "google.unlinked",
-  "google.reviews",
-  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
-  "google.connected",
-  "google.disconnected",
-  "google.replied",
-  "workspace.created",
-  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
-  "settings.changed",
-  "policy.changed",
-  "billing.updated",
-  "billing.paused",
-  "billing.resumed",
-  /** A call: the row (00007) and the seconds it cost. */
-  "call.recorded",
-  "usage.voice_seconds",
-  /** The assistant's model usage, per turn (ask-gateway). */
-  "usage.ask_tokens",
-  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
-  "webhook.auth",
-  "webhook.delivery",
-  /** A person who came from the calendar or a hand, not from a message (00053). */
-  "contact.added",
-  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
-  "contact.named",
-  "contact.noted",
-  /** A note changed, taken away, or the receptionist's suggestion kept or dismissed (00157, 0007). Never the words. */
-  "contact.note_changed",
-  "contact.note_removed",
-  "contact.note_suggested",
-  "contact.note_kept",
-  "contact.note_dismissed",
-  "contact.note_done",
-  "contact.note_undone",
-  "contact.email_set",
-  /** A person's proposal link set or cleared at the desk (00154). Never the address. */
-  "contact.proposal_set",
-  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
-  "contact.email_suppressed",
-  /** An inbound the router could not place on any workspace. */
-  "ingest.unroutable",
-  /** A reply skipped because its veto window had already been spent. */
-  "policy.veto_window_skipped",
-  /** The sweep woke a snooze whose time had passed (00082). */
-  "conversation.snooze_expired",
-  /** A broadcast finished, with its tally; a playbook made a run. */
-  "broadcast.sent",
-  "playbook.run",
-  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
-  "channel.connected",
-  /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
-  "mailbox.created",
-  "mailbox.renamed",
-  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
-   * removed. The host and the reason, never the provider's id. */
-  "sending_domain.added",
-  "sending_domain.verified",
-  "sending_domain.held",
-  "sending_domain.released",
-  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
-  "sending_domain.resumed",
-  "sending_domain.removed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
-  "lead.round",
-  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
-  "lead.no_card",
-  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
-  "lead.stage",
-  "lead.emailed",
-  "lead.call",
-  "lead.converted",
-  "lead.not_a_fit",
-  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
-  "deal.proposed",
-  "deal.won",
-  "deal.lost",
-  "deal.ended",
-  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
-  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
-  "partner.attributed",
-  "partner.code_ignored",
-  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
-  // standing the sweep decided for a workspace once it had paid.
-  "partner.earned",
-  "partner.reversed",
-  "partner.standing_set",
-  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid",
-  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
-  "partner.handover_sent",
-  "partner.handover_accepted",
-  "partner.handover_declined"
-];
-var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
-var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
-var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
-var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
-var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
-function optInPurposeOf(text) {
-  if (MARKETING_OPT_IN_PATTERN.test(text)) return "marketing";
-  if (CONVERSATION_OPT_IN_PATTERN.test(text)) return "conversational";
-  return null;
-}
-var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
-function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
-  const digits2 = String(numberE164 ?? "").replace(/\D/g, "");
-  if (digits2.length < 8) return null;
-  return `https://wa.me/${digits2}?text=${encodeURIComponent(phrase)}`;
-}
-var ESCALATION_REASONS = [
-  "human_token",
-  "non_text",
-  "refusal",
-  "rate_cap",
-  "policy_block",
-  "send_failed",
-  "deadman",
-  "brain_error",
-  "manual",
-  "opt_out",
-  "state_unavailable",
-  /** Delivered so late that an automated reply would arrive out of nowhere. */
-  "stale",
-  /** The owner set the receptionist to Ask or Never for THIS person; the
-   *  thread is theirs to answer. A choice about one customer, never a
-   *  workspace setting. */
-  "person_hold",
-  /** The workspace's day of model tokens is spent (limits.max_llm_tokens_day). */
-  "budget",
-  /** A booking or a service/pricing question, with that class set to Ask me first on the Autonomy pane: a person answers. */
-  "policy_ask",
-  /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
-  "callback",
-  /** The workspace is paused (billing): calls only take a message and messages wait for a person, until it resumes. */
-  "paused",
-  /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
-  "carriers",
-  /** An email a person must read before anyone answers it (00127). */
-  "email_review"
-];
-var ESCALATION_STATES = ["open", "resolved"];
-var DECISION_VERBS = [
-  "approve",
-  "edit",
-  "decline",
-  "snooze",
-  "wake",
-  "take_over",
-  "hand_back",
-  "resolve",
-  "archive",
-  "reply",
-  "cancel_send",
-  "pause_agent",
-  "resume_agent",
-  /**
-   * What one member can do to another.
-   *
-   * The ledger recorded every conversation verb and nothing about the team —
-   * the one table where "who did this" is hardest to reconstruct afterwards
-   * and matters most. Promoting someone to owner hands them billing, the
-   * ability to remove everyone else, and the receptionist's voice.
-   *
-   * These must stay in step with decisions_verb_check (migration 00023): the
-   * database rejects a verb this list allows, and a verb the database allows
-   * but this omits cannot be written by any typed caller.
-   */
-  "invite",
-  "revoke_invite",
-  "change_role",
-  "remove_member",
-  /**
-   * The only irreversible verb. privacy.html promises deletion on verified
-   * request; this is the record that it happened, on subject_type 'contact',
-   * and it survives the data it destroyed. Written by the owner (actor_type
-   * 'user'), and again by the route for a leg that finished after the rows
-   * were gone — the storage sweep.
-   */
-  "erase",
-  /**
-   * A sentence handed to the phone receptionist mid-call, heard by it alone
-   * and worked into its next answer (Retell update-live-call). Subject
-   * 'call'. The ledger keeps the words: they are the operator's, and they
-   * changed what a customer was told.
-   */
-  "whisper",
-  /**
-   * A business connected its own channel (Embedded Signup): subject
-   * 'channel', payload the number, the WABA and the registration outcome.
-   * The one verb whose consequence is a credential in Vault.
-   */
-  "connect_channel",
-  /**
-   * A customer's answer about marketing messages, recorded by the person
-   * who heard it: subject 'contact', payload the answer, how it was given,
-   * and what it was before. The record a broadcast stands on.
-   */
-  "consent_change",
-  /**
-   * A broadcast: one approved template to the people who said yes. The
-   * decision to send (subject 'broadcast', payload the template, the
-   * audience and the count) and the decision to stop one.
-   */
-  "send_broadcast",
-  "cancel_broadcast",
-  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
-  "start_playbook",
-  "pause_playbook",
-  /**
-   * An answer to a review on Google, in the business's own words: subject
-   * 'review' (the row's id), payload the words and when Google took them.
-   * Replaces the previous answer; Google keeps one per review.
-   */
-  "reply_review",
-  /**
-   * A copy of the workspace's data left the building: everyone as a CSV, a
-   * thread, a call, or the whole workspace. Subject "workspace" for the two
-   * that carry everyone; the thread's or the call's own row for the others.
-   * The one verb an auditor asks about that the ledger did not keep.
-   */
-  "export",
-  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
-  "end_call",
-  "record_deal",
-  /**
-   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
-   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
-   */
-  "make_list",
-  "rename_list",
-  "change_list_rule",
-  "add_to_list",
-  "drop_from_list",
-  "archive_list",
-  "restore_list",
-  "delete_list",
-  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
-  "import"
-];
-var DECISION_SUBJECTS = [
-  "conversation",
-  "escalation",
-  "draft",
-  "lead",
-  "message",
-  "agent",
-  "membership",
-  "invitation",
-  "contact",
-  "call",
-  "channel",
-  "broadcast",
-  "playbook",
-  "review",
-  /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
-  "workspace",
-  "deal",
-  /** One of the workspace's own lists (segments): its life, in the ledger (00169). */
-  "list"
-];
-var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
-var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
-
-// src/config/unknown-keys.ts
-var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-function keysLeftOut(raw, kept, at2 = []) {
-  if (Array.isArray(raw) && Array.isArray(kept)) {
-    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at2, i]) : []);
-  }
-  if (!isJsonObject(raw) || !isJsonObject(kept)) return [];
-  return Object.entries(raw).flatMap(([k, v]) => {
-    if (v === void 0) return [];
-    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at2, k]) : [[...at2, k]];
-  });
-}
-function refuseUnknownFields(read, raw, ctx) {
-  const parsed = read.safeParse(raw);
-  if (!parsed.success) return;
-  const byObject = /* @__PURE__ */ new Map();
-  for (const where of keysLeftOut(raw, parsed.data)) {
-    if (where.length < 2) continue;
-    const path = where.slice(0, -1);
-    const id = JSON.stringify(path);
-    const held = byObject.get(id) ?? { path, keys: [] };
-    held.keys.push(String(where[where.length - 1]));
-    byObject.set(id, held);
-  }
-  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
-}
-
-// src/config/config.ts
-var ROLES = MEMBERSHIP_ROLES;
-var TEAM_ROLES = ["owner", "operator", "viewer"];
-var ROLE_PERMS = {
-  // `settings` is the business details and who is alerted: PUT /settings is
-  // owner-only, and the form used to open on the autonomy gate, which let an
-  // operator fill it in and be refused at Save.
-  // `export` is the whole customer list as a file: a member sees these
-  // people a screen at a time, the owner may take them all at once.
-  // `find` is the lead finder: starting a search, keeping a lead from review,
-  // putting one back. Each spends the month's allowance, so it is the
-  // owner's, and the partner's (PRD v3 §16.6, S9); has_permission() in 00140
-  // (widened in 00201) says the same, and lead-engine.db.test.mjs holds the
-  // two together.
-  // `partner` (decision 0012) is the member who brought the workspace and sets
-  // it up for its owner: everything setting up and running the receptionist
-  // takes, and nothing that touches the money, the team, or the customer list
-  // as a file. `disconnect` is the channel permission both ways: a partner
-  // gets the line and connects WhatsApp, and may disconnect them again.
-  owner: {
-    approve: true,
-    autonomy: true,
-    disconnect: true,
-    billing: true,
-    team: true,
-    settings: true,
-    export: true,
-    find: true
-  },
-  operator: {
-    approve: true,
-    autonomy: true,
-    disconnect: false,
-    billing: false,
-    team: false,
-    settings: false,
-    export: false,
-    find: false
-  },
-  partner: {
-    approve: true,
-    autonomy: true,
-    disconnect: true,
-    billing: false,
-    team: false,
-    settings: true,
-    export: false,
-    find: true
-  },
-  viewer: {
-    approve: false,
-    autonomy: false,
-    disconnect: false,
-    billing: false,
-    team: false,
-    settings: false,
-    export: false,
-    find: false
-  }
-};
-var POLICY_CLASSES = [
-  "reply",
-  "booking",
-  "faq",
-  "reengage",
-  "campaign",
-  "reviews",
-  "money",
-  "follow_up",
-  "outreach"
-];
-var POLICY_CLASS_WORDS = {
-  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
-  faq: {
-    name: "Service & pricing questions",
-    short: "Questions",
-    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
-  },
-  booking: {
-    name: "Book \xB7 reschedule",
-    short: "Bookings",
-    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
-  },
-  reengage: {
-    name: "Re-engage quiet customers",
-    short: "Re-engage",
-    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  campaign: {
-    name: "Standing offers",
-    short: "Offers",
-    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
-  },
-  reviews: {
-    name: "Google reviews",
-    short: "Reviews",
-    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
-  },
-  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
-  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
-  follow_up: {
-    name: "Proposal follow-ups",
-    short: "Follow-ups",
-    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
-  },
-  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
-  outreach: {
-    name: "Cold email to businesses a search found",
-    short: "Reach-outs",
-    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
-  }
-};
-var POLICY_MODES = ["auto", "veto", "ask", "never"];
-var POLICY_MODE_WORDS = {
-  auto: { head: "Sends it", sub: "right away", chip: "sends it", does: "Sends it right away." },
-  veto: {
-    head: "Holds it",
-    sub: "you can stop it",
-    chip: "holds it",
-    does: "Writes it, holds it, and sends it unless you stop it."
-  },
-  ask: {
-    head: "Asks you",
-    sub: "nothing sent",
-    chip: "asks you",
-    does: "Waits for you. Nothing is sent until you say so."
-  },
-  never: { head: "Stays quiet", sub: "nothing happens", chip: "stays quiet", does: "Stays out of it entirely." }
-};
-var POLICY_CLASS_MODES = {
-  reply: ["auto", "veto", "ask", "never"],
-  booking: ["auto", "ask"],
-  faq: ["auto", "ask"],
-  reengage: ["auto", "veto", "ask", "never"],
-  campaign: ["auto", "veto", "ask", "never"],
-  reviews: ["auto", "ask", "never"],
-  money: ["never"],
-  follow_up: ["auto", "ask", "never"],
-  // Cold email never goes the moment a run is made: a chain's first run waits for its owner whatever the mode, and a
-  // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
-  outreach: ["veto", "ask", "never"]
-};
-function policyClassOfIntent(intent) {
-  if (intent === "booking") return "booking";
-  if (intent === "pricing" || intent === "services") return "faq";
-  return null;
-}
-function policyAskClass(policy, intent) {
-  const cls = policyClassOfIntent(intent);
-  if (!cls) return null;
-  const mode = policy?.[cls]?.mode ?? "auto";
-  return mode === "auto" ? null : cls;
-}
-function bookingHeld(policy) {
-  return policyAskClass(policy, "booking") === "booking";
-}
-function policyRules(policy, channel) {
-  const out = [];
-  const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
-  const voice = channel === "voice";
-  if (modeOf("booking") !== "auto") {
-    out.push(
-      voice ? "Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name." : "Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true."
-    );
-  }
-  if (modeOf("faq") !== "auto") {
-    out.push(
-      voice ? "Service and pricing questions: do not answer them yourself. Say a member of the team will call them back with the details, and take their name." : "Service and pricing questions: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true."
-    );
-  }
-  return out;
-}
-var PolicyLimitsSchema = z2.object({
-  max_replies_day: z2.number().int().min(1).max(200).optional(),
-  pause_hours: z2.number().int().min(1).max(168).optional(),
-  /**
-   * How long the receptionist WAITS before its own reply goes out, in ms.
-   *
-   * Only meaningful when mode is 'veto'. A text channel is not a phone
-   * call — nobody expects an answer in under a second — so the delay costs
-   * the customer nothing and buys the business a window to redirect the bot
-   * before it speaks, rather than apologising for it afterwards.
-   */
-  reply_delay_ms: z2.number().int().min(5e3).max(6e5).optional(),
-  /**
-   * The confidence dial. Under 'auto', a reply the model is less sure about
-   * than this waits in the hold window (reply_delay_ms) for a person instead
-   * of going straight out — sure enough sends itself, not sure enough waits.
-   * 0 or absent means off.
-   */
-  min_confidence: z2.number().min(0).max(1).optional(),
-  /**
-   * The day's token budget: model tokens in and out over a rolling 24
-   * hours, read from the usage events every reply writes. Over it the
-   * receptionist stops and files a `budget` escalation, as it does at the
-   * reply cap. 0 or absent is off; a value is at least a thousand, because
-   * a budget of ten would be a mute button with a misleading name.
-   */
-  max_llm_tokens_day: z2.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
-}).strict();
-var TIME = z2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema = z2.object({ open: TIME, close: TIME });
-var HoursSchema = z2.object({
-  /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: TIME.nullable().optional(),
-  close: TIME.nullable().optional(),
-  /**
-   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-   * actually keeps. Additive: a day that has always been one stretch keeps
-   * saying so with open/close, and no stored config is rewritten.
-   */
-  intervals: z2.array(IntervalSchema).optional()
-}).strip();
-var DATE = z2.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema = z2.object({
-  date: DATE,
-  until: DATE.optional(),
-  note: z2.string().max(200).optional()
-});
-var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema = z2.object({
-  name: z2.string().min(1).max(80),
-  /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z2.number().int().min(1).max(1440).optional(),
-  /**
-   * Free text, not a number, and deliberately so: "from $45", "quoted at
-   * consult", "varies by length". A price the business cannot state flatly
-   * must not be forced into a field that looks like it can.
-   */
-  price_note: z2.string().max(120).optional()
-}).strip();
-var GuardrailsSchema = z2.object({
-  never_quote_prices: z2.boolean().optional(),
-  never_confirm_booking: z2.boolean().optional(),
-  disclose_ai: z2.boolean().optional(),
-  /**
-   * OPT-IN, unlike the three above. Those default on because absent means
-   * "the safe reading"; this one arrived after prompts were live, and a
-   * rule that defaulted on would have changed every composed prompt in
-   * production the moment it deployed.
-   */
-  no_health_advice: z2.boolean().optional()
-}).strip();
-function guardrailsInForce(g) {
-  return {
-    never_quote_prices: g?.never_quote_prices !== false,
-    never_confirm_booking: g?.never_confirm_booking !== false,
-    disclose_ai: g?.disclose_ai !== false,
-    no_health_advice: g?.no_health_advice === true
-  };
-}
-var NoteSchema = z2.object({
-  title: z2.string().min(1).max(80),
-  text: z2.string().min(1).max(1200)
-}).strip();
-var BookingRulesSchema = z2.object({
-  /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z2.number().int().min(0).max(168).optional(),
-  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z2.number().int().min(0).max(120).optional(),
-  /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z2.number().int().min(1).max(90).optional(),
-  /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z2.number().int().min(15).max(240).optional(),
-  /** Services that need a consultation before they can be booked. */
-  consult_first: z2.array(z2.string().min(1).max(80)).max(20).optional(),
-  party_max: z2.number().int().min(1).max(20).optional(),
-  /**
-   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
-   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
-   */
-  ask_email: z2.boolean().optional(),
-  /** Anything else about booking, one short line each. */
-  notes: z2.array(z2.string().min(1).max(200)).max(10).optional()
-}).strip();
-var E164 = /^\+[1-9]\d{6,14}$/;
-var INSTRUCTIONS_MAX = 2e4;
-var BusinessProfileSchema = z2.object({
-  address: z2.string().max(300).optional(),
-  hours: z2.partialRecord(z2.enum(DAYS), HoursSchema).optional(),
-  /** Dates the business is shut regardless of the weekly grid. */
-  closures: z2.array(ClosureSchema).optional(),
-  services: z2.array(ServiceSchema).max(60).optional(),
-  languages: z2.array(z2.string().min(2).max(40)).max(8).optional(),
-  guardrails: GuardrailsSchema.optional(),
-  /** What must reach a person. One short line each. */
-  escalate_when: z2.array(z2.string().min(1).max(200)).max(20).optional(),
-  tone: z2.string().max(200).optional(),
-  /**
-   * The line a PERSON answers. The phone receptionist warm-transfers here
-   * during opening hours; absent, it takes a message instead. Never the
-   * receptionist's own line — that would ring itself.
-   */
-  handoff_number: z2.string().regex(E164, "E.164, like +12125550143").optional(),
-  website: z2.string().url().max(500).optional(),
-  notes: z2.array(NoteSchema).max(10).optional(),
-  booking_rules: BookingRulesSchema.optional(),
-  /**
-   * Anything the owner wants said that no field covers.
-   *
-   * The escape hatch that keeps this model honest — without it, structuring
-   * the facts would mean losing whatever did not fit, and the first migration
-   * would be a downgrade.
-   *
-   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
-   * the form carries that prompt into it.
-   */
-  extra_instructions: z2.string().max(INSTRUCTIONS_MAX).optional()
-}).strip();
-var BrainConfigSchema = z2.object({
-  business_name: z2.string().min(1).max(120),
-  /**
-   * The number the receptionist tells customers to call — an OVERRIDE, and
-   * optional because it should almost never be set.
-   *
-   * It was required, free text, and named the same as the line the
-   * receptionist answers, so every workspace typed something into it and
-   * nothing checked what. On the first live salon that produced a
-   * receptionist publishing the number it transfers to: customers who rang
-   * it reached a person's mobile and never the receptionist standing by,
-   * and the same string went to Google.
-   *
-   * Absent is now the right answer and the default: resolveFacts falls back
-   * to the provisioned voice line, formatted for speech, so the number
-   * published is the number answered by construction. A value here means a
-   * business deliberately publishes something else — a tracking line, a
-   * shopfront — and the pane says so in those words.
-   */
-  phone_display: z2.string().min(3).max(40).optional(),
-  /**
-   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
-   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
-   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
-   */
-  booking_link: z2.string().url().max(500).optional(),
-  /** The complete system prompt the model receives — the "AI memory" pane's
-   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z2.string().min(40).max(INSTRUCTIONS_MAX),
-  /**
-   * The business's facts, as fields.
-   *
-   * Optional: every config written before this existed stays valid, and
-   * nothing composes until a workspace actually fills it in. When present
-   * it REPLACES system_prompt as the source the prompt is built from.
-   */
-  profile: BusinessProfileSchema.optional(),
-  fallbacks: z2.object({
-    /** Sent when no model key is configured. */
-    greeting: z2.string().min(1).max(2e3),
-    /** Sent when the model call failed. */
-    error: z2.string().min(1).max(2e3),
-    /** Sent for voice notes / photos before escalating. */
-    non_text: z2.string().min(1).max(2e3)
-  }).strip()
-}).strip();
-function newReceptionistDefaults(businessName) {
-  return {
-    system_prompt: baselinePrompt(businessName),
-    // What a customer reads when the model cannot be reached: the product's
-    // wording, naming the business's details rather than copying them, so they
-    // are filled as each message goes out and follow the details from then on
-    // (fallbackMessages, S5). Copied, a workspace set up before its line existed
-    // told customers "call us at .", and a new booking link never reached them.
-    fallbacks: { ...FALLBACK_DEFAULTS }
-  };
-}
-var BASELINE_OPENING = "You are the assistant for ";
-var BASELINE_CLOSING = ", answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.";
-function baselinePrompt(businessName) {
-  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
-}
-function isBaselinePrompt(text) {
-  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
-}
-function instructionsDraft(brain) {
-  const whose = whoseWords(brain);
-  if (whose.kind === "own") return { text: whose.text, carried: false };
-  return whose.kind === "carried" || whose.kind === "prompt" ? { text: whose.text, carried: true } : { text: "", carried: false };
-}
-var NotificationsConfigSchema = z2.object({
-  escalation_emails: z2.array(z2.string().email()).min(1).max(10),
-  from: z2.string().max(200).optional()
-}).strip();
-var CalendarConfigSchema = z2.object({
-  ical_url: z2.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strip();
-var FeaturesConfigSchema = z2.object({ vision: z2.boolean().optional() }).strip();
-var TenantConfigSchema = z2.object({
-  brain: BrainConfigSchema.optional(),
-  notifications: NotificationsConfigSchema.optional(),
-  calendar: CalendarConfigSchema.optional(),
-  features: FeaturesConfigSchema.optional()
-});
-var MAX_INTERVALS_PER_DAY = 4;
-var MAX_CLOSURES = 60;
-function isRealDate(key) {
-  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
-}
-var DAY_NAMES2 = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday"
-};
-var DAY_NAME = DAY_NAMES2;
-function dayProblems(h, day) {
-  const name = DAY_NAME[day] ?? day;
-  const out = [];
-  const open = h.open ?? void 0;
-  const close = h.close ?? void 0;
-  if (!!open !== !!close) {
-    out.push({
-      path: [open ? "close" : "open"],
-      message: `${name} needs both an opening and a closing time, or neither.`
-    });
-  }
-  if (open && close && close <= open) {
-    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
-  }
-  const iv = h.intervals ?? [];
-  if (iv.length > MAX_INTERVALS_PER_DAY) {
-    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
-  }
-  iv.forEach((x, n) => {
-    if (x.close <= x.open) {
-      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
-    }
-  });
-  const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
-  for (let n = 1; n < sorted.length; n++) {
-    if (sorted[n].open < sorted[n - 1].close) {
-      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
-    }
-  }
-  return out;
-}
-function checkDay(h, day, ctx) {
-  for (const p of dayProblems(h, day)) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: ["brain", "profile", "hours", day, ...p.path],
-      message: p.message
-    });
-  }
-}
-function checkClosure(c, n, ctx) {
-  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
-  if (!isRealDate(c.date)) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: at2("date"),
-      message: `${c.date} is not a date on the calendar.`
-    });
-  }
-  if (c.until && !isRealDate(c.until)) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: at2("until"),
-      message: `${c.until} is not a date on the calendar.`
-    });
-  }
-  if (c.until && c.until < c.date) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: at2("until"),
-      message: "A closure cannot end before it starts."
-    });
-  }
-}
-var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
-  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: ["calendar", "ical_url"],
-      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
-    });
-  }
-  const p = cfg.brain?.profile;
-  if (!p) return;
-  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
-  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
-    ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
-      path: ["brain", "profile", "closures"],
-      message: `At most ${MAX_CLOSURES} closures.`
-    });
-  }
-  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
-});
-var TenantConfigWriteSchema = z2.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
-function parseTenantConfigResult(raw) {
-  const r2 = TenantConfigSchema.safeParse(raw ?? {});
-  if (r2.success) return { ok: true, config: r2.data, ignored: keysLeftOut(raw, r2.data).map((p) => p.join(".")) };
-  return {
-    ok: false,
-    issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
-  };
-}
-function receptionistOf(parsed) {
-  if (parsed && !parsed.ok) return "broken";
-  return parsed?.config.brain ? "set" : "none";
-}
-function parseTenantConfig(raw) {
-  const r2 = parseTenantConfigResult(raw);
-  return r2.ok ? r2.config : null;
-}
-function withFirstAlertAddress(config, email) {
-  const current = parseTenantConfigResult(config ?? {});
-  if (!current.ok || current.config.notifications) return null;
-  const address = normalizeEmail(email);
-  if (!address) return null;
-  const next = TenantConfigWriteSchema.safeParse({
-    ...current.config,
-    notifications: { escalation_emails: [address] }
-  });
-  return next.success ? next.data : null;
-}
-var DAY_LABEL = DAY_NAMES2;
-function dayIntervals2(h) {
-  return dayIntervals(h).map(([open, close]) => ({ open, close }));
-}
-function joinList(parts2) {
-  if (parts2.length < 3) return parts2.join(" and ");
-  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
-}
-function dayText(h) {
-  const spans = dayIntervals2(h);
-  if (spans.length) {
-    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
-    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
-    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
-  }
-  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
-  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
-}
-function hoursRuns(hours) {
-  if (!hours) return [];
-  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
-  const out = [];
-  let i = 0;
-  while (i < spans.length) {
-    let j = i;
-    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
-    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
-    i = j + 1;
-  }
-  return out;
-}
-function hoursLines(hours) {
-  return hoursRuns(hours).map((r2) => {
-    const label = r2.from === r2.to ? DAY_LABEL[r2.from] : `${DAY_LABEL[r2.from]}\u2013${DAY_LABEL[r2.to]}`;
-    return `${label}: ${r2.text}`;
-  });
-}
-var NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
-function hasProfile(p) {
-  if (!p) return false;
-  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
-  return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
-}
-function dateKeyInZone(tz, at2) {
-  try {
-    const parts2 = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).formatToParts(at2);
-    const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
-    const y = get("year"), m = get("month"), d = get("day");
-    return y && m && d ? `${y}-${m}-${d}` : null;
-  } catch {
-    return null;
-  }
-}
-function labelDate(key, withWeekday) {
-  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
-  if (Number.isNaN(at2.getTime()) || dateKeyInZone("UTC", at2) !== key) return key;
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    ...withWeekday ? { weekday: "long" } : {},
-    month: "long",
-    day: "numeric",
-    year: "numeric"
-  }).format(at2);
-}
-function upcomingClosures(closures, tz, at2) {
-  if (!closures?.length) return [];
-  const today = tz && dateKeyInZone(tz, at2) || dateKeyInZone("UTC", new Date(at2.getTime() - 864e5));
-  if (!today) return closures;
-  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-}
-function closureLines(closures) {
-  return closures.map((c) => {
-    const when = c.until && c.until !== c.date && c.until > c.date ? `${labelDate(c.date, false)} \u2013 ${labelDate(c.until, false)}` : labelDate(c.date, true);
-    return c.note ? `${when} \u2014 ${c.note}` : when;
-  });
-}
-function closedToday(closures, tz, at2) {
-  if (!closures?.length || !tz) return null;
-  const today = dateKeyInZone(tz, at2);
-  if (!today) return null;
-  return closures.find((c) => {
-    const end = c.until && c.until >= c.date ? c.until : c.date;
-    return c.date <= today && today <= end;
-  }) ?? null;
-}
-var NO_CLOCK = "You do not know today's date or the current time. If a customer asks whether the business is open right now, or about today or tomorrow, state the opening hours and let them compare \u2014 never guess which day it is.";
-function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
-  if (!tz) return NO_CLOCK;
-  try {
-    const stamp = new Intl.DateTimeFormat("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: tz
-    }).format(now);
-    const shut = closedToday(closures, tz, now);
-    const today = shut ? ` The business is CLOSED today${shut.note ? ` \u2014 ${shut.note}` : ""}, whatever the weekly hours say. Do not offer today; offer the next day it is open.` : "";
-    return `Right now it is ${stamp} (${tz}).${today} Use this for anything about today, tomorrow, or whether the business is open at this moment \u2014 compare it against the opening hours and the closed dates, and treat a closed date as final.`;
-  } catch {
-    return NO_CLOCK;
-  }
-}
-var PROMPT_OPENINGS = {
-  hours: "Opening hours",
-  closures: "Closed on these dates",
-  services: "Services:",
-  notes: "Other things to know:",
-  bookingRules: "Booking rules:",
-  handoffChat: "Handing the conversation to a person:",
-  handoffCall: "Handing the caller to a person:",
-  /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
-  callTools: "Open times: use check_availability",
-  callMedium: "You are speaking aloud.",
-  chatMedium: "Keep replies short enough to read on a phone.",
-  openTimes: "If open times are listed after these instructions",
-  /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
-  rules: "Rules you must follow:",
-  /** Above the owner's own words, when there are details above for them to disagree with. */
-  ownWordsUnderDetails: "Further instructions from the business.",
-  /** Above the owner's own words on a call, alone or after the line above. */
-  ownWordsOnACall: "Some of it was written for text conversations"
-};
-function noLinkBooking(channel) {
-  return channel === "voice" ? `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.` : `There is no booking link to send. When someone wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
-}
-function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
-  return composeSystemPromptWith(base, profile, channel, tz, now, policy);
-}
-function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
-  const s = [];
-  const link = offersBookingLink(base) ? base.booking_link : null;
-  const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
-  s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
-  if (profile.tone) s.push(`Tone: ${profile.tone}`);
-  if (profile.languages?.length) {
-    s.push(
-      `You speak: ${profile.languages.join(", ")}.` + // A caller picks the language by speaking it; nobody asks a phone
-      // agent to "reply in Spanish".
-      (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
-    );
-  }
-  if (profile.address) s.push(`
-Address: ${profile.address}`);
-  if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
-  if (link) s.push(`Booking link: ${link}`);
-  if (profile.website) s.push(`Website: ${profile.website}`);
-  const hrs = hoursLines(profile.hours);
-  if (hrs.length) {
-    const where = tz ? ` (all times ${tz})` : "";
-    s.push(`
-${PROMPT_OPENINGS.hours}${where}:
-${hrs.map((l) => `- ${l}`).join("\n")}`);
-  }
-  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
-  if (closed.length) {
-    s.push(
-      `
-${PROMPT_OPENINGS.closures}, whatever the opening hours above say:
-${closed.map((l) => `- ${l}`).join(
-        "\n"
-      )}
-If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
-    );
-  }
-  if (profile.services?.length) {
-    const lines = profile.services.map((sv) => {
-      const bits2 = [sv.name];
-      if (sv.duration_min) bits2.push(`about ${sv.duration_min} minutes`);
-      if (sv.price_note) bits2.push(sv.price_note);
-      return `- ${bits2.join(" \u2014 ")}`;
-    });
-    s.push(`
-${PROMPT_OPENINGS.services}
-${lines.join("\n")}`);
-  }
-  if (profile.notes?.length) {
-    s.push(`
-${PROMPT_OPENINGS.notes}
-${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
-  }
-  const br = profile.booking_rules;
-  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)) {
-    const lines = [];
-    if (br.lead_hours !== void 0) {
-      lines.push(
-        br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
-      );
-    }
-    if (br.consult_first?.length)
-      lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
-    if (br.party_max)
-      lines.push(
-        `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
-      );
-    if (br.ask_email)
-      lines.push(
-        "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
-      );
-    for (const n of br.notes ?? []) lines.push(n);
-    s.push(`
-${PROMPT_OPENINGS.bookingRules}
-${lines.map((l) => `- ${l}`).join("\n")}`);
-  }
-  if (channel === "whatsapp") {
-    const when = profile.escalate_when?.length ? `
-${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
-    s.push(
-      `
-${PROMPT_OPENINGS.handoffChat}
-Put the exact token [[HUMAN]] at the very end of your reply. It is removed before the customer sees it, and it is the only thing that alerts a human \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send, then add the token.
-Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
-    );
-  } else {
-    const when = profile.escalate_when?.length ? `
-${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
-    const staffed = profile.handoff_number ? "Use transfer_to_staff during opening hours \u2014 it rings the line a person answers, and you stay on until they pick up. Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up." : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
-    s.push(
-      `
-${PROMPT_OPENINGS.handoffCall}
-${staffed}
-Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
-    );
-    s.push(
-      `
-${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
-` + (link ? "Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" : `${noLinkBooking("voice")}
-`) + "Ending: once the caller has said goodbye, use end_call."
-    );
-  }
-  if (profile.extra_instructions?.trim()) {
-    const above = [
-      profile.address ? "address" : "",
-      hrs.length ? "hours" : "",
-      closed.length ? "closed dates" : "",
-      profile.services?.length ? "services" : ""
-    ].filter(Boolean);
-    const stated = above.length > 0;
-    const text = profile.extra_instructions.trim();
-    const header = [
-      stated ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
-      channel === "voice" ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.` : ""
-    ].filter(Boolean).join(" ");
-    s.push(header ? `
-${header}
-${text}` : `
-${text}`);
-  }
-  const callMedium = link ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
-  const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
-  s.push(
-    channel === "voice" ? `
-${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
-${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
-  );
-  s.push(
-    `
-${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (link ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
-  );
-  const g = guardrailsInForce(profile.guardrails);
-  const rules = [];
-  if (g.never_quote_prices) {
-    rules.push(
-      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!link)}.`
-    );
-  }
-  if (g.never_confirm_booking) {
-    rules.push(
-      `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`
-    );
-  }
-  if (g.disclose_ai) {
-    rules.push(
-      "If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person."
-    );
-  }
-  rules.push(
-    "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else."
-  );
-  if (g.no_health_advice) {
-    rules.push(
-      `Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${link ? " and offer the booking link" : ""}.`
-    );
-  }
-  rules.push(...policyRules(policy, channel));
-  if (rules.length) s.push(`
-${PROMPT_OPENINGS.rules}
-${rules.map((r2) => `- ${r2}`).join("\n")}`);
-  return s.join("\n");
-}
-function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known) {
-  if (!hasProfile(brain.profile)) {
-    const rules = [...offersBookingLink(brain) ? [] : [noLinkBooking(channel)], ...policyRules(policy, channel)];
-    return rules.length ? `${brain.system_prompt}
-
-${PROMPT_OPENINGS.rules}
-${rules.map((r2) => `- ${r2}`).join("\n")}` : brain.system_prompt;
-  }
-  const profile = brain.profile;
-  const facts = resolveFacts(brain, known);
-  const resolved = {
-    business_name: facts.business_name.value ?? brain.business_name,
-    phone_display: facts.phone_display.value,
-    booking_link: facts.booking_link.value ?? brain.booking_link ?? null
-  };
-  const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
-  return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
-}
-function ownWordsOf(brain) {
-  const own = brain?.profile?.extra_instructions;
-  return own?.trim() ? own : brain?.system_prompt ?? null;
-}
-function whoseWords(brain) {
-  const text = ownWordsOf(brain);
-  if (!text?.trim()) return { kind: "none", text: null };
-  if (brain?.profile?.extra_instructions?.trim())
-    return { kind: isBaselineInOwnersField(text) ? "baseline" : "own", text };
-  if (isBaselinePrompt(text.trim())) return { kind: "baseline", text };
-  return { kind: hasProfile(brain?.profile) ? "carried" : "prompt", text };
-}
-function isBaselineInOwnersField(text) {
-  const t = text.trim();
-  if (!isBaselinePrompt(t)) return false;
-  const name = t.slice(BASELINE_OPENING.length, t.length - BASELINE_CLOSING.length);
-  return name.trim().length > 0 && name.length <= 120 && !/[\r\n]/.test(name) && !/[.!?]\s/.test(name);
-}
+// src/config/workspace-config/fallbacks.ts
 var FALLBACK_DETAILS = ["business", "booking link", "phone"];
 var FALLBACK_DEFAULTS = {
   greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nReply here with any question.",
@@ -2282,6 +1014,73 @@ function fallbackMessages(brain, known) {
 }
 function unknownDetails(text) {
   return [...text.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
+}
+
+// src/config/workspace-config/brain-config.ts
+var BrainConfigSchema = z3.object({
+  business_name: z3.string().min(1).max(120),
+  /**
+   * The number the receptionist tells customers to call — an OVERRIDE, and
+   * optional because it should almost never be set.
+   *
+   * It was required, free text, and named the same as the line the
+   * receptionist answers, so every workspace typed something into it and
+   * nothing checked what. On the first live salon that produced a
+   * receptionist publishing the number it transfers to: customers who rang
+   * it reached a person's mobile and never the receptionist standing by,
+   * and the same string went to Google.
+   *
+   * Absent is now the right answer and the default: resolveFacts falls back
+   * to the provisioned voice line, formatted for speech, so the number
+   * published is the number answered by construction. A value here means a
+   * business deliberately publishes something else — a tracking line, a
+   * shopfront — and the pane says so in those words.
+   */
+  phone_display: z3.string().min(3).max(40).optional(),
+  /**
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   */
+  booking_link: z3.string().url().max(500).optional(),
+  /** The complete system prompt the model receives — the "AI memory" pane's
+   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+  system_prompt: z3.string().min(40).max(INSTRUCTIONS_MAX),
+  /**
+   * The business's facts, as fields.
+   *
+   * Optional: every config written before this existed stays valid, and
+   * nothing composes until a workspace actually fills it in. When present
+   * it REPLACES system_prompt as the source the prompt is built from.
+   */
+  profile: BusinessProfileSchema.optional(),
+  fallbacks: z3.object({
+    /** Sent when no model key is configured. */
+    greeting: z3.string().min(1).max(2e3),
+    /** Sent when the model call failed. */
+    error: z3.string().min(1).max(2e3),
+    /** Sent for voice notes / photos before escalating. */
+    non_text: z3.string().min(1).max(2e3)
+  }).strip()
+}).strip();
+function newReceptionistDefaults(businessName) {
+  return {
+    system_prompt: baselinePrompt(businessName),
+    // What a customer reads when the model cannot be reached: the product's
+    // wording, naming the business's details rather than copying them, so they
+    // are filled as each message goes out and follow the details from then on
+    // (fallbackMessages, S5). Copied, a workspace set up before its line existed
+    // told customers "call us at .", and a new booking link never reached them.
+    fallbacks: { ...FALLBACK_DEFAULTS }
+  };
+}
+var BASELINE_OPENING = "You are the assistant for ";
+var BASELINE_CLOSING = ", answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.";
+function baselinePrompt(businessName) {
+  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
+}
+function isBaselinePrompt(text) {
+  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
 }
 
 // src/google/booking-page.ts
@@ -2343,6 +1142,44 @@ function bookingPageOf(raw) {
   u.hash = "";
   const page = u.toString();
   return page.length <= BOOKING_PAGE_MAX ? page : null;
+}
+
+// src/shared/time.ts
+var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function spanUnits(ms2) {
+  const gap = Math.max(0, ms2);
+  if (gap < MIN_MS) return { n: Math.round(gap / 1e3), unit: "s" };
+  const minutes = Math.round(gap / MIN_MS);
+  if (minutes < 60) return { n: minutes, unit: "m" };
+  const hours = Math.round(gap / HOUR_MS);
+  if (hours < 24) return { n: hours, unit: "h" };
+  return { n: Math.round(gap / DAY_MS), unit: "d" };
+}
+function spanLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "now" : `${u.n}${u.unit}`;
+}
+function waitedLabel(ms2) {
+  const u = spanUnits(ms2);
+  return u.unit === "s" ? "1m" : `${u.n}${u.unit}`;
+}
+function agoShort(atMs, nowMs) {
+  return spanLabel(nowMs - atMs);
+}
+function agoWords(atMs, nowMs, opts = {}) {
+  const gap = Math.max(0, nowMs - atMs);
+  const dateAfter = opts.dateAfterMs ?? WEEK_MS;
+  if (gap >= dateAfter && opts.date) return opts.date(atMs);
+  const u = spanUnits(gap);
+  return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
+}
+function timezoneCity(tz) {
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
 }
 
 // src/leads/lead-search.ts
@@ -2470,38 +1307,38 @@ var US_STATES = {
 var US_CODES = new Set(Object.values(US_STATES));
 var KEY = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words = (min, max) => z3.string().transform((s) => stripUnsafe(s).trim()).pipe(z3.string().min(min).max(max));
-var LeadSearchPlanSchema = z3.object({
-  version: z3.number().int().min(1),
-  card: z3.literal("local_businesses"),
+var words = (min, max) => z4.string().transform((s) => stripUnsafe(s).trim()).pipe(z4.string().min(min).max(max));
+var LeadSearchPlanSchema = z4.object({
+  version: z4.number().int().min(1),
+  card: z4.literal("local_businesses"),
   name: words(2, 80),
   asked: words(1, 400),
-  terms: z3.array(words(2, 60)).min(1).max(5),
-  area: z3.object({
-    kind: z3.enum(["zip", "city", "radius"]),
+  terms: z4.array(words(2, 60)).min(1).max(5),
+  area: z4.object({
+    kind: z4.enum(["zip", "city", "radius"]),
     label: words(2, 80),
-    state: z3.string().regex(/^[A-Z]{2}$/),
-    center: z3.object({ lat: z3.number().min(-90).max(90), lng: z3.number().min(-180).max(180) }).nullable(),
-    radius_m: z3.number().int().min(500).max(2e5),
-    zip: z3.string().regex(/^\d{5}$/).optional(),
+    state: z4.string().regex(/^[A-Z]{2}$/),
+    center: z4.object({ lat: z4.number().min(-90).max(90), lng: z4.number().min(-180).max(180) }).nullable(),
+    radius_m: z4.number().int().min(500).max(2e5),
+    zip: z4.string().regex(/^\d{5}$/).optional(),
     query: words(2, 120)
   }),
-  count: z3.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z3.enum(["phone", "email"]),
-  criteria: z3.array(
-    z3.object({
-      key: z3.string().regex(KEY),
+  count: z4.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z4.enum(["phone", "email"]),
+  criteria: z4.array(
+    z4.object({
+      key: z4.string().regex(KEY),
       text: words(2, 120),
-      standard: z3.enum(["likely", "seen"]),
-      required: z3.boolean()
+      standard: z4.enum(["likely", "seen"]),
+      required: z4.boolean()
     })
   ).max(8),
-  exclusions: z3.array(
-    z3.object({
-      key: z3.string().regex(KEY),
+  exclusions: z4.array(
+    z4.object({
+      key: z4.string().regex(KEY),
       text: words(2, 80),
-      origin: z3.enum(["claude", "you_said"]),
-      category_key: z3.string().regex(KEY).optional()
+      origin: z4.enum(["claude", "you_said"]),
+      category_key: z4.string().regex(KEY).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -3242,29 +2079,29 @@ function outcomeMove(o) {
 }
 
 // src/leads/lead-plan.ts
-var LeadsQuerySchema = z4.object({
-  list: z4.enum(LEAD_LISTS).default("all"),
-  search: z4.string().uuid().optional(),
-  class: z4.enum(LEAD_CLASSES).optional(),
-  sort: z4.enum(LEAD_SORTS).default("fit"),
-  dir: z4.enum(["asc", "desc"]).default("asc"),
-  after_key: z4.string().max(80).optional(),
-  after_id: z4.string().uuid().optional(),
-  limit: z4.coerce.number().int().min(1).max(500).default(500)
+var LeadsQuerySchema = z5.object({
+  list: z5.enum(LEAD_LISTS).default("all"),
+  search: z5.string().uuid().optional(),
+  class: z5.enum(LEAD_CLASSES).optional(),
+  sort: z5.enum(LEAD_SORTS).default("fit"),
+  dir: z5.enum(["asc", "desc"]).default("asc"),
+  after_key: z5.string().max(80).optional(),
+  after_id: z5.string().uuid().optional(),
+  limit: z5.coerce.number().int().min(1).max(500).default(500)
 });
-var LeadOneQuerySchema = z4.object({ search: z4.string().uuid().optional() });
+var LeadOneQuerySchema = z5.object({ search: z5.string().uuid().optional() });
 var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
-var LeadStageInputSchema = z4.discriminatedUnion("kind", [
-  z4.object({ kind: z4.literal("stage"), stage: z4.enum(["ready", "nurture", "converted"]) }),
-  z4.object({ kind: z4.literal("not_a_fit"), why: z4.enum(LEAD_NOT_A_FIT_WHYS) }),
-  z4.object({ kind: z4.literal("said_no") }),
-  z4.object({
-    kind: z4.literal("outcome"),
-    outcome: z4.enum(LEAD_CALL_OUTCOMES),
-    note: z4.string().trim().max(280).optional()
+var LeadStageInputSchema = z5.discriminatedUnion("kind", [
+  z5.object({ kind: z5.literal("stage"), stage: z5.enum(["ready", "nurture", "converted"]) }),
+  z5.object({ kind: z5.literal("not_a_fit"), why: z5.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z5.object({ kind: z5.literal("said_no") }),
+  z5.object({
+    kind: z5.literal("outcome"),
+    outcome: z5.enum(LEAD_CALL_OUTCOMES),
+    note: z5.string().trim().max(280).optional()
   }),
   /** "Did you send it?" Yes. */
-  z4.object({ kind: z4.literal("emailed") })
+  z5.object({ kind: z5.literal("emailed") })
 ]);
 function stageArgs(i) {
   const none = { p_stage: null, p_reason: null, p_fit_reason: null, p_outcome: null, p_note: null };
@@ -3288,42 +2125,42 @@ function stageArgs(i) {
     }
   }
 }
-var LeadsBulkSchema = z4.discriminatedUnion("by", [
+var LeadsBulkSchema = z5.discriminatedUnion("by", [
   // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
-  z4.object({
-    by: z4.literal("ids"),
-    action: z4.enum(["contacted", "not_a_fit", "keep", "exclude"]),
-    ids: z4.array(z4.string().uuid()).min(1).max(500),
-    search_id: z4.string().uuid().optional()
+  z5.object({
+    by: z5.literal("ids"),
+    action: z5.enum(["contacted", "not_a_fit", "keep", "exclude"]),
+    ids: z5.array(z5.string().uuid()).min(1).max(500),
+    search_id: z5.string().uuid().optional()
   }),
-  z4.object({ by: z4.literal("view"), action: z4.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+  z5.object({ by: z5.literal("view"), action: z5.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
-var LeadsCheckAgainSchema = z4.object({ ids: z4.array(z4.string().uuid()).min(1).max(500) });
-var LeadDraftInputSchema = z4.object({
-  tone: z4.enum(["first", "shorter", "warmer"]).default("first"),
-  previous: z4.object({ subject: z4.string().max(200), body: z4.string().max(4e3) }).optional()
+var LeadsCheckAgainSchema = z5.object({ ids: z5.array(z5.string().uuid()).min(1).max(500) });
+var LeadDraftInputSchema = z5.object({
+  tone: z5.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z5.object({ subject: z5.string().max(200), body: z5.string().max(4e3) }).optional()
 });
 var LeadExportQuerySchema = LeadsViewSchema;
-var RenameLeadSearchSchema = z4.object({ name: z4.string().trim().min(1).max(80) });
-var BusinessLineSchema = z4.object({ business_line: z4.string().trim().min(3).max(160) });
-var planChip = (max) => z4.string().trim().min(2).max(max);
-var ProposeLeadSearchSchema = z4.object({
-  looking_for: z4.enum(["local_businesses", "people", "online_sellers", "other"]),
-  country: z4.string().trim().min(2).max(40),
-  count: z4.number().int().min(1).max(LEAD_MAX_PLACES),
+var RenameLeadSearchSchema = z5.object({ name: z5.string().trim().min(1).max(80) });
+var BusinessLineSchema = z5.object({ business_line: z5.string().trim().min(3).max(160) });
+var planChip = (max) => z5.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z5.object({
+  looking_for: z5.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z5.string().trim().min(2).max(40),
+  count: z5.number().int().min(1).max(LEAD_MAX_PLACES),
   /** Plural, as the sentence says it: "personal trainers". */
   who: planChip(60),
   /** One of them, for the question and the judge's rubric: "personal trainer". */
   who_one: planChip(60),
-  category_key: z4.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
-  terms: z4.array(planChip(60)).min(1).max(5),
-  city: z4.string().trim().max(60).nullable().default(null),
-  region: z4.string().trim().min(2).max(40),
-  zip: z4.string().regex(/^\d{5}$/).nullable().default(null),
-  contact: z4.enum(["phone", "email"]),
-  criteria: z4.array(z4.object({ text: planChip(120), standard: z4.enum(["likely", "seen"]), required: z4.boolean() })).max(6).default([]),
-  leave_out: z4.array(z4.object({ words: planChip(40) })).max(6).default([]),
-  asked: z4.string().trim().min(1).max(400)
+  category_key: z5.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z5.array(planChip(60)).min(1).max(5),
+  city: z5.string().trim().max(60).nullable().default(null),
+  region: z5.string().trim().min(2).max(40),
+  zip: z5.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z5.enum(["phone", "email"]),
+  criteria: z5.array(z5.object({ text: planChip(120), standard: z5.enum(["likely", "seen"]), required: z5.boolean() })).max(6).default([]),
+  leave_out: z5.array(z5.object({ words: planChip(40) })).max(6).default([]),
+  asked: z5.string().trim().min(1).max(400)
 });
 var US_NAMES2 = /* @__PURE__ */ new Set([
   "us",
@@ -3467,9 +2304,9 @@ var LEAD_DRAFT_JSON_SCHEMA = {
   required: ["subject", "body"],
   properties: { subject: { type: "string" }, body: { type: "string" } }
 };
-var LeadDraftAnswerSchema = z4.object({
-  subject: z4.string().trim().min(3).max(120),
-  body: z4.string().trim().min(20).max(2e3)
+var LeadDraftAnswerSchema = z5.object({
+  subject: z5.string().trim().min(3).max(120),
+  body: z5.string().trim().min(20).max(2e3)
 });
 var LEAD_SUGGEST_JSON_SCHEMA = {
   type: "object",
@@ -3488,13 +2325,13 @@ var LEAD_SUGGEST_JSON_SCHEMA = {
     }
   }
 };
-var LeadSuggestAnswerSchema = z4.object({
-  line: z4.string().trim().min(3).max(160),
-  items: z4.array(
-    z4.object({
-      words: z4.string().trim().min(3).max(80),
-      who_for: z4.string().trim().min(3).max(120),
-      category_key: z4.string().regex(/^[a-z_]{2,40}$/)
+var LeadSuggestAnswerSchema = z5.object({
+  line: z5.string().trim().min(3).max(160),
+  items: z5.array(
+    z5.object({
+      words: z5.string().trim().min(3).max(80),
+      who_for: z5.string().trim().min(3).max(120),
+      category_key: z5.string().regex(/^[a-z_]{2,40}$/)
     })
   ).min(1).max(4)
 });
@@ -4065,6 +2902,278 @@ function toBookingReportVM(dto) {
   };
 }
 
+// src/calendar/feed-url.ts
+var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
+var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
+var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
+function feedUrlOk(raw) {
+  if (!raw) return null;
+  const url = raw.trim().replace(/^webcal:\/\//i, "https://");
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const h = u.hostname;
+  if (PRIVATE_HOST.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || CARRIER_NAT.test(h) || PRIVATE_V6.test(h))
+    return null;
+  return u.toString();
+}
+var FEED_REDIRECTS_MAX = 3;
+async function fetchPublic(fetchImpl, raw, init = {}) {
+  let at2 = feedUrlOk(raw);
+  for (let hop = 0; at2 && hop <= FEED_REDIRECTS_MAX; hop += 1) {
+    const res = await fetchImpl(at2, { ...init, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const next = res.headers.get("location");
+      await res.body?.cancel().catch(() => void 0);
+      at2 = next ? feedUrlOk(URL.canParse(next, at2) ? new URL(next, at2).toString() : null) : null;
+      continue;
+    }
+    return res;
+  }
+  return null;
+}
+var FEED_GUIDES = [
+  {
+    name: "Google Calendar",
+    steps: [
+      "On a computer, open Google Calendar and go to Settings.",
+      "Under \u201CSettings for my calendars\u201D, pick the calendar your appointments land in.",
+      "Open \u201CIntegrate calendar\u201D and copy \u201CSecret address in iCal format\u201D."
+    ]
+  },
+  {
+    name: "Apple Calendar (iCloud)",
+    steps: [
+      "In the Calendar app, open Calendars and press \u24D8 beside the calendar your appointments land in.",
+      "Turn on Public Calendar, then Share Link, and copy it."
+    ]
+  },
+  {
+    name: "Outlook",
+    steps: [
+      "In Outlook on the web, open Settings, then Calendar, then Shared calendars.",
+      "Under \u201CPublish a calendar\u201D, pick your calendar and \u201CCan view when I'm busy\u201D, then Publish.",
+      "Copy the ICS link."
+    ]
+  }
+];
+var FEED_CHECK_WORDS = {
+  guide: "Where do I find it?",
+  reading: "Reading it\u2026",
+  read: (events, next) => events === 0 ? "Read it: it's empty so far. Your receptionist will see new appointments as they land." : `Read it: ${events} ${events === 1 ? "event" : "events"}, ${next ? `the next ${next}` : "none in the next 30 days"}.`
+};
+var FEED_MAX_BYTES = 2e6;
+function feedProblemWords(reason, status) {
+  switch (reason) {
+    case "address":
+      return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
+    case "unreachable":
+      return "The calendar could not be reached. Check the address and try again.";
+    case "http":
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
+    case "too_large":
+      return "That feed is too large to read (over 2 MB).";
+    case "not_ical":
+      return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
+    default:
+      return null;
+  }
+}
+function feedBodyProblem(text) {
+  if (text.length > FEED_MAX_BYTES) return "too_large";
+  if (!/BEGIN:VCALENDAR/i.test(text)) return "not_ical";
+  return null;
+}
+function offeringHorizon(now, daysAhead) {
+  return { from: now.getTime() - DAY_MS, to: now.getTime() + (daysAhead + 1) * DAY_MS };
+}
+function seasonHorizon(now, daysAhead = 0) {
+  return { from: now.getTime() - DAY_MS * 90, to: now.getTime() + Math.max(daysAhead + 1, 90) * DAY_MS };
+}
+function previewHorizon(now) {
+  return { from: now.getTime() - DAY_MS, to: now.getTime() + 30 * DAY_MS };
+}
+
+// src/config/workspace-config/config-schema.ts
+import { z as z6 } from "zod";
+
+// src/config/unknown-keys.ts
+var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function keysLeftOut(raw, kept, at2 = []) {
+  if (Array.isArray(raw) && Array.isArray(kept)) {
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at2, i]) : []);
+  }
+  if (!isJsonObject(raw) || !isJsonObject(kept)) return [];
+  return Object.entries(raw).flatMap(([k, v]) => {
+    if (v === void 0) return [];
+    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at2, k]) : [[...at2, k]];
+  });
+}
+function refuseUnknownFields(read, raw, ctx) {
+  const parsed = read.safeParse(raw);
+  if (!parsed.success) return;
+  const byObject = /* @__PURE__ */ new Map();
+  for (const where of keysLeftOut(raw, parsed.data)) {
+    if (where.length < 2) continue;
+    const path = where.slice(0, -1);
+    const id = JSON.stringify(path);
+    const held = byObject.get(id) ?? { path, keys: [] };
+    held.keys.push(String(where[where.length - 1]));
+    byObject.set(id, held);
+  }
+  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
+}
+
+// src/config/workspace-config/config-schema.ts
+var NotificationsConfigSchema = z6.object({
+  escalation_emails: z6.array(z6.string().email()).min(1).max(10),
+  from: z6.string().max(200).optional()
+}).strip();
+var CalendarConfigSchema = z6.object({
+  ical_url: z6.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+}).strip();
+var FeaturesConfigSchema = z6.object({ vision: z6.boolean().optional() }).strip();
+var TenantConfigSchema = z6.object({
+  brain: BrainConfigSchema.optional(),
+  notifications: NotificationsConfigSchema.optional(),
+  calendar: CalendarConfigSchema.optional(),
+  features: FeaturesConfigSchema.optional()
+});
+var MAX_INTERVALS_PER_DAY = 4;
+var MAX_CLOSURES = 60;
+function isRealDate(key) {
+  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
+}
+var DAY_NAMES2 = {
+  mon: "Monday",
+  tue: "Tuesday",
+  wed: "Wednesday",
+  thu: "Thursday",
+  fri: "Friday",
+  sat: "Saturday",
+  sun: "Sunday"
+};
+var DAY_NAME = DAY_NAMES2;
+function dayProblems(h, day) {
+  const name = DAY_NAME[day] ?? day;
+  const out = [];
+  const open = h.open ?? void 0;
+  const close = h.close ?? void 0;
+  if (!!open !== !!close) {
+    out.push({
+      path: [open ? "close" : "open"],
+      message: `${name} needs both an opening and a closing time, or neither.`
+    });
+  }
+  if (open && close && close <= open) {
+    out.push({ path: ["close"], message: `${name} closes at or before it opens.` });
+  }
+  const iv = h.intervals ?? [];
+  if (iv.length > MAX_INTERVALS_PER_DAY) {
+    out.push({ path: ["intervals"], message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.` });
+  }
+  iv.forEach((x, n) => {
+    if (x.close <= x.open) {
+      out.push({ path: ["intervals", n, "close"], message: `${name}: a shift has to close after it opens.` });
+    }
+  });
+  const sorted = [...iv].sort((a, b) => a.open < b.open ? -1 : a.open > b.open ? 1 : 0);
+  for (let n = 1; n < sorted.length; n++) {
+    if (sorted[n].open < sorted[n - 1].close) {
+      out.push({ path: ["intervals", n, "open"], message: `${name}: two shifts overlap.` });
+    }
+  }
+  return out;
+}
+function checkDay(h, day, ctx) {
+  for (const p of dayProblems(h, day)) {
+    ctx.addIssue({
+      code: z6.ZodIssueCode.custom,
+      path: ["brain", "profile", "hours", day, ...p.path],
+      message: p.message
+    });
+  }
+}
+function checkClosure(c, n, ctx) {
+  const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
+  if (!isRealDate(c.date)) {
+    ctx.addIssue({
+      code: z6.ZodIssueCode.custom,
+      path: at2("date"),
+      message: `${c.date} is not a date on the calendar.`
+    });
+  }
+  if (c.until && !isRealDate(c.until)) {
+    ctx.addIssue({
+      code: z6.ZodIssueCode.custom,
+      path: at2("until"),
+      message: `${c.until} is not a date on the calendar.`
+    });
+  }
+  if (c.until && c.until < c.date) {
+    ctx.addIssue({
+      code: z6.ZodIssueCode.custom,
+      path: at2("until"),
+      message: "A closure cannot end before it starts."
+    });
+  }
+}
+var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
+  if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
+    ctx.addIssue({
+      code: z6.ZodIssueCode.custom,
+      path: ["calendar", "ical_url"],
+      message: feedProblemWords("address") ?? "Not an address the receptionist may read."
+    });
+  }
+  const p = cfg.brain?.profile;
+  if (!p) return;
+  for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
+  if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
+    ctx.addIssue({
+      code: z6.ZodIssueCode.custom,
+      path: ["brain", "profile", "closures"],
+      message: `At most ${MAX_CLOSURES} closures.`
+    });
+  }
+  (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
+});
+var TenantConfigWriteSchema = z6.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
+function parseTenantConfigResult(raw) {
+  const r2 = TenantConfigSchema.safeParse(raw ?? {});
+  if (r2.success) return { ok: true, config: r2.data, ignored: keysLeftOut(raw, r2.data).map((p) => p.join(".")) };
+  return {
+    ok: false,
+    issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+  };
+}
+function receptionistOf(parsed) {
+  if (parsed && !parsed.ok) return "broken";
+  return parsed?.config.brain ? "set" : "none";
+}
+function parseTenantConfig(raw) {
+  const r2 = parseTenantConfigResult(raw);
+  return r2.ok ? r2.config : null;
+}
+function withFirstAlertAddress(config, email) {
+  const current = parseTenantConfigResult(config ?? {});
+  if (!current.ok || current.config.notifications) return null;
+  const address = normalizeEmail(email);
+  if (!address) return null;
+  const next = TenantConfigWriteSchema.safeParse({
+    ...current.config,
+    notifications: { escalation_emails: [address] }
+  });
+  return next.success ? next.data : null;
+}
+
 // src/leads/lead-helpers.ts
 var CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
 var hourOf = (h, m, ap) => Number(h) % 12 + (ap.toUpperCase() === "PM" ? 12 : 0) + (m ? Number(m) / 60 : 0);
@@ -4301,7 +3410,7 @@ function injectedTurn(content) {
 }
 
 // src/config/brain.ts
-import { z as z5 } from "zod";
+import { z as z7 } from "zod";
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -4361,16 +3470,16 @@ var BRAIN_OUTPUT_JSON_SCHEMA = {
   required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
   additionalProperties: false
 };
-var BrainOutputSchema = z5.object({
-  reply: z5.string(),
-  intent: z5.enum(BRAIN_INTENTS).catch("other"),
-  escalate: z5.boolean().catch(false),
-  reason: z5.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z5.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z5.array(z5.string()).catch([]).transform(
+var BrainOutputSchema = z7.object({
+  reply: z7.string(),
+  intent: z7.enum(BRAIN_INTENTS).catch("other"),
+  escalate: z7.boolean().catch(false),
+  reason: z7.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  confidence: z7.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  facts_used: z7.array(z7.string()).catch([]).transform(
     (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
   ),
-  language: z5.enum(BRAIN_LANGUAGES).catch("other")
+  language: z7.enum(BRAIN_LANGUAGES).catch("other")
 });
 function parseBrainOutput(raw) {
   let json;
@@ -8445,10 +7554,10 @@ function broadcastFailureWords(failure) {
 }
 
 // src/people/lists.ts
-import { z as z7 } from "zod";
+import { z as z9 } from "zod";
 
 // src/people/list-rules.ts
-import { z as z6 } from "zod";
+import { z as z8 } from "zod";
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {
@@ -8576,36 +7685,36 @@ var LIST_DEAL_STAGES = ["consultation", "proposed", "won", "lost", "ended"];
 var LIST_RULE_MAX = 12;
 var LIST_ANY_MAX = 6;
 var DAY_OPS = ["more_than", "within", "never", "ever", "this_week"];
-var Days = { op: z6.enum(DAY_OPS), days: z6.number().int().min(1).max(3650).optional() };
-var YesNo = { op: z6.literal("is"), yes: z6.boolean() };
-var Count = { op: z6.enum(["at_least", "at_most"]), n: z6.number().int().min(0).max(1e4) };
-var IsOrNot = z6.enum(["is", "is_not"]);
-var Token = z6.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact = (shape) => z6.object(shape).strict();
-var ListFactSchema = z6.discriminatedUnion("field", [
-  fact({ field: z6.literal("last_visit"), ...Days }),
-  fact({ field: z6.literal("next_visit"), ...Days }),
-  fact({ field: z6.literal("booked"), ...YesNo }),
-  fact({ field: z6.literal("asked_not_booked"), ...YesNo }),
-  fact({ field: z6.literal("last_heard"), ...Days }),
-  fact({ field: z6.literal("first_contact"), ...Days }),
-  fact({ field: z6.literal("channel"), op: IsOrNot, channel: z6.enum(CHANNELS) }),
-  fact({ field: z6.literal("came_from"), op: IsOrNot, from: z6.enum(CAME_FROM) }),
-  fact({ field: z6.literal("calls"), ...Count }),
-  fact({ field: z6.literal("conversations"), ...Count }),
-  fact({ field: z6.literal("has_chat"), ...YesNo }),
-  fact({ field: z6.literal("said_yes"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  fact({ field: z6.literal("can_receive"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  fact({ field: z6.literal("stopped"), ...YesNo }),
-  fact({ field: z6.literal("standing"), op: IsOrNot, value: z6.enum(LIST_STANDINGS) }),
-  fact({ field: z6.literal("assigned"), op: IsOrNot, value: z6.enum(LIST_ASSIGNED) }),
-  fact({ field: z6.literal("deal_stage"), op: IsOrNot, value: z6.enum(LIST_DEAL_STAGES) }),
-  fact({ field: z6.literal("consultation"), ...YesNo }),
-  fact({ field: z6.literal("step_due"), ...YesNo }),
-  fact({ field: z6.literal("in_list"), op: IsOrNot, list: Token })
+var Days = { op: z8.enum(DAY_OPS), days: z8.number().int().min(1).max(3650).optional() };
+var YesNo = { op: z8.literal("is"), yes: z8.boolean() };
+var Count = { op: z8.enum(["at_least", "at_most"]), n: z8.number().int().min(0).max(1e4) };
+var IsOrNot = z8.enum(["is", "is_not"]);
+var Token = z8.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact = (shape) => z8.object(shape).strict();
+var ListFactSchema = z8.discriminatedUnion("field", [
+  fact({ field: z8.literal("last_visit"), ...Days }),
+  fact({ field: z8.literal("next_visit"), ...Days }),
+  fact({ field: z8.literal("booked"), ...YesNo }),
+  fact({ field: z8.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z8.literal("last_heard"), ...Days }),
+  fact({ field: z8.literal("first_contact"), ...Days }),
+  fact({ field: z8.literal("channel"), op: IsOrNot, channel: z8.enum(CHANNELS) }),
+  fact({ field: z8.literal("came_from"), op: IsOrNot, from: z8.enum(CAME_FROM) }),
+  fact({ field: z8.literal("calls"), ...Count }),
+  fact({ field: z8.literal("conversations"), ...Count }),
+  fact({ field: z8.literal("has_chat"), ...YesNo }),
+  fact({ field: z8.literal("said_yes"), ...YesNo, to: z8.enum(LIST_PURPOSES) }),
+  fact({ field: z8.literal("can_receive"), ...YesNo, to: z8.enum(LIST_PURPOSES) }),
+  fact({ field: z8.literal("stopped"), ...YesNo }),
+  fact({ field: z8.literal("standing"), op: IsOrNot, value: z8.enum(LIST_STANDINGS) }),
+  fact({ field: z8.literal("assigned"), op: IsOrNot, value: z8.enum(LIST_ASSIGNED) }),
+  fact({ field: z8.literal("deal_stage"), op: IsOrNot, value: z8.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z8.literal("consultation"), ...YesNo }),
+  fact({ field: z8.literal("step_due"), ...YesNo }),
+  fact({ field: z8.literal("in_list"), op: IsOrNot, list: Token })
 ]);
-var AnySchema = z6.object({ any: z6.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
-var ListConditionSchema = z6.union([AnySchema, ListFactSchema]);
+var AnySchema = z8.object({ any: z8.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
+var ListConditionSchema = z8.union([AnySchema, ListFactSchema]);
 function factProblem(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
@@ -8613,13 +7722,13 @@ function factProblem(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
   return null;
 }
-var ListRuleSchema = z6.object({
-  v: z6.literal(2).optional(),
-  all: z6.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
+var ListRuleSchema = z8.object({
+  v: z8.literal(2).optional(),
+  all: z8.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
 }).strict().superRefine((r2, ctx) => {
   for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
     const p = factProblem(f);
-    if (p) ctx.addIssue({ code: z6.ZodIssueCode.custom, message: p });
+    if (p) ctx.addIssue({ code: z8.ZodIssueCode.custom, message: p });
   }
 });
 function upgradeFact(raw) {
@@ -8873,10 +7982,10 @@ var LIST_DRAFT_JSON_SCHEMA = {
     }
   }
 };
-var ListDraftAnswerSchema = z6.object({
-  name: z6.string().trim().min(1).max(60),
-  cannot: z6.string().trim().max(200),
-  all: z6.array(z6.unknown()).max(LIST_RULE_MAX)
+var ListDraftAnswerSchema = z8.object({
+  name: z8.string().trim().min(1).max(60),
+  cannot: z8.string().trim().max(200),
+  all: z8.array(z8.unknown()).max(LIST_RULE_MAX)
 });
 
 // src/people/lists.ts
@@ -9195,8 +8304,8 @@ function savedListTip(list2) {
   if (list2.byHand) return "A list kept by hand \u2014 add people from their profile";
   return `Keeps itself current: ${(list2.rule ?? []).join(" \xB7 ")}`;
 }
-var PeopleExportQuerySchema = z7.object({
-  list: z7.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
+var PeopleExportQuerySchema = z9.object({
+  list: z9.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
 function ruleNeedsViewer(rule) {
   if (rule == null) return false;
@@ -10181,6 +9290,45 @@ var SETUP_LATER_REFUSED = {
   unread: "What you put off could not be read just now, so nothing changed. Try again in a moment."
 };
 
+// src/config/workspace-config/prompt-hours.ts
+var DAY_LABEL = DAY_NAMES2;
+function dayIntervals2(h) {
+  return dayIntervals(h).map(([open, close]) => ({ open, close }));
+}
+function joinList(parts2) {
+  if (parts2.length < 3) return parts2.join(" and ");
+  return `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+function dayText(h) {
+  const spans = dayIntervals2(h);
+  if (spans.length) {
+    const open = joinList(spans.map((x) => `${x.open}\u2013${x.close}`));
+    const gaps = spans.slice(1).map((x, i) => `${spans[i].close}\u2013${x.open}`);
+    return gaps.length ? `${open} (closed ${joinList(gaps)})` : open;
+  }
+  const saidSomething = !!(h?.open || h?.close || h?.intervals?.length);
+  return saidSomething ? "Hours not confirmed \u2014 ask them to call" : "Closed";
+}
+function hoursRuns(hours) {
+  if (!hours) return [];
+  const spans = DAYS.map((d) => ({ day: d, text: dayText(hours[d]) }));
+  const out = [];
+  let i = 0;
+  while (i < spans.length) {
+    let j = i;
+    while (j + 1 < spans.length && spans[j + 1].text === spans[i].text) j++;
+    out.push({ from: spans[i].day, to: spans[j].day, text: spans[i].text });
+    i = j + 1;
+  }
+  return out;
+}
+function hoursLines(hours) {
+  return hoursRuns(hours).map((r2) => {
+    const label = r2.from === r2.to ? DAY_LABEL[r2.from] : `${DAY_LABEL[r2.from]}\u2013${DAY_LABEL[r2.to]}`;
+    return `${label}: ${r2.text}`;
+  });
+}
+
 // src/calendar/calendar.ts
 var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 var DAY_SHORT = {
@@ -10884,6 +10032,149 @@ function followUpWords(s, tz, nowMs) {
   const day = clockNear(s.atMs, tz, nowMs);
   return s.asks ? `Follow-up to approve ${day}` : `Follow-up ${day}`;
 }
+
+// src/config/workspace-config/policy-classes.ts
+import { z as z10 } from "zod";
+var POLICY_CLASSES = [
+  "reply",
+  "booking",
+  "faq",
+  "reengage",
+  "campaign",
+  "reviews",
+  "money",
+  "follow_up",
+  "outreach"
+];
+var POLICY_CLASS_WORDS = {
+  reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
+  faq: {
+    name: "Service & pricing questions",
+    short: "Questions",
+    note: "auto answers from your business profile \xB7 ask hands every service or pricing question to you, on WhatsApp and on the phone"
+  },
+  booking: {
+    name: "Book \xB7 reschedule",
+    short: "Bookings",
+    note: "auto sends your booking link \xB7 ask has a person confirm instead, on WhatsApp and on the phone"
+  },
+  reengage: {
+    name: "Re-engage quiet customers",
+    short: "Re-engage",
+    note: "the win-back and save-our-number playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  campaign: {
+    name: "Standing offers",
+    short: "Offers",
+    note: "the welcome and month's-offer playbooks \xB7 auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"
+  },
+  reviews: {
+    name: "Google reviews",
+    short: "Reviews",
+    note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you"
+  },
+  money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" },
+  // 0006: one nudge per proposal, with its link, once it has waited past the workspace's pace with nothing back.
+  follow_up: {
+    name: "Proposal follow-ups",
+    short: "Follow-ups",
+    note: "the proposal follow-up playbook \xB7 one nudge per proposal, with its link, once it has waited with nothing back \xB7 auto sends each run, ask leaves it waiting on Today, never runs nothing"
+  },
+  // Reach out (Part 3): cold email to the businesses a search found. A chain's first run always waits for its owner.
+  outreach: {
+    name: "Cold email to businesses a search found",
+    short: "Reach-outs",
+    note: "every email a reach-out sends \xB7 its first run always waits for you; later runs send 30 minutes after they are made unless you stop them \xB7 never sends none"
+  }
+};
+var POLICY_MODES = ["auto", "veto", "ask", "never"];
+var POLICY_MODE_WORDS = {
+  auto: { head: "Sends it", sub: "right away", chip: "sends it", does: "Sends it right away." },
+  veto: {
+    head: "Holds it",
+    sub: "you can stop it",
+    chip: "holds it",
+    does: "Writes it, holds it, and sends it unless you stop it."
+  },
+  ask: {
+    head: "Asks you",
+    sub: "nothing sent",
+    chip: "asks you",
+    does: "Waits for you. Nothing is sent until you say so."
+  },
+  never: { head: "Stays quiet", sub: "nothing happens", chip: "stays quiet", does: "Stays out of it entirely." }
+};
+var POLICY_CLASS_MODES = {
+  reply: ["auto", "veto", "ask", "never"],
+  booking: ["auto", "ask"],
+  faq: ["auto", "ask"],
+  reengage: ["auto", "veto", "ask", "never"],
+  campaign: ["auto", "veto", "ask", "never"],
+  reviews: ["auto", "ask", "never"],
+  money: ["never"],
+  follow_up: ["auto", "ask", "never"],
+  // Cold email never goes the moment a run is made: a chain's first run waits for its owner whatever the mode, and a
+  // later one gives thirty minutes to be stopped (veto), waits too (ask), or does not run (never).
+  outreach: ["veto", "ask", "never"]
+};
+function policyClassOfIntent(intent) {
+  if (intent === "booking") return "booking";
+  if (intent === "pricing" || intent === "services") return "faq";
+  return null;
+}
+function policyAskClass(policy, intent) {
+  const cls = policyClassOfIntent(intent);
+  if (!cls) return null;
+  const mode = policy?.[cls]?.mode ?? "auto";
+  return mode === "auto" ? null : cls;
+}
+function bookingHeld(policy) {
+  return policyAskClass(policy, "booking") === "booking";
+}
+function policyRules(policy, channel) {
+  const out = [];
+  const modeOf = (cls) => policy?.[cls]?.mode ?? "auto";
+  const voice = channel === "voice";
+  if (modeOf("booking") !== "auto") {
+    out.push(
+      voice ? "Booking: when someone wants to book, reschedule or cancel, do not offer the booking link. Say a member of the team will call or text them to confirm, and take their name." : "Booking: when someone wants to book, reschedule or cancel, do not send the booking link. Say a member of the team will confirm with them shortly, and set escalate to true."
+    );
+  }
+  if (modeOf("faq") !== "auto") {
+    out.push(
+      voice ? "Service and pricing questions: do not answer them yourself. Say a member of the team will call them back with the details, and take their name." : "Service and pricing questions: do not answer them yourself. Say a member of the team will get back to them with the details, and set escalate to true."
+    );
+  }
+  return out;
+}
+var PolicyLimitsSchema = z10.object({
+  max_replies_day: z10.number().int().min(1).max(200).optional(),
+  pause_hours: z10.number().int().min(1).max(168).optional(),
+  /**
+   * How long the receptionist WAITS before its own reply goes out, in ms.
+   *
+   * Only meaningful when mode is 'veto'. A text channel is not a phone
+   * call — nobody expects an answer in under a second — so the delay costs
+   * the customer nothing and buys the business a window to redirect the bot
+   * before it speaks, rather than apologising for it afterwards.
+   */
+  reply_delay_ms: z10.number().int().min(5e3).max(6e5).optional(),
+  /**
+   * The confidence dial. Under 'auto', a reply the model is less sure about
+   * than this waits in the hold window (reply_delay_ms) for a person instead
+   * of going straight out — sure enough sends itself, not sure enough waits.
+   * 0 or absent means off.
+   */
+  min_confidence: z10.number().min(0).max(1).optional(),
+  /**
+   * The day's token budget: model tokens in and out over a rolling 24
+   * hours, read from the usage events every reply writes. Over it the
+   * receptionist stops and files a `budget` escalation, as it does at the
+   * reply cap. 0 or absent is off; a value is at least a thousand, because
+   * a budget of ten would be a mute button with a misleading name.
+   */
+  max_llm_tokens_day: z10.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+}).strict();
 
 // src/playbooks/playbook-reach.ts
 function eligibleForPlaybook(rows, p, touches, nowMs, pace, listIds = null) {
@@ -12192,11 +11483,11 @@ function isUngrounded(answer, reads) {
 }
 var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
 var ASK_UNDO_MS = 10 * 6e4;
-var AskProposalOutcomeSchema = z8.object({
-  state: z8.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z8.string().max(300).catch(""),
-  atMs: z8.number().catch(0),
-  undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
+var AskProposalOutcomeSchema = z11.object({
+  state: z11.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z11.string().max(300).catch(""),
+  atMs: z11.number().catch(0),
+  undo: z11.record(z11.string(), z11.unknown()).nullable().optional()
 });
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
 var UUID = /^[0-9a-f-]{36}$/;
@@ -12519,24 +11810,24 @@ function callsToday(calls, now, tz) {
     live: calls.filter((c) => c.live)
   };
 }
-var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
-  z8.object({
-    op: z8.literal("add_closure"),
-    date: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z8.string().max(200).optional()
+var AskSettingsChangeSchema = z11.discriminatedUnion("op", [
+  z11.object({
+    op: z11.literal("add_closure"),
+    date: z11.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z11.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z11.string().max(200).optional()
   }),
-  z8.object({
-    op: z8.literal("set_hours"),
-    day: z8.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z8.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z8.string().regex(/^\d{2}:\d{2}$/).nullable()
+  z11.object({
+    op: z11.literal("set_hours"),
+    day: z11.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z11.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z11.string().regex(/^\d{2}:\d{2}$/).nullable()
   }),
-  z8.object({ op: z8.literal("add_note"), title: z8.string().min(1).max(80), text: z8.string().min(1).max(1200) }),
-  z8.object({
-    op: z8.literal("add_service"),
-    name: z8.string().min(1).max(80),
-    duration_min: z8.number().int().min(1).max(1440).optional()
+  z11.object({ op: z11.literal("add_note"), title: z11.string().min(1).max(80), text: z11.string().min(1).max(1200) }),
+  z11.object({
+    op: z11.literal("add_service"),
+    name: z11.string().min(1).max(80),
+    duration_min: z11.number().int().min(1).max(1440).optional()
   })
 ]);
 function applySettingsChange(config, change) {
@@ -13763,7 +13054,7 @@ var ASK_ANSWER_FORMAT = {
 };
 
 // src/ask/ask-context.ts
-import { z as z9 } from "zod";
+import { z as z12 } from "zod";
 var ASK_CONTEXT_MAX_ROWS = 40;
 var ASK_CONTEXT_ROW_KINDS = [
   "thread",
@@ -13776,18 +13067,748 @@ var ASK_CONTEXT_ROW_KINDS = [
   "playbook",
   "template"
 ];
-var Id = z9.string().min(1).max(120);
-var PageContextSchema = z9.object({
-  v: z9.literal(1),
-  surface: z9.enum(ASK_SURFACES),
-  route: z9.string().max(200),
-  view: z9.string().max(80).nullish(),
-  focus: z9.object({ kind: z9.enum(ASK_SCOPE_KINDS), id: Id, label: z9.string().max(80) }).strict().nullish(),
-  rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
-  askedAt: z9.number().int().nonnegative()
+var Id = z12.string().min(1).max(120);
+var PageContextSchema = z12.object({
+  v: z12.literal(1),
+  surface: z12.enum(ASK_SURFACES),
+  route: z12.string().max(200),
+  view: z12.string().max(80).nullish(),
+  focus: z12.object({ kind: z12.enum(ASK_SCOPE_KINDS), id: Id, label: z12.string().max(80) }).strict().nullish(),
+  rows: z12.array(z12.object({ kind: z12.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z12.number().int().nonnegative()
 }).strict();
 
-// src/config/business-tab.ts
+// src/shared/enums.ts
+var TENANT_STATUSES = ["active", "paused", "test"];
+var MEMBERSHIP_ROLES = ["owner", "operator", "partner", "viewer"];
+var CHANNEL_KINDS = ["whatsapp", "voice", "sms", "email", "instagram"];
+var CONVERSATION_STATES = ["open", "needs_human", "snoozed", "archived"];
+var MESSAGE_CHANNELS = ["whatsapp", "voice", "sms", "email", "system"];
+var MESSAGE_DIRECTIONS = ["inbound", "outbound"];
+var MESSAGE_SENDERS = ["customer", "ai", "human", "system"];
+var MESSAGE_TYPES = ["text", "template", "media", "call_summary", "note"];
+var MESSAGE_STATUSES = ["received", "queued", "sent", "delivered", "read", "failed", "canceled"];
+var CONSENT_STATES = ["unknown", "opted_in", "opted_out"];
+var JOB_KINDS = [
+  "outbound_send",
+  "broadcast_send",
+  /**
+   * A line's provisioning saga, run under the ledger's lease and resumed by
+   * the heartbeat if a worker dies (00109). The saga itself stays on the
+   * edge with the provider's credentials and is injected into the tick.
+   */
+  "line_provision",
+  /**
+   * One received email, fetched from the provider and taken in (00127). The
+   * webhook that announces it is a pointer, and a fetch can fail, so intake is
+   * a job: once per mailbox however often the webhook is replayed, and resumed
+   * where an interrupted run stopped. The fetch stays on the edge with the
+   * provider's key and is injected into the tick.
+   */
+  "email_ingest",
+  /**
+   * The lead finder (00140, PRD v3 §12.5). lead_round_start starts one round:
+   * a run per term, each claimed before the provider is called. lead_collect
+   * reads one page of one run, judges it and commits it in one transaction;
+   * seq is p<offset> for a page, final from the webhook, s<minute> from the
+   * sweep, stop from the stop door. lead_check checks one batch of emails. A
+   * provider's 429 or 5xx throws and is tried again by RETRY_WAITS_MS.
+   */
+  "lead_round_start",
+  "lead_collect",
+  "lead_check",
+  /**
+   * One kept notification (00057) to every phone of the people it is for
+   * (00162). Scheduled by the edge's notify when the row's kind is one of
+   * contracts PUSH_KINDS; a transport failure throws and is tried again by
+   * RETRY_WAITS_MS. Internal work: a second claim runs it again.
+   */
+  "push_send",
+  /**
+   * The receipts of one push_send, read a quarter of an hour on (00189):
+   * Expo's ticket says the service took a message, its receipt says whether
+   * the phone did, and a phone answered gone is forgotten here. Carries the
+   * tickets in its payload; a transport failure throws and is tried again.
+   */
+  "push_receipts"
+];
+var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
+var WABA_FIELDS = [
+  "phone_number_quality_update",
+  "account_update",
+  "message_template_status_update",
+  "account_review_update",
+  "message_template_quality_update",
+  "template_category_update"
+];
+var EVENT_KINDS = [
+  "message.received",
+  "message.sent",
+  "contact.consent_changed",
+  "usage.llm_tokens",
+  "usage.wa_conversation",
+  "ingest.allowlist_skip",
+  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
+  "ingest.unreachable_sender",
+  "message.send_failed",
+  "message.send_blocked",
+  "message.send_raced_cancel",
+  "conversation.reopened",
+  "conversation.pause_expired",
+  "contact.erased",
+  "setup.requested",
+  "voice.provisioned",
+  "line.answering",
+  "line.failed",
+  "line.released",
+  "line.forwarding_verified",
+  /**
+   * Somebody at Chanlytics acted on a workspace they are not a member of.
+   *
+   * The back office's write half. Recorded BEFORE the action, and the action is
+   * refused if it cannot be recorded: a cross-tenant write that nobody can be
+   * held to is worse than one that did not happen. What happened next is the
+   * line's own event, written by the edge, immediately after this one.
+   */
+  "platform.acted",
+  /** The carriers answered: texting is on, the business is through, or it came back. */
+  "line.texting_on",
+  "line.texting_approved",
+  "line.texting_rejected",
+  /** The business on record for the carriers, saved or changed. */
+  "business.recorded",
+  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
+  "google.linked",
+  "google.unlinked",
+  "google.reviews",
+  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
+  "google.connected",
+  "google.disconnected",
+  "google.replied",
+  "workspace.created",
+  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
+  "settings.changed",
+  "policy.changed",
+  "billing.updated",
+  "billing.paused",
+  "billing.resumed",
+  /** A call: the row (00007) and the seconds it cost. */
+  "call.recorded",
+  "usage.voice_seconds",
+  /** The assistant's model usage, per turn (ask-gateway). */
+  "usage.ask_tokens",
+  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
+  "webhook.auth",
+  "webhook.delivery",
+  /** A person who came from the calendar or a hand, not from a message (00053). */
+  "contact.added",
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
+  "contact.named",
+  "contact.noted",
+  /** A note changed, taken away, or the receptionist's suggestion kept or dismissed (00157, 0007). Never the words. */
+  "contact.note_changed",
+  "contact.note_removed",
+  "contact.note_suggested",
+  "contact.note_kept",
+  "contact.note_dismissed",
+  "contact.note_done",
+  "contact.note_undone",
+  "contact.email_set",
+  /** A person's proposal link set or cleared at the desk (00154). Never the address. */
+  "contact.proposal_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
+  /** An inbound the router could not place on any workspace. */
+  "ingest.unroutable",
+  /** A reply skipped because its veto window had already been spent. */
+  "policy.veto_window_skipped",
+  /** The sweep woke a snooze whose time had passed (00082). */
+  "conversation.snooze_expired",
+  /** A broadcast finished, with its tally; a playbook made a run. */
+  "broadcast.sent",
+  "playbook.run",
+  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
+  "channel.connected",
+  /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
+  "mailbox.created",
+  "mailbox.renamed",
+  /** A workspace's own sending domain (Reach out, 00175): added, verified, held by the domains clock, sending again,
+   * removed. The host and the reason, never the provider's id. */
+  "sending_domain.added",
+  "sending_domain.verified",
+  "sending_domain.held",
+  "sending_domain.released",
+  /** The owner resumed a domain held for its bounces or a complaint (00176): 30 a day again. */
+  "sending_domain.resumed",
+  "sending_domain.removed",
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
+  "lead.round",
+  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
+  "lead.no_card",
+  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
+  "lead.stage",
+  "lead.emailed",
+  "lead.call",
+  "lead.converted",
+  "lead.not_a_fit",
+  // A deal (0004): written by deal_record, one kind per stage; record kinds, kept.
+  "deal.proposed",
+  "deal.won",
+  "deal.lost",
+  "deal.ended",
+  // A partner (0012): the workspace was made through a partner's link and the partner joined its team, or the code
+  // the link left named no partner who could be credited (unknown, paused, or the caller's own).
+  "partner.attributed",
+  "partner.code_ignored",
+  // The ledger (0012, P3): a share written from a paid invoice, a refund's or a dispute's effect on it, and the
+  // standing the sweep decided for a workspace once it had paid.
+  "partner.earned",
+  "partner.reversed",
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
+];
+var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
+var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
+var OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta|yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var MARKETING_OPT_IN_PATTERN = /^\s*(yes offers|si ofertas|s\u00ed ofertas)\s*[.!]?\s*$/i;
+var CONVERSATION_OPT_IN_PATTERN = /^\s*(start|unstop|resume|alta)\s*[.!]?\s*$/i;
+function optInPurposeOf(text) {
+  if (MARKETING_OPT_IN_PATTERN.test(text)) return "marketing";
+  if (CONVERSATION_OPT_IN_PATTERN.test(text)) return "conversational";
+  return null;
+}
+var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
+function optInLink(numberE164, phrase = OFFERS_OPT_IN_PHRASES.en) {
+  const digits2 = String(numberE164 ?? "").replace(/\D/g, "");
+  if (digits2.length < 8) return null;
+  return `https://wa.me/${digits2}?text=${encodeURIComponent(phrase)}`;
+}
+var ESCALATION_REASONS = [
+  "human_token",
+  "non_text",
+  "refusal",
+  "rate_cap",
+  "policy_block",
+  "send_failed",
+  "deadman",
+  "brain_error",
+  "manual",
+  "opt_out",
+  "state_unavailable",
+  /** Delivered so late that an automated reply would arrive out of nowhere. */
+  "stale",
+  /** The owner set the receptionist to Ask or Never for THIS person; the
+   *  thread is theirs to answer. A choice about one customer, never a
+   *  workspace setting. */
+  "person_hold",
+  /** The workspace's day of model tokens is spent (limits.max_llm_tokens_day). */
+  "budget",
+  /** A booking or a service/pricing question, with that class set to Ask me first on the Autonomy pane: a person answers. */
+  "policy_ask",
+  /** The phone receptionist could not finish the call: a person calls them back. What to do rides in the details. */
+  "callback",
+  /** The workspace is paused (billing): calls only take a message and messages wait for a person, until it resumes. */
+  "paused",
+  /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
+  "carriers",
+  /** An email a person must read before anyone answers it (00127). */
+  "email_review"
+];
+var ESCALATION_STATES = ["open", "resolved"];
+var DECISION_VERBS = [
+  "approve",
+  "edit",
+  "decline",
+  "snooze",
+  "wake",
+  "take_over",
+  "hand_back",
+  "resolve",
+  "archive",
+  "reply",
+  "cancel_send",
+  "pause_agent",
+  "resume_agent",
+  /**
+   * What one member can do to another.
+   *
+   * The ledger recorded every conversation verb and nothing about the team —
+   * the one table where "who did this" is hardest to reconstruct afterwards
+   * and matters most. Promoting someone to owner hands them billing, the
+   * ability to remove everyone else, and the receptionist's voice.
+   *
+   * These must stay in step with decisions_verb_check (migration 00023): the
+   * database rejects a verb this list allows, and a verb the database allows
+   * but this omits cannot be written by any typed caller.
+   */
+  "invite",
+  "revoke_invite",
+  "change_role",
+  "remove_member",
+  /**
+   * The only irreversible verb. privacy.html promises deletion on verified
+   * request; this is the record that it happened, on subject_type 'contact',
+   * and it survives the data it destroyed. Written by the owner (actor_type
+   * 'user'), and again by the route for a leg that finished after the rows
+   * were gone — the storage sweep.
+   */
+  "erase",
+  /**
+   * A sentence handed to the phone receptionist mid-call, heard by it alone
+   * and worked into its next answer (Retell update-live-call). Subject
+   * 'call'. The ledger keeps the words: they are the operator's, and they
+   * changed what a customer was told.
+   */
+  "whisper",
+  /**
+   * A business connected its own channel (Embedded Signup): subject
+   * 'channel', payload the number, the WABA and the registration outcome.
+   * The one verb whose consequence is a credential in Vault.
+   */
+  "connect_channel",
+  /**
+   * A customer's answer about marketing messages, recorded by the person
+   * who heard it: subject 'contact', payload the answer, how it was given,
+   * and what it was before. The record a broadcast stands on.
+   */
+  "consent_change",
+  /**
+   * A broadcast: one approved template to the people who said yes. The
+   * decision to send (subject 'broadcast', payload the template, the
+   * audience and the count) and the decision to stop one.
+   */
+  "send_broadcast",
+  "cancel_broadcast",
+  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
+  "start_playbook",
+  "pause_playbook",
+  /**
+   * An answer to a review on Google, in the business's own words: subject
+   * 'review' (the row's id), payload the words and when Google took them.
+   * Replaces the previous answer; Google keeps one per review.
+   */
+  "reply_review",
+  /**
+   * A copy of the workspace's data left the building: everyone as a CSV, a
+   * thread, a call, or the whole workspace. Subject "workspace" for the two
+   * that carry everyone; the thread's or the call's own row for the others.
+   * The one verb an auditor asks about that the ledger did not keep.
+   */
+  "export",
+  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
+  "end_call",
+  "record_deal",
+  /**
+   * A list's life (00169, decision 0009): made, renamed, its rule changed, people put on or taken off, archived (a
+   * playbook or another list depends on it), restored, deleted. Subject 'list'; the payload says what changed.
+   */
+  "make_list",
+  "rename_list",
+  "change_list_rule",
+  "add_to_list",
+  "drop_from_list",
+  "archive_list",
+  "restore_list",
+  "delete_list",
+  /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
+  "import"
+];
+var DECISION_SUBJECTS = [
+  "conversation",
+  "escalation",
+  "draft",
+  "lead",
+  "message",
+  "agent",
+  "membership",
+  "invitation",
+  "contact",
+  "call",
+  "channel",
+  "broadcast",
+  "playbook",
+  "review",
+  /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
+  "workspace",
+  "deal",
+  /** One of the workspace's own lists (segments): its life, in the ledger (00169). */
+  "list"
+];
+var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
+var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
+
+// src/config/workspace-config/role-perms.ts
+var ROLES = MEMBERSHIP_ROLES;
+var TEAM_ROLES = ["owner", "operator", "viewer"];
+var ROLE_PERMS = {
+  // `settings` is the business details and who is alerted: PUT /settings is
+  // owner-only, and the form used to open on the autonomy gate, which let an
+  // operator fill it in and be refused at Save.
+  // `export` is the whole customer list as a file: a member sees these
+  // people a screen at a time, the owner may take them all at once.
+  // `find` is the lead finder: starting a search, keeping a lead from review,
+  // putting one back. Each spends the month's allowance, so it is the
+  // owner's, and the partner's (PRD v3 §16.6, S9); has_permission() in 00140
+  // (widened in 00201) says the same, and lead-engine.db.test.mjs holds the
+  // two together.
+  // `partner` (decision 0012) is the member who brought the workspace and sets
+  // it up for its owner: everything setting up and running the receptionist
+  // takes, and nothing that touches the money, the team, or the customer list
+  // as a file. `disconnect` is the channel permission both ways: a partner
+  // gets the line and connects WhatsApp, and may disconnect them again.
+  owner: {
+    approve: true,
+    autonomy: true,
+    disconnect: true,
+    billing: true,
+    team: true,
+    settings: true,
+    export: true,
+    find: true
+  },
+  operator: {
+    approve: true,
+    autonomy: true,
+    disconnect: false,
+    billing: false,
+    team: false,
+    settings: false,
+    export: false,
+    find: false
+  },
+  partner: {
+    approve: true,
+    autonomy: true,
+    disconnect: true,
+    billing: false,
+    team: false,
+    settings: true,
+    export: false,
+    find: true
+  },
+  viewer: {
+    approve: false,
+    autonomy: false,
+    disconnect: false,
+    billing: false,
+    team: false,
+    settings: false,
+    export: false,
+    find: false
+  }
+};
+
+// src/config/workspace-config/compose.ts
+function dateKeyInZone(tz, at2) {
+  try {
+    const parts2 = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(at2);
+    const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
+    const y = get("year"), m = get("month"), d = get("day");
+    return y && m && d ? `${y}-${m}-${d}` : null;
+  } catch {
+    return null;
+  }
+}
+function labelDate(key, withWeekday) {
+  const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
+  if (Number.isNaN(at2.getTime()) || dateKeyInZone("UTC", at2) !== key) return key;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    ...withWeekday ? { weekday: "long" } : {},
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  }).format(at2);
+}
+function upcomingClosures(closures, tz, at2) {
+  if (!closures?.length) return [];
+  const today = tz && dateKeyInZone(tz, at2) || dateKeyInZone("UTC", new Date(at2.getTime() - 864e5));
+  if (!today) return closures;
+  return closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= today).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+}
+function closureLines(closures) {
+  return closures.map((c) => {
+    const when = c.until && c.until !== c.date && c.until > c.date ? `${labelDate(c.date, false)} \u2013 ${labelDate(c.until, false)}` : labelDate(c.date, true);
+    return c.note ? `${when} \u2014 ${c.note}` : when;
+  });
+}
+function closedToday(closures, tz, at2) {
+  if (!closures?.length || !tz) return null;
+  const today = dateKeyInZone(tz, at2);
+  if (!today) return null;
+  return closures.find((c) => {
+    const end = c.until && c.until >= c.date ? c.until : c.date;
+    return c.date <= today && today <= end;
+  }) ?? null;
+}
+var NO_CLOCK = "You do not know today's date or the current time. If a customer asks whether the business is open right now, or about today or tomorrow, state the opening hours and let them compare \u2014 never guess which day it is.";
+function describeNow(tz, now = /* @__PURE__ */ new Date(), closures) {
+  if (!tz) return NO_CLOCK;
+  try {
+    const stamp = new Intl.DateTimeFormat("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZone: tz
+    }).format(now);
+    const shut = closedToday(closures, tz, now);
+    const today = shut ? ` The business is CLOSED today${shut.note ? ` \u2014 ${shut.note}` : ""}, whatever the weekly hours say. Do not offer today; offer the next day it is open.` : "";
+    return `Right now it is ${stamp} (${tz}).${today} Use this for anything about today, tomorrow, or whether the business is open at this moment \u2014 compare it against the opening hours and the closed dates, and treat a closed date as final.`;
+  } catch {
+    return NO_CLOCK;
+  }
+}
+var PROMPT_OPENINGS = {
+  hours: "Opening hours",
+  closures: "Closed on these dates",
+  services: "Services:",
+  notes: "Other things to know:",
+  bookingRules: "Booking rules:",
+  handoffChat: "Handing the conversation to a person:",
+  handoffCall: "Handing the caller to a person:",
+  /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
+  callTools: "Open times: use check_availability",
+  callMedium: "You are speaking aloud.",
+  chatMedium: "Keep replies short enough to read on a phone.",
+  openTimes: "If open times are listed after these instructions",
+  /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
+  rules: "Rules you must follow:",
+  /** Above the owner's own words, when there are details above for them to disagree with. */
+  ownWordsUnderDetails: "Further instructions from the business.",
+  /** Above the owner's own words on a call, alone or after the line above. */
+  ownWordsOnACall: "Some of it was written for text conversations"
+};
+function noLinkBooking(channel) {
+  return channel === "voice" ? `Booking: there is no booking link, so never use send_booking_link. When the caller wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}, and say the team will follow up.` : `There is no booking link to send. When someone wants to book, change or cancel a booking, or get a quote, take ${NO_LINK_DETAILS}; once they have told you, say the team will follow up and set escalate to true.`;
+}
+function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy) {
+  return composeSystemPromptWith(base, profile, channel, tz, now, policy);
+}
+function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
+  const s = [];
+  const link = offersBookingLink(base) ? base.booking_link : null;
+  const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
+  s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
+  if (profile.tone) s.push(`Tone: ${profile.tone}`);
+  if (profile.languages?.length) {
+    s.push(
+      `You speak: ${profile.languages.join(", ")}.` + // A caller picks the language by speaking it; nobody asks a phone
+      // agent to "reply in Spanish".
+      (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
+    );
+  }
+  if (profile.address) s.push(`
+Address: ${profile.address}`);
+  if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
+  if (link) s.push(`Booking link: ${link}`);
+  if (profile.website) s.push(`Website: ${profile.website}`);
+  const hrs = hoursLines(profile.hours);
+  if (hrs.length) {
+    const where = tz ? ` (all times ${tz})` : "";
+    s.push(`
+${PROMPT_OPENINGS.hours}${where}:
+${hrs.map((l) => `- ${l}`).join("\n")}`);
+  }
+  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  if (closed.length) {
+    s.push(
+      `
+${PROMPT_OPENINGS.closures}, whatever the opening hours above say:
+${closed.map((l) => `- ${l}`).join(
+        "\n"
+      )}
+If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
+    );
+  }
+  if (profile.services?.length) {
+    const lines = profile.services.map((sv) => {
+      const bits2 = [sv.name];
+      if (sv.duration_min) bits2.push(`about ${sv.duration_min} minutes`);
+      if (sv.price_note) bits2.push(sv.price_note);
+      return `- ${bits2.join(" \u2014 ")}`;
+    });
+    s.push(`
+${PROMPT_OPENINGS.services}
+${lines.join("\n")}`);
+  }
+  if (profile.notes?.length) {
+    s.push(`
+${PROMPT_OPENINGS.notes}
+${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
+  }
+  const br = profile.booking_rules;
+  if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)) {
+    const lines = [];
+    if (br.lead_hours !== void 0) {
+      lines.push(
+        br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
+      );
+    }
+    if (br.consult_first?.length)
+      lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+    if (br.party_max)
+      lines.push(
+        `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
+      );
+    if (br.ask_email)
+      lines.push(
+        "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
+      );
+    for (const n of br.notes ?? []) lines.push(n);
+    s.push(`
+${PROMPT_OPENINGS.bookingRules}
+${lines.map((l) => `- ${l}`).join("\n")}`);
+  }
+  if (channel === "whatsapp") {
+    const when = profile.escalate_when?.length ? `
+${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
+    s.push(
+      `
+${PROMPT_OPENINGS.handoffChat}
+Put the exact token [[HUMAN]] at the very end of your reply. It is removed before the customer sees it, and it is the only thing that alerts a human \u2014 saying you will fetch someone does nothing on its own. Write the reply you would normally send, then add the token.
+Do this whenever the customer asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
+    );
+  } else {
+    const when = profile.escalate_when?.length ? `
+${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
+    const staffed = profile.handoff_number ? "Use transfer_to_staff during opening hours \u2014 it rings the line a person answers, and you stay on until they pick up. Outside opening hours, or if the transfer does not connect, take the caller's name and a short message and say the team will follow up." : "There is no line to transfer to. Take the caller's name and a short message and say the team will follow up.";
+    s.push(
+      `
+${PROMPT_OPENINGS.handoffCall}
+${staffed}
+Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
+    );
+    s.push(
+      `
+${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
+` + (link ? "Booking: when the caller wants to book, use send_booking_link \u2014 it sends the booking link to the caller's WhatsApp, on the number they are calling from, so do not ask them for a number unless they want it sent somewhere else. Tell them it comes by WhatsApp, not as a text message: it only arrives if that number has WhatsApp. Then confirm it was sent. If it fails, or they do not have WhatsApp on that number, give the phone number above and offer to have someone follow up.\n" : `${noLinkBooking("voice")}
+`) + "Ending: once the caller has said goodbye, use end_call."
+    );
+  }
+  if (profile.extra_instructions?.trim()) {
+    const above = [
+      profile.address ? "address" : "",
+      hrs.length ? "hours" : "",
+      closed.length ? "closed dates" : "",
+      profile.services?.length ? "services" : ""
+    ].filter(Boolean);
+    const stated = above.length > 0;
+    const text = profile.extra_instructions.trim();
+    const header = [
+      stated ? `${PROMPT_OPENINGS.ownWordsUnderDetails} Where these disagree with the ${joinList(above)} above, the details above are current and correct.` : "",
+      channel === "voice" ? `${PROMPT_OPENINGS.ownWordsOnACall}; you are on a phone call.` : ""
+    ].filter(Boolean).join(" ");
+    s.push(header ? `
+${header}
+${text}` : `
+${text}`);
+  }
+  const callMedium = link ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
+  const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
+  s.push(
+    channel === "voice" ? `
+${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
+${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
+  );
+  s.push(
+    `
+${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (link ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
+  );
+  const g = guardrailsInForce(profile.guardrails);
+  const rules = [];
+  if (g.never_quote_prices) {
+    rules.push(
+      `Never quote or confirm a price. Say it is quoted in person or at a consult, and ${priceNextStep(!!link)}.`
+    );
+  }
+  if (g.never_confirm_booking) {
+    rules.push(
+      `Never promise or confirm an appointment yourself. Booking happens ${link ? "on the booking link or " : ""}with staff.`
+    );
+  }
+  if (g.disclose_ai) {
+    rules.push(
+      "If asked whether you are a bot, a person, or AI, say plainly that you are the business's automated assistant and offer to bring in a person."
+    );
+  }
+  rules.push(
+    "If a message is only the words YES OFFERS or SI OFERTAS, the customer is saying yes to offers and news by WhatsApp: thank them in one short line, say they can reply STOP at any time, and ask nothing else."
+  );
+  if (g.no_health_advice) {
+    rules.push(
+      `Never give medical or health advice \u2014 for anything about skin reactions, allergies, pregnancy or medication, say a professional will advise at the appointment${link ? " and offer the booking link" : ""}.`
+    );
+  }
+  rules.push(...policyRules(policy, channel));
+  if (rules.length) s.push(`
+${PROMPT_OPENINGS.rules}
+${rules.map((r2) => `- ${r2}`).join("\n")}`);
+  return s.join("\n");
+}
+
+// src/config/workspace-config/resolve.ts
+function instructionsDraft(brain) {
+  const whose = whoseWords(brain);
+  if (whose.kind === "own") return { text: whose.text, carried: false };
+  return whose.kind === "carried" || whose.kind === "prompt" ? { text: whose.text, carried: true } : { text: "", carried: false };
+}
+var NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
+function hasProfile(p) {
+  if (!p) return false;
+  const statedHours = !!p.hours && Object.values(p.hours).some((h) => h?.open && h?.close || h?.intervals?.length);
+  return !!(p.address || p.tone || p.extra_instructions || statedHours || p.services?.length || p.languages?.length || p.escalate_when?.length || p.website || p.notes?.length);
+}
+function resolveSystemPrompt(brain, channel = "whatsapp", tz, now = /* @__PURE__ */ new Date(), policy, known) {
+  if (!hasProfile(brain.profile)) {
+    const rules = [...offersBookingLink(brain) ? [] : [noLinkBooking(channel)], ...policyRules(policy, channel)];
+    return rules.length ? `${brain.system_prompt}
+
+${PROMPT_OPENINGS.rules}
+${rules.map((r2) => `- ${r2}`).join("\n")}` : brain.system_prompt;
+  }
+  const profile = brain.profile;
+  const facts = resolveFacts(brain, known);
+  const resolved = {
+    business_name: facts.business_name.value ?? brain.business_name,
+    phone_display: facts.phone_display.value,
+    booking_link: facts.booking_link.value ?? brain.booking_link ?? null
+  };
+  const carried = { ...profile, extra_instructions: ownWordsOf(brain) ?? void 0 };
+  return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
+}
+function ownWordsOf(brain) {
+  const own = brain?.profile?.extra_instructions;
+  return own?.trim() ? own : brain?.system_prompt ?? null;
+}
+function whoseWords(brain) {
+  const text = ownWordsOf(brain);
+  if (!text?.trim()) return { kind: "none", text: null };
+  if (brain?.profile?.extra_instructions?.trim())
+    return { kind: isBaselineInOwnersField(text) ? "baseline" : "own", text };
+  if (isBaselinePrompt(text.trim())) return { kind: "baseline", text };
+  return { kind: hasProfile(brain?.profile) ? "carried" : "prompt", text };
+}
+function isBaselineInOwnersField(text) {
+  const t = text.trim();
+  if (!isBaselinePrompt(t)) return false;
+  const name = t.slice(BASELINE_OPENING.length, t.length - BASELINE_CLOSING.length);
+  return name.trim().length > 0 && name.length <= 120 && !/[\r\n]/.test(name) && !/[.!?]\s/.test(name);
+}
+
+// src/config/business-tab/rule-strengths.ts
 var GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
 var ABILITY_CHANNEL_WORDS = {
   whatsapp: { has: "in chat", not: "not in chat" },
@@ -13887,6 +13908,14 @@ function rulesKept(i) {
   kept.push(i.vision ? PHOTOS_AT_REST_WORDS.on : PHOTOS_AT_REST_WORDS.off);
   return kept;
 }
+var rulesWithoutFields = (noLink) => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by ${noLink ? "what to do with no booking link and " : ""}any rules your Autonomy tab adds.`;
+var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(false))();
+var RULES_WITHOUT_FIELDS_NO_LINK_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(true))();
+function rulesWithoutFieldsWords(brain) {
+  return offersBookingLink(brain) ? RULES_WITHOUT_FIELDS_WORDS : RULES_WITHOUT_FIELDS_NO_LINK_WORDS;
+}
+
+// src/config/business-tab/business-gap.ts
 function bookingLinkRowWords(sellsBy) {
   return bookingLinkOptional(sellsBy) ? {
     empty: "None \u2014 it takes their details instead",
@@ -13912,6 +13941,8 @@ function businessGap(i, sellsBy) {
     return { sentence: "It has no voice of its own yet \u2014 it answers in nobody in particular's words.", row: "tone" };
   return null;
 }
+
+// src/config/business-tab/open-week.ts
 var DAY_COUNT_WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven"];
 function openWeekWords(hours, tz) {
   const open = DAYS.filter((d) => dayIntervals(hours?.[d]).length > 0).length;
@@ -13930,29 +13961,16 @@ function closuresAheadWords(closures, tz, now) {
   const named = `${closureDatesLabel(next)}${next.note ? ` \xB7 ${next.note}` : ""}`;
   return { count: ahead.length, line: `${ahead.length} ahead \xB7 ${ahead.length > 1 ? "next " : ""}${named}` };
 }
+
+// src/config/business-tab/counts.ts
 var count = (n) => n.toLocaleString("en-US");
 var CHIPS_SHOWN = 3;
 function chipsMoreWords(n) {
   return `+${count(n)}`;
 }
-var SERVICE_CHIPS = CHIPS_SHOWN;
-function servicesWords(services) {
-  const list2 = (Array.isArray(services) ? services : []).filter(
-    (s) => !!s && typeof s.name === "string" && s.name.trim() !== ""
-  );
-  const n = list2.length;
-  if (!n) return { count: 0, line: null, chips: [], more: null };
-  const chips = list2.slice(0, SERVICE_CHIPS).map((s) => ({
-    name: s.name.trim(),
-    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null
-  }));
-  return {
-    count: n,
-    line: count(n),
-    chips,
-    more: n > SERVICE_CHIPS ? chipsMoreWords(n - SERVICE_CHIPS) : null
-  };
-}
+var pluralGrouped = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
+
+// src/config/business-tab/prompt-cost-words.ts
 function blockShareWords(chars, total) {
   const SHARES = [
     [1 / 10, "a tenth"],
@@ -13995,6 +14013,26 @@ var PROMPT_NOW = {
     voice: "Shown separately because it is sent separately \u2014 folding a value that changes every minute into the block above would throw away the prompt cache on every call."
   }
 };
+
+// src/config/business-tab/services-words.ts
+var SERVICE_CHIPS = CHIPS_SHOWN;
+function servicesWords(services) {
+  const list2 = (Array.isArray(services) ? services : []).filter(
+    (s) => !!s && typeof s.name === "string" && s.name.trim() !== ""
+  );
+  const n = list2.length;
+  if (!n) return { count: 0, line: null, chips: [], more: null };
+  const chips = list2.slice(0, SERVICE_CHIPS).map((s) => ({
+    name: s.name.trim(),
+    takes: typeof s.duration_min === "number" && s.duration_min > 0 ? `${s.duration_min} min` : null
+  }));
+  return {
+    count: n,
+    line: count(n),
+    chips,
+    more: n > SERVICE_CHIPS ? chipsMoreWords(n - SERVICE_CHIPS) : null
+  };
+}
 function servicesToldWords(i) {
   const n = i.count;
   if (!n) return `No services, so it ${CANNOT_SAY_SERVICES}.`;
@@ -14015,8 +14053,9 @@ function servicesSaveWords(n) {
   if (!n) return "Save with no services";
   return `Save ${count(n)} ${n === 1 ? "service" : "services"}`;
 }
+
+// src/config/business-tab/booking-rules-words.ts
 var isNumber = (v) => typeof v === "number" && Number.isFinite(v);
-var pluralGrouped = (n, one, many) => `${count(n)} ${n === 1 ? one : many}`;
 function bookingRulesWords(rules) {
   const r2 = rules ?? {};
   const parts2 = [];
@@ -14069,10 +14108,105 @@ var BOOKING_RULE_HINTS = /* @__PURE__ */ (() => ({
   max_days_ahead: `Empty uses ${count(BOOKING_DEFAULTS.max_days_ahead)}.`,
   party_max: "Larger groups go to a person."
 }))();
+
+// src/config/business-tab/fold-limits.ts
 var PROFILE_CROSSING_WORDS = {
   stops: "Saved like this, the receptionist stops being given the details on this page and answers from its stored instructions.",
   starts: "Saved like this, the receptionist starts being given the details on this page, and the instructions it follows today are carried in beneath them."
 };
+var PROFILE_LIMITS = /* @__PURE__ */ (() => {
+  const cap2 = (schema) => {
+    const s = schema;
+    if (typeof s.maxLength === "number") return s.maxLength;
+    for (const c of s.def?.checks ?? []) {
+      const d = c?._zod?.def;
+      if (d?.check === "max_length" && typeof d.maximum === "number") return d.maximum;
+    }
+    throw new TypeError(
+      "PROFILE_LIMITS: the schema states no maximum, so the page would offer a size the save refuses."
+    );
+  };
+  const floor = (schema) => {
+    const s = schema;
+    if (typeof s.minLength !== "number") throw new TypeError("PROFILE_LIMITS: the schema states no minimum.");
+    return s.minLength;
+  };
+  const opt = (schema) => schema.unwrap();
+  const p = BusinessProfileSchema.shape;
+  const service = opt(p.services).element.shape;
+  const note = opt(p.notes).element.shape;
+  const rules = BookingRulesSchema.shape;
+  const minutes = opt(service.duration_min);
+  if (minutes.maxValue == null) throw new TypeError("PROFILE_LIMITS: a service's minutes state no maximum.");
+  return {
+    tone: cap2(opt(p.tone)),
+    services: cap2(opt(p.services)),
+    serviceName: cap2(service.name),
+    serviceMinutes: minutes.maxValue,
+    servicePrice: cap2(opt(service.price_note)),
+    languages: cap2(opt(p.languages)),
+    languageMin: floor(opt(p.languages).element),
+    languageMax: cap2(opt(p.languages).element),
+    reasons: cap2(opt(p.escalate_when)),
+    reason: cap2(opt(p.escalate_when).element),
+    consultFirst: cap2(opt(rules.consult_first)),
+    consultFirstLine: cap2(opt(rules.consult_first).element),
+    ruleNotes: cap2(opt(rules.notes)),
+    ruleNote: cap2(opt(rules.notes).element),
+    notes: cap2(opt(p.notes)),
+    noteTitle: cap2(note.title),
+    noteText: cap2(note.text),
+    closureNote: cap2(opt(ClosureSchema.shape.note)),
+    closures: MAX_CLOSURES,
+    shifts: MAX_INTERVALS_PER_DAY,
+    instructions: INSTRUCTIONS_MAX,
+    message: cap2(BrainConfigSchema.shape.fallbacks.shape.greeting)
+  };
+})();
+function profileRefusal(key, seen, of) {
+  const L2 = PROFILE_LIMITS;
+  const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
+  const lines = (max, one, many) => `At most ${pluralGrouped(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
+  const words4 = {
+    tone: () => chars(L2.tone),
+    services: () => `At most ${pluralGrouped(L2.services, "service", "services")}.`,
+    serviceName: () => chars(L2.serviceName),
+    serviceMinutes: () => `At most ${count(L2.serviceMinutes)} minutes, a whole day.`,
+    servicePrice: () => chars(L2.servicePrice),
+    languages: () => `At most ${pluralGrouped(L2.languages, "language", "languages")}.`,
+    language: () => `\u201C${of ?? ""}\u201D is not a language's name: ${L2.languageMin} to ${L2.languageMax} characters.`,
+    reasons: () => lines(L2.reasons, "reason", "reasons"),
+    reason: () => `Each reason is at most ${count(L2.reason)} characters.`,
+    consultFirst: () => lines(L2.consultFirst, "service", "services"),
+    consultFirstLine: () => `Each service is at most ${count(L2.consultFirstLine)} characters.`,
+    ruleNotes: () => lines(L2.ruleNotes, "note", "notes"),
+    ruleNote: () => `Each note is at most ${count(L2.ruleNote)} characters.`,
+    notes: () => `At most ${pluralGrouped(L2.notes, "note", "notes")}.`,
+    noteTitle: () => `A note's title is at most ${count(L2.noteTitle)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
+    noteText: () => `A note's text is at most ${count(L2.noteText)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
+    closures: () => `At most ${pluralGrouped(L2.closures, "closed day", "closed days")}. Dates that have passed can go.`,
+    closureNote: () => chars(L2.closureNote),
+    shifts: () => `At most ${pluralGrouped(L2.shifts, "shift", "shifts")} in a day \u2014 ${of ?? "that day"} has ${count(seen ?? 0)}.`,
+    instructions: () => chars(L2.instructions),
+    message: () => chars(L2.message)
+  };
+  const say2 = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
+  if (!say2) {
+    throw new TypeError(
+      `profileRefusal knows the tab's own caps (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
+    );
+  }
+  return say2();
+}
+var WRITTEN_OUT_NUMBER = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
+function writtenOutDetail(text, bookingLink) {
+  const said = typeof text === "string" ? text : "";
+  const link = typeof bookingLink === "string" ? bookingLink.trim() : "";
+  if (link && said.includes(link)) return "link";
+  return WRITTEN_OUT_NUMBER.test(said) ? "number" : null;
+}
+
+// src/config/business-tab/how-it-answers.ts
 var COMMON_LANGUAGES = [
   "English",
   "Spanish",
@@ -14101,7 +14235,6 @@ var TONE_PRESETS = [
     tone: "Chatty and relaxed. Uses the customer's first name when it has one, and sounds like a friendly front desk."
   }
 ];
-var HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
 var cutAtWord = (text, max) => {
   const t = text.replace(/\s+/g, " ").trim();
   if (t.length <= max) return t;
@@ -14110,27 +14243,6 @@ var cutAtWord = (text, max) => {
   const cut = (at2 > 0 ? head.slice(0, at2) : t.slice(0, max)).replace(/[\s,;:·—–-]+$/u, "");
   return `${cut}\u2026`;
 };
-function handoffChatWords(i) {
-  const when = i.hasEscalateWhen ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it` : `When ${HANDED_OVER_ANYWAY}, it`;
-  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
-  return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
-}
-function transferWords(hasHandoffNumber) {
-  return hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.";
-}
-function handoffCallWords(i) {
-  return `${i.hasEscalateWhen ? "Your reasons reach a call too. " : ""}${transferWords(!!i.hasHandoffNumber)}`;
-}
-function handoffWords(reasons, transfer) {
-  const list2 = (Array.isArray(reasons) ? reasons : []).filter((r2) => typeof r2 === "string" && r2.trim() !== "").map((r2) => r2.trim());
-  const n = list2.length;
-  const number = typeof transfer === "string" ? transfer.trim() : "";
-  const phone = number ? `transfers to ${number}` : "takes a message";
-  return {
-    line: `${n ? `For ${pluralGrouped(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} \xB7 on a call, ${phone}`,
-    phone
-  };
-}
 var NOTE_CHIPS = CHIPS_SHOWN;
 function notesWords(notes) {
   const titles = (Array.isArray(notes) ? notes : []).map((n2) => n2 && typeof n2.title === "string" ? n2.title.trim() : "").filter((t) => t !== "");
@@ -14159,12 +14271,37 @@ function fallbacksWords(fallbacks) {
   }).length;
   return { line: `${count(keys.length)} messages, ${differ ? "in your words" : "the product's wording"}` };
 }
-var rulesWithoutFields = (noLink) => `${NO_FIELDS_COMPOSED_WORDS} These four switches change nothing it is told: it answers from its own stored instructions, followed only by ${noLink ? "what to do with no booking link and " : ""}any rules your Autonomy tab adds.`;
-var RULES_WITHOUT_FIELDS_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(false))();
-var RULES_WITHOUT_FIELDS_NO_LINK_WORDS = /* @__PURE__ */ (() => rulesWithoutFields(true))();
-function rulesWithoutFieldsWords(brain) {
-  return offersBookingLink(brain) ? RULES_WITHOUT_FIELDS_WORDS : RULES_WITHOUT_FIELDS_NO_LINK_WORDS;
+
+// src/config/business-tab/handoff-words.ts
+var HANDED_OVER_ANYWAY = "a customer asks for a person or it can't help";
+function handoffChatWords(i) {
+  const when = i.hasEscalateWhen ? `On your reasons, or when ${HANDED_OVER_ANYWAY}, it` : `When ${HANDED_OVER_ANYWAY}, it`;
+  const pause = heldFor(hardLimitsWords({ pause_hours: i.pauseHours }).hours);
+  return `${when} stops answering, the thread turns Needs you in the Inbox, and anyone set to be alerted is emailed. It holds off for ${pause}, then answers the customer's next message itself.`;
 }
+function transferWords(hasHandoffNumber) {
+  return hasHandoffNumber ? "During opening hours it rings the number you gave and stays on until someone picks up. Outside them, or if nobody answers, it takes a message." : "No number yet, so it takes a message instead \u2014 which is better than a number nobody picks up.";
+}
+function handoffCallWords(i) {
+  return `${i.hasEscalateWhen ? "Your reasons reach a call too. " : ""}${transferWords(!!i.hasHandoffNumber)}`;
+}
+function handoffWords(reasons, transfer) {
+  const list2 = (Array.isArray(reasons) ? reasons : []).filter((r2) => typeof r2 === "string" && r2.trim() !== "").map((r2) => r2.trim());
+  const n = list2.length;
+  const number = typeof transfer === "string" ? transfer.trim() : "";
+  const phone = number ? `transfers to ${number}` : "takes a message";
+  return {
+    line: `${n ? `For ${pluralGrouped(n, "reason", "reasons")}` : `When ${HANDED_OVER_ANYWAY}`} \xB7 on a call, ${phone}`,
+    phone
+  };
+}
+function heldFor(pauseHours) {
+  const hours = Math.max(1, Math.round(pauseHours));
+  if (hours % 24 === 0) return hours === 24 ? "a day" : `${hours / 24} days`;
+  return hours === 1 ? "an hour" : `${hours} hours`;
+}
+
+// src/config/business-tab/abilities.ts
 var BOOLEAN_INPUTS = {
   voiceLive: true,
   whatsappLive: true,
@@ -14177,11 +14314,6 @@ var BOOLEAN_INPUTS = {
   visionOn: true,
   bookingHeld: true
 };
-function heldFor(pauseHours) {
-  const hours = Math.max(1, Math.round(pauseHours));
-  if (hours % 24 === 0) return hours === 24 ? "a day" : `${hours / 24} days`;
-  return hours === 1 ? "an hour" : `${hours} hours`;
-}
 function abilityRows(i) {
   if (!i || typeof i !== "object")
     throw new TypeError(
@@ -14327,97 +14459,6 @@ function cannotRows(i) {
   return CANNOT_ROWS.filter((r2) => !(r2.id === "sms" && i.smsLive)).map(
     (r2) => !i.hasBookingLink && CANNOT_NO_LINK[r2.id] ? { ...r2, detail: CANNOT_NO_LINK[r2.id] } : r2
   );
-}
-var PROFILE_LIMITS = /* @__PURE__ */ (() => {
-  const cap2 = (schema) => {
-    const s = schema;
-    if (typeof s.maxLength === "number") return s.maxLength;
-    for (const c of s.def?.checks ?? []) {
-      const d = c?._zod?.def;
-      if (d?.check === "max_length" && typeof d.maximum === "number") return d.maximum;
-    }
-    throw new TypeError(
-      "PROFILE_LIMITS: the schema states no maximum, so the page would offer a size the save refuses."
-    );
-  };
-  const floor = (schema) => {
-    const s = schema;
-    if (typeof s.minLength !== "number") throw new TypeError("PROFILE_LIMITS: the schema states no minimum.");
-    return s.minLength;
-  };
-  const opt = (schema) => schema.unwrap();
-  const p = BusinessProfileSchema.shape;
-  const service = opt(p.services).element.shape;
-  const note = opt(p.notes).element.shape;
-  const rules = BookingRulesSchema.shape;
-  const minutes = opt(service.duration_min);
-  if (minutes.maxValue == null) throw new TypeError("PROFILE_LIMITS: a service's minutes state no maximum.");
-  return {
-    tone: cap2(opt(p.tone)),
-    services: cap2(opt(p.services)),
-    serviceName: cap2(service.name),
-    serviceMinutes: minutes.maxValue,
-    servicePrice: cap2(opt(service.price_note)),
-    languages: cap2(opt(p.languages)),
-    languageMin: floor(opt(p.languages).element),
-    languageMax: cap2(opt(p.languages).element),
-    reasons: cap2(opt(p.escalate_when)),
-    reason: cap2(opt(p.escalate_when).element),
-    consultFirst: cap2(opt(rules.consult_first)),
-    consultFirstLine: cap2(opt(rules.consult_first).element),
-    ruleNotes: cap2(opt(rules.notes)),
-    ruleNote: cap2(opt(rules.notes).element),
-    notes: cap2(opt(p.notes)),
-    noteTitle: cap2(note.title),
-    noteText: cap2(note.text),
-    closureNote: cap2(opt(ClosureSchema.shape.note)),
-    closures: MAX_CLOSURES,
-    shifts: MAX_INTERVALS_PER_DAY,
-    instructions: INSTRUCTIONS_MAX,
-    message: cap2(BrainConfigSchema.shape.fallbacks.shape.greeting)
-  };
-})();
-function profileRefusal(key, seen, of) {
-  const L2 = PROFILE_LIMITS;
-  const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
-  const lines = (max, one, many) => `At most ${pluralGrouped(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
-  const words4 = {
-    tone: () => chars(L2.tone),
-    services: () => `At most ${pluralGrouped(L2.services, "service", "services")}.`,
-    serviceName: () => chars(L2.serviceName),
-    serviceMinutes: () => `At most ${count(L2.serviceMinutes)} minutes, a whole day.`,
-    servicePrice: () => chars(L2.servicePrice),
-    languages: () => `At most ${pluralGrouped(L2.languages, "language", "languages")}.`,
-    language: () => `\u201C${of ?? ""}\u201D is not a language's name: ${L2.languageMin} to ${L2.languageMax} characters.`,
-    reasons: () => lines(L2.reasons, "reason", "reasons"),
-    reason: () => `Each reason is at most ${count(L2.reason)} characters.`,
-    consultFirst: () => lines(L2.consultFirst, "service", "services"),
-    consultFirstLine: () => `Each service is at most ${count(L2.consultFirstLine)} characters.`,
-    ruleNotes: () => lines(L2.ruleNotes, "note", "notes"),
-    ruleNote: () => `Each note is at most ${count(L2.ruleNote)} characters.`,
-    notes: () => `At most ${pluralGrouped(L2.notes, "note", "notes")}.`,
-    noteTitle: () => `A note's title is at most ${count(L2.noteTitle)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
-    noteText: () => `A note's text is at most ${count(L2.noteText)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`,
-    closures: () => `At most ${pluralGrouped(L2.closures, "closed day", "closed days")}. Dates that have passed can go.`,
-    closureNote: () => chars(L2.closureNote),
-    shifts: () => `At most ${pluralGrouped(L2.shifts, "shift", "shifts")} in a day \u2014 ${of ?? "that day"} has ${count(seen ?? 0)}.`,
-    instructions: () => chars(L2.instructions),
-    message: () => chars(L2.message)
-  };
-  const say2 = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
-  if (!say2) {
-    throw new TypeError(
-      `profileRefusal knows the tab's own caps (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
-    );
-  }
-  return say2();
-}
-var WRITTEN_OUT_NUMBER = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
-function writtenOutDetail(text, bookingLink) {
-  const said = typeof text === "string" ? text : "";
-  const link = typeof bookingLink === "string" ? bookingLink.trim() : "";
-  if (link && said.includes(link)) return "link";
-  return WRITTEN_OUT_NUMBER.test(said) ? "number" : null;
 }
 
 // src/config/prompt-blocks.ts
@@ -17417,7 +17458,7 @@ function leadsFirstDayWays(f) {
 }
 
 // src/leads/lead-judge.ts
-import { z as z10 } from "zod";
+import { z as z13 } from "zod";
 var JUDGE_FACT_KEYS = [
   "name",
   "category",
@@ -17520,15 +17561,15 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z10.object({
-  places: z10.array(
-    z10.object({
-      ref: z10.number().int(),
-      criteria: z10.array(
-        z10.object({ key: z10.string(), answer: z10.enum(["pass", "fail", "unknown"]), facts: z10.array(z10.string()) })
+var AnswerSchema = z13.object({
+  places: z13.array(
+    z13.object({
+      ref: z13.number().int(),
+      criteria: z13.array(
+        z13.object({ key: z13.string(), answer: z13.enum(["pass", "fail", "unknown"]), facts: z13.array(z13.string()) })
       ),
-      email_index: z10.number().int().nullable(),
-      reason: z10.string()
+      email_index: z13.number().int().nullable(),
+      reason: z13.string()
     })
   )
 });
@@ -19762,7 +19803,7 @@ function timetable(input) {
 }
 
 // src/reach-out/reach-out-words.ts
-import { z as z11 } from "zod";
+import { z as z14 } from "zod";
 var REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"];
 var REACH_OUT_SLOT_WORDS = {
   opening: "written for each business",
@@ -19920,25 +19961,25 @@ function wordsIssueWords(i) {
       return "A line in capitals reads like spam.";
   }
 }
-var ReachOutStepSchema = z11.object({
+var ReachOutStepSchema = z14.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z11.string().uuid().nullable().optional(),
-  subject: z11.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z11.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z11.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  id: z14.string().uuid().nullable().optional(),
+  subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z14.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
 });
-var ReachOutChainSchema = z11.object({
-  name: z11.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z11.string().uuid(),
-  include_unconfirmed: z11.boolean(),
+var ReachOutChainSchema = z14.object({
+  name: z14.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z14.string().uuid(),
+  include_unconfirmed: z14.boolean(),
   /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
-  gap_minutes: z11.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+  gap_minutes: z14.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
     message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
   }),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z11.array(z11.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
-  signed_by: z11.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z11.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+  domain_ids: z14.array(z14.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
+  signed_by: z14.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z14.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
 function validateReachOutChain(c, has3) {
   const out = [];
@@ -20299,21 +20340,21 @@ function openingVerdict(code2, reading, stepLanguage) {
 }
 
 // src/reach-out/reach-out-dtos.ts
-import { z as z12 } from "zod";
+import { z as z15 } from "zod";
 var REACH_OUT_PREVIEW_INDEX_MAX = 199;
-var ReachOutPreviewSchema = z12.object({
-  search_id: z12.string().uuid(),
-  index: z12.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
-  include_unconfirmed: z12.boolean(),
-  words: z12.object({
-    subject: z12.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-    body: z12.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+var ReachOutPreviewSchema = z15.object({
+  search_id: z15.string().uuid(),
+  index: z15.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z15.boolean(),
+  words: z15.object({
+    subject: z15.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z15.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
   }),
-  signed_by: z12.string().trim().max(SIGNED_BY_MAX).nullable(),
-  language: z12.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+  signed_by: z15.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z15.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
 });
 var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
-var ReachOutDecideSchema = z12.object({ decision: z12.enum(REACH_OUT_DECISIONS) });
+var ReachOutDecideSchema = z15.object({ decision: z15.enum(REACH_OUT_DECISIONS) });
 
 // src/reach-out/reach-out-sheet.ts
 var REACH_OUT_SHEET_WORDS = {
@@ -25480,13 +25521,13 @@ function todaySteps(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
 }
 
 // src/workspace/signup.ts
-import { z as z13 } from "zod";
+import { z as z16 } from "zod";
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z13.string().trim().max(80);
-var SignupSchema = z13.object({
-  name: z13.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z13.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z16.string().trim().max(80);
+var SignupSchema = z16.object({
+  name: z16.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z16.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -25500,9 +25541,9 @@ var SignupSchema = z13.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z13.string().max(200).optional(),
+  password: z16.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z13.string().trim().min(1).max(64).optional(),
+  timezone: z16.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
@@ -25512,11 +25553,11 @@ function signupPosture(code2) {
   return code2 === SIGNUP_WAITLIST ? "waitlist" : "invite";
 }
 var PENDING_WORKSPACE_KEY = "pending_workspace";
-var PendingWorkspaceSchema = z13.object({
-  name: z13.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z16.object({
+  name: z16.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z13.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z16.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -26318,7 +26359,7 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner.ts
-import { z as z14 } from "zod";
+import { z as z17 } from "zod";
 var PARTNER_STATUSES = ["active", "paused", "closed"];
 var PARTNER_SHARE_BP_DEFAULT = 2500;
 var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
@@ -26341,11 +26382,11 @@ function cleanPartnerCode(raw) {
   return { ok: true, code: code2 };
 }
 var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
-var PartnerBecomeSchema = z14.object({
-  code: z14.string().trim().min(1).max(64),
-  terms: z14.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z17.object({
+  code: z17.string().trim().min(1).max(64),
+  terms: z17.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z14.object({ letters: z14.boolean() }).strict();
+var PartnerLettersSchema = z17.object({ letters: z17.boolean() }).strict();
 var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
 var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
 var PARTNER_COOKIE = "chanlytics_partner";
@@ -26617,32 +26658,32 @@ function partnerStandingOutcomeWords(r2) {
     return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
   return `Now ${label}. What it holds waits until a person decides.`;
 }
-var letterCents = z14.coerce.number();
-var letterSum = z14.object({ currency: z14.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z14.object({
+var letterCents = z17.coerce.number();
+var letterSum = z17.object({ currency: z17.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z17.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z14.array(z14.object({ kind: z14.string(), currency: z14.string(), count: z14.coerce.number(), cents: letterCents })).default([]),
+  written: z17.array(z17.object({ kind: z17.string(), currency: z17.string(), count: z17.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z14.array(letterSum).default([]),
+  matured: z17.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z14.array(letterSum).default([]),
-  paid: z14.array(z14.object({ currency: z14.string(), cents: letterCents, reference: z14.string(), sent_at: z14.string() })).default([]),
+  voided: z17.array(letterSum).default([]),
+  paid: z17.array(z17.object({ currency: z17.string(), cents: letterCents, reference: z17.string(), sent_at: z17.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z14.array(z14.object({ workspace: z14.string().nullable(), standing: z14.string(), why: z14.string().nullable() })).default([]),
+  standing: z17.array(z17.object({ workspace: z17.string().nullable(), standing: z17.string(), why: z17.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z14.array(z14.string().nullable()).default([]),
+  brought: z17.array(z17.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z14.array(z14.string().nullable()).default([]),
-  declined: z14.array(z14.string().nullable()).default([]),
+  accepted: z17.array(z17.string().nullable()).default([]),
+  declined: z17.array(z17.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z14.object({ status: z14.string(), why: z14.string().nullable() }).nullable().default(null),
-  balance: z14.array(
-    z14.object({
-      currency: z14.string(),
+  status: z17.object({ status: z17.string(), why: z17.string().nullable() }).nullable().default(null),
+  balance: z17.array(
+    z17.object({
+      currency: z17.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z14.string().nullable()
+      next_payable_at: z17.string().nullable()
     })
   ).default([])
 });
@@ -26743,16 +26784,16 @@ function letterSubject(news) {
 }
 
 // src/workspace/handover.ts
-import { z as z15 } from "zod";
+import { z as z18 } from "zod";
 var HANDOVER_DAYS = 14;
 var HANDOVER_WAITING_MAX = 10;
-var ownerEmail = z15.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z15.object({
-  name: z15.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z15.string().trim().max(64).nullish(),
+var ownerEmail = z18.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z18.object({
+  name: z18.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z18.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z15.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z18.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -26828,7 +26869,7 @@ function handoverInviteEmail(h) {
 }
 
 // src/workspace/second-factor.ts
-import { z as z16 } from "zod";
+import { z as z19 } from "zod";
 function factorStepNeeded(aal) {
   return !!aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
 }
@@ -26896,9 +26937,9 @@ function cleanFactorCode(raw) {
   const code2 = String(raw ?? "").replace(/\s+/g, "");
   return /^\d{6}$/.test(code2) ? code2 : null;
 }
-var PartnerSecondFactorResetSchema = z16.object({
-  partner_id: z16.string().uuid("That partner does not exist."),
-  why: z16.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z19.object({
+  partner_id: z19.string().uuid("That partner does not exist."),
+  why: z19.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 function secondFactorResetWords(code2, removed) {
   return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;

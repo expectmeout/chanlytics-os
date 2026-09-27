@@ -834,12 +834,12 @@
     "branches": 53,
     "depth": 3
   },
-  "packages/contracts/src/config/business-tab.ts::abilityRows#1": {
+  "packages/contracts/src/config/business-tab/abilities.ts::abilityRows#1": {
     "lines": 162,
     "branches": 40,
     "depth": 1
   },
-  "packages/contracts/src/config/config.ts::composeSystemPromptWith#1": {
+  "packages/contracts/src/config/workspace-config/compose.ts::composeSystemPromptWith#1": {
     "lines": 254,
     "branches": 66,
     "depth": 2

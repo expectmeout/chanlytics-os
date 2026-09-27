@@ -619,7 +619,7 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
   assert.equal(optInLink(null), null);
   assert.equal(optInLink("12"), null);
   assert.ok(
-    readCode("packages/contracts/src/config/config.ts").includes(
+    readCode("packages/contracts/src/config/workspace-config/compose.ts").includes(
       "If a message is only the words YES OFFERS or SI OFERTAS",
     ),
     "the receptionist thanks them and asks nothing else",

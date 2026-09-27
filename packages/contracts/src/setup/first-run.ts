@@ -13,8 +13,11 @@
 import { formatPhoneDisplay } from "../shared/phone";
 import { greetingFor } from "../voice/greeting";
 import { initialsOf } from "../conversations/viewmodels";
-import { openWeekWords, servicesWords, type ServiceWordsInput } from "../config/business-tab";
-import { DAY_NAMES, ROLE_PERMS, type Hours, type Role } from "../config/config";
+import { openWeekWords } from "../config/business-tab/open-week";
+import { servicesWords, type ServiceWordsInput } from "../config/business-tab/services-words";
+import type { Hours } from "../config/workspace-config/business-profile";
+import { DAY_NAMES } from "../config/workspace-config/config-schema";
+import { ROLE_PERMS, type Role } from "../config/workspace-config/role-perms";
 import { bookingLinkOptional } from "../deals/deals";
 import { checkChipsOf } from "./check-chips";
 import { bookingPageOffered } from "../google/google";

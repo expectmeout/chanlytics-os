@@ -226,7 +226,7 @@ test("every source has words a person can read", () => {
 test("the resolver is the ONE place facts are decided, on every surface that states them", () => {
   // A resolver nothing calls is a comment. These are the four places a fact
   // reaches a customer or an owner, and each has to go through it.
-  const cfg = readRaw("packages/contracts/src/config/config.ts");
+  const cfg = readRaw("packages/contracts/src/config/workspace-config/resolve.ts");
   assert.ok(cfg.includes("const facts = resolveFacts(brain, known);"), "the prompt resolves before it speaks");
   assert.ok(
     cfg.includes("return composeSystemPrompt(resolved, carried, channel, tz, now, policy);"),
