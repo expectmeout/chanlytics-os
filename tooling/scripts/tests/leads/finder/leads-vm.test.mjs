@@ -23,11 +23,14 @@ import {
   LEAD_EMAIL_WORDS,
   outcomeMove,
   toLeadPeekVM,
+  leadCheckWord,
   toLeadRowVM,
   leadRail,
   leadUndoable,
   leadsStanding,
   leadReviewGroups,
+  leadReviewCosts,
+  LEAD_REVIEW_ACT_WORDS,
   LEAD_CALL_OUTCOMES,
   LEAD_CALL_OUTCOME_TONES,
   leadEndingLine,
@@ -865,8 +868,8 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
       ["mailbox_waiting", "Waiting on the mailbox check", ["a"], []],
       ["checks_out", "Their email checks out", ["j"], ["keep", "exclude"]],
       ["mailbox_silent", "Their mail server wouldn't answer", ["b", "h"], ["check_again", "keep", "exclude"]],
-      ["bad_email", "Their email bounces", ["i"], ["find_email", "keep", "exclude"]],
-      ["no_email", "No email on their site", ["c"], ["find_email", "keep", "exclude"]],
+      ["bad_email", "Their email bounces", ["i"], ["keep", "exclude"]],
+      ["no_email", "No email on their site", ["c"], ["keep", "exclude"]],
       ["no_phone", "No phone on their listing", ["p"], ["keep", "exclude"]],
       ["catch_all", "Unconfirmed — the mailbox accepts any address", ["d"], ["keep", "exclude"]],
       ["unsure", "Couldn't tell if — with a website", ["e", "k"], ["keep", "exclude"]],
@@ -875,6 +878,13 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
     ],
     "one group per resolver, a lead in the first group that fits it, the criterion named in the owner's words, a qualified row in none, and an address that checks out groups a lead only when nothing else holds it back",
   );
+  // Find an email had no door (PR 9): no group offers it, no act is spelled for it, and no press is priced as it.
+  assert.deepEqual(
+    groups.flatMap((g) => leadReviewCosts(g.acts, g.ids.length, null)).filter((c) => /email/i.test(c.label + c.line)),
+    [],
+    "nothing on the bench or the bar offers to find an email",
+  );
+  assert.deepEqual(Object.keys(LEAD_REVIEW_ACT_WORDS), ["check_again", "keep", "exclude"]);
   assert.deepEqual(leadReviewGroups([], SEARCH_DONE), []);
   assert.deepEqual(
     leadReviewGroups([{ id: "old", cls: "review", reasons: [] }], SEARCH_DONE),
@@ -1084,6 +1094,67 @@ test("D5: the week's hours as bars, and the peek's own additions -- the tile, th
     toLeadPeekVM(row({ member: { ...row().member, checks: [] } }), SEARCH_DONE, TZ, NOW).checksSummary,
     "",
     "no checks, no head",
+  );
+});
+
+test("a check Claude read is said in the plan's own words, under the key the judge answered it by; a key the plan no longer names is still said (PR 9)", () => {
+  const weekends = {
+    ...searchWith().plan,
+    criteria: [{ key: "open_weekends", text: "open at weekends", standard: "likely", required: false }],
+    exclusions: [{ key: "chain", text: "Chain gyms", origin: "claude" }],
+  };
+  const search = searchWith({ plan: weekends });
+  const read = (key, answer, reason = null) => ({ key, how: "read", answer, source: "Claude · the listing", reason });
+  const vm = toLeadPeekVM(
+    row({
+      member: {
+        ...row().member,
+        checks: [
+          { key: "on_maps", how: "seen", answer: "yes", source: "Google Maps", reason: null },
+          read("kind", "yes", "a studio, by its category"),
+          read("open_weekends", "unknown"),
+          read("chain", "yes"),
+          read("website", "no"),
+          read("gone_criterion", "yes"),
+        ],
+      },
+    }),
+    search,
+    TZ,
+    NOW,
+  );
+  const said = (how) => vm.groups.find((g) => g.how === how).checks.map((c) => [c.key, c.label]);
+  assert.deepEqual(said("seen"), [["on_maps", "Open for business"]], "what was seen keeps its own words");
+  assert.deepEqual(
+    said("read"),
+    [
+      ["kind", "One of the personal trainers"],
+      ["open_weekends", "Open at weekends: couldn't tell"],
+      ["chain", "Not chain gyms"],
+      // The plan changed since: `website` is no longer one of its criteria, and `gone_criterion` never had words.
+      ["website", "Website: no"],
+      ["gone_criterion", "Gone criterion"],
+    ],
+    "the kind in the plan's name, a criterion in its text, an exclusion as what the place is not, and nothing dropped",
+  );
+  assert.equal(vm.checksSummary, "4 checks passed · 1 couldn't tell · 1 failed");
+  assert.deepEqual(
+    [
+      leadCheckWord(search, "kind", "no"),
+      leadCheckWord(search, "chain", "no"),
+      leadCheckWord(search, "chain", "unknown"),
+      leadCheckWord(search, "open_weekends", "no"),
+      leadCheckWord(null, "kind", "unknown"),
+      leadCheckWord(null, "independent", "no"),
+    ],
+    [
+      "Not one of the personal trainers",
+      "One of the chain gyms",
+      "Not chain gyms: couldn't tell",
+      "Open at weekends: no",
+      "The kind of business: couldn't tell",
+      "Part of a chain",
+    ],
   );
 });
 

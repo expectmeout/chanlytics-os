@@ -21,6 +21,7 @@ import {
   leadBand,
   leadReviewCosts,
   leadAskedFor,
+  leadPeekMenu,
   LEAD_REVIEW_ACT_WORDS,
   LEAD_REVIEW_GROUP_WHY,
   leadMapPlot,
@@ -637,6 +638,7 @@ const install = ({ role = "owner", refuse = null } = {}) => {
       leadBand,
       leadReviewCosts,
       leadAskedFor,
+      leadPeekMenu,
       LEAD_REVIEW_ACT_WORDS,
       LEAD_REVIEW_GROUP_WHY,
       leadMapPlot,
@@ -697,6 +699,10 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __leadUndo: async (op, version) => {
       calls.push(["undo", { op, version }]);
       return ok({});
+    },
+    __leadErase: async (id) => {
+      calls.push(["erase", { id }]);
+      return refuse || ok({ erased: true, already: false });
     },
     __leadsBulk: async (body) => {
       calls.push(["bulk", body]);
@@ -1774,6 +1780,59 @@ const addressed = () => {
   return { navs, backs, at, openPeek };
 };
 
+// PR 9: the peek drew only a lead on a page loaded, so a link to a lead further down -- or one Ask named -- opened on
+// nothing. The bridge reads it on its own now (leads-bridge.test.mjs); the page draws what it answers, keeps the
+// address, and its acts find the lead where the surface holds it (`peeked`).
+test("a lead the address names that is on no page loaded opens once the bridge has read it, keeps its address, and its acts act on it", async () => {
+  const { navs, at, openPeek } = addressed();
+  const FAR = "1ead0000-0000-4000-8000-0000000000ff";
+  const far = toLeadRowVM(
+    leadRow({ id: FAR, search_id: SEARCH_B, place_id: "ChIJfixture00ff", business_name: "Far Down The List" }),
+    TZ,
+    NOW,
+  );
+  let landed = false;
+  globalThis.window.__leadPeekVM = (id) => (id === FAR && landed ? { id: FAR, name: far.name } : null);
+  at(`leads:p-${FAR}`);
+  at(`leads:p-${FAR}`);
+  assert.equal(openPeek(), null, "nothing drawn while its read is out, and never another lead in its place");
+  landed = true;
+  globalThis.window.__LEADS = { ...globalThis.window.__LEADS, peeked: [far] };
+  at(`leads:p-${FAR}`);
+  assert.equal(openPeek().vm.id, FAR, "drawn once it lands");
+  assert.deepEqual(navs, [], "the address is left as the link said it");
+  openPeek().onKeep(FAR);
+  await settle();
+  assert.deepEqual(
+    calls.find((c) => c[0] === "keep"),
+    ["keep", { search_id: SEARCH_B, id: FAR }],
+    "Keep from its peek names its own search: the page found the lead beside the rows",
+  );
+});
+
+test("the page hands the peek its ⋯ as contracts says for the member: Erase for the owner, which closes the lead through the one door; nothing for an operator (PR 9)", async () => {
+  const { at, openPeek } = addressed();
+  at(`leads:p-${UA}`);
+  at(`leads:p-${UA}`);
+  assert.deepEqual(
+    openPeek().menu.map((m) => [m.id, m.label]),
+    [["erase", LEAD_WORDS.erase.act]],
+    "the owner's peek offers Erase",
+  );
+  openPeek().onEraseAsk();
+  at(`leads:p-${UA}`);
+  assert.equal(openPeek().mode, "erase", "asked in the peek first");
+  await openPeek().onErase();
+  at(`leads:p-${UA}`);
+  assert.deepEqual(calls.at(-1), ["erase", { id: UA }]);
+  assert.equal(flashes.at(-1).msg, LEAD_WORDS.erase.done(ID_ROWS[0].name), "a toast says it is gone");
+  fresh({ leads: surface({ rows: ID_ROWS }), role: "operator" });
+  globalThis.window.__leadPeekVM = (id) => (id === UA ? { id: UA, name: ID_ROWS[0].name } : null);
+  draw({ leadsRoute: `leads:p-${UA}` });
+  draw({ leadsRoute: `leads:p-${UA}` });
+  assert.deepEqual(peeks.at(-1).menu, [], "an operator's peek is offered no ⋯: the door is the owner's");
+});
+
 test("the lead that is open is in the address: opening pushes it, the cursor walking the peek on replaces it, and closing goes back to the entry the opening made", () => {
   const { navs, backs, at } = addressed();
   at("leads");
@@ -2387,6 +2446,52 @@ test("REGRESSION: the bulk bar draws Check N again for a lead to check again, wi
     assert.match(textOf(again), /Check 1 again · about 1¢/, "with what it costs");
   } finally {
     delete globalThis.window.__leadCheckAgain;
+  }
+});
+
+// Find an email had no door (Reach out Part 4, PR 9): its buttons waited on a courier nothing installed, but the bench's
+// pile still named it beside Keep and Exclude and priced it in its column. Nothing on the page says it now, whatever
+// is on the window.
+test("a pile of leads with no address, or one that bounces, is offered Keep and Exclude, and nothing on the bench, the bar or a phone offers to find an email", () => {
+  const noAddress = (id, state, reason) =>
+    toLeadRowVM(
+      leadRow({
+        id,
+        place_id: `ChIJfixture0${id}`,
+        email: state === "none" ? null : `hi@${id}.example`,
+        email_state: state,
+        member: member({ class: "review", fit: "look", reason: "An address to look at", reasons: [reason] }),
+      }),
+      TZ,
+      NOW,
+    );
+  const rows = [noAddress("b1", "invalid", "email:invalid"), noAddress("n1", "none", "email:none")];
+  fresh({ leads: surface({ rows, view: { ...surface().view, searchId: SEARCH_A, cls: "review" } }) });
+  // A stale courier from an older build: still nothing, because no pile names the act.
+  globalThis.window.__leadFindEmail = async () => ok({});
+  try {
+    const route = `leads:s-${SEARCH_A}:c-review`;
+    let tree = draw({ leadsRoute: route });
+    const bench = byTestId(tree, "lead-bench");
+    assert.deepEqual(
+      all(byTestId(bench, "lead-bench-queue"), (n) => n.props?.role === "tab").map((q) => textOf(q)),
+      ["1Their email bouncesKeep · Exclude", "1No email on their siteKeep · Exclude"],
+      "each pile's acts in words, and finding an email is not one",
+    );
+    assert.doesNotMatch(
+      textOf(bench),
+      /[Ff]ind (an|\d+) emails?|reads their pages again/,
+      "nor a press, nor its price",
+    );
+    for (const id of ["b1", "n1"]) byTestId(rowOf(draw({ leadsRoute: route }), id), "row-select")?.props.onChange();
+    tree = draw({ leadsRoute: route });
+    assert.equal(byTestId(tree, "leads-bulk-find-email"), null, "the bar offers no such act");
+    globalThis.__phone = true;
+    tree = draw({ leadsRoute: route });
+    assert.doesNotMatch(textOf(tree), /[Ff]ind (an|\d+) emails?/, "nor does a phone's pile");
+  } finally {
+    globalThis.__phone = false;
+    delete globalThis.window.__leadFindEmail;
   }
 });
 

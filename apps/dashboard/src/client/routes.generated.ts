@@ -12,6 +12,7 @@ export const ROUTES = {
   "DELETE me": { method: "DELETE", path: "/api/v1/me" },
   "DELETE me/devices": { method: "DELETE", path: "/api/v1/me/devices" },
   "DELETE playbooks/[id]": { method: "DELETE", path: "/api/v1/playbooks/[id]" },
+  "DELETE reach-outs/[id]": { method: "DELETE", path: "/api/v1/reach-outs/[id]" },
   "DELETE segments/[id]": { method: "DELETE", path: "/api/v1/segments/[id]" },
   "DELETE sending-domains/[id]": { method: "DELETE", path: "/api/v1/sending-domains/[id]" },
   "DELETE team/[id]": { method: "DELETE", path: "/api/v1/team/[id]" },
@@ -48,6 +49,7 @@ export const ROUTES = {
   "GET lead-searches/[id]": { method: "GET", path: "/api/v1/lead-searches/[id]" },
   "GET lead-suggestions": { method: "GET", path: "/api/v1/lead-suggestions" },
   "GET leads": { method: "GET", path: "/api/v1/leads" },
+  "GET leads/[id]": { method: "GET", path: "/api/v1/leads/[id]" },
   "GET leads/export": { method: "GET", path: "/api/v1/leads/export" },
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
@@ -58,6 +60,9 @@ export const ROUTES = {
   "GET platform/tenants/[id]": { method: "GET", path: "/api/v1/platform/tenants/[id]" },
   "GET playbooks": { method: "GET", path: "/api/v1/playbooks" },
   "GET policies": { method: "GET", path: "/api/v1/policies" },
+  "GET reach-outs": { method: "GET", path: "/api/v1/reach-outs" },
+  "GET reach-outs/[id]": { method: "GET", path: "/api/v1/reach-outs/[id]" },
+  "GET reach-outs/reach": { method: "GET", path: "/api/v1/reach-outs/reach" },
   "GET reports": { method: "GET", path: "/api/v1/reports" },
   "GET reports/campaigns": { method: "GET", path: "/api/v1/reports/campaigns" },
   "GET segments": { method: "GET", path: "/api/v1/segments" },
@@ -82,6 +87,7 @@ export const ROUTES = {
   "POST broadcasts": { method: "POST", path: "/api/v1/broadcasts" },
   "POST broadcasts/[id]/approve": { method: "POST", path: "/api/v1/broadcasts/[id]/approve" },
   "POST broadcasts/[id]/cancel": { method: "POST", path: "/api/v1/broadcasts/[id]/cancel" },
+  "POST broadcasts/[id]/recheck": { method: "POST", path: "/api/v1/broadcasts/[id]/recheck" },
   "POST calendar/preview": { method: "POST", path: "/api/v1/calendar/preview" },
   "POST calls/[id]/end": { method: "POST", path: "/api/v1/calls/[id]/end" },
   "POST calls/[id]/hand-over": { method: "POST", path: "/api/v1/calls/[id]/hand-over" },
@@ -141,6 +147,9 @@ export const ROUTES = {
   "POST platform/waitlist/invited": { method: "POST", path: "/api/v1/platform/waitlist/invited" },
   "POST playbooks": { method: "POST", path: "/api/v1/playbooks" },
   "POST playbooks/[id]/run": { method: "POST", path: "/api/v1/playbooks/[id]/run" },
+  "POST reach-out-sends/[id]/decide": { method: "POST", path: "/api/v1/reach-out-sends/[id]/decide" },
+  "POST reach-outs": { method: "POST", path: "/api/v1/reach-outs" },
+  "POST reach-outs/preview": { method: "POST", path: "/api/v1/reach-outs/preview" },
   "POST segments": { method: "POST", path: "/api/v1/segments" },
   "POST segments/draft": { method: "POST", path: "/api/v1/segments/draft" },
   "POST sending-domains": { method: "POST", path: "/api/v1/sending-domains" },
@@ -170,6 +179,7 @@ export const ROUTES = {
   "PUT notifications": { method: "PUT", path: "/api/v1/notifications" },
   "PUT playbooks/[id]": { method: "PUT", path: "/api/v1/playbooks/[id]" },
   "PUT policies": { method: "PUT", path: "/api/v1/policies" },
+  "PUT reach-outs/[id]": { method: "PUT", path: "/api/v1/reach-outs/[id]" },
   "PUT segments/[id]": { method: "PUT", path: "/api/v1/segments/[id]" },
   "PUT settings": { method: "PUT", path: "/api/v1/settings" },
   "PUT templates/[id]": { method: "PUT", path: "/api/v1/templates/[id]" },
@@ -188,6 +198,7 @@ export type Routes = {
   "DELETE me": typeof import("../../app/api/v1/me/route").DELETE;
   "DELETE me/devices": typeof import("../../app/api/v1/me/devices/route").DELETE;
   "DELETE playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").DELETE;
+  "DELETE reach-outs/[id]": typeof import("../../app/api/v1/reach-outs/[id]/route").DELETE;
   "DELETE segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").DELETE;
   "DELETE sending-domains/[id]": typeof import("../../app/api/v1/sending-domains/[id]/route").DELETE;
   "DELETE team/[id]": typeof import("../../app/api/v1/team/[id]/route").DELETE;
@@ -224,6 +235,7 @@ export type Routes = {
   "GET lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").GET;
   "GET lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").GET;
   "GET leads": typeof import("../../app/api/v1/leads/route").GET;
+  "GET leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").GET;
   "GET leads/export": typeof import("../../app/api/v1/leads/export/route").GET;
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
@@ -234,6 +246,9 @@ export type Routes = {
   "GET platform/tenants/[id]": typeof import("../../app/api/v1/platform/tenants/[id]/route").GET;
   "GET playbooks": typeof import("../../app/api/v1/playbooks/route").GET;
   "GET policies": typeof import("../../app/api/v1/policies/route").GET;
+  "GET reach-outs": typeof import("../../app/api/v1/reach-outs/route").GET;
+  "GET reach-outs/[id]": typeof import("../../app/api/v1/reach-outs/[id]/route").GET;
+  "GET reach-outs/reach": typeof import("../../app/api/v1/reach-outs/reach/route").GET;
   "GET reports": typeof import("../../app/api/v1/reports/route").GET;
   "GET reports/campaigns": typeof import("../../app/api/v1/reports/campaigns/route").GET;
   "GET segments": typeof import("../../app/api/v1/segments/route").GET;
@@ -258,6 +273,7 @@ export type Routes = {
   "POST broadcasts": typeof import("../../app/api/v1/broadcasts/route").POST;
   "POST broadcasts/[id]/approve": typeof import("../../app/api/v1/broadcasts/[id]/approve/route").POST;
   "POST broadcasts/[id]/cancel": typeof import("../../app/api/v1/broadcasts/[id]/cancel/route").POST;
+  "POST broadcasts/[id]/recheck": typeof import("../../app/api/v1/broadcasts/[id]/recheck/route").POST;
   "POST calendar/preview": typeof import("../../app/api/v1/calendar/preview/route").POST;
   "POST calls/[id]/end": typeof import("../../app/api/v1/calls/[id]/end/route").POST;
   "POST calls/[id]/hand-over": typeof import("../../app/api/v1/calls/[id]/hand-over/route").POST;
@@ -317,6 +333,9 @@ export type Routes = {
   "POST platform/waitlist/invited": typeof import("../../app/api/v1/platform/waitlist/invited/route").POST;
   "POST playbooks": typeof import("../../app/api/v1/playbooks/route").POST;
   "POST playbooks/[id]/run": typeof import("../../app/api/v1/playbooks/[id]/run/route").POST;
+  "POST reach-out-sends/[id]/decide": typeof import("../../app/api/v1/reach-out-sends/[id]/decide/route").POST;
+  "POST reach-outs": typeof import("../../app/api/v1/reach-outs/route").POST;
+  "POST reach-outs/preview": typeof import("../../app/api/v1/reach-outs/preview/route").POST;
   "POST segments": typeof import("../../app/api/v1/segments/route").POST;
   "POST segments/draft": typeof import("../../app/api/v1/segments/draft/route").POST;
   "POST sending-domains": typeof import("../../app/api/v1/sending-domains/route").POST;
@@ -346,6 +365,7 @@ export type Routes = {
   "PUT notifications": typeof import("../../app/api/v1/notifications/route").PUT;
   "PUT playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").PUT;
   "PUT policies": typeof import("../../app/api/v1/policies/route").PUT;
+  "PUT reach-outs/[id]": typeof import("../../app/api/v1/reach-outs/[id]/route").PUT;
   "PUT segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").PUT;
   "PUT settings": typeof import("../../app/api/v1/settings/route").PUT;
   "PUT templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").PUT;

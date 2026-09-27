@@ -22,12 +22,12 @@ The claim takes checked sends only. The sheet, the approval sheet, Playbooks and
 | 1 | `reach-out-4a-the-words` | The words, pure: the six slots, the words' validator, the chain's input, the check's code rules and holds, the model's prompts and answers; this plan | — |
 | 2 | `reach-out-4b-checked` | A send is checked before it goes: the opening's columns and `held`; the claim takes checked sends only; a held send keeps its run open; the chain's `signed_by` and `include_unconfirmed`; one chain per lead and per search | 00197 (with PR 3) |
 | 3 | `reach-out-4c-the-check` | The check on the edge: the writer and the reader, the clock's check phase, the sender's three new slots, the preview door | — |
-| 4 | `reach-out-4d-doors` | The member doors: save a chain with its words, a search's reach, a send's decision, a chain's report; the edge's run-now door | 00198 |
+| 4 | `reach-out-4d-doors` | The member doors: save a chain with its words, a search's reach, a send's decision, a chain's report; the edge's run-now door | 00211 |
 | 5 | `reach-out-4e-routes` | The dashboard's routes and view models: reach-outs (list, save, edit, delete, preview, reach), a send's decision, a reach-out run on Broadcasts | — |
 | 6 | `reach-out-4f-the-sheet` | The sheet; the Leads door (desk and phone); Autonomy's outreach row | — |
 | 7 | `reach-out-4g-approval` | The approval sheet's words for a reach-out run, and its held list with their doors | — |
 | 8 | `reach-out-4h-rows` | Playbooks' chain row and its open row; Templates' email rows and the version switch | — |
-| 9 | `reach-out-4i-leads-doors` | Leads' five dead doors, carried from Part 1 | 00199 |
+| 9 | `reach-out-4i-leads-doors` | Leads' five dead doors, carried from Part 1 | 00212 |
 | 10 | `reach-out-4j-proof` | The proof end to end on a stack, and the docs | — |
 
 **Order, after the review round (R19):** 1, 2, 3, 4, 5, 8, 6, 7, 9, 10. Playbooks' row ships before the door that makes a chain. §0.5 overrides the task code below wherever they disagree.
@@ -200,9 +200,9 @@ Three reviews ran against the plan at `dd859526`, each checked against the code:
   - **Every new edge door** uses the full path as its token's audience: `"/api/admin/reach-out-preview"`. The short names in Tasks 3.5 and 4.3 would never authorise.
 - **R14. Start says what really happened.** The run-now answer carries `runReachOutStep`'s reason (`billing`, `never`, `no_domain`, `no_room`, `nobody`), and each reason has its own words in contracts. "Planned within the hour" is said only when the edge could not be reached.
 - **R15. `reach_out_save` is the service role's** (supersedes F7's grant). It is granted to `service_role` only and called by the route after its role check, with the member's id. The route runs `validateReachOutChain`.
-  - **The database keeps only its CHECKs,** not a third copy of the length rules. The gap is one of `REACH_OUT_GAP_MINUTES`, a CHECK in 00198.
+  - **The database keeps only its CHECKs,** not a third copy of the length rules. The gap is one of `REACH_OUT_GAP_MINUTES`, a CHECK in 00211.
 - **R16. A chain's history is never deleted.**
-  - 00198 narrows `playbooks_acting_delete` to `kind = 'moment'`. `DELETE playbooks/[id]` refuses a reach-out, since `reach_out_sends.root_id` cascades.
+  - 00211 narrows `playbooks_acting_delete` to `kind = 'moment'`. `DELETE playbooks/[id]` refuses a reach-out, since `reach_out_sends.root_id` cascades.
   - A chain is removed only through `reach_out_remove`, and only before its first email leaves. After that it is Paused.
   - The report exposes one `can_remove`, which the page reads.
 - **R17. A step dropped in an edit takes its work with it.** Before the delete, the save cancels the dropped steps' live runs and skips their planned and held sends (`step_removed`). Their FKs are `on delete set null`.
@@ -332,7 +332,7 @@ Three reviews ran against the plan at `dd859526`, each checked against the code:
 | `apps/edge/lib/reach-out/sender.ts`, `request.ts` | The three new slots | 3 |
 | `apps/edge/api/cron/reach-out.ts` | Clock → check → claim | 3 |
 | `apps/edge/api/admin/reach-out-preview.ts` (new) | One business's email as it would read, for the sheet | 3 |
-| `supabase/migrations/00198_the_reach_out_sheet_s_doors.sql` (new) | `reach_out_save`, `reach_out_reach`, `reach_out_send_decide`, `reach_out_chain_report` | 4 |
+| `supabase/migrations/00211_the_reach_out_sheet_s_doors.sql` (new) | `reach_out_save`, `reach_out_reach`, `reach_out_send_decide`, `reach_out_chain_report` | 4 |
 | `apps/edge/api/admin/reach-out-run.ts` (new) | Run a chain's root now | 4 |
 | `packages/contracts/src/reach-out-dtos.ts` (new) | `ReachOutChainDto`, `ReachOutRunDto`, `ReachOutPreviewDto`, `ReachOutReachDto` | 5 |
 | `packages/contracts/src/reach-out-sheet.ts` (new) | Every sentence the sheet, the approval sheet, Playbooks and Templates say about a reach-out | 5 |
@@ -346,7 +346,7 @@ Three reviews ran against the plan at `dd859526`, each checked against the code:
 | `apps/dashboard/src/legacy/pages/broadcasts-run.jsx`, `broadcasts-real.jsx` | A reach-out run's approval | 7 |
 | `apps/dashboard/src/legacy/pages/reach-out-row.jsx` (new) | The chain's row and open row on Playbooks | 8 |
 | `apps/dashboard/src/legacy/pages/messages.jsx` | The email rows and the switch | 8 |
-| `supabase/migrations/00199_lead_searches_are_live.sql` (new) | `lead_searches` into the realtime publication | 9 |
+| `supabase/migrations/00212_lead_searches_are_live.sql` (new) | `lead_searches` into the realtime publication | 9 |
 | `apps/dashboard/app/api/v1/leads/[id]/route.ts` | `GET`, one lead, for a peek past the page | 9 |
 | `tooling/scripts/tests/reach-out.integration.db.test.mjs` | The proof gains the sheet's door, the check and the approval's data | 10 |
 
@@ -3137,18 +3137,59 @@ Expected: PASS. In the integration test, the explicit "mark checked" from PR 2 i
 
 ---
 
-## PR 4 — The member doors (`reach-out-4d-doors`, 00198)
+## PR 4 — The member doors (`reach-out-4d-doors`, 00211)
 
 A member saves a chain, counts a search's reach, answers a held send and reads a chain's report, each through a door that checks who is asking (F7). Starting a chain plans its first run now (F11).
 
+> **As built (PRs 4 and 5 shipped together, as one PR, with migration 00211).** The check took 00197, and `main` took
+> 00198–00208 (partners and the rest) while this was open, with #1165 holding 00209 and 00210. So the doors' migration
+> is `00211_the_reach_out_sheet_s_doors.sql`, and PR 9's is 00212. It applies twice on a
+> replayed stack, and the generated database types match it. What departs from the task code below, and why:
+>
+> - **R5, one reset.** `reach_out_recheck(send_ids, tenant, from_state)` is the only reset of a send's check (planned,
+>   unchecked, at the words' next version, `included_for` kept). The save, Rewrite, the run's "check the held again",
+>   00197's hourly release (re-created on it) and the edge sender's recheck (`recheckSends`, replacing
+>   `checkResetPatch`) all call it. The sender names `claimed`, so a send another tick has claimed since is never
+>   reset. A send past its fortnight (`reach_out_given_up`, the SQL form of `REPLAN_GIVE_UP_MS`) is skipped
+>   `kept_waiting` instead of planned again. Include and Rewrite are refused past it, in words.
+> - **R13, no new run-now door.** `playbooks-run.ts` runs a chain's root through `lib/reach-out/run-step.ts`, the
+>   playbooks sweep's loop body moved so both can call it. It keeps its full-path audience and `user_id`. A later step
+>   is a 409 `reach_out_step`. There is no `reach-out-run` door, and Task 4.3 is not built.
+> - **R14.** The door answers `{ outcome, reason, planned, run_id }`. `runPlaybookNow` catches an edge it cannot
+>   reach (`edge_unreachable`), and contracts `startWords` says each reason. Only an unreached edge says "within the
+>   hour".
+> - **R15.** `reach_out_save(tenant, user, chain)` is granted to `service_role` only. The route checks the role and
+>   runs `validateReachOutChain`, and the door checks the membership again. The gap is a CHECK
+>   (`playbooks_reach_out_gap`), and `ReachOutChainSchema` refines it to the same set.
+> - **R16.** `playbooks_acting_delete` is narrowed to moments. `reach_out_remove` refuses a chain once any send is
+>   claimed, queued, sent or failed. It locks the chain's sends first, so a claim cannot slip in between the test and
+>   the delete. The report's `can_remove` is that same predicate.
+> - **R17.** Dropping a step that wrote is refused ("That step has written already. Pause the reach-out instead.").
+>   Its history is kept. The dropped steps' sends are locked before that test, as the removal's are. A run whose step
+>   was dropped says "a step since removed" (`step_n: null`). Renaming a chain retitles its words in Templates.
+> - **R18.** `reach_out_send_decide` does all four answers, with `not_a_fit` through `lead_set_stage` in the same
+>   transaction. It is a session door (definer, `is_acting_member`) because `lead_set_stage` needs `auth.uid()`.
+>   `reach_out_run_recheck` is the run-level door. It takes the holds the hourly release takes (`check_unavailable`,
+>   no detail). A hold for a broken rule stays for its owner's Rewrite.
+> - **R23.** The report's per-step Wrote back and Said no count each lead once, at the last step that wrote to them.
+>   The per-step figures therefore sum to the chain's distinct leads. Wrote back is one set-based function,
+>   `outreach_wrote_back`. 00184's predicate moved there whole, `outreach_lead_facts` is re-created to ask it, and the
+>   report asks it once for all of a chain's leads. The index `reach_out_sends_step (playbook_id, state)` serves the
+>   save, the removal and the report.
+> - **One reading each.** `workspaceMaySpend` (a paused workspace may not spend) and `outreachModeOf` (packages/db) are
+>   read by the step's run, the check and the dashboard's chains alike. A paused workspace's Start says the workspace
+>   is paused (`workspace_paused`), not the chain.
+> - Every refusal the doors raise is a sentence in contracts `REACH_OUT_REFUSALS`, and the routes show only those.
+>   This includes `lead_set_stage`'s "Lead not found." and "This lead is gone.".
+
 ### Task 4.1: The migration
 
-**Files:** Create `supabase/migrations/00198_the_reach_out_sheet_s_doors.sql`; Regenerate `database.types.ts`
+**Files:** Create `supabase/migrations/00211_the_reach_out_sheet_s_doors.sql`; Regenerate `database.types.ts`
 
 - [ ] **Step 1: Write it**
 
 ```sql
--- 00198 · The reach-out sheet's doors.
+-- 00211 · The reach-out sheet's doors.
 --
 -- Reach out, Part 4 (docs/superpowers/plans/2026-09-26-reach-out-part-4-the-words-and-pages.md, PR 4). A member makes
 -- and edits a reach-out, counts who a search's chain would write to, and answers a held send, each through a door that
@@ -3591,13 +3632,34 @@ The sweep's loop keeps its `runDueNow` gate and its zone read, and calls this. I
   - a step's id is a 404;
   - another workspace's token is refused.
 
-- [ ] **Step 3: The gate. Review once and fix. Push 00198 to production (dry run, push, read back the four functions' grants with `select proname, proacl from pg_proc where proname like 'reach_out_%'`). Open the PR (either deploy order), wait for green CI, squash-merge.**
+- [ ] **Step 3: The gate. Review once and fix. Push 00211 to production (dry run, push, read back the four functions' grants with `select proname, proacl from pg_proc where proname like 'reach_out_%'`). Open the PR (either deploy order), wait for green CI, squash-merge.**
 
 ---
 
 ## PR 5 — The routes and the words (`reach-out-4e-routes`)
 
 The dashboard reads and writes reach-outs through routes declared with `route()`, and every sentence the pages will say is a contracts view model, tested here before any page draws it. No migration.
+
+> **As built (with PR 4, one PR, 00211).** The routes are `GET/POST reach-outs`, `GET/PUT/DELETE reach-outs/[id]`,
+> `POST reach-outs/preview`, `GET reach-outs/reach`, `POST reach-out-sends/[id]/decide` (`row(reachOutSendScope)`) and
+> `POST broadcasts/[id]/recheck`. That is nine policy rows. What departs from the task code below:
+>
+> - **Start** is `POST reach-outs` for a new chain. It saves, then calls `runPlaybookNow` (R13). The answer carries
+>   `start: ReachOutStartDto`, which `startWords` says (R14). An edit starts nothing.
+> - **R12.** The preview route declares `spend: true` and a `reach_out_preview` bucket (10 a minute). The edge door
+>   takes `user_id`, refuses a workspace past `ASK_TOKENS_DAY` (429 `ask_budget`), and records the model's tokens as
+>   `usage.ask_tokens` with purpose `reach_out_preview`.
+> - **R23.** `GET reach-outs` lists chains without the report. `GET reach-outs/[id]` reads the report and the search's
+>   reach. `ReachOutChainDto.next` carries what `nextRunWords` needs (paused, never, billing, a waiting run, then the
+>   moments' `nextRunLabel`).
+> - **The view models.** They are `reachLineOf`, `paceWords`, `sheetFootWords`, `stepLabel`, `stepWhenWords`,
+>   `startWords`, `nextRunWords`, `approvalWordsOf` (R21: counts only checked sends, and an earlier day's run goes
+>   "from now"; R22: "each has a checked address" only without unconfirmed addresses, and the domains come from the
+>   run's sends with their days sent), `chainHintOf`, `chainReportWordsOf` (with `can_remove` and R24's stop-one line)
+>   and `emailTemplateWords` (R19: "a reach-out sends email only", with no switches).
+> - `DELETE playbooks/[id]` refuses a reach-out's step (409, R16). A reach-out run's `GET broadcasts/[id]` carries
+>   `reach_out`.
+> - The GET routes read through `server/reach-outs.ts`, not a named reader. Ask does not read reach-outs yet.
 
 ### Task 5.1: The DTOs
 
@@ -4342,7 +4404,72 @@ It has no Rename, Hide or Delete (F15).
 
 - [ ] **The PR:** gate, review, fixes, PR (dashboard only), merge on green.
 
-## PR 9 — Leads' five dead doors (`reach-out-4i-leads-doors`, 00199)
+## PR 9 — Leads' five dead doors (`reach-out-4i-leads-doors`, 00212)
+
+> **As built (26 Sep 2026, on `main` at `c4841b09`; merged with `main` at `519724e9` on 27 Sep, migration 00212).** Built
+> as 00199, the plan's number; by the merge `main` reached 00208 (the partner role, 00201–00207, and 00208) and open PRs
+> held 00209–00211, so it is `00212_lead_searches_are_live.sql`. Each defect was checked in the code first; none was
+> fixed on `main`. The merge ported the work into #1161's layout (`server/leads/`, `contracts/src/leads/`, tests by
+> domain; the realtime test is `tests/database/realtime-publication.db.test.mjs`).
+>
+> - **9.1 Find an email.** The buttons were already hidden (they waited on a `__leadFindEmail` nothing installed), but the act
+>   still advertised itself: the bench's pile read "Find an email · Keep · Exclude" and its column priced it
+>   (`leadReviewCosts`: "Claude reads their pages again for an address"). It left contracts in one place:
+>   `LeadReviewAct`, the `bad_email` and `no_email` piles' acts, its word and its cost line; the page's `canFindEmail`,
+>   `onFindEmail` and the bar's two buttons went with it. `leads-vm` and `leads-honest` pin its absence (the page test
+>   draws both piles with a stale courier on the window).
+> - **9.2 Erase.** The peek had no ⋯ menu, so it gained one (`MoreMenu escape`, `peek-more`) in its top row. Who is offered
+>   it is contracts' `leadPeekMenu(role)` over `ST_STORE.myRole()` (View-as included, failing closed): the owner alone,
+>   since `DELETE leads/[id]` is role owner. An operator is offered no menu at all rather than a gated item (a secondary
+>   act stays out of sight). The words are `LEAD_ERASE_WORDS` (on `LEAD_WORDS.erase`); the question is the house
+>   `Confirm`, asked in the peek as its `erase` mode, so Esc backs out of it as from the whys. Yes calls `__leadErase`,
+>   closes the peek and toasts "{name} is erased. It won't be found again."; a refusal keeps the peek open. **Beyond the
+>   plan:** the bridge's `eraseLead` now answers on the door's accept (`refresh: "behind"`) and drops the lead from every
+>   view the tab holds, because a re-read only patches the rows it finds and the erased lead stood on the page.
+> - **9.3 Live searches.** `00212_lead_searches_are_live.sql`, with 00117's if-not-exists guard; replayed through 00212 on a
+>   scratch Postgres 16 and run twice. Nothing pinned the publication's table list, so
+>   `realtime-publication.db.test.mjs` now reads it: every table `packages/db` `realtime.ts` watches is published (it
+>   fails with `lead_searches` dropped). The generated types and schema sets do not change. **Not done here:** "push it
+>   to production" is the release's, not this branch's.
+> - **9.4 The peek past the loaded page.** `GET leads/[id]` (`read()`, `leadScope`, every member; `route-policy.json`, the
+>   typed client) reads the lead, one membership (`?search=` the view's search, else the newest; blanked is gone), its
+>   places and its search's name, and hands them to the list's own `toLeadRowDto` (`server/lead-page.ts` `leadOne`); the
+>   route test holds its row equal to `GET leads`'. `peekVMFor` asks it once per lead, holds the last eight, and fires
+>   `surface:leads` when it lands; a refusal is not asked again, a failure to answer is retried after the next re-read,
+>   which also re-reads the held lead. **Beyond the plan:** a press on a held lead shows at once and is put back when
+>   refused (`actAtOnce`), and the surface publishes the held rows as `peeked`, where the page's `leadById` finds them,
+>   so Keep, Call and Copy from that peek act on the lead. Not checked in a running app (no stack here).
+> - **9.5 The checks.** `checksOf` reports every criterion the judge answered, in its order, under its key, skipping a key
+>   that shares a seen check's name. `LeadCheck.key` widens to any string; `LEAD_CHECK_WORDS` gains `kind`; contracts'
+>   `leadCheckWord` says a read check in the plan's words (the kind by the plan's name, a criterion by its text, an
+>   exclusion as what the place is not) and a key the plan no longer names by the fixed words, else the key said plainly.
+>   Tested with a plan keyed `kind` and `open_weekends` through the route and the peek's view model.
+> - **The review round on this branch (26 Sep 2026), fixed in new commits.**
+>   - **The one-lead read is the named workspace's.** `GET leads/[id]` is `workspace`-scoped (as `GET lead-searches/[id]`
+>     is), not row-scoped: a member of two workspaces opening one's lead id on the other's page is a 404. Its
+>     `route-policy.json` row says `workspace`. The bridge also drops a row whose search the surface does not hold.
+>   - **One membership rule.** leads_page's inline `(m.class <> 'qualified' or m.counted)` is `lead_member_shown` in
+>     00212; `leads_page` (00161's body, that line changed) and the new `lead_member_of`, which `leadOne` reads, both ask
+>     it. 00212 therefore also carries two functions and a `leads_page` redefinition (it was applied nowhere yet);
+>     `database.types.ts` gains the two by hand, as the generator writes them. Other doors that still spell the rule
+>     inline (lead_bulk, the counts) are unchanged.
+>   - **The peek's cache** is keyed by workspace, lead and the view's search, and forgets a key on eviction and on
+>     every refusal; a held lead the re-read finds gone leaves the peek and every view.
+>   - **Erase** holds one erase per lead at a time and draws "Erasing…" while the door is out.
+> - **The merge with `main` (27 Sep 2026), and what its ratchets asked.**
+>   - **The partner role.** Erase stays the owner's: `DELETE leads/[id]` is `role: "owner"`, which a partner's rung
+>     (below an owner's) does not reach. `leadPeekMenu` now asks the door's own ladder rather than comparing a string:
+>     `ROLE_RANK` and `roleAtLeast` moved from `server/with-route.ts` into contracts (`config/roles.ts`), which
+>     `with-route.ts` re-exports for the doors and Ask's act tools, so the page and the doors read one ladder. A partner
+>     is offered no ⋯ (tested).
+>   - **Tables are typed once.** The one-lead read (the lead, `lead_member_of`, the places) moved into
+>     `packages/db/src/repositories/leads.ts` (`readLeadOne`, narrowing the jsonb without a cast); `leadOne` builds the
+>     row from it, so `lead-page.ts` is back at its table-name and `as unknown as` baselines.
+>   - **Complexity.** The peek's ⋯ and its question are two small components (`LeadPeekMore`, `LeadPeekAsk`) and the erase
+>     acts a helper (`leadEraseActs`); `toLeadPeekVM` asks `peekCheckLabel`. `LeadPeekInfo` still stands one line over
+>     its baseline (169 for 168; one branch fewer): the ⋯ is a line in the peek's top row. The baseline is raised by
+>     that line in this diff; the reductions (the bench, the bulk bar, `__leadFindEmail`) are banked.
+>   - **`leads_page`** was not redefined on `main` after 00161, so 00212's redefinition starts from 00161's body.
 
 Carried from Part 1 (§1's list), one task each.
 
@@ -4355,10 +4482,10 @@ Carried from Part 1 (§1's list), one task each.
   - Yes calls `__leadErase(id)`, and a toast says it is gone.
   - Harness test: the menu item, the confirm, and the call.
 - [ ] **9.3 A search's changes arrive live.**
-  - `supabase/migrations/00199_lead_searches_are_live.sql`:
+  - `supabase/migrations/00212_lead_searches_are_live.sql`:
 
 ```sql
--- 00199 · A search's changes arrive live.
+-- 00212 · A search's changes arrive live.
 --
 -- Reach out, Part 4 (PR 9; carried from Part 1). The Leads page subscribes to lead_searches (legacy-bridge/leads.ts:331),
 -- but 00140 put only its rounds, members and leads in the publication, so a search's own row (its name, its state, its
@@ -4382,7 +4509,7 @@ end $$;
   - `checksOf` (`server/lead-page.ts:127-163`) reports each criterion the judge answered, under the plan's key and its label (the search's `plan.criteria`). The `LEAD_CHECK_KEYS`-only loop goes.
   - A key the plan no longer names is shown by its words, never dropped.
   - Test with a plan whose keys are `kind` and `open_weekends`.
-- [ ] **The PR:** gate, review, fixes, 00199 to production, PR, merge on green.
+- [ ] **The PR:** gate, review, fixes, 00212 to production, PR, merge on green.
 
 ## PR 10 — The proof, and the docs (`reach-out-4j-proof`)
 

@@ -34,6 +34,5 @@
   "packages/contracts/src/templates/template-library.ts": 1097,
   "packages/contracts/src/today/today.ts": 2424,
   "packages/core/src/inbound/answer.ts": 1007,
-  "packages/core/src/leads/runner.ts": 1274,
-  "packages/db/src/repositories/reach-out.ts": 824
+  "packages/core/src/leads/runner.ts": 1274
 }

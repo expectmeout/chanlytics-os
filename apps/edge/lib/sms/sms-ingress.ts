@@ -41,6 +41,7 @@ import type { ProviderAccount, SmsInbound } from "../packages/channels.js";
 import { lineByNumber, lineAccount } from "./sms.js";
 import type { SmsLine, SmsSender } from "./sms.js";
 import type { InboundCarrier } from "../whatsapp/inbound.js";
+import type { LogEvent } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -62,7 +63,7 @@ type Db = SupabaseClient<Database>;
  * URL. Those name a constant instead, so the whole class is capped like one.
  */
 export type SmsVerdict =
-  | { kind: "refuse"; status: number; log: string; level: "warn" | "error"; alert: string | null; alertKey?: string }
+  | { kind: "refuse"; status: number; log: LogEvent; level: "warn" | "error"; alert: string | null; alertKey?: string }
   | { kind: "accept"; line: SmsLine; acct: ProviderAccount; routed: RoutedChannel; held: boolean };
 
 /** One suppression key for every text to a number no line carries, whatever the caller writes in `To`. */

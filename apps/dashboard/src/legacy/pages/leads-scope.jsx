@@ -118,7 +118,7 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
   // keeps a selection through a search). The bar acts on what it shows, so it says what it is leaving out.
   const hidden = allMatching ? 0 : sel.size - ids.length;
   // A selection that is all Needs review offers what resolves it (D3): the union of its groups' acts. Check again
-  // and Find an email draw only where their couriers exist, so nothing here is ever a dead control.
+  // draws only where its courier exists, so nothing here is ever a dead control.
   const acts = review && !allMatching && picked.length > 0 && picked.every((l) => l.cls === "review") ? review.actsFor(ids) : [];
   const gate = canFind ? {} : window.gate("find", "work these leads");
   // On a phone (spec 4.5): People's row -- ✕, the count, the act most selections get (Mark contacted) and ⋯ -- and a
@@ -145,7 +145,6 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
             <div className="pp-sheet-rows">
               {!allMatching && total > rows.length ? <Row icon="check" label={`Select all ${total.toLocaleString()} that match`} onClick={shut(onSelectAllMatching)} testid="leads-select-matching" /> : null}
               {acts.includes("check_again") && review.canCheckAgain ? <Row icon="refresh" label={`Check ${ids.length} again`} meta={`about ${V.leadCheckAgainCents ? V.leadCheckAgainCents(ids.length) : ids.length}¢`} disabled={busy} onClick={shut(() => review.onCheckAgain(ids))} testid="leads-bulk-check-again" gate={canFind ? null : gate} /> : null}
-              {acts.includes("find_email") && review.canFindEmail ? <Row icon="search" label={`Find ${ids.length === 1 ? "an email" : `${ids.length} emails`}`} disabled={busy} onClick={shut(() => review.onFindEmail(ids))} testid="leads-bulk-find-email" gate={canFind ? null : gate} /> : null}
               {acts.includes("keep") ? <Row icon="check" label={`Keep ${ids.length}`} disabled={busy} onClick={shut(() => review.onKeep(ids))} testid="leads-bulk-keep" gate={canFind ? null : gate} /> : null}
               {acts.includes("exclude") ? <Row icon="x" label={`Exclude ${ids.length}`} disabled={busy} onClick={shut(() => review.onExclude(ids))} testid="leads-bulk-exclude" gate={canFind ? null : gate} /> : null}
               <Row icon="copy" label="Copy emails" disabled={busy} onClick={shut(() => onCopyEmails(picked))} testid="leads-bulk-copy" />
@@ -174,7 +173,6 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
         <button type="button" className="cl-bucket-link" onClick={onSelectAllMatching} data-testid="leads-select-matching">Select all {total.toLocaleString()} that match</button>
       )}
       {acts.includes("check_again") && review.canCheckAgain ? <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => review.onCheckAgain(ids)} data-testid="leads-bulk-check-again" {...gate}><Icon name="refresh" size={12} /> Check {ids.length} again <span className="dim">· about {(V.leadCheckAgainCents ? V.leadCheckAgainCents(ids.length) : ids.length)}¢</span></button> : null}
-      {acts.includes("find_email") && review.canFindEmail ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => review.onFindEmail(ids)} data-testid="leads-bulk-find-email" {...gate}><Icon name="search" size={12} /> Find {ids.length === 1 ? "an email" : `${ids.length} emails`}</button> : null}
       {acts.includes("keep") ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => review.onKeep(ids)} data-testid="leads-bulk-keep" {...gate}>Keep {ids.length}</button> : null}
       {acts.includes("exclude") ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => review.onExclude(ids)} data-testid="leads-bulk-exclude" {...gate}>Exclude {ids.length}</button> : null}
       <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onCopyEmails(picked)} data-testid="leads-bulk-copy"><Icon name="copy" size={12} /> Copy emails</button>
@@ -292,8 +290,8 @@ const ldReviewSections = (p) => {
   const words = V.LEAD_REVIEW_ACT_WORDS || {};
   const review = p.review || {};
   const x = p.cellCtx || {};
-  const can = (a) => (a === "check_again" ? !!review.canCheckAgain : a === "find_email" ? !!review.canFindEmail : true);
-  const press = (a, ids) => (a === "check_again" ? review.onCheckAgain(ids) : a === "find_email" ? review.onFindEmail(ids) : a === "keep" ? review.onKeep(ids) : review.onExclude(ids));
+  const can = (a) => (a === "check_again" ? !!review.canCheckAgain : true);
+  const press = (a, ids) => (a === "check_again" ? review.onCheckAgain(ids) : a === "keep" ? review.onKeep(ids) : review.onExclude(ids));
   const gate = x.canFind ? {} : window.gate("find", "work these leads");
   return p.benchGroups.map((g) => {
     const acts = g.acts.filter(can);
