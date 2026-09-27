@@ -4,8 +4,9 @@
  * it may only fall, except in the files whose whole purpose is a repo-wide
  * lint (every write names a workspace, env vars are declared where read).
  *
- *   UPDATE_SOURCE_SCAN_BASELINE=1 pnpm test   # rewrite the baseline after a reduction
+ *   UPDATE_SOURCE_SCAN_BASELINE=1 pnpm test   # bank a reduction, and nothing else
  *   UPDATE_BASELINES=1 pnpm test               # the same, together with every other ratchet (docs/debt.md)
+ *   UPDATE_BASELINES=raise pnpm test           # a rise, argued in docs/debt.md and the pull request
  *
  * WHY THIS EXISTS AT ALL, in one measurement: on 2026-09-09 three PRs added
  * THIRTY-SIX of these assertions and removed one, against a standing rule in
@@ -29,18 +30,21 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "../_source.mjs";
-import { sourceScan, TESTS_DIR } from "../_measures.mjs";
+import { sourceScan, bankedSourceScan, TESTS_DIR, SOURCE_SCAN_BASELINE } from "../_measures.mjs";
+import { BANK, RAISE, writeBaseline } from "../_ratchet.mjs";
 
 const DIR = TESTS_DIR;
-const BASELINE = path.join(ROOT, DIR, "source-scan-baseline.json");
+const BASELINE = path.join(ROOT, SOURCE_SCAN_BASELINE);
 
 // The measure lives in _measures.mjs, beside the others the register prints, and
 // says there why the file set is `git ls-files` and the key a path under tests/.
 const { files, counts } = sourceScan();
 
-if (process.env.UPDATE_SOURCE_SCAN_BASELINE === "1" || process.env.UPDATE_BASELINES === "1") {
+// Banked by the rule every ratchet banks by (_ratchet.mjs): a count falls or goes, and a
+// rise waits for UPDATE_BASELINES=raise. It used to write the counts as measured, rises too.
+if (process.env.UPDATE_SOURCE_SCAN_BASELINE === "1" || BANK) {
   const prev = JSON.parse(fs.readFileSync(BASELINE, "utf8"));
-  fs.writeFileSync(BASELINE, JSON.stringify({ lint: prev.lint, counts }, null, 2) + "\n");
+  writeBaseline(BASELINE, { lint: prev.lint, counts: bankedSourceScan(counts, prev, RAISE) });
 }
 
 const baseline = JSON.parse(fs.readFileSync(BASELINE, "utf8"));

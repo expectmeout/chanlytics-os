@@ -1,38 +1,43 @@
 {
   "apps/dashboard/app/api/v1/ask/route.ts::handle#1": {
     "lines": 247,
-    "branches": 54,
+    "branches": 57,
     "depth": 3
   },
   "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::handle#1": {
     "lines": 52,
-    "branches": 32,
+    "branches": 34,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/contacts/[id]/details/route.ts::handle#1": {
     "lines": 57,
     "branches": 32,
-    "depth": 3
+    "depth": 2
   },
   "apps/dashboard/app/api/v1/contacts/[id]/route.ts::handle#1": {
     "lines": 232,
-    "branches": 33,
+    "branches": 31,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/policies/route.ts::handle#2": {
     "lines": 136,
-    "branches": 48,
+    "branches": 59,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/segments/[id]/route.ts::handle#1": {
     "lines": 99,
-    "branches": 44,
+    "branches": 50,
     "depth": 3
+  },
+  "apps/dashboard/app/api/v1/templates/route.ts::handle#2": {
+    "lines": 82,
+    "branches": 32,
+    "depth": 2
   },
   "apps/dashboard/app/login/page.tsx::LoginPage#1": {
     "lines": 225,
-    "branches": 23,
-    "depth": 3
+    "branches": 11,
+    "depth": 0
   },
   "apps/dashboard/app/privacy/page.tsx::PrivacyPage#1": {
     "lines": 174,
@@ -41,852 +46,557 @@
   },
   "apps/dashboard/app/signup/page.tsx::SignupPage#1": {
     "lines": 256,
-    "branches": 35,
-    "depth": 2
+    "branches": 19,
+    "depth": 1
   },
   "apps/dashboard/app/yes/[slug]/page.tsx::ConsentPage#1": {
     "lines": 155,
-    "branches": 18,
-    "depth": 2
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::$C#1": {
-    "lines": 1,
-    "branches": 39,
-    "depth": 4
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::(anonymous)#112": {
-    "lines": 1,
-    "branches": 233,
-    "depth": 10
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::Ap#1": {
-    "lines": 1,
-    "branches": 10,
-    "depth": 8
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::Ba#1": {
-    "lines": 1,
-    "branches": 20,
-    "depth": 7
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::Cf#1": {
-    "lines": 1,
-    "branches": 40,
-    "depth": 6
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::Ds#1": {
-    "lines": 1,
-    "branches": 38,
-    "depth": 9
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::Fy#1": {
-    "lines": 1,
-    "branches": 35,
-    "depth": 3
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::Ni#1": {
-    "lines": 1,
-    "branches": 35,
-    "depth": 2
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::Qs#1": {
-    "lines": 1,
-    "branches": 11,
-    "depth": 6
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::_parse#1": {
-    "lines": 1,
-    "branches": 38,
-    "depth": 6
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::addLine#1": {
-    "lines": 1,
-    "branches": 65,
-    "depth": 7
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::cluster#1": {
-    "lines": 1,
-    "branches": 17,
-    "depth": 6
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::constructor#108": {
-    "lines": 1,
-    "branches": 9,
-    "depth": 7
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::cv#1": {
-    "lines": 1,
     "branches": 13,
-    "depth": 6
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::evaluate#6": {
-    "lines": 1,
-    "branches": 38,
-    "depth": 5
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::hs#1": {
-    "lines": 1,
-    "branches": 52,
-    "depth": 3
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::iT#1": {
-    "lines": 1,
-    "branches": 18,
-    "depth": 7
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::isLessThan#1": {
-    "lines": 1,
-    "branches": 7,
-    "depth": 6
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::iv#1": {
-    "lines": 1,
-    "branches": 8,
-    "depth": 6
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::jy#1": {
-    "lines": 1,
-    "branches": 32,
-    "depth": 7
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::ky#1": {
-    "lines": 1,
-    "branches": 37,
-    "depth": 6
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::parse#9": {
-    "lines": 1,
-    "branches": 32,
-    "depth": 4
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::pe#2": {
-    "lines": 1,
-    "branches": 190,
-    "depth": 10
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::rs#1": {
-    "lines": 1,
-    "branches": 16,
-    "depth": 10
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::u#2": {
-    "lines": 1,
-    "branches": 10,
-    "depth": 6
-  },
-  "apps/dashboard/public/maplibre/maplibre-gl-shared.mjs::y_#1": {
-    "lines": 1,
-    "branches": 233,
-    "depth": 10
-  },
-  "apps/dashboard/src/client/api.ts::createApi#1": {
-    "lines": 148,
-    "branches": 49,
-    "depth": 3
+    "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx::CreateWorkspace#1": {
     "lines": 320,
-    "branches": 45,
-    "depth": 3
+    "branches": 32,
+    "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx::LegacyApp#1": {
     "lines": 181,
-    "branches": 19,
-    "depth": 2
+    "branches": 11,
+    "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/mascot/driver.ts::mountCharacter#1": {
     "lines": 218,
-    "branches": 66,
+    "branches": 19,
     "depth": 2
   },
   "apps/dashboard/src/legacy-bridge/notifications.ts::installNotifications#1": {
     "lines": 173,
-    "branches": 34,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy-bridge/reports-sample.ts::business#1": {
-    "lines": 64,
-    "branches": 33,
-    "depth": 4
+    "branches": 4,
+    "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/surface-data.ts::apply#7": {
     "lines": 146,
-    "branches": 33,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy-bridge/surface-data.ts::apply#8": {
-    "lines": 110,
-    "branches": 45,
-    "depth": 2
+    "branches": 31,
+    "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/surface-runner.ts::startSurfaces#1": {
     "lines": 248,
-    "branches": 49,
-    "depth": 3
+    "branches": 8,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/components/campaign-bits.jsx::CmPicker#1": {
     "lines": 234,
-    "branches": 125,
-    "depth": 8
-  },
-  "apps/dashboard/src/legacy/components/campaign-bits.jsx::onKey#1": {
-    "lines": 12,
-    "branches": 12,
-    "depth": 8
+    "branches": 57,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/components/chart-line.jsx::LineChart#1": {
     "lines": 77,
     "branches": 43,
-    "depth": 2
+    "depth": 1
+  },
+  "apps/dashboard/src/legacy/components/data-bits.jsx::FailedRead#1": {
+    "lines": 24,
+    "branches": 35,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/components/data-bits.jsx::onTouchEnd#1": {
     "lines": 51,
     "branches": 53,
-    "depth": 4
+    "depth": 3
   },
   "apps/dashboard/src/legacy/components/data-bits.jsx::onTouchMove#1": {
     "lines": 43,
     "branches": 58,
-    "depth": 6
-  },
-  "apps/dashboard/src/legacy/components/data-bits.jsx::touchSwipe#1": {
-    "lines": 114,
-    "branches": 126,
-    "depth": 6
+    "depth": 3
   },
   "apps/dashboard/src/legacy/components/deal-sheet.jsx::DealSheetFields#1": {
     "lines": 163,
-    "branches": 26,
-    "depth": 2
+    "branches": 24,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/components/deal-sheet.jsx::DealSheetHost#1": {
     "lines": 162,
-    "branches": 104,
-    "depth": 4
+    "branches": 45,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/components/icons.jsx::Icon#1": {
     "lines": 100,
-    "branches": 78,
+    "branches": 81,
     "depth": 1
-  },
-  "apps/dashboard/src/legacy/components/record-field.jsx::RecordCombobox#1": {
-    "lines": 98,
-    "branches": 49,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/components/record-field.jsx::RecordToggleGroup#1": {
-    "lines": 55,
-    "branches": 33,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/components/record-fold.jsx::(anonymous)#1": {
-    "lines": 133,
-    "branches": 51,
-    "depth": 3
   },
   "apps/dashboard/src/legacy/components/record-fold.jsx::RecordFold#1": {
     "lines": 156,
-    "branches": 33,
-    "depth": 2
+    "branches": 48,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/components/record-fold.jsx::RecordInline#1": {
     "lines": 80,
     "branches": 37,
-    "depth": 1
+    "depth": 0
   },
   "apps/dashboard/src/legacy/components/record-row.jsx::RecordRow#1": {
     "lines": 51,
-    "branches": 36,
-    "depth": 2
+    "branches": 49,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/components/record-sheet.jsx::RecordSheet#1": {
     "lines": 119,
-    "branches": 49,
-    "depth": 3
+    "branches": 45,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
     "lines": 209,
-    "branches": 39,
-    "depth": 3
+    "branches": 35,
+    "depth": 0
+  },
+  "apps/dashboard/src/legacy/components/sidebar.jsx::SidebarRow#1": {
+    "lines": 42,
+    "branches": 31,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/components/step-sheet.jsx::StepSheetHost#1": {
     "lines": 129,
-    "branches": 82,
-    "depth": 4
+    "branches": 33,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/components/topbar.jsx::NotifPopover#1": {
     "lines": 162,
-    "branches": 43,
-    "depth": 3
+    "branches": 13,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/components/topbar.jsx::Topbar#1": {
     "lines": 374,
-    "branches": 102,
-    "depth": 3
+    "branches": 40,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/data/bridge-stubs.jsx::bridgeStubs#1": {
     "lines": 197,
-    "branches": 87,
-    "depth": 4
+    "branches": 13,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/demo/pages/agent-fleet.jsx::FleetDetail#1": {
     "lines": 335,
-    "branches": 89,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/demo/pages/agent-store.jsx::(callback)#19": {
-    "lines": 93,
-    "branches": 40,
-    "depth": 3
+    "branches": 41,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/demo/pages/agent-store.jsx::AgentStore#1": {
     "lines": 173,
-    "branches": 28,
-    "depth": 2
+    "branches": 11,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/demo/pages/agent-store.jsx::InstallModal#1": {
     "lines": 197,
-    "branches": 38,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/demo/pages/agent-store.jsx::ListingsPane#1": {
-    "lines": 136,
-    "branches": 42,
-    "depth": 3
+    "branches": 22,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx::ComposeMode#1": {
     "lines": 168,
-    "branches": 23,
-    "depth": 2
+    "branches": 13,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx::ConnectMode#1": {
     "lines": 841,
-    "branches": 213,
-    "depth": 5
+    "branches": 132,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/demo/pages/broadcasts.jsx::BroadcastsPage#1": {
     "lines": 353,
-    "branches": 77,
-    "depth": 2
+    "branches": 22,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/demo/pages/calendar.jsx::CalendarPage#1": {
     "lines": 340,
-    "branches": 76,
-    "depth": 2
+    "branches": 23,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/demo/pages/calendar.jsx::EventPanel#1": {
     "lines": 169,
-    "branches": 61,
-    "depth": 8
+    "branches": 52,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/demo/pages/content-cal.jsx::ContentPage#1": {
     "lines": 153,
-    "branches": 29,
-    "depth": 3
+    "branches": 5,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/demo/pages/live-monitor.jsx::LivePanel#1": {
     "lines": 221,
-    "branches": 40,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/demo/pages/outbound.jsx::(callback)#18": {
-    "lines": 110,
-    "branches": 32,
-    "depth": 2
+    "branches": 25,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/demo/pages/outbound.jsx::OutboundPage#1": {
     "lines": 198,
-    "branches": 48,
-    "depth": 2
+    "branches": 3,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/demo/pages/tasks.jsx::TasksPage#1": {
     "lines": 262,
-    "branches": 68,
-    "depth": 4
+    "branches": 20,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/activity.jsx::PaneActivity#1": {
     "lines": 177,
-    "branches": 47,
+    "branches": 25,
     "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/ask-turn.jsx::AskAnswer#1": {
-    "lines": 92,
-    "branches": 31,
-    "depth": 3
   },
   "apps/dashboard/src/legacy/pages/ask-turn.jsx::AskCard#1": {
     "lines": 105,
-    "branches": 78,
-    "depth": 3
+    "branches": 58,
+    "depth": 0
+  },
+  "apps/dashboard/src/legacy/pages/attention-bits.jsx::AttnRow#1": {
+    "lines": 66,
+    "branches": 33,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/billing-real.jsx::PaneBillingReal#1": {
     "lines": 186,
-    "branches": 63,
-    "depth": 2
+    "branches": 44,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx::BcRunCard#1": {
     "lines": 77,
-    "branches": 35,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/broadcasts-ledger.jsx::BcWeek#1": {
-    "lines": 57,
-    "branches": 40,
-    "depth": 3
+    "branches": 36,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/broadcasts-run.jsx::BcSheet#1": {
     "lines": 98,
-    "branches": 33,
-    "depth": 2
+    "branches": 31,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/broadcasts-run.jsx::BroadcastDetail#1": {
     "lines": 160,
-    "branches": 59,
-    "depth": 2
+    "branches": 40,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/business-can.jsx::BtCanCard#1": {
     "lines": 142,
-    "branches": 40,
-    "depth": 2
+    "branches": 34,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/business-record.jsx::BusinessRecordForm#1": {
     "lines": 214,
-    "branches": 70,
-    "depth": 3
+    "branches": 26,
+    "depth": 1
+  },
+  "apps/dashboard/src/legacy/pages/business-tab-answers.jsx::BtAnswersCard#1": {
+    "lines": 125,
+    "branches": 31,
+    "depth": 0
+  },
+  "apps/dashboard/src/legacy/pages/business-tab-gestures.jsx::BtFold#1": {
+    "lines": 65,
+    "branches": 41,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/business-tab-gestures.jsx::BtRow#1": {
     "lines": 147,
-    "branches": 53,
-    "depth": 4
+    "branches": 52,
+    "depth": 2
   },
   "apps/dashboard/src/legacy/pages/business-tab-gestures.jsx::useBtEditor#1": {
     "lines": 221,
-    "branches": 94,
-    "depth": 2
+    "branches": 33,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/business-tab-open.jsx::BtoFeedRead#1": {
     "lines": 87,
-    "branches": 51,
-    "depth": 2
+    "branches": 43,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/business-tab-open.jsx::BtoWeek#1": {
     "lines": 166,
-    "branches": 31,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/business-tab-save.jsx::btSaver#1": {
-    "lines": 112,
-    "branches": 45,
-    "depth": 3
+    "branches": 6,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/business-tab-services.jsx::BtsServicesSheet#1": {
     "lines": 165,
-    "branches": 51,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/business-tab-services.jsx::body#1": {
-    "lines": 82,
-    "branches": 31,
+    "branches": 6,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/calendar.jsx::CalendarReal#1": {
     "lines": 354,
-    "branches": 152,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/calendar.jsx::CrAgenda#1": {
-    "lines": 49,
-    "branches": 33,
+    "branches": 80,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/calendar.jsx::CrPanel#1": {
     "lines": 113,
-    "branches": 44,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/client-profile.jsx::(callback)#48": {
-    "lines": 40,
-    "branches": 19,
-    "depth": 8
+    "branches": 37,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/client-profile.jsx::ClientProfileReal#1": {
     "lines": 515,
-    "branches": 136,
-    "depth": 3
+    "branches": 80,
+    "depth": 2
   },
   "apps/dashboard/src/legacy/pages/client-profile.jsx::ClientProfileSeed#1": {
     "lines": 357,
-    "branches": 98,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/client-profile.jsx::ConsentAsk#1": {
-    "lines": 115,
-    "branches": 33,
-    "depth": 3
+    "branches": 71,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/client-profile.jsx::GenericQueue#1": {
     "lines": 41,
-    "branches": 36,
-    "depth": 7
+    "branches": 35,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/client-profile.jsx::PersonNotes#1": {
     "lines": 221,
-    "branches": 100,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/client-profile.jsx::PersonTimeline#1": {
-    "lines": 74,
-    "branches": 32,
-    "depth": 9
-  },
-  "apps/dashboard/src/legacy/pages/client-profile.jsx::noteRow#1": {
-    "lines": 86,
-    "branches": 36,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/conversations.jsx::ConversationsPage#1": {
-    "lines": 148,
-    "branches": 38,
-    "depth": 5
+    "branches": 31,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx::AskBarSeed#1": {
     "lines": 264,
-    "branches": 114,
-    "depth": 5
+    "branches": 28,
+    "depth": 3
   },
   "apps/dashboard/src/legacy/pages/dashboard-a-ask.jsx::askAnswerFor#1": {
     "lines": 268,
-    "branches": 104,
-    "depth": 5
-  },
-  "apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx::TodayCard#1": {
-    "lines": 80,
-    "branches": 31,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/dashboard-a-day.jsx::TodayDay#1": {
-    "lines": 119,
-    "branches": 42,
+    "branches": 94,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/dashboard-a-live.jsx::NowPlayingRail#1": {
     "lines": 188,
-    "branches": 47,
-    "depth": 3
+    "branches": 13,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/first-run.jsx::FirstRun#1": {
     "lines": 301,
-    "branches": 137,
-    "depth": 4
+    "branches": 84,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/first-run.jsx::FrCheck#1": {
     "lines": 128,
-    "branches": 39,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/first-run.jsx::FrFind#1": {
-    "lines": 97,
-    "branches": 46,
+    "branches": 34,
     "depth": 2
   },
   "apps/dashboard/src/legacy/pages/first-run.jsx::FrPhone#1": {
     "lines": 304,
-    "branches": 113,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/first-run.jsx::FrTry#1": {
-    "lines": 138,
-    "branches": 46,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/inbox-list.jsx::(callback)#23": {
-    "lines": 110,
-    "branches": 48,
-    "depth": 4
+    "branches": 44,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-list.jsx::InboxList#1": {
     "lines": 409,
-    "branches": 161,
-    "depth": 4
+    "branches": 58,
+    "depth": 1
+  },
+  "apps/dashboard/src/legacy/pages/inbox-list.jsx::InboxList/map(fn)#6": {
+    "lines": 110,
+    "branches": 49,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-rail.jsx::InboxAgentRail#1": {
     "lines": 214,
-    "branches": 34,
-    "depth": 2
+    "branches": 27,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::ApprovalCard#1": {
     "lines": 167,
-    "branches": 31,
-    "depth": 2
+    "branches": 23,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::Composer#1": {
     "lines": 227,
-    "branches": 85,
-    "depth": 3
+    "branches": 36,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::InboxThread#1": {
     "lines": 119,
-    "branches": 60,
-    "depth": 2
+    "branches": 54,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::TemplateSendButton#1": {
     "lines": 93,
-    "branches": 48,
-    "depth": 3
+    "branches": 44,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::ThreadCall#1": {
     "lines": 183,
-    "branches": 109,
-    "depth": 3
+    "branches": 64,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::ThreadHeader#1": {
     "lines": 181,
-    "branches": 83,
-    "depth": 3
+    "branches": 71,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::ThreadStatus#1": {
     "lines": 153,
     "branches": 47,
-    "depth": 3
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::TlMsgEntry#1": {
     "lines": 67,
-    "branches": 36,
-    "depth": 3
+    "branches": 39,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/integrations-real.jsx::ConnectionRow#1": {
     "lines": 61,
-    "branches": 54,
-    "depth": 4
-  },
-  "apps/dashboard/src/legacy/pages/integrations-real.jsx::PaneIntegrationsReal#1": {
-    "lines": 136,
-    "branches": 75,
-    "depth": 4
-  },
-  "apps/dashboard/src/legacy/pages/leads-bench.jsx::LeadReviewBench#1": {
-    "lines": 93,
-    "branches": 32,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/leads-finder.jsx::LeadPlanCard#1": {
-    "lines": 112,
-    "branches": 40,
-    "depth": 2
+    "branches": 53,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/leads-finder.jsx::LeadPlanPanel#1": {
     "lines": 58,
-    "branches": 34,
-    "depth": 2
+    "branches": 35,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/leads-finder.jsx::ldStripOf#1": {
     "lines": 75,
-    "branches": 43,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/leads-finder.jsx::leadAnswerPlan#1": {
-    "lines": 54,
-    "branches": 31,
+    "branches": 42,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/leads-peek.jsx::LeadPeekInfo#1": {
     "lines": 169,
-    "branches": 35,
-    "depth": 3
+    "branches": 26,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/leads-scope.jsx::LeadsBulkBar#1": {
     "lines": 84,
-    "branches": 46,
-    "depth": 3
+    "branches": 47,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/leads-scope.jsx::LeadsScope#1": {
     "lines": 326,
-    "branches": 64,
-    "depth": 5
+    "branches": 62,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/live-monitor.jsx::LrPanel#1": {
     "lines": 128,
-    "branches": 41,
-    "depth": 5
-  },
-  "apps/dashboard/src/legacy/pages/live-monitor.jsx::LrWhisper#1": {
-    "lines": 122,
-    "branches": 38,
-    "depth": 2
+    "branches": 43,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/messages.jsx::MessageRow#1": {
     "lines": 312,
-    "branches": 177,
-    "depth": 5
+    "branches": 156,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/messages.jsx::MessagesReal#1": {
     "lines": 251,
-    "branches": 82,
-    "depth": 3
+    "branches": 49,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/outbound.jsx::PlaybooksReal#1": {
     "lines": 180,
-    "branches": 51,
-    "depth": 2
+    "branches": 37,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/people-import.jsx::PeopleImportSheet#1": {
     "lines": 155,
-    "branches": 56,
-    "depth": 3
+    "branches": 29,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/people-table.jsx::PeopleTable#1": {
     "lines": 57,
-    "branches": 34,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/people.jsx::(callback)#137": {
-    "lines": 52,
-    "branches": 54,
-    "depth": 4
+    "branches": 31,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/people.jsx::ClientsASeed#1": {
     "lines": 320,
-    "branches": 62,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/people.jsx::NewListRow#1": {
-    "lines": 96,
-    "branches": 38,
-    "depth": 2
+    "branches": 27,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/people.jsx::PeopleBulkBar#1": {
     "lines": 323,
-    "branches": 137,
-    "depth": 2
+    "branches": 89,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/people.jsx::PeopleRail#1": {
     "lines": 64,
-    "branches": 31,
-    "depth": 2
+    "branches": 32,
+    "depth": 0
+  },
+  "apps/dashboard/src/legacy/pages/people.jsx::RailRow#1": {
+    "lines": 22,
+    "branches": 34,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/people.jsx::onKey#2": {
     "lines": 48,
     "branches": 54,
-    "depth": 4
+    "depth": 2
   },
   "apps/dashboard/src/legacy/pages/people.jsx::usePlControls#1": {
     "lines": 164,
-    "branches": 54,
-    "depth": 2
+    "branches": 13,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/people.jsx::usePlPlace#1": {
     "lines": 192,
-    "branches": 106,
-    "depth": 4
-  },
-  "apps/dashboard/src/legacy/pages/pipeline-board.jsx::PipelineBoard#1": {
-    "lines": 59,
-    "branches": 31,
-    "depth": 3
+    "branches": 6,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/pipeline-scope.jsx::PipelineScope#1": {
     "lines": 463,
-    "branches": 165,
-    "depth": 3
+    "branches": 64,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/platform.jsx::PanePlatform#1": {
     "lines": 227,
-    "branches": 58,
+    "branches": 38,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/playbook-card.jsx::PlaybookCard#1": {
     "lines": 218,
-    "branches": 100,
-    "depth": 4
+    "branches": 82,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/playbook-card.jsx::PlaybookTile#1": {
     "lines": 95,
-    "branches": 48,
-    "depth": 3
+    "branches": 49,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/playbook-composer.jsx::PlaybookComposer#1": {
     "lines": 400,
-    "branches": 285,
-    "depth": 5
+    "branches": 165,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/reports-sections.jsx::ReportsSections#1": {
     "lines": 206,
-    "branches": 52,
-    "depth": 4
+    "branches": 39,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/segments.jsx::SegmentDetail#1": {
     "lines": 274,
-    "branches": 61,
-    "depth": 4
+    "branches": 37,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/segments.jsx::SegmentsPage#1": {
     "lines": 236,
-    "branches": 45,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/sending-domains.jsx::SendingDomains#1": {
-    "lines": 108,
-    "branches": 43,
-    "depth": 2
+    "branches": 14,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/settings.jsx::PaneAutonomyReal#1": {
     "lines": 183,
-    "branches": 44,
-    "depth": 5
+    "branches": 11,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/settings.jsx::SettingsPage#1": {
     "lines": 107,
-    "branches": 42,
-    "depth": 3
+    "branches": 32,
+    "depth": 1
   },
   "apps/dashboard/src/legacy/pages/settings.jsx::TeamSection#1": {
     "lines": 289,
-    "branches": 87,
-    "depth": 4
+    "branches": 32,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/setup.jsx::ForwardingCard#1": {
     "lines": 78,
-    "branches": 42,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/setup.jsx::LineChooser#1": {
-    "lines": 111,
-    "branches": 38,
-    "depth": 4
-  },
-  "apps/dashboard/src/legacy/pages/setup.jsx::SetupRows#1": {
-    "lines": 144,
-    "branches": 70,
-    "depth": 3
-  },
-  "apps/dashboard/src/legacy/pages/setup.jsx::act#1": {
-    "lines": 76,
-    "branches": 45,
-    "depth": 3
+    "branches": 33,
+    "depth": 0
   },
   "apps/dashboard/src/legacy/pages/templates-real.jsx::TemplateComposer#1": {
     "lines": 236,
-    "branches": 107,
-    "depth": 4
-  },
-  "apps/dashboard/src/legacy/pages/thread-pane.jsx::ThreadPane#1": {
-    "lines": 114,
-    "branches": 57,
-    "depth": 2
-  },
-  "apps/dashboard/src/legacy/pages/thread-pane.jsx::threadVerbs#1": {
-    "lines": 83,
-    "branches": 33,
-    "depth": 2
+    "branches": 62,
+    "depth": 1
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
     "lines": 558,
-    "branches": 114,
+    "branches": 87,
     "depth": 6
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {
     "lines": 67,
-    "branches": 37,
+    "branches": 43,
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/broadcast.ts::proposeBroadcast#1": {
@@ -896,452 +606,432 @@
   },
   "apps/dashboard/src/server/ask/tools/act/deal.ts::proposeDeal#1": {
     "lines": 115,
-    "branches": 75,
-    "depth": 4
+    "branches": 72,
+    "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/playbook.ts::proposePlaybook#1": {
     "lines": 183,
-    "branches": 48,
+    "branches": 50,
     "depth": 4
+  },
+  "apps/dashboard/src/server/calendar/calendar.ts::calendarSources#1": {
+    "lines": 114,
+    "branches": 36,
+    "depth": 2
+  },
+  "apps/dashboard/src/server/campaigns/broadcasts.ts::getBroadcast/map(fn)#1": {
+    "lines": 27,
+    "branches": 43,
+    "depth": 0
   },
   "apps/dashboard/src/server/campaigns/playbooks.ts::triggerPools#1": {
     "lines": 155,
-    "branches": 27,
+    "branches": 30,
     "depth": 2
+  },
+  "apps/dashboard/src/server/people/lists.ts::cleanListRule#1": {
+    "lines": 44,
+    "branches": 31,
+    "depth": 3
   },
   "apps/dashboard/src/server/readers/person.ts::read#1": {
     "lines": 257,
-    "branches": 51,
-    "depth": 2
+    "branches": 50,
+    "depth": 1
   },
   "apps/dashboard/src/server/workspace/setup.ts::setupDtoFor#1": {
     "lines": 272,
-    "branches": 59,
-    "depth": 2
+    "branches": 83,
+    "depth": 1
   },
   "apps/edge/api/admin/eval.ts::POST#1": {
     "lines": 100,
-    "branches": 37,
-    "depth": 3
+    "branches": 36,
+    "depth": 2
   },
   "apps/edge/api/admin/sending-domains.ts::POST#1": {
     "lines": 84,
     "branches": 33,
-    "depth": 2
+    "depth": 3
   },
   "apps/edge/api/admin/steer.ts::POST#1": {
     "lines": 177,
-    "branches": 38,
-    "depth": 2
+    "branches": 46,
+    "depth": 1
   },
   "apps/edge/api/admin/voice-converge.ts::POST#1": {
     "lines": 96,
-    "branches": 33,
+    "branches": 34,
     "depth": 4
   },
   "apps/edge/api/admin/voice-provision.ts::POST#1": {
     "lines": 203,
-    "branches": 39,
-    "depth": 3
+    "branches": 43,
+    "depth": 2
   },
   "apps/edge/api/admin/whatsapp/connect.ts::POST#1": {
     "lines": 192,
-    "branches": 43,
+    "branches": 47,
     "depth": 3
   },
   "apps/edge/api/admin/whatsapp/templates-create.ts::POST#1": {
     "lines": 95,
-    "branches": 32,
+    "branches": 41,
     "depth": 1
+  },
+  "apps/edge/api/cron/calendar.ts::POST#1": {
+    "lines": 80,
+    "branches": 32,
+    "depth": 3
   },
   "apps/edge/api/cron/calls.ts::POST#1": {
     "lines": 191,
-    "branches": 35,
+    "branches": 36,
     "depth": 3
   },
   "apps/edge/api/cron/leads.ts::POST#1": {
     "lines": 159,
-    "branches": 37,
-    "depth": 3
+    "branches": 35,
+    "depth": 4
   },
   "apps/edge/api/diag.ts::GET#1": {
     "lines": 234,
-    "branches": 47,
-    "depth": 5
+    "branches": 49,
+    "depth": 3
   },
   "apps/edge/api/retell-fn.ts::POST#1": {
     "lines": 279,
-    "branches": 37,
-    "depth": 4
+    "branches": 40,
+    "depth": 3
   },
   "apps/edge/api/stripe-webhook.ts::POST#1": {
     "lines": 256,
-    "branches": 73,
-    "depth": 3
+    "branches": 70,
+    "depth": 4
   },
   "apps/edge/api/whatsapp.ts::POST#1": {
     "lines": 186,
-    "branches": 59,
-    "depth": 10
+    "branches": 54,
+    "depth": 8
   },
-  "apps/edge/lib/email/sending-domains.ts::checkSendingDomain#1": {
-    "lines": 112,
+  "apps/edge/lib/google/google.ts::syncProfile#1": {
+    "lines": 145,
     "branches": 31,
     "depth": 2
   },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {
     "lines": 282,
-    "branches": 37,
-    "depth": 2
+    "branches": 1,
+    "depth": 0
   },
   "apps/edge/lib/lines/a2p.ts::campaignFactsFor#1": {
     "lines": 221,
     "branches": 12,
-    "depth": 2
+    "depth": 0
   },
   "apps/edge/lib/lines/a2p.ts::registerLine#1": {
     "lines": 215,
-    "branches": 36,
-    "depth": 2
+    "branches": 26,
+    "depth": 1
   },
   "apps/edge/lib/lines/a2p.ts::syncRegistration#1": {
     "lines": 169,
-    "branches": 30,
+    "branches": 34,
+    "depth": 2
+  },
+  "apps/edge/lib/playbooks.ts::loadTenantRunContext#1": {
+    "lines": 148,
+    "branches": 37,
     "depth": 2
   },
   "apps/edge/lib/reach-out/check.ts::checkSends#1": {
     "lines": 188,
-    "branches": 40,
+    "branches": 13,
     "depth": 3
   },
   "apps/edge/lib/reach-out/clock.ts::reachOutClock#1": {
     "lines": 152,
-    "branches": 54,
-    "depth": 8
+    "branches": 56,
+    "depth": 5
   },
   "apps/edge/lib/reach-out/replan.ts::replanSends#1": {
     "lines": 122,
-    "branches": 44,
+    "branches": 45,
     "depth": 5
-  },
-  "apps/edge/lib/reach-out/run-context.ts::reachOutRunContext#1": {
-    "lines": 150,
-    "branches": 31,
-    "depth": 2
-  },
-  "apps/edge/lib/reach-out/sender.ts::claimAndWrite#1": {
-    "lines": 128,
-    "branches": 33,
-    "depth": 3
   },
   "apps/edge/lib/reach-out/sender.ts::writeOne#1": {
     "lines": 176,
-    "branches": 45,
+    "branches": 42,
     "depth": 3
   },
   "apps/edge/lib/receptionist/unfinished.ts::sweepUnfinished#1": {
     "lines": 150,
     "branches": 37,
-    "depth": 4
+    "depth": 5
+  },
+  "apps/edge/lib/tenant-runtime.ts::loadTenantRuntime#1": {
+    "lines": 114,
+    "branches": 36,
+    "depth": 2
   },
   "apps/edge/lib/voice/call-start.ts::planCallStart#1": {
     "lines": 150,
-    "branches": 33,
-    "depth": 9
+    "branches": 35,
+    "depth": 6
   },
   "apps/edge/lib/whatsapp/persist.ts::pgSink#1": {
     "lines": 202,
-    "branches": 29,
-    "depth": 3
+    "branches": 5,
+    "depth": 0
   },
   "apps/edge/lib/whatsapp/waba-events.ts::describeWabaChange#1": {
     "lines": 115,
     "branches": 35,
-    "depth": 3
+    "depth": 2
   },
   "packages/channels/src/a2p-saga.ts::runA2PSaga#1": {
     "lines": 181,
     "branches": 42,
-    "depth": 4
-  },
-  "packages/channels/src/apify.ts::apifyClient#1": {
-    "lines": 140,
-    "branches": 35,
-    "depth": 2
+    "depth": 5
   },
   "packages/channels/src/lines-saga.ts::runLineSaga#1": {
     "lines": 225,
-    "branches": 47,
-    "depth": 4
+    "branches": 41,
+    "depth": 5
   },
   "packages/channels/src/lines-twilio.ts::twilioProvider#1": {
     "lines": 261,
-    "branches": 50,
-    "depth": 2
+    "branches": 2,
+    "depth": 0
   },
   "packages/channels/src/whatsapp.ts::normalizeInbound#1": {
     "lines": 100,
     "branches": 51,
-    "depth": 6
-  },
-  "packages/contracts/src/ask/ask-answer.ts::partialField#1": {
-    "lines": 32,
-    "branches": 18,
-    "depth": 7
+    "depth": 0
   },
   "packages/contracts/src/ask/ask.ts::buildAskSuggestions#1": {
     "lines": 85,
-    "branches": 52,
+    "branches": 49,
     "depth": 3
-  },
-  "packages/contracts/src/broadcasts/run-report.ts::(callback)#15": {
-    "lines": 70,
-    "branches": 55,
-    "depth": 9
   },
   "packages/contracts/src/broadcasts/run-report.ts::toRunReportVM#1": {
     "lines": 229,
-    "branches": 105,
-    "depth": 9
+    "branches": 29,
+    "depth": 0
+  },
+  "packages/contracts/src/broadcasts/run-report.ts::toRunReportVM/map(fn)#3": {
+    "lines": 70,
+    "branches": 55,
+    "depth": 1
   },
   "packages/contracts/src/calendar/availability.ts::parseIcs#1": {
     "lines": 134,
-    "branches": 69,
-    "depth": 5
+    "branches": 79,
+    "depth": 4
   },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {
     "lines": 186,
-    "branches": 72,
+    "branches": 53,
     "depth": 3
   },
   "packages/contracts/src/config/business-tab.ts::abilityRows#1": {
     "lines": 162,
     "branches": 40,
-    "depth": 5
+    "depth": 1
   },
   "packages/contracts/src/config/config.ts::composeSystemPromptWith#1": {
     "lines": 254,
-    "branches": 58,
-    "depth": 4
+    "branches": 66,
+    "depth": 2
   },
   "packages/contracts/src/conversations/viewmodels.ts::toCallVM#1": {
     "lines": 140,
-    "branches": 81,
-    "depth": 5
+    "branches": 69,
+    "depth": 1
   },
   "packages/contracts/src/conversations/viewmodels.ts::toInboxThreadVM#1": {
     "lines": 219,
-    "branches": 70,
-    "depth": 4
+    "branches": 53,
+    "depth": 2
   },
   "packages/contracts/src/deals/deal-sheet.ts::dealSheetBody#1": {
     "lines": 73,
-    "branches": 49,
+    "branches": 55,
     "depth": 3
   },
   "packages/contracts/src/deals/deal-sheet.ts::dealSheetFor#1": {
     "lines": 103,
-    "branches": 57,
-    "depth": 3
-  },
-  "packages/contracts/src/deals/pipeline.ts::pipelineOf#1": {
-    "lines": 111,
-    "branches": 38,
-    "depth": 5
+    "branches": 69,
+    "depth": 0
   },
   "packages/contracts/src/email/sending-domains.ts::judgeDomain#1": {
     "lines": 63,
     "branches": 33,
-    "depth": 3
-  },
-  "packages/contracts/src/google/google.ts::toGoogleVM#1": {
-    "lines": 140,
-    "branches": 39,
-    "depth": 3
+    "depth": 2
   },
   "packages/contracts/src/leads/lead-peek.ts::toLeadPeekVM#1": {
     "lines": 194,
-    "branches": 75,
-    "depth": 4
+    "branches": 77,
+    "depth": 1
   },
   "packages/contracts/src/leads/lead-row.ts::toLeadRowVM#1": {
     "lines": 146,
-    "branches": 55,
-    "depth": 5
+    "branches": 58,
+    "depth": 0
   },
   "packages/contracts/src/people/list-rules.ts::listFactWords#1": {
     "lines": 60,
-    "branches": 48,
-    "depth": 5
+    "branches": 49,
+    "depth": 1
   },
   "packages/contracts/src/people/people.ts::toPersonRowVM#1": {
     "lines": 144,
-    "branches": 59,
-    "depth": 7
-  },
-  "packages/contracts/src/people/person-attention.ts::attentionRow#1": {
-    "lines": 34,
-    "branches": 22,
-    "depth": 7
-  },
-  "packages/contracts/src/playbooks/playbook-reach.ts::playbookRunReach#1": {
-    "lines": 100,
-    "branches": 33,
-    "depth": 4
+    "branches": 84,
+    "depth": 0
   },
   "packages/contracts/src/reports/reports.ts::toReportVM#1": {
     "lines": 237,
-    "branches": 39,
-    "depth": 2
+    "branches": 37,
+    "depth": 0
   },
   "packages/contracts/src/setup/capabilities.ts::capabilityStatus#1": {
     "lines": 66,
-    "branches": 34,
-    "depth": 6
+    "branches": 36,
+    "depth": 3
   },
   "packages/contracts/src/setup/connections.ts::connectionRows#1": {
     "lines": 394,
-    "branches": 54,
-    "depth": 5
+    "branches": 67,
+    "depth": 1
   },
   "packages/contracts/src/setup/first-run-phone.ts::firstRunPhoneOf#1": {
     "lines": 302,
-    "branches": 117,
-    "depth": 4
+    "branches": 125,
+    "depth": 2
   },
   "packages/contracts/src/setup/first-run-try.ts::firstRunTryOf#1": {
     "lines": 127,
-    "branches": 60,
-    "depth": 3
+    "branches": 54,
+    "depth": 1
   },
   "packages/contracts/src/setup/first-run.ts::firstRunOf#1": {
     "lines": 104,
     "branches": 47,
-    "depth": 4
+    "depth": 0
   },
   "packages/contracts/src/setup/first-run.ts::receptionistCardOf#1": {
     "lines": 55,
+    "branches": 39,
+    "depth": 1
+  },
+  "packages/contracts/src/setup/setup-rows.ts::setupSteps#1": {
+    "lines": 59,
     "branches": 31,
     "depth": 2
   },
   "packages/contracts/src/shell/refusal.ts::refusalOf#1": {
     "lines": 58,
-    "branches": 34,
-    "depth": 3
-  },
-  "packages/contracts/src/templates/template-languages.ts::(callback)#3": {
-    "lines": 18,
-    "branches": 11,
-    "depth": 6
-  },
-  "packages/contracts/src/templates/template-languages.ts::findLanguages#1": {
-    "lines": 27,
-    "branches": 14,
-    "depth": 6
+    "branches": 33,
+    "depth": 2
   },
   "packages/contracts/src/templates/templates.ts::validateTemplateDraft#1": {
     "lines": 76,
-    "branches": 35,
-    "depth": 3
+    "branches": 33,
+    "depth": 2
   },
   "packages/contracts/src/today/today.ts::figuresOf#1": {
     "lines": 200,
-    "branches": 65,
-    "depth": 5
-  },
-  "packages/contracts/src/today/today.ts::todayAwayGrouped#1": {
-    "lines": 98,
-    "branches": 45,
-    "depth": 3
+    "branches": 55,
+    "depth": 2
   },
   "packages/contracts/src/today/today.ts::todayLeaks#1": {
     "lines": 207,
-    "branches": 71,
-    "depth": 3
+    "branches": 66,
+    "depth": 1
   },
   "packages/contracts/src/voice/live.ts::toLiveCallVM#1": {
     "lines": 86,
-    "branches": 45,
-    "depth": 4
+    "branches": 54,
+    "depth": 2
   },
   "packages/contracts/src/workspace/activity.ts::activityWords#1": {
     "lines": 159,
-    "branches": 77,
-    "depth": 5
+    "branches": 76,
+    "depth": 3
   },
   "packages/contracts/src/workspace/billing.ts::toBillingVM#1": {
     "lines": 125,
-    "branches": 34,
-    "depth": 3
+    "branches": 38,
+    "depth": 2
   },
   "packages/contracts/src/workspace/platform.ts::sentenceFor#1": {
     "lines": 55,
     "branches": 34,
+    "depth": 2
+  },
+  "packages/core/src/campaigns/check-playbook.ts::checkPlaybook#1": {
+    "lines": 72,
+    "branches": 38,
     "depth": 3
   },
   "packages/core/src/campaigns/create-broadcast.ts::createBroadcast#1": {
     "lines": 168,
-    "branches": 39,
+    "branches": 47,
     "depth": 2
   },
   "packages/core/src/campaigns/run-playbook.ts::runPlaybook#1": {
     "lines": 183,
-    "branches": 49,
-    "depth": 3
+    "branches": 48,
+    "depth": 2
   },
   "packages/core/src/conversations/reply.ts::queueReply#1": {
     "lines": 152,
-    "branches": 24,
+    "branches": 27,
     "depth": 2
   },
   "packages/core/src/deliver.ts::deliver#1": {
     "lines": 175,
-    "branches": 44,
-    "depth": 3
+    "branches": 38,
+    "depth": 2
   },
   "packages/core/src/inbound/answer.ts::answerInbound#1": {
     "lines": 920,
-    "branches": 159,
-    "depth": 4
+    "branches": 184,
+    "depth": 5
   },
   "packages/core/src/leads/runner.ts::collectHeld#1": {
     "lines": 175,
-    "branches": 51,
-    "depth": 4
+    "branches": 48,
+    "depth": 3
   },
   "packages/core/src/leads/runner.ts::memberOf#1": {
     "lines": 109,
     "branches": 31,
-    "depth": 3
+    "depth": 1
   },
-  "packages/core/src/leads/runner.ts::rejudgeProbe#1": {
-    "lines": 123,
-    "branches": 42,
-    "depth": 4
+  "packages/core/src/leads/runner.ts::startRound#1": {
+    "lines": 93,
+    "branches": 32,
+    "depth": 2
   },
   "packages/core/src/messages/broadcast.ts::sendBroadcastBatch#1": {
     "lines": 249,
-    "branches": 50,
+    "branches": 30,
     "depth": 3
   },
   "packages/core/src/messages/send.ts::sendQueued#1": {
     "lines": 136,
-    "branches": 46,
-    "depth": 7
+    "branches": 49,
+    "depth": 1
   },
   "packages/jobs/src/broadcast-send.ts::broadcastSend#1": {
     "lines": 184,
-    "branches": 16,
-    "depth": 2
-  },
-  "packages/jobs/src/settle.ts::saySettled#1": {
-    "lines": 45,
-    "branches": 21,
-    "depth": 9
+    "branches": 1,
+    "depth": 0
   },
   "packages/jobs/src/settle.ts::settleJob#1": {
     "lines": 163,
-    "branches": 33,
-    "depth": 3
+    "branches": 40,
+    "depth": 2
   }
 }
