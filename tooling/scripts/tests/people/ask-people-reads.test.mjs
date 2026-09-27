@@ -8,7 +8,18 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { dealPaceOf, dealsAreOn, pipelineOf, poolRowOf } from "@chanlytics/contracts";
+import {
+  PEOPLE_LISTS,
+  asListRule,
+  dealPaceOf,
+  dealsAreOn,
+  listRuleParts,
+  listUnknownWords,
+  pipelineOf,
+  poolRowOf,
+  ruleNeeds,
+  unmetNeed,
+} from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -19,6 +30,8 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { readerCache, readerContext, load } = await import(at("apps/dashboard/src/server/readers/index.ts"));
 const { dealBoard } = await import(at("apps/dashboard/src/server/readers/people.ts"));
 const { pipeline: pipelineContext } = await import(at("apps/dashboard/src/server/ask/context/people.ts"));
+const { audiencePool } = await import(at("apps/dashboard/src/server/readers/audience-pool.ts"));
+const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 
 beforeEach(() => readerCache.clear());
 
@@ -33,6 +46,11 @@ const PB = "abababab-abab-4aba-8aba-ababababababb";
 const D1 = "dededede-dede-4ede-8ede-dededededed1";
 const D2 = "dededede-dede-4ede-8ede-dededededed2";
 const D5 = "dededede-dede-4ede-8ede-dededededed5";
+const L_HAND = "5e5e5e5e-0000-4000-8000-000000000001";
+const L_RULE = "5e5e5e5e-0000-4000-8000-000000000002";
+const L_CAL = "5e5e5e5e-0000-4000-8000-000000000003";
+const L_OLD = "5e5e5e5e-0000-4000-8000-000000000004";
+const L_B = "5e5e5e5e-0000-4000-8000-00000000000b";
 const USER = "u1";
 const TZ = "America/New_York";
 /** A Monday at 10:00 in New York. */
@@ -114,8 +132,30 @@ function tables(sellsBy = "proposal") {
     contacts: [],
     deals: [],
     templates: [],
-    segments: [],
-    segment_members: [],
+    segments: [
+      { id: L_HAND, tenant_id: A, name: "Regulars", rule: null, archived_at: null },
+      {
+        id: L_RULE,
+        tenant_id: A,
+        name: "Talkers",
+        rule: { v: 2, all: [{ field: "conversations", op: "at_least", n: 1 }] },
+        archived_at: null,
+      },
+      {
+        id: L_CAL,
+        tenant_id: A,
+        name: "Booked ahead",
+        rule: { v: 2, all: [{ field: "booked", op: "is", yes: true }] },
+        archived_at: null,
+      },
+      { id: L_OLD, tenant_id: A, name: "Last year", rule: null, archived_at: "2026-09-01T00:00:00Z" },
+      { id: L_B, tenant_id: B, name: "Bayside regulars", rule: null, archived_at: null },
+    ],
+    segment_members: [
+      { tenant_id: A, segment_id: L_HAND, contact_id: P1 },
+      { tenant_id: A, segment_id: L_HAND, contact_id: P4 },
+      { tenant_id: B, segment_id: L_B, contact_id: PB },
+    ],
     playbooks: [],
     broadcasts: [],
     broadcast_recipients: [],
@@ -347,4 +387,119 @@ test("the board is the page's: contracts pipelineOf over everyone in People, eac
   assert.ok(!r.rows.some((x) => x.id === P4 || x.id === PB), "nobody off the board, and nobody of another workspace");
   const off = await load(rcIn(ctxFor(tables("booking"))), dealBoard, undefined);
   assert.deepEqual([off.data, off.rows], [{ deals_on: false, timezone: TZ, board: null }, []]);
+});
+
+/** Ask's people tool, run through the registry for a member of harbor, on the fixture's clock. */
+const ask = async (input, t = tables(), role = "operator") => {
+  const tc = newToolContext(ctxFor(t), A, role, TZ, NOW);
+  const out = await runTool(tc, { name: "people", input });
+  assert.equal(out.isError, false, out.result);
+  return { out: JSON.parse(out.result), tc };
+};
+
+test("people.pipeline answers what the board's reader answers, as the Pipeline draws it: the line over the table, the pace, each group with its count and what it comes to, and each person on it with the deal's id, service, value, time in stage, chip and next step; each person and deal a row in the read set, opened on the person's page; where deals are off, said so", async () => {
+  const { out, tc } = await ask({ action: "pipeline" });
+  const board = (await load(rcIn(ctxFor(), "operator"), dealBoard, undefined)).data.board;
+  assert.deepEqual(out, {
+    route: "clients/pipeline",
+    deals_on: true,
+    summary: board.summary.join(" · "),
+    pace: board.pace?.words ?? null,
+    groups: board.groups.map((g) => ({
+      group: g.label,
+      count: g.count,
+      comes_to: g.meta,
+      people: g.rows.map((row) => ({
+        contact_id: row.id,
+        deal_id: row.person.deal?.id ?? null,
+        route: `clients/${row.id}`,
+        name: row.name,
+        service: row.service,
+        value: row.value,
+        in_stage: row.inStage || null,
+        chip: row.chip?.words ?? null,
+        next_step: row.next ? `${row.next.words} · ${row.next.when}` : null,
+      })),
+    })),
+  });
+  assert.deepEqual(
+    out.groups.map((g) => [g.group, g.count, g.people.map((p) => [p.name, p.service, p.value])]),
+    [
+      [
+        "Proposal out",
+        2,
+        [
+          ["Rosa", "Kitchen remodel", "$1,200"],
+          ["Mia", "Bathroom", "$800"],
+        ],
+      ],
+      ["Clients", 1, [["Quinn", "Ad management", "$2,500 a month"]]],
+      ["Passed or ended", 1, [["Lena", "Kitchen remodel", null]]],
+    ],
+  );
+  assert.match(out.summary, /^2 proposals out · \$2,000 · 1 waiting over a week · 1 client/);
+  assert.deepEqual(tc.read.person.get(P1), { kind: "person", id: P1, route: `clients/${P1}`, label: "Rosa" });
+  assert.deepEqual(tc.read.deal.get(D1), {
+    kind: "deal",
+    id: D1,
+    route: `clients/${P1}`,
+    label: "Rosa · Kitchen remodel",
+  });
+  assert.ok(!tc.read.person.has(P4) && !tc.read.person.has(PB), "nobody off the board is named");
+  const off = await ask({ action: "pipeline" }, tables("booking"));
+  assert.deepEqual([off.out.deals_on, off.out.groups, off.tc.read.person.size], [false, undefined, 0]);
+});
+
+test("people.lists answers the rail People draws, over the audience pool (everyone, for the member asking): People's own lists this workspace can count with what each holds and how many, the ones it cannot count with why, and the workspace's own lists with their rule in the page's words and their count or why not, the archived by name; each list a row in the read set, opened on People at it", async () => {
+  const { out, tc } = await ask({ action: "lists" });
+  const rc = rcIn(ctxFor(), "operator");
+  const pool = (await load(rc, audiencePool, undefined)).data;
+  // The page's own build (legacy-bridge/surface-data.ts publishPeople), over the pool's rows.
+  const cal = pool.calendar.state;
+  const offered = PEOPLE_LISTS.filter(
+    (l) =>
+      (!l.needsCalendar || cal === "ok") &&
+      (!l.needsConsultFirst || pool.consult_first) &&
+      (!l.needsDeals || pool.deals_on),
+  );
+  assert.deepEqual(
+    out.lists,
+    offered.map((l) => ({ list: `seg:${l.id}`, label: l.label, holds: l.tip, count: pool.rows.filter(l.test).length })),
+  );
+  assert.deepEqual(
+    out.cannot_count,
+    PEOPLE_LISTS.flatMap((l) => {
+      const need = unmetNeed(ruleNeeds(l.rule), pool.listCtx);
+      return need ? [{ label: l.label, why: listUnknownWords(need, cal) }] : [];
+    }),
+  );
+  assert.ok(out.cannot_count.length > 0, "no calendar here: the lists that read one say why");
+  // In the lists reader's order (by name); a list kept by hand counts its members on People, a rule counts whom it
+  // holds today, and a rule that reads the calendar says why it cannot be counted here.
+  assert.deepEqual(out.own, [
+    {
+      list: `list:${L_CAL}`,
+      name: "Booked ahead",
+      kept: "by its rule",
+      rule: listRuleParts(asListRule({ v: 2, all: [{ field: "booked", op: "is", yes: true }] })).join(" · "),
+      cannot_count: listUnknownWords("calendar", cal),
+    },
+    { list: `list:${L_HAND}`, name: "Regulars", kept: "by hand", rule: null, count: 2 },
+    {
+      list: `list:${L_RULE}`,
+      name: "Talkers",
+      kept: "by its rule",
+      rule: listRuleParts(asListRule({ v: 2, all: [{ field: "conversations", op: "at_least", n: 1 }] })).join(" · "),
+      count: 5,
+    },
+  ]);
+  assert.deepEqual(out.archived, ["Last year"]);
+  assert.deepEqual(tc.read.list.get(L_HAND), {
+    kind: "list",
+    id: L_HAND,
+    route: `clients/list:${L_HAND}`,
+    label: "Regulars",
+  });
+  assert.equal(tc.read.list.get(offered[0].id).route, `clients/seg:${offered[0].id}`, "People's own, at its view");
+  assert.ok(!tc.read.list.has(L_OLD) && !tc.read.list.has(L_B), "neither the archived nor another workspace's");
 });

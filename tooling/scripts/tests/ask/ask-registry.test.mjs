@@ -45,7 +45,9 @@ const FROZEN = fixture("ask-tools-4-3.json");
 /** What PR 3.4 sent, per role: a tool PR 4.3 did not change reads the same (the Phase 4 plan, D2). */
 const TODAY = fixture("ask-tools-3-4.json");
 /** The tools whose actions PR 4.3 changed: their descriptions, schemas and examples moved on purpose. */
-const CHANGED = [];
+const CHANGED = ["campaigns", "leads", "people", "workspace"];
+/** The actions PR 4.3 added (the Phase 4 plan, D1): no old tool was any of them. The eval's one list of them. */
+const { ADDED_SINCE: PHASE_4 } = await import(at("tooling/evals/rename-ask-tools.mjs"));
 /** The twenty-six tools as PR 3.1 froze them: each action's own fields are its old tool's. */
 const OLD = fixture("ask-tools-0c136563.json").operator;
 /** The rename, old name -> `name.action`: the one table (D13). */
@@ -198,7 +200,7 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
       );
       for (const a of actionsOf(name))
         assert.equal(
-          new RegExp(`\\baction ${a}\\b`).test(t.description),
+          new RegExp(`\\baction ${a}\\b`, "i").test(t.description),
           own.includes(a),
           `${role} ${name}: the description names action ${a} only when it is offered`,
         );
@@ -229,12 +231,21 @@ test("the invariant (D2): a tool whose every action reaches a role, and whose ac
   }
 });
 
-test("the rename is a bijection: every old tool is one tool and action of the registry, every action one old tool, and each action takes exactly the fields its old tool took", () => {
+test("the rename is a bijection: every old tool is one tool and action of the registry, every action but Phase 4's ten one old tool, and each action takes exactly the fields its old tool took", () => {
   const pairs = Object.values(NAMES);
   const registry = [...DEFS.keys()].flatMap((name) =>
     actionsOf(name).length ? actionsOf(name).map((a) => `${name}.${a}`) : [name],
   );
-  assert.deepEqual([...pairs].sort(), [...registry].sort(), "twenty-six old tools, twenty-six actions");
+  assert.deepEqual(
+    [...pairs].sort(),
+    registry.filter((n) => !PHASE_4.includes(n)).sort(),
+    "twenty-six old tools, twenty-six actions",
+  );
+  assert.deepEqual(
+    registry.filter((n) => PHASE_4.includes(n)).sort(),
+    PHASE_4,
+    "and Phase 4's ten, each an action of a tool that was",
+  );
   for (const [old, to] of Object.entries(NAMES)) {
     const [name, action = ""] = to.split(".");
     const def = DEFS.get(name).actions[action];
@@ -280,7 +291,8 @@ test("every description is at least three sentences, says what each of its actio
   const gone = Object.keys(NAMES).filter((old) => !DEFS.has(old));
   for (const t of all) {
     assert.ok(sentences(t.description) >= 3, `${t.name}: ${sentences(t.description)} sentence(s)`);
-    for (const a of actionsOf(t.name)) assert.ok(t.description.includes(`action ${a}`), `${t.name} says action ${a}`);
+    for (const a of actionsOf(t.name))
+      assert.ok(new RegExp(`\\baction ${a}\\b`, "i").test(t.description), `${t.name} says action ${a}`);
     for (const old of gone) assert.ok(!new RegExp(`\\b${old}\\b`).test(t.description), `${t.name} names ${old}`);
   }
   assert.equal(new Set(all.map((t) => t.description)).size, all.length, "no two descriptions are equal");
@@ -341,6 +353,26 @@ test("input_examples ride on every action of a tool with actions and on the shap
       assert.deepEqual(r.data, actions.length ? fields : ex, `${t.name}: nothing stripped or defaulted`);
     }
   }
+  // Each role's examples validate against the flattened schema that role is sent (D2): the API refuses one that does
+  // not, and a role is sent its own actions' fields alone.
+  const fits = (s, v, at) => {
+    if (s.enum) assert.ok(s.enum.includes(v), `${at}: ${JSON.stringify(v)} in ${JSON.stringify(s.enum)}`);
+    if (s.type === "array") return v.forEach((x, i) => fits(s.items, x, `${at}[${i}]`));
+    if (s.type === "object") {
+      for (const k of s.required ?? []) assert.ok(k in v, `${at}: ${k} required`);
+      for (const [k, x] of Object.entries(v)) {
+        assert.ok(k in s.properties || s.additionalProperties !== false, `${at}: ${k} is in the schema`);
+        if (s.properties[k]) fits(s.properties[k], x, `${at}.${k}`);
+      }
+      return;
+    }
+    const type = s.type === "integer" ? "number" : s.type;
+    if (type) assert.equal(typeof v, type, at);
+    if (s.type === "integer") assert.ok(Number.isInteger(v), at);
+  };
+  for (const role of ROLES)
+    for (const t of toApiTools(role, true))
+      for (const ex of t.input_examples ?? []) fits(t.input_schema, ex, `${role} ${t.name}`);
   // The settings changes pass the change's own schema too: each makes its card, with nothing read.
   const { supabase, t } = contextFor("owner");
   for (const ex of tools.find((x) => x.name === "propose_settings").input_examples) {
@@ -550,7 +582,8 @@ test("an unknown tool is refused as it always was, for a read and for an act, an
   }
   // Before a call names its action, or with one the tool does not have: the tool's first action's line.
   assert.equal(toolLabel("campaigns"), "Reading the lists and templates");
-  assert.equal(toolLabel("campaigns", { action: "broadcasts" }), "Reading the lists and templates");
+  assert.equal(toolLabel("campaigns", { action: "teleport" }), "Reading the lists and templates");
+  assert.equal(toolLabel("campaigns", { action: "broadcasts" }), "Reading the broadcasts", "PR 4.3's own line");
   assert.equal(toolLabel("teleport", {}), "Running teleport");
   // What a turn records: the action where the tool takes one and the call named one as a string, else the name.
   assert.deepEqual(

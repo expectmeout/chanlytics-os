@@ -1,4 +1,4 @@
-import type { AskSurface } from "@chanlytics/contracts";
+import type { AskScope, AskSurface } from "@chanlytics/contracts";
 import type { SearchResultBlock } from "./context";
 import { calledName, type ToolRun } from "./tools";
 
@@ -84,6 +84,23 @@ export function crossPagePlan(text: string, surface: string | null, view: string
   else if (CALLS.test(q)) add("calls", { action: "list", filter: "recent" });
   if (HELD.test(q)) add("inbox", { action: "list", filter: "held" });
   return out.slice(0, CROSS_PAGE_MAX);
+}
+
+/**
+ * The row the scope names, read whole by the tool and action that read it, to ride in with the page (as the snapshot's
+ * scoped row did): a call (calls.get), a person (people.get), a thread or a conversation (inbox.thread), a lead
+ * (leads.lead), a search (leads.search), and a run -- the Broadcasts row its address calls one -- (campaigns.broadcast).
+ * A page needs no read: none. Moved here from loop.ts (PR 4.3): the reads made before the model is asked live here.
+ */
+export function scopedRead(scope: AskScope | null): ToolRun | null {
+  if (scope?.kind === "call") return { name: "calls", input: { action: "get", call_id: scope.id } };
+  if (scope?.kind === "person") return { name: "people", input: { action: "get", contact_id: scope.id } };
+  if (scope?.kind === "thread" || scope?.kind === "conversation")
+    return { name: "inbox", input: { action: "thread", conversation_id: scope.id, more: false } };
+  if (scope?.kind === "lead") return { name: "leads", input: { action: "lead", lead_id: scope.id } };
+  if (scope?.kind === "search") return { name: "leads", input: { action: "search", search_id: scope.id } };
+  if (scope?.kind === "run") return { name: "campaigns", input: { action: "broadcast", broadcast_id: scope.id } };
+  return null;
 }
 
 /**

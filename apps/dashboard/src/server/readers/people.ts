@@ -110,7 +110,7 @@ export const people: Reader<{ q: string | null; offset: number }, PeoplePage> = 
 };
 
 /** The Pipeline's board: whether deals are on, the zone its days are judged in, and the board where they are. */
-export interface DealBoard {
+interface DealBoard {
   deals_on: boolean;
   timezone: string;
   /** Null where deals are off: the Pipeline's address draws People there. */

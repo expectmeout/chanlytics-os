@@ -84,13 +84,16 @@
     },
     {
       "name": "campaigns",
-      "description": "What goes out to the people who said yes, by action; neither action takes anything more. Action audiences, read before any broadcast, lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
+      "description": "What goes out to the people who said yes, by action. Action audiences takes nothing more; read before any broadcast, it lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Needs you, with waiting_on_you), when, how many it was for, and how many were sent, delivered, read, replied, held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies. Action broadcast takes broadcast_id, the id action broadcasts returned or a playbook's waiting run, and reads one broadcast as its opened run shows it: its row, the five figures (sent, delivered, replied, said yes, asked to stop) with what each means, the people it touched in the page's words, and what came back, quoted, with what happened since. Call it for who a broadcast reached and what they said. It returns at most 20 people and 10 replies, the figures counting everyone, each person as the page names them and their id; a broadcast the workspace does not hold is an error, said in words. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["audiences", "playbooks"]
+            "enum": ["audiences", "playbooks", "broadcasts", "broadcast"]
+          },
+          "broadcast_id": {
+            "type": "string"
           }
         },
         "required": ["action"],
@@ -102,6 +105,13 @@
         },
         {
           "action": "playbooks"
+        },
+        {
+          "action": "broadcasts"
+        },
+        {
+          "action": "broadcast",
+          "broadcast_id": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b"
         }
       ]
     },
@@ -142,13 +152,37 @@
     },
     {
       "name": "leads",
-      "description": "The lead finder, by action; action searches, its one action today, takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here starts or changes because it was read, and every string is cut short.",
+      "description": "The lead finder, as the Leads page reads it, by action. Action searches takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Action leads reads the businesses the searches found, as a view of the Leads page lists them: list is all (the default), ready, nurture (contacted), converted (talking), said_no or not_a_fit; search_id keeps one search's leads, class keeps qualified, review (needs review) or excluded (left out), sort orders them by fit (the default), found, distance, business, rating or stage, and words keeps the ones whose name, kind or area has them, as the page's box does. Each lead says its kind, area, class, fit or why it was left out, stage, email, rating, when it was found and its search; with the view's first page come the rail's six counts and, for an owner or a partner, this month's leads used and left. Call it for who the leads are or to find one, and action lead for one lead's details. It returns at most 25 leads, matching counting the view's first five hundred (words match within those) before the cap, and next_page, passed back as after, for the next five hundred. Action lead takes lead_id, the id action leads returned, and an optional search_id to read it as that search found it, and reads one lead as its peek on Leads shows it: its row, what its listing says about it, where it is and whether it is open today, its rating, why it fits, the checks made, where it was found, its phone, email and website. Call it when one lead's details are needed; a lead the workspace does not hold is an error, said in words. Action search takes search_id, the id action searches returned, and reads one search as Leads shows it at that search: its row as action searches says it, what the owner asked in their words and what the plan leaves out, how many emails were checked and how many leads have a phone, the qualified by fit (strong, look, long), and where to look next when it ran dry. Call it when one search is named or is the one on screen; a search the workspace does not hold, or one removed from Leads, is an error, said in words. Nothing here starts or changes because it was read, and every string is cut short.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["searches"]
+            "enum": ["searches", "leads", "lead", "search"]
+          },
+          "list": {
+            "type": "string",
+            "enum": ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"]
+          },
+          "search_id": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string",
+            "enum": ["qualified", "review", "excluded"]
+          },
+          "sort": {
+            "type": "string",
+            "enum": ["fit", "found", "distance", "business", "rating", "stage"]
+          },
+          "words": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          },
+          "lead_id": {
+            "type": "string"
           }
         },
         "required": ["action"],
@@ -157,18 +191,31 @@
       "input_examples": [
         {
           "action": "searches"
+        },
+        {
+          "action": "leads",
+          "list": "ready",
+          "sort": "rating"
+        },
+        {
+          "action": "lead",
+          "lead_id": "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f"
+        },
+        {
+          "action": "search",
+          "search_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"
         }
       ]
     },
     {
       "name": "people",
-      "description": "People, the customers and callers, as the People page and a person's page read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call action search to find someone, or to see who is on a list; call action get when the profile, the timeline or the notes are needed and the page on screen holds only their row. search returns at most 12 people, with matches counted before the cap; a list that cannot be counted here says why. get returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
+      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["search", "get"]
+            "enum": ["search", "get", "lists", "pipeline"]
           },
           "query": {
             "type": "string"
@@ -201,6 +248,12 @@
         {
           "action": "get",
           "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+        },
+        {
+          "action": "lists"
+        },
+        {
+          "action": "pipeline"
         }
       ]
     },
@@ -231,13 +284,13 @@
     },
     {
       "name": "workspace",
-      "description": "The workspace, by action; action settings, its one action today, takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications, the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels. Nothing changes because it was read; propose_settings is what changes a setting.",
+      "description": "The workspace, by action. Action settings takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications (where alerts are emailed), the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels; propose_settings is what changes a setting. Action connections takes nothing more and reads what the workspace is connected to, in the Setup page's words: whether the receptionist answers and on which numbers; its phone line and whether the number its customers know is forwarded to it, WhatsApp, the email mailbox, the calendar and Google, each with its state and what the page says of it; and each domain it sends cold email from, with its state, what it has sent, its daily cap and what to do next. Call it for whether something is connected, or why not; action settings has the receptionist's own rules. Billing and the plan's price are not here: money stays out of Ask. Action notifications takes nothing more and reads this person's own notifications as the bell keeps them on the server: the last thirty days, sixty at most, newest first, each with its title, its first line, how long ago, whether it is unread for them and where it opens, and how many are unread; one they dismissed is gone. Call it for what the bell has told them. The bell also shows what the page works out in the tab (threads waiting on a person, missed calls, invitations), which this cannot read, so say the bell may hold more; billing's notices stay out of Ask. Nothing changes because it was read.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["settings"]
+            "enum": ["settings", "connections", "notifications"]
           }
         },
         "required": ["action"],
@@ -246,6 +299,12 @@
       "input_examples": [
         {
           "action": "settings"
+        },
+        {
+          "action": "connections"
+        },
+        {
+          "action": "notifications"
         }
       ]
     }
@@ -335,13 +394,16 @@
     },
     {
       "name": "campaigns",
-      "description": "What goes out to the people who said yes, by action; neither action takes anything more. Action audiences, read before any broadcast, lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
+      "description": "What goes out to the people who said yes, by action. Action audiences takes nothing more; read before any broadcast, it lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Needs you, with waiting_on_you), when, how many it was for, and how many were sent, delivered, read, replied, held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies. Action broadcast takes broadcast_id, the id action broadcasts returned or a playbook's waiting run, and reads one broadcast as its opened run shows it: its row, the five figures (sent, delivered, replied, said yes, asked to stop) with what each means, the people it touched in the page's words, and what came back, quoted, with what happened since. Call it for who a broadcast reached and what they said. It returns at most 20 people and 10 replies, the figures counting everyone, each person as the page names them and their id; a broadcast the workspace does not hold is an error, said in words. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["audiences", "playbooks"]
+            "enum": ["audiences", "playbooks", "broadcasts", "broadcast"]
+          },
+          "broadcast_id": {
+            "type": "string"
           }
         },
         "required": ["action"],
@@ -353,6 +415,13 @@
         },
         {
           "action": "playbooks"
+        },
+        {
+          "action": "broadcasts"
+        },
+        {
+          "action": "broadcast",
+          "broadcast_id": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b"
         }
       ]
     },
@@ -393,13 +462,37 @@
     },
     {
       "name": "leads",
-      "description": "The lead finder, by action; action searches, its one action today, takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here starts or changes because it was read, and every string is cut short.",
+      "description": "The lead finder, as the Leads page reads it, by action. Action searches takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Action leads reads the businesses the searches found, as a view of the Leads page lists them: list is all (the default), ready, nurture (contacted), converted (talking), said_no or not_a_fit; search_id keeps one search's leads, class keeps qualified, review (needs review) or excluded (left out), sort orders them by fit (the default), found, distance, business, rating or stage, and words keeps the ones whose name, kind or area has them, as the page's box does. Each lead says its kind, area, class, fit or why it was left out, stage, email, rating, when it was found and its search; with the view's first page come the rail's six counts and, for an owner or a partner, this month's leads used and left. Call it for who the leads are or to find one, and action lead for one lead's details. It returns at most 25 leads, matching counting the view's first five hundred (words match within those) before the cap, and next_page, passed back as after, for the next five hundred. Action lead takes lead_id, the id action leads returned, and an optional search_id to read it as that search found it, and reads one lead as its peek on Leads shows it: its row, what its listing says about it, where it is and whether it is open today, its rating, why it fits, the checks made, where it was found, its phone, email and website. Call it when one lead's details are needed; a lead the workspace does not hold is an error, said in words. Action search takes search_id, the id action searches returned, and reads one search as Leads shows it at that search: its row as action searches says it, what the owner asked in their words and what the plan leaves out, how many emails were checked and how many leads have a phone, the qualified by fit (strong, look, long), and where to look next when it ran dry. Call it when one search is named or is the one on screen; a search the workspace does not hold, or one removed from Leads, is an error, said in words. Nothing here starts or changes because it was read, and every string is cut short.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["searches"]
+            "enum": ["searches", "leads", "lead", "search"]
+          },
+          "list": {
+            "type": "string",
+            "enum": ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"]
+          },
+          "search_id": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string",
+            "enum": ["qualified", "review", "excluded"]
+          },
+          "sort": {
+            "type": "string",
+            "enum": ["fit", "found", "distance", "business", "rating", "stage"]
+          },
+          "words": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          },
+          "lead_id": {
+            "type": "string"
           }
         },
         "required": ["action"],
@@ -408,18 +501,31 @@
       "input_examples": [
         {
           "action": "searches"
+        },
+        {
+          "action": "leads",
+          "list": "ready",
+          "sort": "rating"
+        },
+        {
+          "action": "lead",
+          "lead_id": "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f"
+        },
+        {
+          "action": "search",
+          "search_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"
         }
       ]
     },
     {
       "name": "people",
-      "description": "People, the customers and callers, as the People page and a person's page read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call action search to find someone, or to see who is on a list; call action get when the profile, the timeline or the notes are needed and the page on screen holds only their row. search returns at most 12 people, with matches counted before the cap; a list that cannot be counted here says why. get returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
+      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["search", "get"]
+            "enum": ["search", "get", "lists", "pipeline"]
           },
           "query": {
             "type": "string"
@@ -452,6 +558,12 @@
         {
           "action": "get",
           "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+        },
+        {
+          "action": "lists"
+        },
+        {
+          "action": "pipeline"
         }
       ]
     },
@@ -772,13 +884,13 @@
     },
     {
       "name": "workspace",
-      "description": "The workspace, by action; action settings, its one action today, takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications, the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels. Nothing changes because it was read; propose_settings is what changes a setting.",
+      "description": "The workspace, by action. Action settings takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications (where alerts are emailed), the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels; propose_settings is what changes a setting. Action connections takes nothing more and reads what the workspace is connected to, in the Setup page's words: whether the receptionist answers and on which numbers; its phone line and whether the number its customers know is forwarded to it, WhatsApp, the email mailbox, the calendar and Google, each with its state and what the page says of it; and each domain it sends cold email from, with its state, what it has sent, its daily cap and what to do next. Call it for whether something is connected, or why not; action settings has the receptionist's own rules. Billing and the plan's price are not here: money stays out of Ask. Action notifications takes nothing more and reads this person's own notifications as the bell keeps them on the server: the last thirty days, sixty at most, newest first, each with its title, its first line, how long ago, whether it is unread for them and where it opens, and how many are unread; one they dismissed is gone. Call it for what the bell has told them. The bell also shows what the page works out in the tab (threads waiting on a person, missed calls, invitations), which this cannot read, so say the bell may hold more; billing's notices stay out of Ask. Nothing changes because it was read.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["settings"]
+            "enum": ["settings", "connections", "notifications"]
           }
         },
         "required": ["action"],
@@ -787,6 +899,12 @@
       "input_examples": [
         {
           "action": "settings"
+        },
+        {
+          "action": "connections"
+        },
+        {
+          "action": "notifications"
         }
       ]
     }
@@ -876,13 +994,16 @@
     },
     {
       "name": "campaigns",
-      "description": "What goes out to the people who said yes, by action; neither action takes anything more. Action audiences, read before any broadcast, lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
+      "description": "What goes out to the people who said yes, by action. Action audiences takes nothing more; read before any broadcast, it lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Needs you, with waiting_on_you), when, how many it was for, and how many were sent, delivered, read, replied, held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies. Action broadcast takes broadcast_id, the id action broadcasts returned or a playbook's waiting run, and reads one broadcast as its opened run shows it: its row, the five figures (sent, delivered, replied, said yes, asked to stop) with what each means, the people it touched in the page's words, and what came back, quoted, with what happened since. Call it for who a broadcast reached and what they said. It returns at most 20 people and 10 replies, the figures counting everyone, each person as the page names them and their id; a broadcast the workspace does not hold is an error, said in words. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["audiences", "playbooks"]
+            "enum": ["audiences", "playbooks", "broadcasts", "broadcast"]
+          },
+          "broadcast_id": {
+            "type": "string"
           }
         },
         "required": ["action"],
@@ -894,6 +1015,13 @@
         },
         {
           "action": "playbooks"
+        },
+        {
+          "action": "broadcasts"
+        },
+        {
+          "action": "broadcast",
+          "broadcast_id": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b"
         }
       ]
     },
@@ -934,13 +1062,37 @@
     },
     {
       "name": "leads",
-      "description": "The lead finder, by action; action searches, its one action today, takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here starts or changes because it was read, and every string is cut short.",
+      "description": "The lead finder, as the Leads page reads it, by action. Action searches takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Action leads reads the businesses the searches found, as a view of the Leads page lists them: list is all (the default), ready, nurture (contacted), converted (talking), said_no or not_a_fit; search_id keeps one search's leads, class keeps qualified, review (needs review) or excluded (left out), sort orders them by fit (the default), found, distance, business, rating or stage, and words keeps the ones whose name, kind or area has them, as the page's box does. Each lead says its kind, area, class, fit or why it was left out, stage, email, rating, when it was found and its search; with the view's first page come the rail's six counts and, for an owner or a partner, this month's leads used and left. Call it for who the leads are or to find one, and action lead for one lead's details. It returns at most 25 leads, matching counting the view's first five hundred (words match within those) before the cap, and next_page, passed back as after, for the next five hundred. Action lead takes lead_id, the id action leads returned, and an optional search_id to read it as that search found it, and reads one lead as its peek on Leads shows it: its row, what its listing says about it, where it is and whether it is open today, its rating, why it fits, the checks made, where it was found, its phone, email and website. Call it when one lead's details are needed; a lead the workspace does not hold is an error, said in words. Action search takes search_id, the id action searches returned, and reads one search as Leads shows it at that search: its row as action searches says it, what the owner asked in their words and what the plan leaves out, how many emails were checked and how many leads have a phone, the qualified by fit (strong, look, long), and where to look next when it ran dry. Call it when one search is named or is the one on screen; a search the workspace does not hold, or one removed from Leads, is an error, said in words. Nothing here starts or changes because it was read, and every string is cut short.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["searches"]
+            "enum": ["searches", "leads", "lead", "search"]
+          },
+          "list": {
+            "type": "string",
+            "enum": ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"]
+          },
+          "search_id": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string",
+            "enum": ["qualified", "review", "excluded"]
+          },
+          "sort": {
+            "type": "string",
+            "enum": ["fit", "found", "distance", "business", "rating", "stage"]
+          },
+          "words": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          },
+          "lead_id": {
+            "type": "string"
           }
         },
         "required": ["action"],
@@ -949,18 +1101,31 @@
       "input_examples": [
         {
           "action": "searches"
+        },
+        {
+          "action": "leads",
+          "list": "ready",
+          "sort": "rating"
+        },
+        {
+          "action": "lead",
+          "lead_id": "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f"
+        },
+        {
+          "action": "search",
+          "search_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"
         }
       ]
     },
     {
       "name": "people",
-      "description": "People, the customers and callers, as the People page and a person's page read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call action search to find someone, or to see who is on a list; call action get when the profile, the timeline or the notes are needed and the page on screen holds only their row. search returns at most 12 people, with matches counted before the cap; a list that cannot be counted here says why. get returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
+      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["search", "get"]
+            "enum": ["search", "get", "lists", "pipeline"]
           },
           "query": {
             "type": "string"
@@ -993,6 +1158,12 @@
         {
           "action": "get",
           "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+        },
+        {
+          "action": "lists"
+        },
+        {
+          "action": "pipeline"
         }
       ]
     },
@@ -1549,13 +1720,13 @@
     },
     {
       "name": "workspace",
-      "description": "The workspace, by action; action settings, its one action today, takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications, the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels. Nothing changes because it was read; propose_settings is what changes a setting.",
+      "description": "The workspace, by action. Action settings takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications (where alerts are emailed), the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels; propose_settings is what changes a setting. Action connections takes nothing more and reads what the workspace is connected to, in the Setup page's words: whether the receptionist answers and on which numbers; its phone line and whether the number its customers know is forwarded to it, WhatsApp, the email mailbox, the calendar and Google, each with its state and what the page says of it; and each domain it sends cold email from, with its state, what it has sent, its daily cap and what to do next. Call it for whether something is connected, or why not; action settings has the receptionist's own rules. Billing and the plan's price are not here: money stays out of Ask. Action notifications takes nothing more and reads this person's own notifications as the bell keeps them on the server: the last thirty days, sixty at most, newest first, each with its title, its first line, how long ago, whether it is unread for them and where it opens, and how many are unread; one they dismissed is gone. Call it for what the bell has told them. The bell also shows what the page works out in the tab (threads waiting on a person, missed calls, invitations), which this cannot read, so say the bell may hold more; billing's notices stay out of Ask. Nothing changes because it was read.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["settings"]
+            "enum": ["settings", "connections", "notifications"]
           }
         },
         "required": ["action"],
@@ -1564,6 +1735,12 @@
       "input_examples": [
         {
           "action": "settings"
+        },
+        {
+          "action": "connections"
+        },
+        {
+          "action": "notifications"
         }
       ]
     }
@@ -1653,13 +1830,16 @@
     },
     {
       "name": "campaigns",
-      "description": "What goes out to the people who said yes, by action; neither action takes anything more. Action audiences, read before any broadcast, lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
+      "description": "What goes out to the people who said yes, by action. Action audiences takes nothing more; read before any broadcast, it lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Needs you, with waiting_on_you), when, how many it was for, and how many were sent, delivered, read, replied, held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies. Action broadcast takes broadcast_id, the id action broadcasts returned or a playbook's waiting run, and reads one broadcast as its opened run shows it: its row, the five figures (sent, delivered, replied, said yes, asked to stop) with what each means, the people it touched in the page's words, and what came back, quoted, with what happened since. Call it for who a broadcast reached and what they said. It returns at most 20 people and 10 replies, the figures counting everyone, each person as the page names them and their id; a broadcast the workspace does not hold is an error, said in words. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["audiences", "playbooks"]
+            "enum": ["audiences", "playbooks", "broadcasts", "broadcast"]
+          },
+          "broadcast_id": {
+            "type": "string"
           }
         },
         "required": ["action"],
@@ -1671,6 +1851,13 @@
         },
         {
           "action": "playbooks"
+        },
+        {
+          "action": "broadcasts"
+        },
+        {
+          "action": "broadcast",
+          "broadcast_id": "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b"
         }
       ]
     },
@@ -1711,13 +1898,37 @@
     },
     {
       "name": "leads",
-      "description": "The lead finder, by action; action searches, its one action today, takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here starts or changes because it was read, and every string is cut short.",
+      "description": "The lead finder, as the Leads page reads it, by action. Action searches takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Action leads reads the businesses the searches found, as a view of the Leads page lists them: list is all (the default), ready, nurture (contacted), converted (talking), said_no or not_a_fit; search_id keeps one search's leads, class keeps qualified, review (needs review) or excluded (left out), sort orders them by fit (the default), found, distance, business, rating or stage, and words keeps the ones whose name, kind or area has them, as the page's box does. Each lead says its kind, area, class, fit or why it was left out, stage, email, rating, when it was found and its search; with the view's first page come the rail's six counts and, for an owner or a partner, this month's leads used and left. Call it for who the leads are or to find one, and action lead for one lead's details. It returns at most 25 leads, matching counting the view's first five hundred (words match within those) before the cap, and next_page, passed back as after, for the next five hundred. Action lead takes lead_id, the id action leads returned, and an optional search_id to read it as that search found it, and reads one lead as its peek on Leads shows it: its row, what its listing says about it, where it is and whether it is open today, its rating, why it fits, the checks made, where it was found, its phone, email and website. Call it when one lead's details are needed; a lead the workspace does not hold is an error, said in words. Action search takes search_id, the id action searches returned, and reads one search as Leads shows it at that search: its row as action searches says it, what the owner asked in their words and what the plan leaves out, how many emails were checked and how many leads have a phone, the qualified by fit (strong, look, long), and where to look next when it ran dry. Call it when one search is named or is the one on screen; a search the workspace does not hold, or one removed from Leads, is an error, said in words. Nothing here starts or changes because it was read, and every string is cut short.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["searches"]
+            "enum": ["searches", "leads", "lead", "search"]
+          },
+          "list": {
+            "type": "string",
+            "enum": ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"]
+          },
+          "search_id": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string",
+            "enum": ["qualified", "review", "excluded"]
+          },
+          "sort": {
+            "type": "string",
+            "enum": ["fit", "found", "distance", "business", "rating", "stage"]
+          },
+          "words": {
+            "type": "string"
+          },
+          "after": {
+            "type": "string"
+          },
+          "lead_id": {
+            "type": "string"
           }
         },
         "required": ["action"],
@@ -1726,18 +1937,31 @@
       "input_examples": [
         {
           "action": "searches"
+        },
+        {
+          "action": "leads",
+          "list": "ready",
+          "sort": "rating"
+        },
+        {
+          "action": "lead",
+          "lead_id": "c3d4e5f6-a7b8-4c9d-8e0f-1a2b3c4d5e6f"
+        },
+        {
+          "action": "search",
+          "search_id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"
         }
       ]
     },
     {
       "name": "people",
-      "description": "People, the customers and callers, as the People page and a person's page read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call action search to find someone, or to see who is on a list; call action get when the profile, the timeline or the notes are needed and the page on screen holds only their row. search returns at most 12 people, with matches counted before the cap; a list that cannot be counted here says why. get returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
+      "description": "People, the customers and callers, as the People page, a person's page and the Pipeline read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Call it to find someone, or to see who is on a list; it returns at most 12 people, with matches counted before the cap, and a list that cannot be counted here says why. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call it when the profile, the timeline or the notes are needed and the page on screen holds only their row; it returns their five newest conversations and calls, twenty timeline entries and twenty notes, and a person the workspace does not hold is an error, said in words. Action lists takes nothing more and reads every list People's rail shows: People's own lists this workspace can count, each with its token (the list action search takes), what it holds and how many are on it; the ones it cannot count here, with why; and the workspace's own lists, kept by hand or by a rule, each with its rule in the page's words and its count or why it cannot be counted, and the archived ones by name. Call it to say which lists there are and how many are on each, and action search with a list's token for who is on it. It counts over everyone in People, as a send counts them. Action pipeline takes nothing more and reads the Pipeline as its page builds it, where deals are on: the line over the table (the proposals out and what they come to, the ones waiting longer than usual, the lapsed, the clients and what they come to), the workspace's pace, and each group (consultations, proposals out, clients, passed or ended) with its count, what it comes to and its people, each with the deal's id, service and value, how long it has stood there, the page's chip and their next step. Call it for where deals stand, and action get for one person's deal in full. It returns at most 30 people across the groups, the groups' counts whole; where deals are off it says so, and People holds everyone.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["search", "get"]
+            "enum": ["search", "get", "lists", "pipeline"]
           },
           "query": {
             "type": "string"
@@ -1770,6 +1994,12 @@
         {
           "action": "get",
           "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+        },
+        {
+          "action": "lists"
+        },
+        {
+          "action": "pipeline"
         }
       ]
     },
@@ -2384,13 +2614,25 @@
     },
     {
       "name": "workspace",
-      "description": "The workspace, by action; action settings, its one action today, takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications, the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels. Nothing changes because it was read; propose_settings is what changes a setting.",
+      "description": "The workspace, by action. Action settings takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications (where alerts are emailed), the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels; propose_settings is what changes a setting. Action connections takes nothing more and reads what the workspace is connected to, in the Setup page's words: whether the receptionist answers and on which numbers; its phone line and whether the number its customers know is forwarded to it, WhatsApp, the email mailbox, the calendar and Google, each with its state and what the page says of it; and each domain it sends cold email from, with its state, what it has sent, its daily cap and what to do next. Call it for whether something is connected, or why not; action settings has the receptionist's own rules. Billing and the plan's price are not here: money stays out of Ask. Action notifications takes nothing more and reads this person's own notifications as the bell keeps them on the server: the last thirty days, sixty at most, newest first, each with its title, its first line, how long ago, whether it is unread for them and where it opens, and how many are unread; one they dismissed is gone. Call it for what the bell has told them. The bell also shows what the page works out in the tab (threads waiting on a person, missed calls, invitations), which this cannot read, so say the bell may hold more; billing's notices stay out of Ask. Action activity takes an optional person (a contact_id a read returned), kind (a verb or an event kind, exactly as the log spells it), day (YYYY-MM-DD, by the business's clock) and cursor (the next_cursor an earlier read returned), and reads who did what, as Settings › Activity lists it: both ledgers, newest first, each with when, who and what in the page's words, and where it opens; the usage, webhook and ingest records only when their kind is asked for. Call it for what a member or the receptionist did, and when. It returns the newest 30 of a page of a hundred, with next_cursor for the page after; billing's rows stay out of Ask. Nothing changes because it was read.",
       "input_schema": {
         "type": "object",
         "properties": {
           "action": {
             "type": "string",
-            "enum": ["settings"]
+            "enum": ["settings", "connections", "notifications", "activity"]
+          },
+          "person": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "day": {
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
           }
         },
         "required": ["action"],
@@ -2399,6 +2641,16 @@
       "input_examples": [
         {
           "action": "settings"
+        },
+        {
+          "action": "connections"
+        },
+        {
+          "action": "notifications"
+        },
+        {
+          "action": "activity",
+          "day": "2026-09-26"
         }
       ]
     }

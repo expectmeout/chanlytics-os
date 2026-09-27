@@ -11,7 +11,11 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import {
+  LEAD_CLASS_WORDS,
   ROLE_PERMS,
+  leadSearchWords,
+  toLeadPeekVM,
+  toLeadRowVM,
   estimateRoundUsd,
   placesToAsk,
   leadMonth,
@@ -52,11 +56,12 @@ const { setModelStream } = await import(at("apps/dashboard/src/server/model-json
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
 const { leadMailto, planFacts, setSuggestionsWriter } = await import(at("apps/dashboard/src/server/leads/leads.ts"));
 const { load, readerContext } = await import(at("apps/dashboard/src/server/readers/index.ts"));
-const { lead: leadReader } = await import(at("apps/dashboard/src/server/readers/leads.ts"));
+const { lead: leadReader, leads: leadsReader } = await import(at("apps/dashboard/src/server/readers/leads.ts"));
 const { search: searchReader, searches: searchesReader } = await import(
   at("apps/dashboard/src/server/readers/searches.ts")
 );
 const { toSearchDto } = await import(at("apps/dashboard/src/server/leads/lead-searches.ts"));
+const { runTool, newToolContext } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -1348,6 +1353,138 @@ test("one lead and one search, for Ask and for the page (PR 4.3): GET leads/[id]
     "not_found",
     404,
   );
+});
+
+test("Ask's leads, lead and search answer what the Leads page's builders answer over the same readers (PR 4.3): each lead as toLeadRowVM says its row, handed its own search; one lead as its peek says it; one search as the rail's row and its own words; each row the reader's RowRef in the read set; the month an owner's and a partner's alone", async () => {
+  const NOW = new Date("2026-09-20T15:00:00Z");
+  const TZ = "America/Chicago";
+  const t = oneLeadTables();
+  t.lead_searches_view = [view({ emails_checked: 41, with_phone: 72 })];
+  const rpcs = () => ({ ...doors(), lead_member_of: memberOf(t) });
+  const asRole = (role) => {
+    const w = { ...t, memberships: member(role) };
+    return newToolContext(ctxOf(w, {}, rpcs()), A, role, TZ, NOW);
+  };
+  const call = async (tc, input) => {
+    const out = await runTool(tc, { name: "leads", input });
+    assert.equal(out.isError, false, out.result);
+    return JSON.parse(out.result);
+  };
+  // What the page holds, read through the same readers: the view's first page and the rail's searches.
+  const rc = () => readerContext(ctxOf(t, {}, rpcs()), { tenantId: A, role: "viewer" }, NOW);
+  const page = await load(rc(), leadsReader, { list: "all", sort: "fit", dir: "asc", limit: 500 });
+  const rail = (await load(rc(), searchesReader)).data.searches;
+  const vmOf = (r) => toLeadRowVM(r, TZ, NOW, rail.find((s) => s.id === r.search_id) ?? null);
+  /** The row's facts the page's builder says, as Ask's rows name them. */
+  const rowFacts = (vm, route) => ({
+    lead_id: vm.id,
+    route,
+    name: vm.name,
+    kind: vm.category || null,
+    area: vm.area || null,
+    class: LEAD_CLASS_WORDS[vm.cls],
+    fit: vm.fitLabel || null,
+    stage: vm.stageLabel,
+    email: vm.emailWord,
+  });
+  const pick = (o) => Object.fromEntries(Object.keys(rowFacts(vmOf(page.data.rows[0]), "")).map((k) => [k, o[k]]));
+  const CASES = [
+    [
+      "leads",
+      { action: "leads" },
+      (out) => {
+        assert.deepEqual(
+          out.leads.map(pick),
+          page.data.rows.map((r) => rowFacts(vmOf(r), page.rows.find((x) => x.id === r.id).route)),
+        );
+        assert.deepEqual(out.counts, COUNTS, "the rail's six counts ride with the first page");
+        assert.equal(out.matching, page.data.rows.length);
+      },
+    ],
+    [
+      "leads, the box's words",
+      { action: "leads", words: "AUSTIN" },
+      (out) =>
+        assert.deepEqual(
+          out.leads.map((l) => l.lead_id),
+          page.data.rows
+            .map(vmOf)
+            .filter((l) => l.area.toLowerCase().includes("austin"))
+            .map((l) => l.id),
+        ),
+    ],
+    [
+      "leads, words that match nobody",
+      { action: "leads", words: "nobody here" },
+      (out) => assert.deepEqual([out.matching, out.leads], [0, []]),
+    ],
+    [
+      "lead",
+      { action: "lead", lead_id: LEAD, search_id: SEARCH },
+      async (out) => {
+        const one = await load(rc(), leadReader, { id: LEAD, search: SEARCH });
+        const r = one.data.row;
+        const own = rail.find((s) => s.id === r.search_id) ?? null;
+        const peek = toLeadPeekVM(r, own, TZ, NOW);
+        assert.deepEqual(pick(out), rowFacts(vmOf(r), one.rows[0].route), "its row, as the list says it");
+        assert.deepEqual(
+          [out.about, out.where, out.today, out.checks, out.found_at, out.phone, out.email_address],
+          [
+            peek.about,
+            peek.where?.line ?? null,
+            peek.today,
+            peek.checksSummary || null,
+            peek.foundSummary || null,
+            peek.reach.phone?.value ?? null,
+            peek.reach.email.address,
+          ],
+          "and what its peek adds",
+        );
+      },
+    ],
+    [
+      "search",
+      { action: "search", search_id: SEARCH },
+      async (out, tc) => {
+        const listed = (await call(tc, { action: "searches" })).searches.find((s) => s.id === SEARCH);
+        assert.deepEqual(
+          Object.fromEntries(Object.keys(listed).map((k) => [k, out[k]])),
+          listed,
+          "the row searches says for it",
+        );
+        const dto = toSearchDto((await load(rc(), searchReader, { id: SEARCH })).data.search);
+        assert.equal(out.asked_line, leadSearchWords(dto, TZ).askedLine);
+        assert.deepEqual([out.emails_checked, out.with_phone], [41, 72]);
+      },
+    ],
+  ];
+  for (const [what, input, check] of CASES) {
+    const tc = asRole("viewer");
+    await check(await call(tc, input), tc);
+    // Every row it names is in the read set as its reader gave it: the answer may cite it, and it opens there.
+    const kind = input.action === "search" ? "search" : "lead";
+    for (const [id, ref] of tc.read[kind]) assert.equal(ref.kind, kind, `${what}: ${id}`);
+  }
+  const viewer = asRole("viewer");
+  await call(viewer, { action: "lead", lead_id: LEAD, search_id: SEARCH });
+  assert.equal(viewer.read.lead.get(LEAD).route, `clients/leads:s-${SEARCH}:p-${LEAD}`, "a lead at its peek");
+  // The month rides the first page for a member who may find (ROLE_PERMS.find): an owner's and a partner's.
+  for (const role of ["viewer", "operator", "partner", "owner"])
+    assert.equal(
+      "month" in (await call(asRole(role), { action: "leads" })),
+      ROLE_PERMS[role].find === true,
+      `${role}: the month`,
+    );
+  // A lead or a search the workspace does not hold, or not an id, is said in words; nothing is thrown.
+  const words = async (input) => JSON.parse((await runTool(asRole("viewer"), { name: "leads", input })).result).error;
+  assert.equal(await words({ action: "lead", lead_id: OTHER_SEARCH }), "no such lead in this workspace");
+  assert.equal(
+    await words({ action: "lead", lead_id: "nope" }),
+    "lead_id must be an id leads with action leads returned",
+  );
+  assert.equal(await words({ action: "search", search_id: L1 }), "no such search in this workspace");
+  t.lead_searches_view = [view({ removed_at: "2026-09-19T12:00:00Z" })];
+  assert.equal(await words({ action: "search", search_id: SEARCH }), "that search was removed from Leads");
 });
 
 test("the searches read brings the rail's counts with it, and a round says whether it is stopping", async () => {

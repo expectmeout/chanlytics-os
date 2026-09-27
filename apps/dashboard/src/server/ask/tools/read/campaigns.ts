@@ -4,7 +4,9 @@ import {
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
   PLAYBOOK_TRIGGERS,
+  REPLY_WINDOW_MS,
   audiencePreview,
+  clockStamp,
   compareTemplates,
   listToken,
   listUnknownWords,
@@ -19,20 +21,24 @@ import {
   scheduleLine,
   sendableTemplates,
   starterForTrigger,
+  toBroadcastVM,
+  toRunReportVM,
   triggerOf,
   triggerOffered,
   unmetNeed,
   type AudienceKind,
+  type BroadcastDto,
   type ListRef,
 } from "@chanlytics/contracts";
 import { load } from "../../../readers";
 import { audiencePool } from "../../../readers/audience-pool";
+import { broadcast as broadcastReader, broadcasts as broadcastsReader } from "../../../readers/broadcasts";
 import { channels as channelsReader } from "../../../readers/channels";
 import * as readers from "../../../readers/facts";
 import { lists as listsReader } from "../../../readers/lists";
 import { playbooks } from "../../../readers/playbooks";
 import { templates as templatesReader, type TemplatesRead } from "../../../readers/templates";
-import { defineActions, noteRow, readAction, unread, type ToolContext } from "../context";
+import { UUID, defineActions, noteRow, readAction, str, unlessNotFound, unread, type ToolContext } from "../context";
 
 /**
  * The audiences a broadcast may go to, counted by the same contracts
@@ -270,20 +276,105 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   };
 }
 
+/** How many of a run's people and replies one read says: the figures count them all. */
+const RUN_CAP = { people: 20, replies: 10 };
+
+/**
+ * A broadcast as the Broadcasts page's row says it (contracts toBroadcastVM): its name, whether a playbook or a person
+ * sent it, its audience and template, its state in the page's words -- a run waiting for a person to approve it said
+ * as such -- when, and what its messages earned.
+ */
+function broadcastLine(b: BroadcastDto, tz: string, now: Date) {
+  const vm = toBroadcastVM(b, tz, now);
+  return {
+    broadcast_id: b.id,
+    route: `broadcasts/run:${b.id}`,
+    name: b.name,
+    by: b.playbook_id ? "a playbook" : "hand",
+    audience: b.audience.label,
+    template: b.template_name,
+    state: vm.stateLabel,
+    ...(b.state === "pending_approval" ? { waiting_on_you: true } : {}),
+    when: vm.when || null,
+    people: b.recipient_count,
+    sent: b.counts.sent,
+    delivered: vm.deliveredPct === null ? null : `${vm.deliveredPct}%`,
+    read: vm.readPct === null ? null : `${vm.readPct}%`,
+    replied: b.counts.replied,
+    held_back: b.counts.skipped,
+    failed: b.counts.failed,
+    ...(vm.failureLabel ? { why_it_failed: vm.failureLabel } : {}),
+  };
+}
+
+/**
+ * The broadcasts as the Broadcasts page lists them (readers/broadcasts.ts, the page's own read: the recent fifty, and
+ * whether older ones exist), each as its row says it, a playbook's runs among them.
+ */
+async function readBroadcasts(t: ToolContext): Promise<unknown> {
+  const read = await load(t.rc, broadcastsReader, undefined);
+  // Every broadcast it lists is a row an answer may cite, opened where the page opens a run: the reader's RowRefs.
+  noteRows(t.read, read.rows);
+  return {
+    route: "broadcasts",
+    broadcasts: read.data.broadcasts.map((b) => broadcastLine(b, t.timezone, t.now)),
+    older: read.data.more,
+  };
+}
+
+/**
+ * One broadcast as its opened run says it (readers/broadcasts.ts broadcast, GET broadcasts/[id]'s own read, then
+ * contracts toRunReportVM by the business's clock, as the page draws it): its row, the five figures, the people it
+ * touched in the page's words, and what came back. The recipients' number field stays out: each is their name, as the
+ * page names them, and their id.
+ */
+async function readBroadcast(t: ToolContext, input: { broadcast_id: string }): Promise<unknown> {
+  const id = str(input.broadcast_id, 40);
+  if (!UUID.test(id)) return { error: "broadcast_id must be an id campaigns with action broadcasts returned" };
+  const read = await unlessNotFound(load(t.rc, broadcastReader, { id }));
+  if (!read) return { error: "no such broadcast in this workspace" };
+  const d = read.data;
+  const nowMs = t.now.getTime();
+  const report = toRunReportVM(d, {
+    windowMs: REPLY_WINDOW_MS,
+    nowMs,
+    clock: (iso) => {
+      const ms = iso ? Date.parse(iso) : NaN;
+      return Number.isNaN(ms) ? null : clockStamp(ms, t.timezone, nowMs);
+    },
+  });
+  const people = report.people.slice(0, RUN_CAP.people);
+  // The run, and the people it says, are rows an answer may cite: the run where the page opens it, each person on
+  // their page.
+  noteRows(t.read, read.rows);
+  for (const p of people) noteRow(t, "person", p.contact_id, p.name, `clients/${p.contact_id}`);
+  return {
+    ...broadcastLine(d.broadcast, t.timezone, t.now),
+    figures: report.figures.map((f) => ({ label: f.label, n: f.n, pct: f.pct, note: f.sub })),
+    people_total: report.people.length,
+    people: people.map((p) => ({ contact_id: p.contact_id, name: p.name, said: p.pill.label, what: p.words })),
+    replies: report.replies
+      .slice(0, RUN_CAP.replies)
+      .map((r) => ({ contact_id: r.contact_id, name: r.name, quote: r.quote, since: r.outcome.words })),
+    ...(report.stop ? { stopped: report.stop.words, fix: report.stop.fix } : {}),
+  };
+}
+
 /**
  * What goes out to the people who said yes (D11): a broadcast's audiences and templates (audiences, once
- * list_audiences) and the playbooks (playbooks, once list_playbooks).
+ * list_audiences) and the playbooks (playbooks, once list_playbooks); since Phase 4, the broadcasts as their page lists
+ * them (broadcasts) and one broadcast's run (broadcast).
  */
 export const campaignsTool = defineActions({
   name: "campaigns",
-  description: "What goes out to the people who said yes, by action; neither action takes anything more.",
+  description: "What goes out to the people who said yes, by action.",
   tail: "Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
   actions: {
     audiences: readAction({
       input: z.object({}),
       examples: [{}],
       label: "Reading the lists and templates",
-      words: `Action audiences, read before any broadcast, lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}.`,
+      words: `Action audiences takes nothing more; read before any broadcast, it lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since ${NO_NUMBER_REACH}.`,
       run: listAudiences,
     }),
     playbooks: readAction({
@@ -291,8 +382,23 @@ export const campaignsTool = defineActions({
       examples: [{}],
       label: "Reading the playbooks",
       words:
-        "Action playbooks reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template.",
+        "Action playbooks takes nothing more and reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template.",
       run: listPlaybooksTool,
+    }),
+    broadcasts: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading the broadcasts",
+      words:
+        "Action broadcasts takes nothing more and reads the broadcasts as the Broadcasts page lists them, the recent fifty, with older saying whether there are more: each with its name, whether a playbook or a person sent it, its audience and template, its state in the page's words (a run waiting for a person to approve it is Needs you, with waiting_on_you), when, how many it was for, and how many were sent, delivered, read, replied, held back and failed, with why one failed. Call it for what went out and how it did, and for a run that waits on someone; action broadcast for one broadcast's people and replies.",
+      run: readBroadcasts,
+    }),
+    broadcast: readAction({
+      input: z.object({ broadcast_id: z.string() }),
+      examples: [{ broadcast_id: "e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a8b" }],
+      label: "Reading the broadcast",
+      words: `Action broadcast takes broadcast_id, the id action broadcasts returned or a playbook's waiting run, and reads one broadcast as its opened run shows it: its row, the five figures (sent, delivered, replied, said yes, asked to stop) with what each means, the people it touched in the page's words, and what came back, quoted, with what happened since. Call it for who a broadcast reached and what they said. It returns at most ${RUN_CAP.people} people and ${RUN_CAP.replies} replies, the figures counting everyone, each person as the page names them and their id; a broadcast the workspace does not hold is an error, said in words.`,
+      run: readBroadcast,
     }),
   },
 });

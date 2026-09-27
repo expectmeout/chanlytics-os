@@ -55,7 +55,7 @@ const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, READ
 // loop itself tells apart.
 const READ_TOOLS = toApiTools("owner", true).filter((t) => !ACT_TOOL_NAMES.has(t.name));
 const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
-const { scopedRead } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
 const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );
@@ -1024,7 +1024,7 @@ test("the round keeps a thinking block whole -- its words and its signature, or 
   );
 });
 
-test("the fourteen reads, each an action of the nine read tools, run against the database in memory: each answers in its shape or refuses in words, and a read that fails says so to the model rather than throwing", async () => {
+test("the fourteen reads, each an action of the nine read tools, run against the database in memory: each answers in its shape or refuses in words, and a read that fails says so to the model rather than throwing; PR 4.3's ten run beside them (their answers are proven in their domains' suites)", async () => {
   const t = tables({
     escalations: [
       {
@@ -1067,17 +1067,27 @@ test("the fourteen reads, each an action of the nine read tools, run against the
       "calls.get",
       "calls.list",
       "campaigns.audiences",
+      "campaigns.broadcast",
+      "campaigns.broadcasts",
       "campaigns.playbooks",
       "inbox.list",
       "inbox.thread",
+      "leads.lead",
+      "leads.leads",
+      "leads.search",
       "leads.searches",
       "people.get",
+      "people.lists",
+      "people.pipeline",
       "people.search",
       "report",
       "today",
+      "workspace.activity",
+      "workspace.connections",
+      "workspace.notifications",
       "workspace.settings",
     ],
-    "the reads the loop offers: the fourteen old tools, each an action now",
+    "the reads the loop offers: the fourteen old tools, each an action now, and PR 4.3's ten",
   );
   const threads = JSON.parse(out["inbox.list"].result);
   assert.equal(out["inbox.list"].isError, false, out["inbox.list"].result);
@@ -1115,6 +1125,11 @@ test("the fourteen reads, each an action of the nine read tools, run against the
     JSON.parse(out["leads.searches"].result).searches,
     [],
     "no search asked for yet, said as an empty list",
+  );
+  assert.deepEqual(
+    [out["workspace.activity"].isError, JSON.parse(out["workspace.activity"].result).error],
+    [true, "workspace: action activity is an owner's"],
+    "an operator is refused the owner's log, before it is read",
   );
   assert.deepEqual(JSON.parse(out["people.search"].result).people, [], "nobody matched in an empty people list");
   assert.equal(out["people.get"].isError, true);
@@ -4469,7 +4484,7 @@ test("a read the page tolerates, Ask tolerates as the page does and says so: a f
   assert.equal(noTemplates.lines.length, 1, "said once in the log");
 });
 
-test("the row the scope names rides in whole, read by its own tool: a call, a person, a thread; a lead, a search or a run has no read by its id yet, and a page needs no read", () => {
+test("the row the scope names rides in whole, read by its own tool and action: a call, a person, a thread; since PR 4.3 a lead, a search and a run (the Broadcasts row its address names) too; a page needs no read", () => {
   const X = "77777777-7777-4777-8777-777777777777";
   assert.deepEqual(scopedRead({ kind: "call", id: X, label: "this call" }), {
     name: "calls",
@@ -4484,9 +4499,26 @@ test("the row the scope names rides in whole, read by its own tool: a call, a pe
       name: "inbox",
       input: { action: "thread", conversation_id: X, more: false },
     });
-  for (const kind of ["lead", "search", "run", "page"])
-    assert.equal(scopedRead({ kind, id: X, label: kind }), null, kind);
+  assert.deepEqual(scopedRead({ kind: "lead", id: X, label: "Zilker Strength" }), {
+    name: "leads",
+    input: { action: "lead", lead_id: X },
+  });
+  assert.deepEqual(scopedRead({ kind: "search", id: X, label: "Trainers" }), {
+    name: "leads",
+    input: { action: "search", search_id: X },
+  });
+  assert.deepEqual(scopedRead({ kind: "run", id: X, label: "Monday offer" }), {
+    name: "campaigns",
+    input: { action: "broadcast", broadcast_id: X },
+  });
+  assert.equal(scopedRead({ kind: "page", id: "reports", label: "Reports" }), null, "a page");
   assert.equal(scopedRead(null), null);
+  // Each is a read every role is offered: the scope's row is never refused for the role that looks at it.
+  for (const kind of ["call", "person", "thread", "lead", "search", "run"]) {
+    const run = scopedRead({ kind, id: X, label: kind });
+    const t = toApiTools("viewer", false).find((x) => x.name === run.name);
+    assert.ok(t.input_schema.properties.action.enum.includes(run.input.action), `${kind}: a viewer's`);
+  }
 });
 
 test("a run the person is looking at is the Broadcasts row the page drew: the answer cites it as a broadcast, opened at its run; run is no citation's kind", async () => {
@@ -4510,7 +4542,11 @@ test("a run the person is looking at is the Broadcasts row the page drew: the an
     ]),
   ]);
   const scope = { kind: "run", id: RUN, label: "Monday offer" };
-  assert.equal(scopedRead(scope), null, "no tool reads a run by its id yet");
+  assert.deepEqual(
+    scopedRead(scope),
+    { name: "campaigns", input: { action: "broadcast", broadcast_id: RUN } },
+    "a run is read by its id, as the broadcast it is",
+  );
   const r = await runAskTurn(
     turn(ctxFor(), {
       surface: "campaigns",
