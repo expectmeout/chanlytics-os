@@ -46,10 +46,11 @@ export type ShellMessage =
   | { t: "navigate"; route: string }
   | { t: "menu" }
   | { t: "top" }
-  /** Register this phone for the person signed in: the page calls PUT me/devices through its own client. */
+  /**
+   * Register this phone for the person signed in: the page calls PUT me/devices through its own client, and forgets
+   * it again on its own before a sign-out (legacy-bridge/app-bridge.ts forgetPhone), so no ask says "forget".
+   */
   | { t: "device"; token: string; platform: "ios" | "android"; version: string; activity?: string }
-  /** Forget this phone before the person signs out. */
-  | { t: "forget"; token: string }
   /** The session's access token, for the shell's own calls (decision 0011): the page answers with `token`. */
   | { t: "token" };
 
@@ -117,10 +118,6 @@ export function parseShellMessage(v: unknown): ShellMessage | null {
       const version = typeof v.version === "string" ? v.version.trim().slice(0, 40) : "";
       const activity = token(v.activity);
       return tok && platform ? { t: "device", token: tok, platform, version, ...(activity ? { activity } : {}) } : null;
-    }
-    case "forget": {
-      const tok = token(v.token);
-      return tok ? { t: "forget", token: tok } : null;
     }
     default:
       return null;

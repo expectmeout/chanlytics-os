@@ -139,6 +139,8 @@ export default function RootLayout() {
       if (s === "active") {
         void lookAtTheSite();
         void lookAtUpdates();
+        // A registration the site refused is asked for once more on each return, never in a loop (bridge.ts).
+        setState({ refused: null });
       }
     });
     return () => sub.remove();

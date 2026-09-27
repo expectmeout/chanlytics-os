@@ -18222,10 +18222,6 @@ function parseShellMessage(v) {
       const activity = token(v.activity);
       return tok && platform ? { t: "device", token: tok, platform, version, ...activity ? { activity } : {} } : null;
     }
-    case "forget": {
-      const tok = token(v.token);
-      return tok ? { t: "forget", token: tok } : null;
-    }
     default:
       return null;
   }

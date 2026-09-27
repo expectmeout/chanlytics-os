@@ -8,6 +8,26 @@ import type { ShellState } from "./state";
 
 export type Effect = "nothing" | "sign-in" | "badge" | "today" | "calls-over" | "theme";
 
+/**
+ * The state once the person is out, whichever way the shell learns it (the page's message, or the signed-out address
+ * a WebView lands on): nothing of theirs is kept for the next person on this phone. The access token above all, since
+ * the site verifies it until it expires: it used to survive here, and the next person's native replies went out as
+ * the one who had left.
+ */
+export function signedOut(state: ShellState): ShellState {
+  return {
+    ...state,
+    session: "out",
+    slug: null,
+    needs: 0,
+    badge: 0,
+    registered: null,
+    refused: null,
+    access: null,
+    pendingRoute: null,
+  };
+}
+
 /** The state after a page's message, and what the shell must do beyond keeping it. */
 export function onPageMessage(state: ShellState, raw: string): { state: ShellState; effect: Effect } {
   const m = parsePageMessage(raw);
@@ -15,10 +35,7 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
   switch (m.t) {
     case "session":
       return {
-        state:
-          m.state === "out"
-            ? { ...state, session: "out", slug: null, needs: 0, registered: null, access: null }
-            : { ...state, session: "in" },
+        state: m.state === "out" ? signedOut(state) : { ...state, session: "in" },
         effect: m.state === "out" ? "sign-in" : "nothing",
       };
     case "workspace":
@@ -28,10 +45,15 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
     case "badge":
       return { state: { ...state, badge: m.n }, effect: "badge" };
     case "device":
-      // Registered: this token (and activity token) is the person's now. Refused or forgotten: it is not, and the
-      // next chance asks again.
+      // Registered: this token (and activity token) is the person's now. Forgotten: it is not. Refused: not this
+      // pair again until the next foreground or a new token (shouldRegister); asking at once asked for ever, since a
+      // refusal cleared what the registration effect keys on.
       return {
-        state: { ...state, registered: m.state === "registered" ? registrationKey(state) : null },
+        state: {
+          ...state,
+          registered: m.state === "registered" ? registrationKey(state) : null,
+          refused: m.state === "refused" ? registrationKey(state) : null,
+        },
         effect: "nothing",
       };
     case "calls":
@@ -55,9 +77,13 @@ export function registrationKey(state: Pick<ShellState, "token" | "activityToken
   return state.token ? `${state.token}|${state.activityToken ?? ""}` : null;
 }
 
-/** Whether a page in front should be asked to register the phone now: a person in, a token, and not this pair yet. */
+/**
+ * Whether a page in front should be asked to register the phone now: a person in, a token, not this pair yet, and
+ * not this pair refused since the last foreground.
+ */
 export function shouldRegister(state: ShellState): boolean {
-  return state.session === "in" && !!state.token && state.registered !== registrationKey(state);
+  const key = registrationKey(state);
+  return state.session === "in" && !!key && state.registered !== key && state.refused !== key;
 }
 
 /** The script that hands the page one ask. Ends in `true`: a WebView injection must evaluate to something. */

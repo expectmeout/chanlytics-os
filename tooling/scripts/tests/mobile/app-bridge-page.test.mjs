@@ -141,10 +141,13 @@ test("the shell's device ask goes through the page's own doors, and the page say
   await tick();
   assert.deepEqual(d.calls, [["register", { token: "ExponentPushToken[abc]", platform: "ios", app_version: "1.0.0" }]]);
   assert.deepEqual(posted.at(-1), { t: "device", state: "registered" });
-  win.__appBridge.receive('{"t":"forget","token":"ExponentPushToken[abc]"}');
-  await tick();
+  // Before a sign-out the page forgets the phone it registered, on its own (shell.ts signOut); once is enough.
+  await win.__appBridge.forgetPhone();
   assert.deepEqual(d.calls.at(-1), ["forget", "ExponentPushToken[abc]"]);
   assert.deepEqual(posted.at(-1), { t: "device", state: "forgotten" });
+  const calls = d.calls.length;
+  await win.__appBridge.forgetPhone();
+  assert.equal(d.calls.length, calls, "nothing registered any more: nothing to forget");
   const refused = doors(false);
   const w2 = windowOf();
   installAppBridge(w2.win, refused);
