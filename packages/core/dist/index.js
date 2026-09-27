@@ -4134,7 +4134,7 @@ var activeChannel = (known, kind) => {
   const row2 = rows.find((c) => c.kind === kind && (c.status ?? "active") === "active");
   return trimmed(row2?.number_e164);
 };
-var keptReaching = (known, line2) => line2 ? trimmed((known?.forwarding ?? []).find((r22) => trimmed(r22.from_e164) && samePhone(r22.to_e164, line2))?.from_e164) : null;
+var keptReaching = (known, line) => line ? trimmed((known?.forwarding ?? []).find((r22) => trimmed(r22.from_e164) && samePhone(r22.to_e164, line))?.from_e164) : null;
 function sameAddress(a, b) {
   const x = textKey(a).replace(/\b(usa|us|united states)\b/g, "").trim();
   const y = textKey(b).replace(/\b(usa|us|united states)\b/g, "").trim();
@@ -5119,9 +5119,9 @@ var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(t
 var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
 function fillDetails(text, values) {
   if (!namesADetail(text)) return text;
-  return text.split("\n").map((line2) => {
-    if (!namesADetail(line2)) return line2;
-    return line2.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
+  return text.split("\n").map((line) => {
+    if (!namesADetail(line)) return line;
+    return line.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
   }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 function fallbackMessages(brain, known) {
@@ -8118,6 +8118,7 @@ var KIND_META2 = {
   email: { name: CHANNEL_KIND_WORDS2.email, what: "Email", icon: "mail", noun: "email" },
   instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
 };
+var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var CALL_ACTIVITY_STALE_MS2 = 15 * 6e4;
 var NOTE_SUGGEST_KINDS2 = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA2 = {
@@ -8548,6 +8549,7 @@ var DEFAULT_STATUS = {
   not_found: 404,
   validation: 400,
   choose_workspace: 400,
+  mfa_required: 403,
   conflict: 409,
   rate_limited: 429,
   payment_required: 402,
@@ -8559,7 +8561,6 @@ var DEFAULT_STATUS = {
   upstream_auth: 503,
   internal: 500
 };
-var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;

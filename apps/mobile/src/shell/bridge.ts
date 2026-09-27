@@ -6,7 +6,8 @@
 import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
 import type { ShellState } from "./state";
 
-export type Effect = "nothing" | "sign-in" | "badge" | "today" | "calls-over" | "theme";
+/** What the Surface does beyond keeping the state: the sign-in screen and the widget follow the state and the message. */
+export type Effect = "nothing" | "badge" | "calls-over" | "theme";
 
 /**
  * The state once the person is out, whichever way the shell learns it (the page's message, or the signed-out address
@@ -22,6 +23,7 @@ export function signedOut(state: ShellState): ShellState {
     registered: null,
     refused: null,
     pendingRoute: null,
+    pendingWorkspace: null,
   };
 }
 
@@ -31,10 +33,7 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
   if (!m) return { state, effect: "nothing" };
   switch (m.t) {
     case "session":
-      return {
-        state: m.state === "out" ? signedOut(state) : { ...state, session: "in" },
-        effect: m.state === "out" ? "sign-in" : "nothing",
-      };
+      return { state: m.state === "out" ? signedOut(state) : { ...state, session: "in" }, effect: "nothing" };
     case "workspace":
       return { state: { ...state, slug: m.slug }, effect: "nothing" };
     case "needs":
@@ -56,7 +55,7 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
     case "calls":
       return { state, effect: m.live === 0 ? "calls-over" : "nothing" };
     case "today":
-      return { state, effect: "today" };
+      return { state, effect: "nothing" };
     case "route":
       return { state, effect: "nothing" };
     case "theme":

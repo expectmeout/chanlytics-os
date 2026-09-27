@@ -17,7 +17,7 @@ import {
 } from "../src/shell/bridge.ts";
 import { INITIAL } from "../src/shell/state.ts";
 
-test("a page's messages move the state; only 'out' asks for the sign-in screen", () => {
+test("a page's messages move the state; 'out' is the signed-out state the root layout draws the sign-in screen for", () => {
   let s = INITIAL;
   let r = onPageMessage(s, '{"t":"session","state":"in"}');
   assert.equal(r.state.session, "in");
@@ -32,7 +32,8 @@ test("a page's messages move the state; only 'out' asks for the sign-in screen",
   r = onPageMessage(r.state, "garbage");
   assert.equal(r.state, before, "unparsed: untouched");
   r = onPageMessage(r.state, '{"t":"session","state":"out"}');
-  assert.equal(r.effect, "sign-in");
+  assert.equal(r.state.session, "out");
+  assert.equal(r.effect, "nothing");
 });
 
 test("an ask is one injectable line that ends in true", () => {
@@ -79,6 +80,7 @@ test("out is one state, whichever way the shell learns it: nothing of the person
     registered: "tok|",
     refused: null,
     pendingRoute: "inbox/th-1",
+    pendingWorkspace: "22222222-2222-4222-8222-222222222222",
     theme: "light",
   };
   const out = signedOut(inside);
@@ -91,6 +93,7 @@ test("out is one state, whichever way the shell learns it: nothing of the person
     registered: null,
     refused: null,
     pendingRoute: null,
+    pendingWorkspace: null,
   });
   assert.equal(out.token, "tok", "the phone's own token stays: it is the phone's, not the person's");
   assert.equal(out.theme, "light", "the last page's theme stays until the next page says");
@@ -129,5 +132,5 @@ test("the page's theme is the shell's: kept in the state and acted on, and Today
   const snap = { headline: "h", figures: [], waiting: 0, first: null, at: "2026-09-26T10:00:00.000Z" };
   r = onPageMessage(INITIAL, JSON.stringify({ t: "today", snapshot: snap }));
   assert.equal(r.state, INITIAL, "the widget's snapshot is the Surface's to hand on; the state does not change");
-  assert.equal(r.effect, "today");
+  assert.equal(r.effect, "nothing");
 });

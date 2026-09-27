@@ -7,8 +7,16 @@ import assert from "node:assert/strict";
 import { inAppFrom } from "../../../packages/contracts/src/shell/chrome.ts";
 
 process.env.EXPO_PUBLIC_SITE_ORIGIN = "https://app.example.com/";
-const { userAgentToken, hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, SITE_ORIGIN, DEFAULT_SITE_ORIGIN } =
-  await import("../src/site.ts");
+const {
+  userAgentToken,
+  hrefFor,
+  isOurs,
+  isSignedOutUrl,
+  isNativeDoorFailedUrl,
+  LOGIN_HREF,
+  SITE_ORIGIN,
+  DEFAULT_SITE_ORIGIN,
+} = await import("../src/site.ts");
 
 test("the User-Agent token round-trips through the site's regex", () => {
   const ua = `Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 ${userAgentToken("1.4.0", "ios")}`;
@@ -38,4 +46,12 @@ test("ours, and signed out, are read from the address", () => {
   assert.ok(isSignedOutUrl("https://app.example.com/auth/signout"));
   assert.ok(!isSignedOutUrl("https://app.example.com/w/acme#/today"));
   assert.ok(!isSignedOutUrl("https://example.com/login"));
+});
+
+test("a native sign-in the door refused is read from where it lands, and nothing else is", () => {
+  assert.ok(isNativeDoorFailedUrl("https://app.example.com/login?error=native"));
+  assert.ok(!isNativeDoorFailedUrl("https://app.example.com/login"), "the plain login page is the email door");
+  assert.ok(!isNativeDoorFailedUrl("https://app.example.com/login?error=expired"));
+  assert.ok(!isNativeDoorFailedUrl("https://evil.example/login?error=native"), "only the site's own login page");
+  assert.ok(!isNativeDoorFailedUrl("not a url"));
 });

@@ -71,7 +71,6 @@
   "apps/edge/lib/whatsapp/waba-events.ts": 1,
   "apps/mobile/src/shell/bridge.ts": 1,
   "apps/mobile/src/shell/deploy.ts": 1,
-  "apps/mobile/src/shell/notifications.ts": 2,
   "apps/mobile/src/shell/sign-in.ts": 1,
   "apps/mobile/src/shell/state.ts": 1,
   "apps/mobile/src/site.ts": 1,

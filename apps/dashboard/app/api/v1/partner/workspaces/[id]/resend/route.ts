@@ -1,4 +1,5 @@
 import { write, account } from "@/server/route";
+import { requireSecondFactor } from "@/server/with-route";
 import { HandoverResendSchema } from "@chanlytics/contracts";
 import { resendHandover } from "@chanlytics/db";
 import { requireUuid } from "@/server/request-guards";
@@ -15,6 +16,7 @@ export const POST = write({
   rate: "partner_handover",
   input: HandoverResendSchema,
   handle: async ({ ctx, input }): Promise<{ email: string; expiresAt: string; sent: boolean }> => {
+    requireSecondFactor(ctx);
     const id = requireUuid(ctx.params.id, "workspace");
     const r = await resendHandover(ctx.supabase, id, input.email);
     if (!r.ok) throw handoverRefusal(r);

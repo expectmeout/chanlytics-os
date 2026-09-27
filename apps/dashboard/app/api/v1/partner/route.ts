@@ -1,4 +1,5 @@
 import { read, write, account } from "@/server/route";
+import { requireSecondFactor } from "@/server/with-route";
 import {
   AppError,
   PartnerBecomeSchema,
@@ -54,6 +55,8 @@ export const POST = write({
   rate: "partner_become",
   input: PartnerBecomeSchema,
   handle: async ({ ctx, input }): Promise<{ partner: PartnerDto }> => {
+    // Becoming a partner starts on a session that showed its second factor (0013, M3); partner_become asks again.
+    requireSecondFactor(ctx);
     const cleaned = cleanPartnerCode(input.code);
     if (!cleaned.ok) throw new AppError("validation", cleaned.reason);
     const r = await becomePartner(ctx.supabase, cleaned.code);
