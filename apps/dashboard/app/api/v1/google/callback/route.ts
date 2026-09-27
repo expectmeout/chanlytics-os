@@ -1,5 +1,6 @@
 import { read, account } from "@/server/route";
 import { memberContext } from "@/server/with-route";
+import { ROLE_PERMS } from "@chanlytics/contracts";
 import { verifyState } from "@chanlytics/channels";
 import { afterGoogle, edgeGoogle, stateSecret } from "@/server/connections/google";
 
@@ -41,7 +42,8 @@ export const GET = read({
     let tenantId: string;
     try {
       const member = await memberContext(ctx, proof.state.t);
-      if (member.role !== "owner") return back("error", "not_owner");
+      // Whoever GET google/connect admitted (its policy: the partner rung and up), by the one table.
+      if (!ROLE_PERMS[member.role]?.settings) return back("error", "not_owner");
       tenantId = member.tenantId;
     } catch {
       return back("error", "no_workspace");

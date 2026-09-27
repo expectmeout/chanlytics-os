@@ -1,7 +1,8 @@
 # 0012 · A partner brings a workspace, sets it up, and earns a share
 
-**Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) merged (#1151); P4 (the partner's table) built on
-the branch this note ships with; P5 not yet. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
+**Status:** decided; P1 (the role), P2 (attribution) and P3 (the ledger) merged (#1151); P4 (the partner's table)
+merged (#1156); P5 (standing and payouts) built on the branch this note ships with (00205), with the pause the
+Risks promise (00206), and what a review of 00201–00206 found fixed in 00207. Written against commit `b6f2216` (PR #1124, 26 September 2026); every file and line below was read
 at that commit, before P1, so the Context describes the code P1 to P3 changed: `memberships.role` admits `partner`,
 `has_permission()` and `ROLE_PERMS` carry its row, the setting-class routes declare `role: "partner"`, `requireRole`
 refuses a role it does not know (00201, `with-route.ts`); `partners` and `partner_tenants` exist, `create_workspace`
@@ -30,6 +31,37 @@ What moved from the Shape below as written, each for a reason found in the code:
   nothing else of the business: the share is for bringing it, the view is for working in it.
 - **Standing is judged a week after the first share, or as soon as the card is known**, so a share paid before the
   subscription's card was marked is not judged on nothing.
+- **The back office's two verbs name their subject in the body**, as the line actions do: `POST platform/partners/
+standing` (`tenant_id`, `standing`, `why`) and `POST platform/partners/payout` (`partner_id`, `currency`,
+  `reference`). A person's decision takes effect when it is made: disqualified voids what the workspace held, and
+  qualified makes what is past its hold payable, rather than waiting for the night's sweep. A void share stays void.
+- **A payout is one currency's payable earnings, netted, and there is no `planned` state**: it is recorded after the
+  money left, so it is `sent` or it does not exist. A net that is not above zero records nothing. Each workspace it
+  came from gets a `partner.paid` event with its own part and no reference, since a workspace's members read its
+  events. The partners and who brought each workspace ride on `GET platform/overview`, as the waiting list does.
+- **Pausing a partner is a verb, built with P5** (00206 `partner_status_set`, `POST platform/partners/status`): the
+  Risks and the terms promised it and nothing set `partners.status`. A pause or a close makes each partner seat a
+  viewer's and releases what the partner held in those conversations, as a departure does (00132); the workspace keeps
+  `seat_held_at`, and a restore gives back only those seats, where the owner has not removed the partner since.
+- **A partner joins a team only with the owner's yes.** The link's cookie credits nobody by itself: the create screen
+  names the partner and asks (the first workspace is not made on arrival when a link brought the person), the route
+  passes the code only when the body agrees with the cookie, and the cookie is cleared once a workspace is made.
+- **What a review found, fixed in 00207.**
+  - A partner may erase their account: `partners.user_id` is set null and the row closes itself, instead of erasure
+    failing on the ledger's keys.
+  - A refund that arrives before its share waits (`partner_reversals_waiting`) and is taken when the share is written.
+  - A partner who has become the owner earns nothing.
+  - A deleted workspace's shares mature for an active partner and write no event.
+  - Disqualifying voids payable shares too, never a reversal; a payout settles only a qualified workspace's shares
+    and every reversal, locks exactly the rows it totals, and refuses a total that is not the one the card showed.
+  - A close takes the partner off every team.
+  - A restore gives back only seats made before the pause.
+  - Who, when and why of a partner's status is kept on the row.
+  - The standing event no longer carries which check tripped: every member reads events.
+- **The same-card check needs every card marked.** `billing_card_marks` is written as a subscription is applied, so a
+  subscription from before 00203 has none until it changes. `tooling/scripts/partner-card-marks-backfill.mjs`
+  (dry-run by default, a backup first, `--apply`) marks them through the webhook's own door, and `--rejudge` puts the
+  sweep's own qualified decisions back to be judged with the marks in place. Run it once 00203 is applied.
 
 ## Context
 
@@ -286,6 +318,8 @@ know the role before any row carries it, and P1's migration creates none.
    with numbers behind it.
 5. **P5 — standing and payouts.** `partner_standing_set`, `partner_payouts`, `partner_payout_mark`, the back
    office's column and two actions, the review words on the partner's pane ("Under review · we'll write to you").
+   Built as 00205 with `platform_partner_balances` and `platform_partner_workspaces` for the back office's card;
+   either order, since the overview reads no partners on a database without it.
 6. **Later, each its own note:** email to a partner (earned, payable, paid, under review); Stripe Connect Express
    for identity, tax forms and transfers; a partner making the workspace and inviting the owner (needs "invite as
    owner" and a hand-over); presets per trade on top of `firstReceptionistOf`; a directory of partners a business

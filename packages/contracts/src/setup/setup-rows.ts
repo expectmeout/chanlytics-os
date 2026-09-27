@@ -399,7 +399,9 @@ function teamRow(i: SetupInputs): SetupRowDraft {
     title: "Team and alerts",
     state: people && t.alertEmails ? "ready" : !people && !t.alertEmails ? "not_started" : "waiting_you",
     required: false,
-    sentence: people ? `${who} · ${alerts}.` : `Only you so far · ${alerts}.`,
+    sentence: people
+      ? `${who}${t.partner ? ` · ${t.partner} is your partner` : ""} · ${alerts}.`
+      : `Only you so far · ${alerts}.`,
     details: people ? [] : ["Invite someone who answers when you can't"],
     verb: !t.alertEmails
       ? { label: "Set alerts", to: "admin/notifications" }

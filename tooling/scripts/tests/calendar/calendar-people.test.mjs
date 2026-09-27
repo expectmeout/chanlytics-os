@@ -888,7 +888,7 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   );
   assert.ok(
     readCode("apps/dashboard/app/api/v1/calendar/route.ts").includes(
-      'const canAct = member.role === "owner" || member.role === "operator";',
+      "const canAct = !!ROLE_PERMS[member.role]?.approve;",
     ),
     "a viewer's read changes nothing",
   );

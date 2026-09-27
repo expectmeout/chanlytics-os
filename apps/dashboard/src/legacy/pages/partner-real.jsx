@@ -37,6 +37,8 @@ const PartnerWorkspaces = ({ W, api }) => {
         <h2 className="rec-card-title" id="partner-workspaces-title">{W.workspaces}</h2>
         <span className="set-row-hint" data-testid="partner-workspaces-summary">{vm.summary}</span>
       </div>
+      {/* What waits on the owner: the spend doors refuse until the workspace pays (0012, Risks). */}
+      <p className="set-row-hint" data-testid="partner-spend">{W.spend}</p>
       {vm.rows.length > 0 && (
         <div className="cl-attn-list" data-testid="partner-workspace-rows">
           {vm.rows.map((r) => (

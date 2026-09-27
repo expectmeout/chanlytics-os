@@ -3207,7 +3207,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
   const { phone, bulkSheet, setBulkSheet, selectMode, canExport, plFlash, sel, toggleSel, sortBy, sortDir, q } = controls;
   const sheets = usePeopleSheets(newList);
   const { listsOpen, setListsOpen, addOpen, listAct, madeId, setMadeId, setRuleEditing } = sheets;
-  const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // The roles ROLE_PERMS gives `approve`: owner, operator, and the partner (0012).
+  const canEditLists = !!(window.__ME && ["owner", "operator", "partner"].includes(window.__ME.role));
   const doors = peopleListDoors({ plFlash, setListId, setSavedId, setMadeId, setListsOpen });
   usePeopleAddress(listId, savedId, tab);
   const farther = usePeopleFarther({ people, q, plFlash });

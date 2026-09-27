@@ -191,7 +191,9 @@ var EVENT_KINDS = [
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
-  "partner.standing_set"
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -2665,7 +2667,14 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /**
+   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+   * owner's yes. Their price does not change; the share is Chanlytics'.
+   */
+  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 
 // src/repositories/ingest.ts
@@ -4221,6 +4230,11 @@ async function getOwnPartner(db) {
   }
   return data;
 }
+async function getPartnerBroughtCount(db, partnerId) {
+  const { count, error } = await db.from("partner_tenants").select("tenant_id", { count: "exact", head: true }).eq("partner_id", partnerId);
+  if (error) return null;
+  return count ?? 0;
+}
 async function getPartnerBalance(db) {
   const { data, error } = await db.rpc("partner_balance");
   if (error) {
@@ -4256,6 +4270,49 @@ async function getPartnerWorkspaces(db) {
       month_cents: Number(r2.month_cents)
     }))
   };
+}
+async function getPlatformPartners(db) {
+  const [b, w] = await Promise.all([db.rpc("platform_partner_balances"), db.rpc("platform_partner_workspaces")]);
+  for (const r2 of [b, w]) {
+    if (r2.error && !noFunction(r2.error)) throw Object.assign(new Error(r2.error.message), { code: r2.error.code });
+  }
+  return {
+    balances: b.error ? [] : (b.data ?? []).map((r2) => ({
+      ...r2,
+      held_cents: Number(r2.held_cents),
+      payable_cents: Number(r2.payable_cents),
+      paid_cents: Number(r2.paid_cents)
+    })),
+    workspaces: w.error ? [] : w.data ?? []
+  };
+}
+async function setPartnerStanding(db, tenantId, standing, why) {
+  const { data, error } = await db.rpc("partner_standing_set", {
+    p_tenant: tenantId,
+    p_standing: standing,
+    p_why: why
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return {
+    ok: true,
+    value: data
+  };
+}
+async function markPartnerPaid(db, partnerId, currency, reference, expectedCents) {
+  const { data, error } = await db.rpc("partner_payout_mark", {
+    p_partner: partnerId,
+    p_currency: currency,
+    p_reference: reference,
+    ...expectedCents === void 0 ? {} : { p_expected_cents: expectedCents }
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data;
+  return { ok: true, value: { ...v, total_cents: Number(v.total_cents) } };
+}
+async function setPartnerStatus(db, partnerId, status, why) {
+  const { data, error } = await db.rpc("partner_status_set", { p_partner: partnerId, p_status: status, p_why: why });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: data };
 }
 
 // src/realtime.ts
@@ -4380,7 +4437,9 @@ export {
   followUpTouchesSince,
   getOwnPartner,
   getPartnerBalance,
+  getPartnerBroughtCount,
   getPartnerWorkspaces,
+  getPlatformPartners,
   getTenantConfig,
   heldStale,
   ingestCall,
@@ -4399,6 +4458,7 @@ export {
   mailboxById,
   mailboxFor,
   mailboxOfTenant,
+  markPartnerPaid,
   markProcessed,
   monthSent,
   moveSend,
@@ -4453,6 +4513,8 @@ export {
   sentEmailWithMessageId,
   setCallRecording,
   setListRule,
+  setPartnerStanding,
+  setPartnerStatus,
   setPersonReplyMode,
   setPolicyMode,
   staleSends,

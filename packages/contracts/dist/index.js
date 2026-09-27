@@ -1145,7 +1145,9 @@ var EVENT_KINDS = [
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
-  "partner.standing_set"
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -20675,7 +20677,7 @@ function teamRow(i) {
     title: "Team and alerts",
     state: people && t.alertEmails ? "ready" : !people && !t.alertEmails ? "not_started" : "waiting_you",
     required: false,
-    sentence: people ? `${who} \xB7 ${alerts}.` : `Only you so far \xB7 ${alerts}.`,
+    sentence: people ? `${who}${t.partner ? ` \xB7 ${t.partner} is your partner` : ""} \xB7 ${alerts}.` : `Only you so far \xB7 ${alerts}.`,
     details: people ? [] : ["Invite someone who answers when you can't"],
     verb: !t.alertEmails ? { label: "Set alerts", to: "admin/notifications" } : !people ? { label: "Invite", to: "admin/team" } : { label: "Open Team", to: "admin/team" }
   };
@@ -21795,6 +21797,7 @@ var SCHEMA_SETS = {
   ],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
+  "partner_reversals_waiting.kind": ["refund", "dispute", "dispute_won"],
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],
@@ -24608,6 +24611,7 @@ var PARTNER_SHARE_BP_DEFAULT = 2500;
 var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
 var PARTNER_EARNING_KINDS = ["share", "refund", "dispute", "dispute_won"];
 var PARTNER_EARNING_STATES = ["held", "payable", "paid", "void"];
+var PARTNER_REVERSAL_KINDS = ["refund", "dispute", "dispute_won"];
 var PARTNER_HOLD_DAYS = 30;
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
@@ -24675,7 +24679,14 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /**
+   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+   * owner's yes. Their price does not change; the share is Chanlytics'.
+   */
+  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 function shareWords(shareBp) {
   const pct2 = shareBp / 100;
@@ -24696,7 +24707,7 @@ function sumWords(rows, state) {
     cents: of.reduce((n, r2) => n + r2.earned_cents, 0)
   };
 }
-function partnerEarningsWords(rows) {
+function partnerEarningsWords(rows, nowMs = Date.now()) {
   const list2 = rows ?? [];
   const held = sumWords(list2, "held");
   const payable = sumWords(list2, "payable");
@@ -24704,7 +24715,9 @@ function partnerEarningsWords(rows) {
   const next = list2.filter((r2) => r2.state === "held" && r2.next_payable_at).map((r2) => r2.next_payable_at).sort()[0];
   return {
     none: list2.every((r2) => r2.earned_cents === 0),
-    held: held.cents === 0 ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.` : `${held.words} held${next ? `, the first of it payable from ${dayWords2(next)}` : ""}.`,
+    // The date is the earliest a held share could be paid, never a promise: one waiting on a review, or past its
+    // date and not yet judged, is said as waiting rather than given a day that has gone.
+    held: held.cents === 0 ? `Nothing held. A share is held ${PARTNER_HOLD_DAYS} days after each payment.` : next && Date.parse(next) > nowMs ? `${held.words} held, the first of it payable from ${dayWords2(next)} at the earliest.` : `${held.words} held, payable once each workspace it came from is qualified.`,
     payable: payable.cents < 0 ? `${payable.words} to come off your next payout, for refunds and disputes after you were paid.` : `${payable.words} payable.`,
     paid: `${paid.words} paid to date.`
   };
@@ -24724,7 +24737,7 @@ function partnerVM(dto, origin, workspacesAsPartner, balance = []) {
 var PARTNER_STANDING_WORDS = {
   pending: "Its share is judged once it has paid.",
   qualified: null,
-  review: "Under review: its card or its listing matches one of yours. We'll write to you.",
+  review: "Under review: a person at Chanlytics looks at it before its share is paid. We'll write to you.",
   disqualified: "Not eligible for a share."
 };
 var NEEDS_THE_PARTNER = ["broken", "stalled", "waiting_owner", "billing", "rehearsal"];
@@ -24736,7 +24749,7 @@ function moneyLine(lines) {
   if (toDate === 0 && month === 0) return "Nothing earned from it yet.";
   return `${say2((l) => l.month_cents)} from this month's payments \xB7 ${say2((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
 }
-function partnerWorkspacesVM(overview, money, nowMs = Date.now()) {
+function partnerWorkspacesVM(overview, money, nowMs = Date.now(), status = "active") {
   const judged = platformRows(overview, nowMs);
   const moneyOf = (id) => money.filter((m) => m.tenant_id === id);
   const standingOf2 = (id) => {
@@ -24769,7 +24782,7 @@ function partnerWorkspacesVM(overview, money, nowMs = Date.now()) {
       verdict: null,
       label: "Off the team",
       tone: "plain",
-      sentence: m.on_team ? "Its details could not be read just now." : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
+      sentence: status === "paused" ? "Your partner account is paused, so you are a viewer on its team until it is looked at." : status === "closed" ? "Your partner account is closed. Its details are its owner's." : m.on_team ? "Its details could not be read just now." : "Its owner took you off its team. Your share goes on while it pays; its details are theirs.",
       facts: null,
       standing: standingOf2(m.tenant_id),
       money: moneyLine(moneyOf(m.tenant_id)),
@@ -24782,6 +24795,110 @@ function partnerWorkspacesVM(overview, money, nowMs = Date.now()) {
   const parts2 = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
   if (needs) parts2.push(`${needs} need${needs === 1 ? "s" : ""} you`);
   return { rows, summary: total ? parts2.join(" \xB7 ") : "No workspace has come through your link yet." };
+}
+var PARTNER_STANDING_VERBS = {
+  qualified: "Qualify",
+  review: "Hold for review",
+  disqualified: "Disqualify"
+};
+function partnerStandingChoices(standing) {
+  return PARTNER_STANDINGS.filter((s) => s !== standing);
+}
+var PARTNER_STATUS_VERBS = {
+  active: "Restore",
+  paused: "Pause",
+  closed: "Close"
+};
+function partnerStatusChoices(status) {
+  return PARTNER_STATUSES.filter((s) => s !== status);
+}
+function partnerStatusOutcomeWords(code2, r2) {
+  const seats = `${r2.seats} ${r2.seats === 1 ? "workspace" : "workspaces"}`;
+  if (r2.status === "active")
+    return r2.seats ? `${code2} is restored, and a partner again on ${seats}.` : `${code2} is restored. No seat was waiting to be given back.`;
+  const what = r2.status === "closed" ? "closed" : "paused";
+  return r2.seats ? `${code2} is ${what}: a viewer on ${seats} now, and what they held there is released.` : `${code2} is ${what}. They held no partner seat to take.`;
+}
+function platformPartnerRows(rows) {
+  const seen = /* @__PURE__ */ new Set();
+  return rows.map((r2) => {
+    const first = !seen.has(r2.partner_id);
+    seen.add(r2.partner_id);
+    const cur = r2.currency ?? "usd";
+    const pct2 = r2.share_bp / 100;
+    const who = [
+      r2.email ?? "no address on file",
+      `${r2.workspaces} workspace${r2.workspaces === 1 ? "" : "s"}`,
+      r2.under_review ? `${r2.under_review} under review` : null,
+      `${Number.isInteger(pct2) ? pct2 : pct2.toFixed(1).replace(/\.0$/, "")}% of what each pays`,
+      r2.status === "active" ? null : r2.status
+    ].filter(Boolean);
+    const payable = r2.payable_cents;
+    const money = r2.currency === null ? "Nothing earned yet." : [
+      payable < 0 ? `${moneyWords(payable, cur)} to come off the next payout` : `${moneyWords(payable, cur)} payable`,
+      `${moneyWords(r2.held_cents, cur)} held`,
+      `${moneyWords(r2.paid_cents, cur)} paid to date`
+    ].join(" \xB7 ");
+    return {
+      partnerId: r2.partner_id,
+      code: r2.code,
+      who: who.join(" \xB7 "),
+      money,
+      currency: r2.currency,
+      payableCents: payable,
+      canPay: r2.currency !== null && payable > 0,
+      payLabel: `Mark ${moneyWords(Math.max(payable, 0), cur)} as paid`,
+      tone: r2.status !== "active" ? "danger" : r2.under_review ? "warn" : payable > 0 ? "info" : "plain",
+      status: r2.status,
+      first,
+      statusChoices: partnerStatusChoices(r2.status).map((s) => ({ status: s, label: PARTNER_STATUS_VERBS[s] }))
+    };
+  });
+}
+function platformPartnerSummary(rows) {
+  const partners = new Set(rows.map((r2) => r2.partner_id)).size;
+  if (!partners) return "No partners yet.";
+  const byCur = /* @__PURE__ */ new Map();
+  for (const r2 of rows)
+    if (r2.currency && r2.payable_cents > 0) byCur.set(r2.currency, (byCur.get(r2.currency) ?? 0) + r2.payable_cents);
+  const review = [...new Map(rows.map((r2) => [r2.partner_id, r2.under_review])).values()].reduce((n, v) => n + v, 0);
+  const parts2 = [`${partners} partner${partners === 1 ? "" : "s"}`];
+  parts2.push(byCur.size ? `${[...byCur].map(([c, n]) => moneyWords(n, c)).join(" and ")} payable` : "nothing payable");
+  if (review) parts2.push(`${review} workspace${review === 1 ? "" : "s"} under review`);
+  return parts2.join(" \xB7 ");
+}
+var STANDING_LABELS = {
+  qualified: "Qualified",
+  review: "Under review",
+  disqualified: "Disqualified"
+};
+function platformPartnerStanding(w) {
+  const label = w.standing ? STANDING_LABELS[w.standing] ?? w.standing : "Not judged yet";
+  const whose = w.decided_by === "person" ? " (decided by a person)" : w.decided_by === "sweep" ? " (the nightly check)" : "";
+  const why = w.standing ? w.standing_why ? `: ${w.standing_why}` : "" : ": judged once it has paid";
+  return {
+    by: `Brought by ${w.code}`,
+    standing: `${label}${whose}${why}`,
+    tone: w.standing === "review" ? "warn" : w.standing === "disqualified" ? "danger" : w.standing === "qualified" ? "ok" : "plain",
+    choices: partnerStandingChoices(w.standing).map((s) => ({ standing: s, label: PARTNER_STANDING_VERBS[s] }))
+  };
+}
+function partnerPayoutOutcomeWords(code2, r2) {
+  if (r2.changed)
+    return `Nothing was recorded: what is payable to ${code2} is now ${moneyWords(r2.total_cents, r2.currency)}, not what the card showed. Read the card again before you mark it.`;
+  if (r2.paid)
+    return `Recorded: ${moneyWords(r2.total_cents, r2.currency)} paid to ${code2}, settling ${r2.earnings ?? 0} ledger ${r2.earnings === 1 ? "line" : "lines"}.`;
+  if (r2.total_cents < 0)
+    return `Nothing to pay: refunds since the last payout take ${moneyWords(-r2.total_cents, r2.currency)}, which comes off their next share.`;
+  return "Nothing is payable to them in that currency, so nothing was recorded.";
+}
+function partnerStandingOutcomeWords(r2) {
+  const label = (STANDING_LABELS[r2.standing] ?? r2.standing).toLowerCase();
+  if (r2.standing === "disqualified")
+    return r2.voided ? `Disqualified. What it still held (${r2.voided} ${r2.voided === 1 ? "share" : "shares"}) is void; what was paid stays paid.` : "Disqualified. It earns nothing from now on; what was paid stays paid.";
+  if (r2.standing === "qualified")
+    return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
+  return `Now ${label}. What it holds waits until a person decides.`;
 }
 export {
   ABANDONED_MS,
@@ -25180,10 +25297,13 @@ export {
   PARTNER_EARNING_KINDS,
   PARTNER_EARNING_STATES,
   PARTNER_HOLD_DAYS,
+  PARTNER_REVERSAL_KINDS,
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_STANDINGS,
+  PARTNER_STANDING_VERBS,
   PARTNER_STANDING_WORDS,
   PARTNER_STATUSES,
+  PARTNER_STATUS_VERBS,
   PARTNER_WORDS,
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN,
@@ -25946,6 +26066,11 @@ export {
   partnerEarningsWords,
   partnerLinkFor,
   partnerPathFor,
+  partnerPayoutOutcomeWords,
+  partnerStandingChoices,
+  partnerStandingOutcomeWords,
+  partnerStatusChoices,
+  partnerStatusOutcomeWords,
   partnerVM,
   partnerWorkspacesVM,
   passwordProblem,
@@ -26002,6 +26127,9 @@ export {
   platformHealthWords,
   platformLineActions,
   platformNumber,
+  platformPartnerRows,
+  platformPartnerStanding,
+  platformPartnerSummary,
   platformQueue,
   platformRows,
   platformSummary,

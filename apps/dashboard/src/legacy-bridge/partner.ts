@@ -73,7 +73,8 @@ export function installPartner(win: Window = window): void {
   win.__partner = {
     words: PARTNER_WORDS,
     offerShare: shareWords(PARTNER_SHARE_BP_DEFAULT),
-    vm: (dto, balance) => partnerVM(dto, win.location.origin, brought(), balance ?? []),
+    // The server's count (partner_tenants) when it sends one; the seats held, from an older server.
+    vm: (dto, balance) => partnerVM(dto, win.location.origin, dto.brought ?? brought(), balance ?? []),
     broughtCount: brought,
     async become(code) {
       const r = await api()("POST partner", { body: { code, terms: true } });
@@ -86,7 +87,8 @@ export function installPartner(win: Window = window): void {
     async workspaces() {
       const r = await api()("GET partner/workspaces");
       if (!r.ok) return { ok: false, message: r.message };
-      return { ok: true, vm: partnerWorkspacesVM(r.data.overview, r.data.money) };
+      const status = (win as unknown as { __PARTNER?: { dto?: { status?: string } } | null }).__PARTNER?.dto?.status;
+      return { ok: true, vm: partnerWorkspacesVM(r.data.overview, r.data.money, Date.now(), status ?? "active") };
     },
     open(tenantId) {
       const shell = (win as unknown as { __shell?: { switchWorkspace(id: string): void } }).__shell;

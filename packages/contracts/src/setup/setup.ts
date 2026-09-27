@@ -48,7 +48,13 @@ export interface SetupDto {
   email?: EmailSetupDto;
   templates: { approved: number; pending: number; startersApproved: number };
   calendar: { state: "ok" | "unavailable" | "none"; problem?: string | null };
-  team: { members: number; invitesOpen: number; alertEmails: number };
+  team: {
+    members: number;
+    invitesOpen: number;
+    alertEmails: number;
+    /** The partner who brought the workspace and sits on its team (0012), by name; the member's read alone carries it. */
+    partner?: string | null;
+  };
   /**
    * The two answers, counted separately.
    *

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ROLE_PERMS } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
 import { addPeopleSeen, weekFrom } from "@/server/calendar/calendar";
 import { load, readerContext } from "@/server/readers";
@@ -28,9 +29,9 @@ export const GET = read({
   handle: async ({ ctx, member, input }) => {
     const from = input.from ?? null;
     const days = Number(input.days ?? 7);
-    // An owner or operator opening the board puts the people its appointments
-    // name in People; a viewer's read changes nothing.
-    const canAct = member.role === "owner" || member.role === "operator";
+    // Whoever acts in the workspace (owner, operator, partner) opening the board puts the people its appointments
+    // name in People; a viewer's read changes nothing. The one table, as is_acting_member in SQL.
+    const canAct = !!ROLE_PERMS[member.role]?.approve;
     const fresh = input.fresh === "1";
     // The calendar's one read (readers/calendar.ts), then the write a reader never makes (D7): the people the feed
     // names put in People before the board is matched, as calendarWeek does for its callers. One clock, the read's,

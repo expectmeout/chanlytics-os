@@ -61,6 +61,13 @@ export function planInvoice(inv: Stripe.Invoice): boolean {
   return inv.parent?.type === "subscription_details" && !!inv.parent.subscription_details?.subscription;
 }
 
+/**
+ * What a ledger door answered: what it wrote, nothing, or `skipped` -- the database does not have the door yet
+ * (either deploy order). A skipped delivery gives its claim back, so a resend from Stripe's dashboard once the
+ * migration is applied writes it; answered as done, the resend would be a duplicate and the share lost.
+ */
+export type LedgerOutcome = { earned: number } | { skipped: true } | null;
+
 /** invoice.paid: a share for the partner who brought the workspace, if one did. */
 export async function earnFromInvoice(
   db: Db,
@@ -68,7 +75,7 @@ export async function earnFromInvoice(
   inv: Stripe.Invoice,
   eventId: string,
   L: Log,
-): Promise<{ earned: number } | null> {
+): Promise<LedgerOutcome> {
   if (!inv.id || !planInvoice(inv) || !(inv.amount_paid > 0)) return null;
   const paidAt = inv.status_transitions?.paid_at ?? inv.created;
   const { data, error } = await db.rpc("partner_earn", {
@@ -82,7 +89,7 @@ export async function earnFromInvoice(
   if (error) {
     if (notYet(error)) {
       L.warn("partner_earning_skipped", { tenant_id: tenantId, invoice: inv.id, error: error.message });
-      return null;
+      return { skipped: true };
     }
     throw new Error(`partner_earn: ${error.message}`);
   }
@@ -119,7 +126,7 @@ export async function reverseForInvoice(
   kind: ReversalKind,
   amountCents: number,
   L: Log,
-): Promise<{ earned: number } | null> {
+): Promise<LedgerOutcome> {
   const { data, error } = await db.rpc("partner_reverse", {
     p_invoice_id: invoiceId,
     p_event_id: eventId,
@@ -129,7 +136,7 @@ export async function reverseForInvoice(
   if (error) {
     if (notYet(error)) {
       L.warn("partner_earning_skipped", { invoice: invoiceId, kind, error: error.message });
-      return null;
+      return { skipped: true };
     }
     throw new Error(`partner_reverse: ${error.message}`);
   }

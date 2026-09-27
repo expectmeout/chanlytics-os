@@ -41,6 +41,7 @@ import type { BILLING_MODES, BILLING_STATUSES } from "../workspace/billing";
 import type {
   PARTNER_EARNING_KINDS,
   PARTNER_EARNING_STATES,
+  PARTNER_REVERSAL_KINDS,
   PARTNER_STANDINGS,
   PARTNER_STATUSES,
 } from "../workspace/partner";
@@ -97,6 +98,7 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof PARTNER_STANDINGS>, SchemaSet<"partner_tenants.standing">>>,
   Holds<Exactly<Of<typeof PARTNER_EARNING_KINDS>, SchemaSet<"partner_earnings.kind">>>,
   Holds<Exactly<Of<typeof PARTNER_EARNING_STATES>, SchemaSet<"partner_earnings.state">>>,
+  Holds<Exactly<Of<typeof PARTNER_REVERSAL_KINDS>, SchemaSet<"partner_reversals_waiting.kind">>>,
 
   // Channels and the people on them.
   Holds<Exactly<Of<typeof CHANNEL_KINDS>, SchemaSet<"tenant_channels.kind">>>,

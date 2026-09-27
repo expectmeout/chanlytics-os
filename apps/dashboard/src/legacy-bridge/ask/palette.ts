@@ -6,6 +6,7 @@
  * place). Every rule is the contract's; this module only feeds it the surfaces.
  */
 import {
+  ROLE_PERMS,
   ASK_PAGES,
   answerFromV1,
   askIntent,
@@ -242,7 +243,8 @@ export function askPalette(win: Window, storage: Storage | null) {
         liveNow: calls().filter((c) => c.live).length,
         hasCalendar: !!w.__SETTINGS?.config?.calendar?.ical_url,
         scope,
-        canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",
+        // Whoever acts in the workspace (owner, operator, partner): the one table, as the pages' canDo("approve").
+        canAct: !!ROLE_PERMS[w.__ME?.role as keyof typeof ROLE_PERMS]?.approve,
         // People's surface says whether deals are on here (0008); until it does, the question is not offered.
         dealsOn: !!w.__PEOPLE?.dealsOn,
         // On Leads: the first day's ideas, else the latest two searches' own words; the leads bridge publishes both.

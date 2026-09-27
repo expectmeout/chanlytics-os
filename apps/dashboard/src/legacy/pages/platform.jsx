@@ -245,6 +245,170 @@ const WaitingRow = ({ row, P, onDone, flash }) => {
   );
 };
 
+/**
+ * One partner and one currency of what they earned (0012, P5). The one action records a payout sent by hand: it arms,
+ * asks for the payment's reference, and SENDS NOTHING -- the money left from the bank, and this is the record of it.
+ */
+const PartnerRow = ({ row, P, onDone, flash }) => {
+  const [arm, setArm] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [ref, setRef] = React.useState("");
+  // The partner's own status, on their first line only: pause, close or restore, each with why.
+  const [armStatus, setArmStatus] = React.useState(null);
+  const [why, setWhy] = React.useState("");
+  const runStatus = async () => {
+    setBusy(true);
+    const r = await Promise.resolve()
+      .then(() => P.setStatus(row.partnerId, row.code, armStatus, why.trim()))
+      .catch(() => ({ ok: false, message: "That did not go through." }));
+    setBusy(false);
+    setArmStatus(null);
+    setWhy("");
+    flash({ tone: r.ok ? "ok" : "danger", msg: <>{r.message}</> });
+    if (r.ok) onDone();
+  };
+  const statusChoice = armStatus ? row.statusChoices.find((c) => c.status === armStatus) : null;
+  const run = async () => {
+    setBusy(true);
+    const r = await Promise.resolve()
+      .then(() => P.markPaid(row.partnerId, row.code, row.currency, ref.trim(), row.payableCents))
+      .catch(() => ({ ok: false, message: "That did not go through." }));
+    setBusy(false);
+    setArm(false);
+    setRef("");
+    flash({ tone: r.ok ? "ok" : "danger", msg: <>{r.message}</> });
+    onDone();
+  };
+  return (
+    <div className="set-row" data-testid={`platform-partner-${row.code}`}>
+      <div className="set-row-info">
+        <span className="set-row-label">{row.code}</span>
+        <span className="set-row-hint">{row.who}</span>
+        <span className="set-row-hint" data-testid={`platform-partner-money-${row.code}`}>{row.money}</span>
+        {arm && (
+          <Confirm
+            block
+            question={`${row.payLabel}?`}
+            detail="Nothing is sent. This records a payout you already made, settles every payable share in it, and cannot be undone here."
+            yes="Yes, record it"
+            no="Not now"
+            typed="the payment's reference"
+            value={ref}
+            onType={setRef}
+            ready={ref.trim().length > 0 && ref.trim().length <= 200}
+            busy={busy}
+            onYes={run}
+            onNo={() => { setArm(false); setRef(""); }}
+            testid={`platform-partner-pay-${row.code}`}
+          />
+        )}
+        {statusChoice && (
+          <Confirm
+            block
+            question={`${statusChoice.label} ${row.code}?`}
+            detail={
+              armStatus === "active"
+                ? "They become a partner again on every workspace a pause took them off, where the owner has not removed them since."
+                : "They become a viewer on every workspace they brought, and what they hold in its conversations is released. Their earnings are kept, and mature only once they are restored."
+            }
+            yes={`Yes, ${statusChoice.label.toLowerCase()}`}
+            no="Not now"
+            danger={armStatus !== "active"}
+            typed="why, for the partner"
+            value={why}
+            onType={setWhy}
+            ready={why.trim().length > 0 && why.trim().length <= 500}
+            busy={busy}
+            onYes={runStatus}
+            onNo={() => { setArmStatus(null); setWhy(""); }}
+            testid={`platform-partner-status-${armStatus}-${row.code}`}
+          />
+        )}
+      </div>
+      {!arm && !armStatus && (
+        <span className="cl-row-actions">
+          {row.canPay && (
+            <button className="btn btn-sm" onClick={() => setArm(true)} disabled={busy} data-testid={`platform-partner-mark-${row.code}`}>
+              {row.payLabel}
+            </button>
+          )}
+          {row.first && row.statusChoices.map((c) => (
+            <button key={c.status} className="btn btn-sm" onClick={() => setArmStatus(c.status)} disabled={busy} data-testid={`platform-partner-arm-${c.status}-${row.code}`}>
+              {c.label}
+            </button>
+          ))}
+        </span>
+      )}
+    </div>
+  );
+};
+
+/**
+ * A workspace a partner brought, and a person's decision on it. The nightly check decided once; this is where what
+ * it held for review is looked at. Each decision asks why -- the partner is written to about it -- and is recorded
+ * against the person who made it.
+ */
+const PartnerStandingRow = ({ ws, name, P, onDone, flash }) => {
+  const vm = P.partnerStanding(ws);
+  const [arm, setArm] = React.useState(null);
+  const [busy, setBusy] = React.useState(false);
+  const [why, setWhy] = React.useState("");
+  const run = async () => {
+    setBusy(true);
+    const r = await Promise.resolve()
+      .then(() => P.setStanding(ws.tenant_id, arm, why.trim()))
+      .catch(() => ({ ok: false, message: "That did not go through." }));
+    setBusy(false);
+    setArm(null);
+    setWhy("");
+    flash({ tone: r.ok ? "ok" : "danger", msg: <>{r.message}</> });
+    if (r.ok) onDone();
+  };
+  const choice = arm ? vm.choices.find((c) => c.standing === arm) : null;
+  return (
+    <div className="set-row" data-testid={`platform-standing-${ws.tenant_id}`}>
+      <div className="set-row-info">
+        <span className="set-row-label">{name || ws.tenant_id}</span>
+        <span className="set-row-hint">{vm.by}</span>
+        <span className="set-row-hint" data-tone={vm.tone} data-testid={`platform-standing-words-${ws.tenant_id}`}>{vm.standing}</span>
+        {choice && (
+          <Confirm
+            block
+            question={`${choice.label} ${name || "this workspace"}?`}
+            detail={
+              arm === "disqualified"
+                ? "What it still holds is void and it earns nothing more. What was paid stays paid."
+                : arm === "qualified"
+                  ? "Its shares become payable as each one's thirty days end; any already past it are payable now."
+                  : "What it holds waits until somebody decides."
+            }
+            yes={`Yes, ${choice.label.toLowerCase()}`}
+            no="Not now"
+            danger={arm === "disqualified"}
+            typed="why, for the partner"
+            value={why}
+            onType={setWhy}
+            ready={why.trim().length > 0 && why.trim().length <= 500}
+            busy={busy}
+            onYes={run}
+            onNo={() => { setArm(null); setWhy(""); }}
+            testid={`platform-standing-${arm}-${ws.tenant_id}`}
+          />
+        )}
+      </div>
+      {!arm && (
+        <span className="cl-row-actions">
+          {vm.choices.map((c) => (
+            <button key={c.standing} className="btn btn-sm" onClick={() => setArm(c.standing)} disabled={busy} data-testid={`platform-standing-arm-${c.standing}-${ws.tenant_id}`}>
+              {c.label}
+            </button>
+          ))}
+        </span>
+      )}
+    </div>
+  );
+};
+
 const PanePlatform = () => {
   const P = React.useMemo(() => window.__platform, []);
   const [toastNode, flash] = window.usePPToast();
@@ -253,6 +417,7 @@ const PanePlatform = () => {
   const [tenants, setTenants] = React.useState(held && held.ok ? held.tenants : null);
   const [health, setHealth] = React.useState(held && held.ok ? held.health : null);
   const [queue, setQueue] = React.useState(held && held.ok ? held.queue : null);
+  const [partners, setPartners] = React.useState(held && held.ok ? held.partners : null);
   const [problem, setProblem] = React.useState(null);
   const [find, setFind] = React.useState("");
   const [openId, setOpenId] = React.useState(null);
@@ -268,11 +433,12 @@ const PanePlatform = () => {
     // A read that throws is a failed read like any other, not a page left reading for ever.
     const r = await Promise.resolve().then(() => P.list()).catch(() => ({ ok: false, message: "" }));
     setBusy(false);
-    if (!r.ok) { setProblem(r.message || "Could not be read right now."); setTenants([]); setHealth(null); setQueue(null); return; }
+    if (!r.ok) { setProblem(r.message || "Could not be read right now."); setTenants([]); setHealth(null); setQueue(null); setPartners(null); return; }
     setProblem(null);
     setTenants(r.tenants);
     setHealth(r.health);
     setQueue(r.queue);
+    setPartners(r.partners);
   }, [P]);
 
   React.useEffect(() => { load(); }, [load]);
@@ -301,6 +467,11 @@ const PanePlatform = () => {
   const waiting = queue ? P.queue(queue) : null;
   const q = find.trim().toLowerCase();
   const shown = q ? rows.filter((r) => r.name.toLowerCase().includes(q) || r.slug.includes(q)) : rows;
+  // Who brought each workspace (0012, P5): the column on its row, and the rows a person decides on.
+  const broughtBy = new Map((partners ? partners.workspaces : []).map((w) => [w.tenant_id, w]));
+  const nameOf = new Map(rows.map((r) => [r.tenantId, r.name]));
+  const partnerRows = partners ? P.partnerRows(partners.balances) : [];
+  const toDecide = partners ? partners.workspaces.filter((w) => w.standing !== "qualified") : [];
 
   return (
     <>
@@ -362,6 +533,38 @@ const PanePlatform = () => {
           )}
         </section>
       )}
+      {/* The partners (0012, P5): what each is owed, and the workspaces the nightly check held for a person. The
+          card is one line when there are none. Both actions send nothing and ask for a reason or a reference;
+          each is recorded against you. */}
+      {partners && (
+        <section className="fl-card set-card" data-testid="platform-partners">
+          <div className="fl-card-head">
+            <h2 className="fl-card-title">Partners</h2>
+            <span className="fl-card-sub set-says" data-testid="platform-partners-words">{P.partnerSummary(partners.balances)}</span>
+          </div>
+          {partnerRows.length > 0 && (
+            <div className="cl-attn-list" data-testid="platform-partner-rows">
+              {partnerRows.map((row) => (
+                <PartnerRow key={`${row.partnerId}-${row.currency || "none"}`} row={row} P={P} onDone={load} flash={flash} />
+              ))}
+            </div>
+          )}
+          {toDecide.length > 0 && (
+            <>
+              <div className="set-row">
+                <div className="set-row-info">
+                  <span className="set-row-hint">Workspaces a partner brought that are not qualified: under review first.</span>
+                </div>
+              </div>
+              <div className="cl-attn-list" data-testid="platform-standing-rows">
+                {toDecide.map((w) => (
+                  <PartnerStandingRow key={w.tenant_id} ws={w} name={nameOf.get(w.tenant_id)} P={P} onDone={load} flash={flash} />
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      )}
       <section className="fl-card set-card" data-testid="platform-overview">
         <div className="fl-card-head">
           <h2 className="fl-card-title">Every workspace</h2>
@@ -395,7 +598,7 @@ const PanePlatform = () => {
                 key={r.tenantId}
                 glyph={PLATFORM_GLYPH[r.verdict] || "dot"}
                 name={r.name}
-                meta={`${r.slug} · ${r.members} in it · ${r.age}`}
+                meta={[r.slug, `${r.members} in it`, r.age, broughtBy.has(r.tenantId) ? P.partnerStanding(broughtBy.get(r.tenantId)).by : null].filter(Boolean).join(" · ")}
                 sentence={r.sentence}
                 status={[v.label]}
                 note={[r.facts.paying, r.facts.answering, `texting ${r.facts.texting}`, `heard ${r.facts.heard}`].join(" · ")}
@@ -443,3 +646,6 @@ window.PlatformLine = PlatformLine;
 // The same, for the same reason: it holds the arm-then-confirm state for the
 // one action on this page that nobody can undo.
 window.PlatformWaitingRow = WaitingRow;
+// And these two, for the same reason: the partner card's two actions move money and a partner's standing.
+window.PlatformPartnerRow = PartnerRow;
+window.PlatformPartnerStandingRow = PartnerStandingRow;

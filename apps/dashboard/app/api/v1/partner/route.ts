@@ -6,7 +6,7 @@ import {
   type PartnerBalanceRow,
   type PartnerDto,
 } from "@chanlytics/contracts";
-import { becomePartner, getOwnPartner, getPartnerBalance } from "@chanlytics/db";
+import { becomePartner, getOwnPartner, getPartnerBalance, getPartnerBroughtCount } from "@chanlytics/db";
 
 /**
  * GET /api/v1/partner — the caller's partner account (decision 0012), or null, and what the ledger holds for them:
@@ -18,7 +18,13 @@ export const GET = read({
   handle: async ({ ctx }): Promise<{ partner: PartnerDto | null; balance: PartnerBalanceRow[] }> => {
     const row = await getOwnPartner(ctx.supabase);
     if (!row) return { partner: null, balance: [] };
-    return { partner: row as PartnerDto, balance: await getPartnerBalance(ctx.supabase) };
+    // The count of workspaces brought is the ledger's (partner_tenants), not the seats held now: a pause or an owner
+    // taking the partner off a team changes the seats, never how many the link brought.
+    const [balance, brought] = await Promise.all([
+      getPartnerBalance(ctx.supabase),
+      getPartnerBroughtCount(ctx.supabase, row.id),
+    ]);
+    return { partner: { ...(row as PartnerDto), brought }, balance };
   },
 });
 

@@ -1123,7 +1123,9 @@ var EVENT_KINDS = [
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
-  "partner.standing_set"
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -3468,7 +3470,14 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /**
+   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+   * owner's yes. Their price does not change; the share is Chanlytics'.
+   */
+  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
@@ -4116,7 +4125,9 @@ var EVENT_KINDS2 = [
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
-  "partner.standing_set"
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid"
 ];
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS2 = [
@@ -8361,7 +8372,14 @@ var PARTNER_WORDS2 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /**
+   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+   * owner's yes. Their price does not change; the share is Chanlytics'.
+   */
+  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 
 // ../db/dist/index.js
@@ -8541,7 +8559,9 @@ var EVENT_KINDS3 = [
   // standing the sweep decided for a workspace once it had paid.
   "partner.earned",
   "partner.reversed",
-  "partner.standing_set"
+  "partner.standing_set",
+  // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
+  "partner.paid"
 ];
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS3 = [
@@ -10879,7 +10899,14 @@ var PARTNER_WORDS3 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan."
+  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  /**
+   * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
+   * owner's yes. Their price does not change; the share is Chanlytics'.
+   */
+  joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
+  /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
 };
 async function recordCarrierOptOut(db, p) {
   const { data, error } = await db.from("contacts").update({

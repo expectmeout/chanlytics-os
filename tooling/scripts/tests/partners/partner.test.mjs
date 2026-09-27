@@ -23,6 +23,13 @@ import {
   partnerLinkFor,
   partnerVM,
   partnerWorkspacesVM,
+  partnerPayoutOutcomeWords,
+  partnerStandingChoices,
+  partnerStandingOutcomeWords,
+  partnerStatusChoices,
+  partnerStatusOutcomeWords,
+  platformPartnerRows,
+  platformPartnerSummary,
   shareWords,
 } from "@chanlytics/contracts";
 
@@ -101,12 +108,18 @@ test("the earnings in words: each line a sum from the ledger, a zero said, what 
   assert.equal(none.held, "Nothing held. A share is held 30 days after each payment.");
   assert.equal(none.payable, "$0.00 payable.");
   assert.equal(none.paid, "$0.00 paid to date.");
-  const some = partnerEarningsWords([
+  const ledger = [
     { currency: "usd", state: "held", earned_cents: 10000, next_payable_at: "2026-11-02T00:00:00Z" },
     { currency: "usd", state: "paid", earned_cents: 30000, next_payable_at: null },
-  ]);
+  ];
+  const some = partnerEarningsWords(ledger, Date.parse("2026-09-27T00:00:00Z"));
   assert.equal(some.none, false);
-  assert.equal(some.held, "$100.00 held, the first of it payable from Nov 2.");
+  assert.equal(some.held, "$100.00 held, the first of it payable from Nov 2 at the earliest.");
+  assert.equal(
+    partnerEarningsWords(ledger, Date.parse("2026-11-20T00:00:00Z")).held,
+    "$100.00 held, payable once each workspace it came from is qualified.",
+    "a date that has gone is not given: what waits past it waits on a judgement or a person",
+  );
   assert.equal(some.paid, "$300.00 paid to date.");
   const owed = partnerEarningsWords([
     { currency: "usd", state: "payable", earned_cents: -2500, next_payable_at: null },
@@ -218,7 +231,7 @@ test("GET partner: the caller's row and their balance, or null and nothing; a da
   assert.deepEqual(
     await partner.GET.run(get(), ctxFor(tables({ partners: [row] }), { partner_balance: () => lines })),
     {
-      partner: row,
+      partner: { ...row, brought: 0 },
       balance: [
         { currency: "usd", state: "held", earned_cents: 10000, next_payable_at: "2026-10-26T00:00:00Z" },
         { currency: "usd", state: "paid", earned_cents: 20000, next_payable_at: null },
@@ -233,7 +246,7 @@ test("GET partner: the caller's row and their balance, or null and nothing; a da
   };
   assert.deepEqual(
     await partner.GET.run(get(), ctxFor(tables({ partners: [row] }), noLedger)),
-    { partner: row, balance: [] },
+    { partner: { ...row, brought: 0 }, balance: [] },
     "no ledger yet is nothing earned yet",
   );
   const older = ctxFor(tables());
@@ -281,7 +294,7 @@ test("POST partner: the code judged in contracts' words before the door, then th
   assert.deepEqual(asked.at(-1), { p_code: "ada" }, "as it is stored");
 });
 
-test("a new workspace: the cookie's code goes to the function, and on a database without the argument the call is made again without it", async () => {
+test("a new workspace: the cookie's code goes to the function only with the person's yes, and on a database without the argument the call is made again without it", async () => {
   const made = [];
   const row = (a) => ({
     id: C,
@@ -292,8 +305,21 @@ test("a new workspace: the cookie's code goes to the function, and on a database
   });
   const withCode = ctxFor(tables(), { create_workspace: (a) => (made.push(a), row(a)) });
   const cookie = { cookie: `sb-a=1; ${PARTNER_COOKIE}=ada` };
-  await create.POST.run(send("POST", { name: "Harbor Two", timezone: "America/Chicago" }, cookie), withCode);
+  await create.POST.run(
+    send("POST", { name: "Harbor Two", timezone: "America/Chicago", partner: "ada" }, cookie),
+    withCode,
+  );
   assert.deepEqual(made, [{ p_name: "Harbor Two", p_timezone: "America/Chicago", p_partner_code: "ada" }]);
+
+  // A cookie the person did not say yes to, or a yes to some other code, seats and credits nobody (0012).
+  made.length = 0;
+  await create.POST.run(send("POST", { name: "Harbor Two" }, cookie), withCode);
+  await create.POST.run(send("POST", { name: "Harbor Two", partner: "someone-else" }, cookie), withCode);
+  assert.deepEqual(
+    made.map((a) => "p_partner_code" in a),
+    [false, false],
+    "no yes, no partner",
+  );
 
   made.length = 0;
   const bare = ctxFor(tables(), { create_workspace: (a) => (made.push(a), row(a)) });
@@ -312,7 +338,7 @@ test("a new workspace: the cookie's code goes to the function, and on a database
       return row(a);
     },
   });
-  const out = await create.POST.run(send("POST", { name: "Harbor Two" }, cookie), older);
+  const out = await create.POST.run(send("POST", { name: "Harbor Two", partner: "ada" }, cookie), older);
   assert.equal(out.workspace.slug, "harbor-two", "the workspace is made whichever deploys first");
   assert.deepEqual(
     made.map((a) => "p_partner_code" in a),
@@ -351,8 +377,13 @@ test("wiring, run: the pane's surface is real and waits for Settings, becoming o
     "partner.earned",
     "partner.reversed",
     "partner.standing_set",
+    "partner.paid",
   ])
     assert.ok(EVENT_KINDS.includes(k), k);
+  // The back office's two partner verbs (P5) have their ceilings.
+  assert.equal(RATE.platform_partner_standing.limit, 60);
+  assert.equal(RATE.platform_partner_payout.limit, 30);
+  assert.equal(RATE.platform_partner_status.limit, 20);
 });
 
 /* ------------------------------------------------------------ the workspaces a partner brought (P4) */
@@ -454,6 +485,11 @@ test("a workspace whose owner took the partner off its team keeps its money line
   const r = vm.rows[0];
   assert.deepEqual([r.verdict, r.facts, r.slug, r.onTeam], [null, null, null, false]);
   assert.match(r.sentence, /took you off its team/);
+  // Paused or closed, the platform took the seat, not an owner, and the words say so.
+  const paused = partnerWorkspacesVM([], [moneyRow({ tenant_id: "t-off", on_team: false })], NOW, "paused");
+  assert.match(paused.rows[0].sentence, /^Your partner account is paused/);
+  const closed = partnerWorkspacesVM([], [moneyRow({ tenant_id: "t-off", on_team: false })], NOW, "closed");
+  assert.doesNotMatch(closed.rows[0].sentence, /share goes on/, "a closed partner earns nothing new");
   assert.match(r.standing, /^Under review/);
   assert.equal(r.money, "$100.00 from this month's payments · $300.00 to date");
   assert.equal(vm.summary, "1 workspace · 0 live");
@@ -498,5 +534,124 @@ test("GET partner/workspaces: on the account, every caller's own two lists, none
       ctxFor(tables(), { partner_overview: missing, partner_workspace_money: missing }),
     ),
     { overview: [], money: [] },
+  );
+});
+
+/* ------------------------------------------------------------ standing and payouts, in the back office (P5) */
+
+const line = (over = {}) => ({
+  partner_id: "p1",
+  code: "ada-co",
+  email: "ada@example.com",
+  status: "active",
+  share_bp: 2500,
+  joined_at: "2026-08-01T00:00:00Z",
+  workspaces: 3,
+  under_review: 0,
+  currency: "usd",
+  held_cents: 0,
+  payable_cents: 0,
+  paid_cents: 0,
+  last_paid_at: null,
+  ...over,
+});
+
+test("the back office's partner line: who, what they are owed, and a payout only when the net is above zero", () => {
+  const [row] = platformPartnerRows([
+    line({ under_review: 1, status: "paused", payable_cents: 12500, held_cents: 5000 }),
+  ]);
+  assert.equal(row.who, "ada@example.com · 3 workspaces · 1 under review · 25% of what each pays · paused");
+  assert.equal(row.money, "$125.00 payable · $50.00 held · $0.00 paid to date");
+  assert.equal(row.canPay, true);
+  assert.equal(row.payLabel, "Mark $125.00 as paid");
+  assert.equal(row.tone, "danger", "a paused partner outranks a workspace under review");
+  assert.equal(
+    platformPartnerRows([line({ under_review: 1 })])[0].tone,
+    "warn",
+    "a workspace under review is a person's to look at",
+  );
+  const [owed] = platformPartnerRows([line({ payable_cents: -3000, paid_cents: 12500 })]);
+  assert.equal(owed.canPay, false);
+  assert.equal(owed.money, "-$30.00 to come off the next payout · $0.00 held · $125.00 paid to date");
+  const [fresh] = platformPartnerRows([line({ currency: null, email: null })]);
+  assert.equal(fresh.money, "Nothing earned yet.");
+  assert.match(fresh.who, /^no address on file/);
+});
+
+test("the partner card's line counts partners once, sums what is payable per currency, never across them", () => {
+  assert.equal(platformPartnerSummary([]), "No partners yet.");
+  assert.equal(
+    platformPartnerSummary([
+      line({ payable_cents: 10000, under_review: 2 }),
+      line({ currency: "eur", payable_cents: 2000, under_review: 2 }),
+      line({ partner_id: "p2", code: "bo", payable_cents: -500 }),
+    ]),
+    "2 partners · $100.00 and €20.00 payable · 2 workspaces under review",
+  );
+  assert.equal(platformPartnerSummary([line()]), "1 partner · nothing payable");
+});
+
+test("a person's decisions: never the standing it has; the outcome said in words", () => {
+  assert.deepEqual(partnerStandingChoices("review"), ["qualified", "disqualified"]);
+  assert.deepEqual(partnerStandingChoices(null), ["qualified", "review", "disqualified"]);
+  assert.equal(
+    partnerStandingOutcomeWords({ standing: "disqualified", voided: 1, matured: 0 }),
+    "Disqualified. What it still held (1 share) is void; what was paid stays paid.",
+  );
+  assert.equal(
+    partnerStandingOutcomeWords({ standing: "qualified", voided: 0, matured: 2 }),
+    "Qualified. 2 shares past the hold are payable now.",
+  );
+  assert.equal(
+    partnerStandingOutcomeWords({ standing: "review", voided: 0, matured: 0 }),
+    "Now under review. What it holds waits until a person decides.",
+  );
+  assert.equal(
+    partnerPayoutOutcomeWords("ada-co", { paid: true, total_cents: 12500, currency: "usd", earnings: 2 }),
+    "Recorded: $125.00 paid to ada-co, settling 2 ledger lines.",
+  );
+  assert.equal(
+    partnerPayoutOutcomeWords("ada-co", { paid: false, total_cents: -3000, currency: "usd" }),
+    "Nothing to pay: refunds since the last payout take $30.00, which comes off their next share.",
+  );
+  assert.equal(
+    partnerPayoutOutcomeWords("ada-co", { paid: false, changed: true, total_cents: 13000, currency: "usd" }),
+    "Nothing was recorded: what is payable to ada-co is now $130.00, not what the card showed. Read the card again before you mark it.",
+  );
+  assert.equal(
+    partnerPayoutOutcomeWords("ada-co", { paid: false, total_cents: 0, currency: "usd" }),
+    "Nothing is payable to them in that currency, so nothing was recorded.",
+  );
+});
+
+test("a partner is paused, closed or restored: never to the status they have, drawn once per partner, and said in words", () => {
+  assert.deepEqual(partnerStatusChoices("active"), ["paused", "closed"]);
+  assert.deepEqual(partnerStatusChoices("paused"), ["active", "closed"]);
+  const rows = platformPartnerRows([
+    line({ currency: "usd" }),
+    line({ currency: "eur" }),
+    line({ partner_id: "p2", code: "bo", status: "paused" }),
+  ]);
+  assert.deepEqual(
+    rows.map((r) => r.first),
+    [true, false, true],
+    "the partner's own buttons once, on their first line",
+  );
+  assert.deepEqual(
+    rows[2].statusChoices.map((c) => c.label),
+    ["Restore", "Close"],
+  );
+  assert.equal(rows[2].tone, "danger", "a paused partner is not a quiet line");
+  assert.equal(
+    partnerStatusOutcomeWords("ada-co", { status: "paused", seats: 2 }),
+    "ada-co is paused: a viewer on 2 workspaces now, and what they held there is released.",
+  );
+  assert.equal(
+    partnerStatusOutcomeWords("ada-co", { status: "active", seats: 1 }),
+    "ada-co is restored, and a partner again on 1 workspace.",
+  );
+  assert.equal(
+    partnerStatusOutcomeWords("ada-co", { status: "closed", seats: 0 }),
+    "ada-co is closed. They held no partner seat to take.",
   );
 });

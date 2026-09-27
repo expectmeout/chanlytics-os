@@ -185,8 +185,8 @@
     "depth": 3
   },
   "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx::CreateWorkspace#1": {
-    "lines": 294,
-    "branches": 39,
+    "lines": 320,
+    "branches": 45,
     "depth": 3
   },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx::LegacyApp#1": {
@@ -530,8 +530,8 @@
     "depth": 8
   },
   "apps/dashboard/src/legacy/pages/client-profile.jsx::ClientProfileReal#1": {
-    "lines": 514,
-    "branches": 137,
+    "lines": 515,
+    "branches": 136,
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/client-profile.jsx::ClientProfileSeed#1": {
@@ -810,8 +810,8 @@
     "depth": 3
   },
   "apps/dashboard/src/legacy/pages/platform.jsx::PanePlatform#1": {
-    "lines": 188,
-    "branches": 48,
+    "lines": 227,
+    "branches": 58,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/playbook-card.jsx::PlaybookCard#1": {
@@ -935,9 +935,9 @@
     "depth": 2
   },
   "apps/dashboard/src/server/workspace/setup.ts::setupDtoFor#1": {
-    "lines": 262,
-    "branches": 54,
-    "depth": 1
+    "lines": 272,
+    "branches": 59,
+    "depth": 2
   },
   "apps/edge/api/admin/eval.ts::POST#1": {
     "lines": 100,
@@ -1000,8 +1000,8 @@
     "depth": 4
   },
   "apps/edge/api/stripe-webhook.ts::POST#1": {
-    "lines": 241,
-    "branches": 70,
+    "lines": 256,
+    "branches": 73,
     "depth": 3
   },
   "apps/edge/api/whatsapp.ts::POST#1": {

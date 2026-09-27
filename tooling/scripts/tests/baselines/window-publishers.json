@@ -128,7 +128,7 @@
   "apps/dashboard/src/legacy/pages/pipeline-peek.jsx": 1,
   "apps/dashboard/src/legacy/pages/pipeline-row.jsx": 1,
   "apps/dashboard/src/legacy/pages/pipeline-scope.jsx": 3,
-  "apps/dashboard/src/legacy/pages/platform.jsx": 3,
+  "apps/dashboard/src/legacy/pages/platform.jsx": 5,
   "apps/dashboard/src/legacy/pages/playbook-bits.jsx": 1,
   "apps/dashboard/src/legacy/pages/playbook-card.jsx": 1,
   "apps/dashboard/src/legacy/pages/playbook-composer.jsx": 1,

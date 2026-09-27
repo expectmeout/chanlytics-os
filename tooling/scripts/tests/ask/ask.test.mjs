@@ -1056,7 +1056,7 @@ test("the cards to finish: an operator is offered cards to finish, a viewer none
   );
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/ask/palette.ts").includes(
-      'canAct: w.__ME?.role === "owner" || w.__ME?.role === "operator",',
+      "canAct: !!ROLE_PERMS[w.__ME?.role as keyof typeof ROLE_PERMS]?.approve,",
     ),
   );
 });

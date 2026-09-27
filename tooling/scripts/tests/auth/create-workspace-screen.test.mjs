@@ -406,3 +406,47 @@ test("V1: another workspace, from inside the app, keeps its own form -- its titl
   );
   assert.ok(byTestId(tree, "create-workspace-back"));
 });
+
+/* ------------------------------ a partner's link (0012) ------------------------------ */
+
+test("a partner's link: the screen asks before the partner joins the team, sends their code only with the yes, and forgets the link", async () => {
+  const w = standIn(MADE);
+  globalThis.window = w;
+  globalThis.document = { cookie: "sb-a=1; chanlytics_partner=ada-co" };
+  try {
+    const props = { email: "owner@luna.example", posture: "open", initial: KEPT, onCreated() {} };
+    let tree = render(props);
+    await settle(props);
+    assert.equal(byTestId(tree, "cw-making"), null, "not made on arrival: there is a question first");
+    assert.deepEqual(w.asked, []);
+    assert.match(textOf(byTestId(tree, "create-workspace-partner")), /Add ada-co, who sent you here, to your team/);
+    assert.equal(
+      byTestId(tree, "create-workspace-partner-yes").props.checked,
+      true,
+      "yes is the default, and theirs to take back",
+    );
+
+    const form = find(tree, (n) => n.type === "form");
+    await form.props.onSubmit({ preventDefault() {} });
+    tree = await settle(props);
+    assert.deepEqual(w.asked.at(-1).body, {
+      name: "Luna Studio",
+      timezone: "America/New_York",
+      partner: "ada-co",
+    });
+    assert.match(globalThis.document.cookie, /^chanlytics_partner=; Max-Age=0/, "the link is used once");
+
+    // Said no: the same screen, and the code is not sent.
+    globalThis.document = { cookie: "chanlytics_partner=ada-co" };
+    const w2 = standIn(MADE);
+    globalThis.window = w2;
+    let again = render(props);
+    byTestId(again, "create-workspace-partner-yes").props.onChange({ target: { checked: false } });
+    again = draw(props);
+    await find(again, (n) => n.type === "form").props.onSubmit({ preventDefault() {} });
+    await settle(props);
+    assert.equal("partner" in w2.asked.at(-1).body, false, "no yes, no partner");
+  } finally {
+    delete globalThis.document;
+  }
+});
