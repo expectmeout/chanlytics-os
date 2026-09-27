@@ -20,13 +20,15 @@
       "distribution": "internal",
       "channel": "preview",
       "environment": "preview",
-      "corepack": true
+      "corepack": true,
+      "uploadSourceMaps": true
     },
     "production": {
       "channel": "production",
       "environment": "production",
       "autoIncrement": true,
-      "corepack": true
+      "corepack": true,
+      "uploadSourceMaps": true
     }
   },
   "submit": {

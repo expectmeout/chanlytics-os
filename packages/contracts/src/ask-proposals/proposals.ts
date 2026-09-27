@@ -15,13 +15,14 @@
  * the route's rule: a partner's door, like an owner's, says owner (server/with-route.ts requireRole).
  *
  * One file per family beside this one: inbox.ts (reply, steer, thread_verb, whisper), person.ts (person_mode, deal,
- * note, person_details), workspace.ts (policy, settings, invite), campaigns.ts (broadcast, playbook), leads.ts
- * (lead_search); spec.ts is what a spec is.
+ * note, person_details), workspace.ts (policy, settings, invite), campaigns.ts (broadcast, playbook, run), lists.ts
+ * (list), leads.ts (lead_search); spec.ts is what a spec is.
  */
 import { ASK_UNDO_MS, type AskProposal } from "../ask/ask";
-import { broadcastSpec, playbookSpec } from "./campaigns";
+import { broadcastSpec, playbookSpec, runSpec } from "./campaigns";
 import { replySpec, steerSpec, threadVerbSpec, whisperSpec } from "./inbox";
 import { leadSearchSpec } from "./leads";
+import { listSpec } from "./lists";
 import { dealSpec, noteSpec, personDetailsSpec, personModeSpec } from "./person";
 import type { ProposalGate, ProposalSpec, ProposalSpecAboveOperator } from "./spec";
 import { inviteSpec, policySpec, settingsSpec } from "./workspace";
@@ -42,6 +43,8 @@ export const PROPOSAL_SPECS = {
   deal: dealSpec,
   note: noteSpec,
   person_details: personDetailsSpec,
+  list: listSpec,
+  run: runSpec,
 } satisfies Record<AskProposal["kind"], ProposalSpec>;
 
 /** The kinds above operator, whose refusal below `needs` is said in words (person_mode, settings, invite, lead_search). */
