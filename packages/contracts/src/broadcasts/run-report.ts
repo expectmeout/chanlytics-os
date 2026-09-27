@@ -6,6 +6,7 @@ import { broadcastFailureFix, broadcastFailureWords } from "./broadcast-failures
 import type { BroadcastRecipientDto } from "./broadcasts";
 import { HELD_REASONS } from "./run-words";
 import type { ParamSpec } from "../templates/templates";
+import { HOUR_MS } from "../shared/time";
 
 /* ------------------------------ a run's report ------------------------------ */
 
@@ -210,9 +211,9 @@ export function toRunReportVM(
     .map((s) => (s ? Date.parse(s) : NaN))
     .filter((t) => Number.isFinite(t) && t >= start && t - start <= opts.windowMs);
   const last = heard.length ? Math.max(...heard) - start : 0;
-  const windowH = opts.windowMs / 3_600_000;
-  const spanH = RUN_REPORT_SPANS_H.find((h) => h <= windowH && h * 3_600_000 > last) ?? windowH;
-  const step = (spanH * 3_600_000) / RUN_REPORT_STEPS;
+  const windowH = opts.windowMs / HOUR_MS;
+  const spanH = RUN_REPORT_SPANS_H.find((h) => h <= windowH && h * HOUR_MS > last) ?? windowH;
+  const step = (spanH * HOUR_MS) / RUN_REPORT_STEPS;
   const bars = (stamps: (string | null)[]): number[] => {
     const out = new Array<number>(RUN_REPORT_STEPS).fill(0);
     for (const s of stamps) {

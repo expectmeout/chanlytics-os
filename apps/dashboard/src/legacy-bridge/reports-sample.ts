@@ -15,6 +15,7 @@ import {
   type ReportDto,
   type CampaignReportDto,
   type BookingReportDto,
+  HOUR_MS,
 } from "@chanlytics/contracts";
 import type { ReportsSurface } from "./surface-data";
 
@@ -185,7 +186,7 @@ function campaignDto(all: readonly SampleDay[], n: number, today: string): Campa
   const total = (k: "sent" | "delivered" | "read" | "replied") => sum(cur.map((d) => d.campaign[k]));
   const t = { sent: total("sent"), delivered: total("delivered"), read: total("read"), replied: total("replied") };
   const runs = cur.filter((d) => d.campaign.sent > 0).length;
-  const at = (hoursAgo: number) => new Date(Date.parse(`${today}T15:00:00Z`) - hoursAgo * 3_600_000).toISOString();
+  const at = (hoursAgo: number) => new Date(Date.parse(`${today}T15:00:00Z`) - hoursAgo * HOUR_MS).toISOString();
   // Three sources share the period's sends: half the win-back playbook, three tenths a one-off offer, the rest a
   // quiet-month nudge. Each count splits the same way, so the parts add up to the whole.
   const part = (f: number) => ({

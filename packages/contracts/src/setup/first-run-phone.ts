@@ -12,7 +12,7 @@
  */
 import { billingDoorOpen, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from "../workspace/billing";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
-import { agoWords } from "../shared/time";
+import { agoWords, DAY_MS } from "../shared/time";
 import { CARRIER_WORDS, forwardingCodes, isCarrier, isForwardingMode, type Carrier } from "../voice/forwarding";
 import { lineStuckProvisioning, SETUP_STATE_WORDS, type SetupDto, type SetupState, type SetupVM } from "./setup";
 
@@ -404,7 +404,7 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
       const keepRow = vm.rows.find((r) => r.id === "keep") ?? null;
       // One ask a day (setup_request): an ask older than that is offered again, in case it reached nobody.
       const askedAt = dto.requests.forwarding ? Date.parse(dto.requests.forwarding) : NaN;
-      const asked = !Number.isNaN(askedAt) && nowMs - askedAt < 86_400_000 ? askedAt : null;
+      const asked = !Number.isNaN(askedAt) && nowMs - askedAt < DAY_MS ? askedAt : null;
       return {
         ...base,
         stage: "code",

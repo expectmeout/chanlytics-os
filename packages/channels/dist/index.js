@@ -20,6 +20,7 @@ var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
 var MIN_MS = 6e4;
+var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -654,7 +655,7 @@ var LEAD_MAX_PLACES = 1e3;
 var LEAD_FACT_MAX = 120;
 var LEAD_REASON_MAX_WORDS = 12;
 var LEAD_KIND_KEY = "kind";
-var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
+var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 var US_STATES = {
   alabama: "AL",
   alaska: "AK",
@@ -915,7 +916,6 @@ var LeadSuggestAnswerSchema = z4.object({
     })
   ).min(1).max(4)
 });
-var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -976,14 +976,15 @@ var BrainOutputSchema = z5.object({
   ),
   language: z5.enum(BRAIN_LANGUAGES).catch("other")
 });
-var WA_WINDOW_MS = 24 * 3600 * 1e3;
+var WA_WINDOW_MS = 24 * HOUR_MS;
 var REPLY_LIMITS = {
   whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
   sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
   email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
 };
 var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
-var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
+var CALL_HEARTBEAT_MS = 10 * MIN_MS;
+var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var CALL_OUTCOMES = [
   "answered",
   "booking_link_sent",
@@ -1304,7 +1305,7 @@ var WHATSAPP_LANGUAGES = [
   L("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
-var SWEEP_TICK_MS = 5 * 6e4;
+var SWEEP_TICK_MS = 5 * MIN_MS;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   {
@@ -1408,7 +1409,7 @@ var SENDING_HOURS_WORDS = {
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
-var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
+var PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
 var LINK = { kind: "booking_link", label: "Booking link", example: "https://booksy.com/luna-studio" };
@@ -1908,7 +1909,7 @@ var LIMIT_TIERS = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var REPLY_WINDOW_HOURS = 72;
-var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var BROADCAST_THROTTLE_WAITS_MS = [
   MIN_MS,
@@ -1942,7 +1943,7 @@ var REGISTRATION_COST_WORDS = {
   standard: "Filing costs about $19 once and a few dollars a month, and cannot be undone.",
   sole_proprietor: `Filing costs a few dollars once and a few dollars a month, and cannot be undone. You are filing as a sole proprietor: one number, one campaign, about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second.`
 };
-var PROVISIONING_DEADLINE_MS = 5 * 6e4;
+var PROVISIONING_DEADLINE_MS = 5 * MIN_MS;
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -2193,10 +2194,9 @@ var PageContextSchema = z9.object({
   rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
   askedAt: z9.number().int().nonnegative()
 }).strict();
-var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
-var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
-var BOOTSTRAP_MS = 3600 * 1e3;
+var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * DAY_MS;
+var REVIEW_NEWS_MS = 36 * HOUR_MS;
+var REVIEW_NEWS_MAX_AGE_MS = 14 * DAY_MS;
 function ratingWords(rating) {
   return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} \u2605` : "no rating yet";
 }
@@ -2223,8 +2223,8 @@ function greetingFor(name) {
   return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
 }
 var GREETING_DEFAULT = /* @__PURE__ */ greetingFor(null);
-var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
-var TRY_QUIET_AFTER_MS = 3 * 6e4;
+var FORWARDING_TEST_WINDOW_MS = 30 * MIN_MS;
+var TRY_QUIET_AFTER_MS = 3 * MIN_MS;
 var FIRST_RUN_PHONE_WORDS = {
   chooseHeading: "How should calls reach your receptionist?",
   chooseLead: "Most businesses keep the number customers already know. Your team still answers first, and your receptionist gets the rest.",
@@ -2636,7 +2636,7 @@ function companyTypeOf(v) {
   return COMPANY_TYPES.includes(s) ? s : DEFAULT_COMPANY_TYPE;
 }
 var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-var CALL_ACTIVITY_STALE_MS = 15 * 6e4;
+var CALL_ACTIVITY_STALE_MS = 15 * MIN_MS;
 var NOTE_SUGGEST_KINDS = ["preference", "timing", "contact", "sensitivity", "context"];
 var NOTE_SUGGEST_SCHEMA = {
   type: "object",
@@ -2778,11 +2778,11 @@ var REACH_OUT_SHEET_PARTS = {
   repliesLine: "Replies"
 };
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LIVE_STALE_MS = 5 * 60 * 1e3;
-var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
-var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
-var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
-var SEARCH_WARN_MS = 12 * 36e5;
+var LIVE_STALE_MS = 5 * MIN_MS;
+var LIVE_OVERLONG_MS = 30 * MIN_MS;
+var ANALYSIS_GRACE_MS = 10 * MIN_MS;
+var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
+var SEARCH_WARN_MS = 12 * HOUR_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var InviteCodeSchema = z13.string().trim().max(80);
@@ -3661,7 +3661,7 @@ var VOICE_AGENT_DEFAULTS = {
   voice_id: "minimax-Tamsin",
   language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
   end_call_after_silence_ms: 3e4,
-  max_call_duration_ms: 36e5,
+  max_call_duration_ms: HOUR_MS,
   data_storage_setting: "everything",
   data_storage_retention_days: 90,
   post_call_analysis_model: "gpt-4.1",
@@ -3853,6 +3853,7 @@ var isAreaCode = (n) => typeof n === "number" && Number.isInteger(n) && n >= 200
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
+var TWILIO_TIMEOUT_MS = 15e3;
 var twilioUrls = {
   subaccounts: `${API2}/Accounts.json`,
   availableLocal: (sid2, country = "US") => `${API2}/Accounts/${sid2}/AvailablePhoneNumbers/${country}/Local.json`,
@@ -3890,7 +3891,7 @@ var fetchTwilio = async (acct, method, url, form2) => {
       ...form2 ? { "Content-Type": "application/x-www-form-urlencoded" } : {}
     },
     body: form2 ? new URLSearchParams(form2).toString() : void 0,
-    signal: AbortSignal.timeout(15e3)
+    signal: AbortSignal.timeout(TWILIO_TIMEOUT_MS)
   });
   const text = await r2.text();
   let body;
@@ -6006,7 +6007,7 @@ var PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
 
 // src/google-sync.ts
 var REVIEW_BELL_MAX = 3;
-var FRESH_SLACK_MS = 2 * 864e5;
+var FRESH_SLACK_MS = 2 * DAY_MS;
 function overall(rating, count) {
   return `${ratingWords(rating)} overall${typeof count === "number" ? ` \xB7 ${plural(count, "review")}` : ""}`;
 }
@@ -6105,7 +6106,7 @@ var GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 var GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 var GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 var PROFILE_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/business.manage"];
-var STATE_TTL_MS = 10 * 6e4;
+var STATE_TTL_MS = 10 * MIN_MS;
 function authorizeUrl(cfg, state, loginHint) {
   const q = new URLSearchParams({
     client_id: cfg.clientId,
@@ -6415,7 +6416,7 @@ function cleanReply(text) {
 
 // src/edge-token.ts
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
-var EDGE_TOKEN_TTL_MS = 6e4;
+var EDGE_TOKEN_TTL_MS = MIN_MS;
 function signEdgeToken(secret, aud, ctx = {}, nowMs = Date.now()) {
   const claims = {
     aud,

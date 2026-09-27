@@ -63,6 +63,8 @@ import {
   type DomainResumer,
   type DomainRowState,
   type SendingDomainDto,
+  HOUR_MS,
+  MIN_MS,
 } from "../packages/contracts.js";
 import { notify } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
@@ -141,7 +143,7 @@ async function heldTwice(
 }
 
 /** A day: an owner hears of a domain's holds at most once in one. */
-const HOLD_NOTICE_COOLDOWN_MS = 24 * 3600_000;
+const HOLD_NOTICE_COOLDOWN_MS = 24 * HOUR_MS;
 
 type DoorAnswer =
   { ok: true; domain: SendingDomainDto } | { ok: false; status: number; error: string; message: string };
@@ -149,7 +151,7 @@ type DoorAnswer =
 const say = (status: number, error: string, message: string): DoorAnswer => ({ ok: false, status, error, message });
 
 /** A host another workspace reserved and never verified is theirs this long: the provider's own verification window. */
-const UNVERIFIED_HOLD_MS = 72 * 3600_000;
+const UNVERIFIED_HOLD_MS = 72 * HOUR_MS;
 
 /**
  * An owner adds a domain: judged here first, held for this workspace, then created at the provider.
@@ -290,7 +292,7 @@ async function takeOver(p: DomainPorts, tenantId: string, host: string, holder: 
 }
 
 /** How far the provider's clock may run behind ours and a domain this press made still read as made by it. */
-const ADOPT_SKEW_MS = 10 * 60_000;
+const ADOPT_SKEW_MS = 10 * MIN_MS;
 
 /**
  * The account's own domain by this name, for a create whose answer was lost; null when it has none, or it could not be

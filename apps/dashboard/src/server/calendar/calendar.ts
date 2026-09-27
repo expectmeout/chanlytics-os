@@ -50,6 +50,7 @@ import {
   withVisitsOf,
   personLikeOf,
   type OwnAddresses,
+  DAY_MS,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
@@ -72,6 +73,7 @@ export { feedUrlOk };
  */
 /** Nine weeks: the window a page loads around the day it looks at. */
 const MAX_DAYS = 63;
+const FEED_TIMEOUT_MS = 8_000;
 /**
  * The most items one day carries to the browser. A board draws a day in a
  * column; a hundred blocks in it is already unreadable, and a feed that
@@ -590,7 +592,7 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
   try {
     // Every hop judged by the address rule (fetchPublic), not only the first.
     const res = await fetchPublic(fetch, safe, {
-      signal: AbortSignal.timeout(8_000),
+      signal: AbortSignal.timeout(FEED_TIMEOUT_MS),
       headers: { accept: "text/calendar, */*" },
     });
     if (!res)
@@ -812,7 +814,7 @@ export async function bookingReport(
 ): Promise<BookingReportDto> {
   const pv = await peopleVisits(ctx, tenantId, rows, now, known);
   const nowMs = now.getTime();
-  const since = nowMs - days * 86_400_000;
+  const since = nowMs - days * DAY_MS;
   let asked = 0;
   let booked = 0;
   for (const r of rows) {

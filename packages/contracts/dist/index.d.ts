@@ -12616,7 +12616,7 @@ declare function isLiveCall(call: {
  */
 declare const REPLY_DELAY_DEFAULT_MS = 30000;
 declare const REPLY_DELAY_MIN_MS = 5000;
-declare const REPLY_DELAY_MAX_MS = 600000;
+declare const REPLY_DELAY_MAX_MS: number;
 /**
  * The two limits a workspace is seeded with and Autonomy states: automatic
  * replies to one person in a day, and the hours a person's reply keeps the
@@ -16002,7 +16002,7 @@ declare function leadWhere(r: Pick<LeadRowDto, "street" | "city" | "state" | "po
 } | null;
 /** The owner's own word for the criterion a place was left out by; the plan holds it. */
 /** A day, from the round's end, in which the untouched leads may be removed and the month credited (§8.6). */
-declare const LEAD_UNDO_MS: number;
+declare const LEAD_UNDO_MS = 86400000;
 /**
  * Whether a search's latest round may still be undone: ended within the day,
  * and not undone already. Read by the rail's menu, which is where the removal

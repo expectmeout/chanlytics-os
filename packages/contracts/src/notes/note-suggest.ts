@@ -16,6 +16,7 @@
  * What passes is still only a suggestion: nobody's instructions change until a member presses Keep.
  */
 import { violatesNoPrices } from "../config/policy";
+import { DAY_MS } from "../shared/time";
 
 /** The smallest model: a yes-or-nothing read of one conversation. */
 export const NOTE_SUGGEST_MODEL = "claude-haiku-4-5-20251001";
@@ -79,7 +80,7 @@ export function whyNotLook(f: NoteLookFacts): string | null {
   if (customerWords(f.turns) < L.minCustomerWords) return "few_words";
   if (f.lastSuggestedAt) {
     const since = f.nowMs - Date.parse(f.lastSuggestedAt);
-    if (Number.isFinite(since) && since < L.cooldownDays * 86_400_000) return "cooldown";
+    if (Number.isFinite(since) && since < L.cooldownDays * DAY_MS) return "cooldown";
   }
   if (f.workspaceToday >= L.perWorkspaceDay) return "workspace_cap";
   return null;

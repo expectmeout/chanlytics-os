@@ -86,7 +86,8 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   baseline under `tooling/scripts/tests/baselines/` that holds it: functions over 150 lines, 30
   branches or 5 levels; files over 800 lines; directories over 20 modules; window globals and
   publishers; a helper declared in three files; `as unknown as`; a table name outside `packages/db`;
-  dead exports; lint warnings. A new offender is a red build. A number that must rise is raised in
+  dead exports; a duration written as a bare number (name it from `contracts/shared/time.ts`, or
+  give it a constant); lint warnings. A new offender is a red build. A number that must rise is raised in
   the baseline in the same diff, with the reason in the pull request.
 - **Production scripts** are dry-run by default, write a backup first, and take `--apply`.
 - **The layers hold apart.** Browser code (`legacy-bridge`, `client`, `yes`, `auth`) never imports

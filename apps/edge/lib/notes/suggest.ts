@@ -22,6 +22,9 @@ import {
 import { askJson } from "../model.js";
 import type { Logger } from "../log.js";
 
+/** How long the model may take to suggest a note. */
+const SUGGEST_TIMEOUT_MS = 20_000;
+
 /** One look, as note_candidates hands it over. */
 interface NoteCandidate {
   source: "call" | "thread";
@@ -56,7 +59,7 @@ export const askNoteModel: AskNote = (system, user) =>
     schema: NOTE_SUGGEST_SCHEMA,
     maxTokens: 300,
     plainJsonHint: "Answer with only a JSON object with the keys worth, kind, text and quote.",
-    timeoutMs: 20_000,
+    timeoutMs: SUGGEST_TIMEOUT_MS,
     maxRetries: 1,
   });
 

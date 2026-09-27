@@ -13,9 +13,9 @@
   "apps/dashboard/src/legacy/pages/inbox.jsx": 976,
   "apps/dashboard/src/legacy/pages/people.jsx": 3255,
   "apps/dashboard/src/legacy/pages/settings.jsx": 1919,
-  "apps/dashboard/src/server/calendar/calendar.ts": 845,
-  "apps/edge/lib/google/google.ts": 957,
-  "apps/edge/lib/lines/a2p.ts": 1076,
+  "apps/dashboard/src/server/calendar/calendar.ts": 847,
+  "apps/edge/lib/google/google.ts": 959,
+  "apps/edge/lib/lines/a2p.ts": 1078,
   "packages/channels/src/a2p.ts": 846,
   "packages/channels/src/email.ts": 818,
   "packages/contracts/src/ask/ask.ts": 808,
@@ -27,10 +27,10 @@
   "packages/contracts/src/deals/deal-sheet.ts": 1055,
   "packages/contracts/src/deals/deals.ts": 960,
   "packages/contracts/src/deals/pipeline.ts": 951,
-  "packages/contracts/src/leads/lead-search.ts": 1035,
+  "packages/contracts/src/leads/lead-search.ts": 1036,
   "packages/contracts/src/people/people.ts": 1027,
   "packages/contracts/src/templates/template-library.ts": 1097,
-  "packages/contracts/src/today/today.ts": 2424,
+  "packages/contracts/src/today/today.ts": 2425,
   "packages/core/src/inbound/answer.ts": 1007,
-  "packages/core/src/leads/runner.ts": 1274
+  "packages/core/src/leads/runner.ts": 1275
 }

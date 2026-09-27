@@ -31,6 +31,7 @@
  * (workspace.ts isTimezone).
  */
 import { localToUtcMs } from "../calendar/availability";
+import { DAY_MS } from "./time";
 
 interface ZoneFormats {
   zone: string;
@@ -163,7 +164,7 @@ export function clockWhen(atMs: number, tz: string, nowMs: number): string {
 /** Whole days from one business day to another ("2026-09-06" to "2026-09-08" is 2): the dates alone, never a clock. */
 function daysBetween(fromKey: string, toKey: string): number {
   const at = (key: string) => Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10)));
-  return Math.round((at(toKey) - at(fromKey)) / 86_400_000);
+  return Math.round((at(toKey) - at(fromKey)) / DAY_MS);
 }
 
 /** How many business days a moment is from today: 0 today, -1 yesterday, 1 tomorrow. */

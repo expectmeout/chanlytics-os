@@ -36,6 +36,7 @@ import {
 } from "./lead-words";
 import { formatPhoneDisplay } from "../shared/phone";
 import { initialsOf } from "../conversations/viewmodels";
+import { DAY_MS } from "../shared/time";
 
 /* ---------------------------------------------------------------- the peek */
 
@@ -223,7 +224,7 @@ function dayIn(tz: string, iso: string | null, now: Date): string {
   const key = (d: Date) =>
     new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   if (key(at) === key(now)) return "today";
-  if (key(at) === key(new Date(now.getTime() - 86_400_000))) return "yesterday";
+  if (key(at) === key(new Date(now.getTime() - DAY_MS))) return "yesterday";
   return new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at);
 }
 

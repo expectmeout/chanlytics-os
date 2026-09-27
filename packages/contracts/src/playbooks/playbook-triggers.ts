@@ -4,6 +4,7 @@
  */
 import { DAY_MS } from "./playbook-time";
 import type { SchemaSet } from "../shared/schema-sets";
+import { MIN_MS } from "../shared/time";
 
 /**
  * What starts a playbook. A list trigger sends to a list that keeps itself
@@ -141,7 +142,7 @@ export const SENDING_HOURS_WORDS = {
 export const PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 
 /** Under veto, a run is scheduled this far ahead with a Stop. */
-export const PLAYBOOK_VETO_DELAY_MS = 30 * 60_000;
+export const PLAYBOOK_VETO_DELAY_MS = 30 * MIN_MS;
 
 export const PLAYBOOK_NAME_MAX = 80;
 

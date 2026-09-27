@@ -12,7 +12,7 @@
  * legible than it was.
  */
 import type { SchemaSet, TemplateStatus } from "../packages/contracts.js";
-import { GRAPH_VERSION } from "./meta-graph.js";
+import { GRAPH_TIMEOUT_MS, GRAPH_VERSION } from "./meta-graph.js";
 
 export interface MetaTemplateComponent {
   type: string;
@@ -45,6 +45,8 @@ interface TemplateVariable {
 const FIELDS = "id,name,language,status,category,components,quality_score,rejected_reason";
 const PAGE = 100;
 const MAX_PAGES = 10;
+/** Creating a template is given longer than a list or a delete. */
+const CREATE_TIMEOUT_MS = 20_000;
 
 export async function listTemplates(
   token: string,
@@ -56,7 +58,10 @@ export async function listTemplates(
   for (let page = 0; url && page < MAX_PAGES; page++) {
     let res: Response;
     try {
-      res = await fetch(url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) });
+      res = await fetch(url, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
+      });
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e), status: 0 };
     }
@@ -204,7 +209,7 @@ export async function createTemplate(
         components: t.components,
         allow_category_change: true,
       }),
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
     });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e), status: 0 };
@@ -248,7 +253,7 @@ export async function deleteTemplate(
       {
         method: "DELETE",
         headers: { authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(15_000),
+        signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
       },
     );
   } catch (e) {

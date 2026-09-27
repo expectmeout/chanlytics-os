@@ -33,6 +33,7 @@ import { pageOperator } from "../../lib/ops/page-operator.js";
 import { markProcessed } from "../../lib/packages/db.js";
 import { upsertEscalation } from "../../lib/packages/jobs.js";
 import { sweepUnfinished } from "../../lib/receptionist/unfinished.js";
+import { MIN_MS } from "../../lib/packages/contracts.js";
 
 /** How long a customer may wait on a human before this is a problem. */
 const UNANSWERED_AFTER = "2 hours";
@@ -97,7 +98,7 @@ export async function POST(request: Request): Promise<Response> {
       if (!addressing.has(c.tenant_id)) {
         addressing.set(c.tenant_id, await loadTenantNotifications(db, c.tenant_id));
       }
-      const waitedMin = Math.round((Date.now() - new Date(c.opened_at).getTime()) / 60000);
+      const waitedMin = Math.round((Date.now() - new Date(c.opened_at).getTime()) / MIN_MS);
       const waited = waitedMin >= 120 ? `${Math.round(waitedMin / 60)} hours` : `${waitedMin} minutes`;
 
       // A workspace with nobody to tell is not warned AT ALL from here, and

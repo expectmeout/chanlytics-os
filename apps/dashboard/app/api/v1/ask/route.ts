@@ -13,6 +13,7 @@ import {
   type AskScope,
   type LeadSearchPlan,
   type PageContext,
+  HOUR_MS,
 } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
@@ -131,7 +132,7 @@ export const POST = write({
       typeof body?.opened_ms === "number" &&
       Number.isFinite(body.opened_ms) &&
       body.opened_ms >= 0 &&
-      body.opened_ms <= 3_600_000
+      body.opened_ms <= HOUR_MS
         ? Math.round(body.opened_ms)
         : null;
 

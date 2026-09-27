@@ -18,6 +18,7 @@ import { phoneDialable, normalizePhone } from "../shared/phone";
 import { dayInZone } from "../calendar/availability";
 import type { JudgePlaceAnswer, PlaceFacts } from "./lead-judge";
 import { BOOKING_PLATFORM_HOSTS, onDomain } from "../google/booking-page";
+import { HOUR_MS } from "../shared/time";
 
 /* ------------------------------------------------------ the stored sets -- */
 // Each mirrors a CHECK in 00140 and is held to it in schema-sets.ts.
@@ -131,7 +132,7 @@ export const LEAD_ESTIMATE_MARGIN = 1.3;
 export const LEAD_ASK_MIN_FACTOR = 1.2;
 export const LEAD_ASK_MAX_FACTOR = 4;
 /** An unanswered question ends the round after this long (§0.5). */
-export const LEAD_QUESTION_WAIT_MS = 24 * 3_600_000;
+export const LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 
 /* ------------------------------------------------------------ the plan -- */
 

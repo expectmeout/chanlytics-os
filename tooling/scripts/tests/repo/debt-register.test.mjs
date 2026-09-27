@@ -61,6 +61,7 @@ function blockFrom(by, scanCounts) {
     ["copies", total(copies), `of ${keys(copies)} names`],
     ["as unknown as", total(by["casts.json"]), ""],
     ["table names outside packages/db", total(by["tables.json"]), ""],
+    ["unnamed durations", total(by["durations.json"]), `in ${keys(by["durations.json"])} files`],
     ["dead exports, types and modules", total(readBaseline("dead-exports.json")), ""],
     ["source-text reads in tests", total(scanCounts), ""],
     [

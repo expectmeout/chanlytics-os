@@ -24,11 +24,12 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
+import { HOUR_MS } from "../packages/contracts.js";
 
 /** How long a receipt may take before its absence is a condition. */
-const NO_RECEIPT_AFTER_MS = 6 * 3600_000;
+const NO_RECEIPT_AFTER_MS = 6 * HOUR_MS;
 /** How long a silent message stays watched after that: a day, and then it is history rather than news. */
-const WATCHED_FOR_MS = 24 * 3600_000;
+const WATCHED_FOR_MS = 24 * HOUR_MS;
 /** Far past any real incident; the count is of what was read. */
 const READ_LIMIT = 1000;
 
@@ -116,7 +117,7 @@ const minute = (iso: string) => `${new Date(Date.parse(iso)).toISOString().slice
 export function describeSilentReceipts(silent: SilentWorkspace[], nowMs: number): { subject: string; body: string } {
   const total = silent.reduce((n, w) => n + w.count, 0);
   const lines = silent.map((w) => {
-    const hours = Math.floor((nowMs - Date.parse(w.lastSentAt)) / 3600_000);
+    const hours = Math.floor((nowMs - Date.parse(w.lastSentAt)) / HOUR_MS);
     const when =
       w.count === 1
         ? `sent ${minute(w.firstSentAt)}`

@@ -1,4 +1,5 @@
 import type { ServerNotificationKind } from "./notifications";
+import { MIN_MS } from "../shared/time";
 
 /** Where a phone can be one of ours. Held to push_devices.platform (schema-sets.ts). */
 export const PUSH_PLATFORMS = ["ios", "android"] as const;
@@ -120,6 +121,6 @@ export function pushFor(
 }
 
 /** How long after a send its receipts are asked for: what Expo asks. */
-export const PUSH_RECEIPTS_AFTER_MS = 15 * 60_000;
+export const PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 /** The window the bell counts over: the thirty days its route keeps. */
 export const BELL_WINDOW_DAYS = 30;

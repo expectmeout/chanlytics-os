@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { edgeLines } from "@/server/connections/lines";
+import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
 
 const Body = z.object({
   number: z
@@ -50,7 +50,7 @@ export const POST = write({
         number: input.number,
         ...(areaCode !== undefined ? { area_code: areaCode } : {}),
       },
-      60_000,
+      EDGE_LINES_TIMEOUT_MS,
     );
     const b = a.body ?? {};
     if (a.status === 409)
