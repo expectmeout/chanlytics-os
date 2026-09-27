@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { REPLY_MAX_ANY } from "@chanlytics/contracts";
+import { asContactId, REPLY_MAX_ANY } from "@chanlytics/contracts";
 import { replyToConversation } from "@chanlytics/core";
 import { write } from "@/server/route";
 import { conversationScope } from "@/server/verbs";
@@ -58,7 +58,9 @@ export const maxDuration = 60;
  * the thread lives. Role before rate, by construction: a viewer must not
  * learn a customer's consent state from the shape of the refusal, and this
  * is the route that actually reaches a person. The rule itself is core's
- * replyToConversation; this route is its adapter.
+ * replyToConversation; this route is its adapter. The person's id enters the
+ * verb here, the one command that takes it, checked as a ContactId (a uuid
+ * column, never null, so the check refuses no row the scope loads).
  */
 export const POST = write({
   scope: conversationScope,
@@ -67,7 +69,7 @@ export const POST = write({
   input: ReplyBody,
   handle: ({ ctx, req, row: conv, input }) =>
     replyToConversation(replyPorts(ctx), {
-      conv,
+      conv: { ...conv, contact_id: asContactId(conv.contact_id) },
       userId: ctx.userId,
       body: input,
       idempotencyKey: req.headers.get("idempotency-key"),

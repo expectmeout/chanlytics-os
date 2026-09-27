@@ -37,7 +37,7 @@ export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
 
 /**
  * How many workspaces the caller brought (their partner_tenants rows, which partner_tenants_partner_select lets them
- * read): through their link, or set up and accepted by an owner (0015); one still waiting for its owner is not
+ * read): through their link, or set up and accepted by an owner (0016); one still waiting for its owner is not
  * brought yet. The same count whether or not they still sit on each team. On a database 00214 has not reached every
  * row is a link's. Null when it cannot be read.
  */
@@ -241,7 +241,7 @@ export async function setPartnerStatus(
 /* ------------------------------------------------------------------------------------------------ handovers */
 
 /*
- * A partner sets up a workspace and hands it to its owner (decision 0015). The handover lives on partner_tenants
+ * A partner sets up a workspace and hands it to its owner (decision 0016). The handover lives on partner_tenants
  * (00214); every write is a function that checks the caller itself, so all of these run on the session client, never
  * the service role, except getHandoverInvite, the edge's. What a function refuses comes back as its code and words.
  */

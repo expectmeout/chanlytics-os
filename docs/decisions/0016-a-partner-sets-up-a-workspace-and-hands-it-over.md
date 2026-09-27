@@ -1,10 +1,10 @@
-# 0015 · A partner sets up a workspace and hands it to its owner
+# 0016 · A partner sets up a workspace and hands it to its owner
 
 **Status:** decided and built on the branch this note ships with (00214). Written against commit `519724e9` (main, 27
 September 2026, after #1161), built on `0c508cad` (after #1165 merged 0014). Ruben answered the two questions at the
 end: the share is earned, and the invitation is open 14 days and can be sent again. One change from the proposal:
-the handover lives on `partner_tenants`, not in `invitations` (Shape says why). Where this note and the code disagree,
-the code wins.
+the handover lives on `partner_tenants`, not in `invitations` (Shape says why). Proposed as 0015; numbered 0016 when
+#1172 gave 0015 to the shell's exit. Where this note and the code disagree, the code wins.
 
 ## Context
 

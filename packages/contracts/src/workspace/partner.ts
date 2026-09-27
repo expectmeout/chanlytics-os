@@ -623,7 +623,7 @@ export const PartnerLetterNewsSchema = z.object({
     .default([]),
   /** Workspaces that came through the link since. */
   brought: z.array(z.string().nullable()).default([]),
-  /** Workspaces the partner set up whose owner accepted them, or declined them (0015, 00214). */
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
   accepted: z.array(z.string().nullable()).default([]),
   declined: z.array(z.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
@@ -736,7 +736,7 @@ function letterLines(news: PartnerLetterNews): string[] {
   for (const s of news.standing) lines.push(standingLine(s));
   for (const b of news.brought)
     lines.push(`${b && b.trim() ? b.trim() : "A new workspace"} signed up through your link.`);
-  // A news object written before 0015 has neither: nothing to say.
+  // A news object written before 0016 has neither: nothing to say.
   for (const a of news.accepted ?? [])
     lines.push(`${setUpWords(a)} has its owner now: they accepted it. Its share runs from its first payment.`);
   for (const d of news.declined ?? [])

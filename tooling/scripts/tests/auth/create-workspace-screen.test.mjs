@@ -451,7 +451,7 @@ test("a partner's link: the screen asks before the partner joins the team, sends
   }
 });
 
-/* ------------------------------ a handover (0015) ------------------------------ */
+/* ------------------------------ a handover (0016) ------------------------------ */
 
 const { useHandoverAsk } = screenModule;
 const WAITING = {
@@ -474,7 +474,7 @@ const settleAsk = async () => {
   return last;
 };
 
-test("a handover (0015): asked before anything opens, in the partner's name, and Accept makes the owner and opens it at its first run", async () => {
+test("a handover (0016): asked before anything opens, in the partner's name, and Accept makes the owner and opens it at its first run", async () => {
   const w = standIn({
     status: 200,
     body: { ok: true, data: { workspace: { id: WAITING.tenantId, slug: "luna-studio", name: "Luna Studio" } } },

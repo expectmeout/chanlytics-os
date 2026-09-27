@@ -1,5 +1,5 @@
 /**
- * A partner sets up a workspace and hands it to its owner (decision 0015), against the replayed stack: the workspace
+ * A partner sets up a workspace and hands it to its owner (decision 0016), against the replayed stack: the workspace
  * made with the partner seated as partner and credited at creation; the handover read by its addressee alone; a
  * decline, a resend and an accept that makes the owner; each refusal in the function's own words; the letter's news;
  * and the sweep holding for review a handover accepted from the partner's own company domain. Skips without a local

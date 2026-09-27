@@ -31,7 +31,7 @@ export interface PartnerSurface {
   fetchedAt: number;
 }
 
-/** The workspaces a partner brought, and the handovers of those they set up for a business (0015). */
+/** The workspaces a partner brought, and the handovers of those they set up for a business (0016). */
 export interface PartnerWorkspacesRead {
   vm: PartnerWorkspacesVM;
   /** Each workspace they set up, and where its handover stands, by workspace. */
@@ -55,7 +55,7 @@ export interface PartnerApi {
   refresh(): Promise<void>;
   /** The workspaces this partner brought, judged as the back office judges them, with their standing and money (P4). */
   workspaces(): Promise<({ ok: true } & PartnerWorkspacesRead) | { ok: false; message: string }>;
-  /** Set a workspace up for a business and hand it to its owner (0015), then go into it at its first run once the
+  /** Set a workspace up for a business and hand it to its owner (0016), then go into it at its first run once the
    *  invitation went. */
   setUp(input: { name: string; email: string }): Promise<{ ok: true; sent: boolean } | { ok: false; message: string }>;
   /** Send a handover again, to the same address or another. `sent` says whether the invitation went. */

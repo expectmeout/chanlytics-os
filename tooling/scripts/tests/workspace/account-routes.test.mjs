@@ -146,7 +146,7 @@ test("where you are: every workspace with who is signed in; the active one by me
     display_name: "Ada",
     platform_admin: false,
     partner: null,
-    // No workspace handed to them (0015): handover.test.mjs proves one that is.
+    // No workspace handed to them (0016): handover.test.mjs proves one that is.
     handovers: [],
   });
   const bayside = await workspaces.GET.run(get(inB), ctxFor(tables, {}, { is_platform_admin: () => false }));

@@ -8467,7 +8467,7 @@ type PartnerPublicRow = Pick<PartnerRow, "id" | "code" | "status" | "share_bp" |
 declare function getOwnPartner(db: Db$1): Promise<PartnerPublicRow | null>;
 /**
  * How many workspaces the caller brought (their partner_tenants rows, which partner_tenants_partner_select lets them
- * read): through their link, or set up and accepted by an owner (0015); one still waiting for its owner is not
+ * read): through their link, or set up and accepted by an owner (0016); one still waiting for its owner is not
  * brought yet. The same count whether or not they still sit on each team. On a database 00214 has not reached every
  * row is a link's. Null when it cannot be read.
  */

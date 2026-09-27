@@ -8,6 +8,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../packages/db.js";
 import {
+  asContactId,
+  asTenantId,
   leadSuppressionHash,
   type LeadRoundEnding,
   type LeadRunState,
@@ -38,6 +40,7 @@ function must<T>(what: string, r: { data: T | null; error: { message: string } |
 type RunRow = Database["public"]["Tables"]["lead_runs"]["Row"];
 const runOf = (r: RunRow): LeadRunRow => ({
   ...r,
+  tenant_id: asTenantId(r.tenant_id),
   purpose: r.purpose as LeadRunRow["purpose"],
   state: r.state as LeadRunState,
   cap_usd: r.cap_usd === null ? null : Number(r.cap_usd),
@@ -132,7 +135,7 @@ export function leadDb(db: Db): LeadDb {
       if (!row) return null;
       return {
         id: row.id,
-        tenant_id: row.tenant_id,
+        tenant_id: asTenantId(row.tenant_id),
         search_id: row.search_id,
         seq: row.seq,
         purpose: row.purpose as LeadRoundRow["purpose"],
@@ -278,7 +281,7 @@ export function leadDb(db: Db): LeadDb {
             .is("erased_at", null),
         );
         for (const r of rows)
-          if (r[col]) out.push({ key: r[col] as string, share: { kind, contact_id: r.id as string } });
+          if (r[col]) out.push({ key: r[col] as string, share: { kind, contact_id: asContactId(r.id as string) } });
       };
       await person("phone_e164", "phone", keys.phones);
       await person("email", "email", keys.emails);

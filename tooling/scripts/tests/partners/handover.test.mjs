@@ -1,5 +1,5 @@
 /**
- * A partner sets up a workspace and hands it to its owner (decision 0015), run: the words (the form's schema, the
+ * A partner sets up a workspace and hands it to its owner (decision 0016), run: the words (the form's schema, the
  * waiting row, the invitation, the letter's two new lines); the four routes over a database in memory, each declaring
  * its policy and mapping the functions' own refusals; the boot carrying the person's open handovers and living without
  * them on an older database; the invitation's two ways (the platform's for a new address, the edge's for an account);

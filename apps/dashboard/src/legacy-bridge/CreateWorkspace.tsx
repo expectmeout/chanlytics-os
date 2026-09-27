@@ -413,7 +413,7 @@ export default function CreateWorkspace({
 }
 
 /**
- * A workspace a partner set up and handed to this person (decision 0015), asked before anything else opens: the
+ * A workspace a partner set up and handed to this person (decision 0016), asked before anything else opens: the
  * create screen for an account with no workspace yet, the app for one with some. Ownership comes with the bill, so it
  * is accepted, never assumed: Accept makes them its owner and opens it at its first run; Decline says no, and the
  * partner hears it; Not now leaves it open until its fourteen days end, and the app opens as it would have.
@@ -504,7 +504,7 @@ function Handover({ handover, onDone }: { handover: OpenHandoverDto; onDone: () 
 }
 
 /**
- * The ask the shell makes before anything else (0015), once the workspace list is read: the oldest handover waiting
+ * The ask the shell makes before anything else (0016), once the workspace list is read: the oldest handover waiting
  * for this person (GET workspaces, on the person) that they have not passed over this visit, or null. Not now and
  * Decline pass it over; Accept leaves.
  */

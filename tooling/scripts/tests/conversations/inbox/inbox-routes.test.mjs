@@ -54,6 +54,8 @@ const M3 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd3";
 const L1 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
 const L2 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2";
 const L3 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee3";
+/** The person behind the threads: an id as the contacts table keys one, as the reply verb takes it. */
+const K1 = "ffffffff-ffff-4fff-8fff-fffffffffff1";
 const USER = "u1";
 const HOUR = 3_600_000;
 const ago = (ms) => new Date(Date.now() - ms).toISOString();
@@ -84,7 +86,7 @@ async function refused(p, code, status, why) {
 const writes = (ctx) => ctx.supabase.seen.filter((s) => s.op === "insert" || s.op === "update").length;
 
 const contact = (over = {}) => ({
-  id: "k1",
+  id: K1,
   display_name: "Ada",
   wa_profile_name: null,
   phone_e164: "+15550000001",
@@ -102,7 +104,7 @@ const conversation = (id, tenant_id, over = {}) => ({
   assignee_user_id: null,
   last_wa_inbound_at: ago(HOUR),
   last_message_at: ago(HOUR),
-  contact_id: "k1",
+  contact_id: K1,
   contacts: contact(),
   ...over,
 });

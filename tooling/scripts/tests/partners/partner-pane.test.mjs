@@ -213,7 +213,7 @@ test("the daily letter (0014): a switch showing what is kept, pressed through th
   assert.equal(flashes[0].tone, "warn", "a refusal is said, and the switch stays what the server kept");
 });
 
-/* ------------------------------------------------------------ a workspace set up for a business (0015) */
+/* ------------------------------------------------------------ a workspace set up for a business (0016) */
 
 const EMPTY = { summary: "No workspace has come through your link yet.", rows: [] };
 const waitingRow = (over = {}) => ({

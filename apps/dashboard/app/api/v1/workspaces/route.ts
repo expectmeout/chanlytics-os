@@ -92,7 +92,7 @@ export const GET = read({
     // database 00202 has not reached.
     const partnerRow = await getOwnPartner(supabase);
     const partner = partnerRow ? { code: partnerRow.code, status: partnerRow.status } : null;
-    // A workspace a partner set up and handed to this person (0015), on the same payload: the shell asks before it
+    // A workspace a partner set up and handed to this person (0016), on the same payload: the shell asks before it
     // opens anything else, the create screen included. None on a database 00214 has not reached; a failed read is
     // logged and reads as none, because the boot must not fail for it.
     const open = await getOpenHandovers(supabase);

@@ -4,7 +4,7 @@ import { requireUuid } from "@/server/request-guards";
 import { handoverRefusal } from "@/server/workspace/handover";
 
 /**
- * POST /api/v1/handovers/:id/decline — the addressee of a handover says no (decision 0015, 00214 handover_decline).
+ * POST /api/v1/handovers/:id/decline — the addressee of a handover says no (decision 0016, 00214 handover_decline).
  * The workspace stays with the partner who set it up, who hears it in their letter and may send it again.
  */
 export const POST = write({

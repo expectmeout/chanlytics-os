@@ -6,10 +6,10 @@
 // them: held, payable and paid. Nothing here states a number the database does not hold: the share is the row's, the
 // count is the memberships', and every sum is partner_balance's (00203); a zero is said as a zero. Under it, the
 // workspaces they brought (P4): the back office's own row and verdict for each they still sit on the team of, its
-// standing and what it earned them, and Open, which goes into it the way the switcher does. And (0015) a workspace set
+// standing and what it earned them, and Open, which goes into it the way the switcher does. And (0016) a workspace set
 // up for a business: the form, and each one handed over, what its handover says, with Send again until it is accepted.
 
-// Set a workspace up for a business and hand it to its owner (0015): the name, the owner's address, one press. On
+// Set a workspace up for a business and hand it to its owner (0016): the name, the owner's address, one press. On
 // success the bridge goes into the new workspace at its first run; if the invitation did not go, it stays to say so.
 const PartnerSetUp = ({ api, flash, full, onMade }) => {
   const H = api.handoverWords;

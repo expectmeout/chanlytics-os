@@ -1,5 +1,5 @@
 /**
- * POST /api/admin/handover-invite — a partner set a workspace up for a business (decision 0015), and its owner already
+ * POST /api/admin/handover-invite — a partner set a workspace up for a business (decision 0016), and its owner already
  * has an account, so the platform's own invitation (which only a new address gets) will not reach them: this writes
  * to them instead.
  *

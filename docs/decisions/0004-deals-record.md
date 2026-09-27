@@ -1,12 +1,17 @@
 # 0004 · A deal is a record
 
-**Status:** decided and built (#892, #894, #898, #902, #905; the card's Deal
-row, #912). [0008](0008-a-proposal-is-part-of-the-deal.md) amends it: the
-proposal moves onto the deal, a proposal carries a value, the switch is how the
-workspace's customers buy, one sheet records every move, and the Pipeline is a
-view of People. Each amended passage below says so. Written against commit
-`1b26296d` (PR #884, 23 September 2026), and verified against the code at it.
-Where this note and the code disagree, the code wins.
+**Status:** built, steps 1 to 4 (#892, #894, #898, #902, #905; the card's Deal row, #912). Step 5's three items are
+each their own note: [0005](0005-a-payment-writes-won.md), a payment that writes won, is decided and not built;
+[0006](0006-a-proposal-follow-up.md), the follow-up, is built; [0002](0002-appointments-record.md), appointments, is
+decided and not built. [0008](0008-a-proposal-is-part-of-the-deal.md) amends it: the proposal moves onto the deal, a
+proposal carries a value, the switch is how the workspace's customers buy, one sheet records every move, and the
+Pipeline is a view of People. Each amended passage below says so. Written against commit `1b26296d` (PR #884, 23
+September 2026), and verified against the code at it. The status was verified again at `519724e9c` (27 September
+2026): the table and its one door (`supabase/migrations/00156_a_deal_is_a_record.sql`, `deal_record`), the route
+(`apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts`), the words (`packages/contracts/src/deals/deals.ts`), the
+sentence the receptionist hears (`dealSentence`, read beside the note in `packages/db/src/repositories/thread.ts`) and
+Ask's `propose_deal` (`apps/dashboard/src/server/ask/tools/act/deal.ts`). Where this note and the code disagree, the
+code wins.
 
 ## Context
 

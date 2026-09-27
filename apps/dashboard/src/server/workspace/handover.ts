@@ -7,7 +7,7 @@ import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 import { serviceDb } from "../service-db";
 
 /**
- * A partner hands a workspace to its owner (decision 0015): the half of it the database cannot do, which is telling
+ * A partner hands a workspace to its owner (decision 0016): the half of it the database cannot do, which is telling
  * the owner. Every write is a function that checks the caller (00214); this file only maps their refusals and sends
  * the invitation.
  */

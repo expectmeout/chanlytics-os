@@ -1,6 +1,6 @@
 -- 00214 · A partner sets up a workspace and hands it to its owner.
 --
--- Decision 0015. A partner makes a workspace for a business, sits on it as 'partner' (never owner), and hands it to
+-- Decision 0016. A partner makes a workspace for a business, sits on it as 'partner' (never owner), and hands it to
 -- the owner by address; the owner accepts, and only then owns it, pays for it, and the share runs as for a link.
 --
 --   partner_tenants          gains origin ('link' · 'handover') and the handover: to whom, when sent, until when,
@@ -43,9 +43,9 @@ alter table public.partner_tenants add constraint partner_tenants_handover_check
 );
 
 comment on column public.partner_tenants.origin is
-  'How the partner came to this workspace (0015): link, the business made it through their link (0012); handover, the partner made it and handed it to its owner.';
+  'How the partner came to this workspace (0016): link, the business made it through their link (0012); handover, the partner made it and handed it to its owner.';
 comment on column public.partner_tenants.handover_email is
-  'The address the workspace is handed to (0015), lower case. Only its owner by that address may accept it.';
+  'The address the workspace is handed to (0016), lower case. Only its owner by that address may accept it.';
 
 -- The accept screen's lookup: open handovers by address.
 create index if not exists partner_tenants_handover_open_idx on public.partner_tenants (handover_email)
@@ -119,7 +119,7 @@ begin
 end $$;
 
 comment on function public.create_workspace_for_business(text, text, text) is
-  'The calling partner makes a workspace for a business (0015): seated as partner, never owner, credited at creation, and the workspace handed to p_owner_email for fourteen days. At most ten waiting for an owner.';
+  'The calling partner makes a workspace for a business (0016): seated as partner, never owner, credited at creation, and the workspace handed to p_owner_email for fourteen days. At most ten waiting for an owner.';
 
 revoke execute on function public.create_workspace_for_business(text, text, text) from public, anon;
 grant execute on function public.create_workspace_for_business(text, text, text) to authenticated;
@@ -182,7 +182,7 @@ begin
 end $$;
 
 comment on function public.partner_handover_resend(uuid, text) is
-  'The calling partner sends the handover of a workspace they set up again (0015), to the same address or another, open for fourteen more days. Refused once the workspace has its owner.';
+  'The calling partner sends the handover of a workspace they set up again (0016), to the same address or another, open for fourteen more days. Refused once the workspace has its owner.';
 
 revoke execute on function public.partner_handover_resend(uuid, text) from public, anon;
 grant execute on function public.partner_handover_resend(uuid, text) to authenticated;
@@ -214,7 +214,7 @@ as $$
 $$;
 
 comment on function public.handovers_mine() is
-  'The open handovers (0015) addressed to the caller''s confirmed email: which workspace, from which partner, open until when. The accept screen reads it at boot.';
+  'The open handovers (0016) addressed to the caller''s confirmed email: which workspace, from which partner, open until when. The accept screen reads it at boot.';
 
 revoke execute on function public.handovers_mine() from public, anon;
 grant execute on function public.handovers_mine() to authenticated;
@@ -273,7 +273,7 @@ begin
 end $$;
 
 comment on function public.handover_accept(uuid) is
-  'The caller, by the confirmed address a workspace was handed to (0015), becomes its owner: the first, with billing and the team. Never the partner who set it up; never after it was declined or expired.';
+  'The caller, by the confirmed address a workspace was handed to (0016), becomes its owner: the first, with billing and the team. Never the partner who set it up; never after it was declined or expired.';
 
 revoke execute on function public.handover_accept(uuid) from public, anon;
 grant execute on function public.handover_accept(uuid) to authenticated;
@@ -313,7 +313,7 @@ begin
 end $$;
 
 comment on function public.handover_decline(uuid) is
-  'The addressee of a handover (0015) says no. The workspace stays with the partner, who hears it in their letter and may send it again.';
+  'The addressee of a handover (0016) says no. The workspace stays with the partner, who hears it in their letter and may send it again.';
 
 revoke execute on function public.handover_decline(uuid) from public, anon;
 grant execute on function public.handover_decline(uuid) to authenticated;
@@ -537,7 +537,7 @@ as $$
       left join public.tenants t on t.id = pt.tenant_id
      group by w.id
   ),
-  -- A handover is news when its owner answers it (0015), not when the partner made it: they know that already.
+  -- A handover is news when its owner answers it (0016), not when the partner made it: they know that already.
   accepted as (
     select w.id,
            coalesce(jsonb_agg(t.name order by pt.handover_accepted_at) filter (where pt.tenant_id is not null), '[]')

@@ -183,7 +183,7 @@ var EVENT_KINDS = [
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
   "partner.paid",
-  // A workspace a partner set up for a business (0015): handed to its owner (again, on a resend), accepted, declined.
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined"
@@ -2852,7 +2852,7 @@ var PartnerLetterNewsSchema = z14.object({
   standing: z14.array(z14.object({ workspace: z14.string().nullable(), standing: z14.string(), why: z14.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z14.array(z14.string().nullable()).default([]),
-  /** Workspaces the partner set up whose owner accepted them, or declined them (0015, 00214). */
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
   accepted: z14.array(z14.string().nullable()).default([]),
   declined: z14.array(z14.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */

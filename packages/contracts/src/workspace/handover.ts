@@ -1,5 +1,5 @@
 /**
- * A partner sets up a workspace and hands it to its owner (decision 0015).
+ * A partner sets up a workspace and hands it to its owner (decision 0016).
  *
  * The pure half: what the partner sends, what the addressee is asked, and every sentence the partner's form, the
  * waiting row and the accept screen say. The fourteen days and the ten waiting are the database's (00214); they are

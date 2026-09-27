@@ -1,8 +1,18 @@
 # 0009 · One idea of a list
 
-**Status:** decided, not built. Written against commit `966edb3b` (PR #986, 24 September 2026); every file and line
-below was read at that commit. Ruben approved the design and its four calls on 24 September. Where this note and the
-code disagree, the code wins.
+**Status:** built, steps 1 to 4 (#988, #989, #992 with 00168, #993 with 00169, #996, #997, #1000; this note is
+#987), as each "As built" passage below says. **Step 5 is not built**, and waits as the note says it should, until a
+workspace nears the page's bound: People still reads at most 50 pages of people (`PEOPLE_PAGES_BOUND`,
+`apps/dashboard/src/legacy-bridge/surface-data.ts:1101`). **The end-to-end journey under Tests is not written**: no spec
+follows one saved list onto a profile, into an audience, the playbook picker, Ask's search and Today's pins
+(`e2e/people.spec.ts` proves a saved list's address, `e2e/playbooks.spec.ts` the trigger). Written against commit
+`966edb3b` (PR #986, 24 September 2026); every file and line below was read at that commit. The status was verified at
+`519724e9c` (27 September 2026): the engine (`ListRef`, `ListDef`, `membersOf` and `ruleNeedsViewer` in
+`packages/contracts/src/people/lists.ts`), the one pool (`packages/contracts/src/people/audience-pool.ts`), a playbook
+on any list (00168, and `list_uncounted` in `packages/core/src/campaigns/run-playbook.ts`), a list's life (00169: the
+archive, the case-blind name, the refused delete, the realtime publication) and the surfaces (`listRuleWhy`,
+`togglePin`, `todayPins`). Ruben approved the design and its four calls on 24 September. Where this note and the code
+disagree, the code wins.
 
 ## Context
 

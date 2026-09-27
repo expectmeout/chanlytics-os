@@ -6,7 +6,7 @@ import { handoverRefusal, sendHandoverInvite } from "@/server/workspace/handover
 
 /**
  * POST /api/v1/partner/workspaces/:id/resend — {email}: the caller sends the handover of a workspace they set up
- * again (decision 0015, 00214 partner_handover_resend), to the same address or another, open fourteen more days.
+ * again (decision 0016, 00214 partner_handover_resend), to the same address or another, open fourteen more days.
  * Refused once the workspace has its owner. `sent` says whether the invitation went.
  */
 export const POST = write({
