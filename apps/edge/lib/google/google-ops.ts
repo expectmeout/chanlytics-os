@@ -12,6 +12,7 @@
 import type { Database } from "../packages/db.js";
 import { PLACE_ID, cleanReply, type PlaceDetails } from "../packages/channels.js";
 import type { ReviewReplyMode } from "../packages/contracts.js";
+import type { LogEvent } from "../log.js";
 import {
   connectionForClient,
   listingForClient,
@@ -32,7 +33,7 @@ export interface GoogleAnswer {
 
 /** A line the door logs on the plan's behalf; the event names are what alerting greps for and never change. */
 interface GoogleLog {
-  event: string;
+  event: LogEvent;
   fields: Record<string, unknown>;
 }
 
