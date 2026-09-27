@@ -45,11 +45,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 // The assistant's tools as the registry offers them (server/ask/tools): data, read from no source file.
-const { toApiTools } = await import(
+const { toApiTools, ACT_TOOL_NAMES } = await import(
   pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/tools/index.ts")).href
 );
-const READ_TOOLS = toApiTools("viewer", true);
-const ACT_TOOLS = toApiTools("owner", true).slice(READ_TOOLS.length);
+// Sorted by name, the acts among the reads (D11): told apart by the act names the loop itself tells apart.
+const READ_TOOLS = toApiTools("owner", true).filter((t) => !ACT_TOOL_NAMES.has(t.name));
+const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
 const NOW = Date.parse("2026-09-05T15:00:00Z");
 const ID = "3f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5c";
 const ID2 = "9f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5d";
@@ -283,7 +284,10 @@ test("the prompt on Leads: the page is named and words that describe businesses 
   };
   const leads = turnWords({ ...facts, surface: "leads" });
   assert.ok(leads.includes("They are on the Leads page"), leads);
-  assert.ok(leads.includes("read list_lead_searches, then propose_lead_search"), "a search is proposed, never run");
+  assert.ok(
+    leads.includes("read leads with action searches, then propose_lead_search"),
+    "a search is proposed, never run",
+  );
   assert.ok(leads.includes("ask only when the kind or the place is missing"));
   assert.ok(leads.includes("amends"), "an answer amends the search that asked");
   assert.ok(!leads.includes("They are on the leads page."), "the generic line does not double it");
@@ -308,7 +312,7 @@ test("the prompt on Leads: the page is named and words that describe businesses 
   assert.ok(given.includes("It was read for this question and is in the search results"), given);
   assert.ok(!given.includes("Read it before answering about it.") && !given.includes("page://"), given);
   assert.ok(
-    on("search").includes("Read list_lead_searches, which lists it by that id"),
+    on("search").includes("Read leads with action searches, which lists it by that id"),
     "a search is found in its list",
   );
 });
@@ -593,27 +597,22 @@ test("the loop and its reads: several at once, the stable block cached, through 
   const l = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(l.includes("const outcomes = await Promise.all("), "several reads run at once");
   assert.ok(l.includes('cache_control: { type: "ephemeral" }'), "the stable block is cached");
-  // The fourteen reads as the registry offers them, in the order the model sees them. The rest of what this block
-  // pinned as text -- the reads go through the pages' own view models, are capped, and record what a citation may
-  // name -- runs in ask-turn.test.mjs: "the fourteen reads run against the database in memory" (the shapes and the
-  // read set), "the day is read once a turn" (recent is the newest twenty).
+  // The nine reads as the registry offers them, sorted by name, the fourteen reads before them their actions (D11).
+  // The rest of what this block pinned as text -- the reads go through the pages' own view models, are capped, and
+  // record what a citation may name -- runs in ask-turn.test.mjs: "the fourteen reads, each an action of the nine read
+  // tools" (the shapes and the read set), "the day is read once a turn" (recent is the newest twenty).
   assert.deepEqual(
-    READ_TOOLS.map((t) => t.name),
+    READ_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
-      "get_today",
-      "list_threads",
-      "get_thread",
-      "search_people",
-      "get_person",
-      "list_calls",
-      "get_call",
-      "get_report",
-      "get_settings",
-      "get_openings",
-      "list_audiences",
-      "list_playbooks",
-      "get_calendar",
-      "list_lead_searches",
+      ["calendar", ["week", "openings"]],
+      ["calls", ["list", "get"]],
+      ["campaigns", ["audiences", "playbooks"]],
+      ["inbox", ["list", "thread"]],
+      ["leads", ["searches"]],
+      ["people", ["search", "get"]],
+      ["report", []],
+      ["today", []],
+      ["workspace", ["settings"]],
     ],
   );
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
@@ -815,25 +814,24 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   });
   assert.ok(ok.success);
   assert.equal(AskProposalOutcomeSchema.safeParse({ state: "sent" }).success, false, "only the four states");
-  // The twelve acts as the registry offers them. What this block pinned as text runs in ask-turn.test.mjs, "the
-  // proposal builders run against the database in memory": every card's result says nothing has happened yet, a
-  // proposal never writes, the money row is refused before it is a card, a person who opted out gets no reply, a
-  // reply no longer held has nothing to rewrite, a whisper needs a call in progress.
+  // The ten acts as the registry offers them, one per card family, sorted by name, the twelve acts before them their
+  // actions (D11). What this block pinned as text runs in ask-turn.test.mjs, "the proposal builders run against the
+  // database in memory": every card's result says nothing has happened yet, a proposal never writes, the money row is
+  // refused before it is a card, a person who opted out gets no reply, a reply no longer held has nothing to rewrite, a
+  // whisper needs a call in progress.
   assert.deepEqual(
-    ACT_TOOLS.map((t) => t.name),
+    ACT_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
-      "draft_reply",
-      "propose_steer",
-      "propose_thread_verb",
-      "propose_person_mode",
-      "propose_deal",
-      "propose_policy",
-      "propose_settings",
-      "propose_whisper",
-      "propose_broadcast",
-      "propose_playbook",
-      "propose_invite",
-      "propose_lead_search",
+      ["propose_autonomy", []],
+      ["propose_campaign", ["broadcast", "playbook"]],
+      ["propose_deal", []],
+      ["propose_lead_search", []],
+      ["propose_person", ["mode"]],
+      ["propose_reply", ["draft", "steer"]],
+      ["propose_settings", []],
+      ["propose_team", ["invite"]],
+      ["propose_thread_verb", []],
+      ["propose_whisper", []],
     ],
   );
   // A viewer is never offered an act tool: ask-turn.test.mjs, on the request itself.
@@ -951,7 +949,7 @@ test("an answer never carries tags: the leak seen on production is cut", () => {
     "Two open at 10 < 12 slots.",
     "a bare less-than is not a tag",
   );
-  // list_threads carries the last exchanges, so one read round answers most questions: ask-turn.test.mjs, "the
+  // inbox.list carries the last exchanges, so one read round answers most questions: ask-turn.test.mjs, "the
   // fourteen reads run against the database in memory" (each row's `recent`).
 });
 
@@ -977,10 +975,10 @@ test("context first: the page rides into every turn (ask-turn.test.mjs runs it),
     "what the prompt already holds needs no read",
   );
   // The snapshot is gone, and the eval's excuse for it with it: a case sent with no page reads what it answers from.
-  const overview = { expect: { tools_any: ["get_today", "list_threads"] } };
+  const overview = { expect: { tools_any: ["today", "inbox.list"] } };
   assert.equal(fromContext(overview, { tools: [] }, null), false, "no page and no read: judged as missing the read");
-  // The day is read once through the readers: ask-turn.test.mjs, a round that calls get_today, list_threads and
-  // list_calls together reads the conversations at most twice and the calls once. The readers, and the Inbox's paged
+  // The day is read once through the readers: ask-turn.test.mjs, a round that calls today, inbox.list and
+  // calls.list together reads the conversations at most twice and the calls once. The readers, and the Inbox's paged
   // messages, in readers.test.mjs.
   const gw = readCode("apps/edge/lib/ask-gateway.ts");
   assert.ok(
@@ -1107,7 +1105,8 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
   const reads = READ_TOOLS.length;
   const acts = ACT_TOOLS.length;
   const total = reads + acts;
-  assert.ok(reads >= 14 && acts >= 10, `found ${reads} read and ${acts} act tools in the registry`);
+  // Nine reads and ten acts since the consolidation (D11): nineteen, an owner's whole set.
+  assert.ok(reads >= 9 && acts >= 10, `found ${reads} read and ${acts} act tools in the registry`);
   assert.ok(
     total <= cap - 4,
     `${total} tools against a cap of ${cap}: leave room, or raise GATEWAY_MAX_TOOLS on the edge first`,
@@ -1162,20 +1161,22 @@ test("the cross-page reads: what a question names plainly of another page is rea
   );
   const names = (q, surface = "people", view = null) =>
     mod.crossPagePlan(q, surface, view).map((r) => `${r.name} ${JSON.stringify(r.input)}`);
-  assert.deepEqual(names("how did the last 7 days go?"), ['get_report {"days":7}']);
-  assert.deepEqual(names("¿cómo nos fue este mes?"), ['get_report {"days":30}']);
-  assert.deepEqual(names("what's on the calendar tomorrow?"), ['get_calendar {"day":"tomorrow"}']);
-  assert.deepEqual(names("what's open saturday afternoon?"), ['get_openings {"day":"sat","service":""}']);
-  assert.deepEqual(names("what playbooks are running right now?"), ["list_playbooks {}"]);
-  assert.deepEqual(names("how many people can I send offers to?"), ["list_audiences {}"]);
-  assert.deepEqual(names("start a win-back playbook for the quiet clients"), [
-    "list_playbooks {}",
-    "list_audiences {}",
+  assert.deepEqual(names("how did the last 7 days go?"), ['report {"days":7}']);
+  assert.deepEqual(names("¿cómo nos fue este mes?"), ['report {"days":30}']);
+  assert.deepEqual(names("what's on the calendar tomorrow?"), ['calendar {"action":"week","day":"tomorrow"}']);
+  assert.deepEqual(names("what's open saturday afternoon?"), [
+    'calendar {"action":"openings","day":"sat","service":""}',
   ]);
-  assert.deepEqual(names("open the transcript of the most recent call"), ['list_calls {"filter":"recent"}']);
-  assert.deepEqual(names("any missed calls today?"), ['list_calls {"filter":"missed"}']);
+  assert.deepEqual(names("what playbooks are running right now?"), ['campaigns {"action":"playbooks"}']);
+  assert.deepEqual(names("how many people can I send offers to?"), ['campaigns {"action":"audiences"}']);
+  assert.deepEqual(names("start a win-back playbook for the quiet clients"), [
+    'campaigns {"action":"playbooks"}',
+    'campaigns {"action":"audiences"}',
+  ]);
+  assert.deepEqual(names("open the transcript of the most recent call"), ['calls {"action":"list","filter":"recent"}']);
+  assert.deepEqual(names("any missed calls today?"), ['calls {"action":"list","filter":"missed"}']);
   // Drafts held for approval (D12): the snapshot carried them on every page; one read carries them off the Inbox.
-  assert.deepEqual(names("any drafts waiting for my approval?"), ['list_threads {"filter":"held"}']);
+  assert.deepEqual(names("any drafts waiting for my approval?"), ['inbox {"action":"list","filter":"held"}']);
   // On the page that shows them, the page's own rows answer: nothing is read again (D13).
   assert.deepEqual(names("any drafts held?", "inbox"), []);
   assert.deepEqual(names("what's on the calendar tomorrow?", "calendar"), []);
@@ -1184,7 +1185,7 @@ test("the cross-page reads: what a question names plainly of another page is rea
     assert.deepEqual(names("any missed calls today?", surface), []);
   // On Reports a report is read only for a period other than the one on screen.
   assert.deepEqual(names("how did the last 30 days go?", "reports", "30"), []);
-  assert.deepEqual(names("how did the last 7 days go?", "reports", "30"), ['get_report {"days":7}']);
+  assert.deepEqual(names("how did the last 7 days go?", "reports", "30"), ['report {"days":7}']);
   for (const q of [
     "who needs me right now?",
     "what does 'waiting on you' mean?",
@@ -1196,16 +1197,19 @@ test("the cross-page reads: what a question names plainly of another page is rea
     assert.deepEqual(names(q), [], q);
   }
   assert.equal(mod.CROSS_PAGE_MAX, 2);
-  const b = mod.readBlock({ name: "get_report", input: { days: 7 } }, "{}");
+  const b = mod.readBlock({ name: "report", input: { days: 7 } }, "{}");
   assert.deepEqual(
     [b.type, b.source, b.citations],
-    ["search_result", "read://get_report", { enabled: false }],
+    ["search_result", "read://report", { enabled: false }],
     "a read rides as data, its source a stable reference, never cited by the API",
   );
+  // A tool with actions is named by the action it read (D11), its title the call as it was made.
+  const week = mod.readBlock({ name: "calendar", input: { action: "week", day: "tomorrow" } }, "{}");
+  assert.deepEqual([week.source, week.title], ["read://calendar.week", 'calendar {"action":"week","day":"tomorrow"}']);
   // The model is told so in the tool's own description; the refusal itself runs in ask-turn.test.mjs ("the proposal
   // builders run against the database in memory": money stays owner-only by charter).
   assert.ok(
-    ACT_TOOLS.find((t) => t.name === "propose_policy").description.includes(
+    ACT_TOOLS.find((t) => t.name === "propose_autonomy").description.includes(
       "Never for money: that class is locked by charter",
     ),
     "a money change is answered, not proposed",

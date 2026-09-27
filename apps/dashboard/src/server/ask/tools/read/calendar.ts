@@ -4,7 +4,7 @@ import { dayInZone, isDayKey, shiftKey, toCalendarVM } from "@chanlytics/contrac
 import { load } from "../../../readers";
 import { calendar } from "../../../readers/calendar";
 import { openings } from "../../../readers/openings";
-import { defineRead, str, type ToolContext } from "../context";
+import { defineActions, readAction, str, type ToolContext } from "../context";
 
 async function getOpenings(t: ToolContext, input: { day: string; service: string }): Promise<unknown> {
   // The palette's own read (readers/openings.ts), once a turn, with the zone and the settings the turn read; what was
@@ -66,25 +66,29 @@ async function getCalendar(t: ToolContext, input: { day: string; days?: number }
   };
 }
 
-export const get_openings = defineRead({
-  name: "get_openings",
+/**
+ * The calendar (D11): a day or a few, taken beside open (week, once get_calendar), and the free slots alone (openings,
+ * once get_openings).
+ */
+export const calendarTool = defineActions({
+  name: "calendar",
   description:
-    "Open times from the connected calendar, against the business hours, closures and booking rules, as the receptionist would offer them to a caller: a state, a sentence, and the open windows day by day, sized for a service when one is named. day is a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the next days; service is the service's name to size the slot, or empty. Call it for when there is room, or what is free on a day; get_calendar is the sibling that shows what is taken beside what is open. It needs a connected calendar feed, said in the workspace's facts above; nothing is booked from here.",
-  input: z.object({ day: z.string(), service: z.string() }),
-  examples: [
-    { day: "fri", service: "consultation" },
-    { day: "2026-10-03", service: "" },
-  ],
-  label: "Checking the calendar",
-  run: getOpenings,
-});
-
-export const get_calendar = defineRead({
-  name: "get_calendar",
-  description:
-    "The owner's calendar as the receptionist reads it, for a day or a few: what is taken (in the calendar's own words, with the person in People when the title names one), whether the business is closed that day, and the windows the receptionist would offer. day is today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the page's own week; days is how many from there, at most 14. Call it for what a day looks like or who is booked when; get_openings is the sibling for the free slots alone, sized to a service. Taken is the owner's own calendar and open is what the receptionist would offer; nothing is booked from here, since customers book through the booking link, or with the team where there is none.",
-  input: z.object({ day: z.string(), days: z.number().optional() }),
-  examples: [{ day: "tomorrow" }, { day: "2026-10-03", days: 3 }, { day: "", days: 7 }],
-  label: "Reading the calendar",
-  run: getCalendar,
+    "The owner's calendar as the receptionist reads it. Action week takes day and an optional days and reads a day or a few: what is taken (in the calendar's own words, with the person in People when the title names one), whether the business is closed that day, and the windows the receptionist would offer; day is today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the page's own week, and days is how many from there, at most 14. Action openings takes day and service and reads the open times from the connected calendar, against the business hours, closures and booking rules, as the receptionist would offer them to a caller: a state, a sentence, and the open windows day by day, sized for a service when one is named; day is a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the next days, and service is the service's name to size the slot, or empty. Call action week for what a day looks like or who is booked when, and action openings for when there is room or what is free on a day, the free slots alone, sized to a service. Openings need a connected calendar feed, said in the workspace's facts above. Taken is the owner's own calendar and open is what the receptionist would offer; nothing is booked from here, since customers book through the booking link, or with the team where there is none.",
+  actions: {
+    week: readAction({
+      input: z.object({ day: z.string(), days: z.number().optional() }),
+      examples: [{ day: "tomorrow" }, { day: "2026-10-03", days: 3 }, { day: "", days: 7 }],
+      label: "Reading the calendar",
+      run: getCalendar,
+    }),
+    openings: readAction({
+      input: z.object({ day: z.string(), service: z.string() }),
+      examples: [
+        { day: "fri", service: "consultation" },
+        { day: "2026-10-03", service: "" },
+      ],
+      label: "Checking the calendar",
+      run: getOpenings,
+    }),
+  },
 });

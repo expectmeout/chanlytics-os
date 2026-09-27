@@ -25,7 +25,7 @@ interface PlaybooksPage {
  * (the hours are its), who any broadcast reached this week (the breath the page shows), each trigger's pool over
  * everyone counted the way a run counts it -- no one looking, the week's touches applied -- and the lists a playbook
  * may run on, each with its own pool, and whether deals are on here (0008), which offers and counts the proposal
- * follow-up (0006). The route's body, moved here whole, so the Playbooks page and Ask's list_playbooks say the same
+ * follow-up (0006). The route's body, moved here whole, so the Playbooks page and campaigns.playbooks say the same
  * numbers. The workspace's name and zone, how its customers buy and its settings come through their readers, once in a
  * turn: the pools' calendar lookup reads neither the zone nor the settings again. Everyone the pools count is the
  * turn's own read too (readers/everyone.ts), which the audience pool shares. A playbook is not a row a citation names

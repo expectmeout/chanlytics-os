@@ -1,45 +1,46 @@
 import "server-only";
 import { z } from "zod";
-import type { MembershipRole } from "@chanlytics/contracts";
+import { PROPOSAL_SPECS, roleAtLeast, type MembershipRole } from "@chanlytics/contracts";
 import {
+  NO_ACTION,
   json,
   refuse,
   type ActTool,
   type ProposalOutcome,
   type ReadTool,
+  type Tool,
   type ToolContext,
   type ToolDef,
   type ToolOutcome,
   type ToolRun,
 } from "./context";
-import { get_today } from "./read/today";
-import { get_thread, list_threads } from "./read/threads";
-import { get_person, search_people } from "./read/people";
-import { get_call, list_calls } from "./read/calls";
-import { get_report } from "./read/report";
-import { get_settings } from "./read/settings";
-import { get_calendar, get_openings } from "./read/calendar";
-import { list_audiences, list_playbooks } from "./read/campaigns";
-import { list_lead_searches } from "./read/leads";
-import { draft_reply, propose_steer } from "./act/reply";
+import { todayTool } from "./read/today";
+import { inboxTool } from "./read/threads";
+import { peopleTool } from "./read/people";
+import { callsTool } from "./read/calls";
+import { reportTool } from "./read/report";
+import { workspaceTool } from "./read/settings";
+import { calendarTool } from "./read/calendar";
+import { campaignsTool } from "./read/campaigns";
+import { leadsTool } from "./read/leads";
+import { propose_reply } from "./act/reply";
 import { propose_thread_verb } from "./act/thread-verb";
-import { propose_person_mode } from "./act/person";
+import { propose_person } from "./act/person";
 import { propose_deal } from "./act/deal";
-import { propose_policy } from "./act/policy";
+import { propose_autonomy } from "./act/policy";
 import { propose_settings } from "./act/settings";
 import { propose_whisper } from "./act/whisper";
-import { propose_invite } from "./act/invite";
-import { propose_broadcast } from "./act/broadcast";
-import { propose_playbook } from "./act/playbook";
+import { propose_team } from "./act/invite";
+import { propose_campaign } from "./act/campaign";
 import { propose_lead_search } from "./act/lead-search";
 
 /**
  * The registry: one definition per tool, in a file of its family; the JSON schema the model is shown generated
- * from the definition's zod; the input parsed by that zod before the handler runs; dispatch a map. What was two
- * files with a switch each (the Phase 3 plan, PR 3.1) -- the same twenty-six tools, names, order and schemas, held
- * to the fixture frozen then by ask-registry.test.mjs. The descriptions are PR 3.3's (D9): what each reads, when to
- * call it and when its sibling, what it returns and its limits, with the rules that described one tool moved in
- * from the prompt; the same suite holds their length, their siblings and the role words each act tool says.
+ * from the definition's zod; the input parsed by that zod before the handler runs; dispatch a map. PR 3.1 moved the
+ * twenty-six tools here; PR 3.3 wrote their descriptions (D9); PR 3.4 (D11) consolidated them to nineteen, sorted by
+ * name: the reads by family under an `action`, the acts by card family, each action what one of the twenty-six was,
+ * its handler moved under it unchanged (tooling/evals/tool-names.json names each old tool's new name and action).
+ * A role is offered the reads and the acts whose card it may approve (D12).
  */
 
 /**
@@ -53,20 +54,15 @@ import { propose_lead_search } from "./act/lead-search";
  * it returned in the read set: the only rows a citation may name.
  */
 export const READ_DEFS: readonly ReadTool[] = [
-  get_today,
-  list_threads,
-  get_thread,
-  search_people,
-  get_person,
-  list_calls,
-  get_call,
-  get_report,
-  get_settings,
-  get_openings,
-  list_audiences,
-  list_playbooks,
-  get_calendar,
-  list_lead_searches,
+  todayTool,
+  inboxTool,
+  peopleTool,
+  callsTool,
+  reportTool,
+  workspaceTool,
+  calendarTool,
+  campaignsTool,
+  leadsTool,
 ];
 
 /**
@@ -80,19 +76,46 @@ export const READ_DEFS: readonly ReadTool[] = [
  * told, in the tool result, that nothing has happened yet.
  */
 export const ACT_DEFS: readonly ActTool[] = [
-  draft_reply,
-  propose_steer,
+  propose_reply,
   propose_thread_verb,
-  propose_person_mode,
+  propose_person,
   propose_deal,
-  propose_policy,
+  propose_autonomy,
   propose_settings,
   propose_whisper,
-  propose_broadcast,
-  propose_playbook,
-  propose_invite,
+  propose_campaign,
+  propose_team,
   propose_lead_search,
 ];
+
+/* ----------------------------------------------------------- the actions */
+
+/** Whether a tool takes an action (D11): a tool with none holds its one definition under NO_ACTION. */
+const takesAction = (t: Tool<unknown>): boolean => !Object.prototype.hasOwnProperty.call(t.actions, NO_ACTION);
+
+/** The action a call names, as it arrived: a string, where the tool takes an action; else none. */
+function actionOf(t: Tool<unknown>, raw: unknown): string | null {
+  const a = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>).action : undefined;
+  return takesAction(t) && typeof a === "string" ? a : null;
+}
+
+/** The definition a call runs: its action's, or the tool's first -- its one, for a tool with no action. */
+function defFor<D>(t: Tool<D>, raw: unknown): D {
+  const a = actionOf(t, raw);
+  return a !== null && Object.prototype.hasOwnProperty.call(t.actions, a) ? t.actions[a] : Object.values(t.actions)[0];
+}
+
+/**
+ * The zod a tool's input is parsed by (D2): its one definition's, or the union of its actions on `action`, each
+ * branch that action's own fields extended by the action literal -- so what each action takes is its own (a field
+ * only another action takes is refused by parseInput), and an action's input that could not be extended (one with
+ * an object-level refinement) fails when the registry loads, never quietly.
+ */
+function inputOf(t: Tool<{ input: z.ZodObject }>): z.ZodType {
+  if (!takesAction(t)) return t.actions[NO_ACTION].input;
+  const branches = Object.entries(t.actions).map(([action, d]) => d.input.extend({ action: z.literal(action) }));
+  return z.discriminatedUnion("action", branches as [(typeof branches)[number], ...typeof branches]);
+}
 
 /* ------------------------------------------------------------ the schema */
 
@@ -139,29 +162,74 @@ function normalise(node: unknown): unknown {
   return out;
 }
 
-export function toolSchema(input: z.ZodType): Record<string, unknown> {
-  return normalise(z.toJSONSchema(input)) as Record<string, unknown>;
+/**
+ * A tool with actions as ONE object schema (D11). zod writes a discriminated union as a root `oneOf` of object
+ * branches, with no root `type`; the API's tool takes an object schema, so the branches are laid into one object:
+ * `action` an enum of every action in the union's order, then every branch's other properties once each, in the
+ * order they first appear, and `action` alone required. What each action requires is said by the description and
+ * shown by an example per action; the zod still parses the input per action before the handler runs (D2). A property
+ * two actions share must be one shape, or the union is wrong: that throws, naming it, when the registry loads.
+ */
+function flatten(schema: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(schema.oneOf)) return schema;
+  const branches = schema.oneOf as Array<{ properties: Record<string, Record<string, unknown>> }>;
+  const properties: Record<string, unknown> = {
+    action: { type: "string", enum: branches.map((b) => b.properties.action.const) },
+  };
+  for (const b of branches)
+    for (const [k, v] of Object.entries(b.properties)) {
+      if (k === "action") continue;
+      if (k in properties && JSON.stringify(properties[k]) !== JSON.stringify(v))
+        throw new Error(`ask tools: ${k} is taken by two actions of one tool in two shapes`);
+      properties[k] ??= v;
+    }
+  return { type: "object", properties, required: ["action"], additionalProperties: false };
 }
 
-const defOf = (t: ReadTool | ActTool): ToolDef => ({
-  name: t.name,
-  description: t.description,
-  input_schema: toolSchema(t.input),
-  // The examples as written, in their order: the same bytes every build, after the schema in the tool's keys.
-  ...(t.examples?.length ? { input_examples: t.examples as Array<Record<string, unknown>> } : {}),
-});
+export function toolSchema(input: z.ZodType): Record<string, unknown> {
+  return normalise(flatten(z.toJSONSchema(input) as Record<string, unknown>)) as Record<string, unknown>;
+}
 
-const READ_TOOLS: ToolDef[] = READ_DEFS.map(defOf);
-const ACT_TOOLS: ToolDef[] = ACT_DEFS.map(defOf);
-export const ACT_TOOL_NAMES = new Set(ACT_TOOLS.map((t) => t.name));
+/** A tool's examples, each action's in the actions' order and with its `action` first (D9, D11). */
+const examplesOf = (t: Tool<{ examples?: unknown[] }>): Array<Record<string, unknown>> =>
+  Object.entries(t.actions).flatMap(([action, d]) =>
+    ((d.examples ?? []) as Array<Record<string, unknown>>).map((ex) => (action === NO_ACTION ? ex : { action, ...ex })),
+  );
+
+const defOf = (t: ReadTool | ActTool): ToolDef => {
+  const examples = examplesOf(t);
+  return {
+    name: t.name,
+    description: t.description,
+    input_schema: toolSchema(INPUTS.get(t.name)!),
+    // The examples as written, in their order: the same bytes every build, after the schema in the tool's keys.
+    ...(examples.length ? { input_examples: examples } : {}),
+  };
+};
+
+/** Each tool's zod, built once. */
+const INPUTS = new Map<string, z.ZodType>([...READ_DEFS, ...ACT_DEFS].map((t) => [t.name, inputOf(t)]));
 
 /**
- * The tools as the API takes them, for a person of this role: the reads, and the acts for everyone but a viewer, each
- * with its three fields and, while `examples`, its examples (D9). Everyone of one role gets the same bytes on every
- * round, so the tools block stays the cache's first prefix; a turn the API refused for the examples asks without them.
+ * Who each tool is offered to (D12, amended for the partner, #1151): a read to everyone; an act to a role that may
+ * approve its card, its kind's spec's `needs` -- every action of one tool builds a card of one `needs`
+ * (ask-registry.test.mjs), so the first action's is the tool's. Sorted by name, once.
+ */
+const OFFERED: ReadonlyArray<{ needs: MembershipRole | null; def: ToolDef }> = [
+  ...READ_DEFS.map((t) => ({ needs: null, def: defOf(t) })),
+  ...ACT_DEFS.map((t) => ({ needs: PROPOSAL_SPECS[Object.values(t.actions)[0].kind].needs, def: defOf(t) })),
+].sort((a, b) => (a.def.name < b.def.name ? -1 : a.def.name > b.def.name ? 1 : 0));
+
+export const ACT_TOOL_NAMES = new Set(ACT_DEFS.map((t) => t.name));
+
+/**
+ * The tools as the API takes them, for a person of this role (D12): sorted by name, the reads, and the acts whose card
+ * the role may approve -- four prefixes, a viewer's, an operator's, a partner's and an owner's -- each with its three
+ * fields and, while `examples`, its examples (D9). Everyone of one role gets the same bytes on every round, so the tools
+ * block stays the cache's first prefix; a turn the API refused for the examples asks without them.
  */
 export function toApiTools(role: MembershipRole, examples: boolean): ToolDef[] {
-  return [...READ_TOOLS, ...(role === "viewer" ? [] : ACT_TOOLS)].map((d) => ({
+  return OFFERED.filter((o) => o.needs === null || roleAtLeast(role, o.needs)).map(({ def: d }) => ({
     name: d.name,
     description: d.description,
     input_schema: d.input_schema,
@@ -172,12 +240,25 @@ export function toApiTools(role: MembershipRole, examples: boolean): ToolDef[] {
 const READ_BY_NAME = new Map(READ_DEFS.map((t) => [t.name, t]));
 const ACT_BY_NAME = new Map(ACT_DEFS.map((t) => [t.name, t]));
 
-export function toolLabel(name: string): string {
-  return READ_BY_NAME.get(name)?.label ?? `Running ${name}`;
+/**
+ * The trace line the palette shows for a call, and a read's ToolOutcome.label: its action's -- each old tool's words,
+ * kept as its action's -- or, before the call names one, the tool's first action's; a tool the registry does not
+ * have is said by its name.
+ */
+export function toolLabel(name: string, raw?: unknown): string {
+  const t = READ_BY_NAME.get(name) ?? ACT_BY_NAME.get(name);
+  return t ? defFor<{ label: string }>(t, raw).label : `Running ${name}`;
 }
 
-export function proposalLabel(name: string): string {
-  return ACT_BY_NAME.get(name)?.label ?? "Preparing a card";
+/**
+ * The name a turn records for a call (D11): `name.action` where the tool takes an action and the call's arguments name
+ * one as a string, else the name. Read from the arguments as they arrived, so a call the zod refuses still records what
+ * it tried.
+ */
+export function calledName(name: string, raw: unknown): string {
+  const t = READ_BY_NAME.get(name) ?? ACT_BY_NAME.get(name);
+  const a = t ? actionOf(t, raw) : null;
+  return a === null ? name : `${name}.${a}`;
 }
 
 /* ------------------------------------------------------------- the parse */
@@ -188,13 +269,21 @@ const takesAbsent = (field: z.ZodType): boolean => field.safeParse(undefined).su
 /**
  * A `null` on an optional key is "absent", before the zod sees it. zod's `.optional()` refuses null, and the model
  * does write `"audience_id": null` where the handlers always read null as nothing; a null on a required key stays,
- * and is refused as missing. Walked into a nested shape and an array's items the same way, once here for every tool.
+ * and is refused as missing. Walked into a nested shape, an array's items and the action a union picks the same way,
+ * once here for every tool.
  */
 function withoutNulls(schema: z.ZodType, value: unknown): unknown {
   if (schema instanceof z.ZodOptional || schema instanceof z.ZodDefault || schema instanceof z.ZodNullable)
     return withoutNulls(schema.unwrap() as z.ZodType, value);
   if (schema instanceof z.ZodArray && Array.isArray(value))
     return value.map((v) => withoutNulls(schema.element as z.ZodType, v));
+  if (schema instanceof z.ZodDiscriminatedUnion && value && typeof value === "object" && !Array.isArray(value)) {
+    const key = schema.def.discriminator;
+    const branch = (schema.options as z.ZodObject[]).find(
+      (o) => (o.shape[key] as z.ZodLiteral).value === (value as Record<string, unknown>)[key],
+    );
+    return branch ? withoutNulls(branch, value) : value;
+  }
   if (schema instanceof z.ZodObject && value && typeof value === "object" && !Array.isArray(value)) {
     const shape = schema.shape as Record<string, z.ZodType>;
     const out: Record<string, unknown> = {};
@@ -209,31 +298,58 @@ function withoutNulls(schema: z.ZodType, value: unknown): unknown {
 }
 
 /**
- * The input parsed by the tool's zod (the Phase 3 plan, D2): what passes is what the handler gets, typed; what fails
- * goes back to the model as the zod's own words, `<tool>: <path> <message>; ...`, and the handler never runs.
+ * A call's fields that another of its tool's actions takes and the one it named does not, sorted: the flat schema shows
+ * every action's fields at once (D11), so a broadcast asked with a playbook's run_hour or list would be stripped and
+ * go out now, to everyone -- a different card from the one asked for. Refused instead, in words; a null is absent, and
+ * a key no action takes is stripped as every unknown key is.
  */
-function parseInput<S extends z.ZodObject>(
-  name: string,
-  input: S,
+function othersFields(tool: Tool<{ input: z.ZodObject }>, action: string, raw: unknown): string[] {
+  const own = tool.actions[action].input.shape;
+  const others = new Set(
+    Object.entries(tool.actions).flatMap(([a, d]) => (a === action ? [] : Object.keys(d.input.shape))),
+  );
+  return Object.entries(raw as Record<string, unknown>)
+    .filter(([k, v]) => k !== "action" && v !== null && !(k in own) && others.has(k))
+    .map(([k]) => k)
+    .sort();
+}
+
+/**
+ * The input parsed by the tool's zod (the Phase 3 plan, D2), and the definition it runs (D11): what passes is what
+ * the handler gets, typed -- for a tool with actions, its action's definition, and the input without `action`, which
+ * is what that action's old tool was given; what fails goes back to the model as the zod's own words,
+ * `<tool>: <path> <message>; ...`, or, for a field only another action takes, `<tool>: <fields> not taken by action
+ * <action>`, and the handler never runs.
+ */
+function parseInput<D extends { input: z.ZodObject }>(
+  tool: Tool<D>,
   raw: unknown,
-): { ok: true; data: z.output<S> } | { ok: false; error: string } {
+): { ok: true; def: D; data: Record<string, unknown> } | { ok: false; error: string } {
+  const input = INPUTS.get(tool.name)!;
   const r = input.safeParse(withoutNulls(input, raw));
-  if (r.success) return { ok: true, data: r.data };
-  const issues = r.error.issues.map((i) => `${i.path.length ? `${i.path.join(".")} ` : ""}${i.message}`).join("; ");
-  return { ok: false, error: `${name}: ${issues}` };
+  if (!r.success) {
+    const issues = r.error.issues.map((i) => `${i.path.length ? `${i.path.join(".")} ` : ""}${i.message}`).join("; ");
+    return { ok: false, error: `${tool.name}: ${issues}` };
+  }
+  const data = r.data as Record<string, unknown>;
+  if (!takesAction(tool)) return { ok: true, def: tool.actions[NO_ACTION], data };
+  const { action, ...rest } = data as { action: string };
+  const stray = othersFields(tool, action, raw);
+  if (stray.length) return { ok: false, error: `${tool.name}: ${stray.join(", ")} not taken by action ${action}` };
+  return { ok: true, def: tool.actions[action], data: rest };
 }
 
 /* ----------------------------------------------------------- dispatch */
 
 /** Run one read. A tool's own failure is returned to the model as an error result, never thrown. */
 export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome> {
-  const label = toolLabel(run.name);
+  const label = toolLabel(run.name, run.input);
   const tool = READ_BY_NAME.get(run.name);
   if (!tool) return { result: json({ error: `unknown tool ${run.name}` }), isError: true, label };
   try {
-    const parsed = parseInput(run.name, tool.input, run.input);
+    const parsed = parseInput(tool, run.input);
     if (!parsed.ok) return { result: json({ error: parsed.error }), isError: true, label };
-    const out = await tool.run(t, parsed.data);
+    const out = await parsed.def.run(t, parsed.data);
     const isError = !!(
       out &&
       typeof out === "object" &&
@@ -244,7 +360,7 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
   } catch (e) {
     console.error(
       "ask_tool_failed",
-      JSON.stringify({ tool: run.name, error: e instanceof Error ? e.message : String(e) }),
+      JSON.stringify({ tool: calledName(run.name, run.input), error: e instanceof Error ? e.message : String(e) }),
     );
     return { result: json({ error: "that read failed; say so and answer with what you have" }), isError: true, label };
   }
@@ -258,13 +374,13 @@ export async function buildProposal(
   const tool = ACT_BY_NAME.get(name);
   if (!tool) return refuse(`unknown tool ${name}`);
   try {
-    const parsed = parseInput(name, tool.input, input);
+    const parsed = parseInput(tool, input);
     if (!parsed.ok) return refuse(parsed.error);
-    return await tool.build(t, parsed.data);
+    return await parsed.def.build(t, parsed.data);
   } catch (e) {
     console.error(
       "ask_proposal_failed",
-      JSON.stringify({ tool: name, error: e instanceof Error ? e.message : String(e) }),
+      JSON.stringify({ tool: calledName(name, input), error: e instanceof Error ? e.message : String(e) }),
     );
     return refuse("that could not be checked; say so and suggest the page");
   }

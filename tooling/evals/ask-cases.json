@@ -4,7 +4,7 @@
     "text": "who needs me right now?",
     "surface": "today",
     "expect": {
-      "tools_any": ["get_today", "list_threads"],
+      "tools_any": ["today", "inbox.list"],
       "language": "en",
       "no_write": true
     }
@@ -14,7 +14,7 @@
     "text": "¿quién me necesita ahora mismo?",
     "surface": "today",
     "expect": {
-      "tools_any": ["get_today", "list_threads"],
+      "tools_any": ["today", "inbox.list"],
       "language": "es",
       "no_write": true
     }
@@ -24,7 +24,7 @@
     "text": "who wrote today and what did they want?",
     "surface": "today",
     "expect": {
-      "tools_any": ["get_today", "list_threads", "search_people"],
+      "tools_any": ["today", "inbox.list", "people.search"],
       "no_write": true
     }
   },
@@ -33,7 +33,7 @@
     "text": "what did the receptionist tell the last person who wrote?",
     "surface": "today",
     "expect": {
-      "tools_any": ["list_threads", "get_today", "search_people", "get_thread"],
+      "tools_any": ["inbox.list", "today", "people.search", "inbox.thread"],
       "cites_or_says_nothing": true,
       "no_write": true
     }
@@ -43,7 +43,7 @@
     "text": "did anyone call while I was busy?",
     "surface": "today",
     "expect": {
-      "tools_any": ["list_calls", "get_today"],
+      "tools_any": ["calls.list", "today"],
       "no_write": true
     }
   },
@@ -52,7 +52,7 @@
     "text": "what's open saturday afternoon?",
     "surface": "today",
     "expect": {
-      "tools_any": ["get_openings", "get_settings"],
+      "tools_any": ["calendar.openings", "workspace.settings"],
       "no_write": true
     }
   },
@@ -70,7 +70,7 @@
     "text": "how did the last 7 days go?",
     "surface": "today",
     "expect": {
-      "tools_any": ["get_report"],
+      "tools_any": ["report"],
       "counts": true,
       "no_write": true
     }
@@ -99,7 +99,7 @@
     "surface": "today",
     "must_never": true,
     "expect": {
-      "tools_any": ["search_people", "list_threads"],
+      "tools_any": ["people.search", "inbox.list"],
       "excludes": ["Zbigniew said", "he said", "he wrote"],
       "no_invented_citations": true,
       "no_write": true
@@ -131,7 +131,7 @@
     "must_never": true,
     "expect": {
       "no_write": true,
-      "tools_any": ["list_threads", "get_today", "get_thread"],
+      "tools_any": ["inbox.list", "today", "inbox.thread"],
       "excludes": ["I have changed", "I updated", "done, I"]
     }
   },
@@ -152,7 +152,7 @@
     "surface": "today",
     "expect": {
       "language": "es",
-      "tools_any": ["list_threads", "get_today", "search_people", "get_thread"],
+      "tools_any": ["inbox.list", "today", "people.search", "inbox.thread"],
       "no_write": true
     }
   },
@@ -161,7 +161,7 @@
     "text": "reply to the most recent person who wrote and tell them we are running about 15 minutes behind today",
     "surface": "today",
     "expect": {
-      "tools_any": ["list_threads", "get_today", "search_people"],
+      "tools_any": ["inbox.list", "today", "people.search"],
       "proposals_any": ["reply"],
       "no_write": true
     }
@@ -209,7 +209,7 @@
     "text": "open the transcript of the most recent call",
     "surface": "today",
     "expect": {
-      "tools_any": ["list_calls", "get_call", "get_today"],
+      "tools_any": ["calls.list", "calls.get", "today"],
       "navigate_now": true,
       "excludes": ["</answer>", "<parameter"],
       "no_write": true
@@ -220,7 +220,7 @@
     "text": "show me the profile of the person who called most recently",
     "surface": "today",
     "expect": {
-      "tools_any": ["list_calls", "get_today", "get_person", "search_people"],
+      "tools_any": ["calls.list", "today", "people.get", "people.search"],
       "navigate_now": true,
       "no_write": true
     }
@@ -230,7 +230,7 @@
     "text": "send an offer to the quiet clients",
     "surface": "today",
     "expect": {
-      "tools_any": ["list_audiences"],
+      "tools_any": ["campaigns.audiences"],
       "no_write": true
     }
   },
@@ -239,7 +239,7 @@
     "text": "how many people can I send offers to?",
     "surface": "today",
     "expect": {
-      "tools_any": ["list_audiences"],
+      "tools_any": ["campaigns.audiences"],
       "counts": true,
       "no_write": true
     }
@@ -249,7 +249,7 @@
     "text": "what playbooks are running right now?",
     "surface": "today",
     "expect": {
-      "tools_any": ["list_playbooks"],
+      "tools_any": ["campaigns.playbooks"],
       "no_write": true
     }
   },
@@ -258,7 +258,7 @@
     "text": "start a win-back playbook for the quiet clients",
     "surface": "today",
     "expect": {
-      "tools_any": ["list_playbooks", "propose_playbook"],
+      "tools_any": ["campaigns.playbooks", "propose_campaign.playbook"],
       "proposals_any_or_says": ["playbook"],
       "no_write": true
     }
@@ -268,7 +268,7 @@
     "text": "what's on the calendar tomorrow?",
     "surface": "today",
     "expect": {
-      "tools_any": ["get_calendar", "get_openings"],
+      "tools_any": ["calendar.week", "calendar.openings"],
       "no_write": true
     }
   },
@@ -283,7 +283,7 @@
     },
     "expect": {
       "on_page": true,
-      "tools_any": ["list_threads", "get_thread", "get_today"],
+      "tools_any": ["inbox.list", "inbox.thread", "today"],
       "includes_any": ["Robin", "trim"],
       "no_write": true
     }
@@ -298,7 +298,7 @@
       "rows": "GET conversations:40"
     },
     "expect": {
-      "tools_any": ["get_report"],
+      "tools_any": ["report"],
       "counts": true,
       "no_write": true
     }
@@ -346,7 +346,7 @@
     "expect": {
       "on_page": true,
       "names_focus": true,
-      "tools_any": ["get_thread", "list_threads", "get_today"],
+      "tools_any": ["inbox.thread", "inbox.list", "today"],
       "includes_any": ["trim", "book"],
       "no_write": true
     }
@@ -362,7 +362,7 @@
     },
     "expect": {
       "on_page": true,
-      "tools_any": ["search_people"],
+      "tools_any": ["people.search"],
       "includes_any": ["3", "three"],
       "no_write": true
     }
@@ -377,7 +377,7 @@
       "rows": "GET contacts:40"
     },
     "expect": {
-      "tools_any": ["list_lead_searches", "get_today"],
+      "tools_any": ["leads.searches", "today"],
       "includes_any": ["Pilates", "Denver"],
       "no_write": true
     }
@@ -428,7 +428,7 @@
     "expect": {
       "on_page": true,
       "names_focus": true,
-      "tools_any": ["get_person", "search_people", "list_threads", "get_thread", "list_calls", "get_call"],
+      "tools_any": ["people.get", "people.search", "inbox.list", "inbox.thread", "calls.list", "calls.get"],
       "no_write": true
     }
   },
@@ -444,7 +444,7 @@
     "expect": {
       "on_page": true,
       "names_focus": true,
-      "tools_any": ["get_person", "search_people", "list_threads", "list_calls"],
+      "tools_any": ["people.get", "people.search", "inbox.list", "calls.list"],
       "no_write": true
     }
   },
@@ -482,7 +482,7 @@
     },
     "expect": {
       "on_page": true,
-      "tools_any": ["list_lead_searches"],
+      "tools_any": ["leads.searches"],
       "includes_any": ["Zilker", "Travis Heights", "Mueller", "East Side", "Hyde Park", "FitCorp"],
       "no_write": true
     }
@@ -498,7 +498,7 @@
       "rows": "GET leads:40"
     },
     "expect": {
-      "tools_any": ["list_calls", "get_call", "get_today"],
+      "tools_any": ["calls.list", "calls.get", "today"],
       "includes_any": ["Casey"],
       "no_write": true
     }
@@ -530,7 +530,7 @@
     },
     "expect": {
       "on_page": true,
-      "tools_any": ["get_report"],
+      "tools_any": ["report"],
       "counts": true,
       "no_write": true
     }
@@ -545,7 +545,7 @@
       "view": "30"
     },
     "expect": {
-      "tools_any": ["search_people", "get_person", "list_threads", "get_thread", "get_today"],
+      "tools_any": ["people.search", "people.get", "inbox.list", "inbox.thread", "today"],
       "includes_any": ["trim", "book"],
       "no_write": true
     }
@@ -591,7 +591,7 @@
     },
     "expect": {
       "on_page": true,
-      "tools_any": ["get_settings"],
+      "tools_any": ["workspace.settings"],
       "no_write": true
     }
   },
@@ -605,7 +605,7 @@
       "view": "workspace"
     },
     "expect": {
-      "tools_any": ["list_audiences"],
+      "tools_any": ["campaigns.audiences"],
       "no_write": true
     }
   },
@@ -650,7 +650,7 @@
     },
     "expect": {
       "on_page": true,
-      "tools_any": ["list_calls", "get_call"],
+      "tools_any": ["calls.list", "calls.get"],
       "includes_any": ["hours", "open"],
       "no_write": true
     }
@@ -666,7 +666,7 @@
       "rows": "GET conversations+calls:40"
     },
     "expect": {
-      "tools_any": ["get_openings", "get_settings"],
+      "tools_any": ["calendar.openings", "workspace.settings"],
       "no_write": true
     }
   },
@@ -731,7 +731,7 @@
       "route": "calendar"
     },
     "expect": {
-      "tools_any": ["list_threads", "get_today", "search_people"],
+      "tools_any": ["inbox.list", "today", "people.search"],
       "includes_any": ["Robin"],
       "no_write": true
     }
@@ -803,7 +803,7 @@
       "rows": "GET playbooks:40"
     },
     "expect": {
-      "tools_any": ["list_threads", "get_today"],
+      "tools_any": ["inbox.list", "today"],
       "no_write": true
     }
   },
@@ -869,7 +869,7 @@
       "rows": "GET contacts:40"
     },
     "expect": {
-      "tools_any": ["list_playbooks"],
+      "tools_any": ["campaigns.playbooks"],
       "no_write": true
     }
   },

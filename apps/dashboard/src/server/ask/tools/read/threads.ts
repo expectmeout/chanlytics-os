@@ -13,13 +13,13 @@ import { conversation } from "../../../readers/conversation";
 import { escalations as escalationsReader } from "../../../readers/escalations";
 import { inbox } from "../../../readers/inbox";
 import { threadState } from "../../thread-state";
-import { UUID, defineRead, str, unlessNotFound, type ToolContext } from "../context";
+import { UUID, defineActions, readAction, str, unlessNotFound, type ToolContext } from "../context";
 
 /**
  * The open escalation the Inbox shows on each thread, as the page picks it
  * (legacy-bridge/surface-data.ts, inboxOverride): the open escalations come
  * newest first and the last one keyed for a thread wins, so a thread shows its
- * oldest. list_threads and get_thread both pick with this.
+ * oldest. The inbox tool's two actions, list and thread, both pick with this.
  */
 function inboxEscalations<E extends { conversation_id: string }>(open: E[]): Map<string, E> {
   return new Map(open.map((e) => [e.conversation_id, e]));
@@ -50,8 +50,8 @@ async function listThreads(t: ToolContext, input: { filter: string }): Promise<u
   // server orders the hundred by, so the hundred keep their order. Every other filter keeps the Inbox's order, the
   // fetched threads first, as the page lists them: the cap never drops a customer waiting outside the hundred.
   if (filter === "recent") matching.sort((a, b) => b.lastAtMs - a.lastAtMs);
-  // Counted BEFORE the cap, like search_people's `matches` a few functions
-  // down. Counted after, "total_matching" reported 20 for 25 held drafts.
+  // Counted BEFORE the cap, like people.search's `matches` (read/people.ts).
+  // Counted after, "total_matching" reported 20 for 25 held drafts.
   const picked = matching.slice(0, ASK_CAPS.threads);
   for (const v of picked) t.read.thread.add(v.conversationId);
   return {
@@ -146,18 +146,22 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
   };
 }
 
-export const list_threads = defineRead({
-  name: "list_threads",
-  description: `Threads from the Inbox on every wire (WhatsApp, text or email, whichever the customer last wrote on, named per row in channel), each with its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. filter: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first). Call it to find threads by their state, and for what the page on screen does not hold; call get_thread instead when the whole conversation is needed, since a row here carries only the last three messages. It returns at most ${ASK_CAPS.threads} threads, with total_matching counted before the cap, so a count is the total and never the rows shown.`,
-  input: z.object({ filter: z.enum(["needs_you", "held", "waiting", "snoozed", "recent"]) }),
-  label: "Reading the Inbox",
-  run: listThreads,
-});
-
-export const get_thread = defineRead({
-  name: "get_thread",
-  description: `One conversation, on whichever wire it runs (WhatsApp, text or email, named in channel): the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call it when the whole conversation is needed and the page on screen holds only the thread's row; list_threads is the sibling that finds threads by state, with their last three messages. conversation_id is the id list_threads, get_today, search_people or get_person returned. It returns the newest ${ASK_CAPS.messages} messages, or ${ASK_CAPS.messagesMore} with more true; a conversation the workspace does not hold is an error, said in words.`,
-  input: z.object({ conversation_id: z.string(), more: z.boolean().optional() }),
-  label: "Reading the conversation",
-  run: getThread,
+/** The Inbox (D11): threads by state (list, once list_threads) and one whole conversation (thread, once get_thread). */
+export const inboxTool = defineActions({
+  name: "inbox",
+  description: `The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most ${ASK_CAPS.threads} threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest ${ASK_CAPS.messages} messages, or ${ASK_CAPS.messagesMore} with more true; a conversation the workspace does not hold is an error, said in words.`,
+  actions: {
+    list: readAction({
+      input: z.object({ filter: z.enum(["needs_you", "held", "waiting", "snoozed", "recent"]) }),
+      examples: [{ filter: "held" }],
+      label: "Reading the Inbox",
+      run: listThreads,
+    }),
+    thread: readAction({
+      input: z.object({ conversation_id: z.string(), more: z.boolean().optional() }),
+      examples: [{ conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f" }],
+      label: "Reading the conversation",
+      run: getThread,
+    }),
+  },
 });

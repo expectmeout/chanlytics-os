@@ -2,7 +2,16 @@ import "server-only";
 import { z } from "zod";
 import { contactName, isHeldDraft, replyWindow, violatesNoPrices } from "@chanlytics/contracts";
 import { replyChannelOf } from "../../../verbs";
-import { UUID, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import {
+  UUID,
+  actAction,
+  defineActions,
+  propose,
+  refuse,
+  str,
+  type ProposalOutcome,
+  type ToolContext,
+} from "../context";
 
 async function draftReply(
   t: ToolContext,
@@ -84,24 +93,31 @@ async function proposeSteer(
   });
 }
 
-export const draft_reply = defineAct({
-  name: "draft_reply",
+/** A reply (D11): a new one (draft, once draft_reply) and a rewrite of one held (steer, once propose_steer). */
+export const propose_reply = defineActions({
+  name: "propose_reply",
   description:
-    "Propose a reply to a customer on a thread, as a card the person approves before anything is sent, on the wire the thread runs on. conversation_id is the id a read returned; text is the reply itself; voice is you for the person's own words, or receptionist for the receptionist's voice. Call it when they ask to reply, answer or write to someone; propose_steer is the sibling for rewriting a reply the receptionist is already holding. It refuses a person who opted out and marks a closed reply window on the card; never quote or confirm a price in the text.",
-  input: z.object({
-    conversation_id: z.string(),
-    text: z.string(),
-    voice: z.enum(["you", "receptionist"]),
-  }),
-  label: "Drafting a reply",
-  build: draftReply,
-});
-
-export const propose_steer = defineAct({
-  name: "propose_steer",
-  description:
-    "Propose a rewrite of a reply the receptionist is holding, with an instruction in words ('shorter', 'mention Saturday is full', 'in Spanish'); the rewrite waits its turn like the first draft. message_id is the held draft's id from list_threads or get_thread, never a conversation id. Call it when they want a held draft changed; draft_reply is the sibling for writing a new reply on a thread. A reply that is no longer waiting is refused in words, so read the thread first when in doubt.",
-  input: z.object({ message_id: z.string(), instruction: z.string() }),
-  label: "Preparing a rewrite",
-  build: proposeSteer,
+    "Propose a reply to a customer, as a card the person approves before anything is sent. Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for the receptionist's voice, and proposes a new reply on a thread, on the wire the thread runs on. Action steer takes message_id, the held draft's id from inbox (with action list or thread), never a conversation id, and instruction, a rewrite in words ('shorter', 'mention Saturday is full', 'in Spanish') of a reply the receptionist is holding; the rewrite waits its turn like the first draft. Call action draft when they ask to reply, answer or write to someone, and action steer when they want a held draft changed. draft refuses a person who opted out and marks a closed reply window on the card; never quote or confirm a price in the text. steer refuses in words a reply that is no longer waiting, so read the thread first when in doubt.",
+  actions: {
+    draft: actAction({
+      kind: "reply",
+      input: z.object({
+        conversation_id: z.string(),
+        text: z.string(),
+        voice: z.enum(["you", "receptionist"]),
+      }),
+      examples: [
+        { conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f", text: "Yes, Saturday at ten works.", voice: "you" },
+      ],
+      label: "Drafting a reply",
+      build: draftReply,
+    }),
+    steer: actAction({
+      kind: "steer",
+      input: z.object({ message_id: z.string(), instruction: z.string() }),
+      examples: [{ message_id: "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b", instruction: "shorter, and in Spanish" }],
+      label: "Preparing a rewrite",
+      build: proposeSteer,
+    }),
+  },
 });

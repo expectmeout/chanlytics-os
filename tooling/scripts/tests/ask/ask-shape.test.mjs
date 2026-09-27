@@ -67,7 +67,7 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
   assert.ok(r.timing.totalMs >= r.timing.firstTextMs, "the whole after both");
 
   async function* silent() {
-    yield { type: "block_start", index: 0, block: { type: "tool_use", id: "t1", name: "list_threads" } };
+    yield { type: "block_start", index: 0, block: { type: "tool_use", id: "t1", name: "inbox" } };
     yield { type: "input_json", index: 0, partial: "{}" };
     yield { type: "block_stop", index: 0 };
     yield { type: "stop", stopReason: "tool_use", outputTokens: null };
@@ -168,7 +168,7 @@ const portsOf = (round) => ({
 
 test("the loop fills the shape: a read then an answer is two rounds with their times and summed tokens, the tool timed, the first byte and text from round one, the first Say when it streamed, the surface, the scope kind, the follow-up and the palette's opened_ms; logged as ask_turn_shape and returned", async () => {
   const s = scripted([
-    ROUND([tool("list_threads", { filter: "recent" })]),
+    ROUND([tool("inbox", { action: "list", filter: "recent" })]),
     (c, onText) => {
       const json = answerJson("Nobody is waiting.");
       onText(json);
@@ -208,7 +208,7 @@ test("the loop fills the shape: a read then an answer is two rounds with their t
   assert.equal(sh.format, true);
   assert.deepEqual(
     sh.tools_ms.map((t) => t.name),
-    ["list_threads"],
+    ["inbox.list"],
   );
   assert.ok(sh.tools_ms[0].ms >= 0);
   assert.ok(sh.first_byte_ms >= 3 && sh.first_byte_ms < 5_000, "round one's first event, from the turn's start");
@@ -224,7 +224,11 @@ test("the loop fills the shape: a read then an answer is two rounds with their t
   assert.equal(sh.effort, "low");
   assert.equal(lines.length, 1, "logged once");
   assert.deepEqual([lines[0].tenant, lines[0].rounds, lines[0].cache_hit, lines[0].opened_ms], [A, 2, 0.9, 4200]);
-  assert.deepEqual(lines[0].tools, ["list_threads"], "the log keeps the tools list it always had");
+  assert.deepEqual(
+    lines[0].tools,
+    ["inbox.list"],
+    "the log keeps the tools list it always had, each call as name.action (D11)",
+  );
 });
 
 test("a turn answered without a Say has none; a scripted round without timing or usage leaves the shape honest, not zero", async () => {
@@ -407,7 +411,7 @@ test("the client sends opened_ms with the question when the palette measured one
 test("one turn reads the workspace's facts once, on one clock: the route's own read and the tools' reads share the turn cache and its now (tenants, tenant_config, policies each once)", async () => {
   const tables = routeTables();
   const written = answerJson("Hours are nine to five.");
-  // The model calls get_settings and list_calls in one round, then answers.
+  // The model calls workspace.settings and calls.list in one round, then answers.
   let rounds = 0;
   // Each read's clock against its readers' clock: a turn keeps one.
   const clocks = [];
@@ -416,8 +420,14 @@ test("one turn reads the workspace's facts once, on one clock: the route's own r
       rounds++;
       if (rounds === 1)
         return ROUND([
-          { type: "tool_use", id: "t-get_settings", name: "get_settings", text: "", json: "{}" },
-          { type: "tool_use", id: "t-list_calls", name: "list_calls", text: "", json: '{"filter":"recent"}' },
+          { type: "tool_use", id: "t-workspace.settings", name: "workspace", text: "", json: '{"action":"settings"}' },
+          {
+            type: "tool_use",
+            id: "t-calls.list",
+            name: "calls",
+            text: "",
+            json: '{"action":"list","filter":"recent"}',
+          },
         ]);
       onText(written);
       return ROUND([text(written)], { stopReason: "end_turn" });
@@ -436,14 +446,14 @@ test("one turn reads the workspace's facts once, on one clock: the route's own r
     assert.deepEqual(
       [selects("tenant_channels"), selects("calls")],
       [1, 2],
-      "both tools ran and read their own rows: get_settings the channels as their page reads them (readers/channels.ts), the last inbound call beside the rows, and list_calls the hundred newest",
+      "both tools ran and read their own rows: workspace.settings the channels as their page reads them (readers/channels.ts), the last inbound call beside the rows, and calls.list the hundred newest",
     );
     assert.equal(
       selects("tenants"),
       2,
       "name and zone once (facts), sells_by once (sellsBy): the tools re-read neither",
     );
-    assert.equal(selects("tenant_config"), 1, "the config once, for the prompt and for get_settings");
+    assert.equal(selects("tenant_config"), 1, "the config once, for the prompt and for workspace.settings");
     assert.equal(selects("policies"), 1, "the policies once");
     assert.deepEqual(clocks, [true, true], "one clock per turn: each tool's now is its readers' now");
   } finally {

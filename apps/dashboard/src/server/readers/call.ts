@@ -8,7 +8,7 @@ import { stamp, type Reader, type RowRef } from "./index";
  * One phone call by id, as the Calls page maps a call (CALL_COLUMNS,
  * toCallDto: the recording's storage path and provider URL never leave the
  * server). No GET route answers one call as JSON, so this is the one source for
- * Ask's get_call and, from Phase 2, the context plane's focus. Read under RLS
+ * Ask's calls.get and, from Phase 2, the context plane's focus. Read under RLS
  * and the workspace's own filter: RLS would show a member of two workspaces the
  * other's calls, and a turn reads its own. A call not here is the 404 the
  * call's routes answer, in their words, and an id that cannot be one never

@@ -62,7 +62,7 @@ async function getToday(t: ToolContext): Promise<unknown> {
       ? {
           line: vm.calls.line,
           // Today's call row is keyed by the bare call id (contracts today.ts), and a call opens where the Today page,
-          // list_calls and get_call open it: conversations/cv-<id>. This said conversations/<id>, which opens nothing.
+          // calls.list and calls.get open it: conversations/cv-<id>. This said conversations/<id>, which opens nothing.
           rows: vm.calls.rows.slice(0, 5).map((r) => ({
             call_id: r.id,
             route: `conversations/cv-${r.id}`,
@@ -85,10 +85,10 @@ async function getToday(t: ToolContext): Promise<unknown> {
   };
 }
 
-export const get_today = defineRead({
-  name: "get_today",
+export const todayTool = defineRead({
+  name: "today",
   description:
-    "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. It holds no drafts: list_threads with filter held has them, and get_thread has a whole conversation. needs_you and calls are capped, the counts are not; nothing changes because it was read.",
+    "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. It holds no drafts: inbox with action list and filter held has them, and inbox with action thread has a whole conversation. needs_you and calls are capped, the counts are not; nothing changes because it was read.",
   input: z.object({}),
   label: "Reading Today",
   run: getToday,
