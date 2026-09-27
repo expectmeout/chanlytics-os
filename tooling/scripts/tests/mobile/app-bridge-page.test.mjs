@@ -34,7 +34,6 @@ function windowOf({
       },
     },
     location: { hash, pathname },
-    history: { back: () => posted.push("history.back") },
     ...(native ? { ReactNativeWebView: { postMessage: (s) => posted.push(JSON.parse(s)) } } : {}),
     addEventListener: (t, fn) => listeners.set(t, [...(listeners.get(t) ?? []), fn]),
     removeEventListener: (t, fn) =>
@@ -95,16 +94,14 @@ test("at install the page says a person is in, its theme, the workspace and the 
   assert.equal(win.__appBridge, undefined);
 });
 
-test("the shell's navigate sets the hash and back steps the history; menu and top become the shell's events; a bad message does nothing", () => {
-  const { win, posted, fire } = windowOf();
+test("the shell's navigate sets the hash; menu and top become the shell's events; a bad message does nothing", () => {
+  const { win, fire } = windowOf();
   installAppBridge(win);
   const heard = [];
   win.addEventListener("shell:menu", () => heard.push("menu"));
   win.addEventListener("shell:top", () => heard.push("top"));
   win.__appBridge.receive('{"t":"navigate","route":"inbox"}');
   assert.equal(win.location.hash, "/inbox");
-  win.__appBridge.receive('{"t":"back"}');
-  assert.equal(posted.at(-1), "history.back", "the page's own history, one step: no entry is added");
   fire("shell:ready");
   win.__appBridge.receive('{"t":"menu"}');
   win.__appBridge.receive('{"t":"top"}');
@@ -144,11 +141,6 @@ const doors = (answer = true) => {
     forget: async (t) => {
       calls.push(["forget", t]);
       return answer;
-    },
-    token: async () => {
-      calls.push(["token"]);
-      if (answer instanceof Error) throw answer;
-      return answer ? { access: "tok", expires: 1800000000 } : null;
     },
   };
 };
@@ -257,24 +249,4 @@ test("a device ask with an activity token registers both", async () => {
     "register",
     { token: "tok", platform: "ios", app_version: "1.0.0", activity_token: "act" },
   ]);
-});
-
-test("the shell's token ask is answered from the page's own session, and with nothing when there is none", async () => {
-  const { win, posted } = windowOf();
-  const d = doors(true);
-  installAppBridge(win, d);
-  win.__appBridge.receive('{"t":"token"}');
-  await tick();
-  assert.deepEqual(d.calls.at(-1), ["token"]);
-  assert.deepEqual(posted.at(-1), { t: "token", access: "tok", expires: 1800000000 });
-  const none = windowOf();
-  installAppBridge(none.win, doors(false));
-  none.win.__appBridge.receive('{"t":"token"}');
-  await tick();
-  assert.deepEqual(none.posted.at(-1), { t: "token", access: null, expires: 0 });
-  const broken = windowOf();
-  installAppBridge(broken.win, doors(new Error("no client")));
-  broken.win.__appBridge.receive('{"t":"token"}');
-  await tick();
-  assert.deepEqual(broken.posted.at(-1), { t: "token", access: null, expires: 0 });
 });

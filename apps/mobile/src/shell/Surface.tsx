@@ -15,14 +15,13 @@ import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTyp
 import * as Application from "expo-application";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useIsFocused, useRouter } from "expo-router";
+import { useIsFocused } from "expo-router";
 import { parsePageMessage, THEME_COLORS, type PageMessage, type ShellMessage } from "@chanlytics/contracts";
 import { askPage, bottomInset, insetScript, onPageMessage, registrationKey, shouldRegister, signedOut } from "./bridge";
 import { getState, registerReloader, setState, useShell, type Tab } from "./state";
 import { setBadge, tabOf } from "./notifications";
 import { updateTodayWidget } from "./widget";
 import { endCallActivities } from "./live-activity";
-import { threadIdOf, tokenArrived } from "./api";
 import { front } from "./front";
 import { Offline } from "./Offline";
 import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
@@ -39,7 +38,7 @@ interface Props {
   route: string;
   /**
    * The tab this page is in: a tapped notification's route knows whether it is this page's to open, and whenever the
-   * tab is in front with its page ready, this page is the one a tab press or a token ask reaches (front.ts).
+   * tab is in front with its page ready, this page is the one a tab press reaches (front.ts).
    */
   tab?: Tab;
   /** Called once, the first time the page reports its route. */
@@ -51,7 +50,6 @@ interface Props {
 export function Surface({ route, tab, onReady, post }: Props) {
   const ref = useRef<WebView>(null);
   const focused = useIsFocused();
-  const router = useRouter();
   // Created the first time this tab is in front, kept afterwards: a latch set during render, not in an effect.
   const [mounted, setMounted] = useState(focused);
   if (focused && !mounted) setMounted(true);
@@ -91,18 +89,9 @@ export function Surface({ route, tab, onReady, post }: Props) {
       if (m?.t === "route") {
         if (!ready) onReady?.(handle);
         setReady(true);
-        // A thread opened on the Inbox page in front is drawn natively over it (PR 8): the page steps back to its
-        // list, so the list is what stands under the thread and what the person returns to, with no entry of the
-        // thread's left in the page's history for Back to land on and open it again. A page not in front is not
-        // followed: its tab would be switched under the person.
-        const thread = threadToDraw(tab, focused, m.route);
-        if (thread) {
-          handle.ask({ t: "back" });
-          router.push({ pathname: "/(tabs)/inbox/[id]", params: { id: thread } });
-        }
       }
     },
-    [focused, handle, onReady, ready, router, tab],
+    [handle, onReady, ready],
   );
 
   useFront(tab, ready && focused, handle);
@@ -187,8 +176,8 @@ export function Surface({ route, tab, onReady, post }: Props) {
 
 /**
  * What a page's message does beyond the one page that heard it: the shell's state moves (bridge.ts), and the icon,
- * the call activity, the theme, the widget and a waiting token call follow. Returns the message, parsed, for what
- * is the page's own (its route).
+ * the call activity, the theme and the widget follow. Returns the message, parsed, for what is the page's own (its
+ * route).
  */
 function actOnPageMessage(raw: string): PageMessage | null {
   const { state, effect } = onPageMessage(getState(), raw);
@@ -199,7 +188,6 @@ function actOnPageMessage(raw: string): PageMessage | null {
   if (effect === "theme") Appearance.setColorScheme(state.theme);
   const m = parsePageMessage(raw);
   if (m?.t === "today") updateTodayWidget(m.snapshot);
-  if (m?.t === "token") tokenArrived(m.access ? { token: m.access, expires: m.expires } : null);
   return m;
 }
 
@@ -220,15 +208,10 @@ function useAndroidBack(ref: RefObject<WebView | null>, canGoBack: RefObject<boo
   }, [focused, ref, canGoBack]);
 }
 
-/** The thread an Inbox page in front has opened, to draw natively; none for any other page, or one not in front. */
-function threadToDraw(tab: Tab | undefined, focused: boolean, route: string): string | null {
-  return tab === "inbox" && focused ? threadIdOf(route) : null;
-}
-
 /**
- * The page a tab press or a token ask reaches (front.ts): this one, whenever its tab is in front and its page is
- * ready, forgotten as it unmounts. It was set only as the page reported a route, and a tab already open reports none
- * on its return, so the record went stale after the first switch and re-tap-to-top stopped working.
+ * The page a tab press reaches (front.ts): this one, whenever its tab is in front and its page is ready, forgotten as
+ * it unmounts. It was set only as the page reported a route, and a tab already open reports none on its return, so
+ * the record went stale after the first switch and re-tap-to-top stopped working.
  */
 function useFront(tab: Tab | undefined, inFront: boolean, handle: SurfaceHandle): void {
   useEffect(() => {

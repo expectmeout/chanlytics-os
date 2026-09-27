@@ -18,7 +18,6 @@ import {
   type TodayVM,
 } from "@chanlytics/contracts";
 import { api } from "./api";
-import { createClient } from "../lib/supabase/client";
 
 interface BridgeWindow {
   document: {
@@ -29,7 +28,6 @@ interface BridgeWindow {
     };
   };
   location: { hash: string; pathname: string };
-  history: { back(): void };
   ReactNativeWebView?: { postMessage(s: string): void };
   __appBridge?: { receive(raw: string): void; forgetPhone(): Promise<void> };
   /** The bell (notifications.ts), when it is installed: its number is the icon's. */
@@ -52,20 +50,10 @@ export interface DeviceDoors {
     activity_token?: string;
   }): Promise<boolean>;
   forget(token: string): Promise<boolean>;
-  /**
-   * The session's access token and its expiry (epoch seconds), for the shell's own calls (decision 0011); null when
-   * the page has none. The access token only: the refresh token stays in the page, which refreshes on its own.
-   */
-  token(): Promise<{ access: string; expires: number } | null>;
 }
 export const deviceDoors: DeviceDoors = {
   register: async (device) => (await api()("PUT me/devices", { body: device })).ok,
   forget: async (token) => (await api()("DELETE me/devices", { body: { token } })).ok,
-  token: async () => {
-    const { data } = await createClient().auth.getSession();
-    const s = data.session;
-    return s?.access_token ? { access: s.access_token, expires: s.expires_at ?? 0 } : null;
-  },
 };
 
 /** The hash route's name without its leading "#/", "today" when there is none: what app-shell.jsx parses. */
@@ -178,7 +166,6 @@ function watchTheme(win: BridgeWindow, post: Post): () => void {
   return () => watcher.disconnect();
 }
 
-/** One ask from the shell, parsed and answered; a message that does not parse does nothing. */
 /** What answering the shell needs: the page, its doors, its voice, its phone and its shell's events. */
 interface Answering {
   win: BridgeWindow;
@@ -188,6 +175,7 @@ interface Answering {
   shell: ShellEvents;
 }
 
+/** One ask from the shell, parsed and answered; a message that does not parse does nothing. */
 function answerShell({ win, doors, post, phone, shell }: Answering, raw: string): void {
   let v: unknown;
   try {
@@ -201,34 +189,22 @@ function answerShell({ win, doors, post, phone, shell }: Answering, raw: string)
     win.location.hash = "/" + m.route;
     return;
   }
-  if (m.t === "back") {
-    win.history.back();
-    return;
-  }
   if (m.t === "menu" || m.t === "top") {
     shell.say(m.t);
     return;
   }
-  if (m.t === "device") {
-    // The phone registers through the page: the cookie, the same-origin rule and the rate bucket are the page's.
-    const device = {
-      token: m.token,
-      platform: m.platform,
-      ...(m.version ? { app_version: m.version } : {}),
-      ...(m.activity ? { activity_token: m.activity } : {}),
-    };
-    const registered = doors.register(device).then((ok) => {
-      if (ok) phone.token = m.token;
-      return ok;
-    });
-    sayDevice(registered, "registered", post);
-    return;
-  }
-  // The shell's own calls carry the session's access token (decision 0011); the page is where it lives.
-  void doors
-    .token()
-    .then((t) => post({ t: "token", access: t?.access ?? null, expires: t?.expires ?? 0 }))
-    .catch(() => post({ t: "token", access: null, expires: 0 }));
+  // The phone registers through the page: the cookie, the same-origin rule and the rate bucket are the page's.
+  const device = {
+    token: m.token,
+    platform: m.platform,
+    ...(m.version ? { app_version: m.version } : {}),
+    ...(m.activity ? { activity_token: m.activity } : {}),
+  };
+  const registered = doors.register(device).then((ok) => {
+    if (ok) phone.token = m.token;
+    return ok;
+  });
+  sayDevice(registered, "registered", post);
 }
 
 interface ShellEvents {

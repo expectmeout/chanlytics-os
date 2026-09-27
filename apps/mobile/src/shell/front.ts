@@ -1,7 +1,7 @@
 /**
- * Which tab's page is in front, and its handle: the one place a tab press or a token ask reaches the page it means.
- * Kept outside React on purpose; a native tab press arrives through a listener, not a render. Each Surface sets
- * itself here whenever its tab is in front and its page is ready, and forgets itself as it unmounts.
+ * Which tab's page is in front, and its handle: the one place a tab press reaches the page it means. Kept outside
+ * React on purpose; a native tab press arrives through a listener, not a render. Each Surface sets itself here
+ * whenever its tab is in front and its page is ready, and forgets itself as it unmounts.
  */
 import type { ShellMessage } from "@chanlytics/contracts";
 import type { SurfaceHandle } from "./Surface";
