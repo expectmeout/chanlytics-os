@@ -841,7 +841,7 @@ test("four rows: people take three while a run wants the fourth, and all four wh
   // Four people waiting — one more than the card gives them.
   const vm = busy();
   const first = vm.queue.rows[0];
-  vm.queue.rows = ["one", "two", "three", "four"].map((w, i) => ({
+  vm.queue.rows = ["one", "two", "three", "four"].map((w) => ({
     ...first,
     id: `q-${w}`,
     who: `Person ${w}`,

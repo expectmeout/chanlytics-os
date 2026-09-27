@@ -38,7 +38,7 @@ let owner;
 let stranger;
 let made;
 
-/** A real session for a fresh user at this address; `factor`, past its second factor (0013, 00216: a partner's seat asks). */
+/** A real session for a fresh user at this address; `factor`, past its second factor (0013, 00218: a partner's seat asks). */
 async function person(email, { factor = false } = {}) {
   const password = `pw-${Math.random().toString(36).slice(2)}-Aa1!`;
   const u = await db.auth.admin.createUser({ email, password, email_confirm: true });

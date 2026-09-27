@@ -1086,7 +1086,7 @@ test("a workspace that confirms its own bookings does not have the link sent for
   // (steps.ts layerTwo). This path read the REPLY row, so the same workspace
   // answered the same request two ways depending on which receptionist heard it.
   const w = world({ mode: "auto", booking: "ask" });
-  const db = w.open();
+  w.open();
   const caller = w.number();
   w.person(caller);
   const said = await listening(async (log) => {

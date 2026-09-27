@@ -123,8 +123,8 @@ async function parsedFeedFor(
  * Settings that will not parse are a READ THAT FAILED, not a workspace without a calendar.
  *
  * parseTenantConfig is documented as being "for callers that genuinely cannot act on the difference". Every
- * caller in this file CAN act on it, and the difference is the whole point: TenantConfigSchema is strict, so
- * ONE unrecognised key refuses the whole row and takes the calendar address down with it. Reported as "none",
+ * caller in this file CAN act on it, and the difference is the whole point: ONE malformed field (not an unknown
+ * one, which the read leaves out) refuses the whole row and takes the calendar address down with it. Reported as "none",
  * that is indistinguishable from a workspace that never connected a calendar -- so the surfaces went quiet
  * instead of saying anything, and a bad config row survived two rounds of being looked straight at.
  *

@@ -44,7 +44,9 @@ table names outside packages/db     533
 unnamed durations                    78   in 34 files
 dead exports, types and modules     200
 source-text reads in tests          832
-lint warnings allowed                46
+lint warnings                       130   in 36 files, 129 of them exhaustive-deps
+workspace route JS, KB gzipped     1006   the shell included
+workspace route CSS, KB gzipped     122
 ```
 
 <!-- measured:end -->

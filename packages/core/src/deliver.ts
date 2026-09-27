@@ -31,6 +31,7 @@ import {
   sendTemplate,
   sendEmail,
   requestLeavesAs,
+  graphThrottled,
   resendLimitOf,
   smsRefusalOf,
   addressOf,
@@ -222,6 +223,11 @@ export type Delivered =
       messageId: string | null;
       /** A mail provider's refusal for a limit of its own (channels resendLimitOf), named at the wire; email only. */
       limit?: ResendLimit;
+      /**
+       * WhatsApp said "not now" before it took the message (channels graphThrottled), named at the wire. Nothing left,
+       * so the caller may try this person again later; a failure without it may have been taken all the same.
+       */
+      throttled?: true;
     };
 
 export interface DeliverPorts {
@@ -714,17 +720,32 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     });
   }
   await event(ports.db, d, "message.send_failed", messageId, { ...failure, reason: sent.reason ?? "provider" });
-  // A refusal the mail provider gave for a limit of its own -- too fast, or the day's sending used up -- is named here,
-  // at the wire, so a caller says it in words without reading the provider's answer itself.
-  const limit = d.channel === "email" && !sent.reason ? resendLimitOf(sent) : null;
   return {
     outcome: "failed",
     reason: sent.reason ?? "provider",
     status: sent.status,
     errorBody: sent.errorBody ?? null,
     messageId,
-    ...(limit ? { limit } : {}),
+    ...namedRefusal(d.channel, sent),
   };
+}
+
+/**
+ * A refusal the provider gave for a limit of its own, named here at the wire, so a caller says it in words or waits
+ * without reading the provider's answer itself: the mail provider's (too fast, or the day's sending used up; channels
+ * resendLimitOf), or WhatsApp's "not now" (graphThrottled). A failure that is ours -- no wire, no credentials -- is
+ * neither.
+ */
+function namedRefusal(
+  channel: Channel,
+  sent: SendResult & { reason?: string },
+): { limit?: ResendLimit; throttled?: true } {
+  if (sent.reason) return {};
+  if (channel === "email") {
+    const limit = resendLimitOf(sent);
+    return limit ? { limit } : {};
+  }
+  return channel === "whatsapp" && graphThrottled(sent) ? { throttled: true } : {};
 }
 
 /**

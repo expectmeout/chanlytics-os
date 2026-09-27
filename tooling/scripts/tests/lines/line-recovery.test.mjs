@@ -520,7 +520,7 @@ test("a released line leaves a disabled route beside the active one, and the pic
 });
 
 test("a failure at the vault is named as one: no Retry on the row, the refusal says why, the capability says why", async () => {
-  const { lineCredentialFailure, capabilityStatus } = await import("@chanlytics/contracts");
+  const { lineCredentialFailure } = await import("@chanlytics/contracts");
   assert.equal(lineCredentialFailure("keeping the line's credentials: permission denied for schema vault"), true);
   assert.equal(lineCredentialFailure("the subaccount's token is missing from the vault"), true);
   assert.equal(lineCredentialFailure("Twilio 21422: number not available"), false);

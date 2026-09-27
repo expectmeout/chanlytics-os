@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { importSrc } from "../_source.mjs";
 
 const { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS } = await importSrc("packages/core/src/messages/broadcast.ts");
-const { BROADCAST_CHUNK, HELD_REASONS, OUTCOME_UNKNOWN } = await import("@chanlytics/contracts");
+const { BROADCAST_CHUNK, BROADCAST_THROTTLE_WAITS_MS, HELD_REASONS, OUTCOME_UNKNOWN } =
+  await import("@chanlytics/contracts");
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const WRITES = new Set(["fail", "startSending", "mark", "deliver", "scheduleNext", "finish", "alert", "sleep"]);
 
@@ -485,4 +486,106 @@ test("a reach-out's run is the reach-out clock's: a broadcast job that reaches o
     await sendBroadcastBatch(f.ports, cmd());
     assert.deepEqual(f.ops(), [], state);
   }
+});
+
+/* ------------------------------------------------ WhatsApp says "not now" -- */
+
+const WAITS = BROADCAST_THROTTLE_WAITS_MS;
+/** The door's answer when Graph refused the send as too many, too fast (channels graphThrottled): nothing was taken. */
+const throttled = (d) => ({
+  outcome: "failed",
+  reason: "provider",
+  status: 400,
+  errorBody: '{"error":{"code":130429}}',
+  messageId: `m-${d.contactId}`,
+  throttled: true,
+});
+const facts = (timezone) => ({ businessName: "Marisa's", bookingLink: null, timezone });
+const call = (log, name) => log.find((l) => l[0] === name);
+
+test('WhatsApp\'s "not now" gives the person back to the queue, reaches nobody after them, and the run waits its first wait', async () => {
+  const { ports, log, ops, marks } = fakes({
+    facts: facts("UTC"),
+    deliver: (d) => (d.contactId === "k1" ? throttled(d) : { outcome: "sent", messageId: "m", externalId: "w" }),
+  });
+  await sendBroadcastBatch(ports, cmd());
+  assert.deepEqual(
+    marks(),
+    [
+      ["k1", "failed", OUTCOME_UNKNOWN],
+      ["k1", "queued", "throttled"],
+    ],
+    "claimed before the wire, then released: nothing was taken",
+  );
+  assert.equal(ops().filter((o) => o === "deliver").length, 1, "the person after them is not sent into the same limit");
+  assert.deepEqual(call(log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[0]), 1]);
+  assert.ok(!ops().includes("fail") && !ops().includes("finish"), "the run is neither failed nor finished");
+});
+
+test("each wait follows the last, a clean batch starts the count again, and past the last wait the run stops and says why", async () => {
+  const mid = fakes({ facts: facts("UTC"), deliver: throttled });
+  await sendBroadcastBatch(mid.ports, cmd({ waits: 2 }));
+  assert.deepEqual(call(mid.log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[2]), 3]);
+
+  const clean = fakes({ facts: facts("UTC"), remaining: 5 });
+  await sendBroadcastBatch(clean.ports, cmd({ waits: 3 }));
+  assert.deepEqual(call(clean.log, "scheduleNext").slice(1), ["b1"], "the next batch starts now, and from zero");
+
+  const last = fakes({ facts: facts("UTC"), deliver: throttled, tally: { sent: 3, held: 0 } });
+  await sendBroadcastBatch(last.ports, cmd({ waits: WAITS.length }));
+  assert.ok(!last.ops().includes("scheduleNext"), "nothing more is scheduled");
+  assert.deepEqual(call(last.log, "fail").slice(1), ["b1", "throttled"]);
+  const alert = call(last.log, "alert")[1];
+  assert.equal(alert.kind, "broadcast_stopped");
+  assert.equal(alert.subject, "Broadcast “Spring offer” stopped");
+  assert.match(
+    alert.body,
+    /^WhatsApp kept limiting how fast this number may send for about an hour, so the rest was not sent\. 3 people got it\. WhatsApp lifts these limits on its own; send it again later\.$/,
+  );
+});
+
+test("a wait that would end outside the day's sending hours stops the run rather than send tomorrow what was written for today", async () => {
+  // 12:00Z is 21:00 in Tokyo: the next try would fall after 20:59.
+  const { ports, log, ops } = fakes({ facts: facts("Asia/Tokyo"), deliver: throttled, tally: { sent: 0, held: 0 } });
+  await sendBroadcastBatch(ports, cmd());
+  assert.ok(!ops().includes("scheduleNext"));
+  assert.deepEqual(call(log, "fail").slice(1), ["b1", "throttled"]);
+  assert.match(
+    call(log, "alert")[1].body,
+    /until the day's sending hours ran out, so the rest was not sent\. Nobody got it\./,
+  );
+});
+
+test("a release the database refuses (no 00216 yet) still stops the batch and waits: one person keeps the claim, nobody else is burned", async () => {
+  const { ports, log, ops } = fakes({
+    facts: facts("UTC"),
+    deliver: throttled,
+    mark: (_id, _contact, patch) => {
+      if (patch.state === "queued")
+        throw new Error("broadcast_recipients.state is terminal (failed -> queued refused)");
+    },
+  });
+  await sendBroadcastBatch(ports, cmd());
+  assert.equal(ops().filter((o) => o === "deliver").length, 1);
+  assert.deepEqual(call(log, "scheduleNext").slice(1), ["b1", new Date(NOW + WAITS[0]), 1]);
+});
+
+test("a failure that is not a throttle keeps its claim as a failed send and the batch goes on, as before", async () => {
+  const { ports, marks } = fakes({
+    facts: facts("UTC"),
+    deliver: (d) => ({
+      outcome: "failed",
+      reason: "provider",
+      status: 0,
+      errorBody: "timeout",
+      messageId: `m-${d.contactId}`,
+    }),
+  });
+  await sendBroadcastBatch(ports, cmd());
+  assert.deepEqual(marks(), [
+    ["k1", "failed", OUTCOME_UNKNOWN],
+    ["k1", "failed", "send_failed"],
+    ["k2", "failed", OUTCOME_UNKNOWN],
+    ["k2", "failed", "send_failed"],
+  ]);
 });

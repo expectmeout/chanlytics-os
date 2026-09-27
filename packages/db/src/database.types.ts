@@ -5703,6 +5703,10 @@ export type Database = {
         Returns: number
       }
       purge_events: { Args: { p_keep?: string }; Returns: number }
+      purge_jobs: {
+        Args: { p_failed?: string; p_finished?: string }
+        Returns: number
+      }
       purge_leads: { Args: never; Returns: number }
       purge_notifications: { Args: { p_keep?: string }; Returns: number }
       push_device_forget: { Args: { p_token: string }; Returns: Json }

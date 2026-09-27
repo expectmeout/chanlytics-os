@@ -93,14 +93,14 @@ export const DELETE = write({
       .select("external_id")
       .eq("contact_id", id);
     keyRead("WhatsApp identities", identErr);
-    // Every spelling of the customer's number, as an Ask turn may quote it:
-    // the WhatsApp wa_id is bare digits and a call's from_number is E.164, so
-    // both are reduced to the digits.
+    // Every spelling of the customer's number, as an Ask turn or a finished job may quote it (the WhatsApp wa_id is
+    // bare digits, a call's from_number E.164, so both are reduced to the digits), and then the address: `identifiers`.
     const threadIds = [
       ...new Set(
         [contact.phone_e164 ?? "", ...(idents ?? []).map((i) => i.external_id ?? "")].map(digits).filter(Boolean),
       ),
     ];
+    const identifiers = [...threadIds, ...(contact.email ? [contact.email] : [])];
 
     const { data: calls, error: callErr } = await ctx.supabase.from("calls").select("recording").eq("contact_id", id);
     keyRead("call recordings", callErr);
@@ -149,7 +149,7 @@ export const DELETE = write({
       const { error: askErr } = await ctx.supabase.rpc("scrub_ask_for_contact", {
         p_tenant_id: contact.tenant_id,
         p_contact_id: id,
-        p_needles: [...threadIds, ...(contact.email ? [contact.email] : [])],
+        p_needles: identifiers,
       });
       if (askErr) {
         console.error("erase_ask_prescrub_failed", id, askErr.message);
@@ -160,7 +160,7 @@ export const DELETE = write({
         );
       }
       try {
-        await scrubErasedJobs(contact.tenant_id, id, threadIds, FINISHED_JOB_STATES);
+        await scrubErasedJobs(contact.tenant_id, id, identifiers, FINISHED_JOB_STATES);
       } catch (e) {
         console.error("erase_jobs_prescrub_failed", id, e instanceof Error ? e.message : e);
         throw new AppError(
@@ -209,13 +209,12 @@ export const DELETE = write({
     // assistant's memory of a person is a name that outlives its erasure too.
     {
       const { data: scrubbed, error: askErr } = await ctx.supabase.rpc("scrub_ask_for_contact", {
-        // The thread keys, and the address: an Ask turn can quote either. Read
-        // off the row before erase_contact ran, because the row no longer has it.
-        // Step 2 already scrubbed with these needles; this pass catches a turn
-        // written since, and a re-driven erasure (above) scrubs by the id alone.
+        // The identifiers, read off the row before erase_contact ran, because the row no longer has them. Step 2
+        // already scrubbed with them; this pass catches a turn written since, and a re-driven erasure (above) scrubs
+        // by the id alone.
         p_tenant_id: contact.tenant_id,
         p_contact_id: id,
-        p_needles: [...threadIds, ...(contact.email ? [contact.email] : [])],
+        p_needles: identifiers,
       });
       if (askErr) console.error("erase_ask_scrub_failed", id, askErr.message);
       else console.log(JSON.stringify({ level: "info", event: "erase_ask_scrubbed", contact: id, messages: scrubbed }));
@@ -223,7 +222,7 @@ export const DELETE = write({
     // The jobs that carried their number or words. erase_contact cancels what
     // is still scheduled; done, failed and canceled rows kept `to_phone` and
     // `body` in their payload forever.
-    const jobsScrubbed = await scrubErasedJobs(contact.tenant_id, id, threadIds).catch((e: unknown) => {
+    const jobsScrubbed = await scrubErasedJobs(contact.tenant_id, id, identifiers).catch((e: unknown) => {
       console.error("erase_jobs_scrub_failed", id, e instanceof Error ? e.message : e);
       return 0;
     });

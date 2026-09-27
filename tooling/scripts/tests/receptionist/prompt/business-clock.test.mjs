@@ -17,7 +17,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BusinessProfileSchema, composeSystemPrompt, describeNow, resolveSystemPrompt } from "@chanlytics/contracts";
+import {
+  BusinessProfileSchema,
+  TenantConfigWriteSchema,
+  composeSystemPrompt,
+  describeNow,
+  resolveSystemPrompt,
+} from "@chanlytics/contracts";
 import { readCode } from "../../_source.mjs";
 
 const brain = {
@@ -80,8 +86,10 @@ test("the hours say WHICH clock they are on", () => {
 test("the timezone has ONE home, and it is not the business profile", () => {
   // tenants.timezone is the column. A profile field would be a second copy,
   // free to drift from the one the dashboard's own "today" is computed with.
-  const r = BusinessProfileSchema.safeParse({ timezone: "America/New_York" });
-  assert.equal(r.success, false, "the profile must reject a timezone of its own");
+  const read = BusinessProfileSchema.parse({ timezone: "America/New_York" });
+  assert.equal("timezone" in read, false, "the profile must never carry a timezone of its own");
+  const saved = TenantConfigWriteSchema.safeParse({ brain: { ...brain, profile: { timezone: "America/New_York" } } });
+  assert.equal(saved.success, false, "and a save must refuse one");
 });
 
 /* ----------------------------- the call sites ------------------------------ */
