@@ -1143,13 +1143,6 @@
       "rate": "settings",
       "spend": false
     },
-    "GET today": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": null,
-      "rate": "aggregate",
-      "spend": false
-    },
     "PUT views/[page]": {
       "kind": "write",
       "scope": "workspace",

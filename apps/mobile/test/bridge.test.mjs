@@ -92,3 +92,15 @@ test("the page's token lands in the state and leaves with the person", () => {
   r = onPageMessage({ ...INITIAL, access: { token: "tok", expires: 1 } }, '{"t":"session","state":"out"}');
   assert.equal(r.state.access, null);
 });
+
+test("the page's theme is the shell's: kept in the state and acted on, and Today's refresh keeps nothing", () => {
+  let r = onPageMessage(INITIAL, '{"t":"theme","theme":"light"}');
+  assert.equal(r.state.theme, "light");
+  assert.equal(r.effect, "theme");
+  r = onPageMessage(r.state, '{"t":"theme","theme":"dark"}');
+  assert.equal(r.state.theme, "dark");
+  const snap = { headline: "h", figures: [], waiting: 0, first: null, at: "2026-09-26T10:00:00.000Z" };
+  r = onPageMessage(INITIAL, JSON.stringify({ t: "today", snapshot: snap }));
+  assert.equal(r.state, INITIAL, "the widget's snapshot is the Surface's to hand on; the state does not change");
+  assert.equal(r.effect, "today");
+});

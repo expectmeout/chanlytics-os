@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts";
 import { setLockChoice, unlock } from "./lock";
 
 /** The lock screen: one prompt on arrival, a button to ask again, and the one place the lock is turned off. */
@@ -46,12 +47,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 32,
-    backgroundColor: "#0c0d0f",
+    backgroundColor: THEME_COLORS.dark,
   },
-  title: { fontSize: 22, fontWeight: "600", color: "#fbfaf8", marginBottom: 24 },
-  button: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 999, backgroundColor: "#fbfaf8" },
+  title: { fontSize: 22, fontWeight: "600", color: THEME_INK.dark, marginBottom: 24 },
+  button: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 999, backgroundColor: THEME_INK.dark },
   pressed: { opacity: 0.7 },
-  buttonText: { color: "#0c0d0f", fontSize: 15, fontWeight: "600" },
+  buttonText: { color: THEME_COLORS.dark, fontSize: 15, fontWeight: "600" },
   link: { marginTop: 20, padding: 8 },
   linkText: { color: "#a7a8ab", fontSize: 14 },
 });

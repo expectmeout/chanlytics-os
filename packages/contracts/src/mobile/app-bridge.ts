@@ -7,6 +7,7 @@
  * put in the address bar, whoever sent it. Both sides import this one definition, so they cannot drift.
  */
 
+import type { Theme } from "./chrome";
 import { parseTodayWidgetSnapshot, type TodayWidgetSnapshot } from "./widget";
 
 /** A hash route's name as the shell writes it: `today`, `inbox`, `clients/abc-123`. Never a URL, never a scheme. */
@@ -30,7 +31,13 @@ export type PageMessage =
    * `token` ask: the token and when it expires (epoch seconds), or null when the page has no session to hand over.
    * Never the refresh token: the page refreshes, the shell asks again.
    */
-  | { t: "token"; access: string | null; expires: number };
+  | { t: "token"; access: string | null; expires: number }
+  /**
+   * The theme the page is drawn in, at install and on every change: the member's own choice (chrome.ts
+   * resolveTheme), which the device's setting is not. The shell paints its bars, its tab bar and its own screens
+   * in it, so nothing native stands in the other theme beside the page.
+   */
+  | { t: "theme"; theme: Theme };
 
 /** A phone's push token, as expo-notifications hands it out. */
 export const PUSH_TOKEN_MAX = 200;
@@ -87,6 +94,8 @@ export function parsePageMessage(raw: string): PageMessage | null {
       const expires = typeof v.expires === "number" && Number.isFinite(v.expires) && v.expires >= 0 ? v.expires : 0;
       return { t: "token", access, expires };
     }
+    case "theme":
+      return v.theme === "light" || v.theme === "dark" ? { t: "theme", theme: v.theme } : null;
     default:
       return null;
   }

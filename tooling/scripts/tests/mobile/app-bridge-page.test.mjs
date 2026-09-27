@@ -15,12 +15,24 @@ globalThis.CustomEvent ??= class CustomEvent extends Event {
   }
 };
 
-function windowOf({ inApp = true, native = true, hash = "#/today", pathname = "/w/acme-plumbing", bell = null } = {}) {
+function windowOf({
+  inApp = true,
+  native = true,
+  hash = "#/today",
+  pathname = "/w/acme-plumbing",
+  bell = null,
+  theme = "dark",
+} = {}) {
   const listeners = new Map();
   const posted = [];
   const win = {
     ...(bell ? { __notifs: bell } : {}),
-    document: { documentElement: { classList: { contains: (c) => inApp && c === "in-app" } } },
+    document: {
+      documentElement: {
+        classList: { contains: (c) => inApp && c === "in-app" },
+        getAttribute: (n) => (n === "data-theme" ? theme : null),
+      },
+    },
     location: { hash, pathname },
     ...(native ? { ReactNativeWebView: { postMessage: (s) => posted.push(JSON.parse(s)) } } : {}),
     addEventListener: (t, fn) => listeners.set(t, [...(listeners.get(t) ?? []), fn]),
@@ -53,14 +65,16 @@ test("outside the app, or without the shell's wire, nothing is installed", () =>
   }
 });
 
-test("at install the page says a person is in, the workspace and the route; then every change", () => {
-  const { win, posted, fire } = windowOf({ hash: "#/inbox" });
+test("at install the page says a person is in, its theme, the workspace and the route; then every change", () => {
+  const { win, posted, fire } = windowOf({ hash: "#/inbox", theme: "light" });
   const off = installAppBridge(win);
   assert.deepEqual(posted, [
     { t: "session", state: "in" },
+    { t: "theme", theme: "light" },
     { t: "workspace", slug: "acme-plumbing" },
     { t: "route", route: "inbox" },
   ]);
+  posted.length = 0;
   win.location.hash = "#/clients/abc";
   fire("hashchange");
   fire("inbox:counts", { needs: 3 });
@@ -68,7 +82,7 @@ test("at install the page says a person is in, the workspace and the route; then
   fire("inbox:counts", { needs: 2.7 });
   win.location.pathname = "/w/other-shop";
   fire("workspace:changed");
-  assert.deepEqual(posted.slice(3), [
+  assert.deepEqual(posted, [
     { t: "route", route: "clients/abc" },
     { t: "needs", inbox: 3 },
     { t: "needs", inbox: 2 },
@@ -76,7 +90,7 @@ test("at install the page says a person is in, the workspace and the route; then
   ]);
   off();
   fire("hashchange");
-  assert.equal(posted.length, 7, "uninstalled: silent");
+  assert.equal(posted.length, 4, "uninstalled: silent");
   assert.equal(win.__appBridge, undefined);
 });
 

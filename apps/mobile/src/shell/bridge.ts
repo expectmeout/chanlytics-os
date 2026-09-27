@@ -6,7 +6,7 @@
 import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
 import type { ShellState } from "./state";
 
-export type Effect = "nothing" | "sign-in" | "badge" | "today" | "calls-over";
+export type Effect = "nothing" | "sign-in" | "badge" | "today" | "calls-over" | "theme";
 
 /** The state after a page's message, and what the shell must do beyond keeping it. */
 export function onPageMessage(state: ShellState, raw: string): { state: ShellState; effect: Effect } {
@@ -37,7 +37,7 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
     case "calls":
       return { state, effect: m.live === 0 ? "calls-over" : "nothing" };
     case "today":
-      return { state: { ...state, todayTick: state.todayTick + 1 }, effect: "today" };
+      return { state, effect: "today" };
     case "route":
       return { state, effect: "nothing" };
     case "token":
@@ -45,6 +45,8 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
         state: { ...state, access: m.access ? { token: m.access, expires: m.expires } : null },
         effect: "nothing",
       };
+    case "theme":
+      return { state: { ...state, theme: m.theme }, effect: "theme" };
   }
 }
 

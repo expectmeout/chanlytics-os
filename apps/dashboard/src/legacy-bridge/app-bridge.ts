@@ -10,6 +10,7 @@
  * parse does nothing.
  */
 import {
+  IN_APP_CLASS,
   parsePageMessage,
   parseShellMessage,
   todayWidgetSnapshot,
@@ -19,10 +20,14 @@ import {
 import { api } from "./api";
 import { createClient } from "../lib/supabase/client";
 
-const IN_APP_CLASS = "in-app";
-
 interface BridgeWindow {
-  document: { documentElement: { classList: { contains(c: string): boolean } } };
+  document: {
+    documentElement: {
+      classList: { contains(c: string): boolean };
+      /** `data-theme`, the theme the page is drawn in (LegacyApp resolves it; app-shell paints it). */
+      getAttribute?(name: string): string | null;
+    };
+  };
   location: { hash: string; pathname: string };
   ReactNativeWebView?: { postMessage(s: string): void };
   __appBridge?: { receive(raw: string): void };
@@ -113,6 +118,16 @@ export function installAppBridge(
     if (Array.isArray(live)) post({ t: "calls", live: live.length });
   };
   win.addEventListener("surface:live", calls);
+  // The theme the page is drawn in, for the shell's own chrome: at install, and whenever LegacyApp repaints
+  // data-theme (the member changed their choice, or System followed the device). Watched the way the map and the
+  // mascot watch it; a window with no MutationObserver, a test's, says it once.
+  const root = win.document.documentElement;
+  const theme = () => {
+    const t = root.getAttribute?.("data-theme");
+    if (t === "light" || t === "dark") post({ t: "theme", theme: t });
+  };
+  const watcher = typeof MutationObserver === "function" ? new MutationObserver(theme) : null;
+  if (watcher && root instanceof Node) watcher.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
   win.__appBridge = {
     receive(raw: string) {
       let v: unknown;
@@ -158,6 +173,7 @@ export function installAppBridge(
   };
   const offBell = win.__notifs?.onChange(badge) ?? (() => {});
   post({ t: "session", state: "in" });
+  theme();
   workspace();
   route();
   badge();
@@ -168,6 +184,7 @@ export function installAppBridge(
     win.removeEventListener("workspace:changed", workspace);
     win.removeEventListener("surface:today", today);
     win.removeEventListener("surface:live", calls);
+    watcher?.disconnect();
     offBell();
     delete win.__appBridge;
   };

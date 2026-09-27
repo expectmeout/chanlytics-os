@@ -7,14 +7,14 @@
  * a sign-out (the PR 2 design).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BackHandler, Linking, Platform, StyleSheet, View } from "react-native";
+import { Appearance, BackHandler, Linking, Platform, StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
 import * as Application from "expo-application";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused, useRouter } from "expo-router";
-import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
+import { parsePageMessage, THEME_COLORS, type ShellMessage } from "@chanlytics/contracts";
 import { askPage, bottomInset, insetScript, onPageMessage, registrationKey, shouldRegister } from "./bridge";
 import { getState, registerReloader, setState, useShell, type Tab } from "./state";
 import { setBadge, tabOf } from "./notifications";
@@ -25,7 +25,6 @@ import { Offline } from "./Offline";
 import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
 
 const PLATFORM: "ios" | "android" = Platform.OS === "ios" ? "ios" : "android";
-const PAGE_DARK = "#0c0d0f";
 
 export interface SurfaceHandle {
   ask(m: ShellMessage): void;
@@ -55,6 +54,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
   if (focused && !mounted) setMounted(true);
   const [failed, setFailed] = useState(false);
   const slug = useShell((s) => s.slug);
+  const theme = useShell((s) => s.theme);
   const token = useShell((s) => s.token);
   const activityToken = useShell((s) => s.activityToken);
   const registered = useShell((s) => s.registered);
@@ -89,6 +89,8 @@ export function Surface({ route, tab, onReady, post }: Props) {
       setState(state);
       if (effect === "badge") void setBadge(state.badge);
       if (effect === "calls-over") void endCallActivities();
+      // The page's theme is the app's: every useColorScheme() in the shell follows it from here on.
+      if (effect === "theme") Appearance.setColorScheme(state.theme);
       const m = parsePageMessage(e.nativeEvent.data);
       if (m?.t === "today") updateTodayWidget(m.snapshot);
       if (m?.t === "device" && m.state === "forgotten") forgetting.current?.resolve();
@@ -174,13 +176,16 @@ export function Surface({ route, tab, onReady, post }: Props) {
     return () => sub.remove();
   }, [focused]);
 
-  if (!mounted) return <View style={styles.fill} />;
+  // The page's paper, behind the WebView (the library's own is white) and in the strip under the status bar: the
+  // shell pads the top itself, on both platforms, since the page's header draws to the top of its viewport.
+  const paper = { backgroundColor: THEME_COLORS[theme] };
+  if (!mounted) return <View style={[styles.fill, paper]} />;
   return (
-    <View style={styles.fill}>
+    <View style={[styles.fill, paper, { paddingTop: insets.top }]}>
       <WebView
         ref={ref}
         source={source}
-        style={styles.fill}
+        style={[styles.fill, paper]}
         applicationNameForUserAgent={userAgent}
         sharedCookiesEnabled
         injectedJavaScriptBeforeContentLoaded={insetScript(inset)}
@@ -191,7 +196,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
         onError={() => setFailed(true)}
         onLoadEnd={() => setFailed(false)}
         startInLoadingState
-        renderLoading={() => <View style={[styles.fill, styles.paper]} />}
+        renderLoading={() => <View style={[StyleSheet.absoluteFill, paper]} />}
         allowsBackForwardNavigationGestures
         pullToRefreshEnabled
         contentInsetAdjustmentBehavior="never"
@@ -210,5 +215,4 @@ export function Surface({ route, tab, onReady, post }: Props) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  paper: { backgroundColor: PAGE_DARK },
 });
