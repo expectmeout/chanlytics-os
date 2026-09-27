@@ -73,6 +73,8 @@ declare global {
     __shell?: ShellApi;
     __chrome?: ChromeWords;
     __SHELL_STATUS?: ShellStatus;
+    /** Inside the native app (app-bridge.ts): the phone this page registered, forgotten before a sign-out. */
+    __appBridge?: { receive(raw: string): void; forgetPhone(): Promise<void> };
   }
 }
 
@@ -93,14 +95,22 @@ export function installShell(win: Window = window): void {
       } catch {
         /* storage blocked: nothing was kept there either */
       }
-      // A real form post: the server clears the session and redirects, and
-      // the browser follows it the way a link would.
-      const form = win.document.createElement("form");
-      form.method = "post";
-      form.action = "/auth/signout";
-      form.hidden = true;
-      win.document.body.appendChild(form);
-      form.submit();
+      // Inside the app the page forgets the phone it registered first, so the
+      // next person signing in on it is not told about this one's threads
+      // (app-bridge.ts forgetPhone: two seconds at most, then the sign-out
+      // goes on). The shell used to intercept the sign-out to ask for this,
+      // and replayed it as a GET the route does not answer.
+      const forget = win.__appBridge?.forgetPhone() ?? Promise.resolve();
+      void forget.finally(() => {
+        // A real form post: the server clears the session and redirects, and
+        // the browser follows it the way a link would.
+        const form = win.document.createElement("form");
+        form.method = "post";
+        form.action = "/auth/signout";
+        form.hidden = true;
+        win.document.body.appendChild(form);
+        form.submit();
+      });
     },
     switchWorkspace(id) {
       switchWorkspace(id);

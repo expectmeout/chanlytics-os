@@ -13,6 +13,7 @@ import {
   IOS_TAB_BAR_PT,
   shouldRegister,
   registrationKey,
+  signedOut,
 } from "../src/shell/bridge.ts";
 import { INITIAL } from "../src/shell/state.ts";
 
@@ -58,10 +59,48 @@ test("the bell's number is the icon's; a device answer settles what is registere
   r = onPageMessage(r.state, '{"t":"device","state":"registered"}');
   assert.equal(r.state.registered, "tok|");
   r = onPageMessage(r.state, '{"t":"device","state":"refused"}');
-  assert.equal(r.state.registered, null, "refused: the next chance asks again");
+  assert.equal(r.state.registered, null);
+  assert.equal(r.state.refused, "tok|", "refused: this pair is not asked again until the next foreground");
+  assert.ok(!shouldRegister({ ...r.state, session: "in" }), "not in a loop");
+  assert.ok(shouldRegister({ ...r.state, session: "in", refused: null }), "asked once more on the next foreground");
   r = onPageMessage({ ...r.state, session: "in", slug: "acme", registered: "tok" }, '{"t":"session","state":"out"}');
   assert.equal(r.state.registered, null);
   assert.equal(r.state.slug, null);
+});
+
+test("out is one state, whichever way the shell learns it: nothing of the person who left is kept", () => {
+  const inside = {
+    ...INITIAL,
+    session: "in",
+    slug: "acme",
+    needs: 3,
+    badge: 5,
+    token: "tok",
+    registered: "tok|",
+    refused: null,
+    access: { token: "jwt", expires: 1800000000 },
+    pendingRoute: "inbox/th-1",
+    theme: "light",
+  };
+  const out = signedOut(inside);
+  assert.deepEqual(out, {
+    ...inside,
+    session: "out",
+    slug: null,
+    needs: 0,
+    badge: 0,
+    registered: null,
+    refused: null,
+    access: null,
+    pendingRoute: null,
+  });
+  assert.equal(out.token, "tok", "the phone's own token stays: it is the phone's, not the person's");
+  assert.equal(out.theme, "light", "the last page's theme stays until the next page says");
+  assert.deepEqual(
+    onPageMessage(inside, '{"t":"session","state":"out"}').state,
+    out,
+    "the page's message says the same",
+  );
 });
 
 test("a page in front is asked to register once per token pair per person", () => {
