@@ -1,7 +1,7 @@
 /**
  * A partner's second factor (decision 0013), against the replayed stack.
  *
- * M3 (00216): a partner's seat needs a session that showed its second factor. On a session that has not, the seat and
+ * M3 (00218): a partner's seat needs a session that showed its second factor. On a session that has not, the seat and
  * its workspace are not visible, is_acting_member and caller_has_permission answer false, and becoming a partner or
  * setting a workspace up for a business is refused. Every other role is unchanged, and the SQL says what contracts'
  * seatNeedsSecondFactor says, role by role. The sessions that show it enrol a real authenticator on the stack's Auth

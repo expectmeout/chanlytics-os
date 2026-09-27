@@ -1360,6 +1360,33 @@ var DECISION_SUBJECTS = [
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
 
+// src/config/unknown-keys.ts
+var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function keysLeftOut(raw, kept, at2 = []) {
+  if (Array.isArray(raw) && Array.isArray(kept)) {
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at2, i]) : []);
+  }
+  if (!isJsonObject(raw) || !isJsonObject(kept)) return [];
+  return Object.entries(raw).flatMap(([k, v]) => {
+    if (v === void 0) return [];
+    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at2, k]) : [[...at2, k]];
+  });
+}
+function refuseUnknownFields(read, raw, ctx) {
+  const parsed = read.safeParse(raw);
+  if (!parsed.success) return;
+  const byObject = /* @__PURE__ */ new Map();
+  for (const where of keysLeftOut(raw, parsed.data)) {
+    if (where.length < 2) continue;
+    const path = where.slice(0, -1);
+    const id = JSON.stringify(path);
+    const held = byObject.get(id) ?? { path, keys: [] };
+    held.keys.push(String(where[where.length - 1]));
+    byObject.set(id, held);
+  }
+  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
+}
+
 // src/config/config.ts
 var ROLES = MEMBERSHIP_ROLES;
 var TEAM_ROLES = ["owner", "operator", "viewer"];
@@ -1572,7 +1599,7 @@ var HoursSchema = z2.object({
    * saying so with open/close, and no stored config is rewritten.
    */
   intervals: z2.array(IntervalSchema).optional()
-}).strict();
+}).strip();
 var DATE = z2.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 var ClosureSchema = z2.object({
   date: DATE,
@@ -1590,7 +1617,7 @@ var ServiceSchema = z2.object({
    * must not be forced into a field that looks like it can.
    */
   price_note: z2.string().max(120).optional()
-}).strict();
+}).strip();
 var GuardrailsSchema = z2.object({
   never_quote_prices: z2.boolean().optional(),
   never_confirm_booking: z2.boolean().optional(),
@@ -1602,7 +1629,7 @@ var GuardrailsSchema = z2.object({
    * production the moment it deployed.
    */
   no_health_advice: z2.boolean().optional()
-}).strict();
+}).strip();
 function guardrailsInForce(g) {
   return {
     never_quote_prices: g?.never_quote_prices !== false,
@@ -1614,7 +1641,7 @@ function guardrailsInForce(g) {
 var NoteSchema = z2.object({
   title: z2.string().min(1).max(80),
   text: z2.string().min(1).max(1200)
-}).strict();
+}).strip();
 var BookingRulesSchema = z2.object({
   /** Least notice for a slot, in hours. Absent = 2. */
   lead_hours: z2.number().int().min(0).max(168).optional(),
@@ -1634,7 +1661,7 @@ var BookingRulesSchema = z2.object({
   ask_email: z2.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z2.array(z2.string().min(1).max(200)).max(10).optional()
-}).strict();
+}).strip();
 var E164 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX = 2e4;
 var BusinessProfileSchema = z2.object({
@@ -1668,7 +1695,7 @@ var BusinessProfileSchema = z2.object({
    * the form carries that prompt into it.
    */
   extra_instructions: z2.string().max(INSTRUCTIONS_MAX).optional()
-}).strict();
+}).strip();
 var BrainConfigSchema = z2.object({
   business_name: z2.string().min(1).max(120),
   /**
@@ -1713,8 +1740,8 @@ var BrainConfigSchema = z2.object({
     error: z2.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
     non_text: z2.string().min(1).max(2e3)
-  }).strict()
-}).strict();
+  }).strip()
+}).strip();
 function newReceptionistDefaults(businessName) {
   return {
     system_prompt: baselinePrompt(businessName),
@@ -1742,11 +1769,11 @@ function instructionsDraft(brain) {
 var NotificationsConfigSchema = z2.object({
   escalation_emails: z2.array(z2.string().email()).min(1).max(10),
   from: z2.string().max(200).optional()
-}).strict();
+}).strip();
 var CalendarConfigSchema = z2.object({
   ical_url: z2.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strict();
-var FeaturesConfigSchema = z2.object({ vision: z2.boolean().optional() }).strict();
+}).strip();
+var FeaturesConfigSchema = z2.object({ vision: z2.boolean().optional() }).strip();
 var TenantConfigSchema = z2.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
@@ -1833,7 +1860,7 @@ function checkClosure(c, n, ctx) {
     });
   }
 }
-var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z2.ZodIssueCode.custom,
@@ -1853,9 +1880,10 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
+var TenantConfigWriteSchema = z2.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
 function parseTenantConfigResult(raw) {
   const r2 = TenantConfigSchema.safeParse(raw ?? {});
-  if (r2.success) return { ok: true, config: r2.data };
+  if (r2.success) return { ok: true, config: r2.data, ignored: keysLeftOut(raw, r2.data).map((p) => p.join(".")) };
   return {
     ok: false,
     issues: r2.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
@@ -4625,7 +4653,11 @@ var RETENTION_DAYS = {
   leads_untouched: 90,
   leads_untouched_blanked: 180,
   /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
-  leads_excluded_blanked: 30
+  leads_excluded_blanked: 30,
+  /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
+  jobs_finished: 7,
+  /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
+  jobs_failed: 90
 };
 var RATE_HITS_RETENTION_HOURS = 2;
 var EVENT_EVIDENCE_KINDS = [
@@ -4639,7 +4671,7 @@ var EVENT_EVIDENCE_KINDS = [
 ];
 function retentionWords() {
   const d = RETENTION_DAYS;
-  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Everything else stays while the workspace exists.`;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Everything else stays while the workspace exists.`;
 }
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -8384,18 +8416,21 @@ var BROADCAST_FAILURE_WORDS = {
   paused: "the workspace was paused",
   template_not_approved: "WhatsApp no longer approves its template",
   wire_unavailable: "WhatsApp could not be reached",
-  run_interrupted: "its send stopped partway and did not start again"
+  run_interrupted: "its send stopped partway and did not start again",
+  throttled: "WhatsApp kept limiting how fast this number may send"
 };
 var BROADCAST_FAILURE_FIX = {
   paused: "Unpause it under Settings, then send it again.",
   template_not_approved: "Open it in Templates \u2014 it can be resubmitted.",
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
-  run_interrupted: "Nobody got it, so sending it again reaches nobody twice."
+  run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
+  throttled: "Nobody got it. WhatsApp lifts these limits on its own; send it again later."
 };
 var BROADCAST_FAILURE_FIX_AFTER = {
   paused: (n) => `Unpause it under Settings. Sending it again reaches the whole list, ${n === 1 ? "the one" : `the ${n}`} who got it included.`,
   wire_unavailable: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
-  run_interrupted: (n) => `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
+  run_interrupted: (n) => `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  throttled: (n) => `The first ${n === 1 ? "one" : n} got it, then WhatsApp limited the number. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`
 };
 function broadcastFailureFix(failure, reached = 0) {
   if (!failure) return null;
@@ -9537,6 +9572,14 @@ var BROADCAST_STATE_LABELS = {
 };
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
+var BROADCAST_THROTTLE_WAITS_MS = [
+  MIN_MS,
+  2 * MIN_MS,
+  5 * MIN_MS,
+  10 * MIN_MS,
+  15 * MIN_MS,
+  30 * MIN_MS
+];
 var BROADCAST_MAX_RECIPIENTS = 2e3;
 var BROADCAST_PARAM_MAX = 1024;
 var BROADCAST_SCHEDULE_MAX_DAYS = 30;
@@ -22768,6 +22811,7 @@ var ERROR_CODES = [
   "upstream_auth",
   "internal"
 ];
+var APP_ERROR = /* @__PURE__ */ Symbol.for("@chanlytics/contracts:AppError");
 var AppError = class extends Error {
   code;
   status;
@@ -22778,6 +22822,11 @@ var AppError = class extends Error {
     this.code = code2;
     this.status = status ?? DEFAULT_STATUS[code2];
     this.details = details;
+    Object.defineProperty(this, APP_ERROR, { value: true });
+  }
+  /** `e instanceof AppError` is true for an AppError made by any copy of this class (see APP_ERROR). */
+  static [Symbol.hasInstance](value) {
+    return typeof value === "object" && value !== null && value[APP_ERROR] === true;
   }
 };
 var DEFAULT_STATUS = {
@@ -26826,6 +26875,7 @@ export {
   BROADCAST_SCHEDULE_MAX_DAYS,
   BROADCAST_STATES,
   BROADCAST_STATE_LABELS,
+  BROADCAST_THROTTLE_WAITS_MS,
   BROKEN_CONFIG_WORDS,
   BUILTIN_LISTS,
   BUSINESS_INDUSTRIES,

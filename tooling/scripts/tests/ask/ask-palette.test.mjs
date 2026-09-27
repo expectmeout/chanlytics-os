@@ -270,6 +270,14 @@ const press = (node) => {
   return e;
 };
 const flush = () => new Promise((r) => setImmediate(r));
+/** Wait for a condition, never for a length of time: on as soon as `ok()` holds, a failure only at the ceiling. */
+const until = async (ok, what, ceilingMs = 2000) => {
+  const end = Date.now() + ceilingMs;
+  while (!ok()) {
+    if (Date.now() > end) assert.fail(`${what}: not within ${ceilingMs}ms`);
+    await new Promise((r) => setTimeout(r, 5));
+  }
+};
 const draw = (C, props) => {
   const root = frameFor("root");
   frames = [root];
@@ -1238,13 +1246,10 @@ test("on a phone the Line is the screen: focus on the dialog, not the field, the
   };
   try {
     ask([]);
-    render(Palette, props);
-    let tree = await later(Palette, props);
-    assert.ok(byTestId(tree, "ask-hero"), "the hero stands on a phone");
-    assert.ok(byTestId(byTestId(tree, "ask-hero"), "ask-line-face"), "the three are in the hero, not the band");
-    assert.equal(byTestId(byTestId(tree, "ask-line"), "ask-line-face"), null, "and not in the band");
-    assert.equal(byTestId(tree, "ask-real").props["aria-modal"], "true");
-    // The field and the dialog are given something to focus; the Line's focus effects reach them within 30ms.
+    // The field and the dialog are given something to focus on the first draw, before anything awaits, as the
+    // desktop test below does: the focus effect fires on a 30ms timer (useAskFocus), and under load the draws that
+    // follow can take longer than that. The refs are the same across draws.
+    let tree = render(Palette, props);
     let focused = 0;
     let dialogFocused = 0;
     inputOf(tree).props.ref.current = {
@@ -1257,7 +1262,14 @@ test("on a phone the Line is the screen: focus on the dialog, not the field, the
         dialogFocused++;
       },
     };
-    await new Promise((r) => setTimeout(r, 60));
+    tree = await later(Palette, props);
+    assert.ok(byTestId(tree, "ask-hero"), "the hero stands on a phone");
+    assert.ok(byTestId(byTestId(tree, "ask-hero"), "ask-line-face"), "the three are in the hero, not the band");
+    assert.equal(byTestId(byTestId(tree, "ask-line"), "ask-line-face"), null, "and not in the band");
+    assert.equal(byTestId(tree, "ask-real").props["aria-modal"], "true");
+    await until(() => dialogFocused > 0, "the dialog takes focus on a phone");
+    // A focus of the field would be on the same 30ms timer, set on the first draw: one more 30ms cannot end before it.
+    await new Promise((r) => setTimeout(r, 30));
     assert.equal(focused, 0, "no keyboard of its own: the field is not focused as the takeover opens (S10)");
     assert.equal(dialogFocused, 1, "the dialog is (S10)");
     assert.deepEqual(
@@ -1353,8 +1365,10 @@ test("on a desktop Ask pushes no entry of its own and focuses the field; a place
   globalThis.window.CHANLY.nav = (to) => globalThis.window.appNavigate(to);
   try {
     ask([]);
-    render(Palette, OPEN);
-    let tree = await later(Palette, OPEN);
+    // The field and the dialog are given something to focus on the first draw, before anything awaits: the focus
+    // effect fires on a 30ms timer (useAskFocus), and under load the draws that follow take longer than that, so
+    // something given only after them missed the focus it was there to count. The refs are the same across draws.
+    let tree = render(Palette, OPEN);
     let focused = 0;
     let dialogFocused = 0;
     inputOf(tree).props.ref.current = {
@@ -1367,7 +1381,10 @@ test("on a desktop Ask pushes no entry of its own and focuses the field; a place
         dialogFocused++;
       },
     };
-    await new Promise((r) => setTimeout(r, 60));
+    tree = await later(Palette, OPEN);
+    await until(() => focused > 0, "the field takes focus on a desktop");
+    // A focus of the dialog would be on the same 30ms timer, set on the first draw: one more 30ms cannot end before it.
+    await new Promise((r) => setTimeout(r, 30));
     assert.equal(focused, 1, "the field takes focus on a desktop");
     assert.equal(dialogFocused, 0, "not the dialog");
     assert.equal(byTestId(tree, "ask-hero"), null, "and no hero stands");

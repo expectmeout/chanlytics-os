@@ -86,7 +86,7 @@ const cmd = (over = {}) => ({
 const refused = async (p, code, words) => assert.rejects(p, (e) => e.code === code && words.test(e.message));
 
 test("a person who opted out is refused before anything is paused or queued; so is a thread with no phone", async () => {
-  const { ports, call, ops } = fakes();
+  const { ports, ops } = fakes();
   await refused(replyToConversation(ports, cmd({ conv: conv({ consent: "opted_out" }) })), "conflict", /opt/i);
   assert.deepEqual(ops(), []);
   const bare = fakes();
@@ -95,7 +95,7 @@ test("a person who opted out is refused before anything is paused or queued; so 
 });
 
 test("inside the window: the words go as they are; the thread is paused and claimed BEFORE any row a job could send exists; the draft is withdrawn; the receipt says so", async () => {
-  const { ports, log, call, ops } = fakes();
+  const { ports, call, ops } = fakes();
   const r = await replyToConversation(ports, cmd());
   // takeControl sits between the claim and the withdrawal: the wire asks who is
   // speaking now (00130), and a draft written in the same second still reaches it.
@@ -204,7 +204,7 @@ test("outside the window: only an approved template goes, a promotion needs a ye
     "queued",
     "a yes to offers lets the promotion through",
   );
-  const { ports, log, call } = fakes();
+  const { ports, call } = fakes();
   const r = await replyToConversation(
     ports,
     cmd({
@@ -306,7 +306,7 @@ test("REGRESSION (I6): a template is filled by its own slots, as broadcasts and 
       { label: "Value 3", example: "https://booksy.com/luna-studio", position: 3 },
     ],
   };
-  const { ports, log, call } = fakes({ template: welcome });
+  const { ports, log } = fakes({ template: welcome });
   const r = await replyToConversation(
     ports,
     cmd({ conv: closed, body: { template: { name: "welcome_new", language: "en_US" } } }),
@@ -382,13 +382,13 @@ test("REGRESSION (I6): a template is filled by its own slots, as broadcasts and 
 });
 
 test("a claim that changed no row releases the pause it mirrored and is a 409; nothing was queued", async () => {
-  const { ports, log, call, ops } = fakes({ claimForReply: false });
+  const { ports, ops } = fakes({ claimForReply: false });
   await refused(replyToConversation(ports, cmd()), "conflict", /nothing was sent/);
   assert.deepEqual(ops(), ["claimForReply"], "nothing ran before it, so there is nothing to undo after it");
 });
 
 test("a job that could not be scheduled cancels the row it would have sent, and the error is the caller's", async () => {
-  const { ports, log, call, ops } = fakes({
+  const { ports, log, ops } = fakes({
     schedule: () => {
       throw new Error("queue down");
     },
@@ -733,7 +733,7 @@ function emailFakes(over = {}, email = {}) {
 }
 
 test("a reply by email goes to the address on the person's page; its request is frozen before the thread is claimed, and the row is born with its id and that request", async () => {
-  const { ports, log, call, ops } = emailFakes({ queue: (row) => row.id });
+  const { ports, call, ops } = emailFakes({ queue: (row) => row.id });
   const r = await replyToConversation(ports, cmd({ conv: byEmail(), body: { text: "We can do Saturday at 9." } }));
   assert.deepEqual(
     ops(),

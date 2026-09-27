@@ -6,7 +6,7 @@
  * that has not shown its code with `mfa_required`, which sends the tab to the second step. Every other role is
  * unchanged.
  *
- * Who may reset, and the database's own refusal of the seat (00216), are proved against the stack in
+ * Who may reset, and the database's own refusal of the seat (00218), are proved against the stack in
  * second-factor.db.test.mjs.
  */
 import { test } from "node:test";

@@ -12,6 +12,7 @@ import { normalizeEmail } from "../shared/email-address";
 import { z } from "zod";
 import { MEMBERSHIP_ROLES } from "../shared/enums";
 import { NO_LINK_DETAILS, offersBookingLink, priceNextStep } from "./no-booking-link";
+import { keysLeftOut, refuseUnknownFields } from "./unknown-keys";
 
 /* ---------------------------------------------------------------- E1 roles */
 
@@ -386,7 +387,7 @@ export const HoursSchema = z
      */
     intervals: z.array(IntervalSchema).optional(),
   })
-  .strict();
+  .strip();
 
 /** A plain calendar date in the business's own zone — never an instant. */
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -422,7 +423,7 @@ export const ServiceSchema = z
      */
     price_note: z.string().max(120).optional(),
   })
-  .strict();
+  .strip();
 
 /**
  * The rules that must survive editing.
@@ -445,7 +446,7 @@ export const GuardrailsSchema = z
      */
     no_health_advice: z.boolean().optional(),
   })
-  .strict();
+  .strip();
 
 /**
  * Which rules are in force, with each rule's default applied.
@@ -478,7 +479,7 @@ export const NoteSchema = z
     title: z.string().min(1).max(80),
     text: z.string().min(1).max(1200),
   })
-  .strict();
+  .strip();
 export type Note = z.infer<typeof NoteSchema>;
 
 /**
@@ -506,7 +507,7 @@ export const BookingRulesSchema = z
     /** Anything else about booking, one short line each. */
     notes: z.array(z.string().min(1).max(200)).max(10).optional(),
   })
-  .strict();
+  .strip();
 export type BookingRules = z.infer<typeof BookingRulesSchema>;
 
 /** E.164: a plus, then 7–15 digits, no leading zero. */
@@ -555,7 +556,7 @@ export const BusinessProfileSchema = z
      */
     extra_instructions: z.string().max(INSTRUCTIONS_MAX).optional(),
   })
-  .strict();
+  .strip();
 
 export type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
 export type Hours = z.infer<typeof HoursSchema>;
@@ -610,9 +611,9 @@ export const BrainConfigSchema = z
         /** Sent for voice notes / photos before escalating. */
         non_text: z.string().min(1).max(2000),
       })
-      .strict(),
+      .strip(),
   })
-  .strict();
+  .strip();
 
 export type BrainConfig = z.infer<typeof BrainConfigSchema>;
 
@@ -715,7 +716,7 @@ export const NotificationsConfigSchema = z
     escalation_emails: z.array(z.string().email()).min(1).max(10),
     from: z.string().max(200).optional(),
   })
-  .strict();
+  .strip();
 export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
 
 /**
@@ -723,21 +724,21 @@ export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
  * no brain section is a tenant whose receptionist does not speak (persist +
  * escalate only). Safe-by-default beats a leaked persona.
  *
- * DELIBERATELY NOT `.strict()` AT THE TOP LEVEL, while each SECTION still is.
+ * NOTHING ON THE READ PATH IS `.strict()`, at the top level or in a section.
  *
  * The edge and the dashboard are separate Vercel projects that deploy
- * independently. With a strict top level, the first dashboard deploy to write a
- * new section — `guardrails`, a per-tenant allowlist, anything — would be
+ * independently. With a strict read, the first dashboard deploy to write a new
+ * section or field — `guardrails`, a per-tenant allowlist, anything — would be
  * rejected in its entirety by the older edge still running beside it. The
  * receptionist would go completely silent on a live line, and it would be
  * logged identically to "no brain profile configured": a total mute that reads
- * as a configuration absence.
+ * as a configuration absence. (The sections stayed strict until 27 Sep 2026.)
  *
- * Unknown top-level keys are therefore STRIPPED rather than fatal, so an older
- * edge ignores a section it has never heard of and keeps answering with the
- * persona it does understand. Strictness stays where it catches real mistakes:
- * inside a section, where a typo means a field the runtime silently would not
- * apply.
+ * So an older edge leaves out a key it has never heard of, at any depth, keeps
+ * answering with the persona it does understand, and says what it left out
+ * (parseTenantConfigResult's `ignored`). Strictness stays where it catches real
+ * mistakes: on the way IN (TenantConfigWriteSchema), where a typo inside a
+ * section is refused by name, not saved as a field the runtime never applies.
  */
 /**
  * The calendar the receptionist may READ. An iCal address — what any booking
@@ -752,7 +753,7 @@ export const CalendarConfigSchema = z
       .max(2000)
       .refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address"),
   })
-  .strict();
+  .strip();
 export type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
 
 /**
@@ -762,7 +763,7 @@ export type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
  * answers them like words, under every rule it already follows. Off, a photo
  * is acknowledged and handed to a person, as before.
  */
-export const FeaturesConfigSchema = z.object({ vision: z.boolean().optional() }).strict();
+export const FeaturesConfigSchema = z.object({ vision: z.boolean().optional() }).strip();
 export type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
 
 export const TenantConfigSchema = z.object({
@@ -892,14 +893,8 @@ function checkClosure(c: Closure, n: number, ctx: z.RefinementCtx): void {
   }
 }
 
-/**
- * The same config, with the rules that only apply on the way IN.
- *
- * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
- * lenience stay defined in exactly one place and this can only ever be
- * stricter.
- */
-export const TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+/** The rules only a save has, over the shape the read keeps (TenantConfigWriteSchema). */
+const WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
   // The feed's address: only the public internet, the rule every fetch of it keeps (feed-url.ts).
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
@@ -921,7 +916,21 @@ export const TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx)
   (p.closures ?? []).forEach((c, n) => checkClosure(c, n, ctx));
 });
 
-export type TenantConfigParse = { ok: true; config: TenantConfig } | { ok: false; issues: string[] };
+/**
+ * The same config, with the rules that only apply on the way IN, and none of
+ * the fields inside a section that the read would leave out (unknown-keys.ts).
+ *
+ * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
+ * lenience stay defined in exactly one place and this can only ever be
+ * stricter.
+ */
+export const TenantConfigWriteSchema = z
+  .unknown()
+  .superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx))
+  .pipe(WriteRules);
+
+/** A config as read, with the keys it left out (`ignored`, dotted paths); or why it could not be read at all. */
+export type TenantConfigParse = { ok: true; config: TenantConfig; ignored: string[] } | { ok: false; issues: string[] };
 
 /**
  * Parse unknown JSONB into TenantConfig.
@@ -934,7 +943,7 @@ export type TenantConfigParse = { ok: true; config: TenantConfig } | { ok: false
  */
 export function parseTenantConfigResult(raw: unknown): TenantConfigParse {
   const r = TenantConfigSchema.safeParse(raw ?? {});
-  if (r.success) return { ok: true, config: r.data };
+  if (r.success) return { ok: true, config: r.data, ignored: keysLeftOut(raw, r.data).map((p) => p.join(".")) };
   return {
     ok: false,
     issues: r.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`),

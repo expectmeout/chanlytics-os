@@ -40,6 +40,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // 'notes', the sweep that suggests a note from a finished conversation.
   // 00197 added 'reach_out_check', the check before each cold email.
   // 00203 added 'partners', the sweep that makes a partner's held earnings payable.
+  // 00215 added 'purge_jobs', the nightly purge of the ledger's finished rows.
   assert.deepEqual(
     data.map((r) => r.sweep),
     [
@@ -60,6 +61,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
       "purge_ask",
       "purge_cron_history",
       "purge_events",
+      "purge_jobs",
       "purge_leads",
       "purge_notifications",
       "purge_rate_hits",
@@ -128,6 +130,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
     "purge_ask",
     "purge_cron_history",
     "purge_events",
+    "purge_jobs",
     "purge_leads",
     "purge_notifications",
     "purge_rate_hits",

@@ -61,7 +61,7 @@ async function memberClient(role, tenant) {
   const client = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
   const s = await client.auth.signInWithPassword({ email, password });
   assert.equal(s.error, null, s.error?.message);
-  // A partner's seat reads nothing until the session shows its second factor (0013, 00216); this matrix is about
+  // A partner's seat reads nothing until the session shows its second factor (0013, 00218); this matrix is about
   // what each role reads once it may, so the partner's session has.
   if (role === "partner") await showSecondFactor(client);
   return { client, userId: made.data.user.id };

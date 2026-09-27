@@ -1,7 +1,9 @@
 # 0013 · A partner signs in with a second factor
 
-**Status:** decided. M1 and M2 built (00215, #1192); M3 built (00216) on `76d28c6d` (main, after #1192), and merged
-only once TOTP is switched on in the hosted project (M0). Written against commit `c1cce84a` (main, 27 September 2026). Ruben answered the open questions: no grace (M3 refuses from its first
+**Status:** decided. M1 and M2 built (00217, #1192); M3 built (00218, #1195) on `76d28c6d` (main, after #1192), and
+merged only once TOTP is switched on in the hosted project (M0). Both merged as 00215 and 00216, numbers production
+had already recorded for #1175's purge and throttle, and #1175 renumbered them. Written against commit `c1cce84a`
+(main, 27 September 2026). Ruben answered the open questions: no grace (M3 refuses from its first
 day), and partners only (owners are not offered a factor here). Where this note and the code disagree, the code wins.
 
 ## Context
@@ -68,7 +70,7 @@ Each shippable on its own, in either deploy order.
   the QR code and the key; the first code turns it on. A setup begun and never finished is cleared before the next.
   Supabase does not say ahead of time whether the project allows TOTP, so the row appears, and a project with it
   switched off says so when setup is pressed. A read that fails says so; it is never shown as off.
-- **The reset (00215)** is `POST platform/partners/second-factor` (rate `platform_partner_second_factor`, 10 an
+- **The reset (00217)** is `POST platform/partners/second-factor` (rate `platform_partner_second_factor`, 10 an
   hour), a button on the partner's first line in the back office. `partner_second_factor_reset` checks the caller,
   keeps who, when and why on the partner (`second_factor_reset_at`, `_by`, `_why`) and writes `platform.acted` on
   each workspace the partner sits on, before the dashboard's service client removes the factors in Supabase Auth.
@@ -87,7 +89,7 @@ Each shippable on its own, in either deploy order.
   past the second step, so no tab is ever shown the workspaces its seat cannot open. Their own workspaces, as an owner,
   answer as ever at every other door.
 - **The floor is wider than decision 2 said, and on purpose.** Beside `is_acting_member` and `caller_has_permission`,
-  00216 adds a restrictive read policy on `memberships`: a caller's own partner seat is not visible until the session
+  00218 adds a restrictive read policy on `memberships`: a caller's own partner seat is not visible until the session
   shows its code. Every row policy that reads "the caller's workspaces" through `memberships` (47 of them on 27
   September 2026: the tenants, threads, people and the rest) stops seeing that workspace with it, so a stolen password
   cannot read the businesses a partner brought through the database's own API either. `is_acting_member` says so

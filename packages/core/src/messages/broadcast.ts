@@ -1,9 +1,11 @@
 import {
   BROADCAST_CHUNK,
   BROADCAST_GAP_MS,
+  BROADCAST_THROTTLE_WAITS_MS,
   OUTCOME_UNKNOWN,
   firstNameOf,
   isReachOutRun,
+  nextOpenMoment,
   parseParamSpecs,
   purposeOfTemplate,
   renderTemplate,
@@ -108,7 +110,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // What fills each slot: typed text once, the rest per person. The
   // workspace's own words for the slots that name it are read once.
   const specs = parseParamSpecs(b.params);
-  const { businessName, bookingLink } = await ports.facts();
+  const { businessName, bookingLink, timezone } = await ports.facts();
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
 
   // The people on the batch and what they were already sent, read once for
@@ -136,8 +138,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   };
   const skip = (contactId: string, reason: string) => mark(contactId, { state: "skipped", reason });
 
-  /** One person, to the wire and back. "stop" when the run cannot go on past them. */
-  const one = async (r: RecipientRow): Promise<"go on" | "stop"> => {
+  /** One person, to the wire and back. "stop" when the run cannot go on past them; "wait" when WhatsApp said not now. */
+  const one = async (r: RecipientRow): Promise<"go on" | "stop" | "wait"> => {
     const c = people.get(r.contact_id) ?? null;
     if (!c || c.erased_at) {
       await skip(r.contact_id, "erased");
@@ -247,24 +249,13 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       await skip(r.contact_id, out.reason);
       return "go on";
     }
+    if (out.throttled) {
+      await releaseThrottled(ports, b.id, r.contact_id);
+      return "wait";
+    }
     await mark(r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
     if (!wireIsDown(out)) return "go on";
-    // The wire, not the person: the run stops here and says so, rather than
-    // burning everyone still queued as refused and ending as "sent".
-    const cause =
-      out.reason === "no_credentials"
-        ? "the number is not connected"
-        : out.reason === "no_sender_for_channel"
-          ? "this runtime has no WhatsApp wire"
-          : `WhatsApp answered HTTP ${out.status}`;
-    await ports.fail(b.id, "wire_unavailable");
-    await ports.alert({
-      kind: "broadcast_stopped",
-      route: "broadcasts",
-      about: { type: "broadcast", id: b.id },
-      subject: `Broadcast “${b.name}” stopped`,
-      body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings › Channels and send it again.`,
-    });
+    await stopForTheWire(ports, b, out);
     return "stop";
   };
 
@@ -280,7 +271,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     // batch rather than guessing; and one person's failure is never the
     // batch's: the people after them are still reached. The door itself is
     // the exception (ThrownAtTheDoor).
-    let verdict: "go on" | "stop";
+    let verdict: "go on" | "stop" | "wait";
     try {
       verdict = await one(r);
     } catch (e) {
@@ -289,6 +280,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       continue;
     }
     if (verdict === "stop") return;
+    if (verdict === "wait") return backOff(ports, b, cmd, timezone);
     // A breath between two sends, none after the last: the next batch is a job away.
     if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
@@ -316,5 +308,75 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     about: { type: "broadcast", id: b.id },
     subject: `Broadcast “${b.name}” sent`,
     body: `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`,
+  });
+}
+
+/**
+ * The wire, not the person: the run stops here and says so, rather than burning everyone still queued as refused and
+ * ending as "sent".
+ */
+async function stopForTheWire(
+  ports: BroadcastBatchPorts,
+  b: { id: string; name: string },
+  out: Extract<Delivered, { outcome: "failed" }>,
+): Promise<void> {
+  const cause =
+    out.reason === "no_credentials"
+      ? "the number is not connected"
+      : out.reason === "no_sender_for_channel"
+        ? "this runtime has no WhatsApp wire"
+        : `WhatsApp answered HTTP ${out.status}`;
+  await ports.fail(b.id, "wire_unavailable");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast “${b.name}” stopped`,
+    body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings › Channels and send it again.`,
+  });
+}
+
+/**
+ * WhatsApp said "not now" before it took the message (channels graphThrottled): nothing left, so the claim is released
+ * as throttled (00216) and this person waits in the queue with everyone after them, rather than be burned as refused
+ * with the rest of the list behind them. Every other failure keeps its claim: a timeout or a 5xx may have been taken
+ * all the same. A database without 00216 refuses the release; the run waits all the same, and this one person keeps
+ * the claim, which is what every throttled person got before.
+ */
+async function releaseThrottled(ports: BroadcastBatchPorts, broadcastId: string, contactId: string): Promise<void> {
+  await ports
+    .mark(broadcastId, contactId, { state: "queued", reason: "throttled", message_id: null })
+    .catch((e: unknown) => {
+      console.error("broadcast_release_refused", contactId, e instanceof Error ? e.message : String(e));
+    });
+}
+
+/**
+ * WhatsApp is limiting the number: the batch stops where it is, and the run tries again after its next wait
+ * (BROADCAST_THROTTLE_WAITS_MS), carrying the count. Past the last wait, or when the next try would fall outside the
+ * day's sending hours, it stops and says why instead: a run waiting into the night would send tomorrow the words
+ * written for today, which is why a late approval is refused too.
+ */
+async function backOff(
+  ports: BroadcastBatchPorts,
+  b: { id: string; name: string },
+  cmd: BroadcastBatchCommand,
+  timezone: string,
+): Promise<void> {
+  const waited = cmd.waits ?? 0;
+  const wait = BROADCAST_THROTTLE_WAITS_MS[waited];
+  const at = wait === undefined ? null : new Date(ports.now() + wait);
+  if (at && !nextOpenMoment(timezone, at).moved) {
+    await ports.scheduleNext(b.id, at, waited + 1);
+    return;
+  }
+  const { sent } = await ports.tally(b.id);
+  await ports.fail(b.id, "throttled");
+  await ports.alert({
+    kind: "broadcast_stopped",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast “${b.name}” stopped`,
+    body: `WhatsApp kept limiting how fast this number may send ${at ? "until the day's sending hours ran out" : "for about an hour"}, so the rest was not sent. ${sent === 0 ? "Nobody got it" : sent === 1 ? "One person got it" : `${sent} people got it`}. WhatsApp lifts these limits on its own; send it again later.`,
   });
 }

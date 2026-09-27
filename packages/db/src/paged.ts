@@ -62,3 +62,38 @@ export async function readAllRows<T>(
   onCapped(what, cap);
   return out;
 }
+
+/**
+ * Every row the query matches, each page read after the last row of the one before.
+ *
+ * `readAllRows` pages by offset, which is exact only while nothing is deleted:
+ * a row removed during the read moves every later row back one place, and the
+ * row that crosses the page boundary is never read. A read that must see every
+ * row of a table something deletes from pages by key instead. `page(after, size)`
+ * must order by the column `key` reads, which must be unique, and return at most
+ * `size` rows past `after` (from the first row when `after` is null). Rows added
+ * or removed during the read then cost nothing but themselves. Errors and the cap
+ * behave as in `readAllRows`.
+ */
+export async function readAllRowsByKey<T>(
+  what: string,
+  key: (row: T) => string,
+  page: (after: string | null, size: number) => PromiseLike<Page<T>>,
+  cap = DEFAULT_ROW_CAP,
+  onCapped: (what: string, cap: number) => void = (w, c) =>
+    console.error("paged_read_capped", JSON.stringify({ what: w, cap: c })),
+): Promise<T[]> {
+  const out: T[] = [];
+  let after: string | null = null;
+  while (out.length < cap) {
+    const size = Math.min(MAX_ROWS, cap - out.length);
+    const { data, error } = await page(after, size);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < size) return out;
+    after = key(rows[rows.length - 1]);
+  }
+  onCapped(what, cap);
+  return out;
+}
