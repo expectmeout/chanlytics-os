@@ -5,7 +5,8 @@
 -- owner names the partner by their code, and the partner accepts, on a session that showed its second factor (0013).
 -- Credit follows who brings the paying customer: a workspace that has never paid credits the partner who joins it as
 -- if they had brought it, and one that was already paying seats them with no share, recorded as the standing
--- 'disqualified' with its reason in words, which a platform admin may change as for any other (00207).
+-- 'disqualified' with its reason in words, which a platform admin may change as for any other (00207). A payment is
+-- a last_paid_at from the trial's end on: the edge stamped a trial's $0 first invoice until this change.
 --
 --   partner_invitations          one open invitation per workspace: to which partner, by whom, open fourteen days,
 --                                declined when. Written only through the functions below.
@@ -18,6 +19,12 @@
 --   partner_invite_decline       the partner says no; the owner sees it and may ask another.
 --   partner_earnings_sweep       holds for review an invitation asked from the partner's own company domain, as
 --                                00214 holds a handover accepted from it; partner_tenants.invited_by keeps who asked.
+--   partner_invitations_lapse    a partner who stops being active loses the invitations waiting for them.
+--   partner_letters_due          00214's letter, leaving out the standing decided as a partner joined.
+--   platform_partner_workspaces  00205's back office list, with the origin, and 'joining' beside the sweep and a person.
+--
+-- An invitation stands while the owner who sent it is an owner of the workspace. Either deploy order: the old
+-- dashboard reads none of this, and the new one says a function it cannot find is not there yet.
 
 -- ------------------------------------------------------------------------------------------- the invitations
 
@@ -87,15 +94,15 @@ begin
     raise exception 'This workspace already has a partner.' using errcode = '55000';
   end if;
   select p.* into v_partner from public.partners p where p.code = v_code;
-  if v_partner.id is null then
-    raise exception 'No partner has that code. Check it with them: it is the end of their link.' using errcode = 'P0002';
+  -- One refusal for a code that names nobody and one whose partner is paused or closed: which codes exist is not the
+  -- caller's to learn a code at a time, as the /p/ page answers every code alike (0012).
+  if v_partner.id is null or v_partner.status <> 'active' then
+    raise exception 'No active partner has that code. Check it with them: it is the end of their link.'
+      using errcode = 'P0002';
   end if;
   if v_partner.user_id = v_user then
     raise exception 'That is your own partner code: a partner is someone else who works with you.'
       using errcode = '22023';
-  end if;
-  if v_partner.status <> 'active' then
-    raise exception 'That partner cannot take on a workspace right now.' using errcode = '55000';
   end if;
   if exists (select 1 from public.memberships m
               where m.tenant_id = p_tenant and m.user_id = v_partner.user_id and m.role = 'owner') then
@@ -108,6 +115,11 @@ begin
     set partner_id = excluded.partner_id, invited_by = excluded.invited_by, sent_at = excluded.sent_at,
         expires_at = excluded.expires_at, declined_at = null
   returning * into v_row;
+  -- Asked while the partner was joining: their accept held this row, took the seat and removed the invitation, and
+  -- the insert above then wrote a new one for a workspace that has its partner now.
+  if exists (select 1 from public.partner_tenants pt where pt.tenant_id = p_tenant) then
+    raise exception 'This workspace already has a partner.' using errcode = '55000';
+  end if;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant, 'partner.invited', 'workspace', 'tenant', p_tenant,
           jsonb_build_object('partner_id', v_partner.id, 'by', v_user));
@@ -115,7 +127,7 @@ begin
 end $$;
 
 comment on function public.partner_invite(uuid, text) is
-  'The workspace''s owner asks the partner with this code to join it (0018), for fourteen days; a second invitation replaces the first. Refused when the workspace has a partner, the code names nobody active, or it is the caller''s own.';
+  'The workspace''s owner asks the partner with this code to join it (0018), for fourteen days; a second invitation replaces the first. Refused when the workspace has a partner, the code names nobody active (one refusal, whichever), or it is the caller''s own.';
 
 revoke execute on function public.partner_invite(uuid, text) from public, anon;
 grant execute on function public.partner_invite(uuid, text) to authenticated;
@@ -175,9 +187,13 @@ begin
     into v_link
     from public.partner_tenants pt join public.partners p on p.id = pt.partner_id
    where pt.tenant_id = p_tenant;
+  -- An invitation stands while the owner who sent it is an owner here (partner_invite_accept): one they no longer are
+  -- is waiting for nobody, and asking again replaces it.
   select p.code, i.sent_at, i.expires_at, i.declined_at into v_open
     from public.partner_invitations i join public.partners p on p.id = i.partner_id
-   where i.tenant_id = p_tenant;
+   where i.tenant_id = p_tenant
+     and exists (select 1 from public.memberships m
+                  where m.tenant_id = i.tenant_id and m.user_id = i.invited_by and m.role = 'owner');
   return jsonb_build_object(
     'partner', case when v_link.code is null then null
                     else jsonb_build_object('code', v_link.code, 'origin', v_link.origin, 'since', v_link.since,
@@ -208,14 +224,17 @@ as $$
     join public.partner_invitations i on i.partner_id = p.id
     join public.tenants t on t.id = i.tenant_id
    where p.user_id = auth.uid()
+     and p.status = 'active'
      and i.declined_at is null
      and i.expires_at > now()
      and not exists (select 1 from public.partner_tenants pt where pt.tenant_id = i.tenant_id)
+     and exists (select 1 from public.memberships m
+                  where m.tenant_id = i.tenant_id and m.user_id = i.invited_by and m.role = 'owner')
    order by i.sent_at
 $$;
 
 comment on function public.partner_invitations_mine() is
-  'The open invitations (0018) to the calling partner: which workspace asked, when, and until when. The partner pane reads it.';
+  'The invitations (0018) the calling partner can join: open, unanswered, from an owner who still is one, to a workspace with no partner, while the partner is active. Which workspace asked, when, and until when; the partner pane reads it.';
 
 revoke execute on function public.partner_invitations_mine() from public, anon;
 grant execute on function public.partner_invitations_mine() to authenticated;
@@ -264,14 +283,23 @@ begin
   if public.is_workspace_owner(p_tenant) then
     raise exception 'You own this workspace, so you cannot be its partner.' using errcode = '55000';
   end if;
+  -- An invitation stands while the owner who sent it is an owner here: one who left the team, was made something
+  -- else, or deleted their account asks nobody now, and a workspace its owner left has no one to answer to.
+  if v_row.invited_by is null or not exists (
+       select 1 from public.memberships m
+        where m.tenant_id = p_tenant and m.user_id = v_row.invited_by and m.role = 'owner') then
+    raise exception 'The owner who asked you is no longer its owner. Ask the workspace to send it again.'
+      using errcode = '55000';
+  end if;
 
-  -- Credit follows who brings the paying customer: a workspace that has paid before, or pays outside Stripe, was not
-  -- brought by this partner. The standing says so, as a person's decision would, and a platform admin may change it.
-  -- last_paid_at alone is not proof: before the edge stopped stamping it for a $0 invoice, a trial's first invoice
-  -- set it too, so a workspace still in its trial (or never subscribed) has not paid, whatever it says.
+  -- Credit follows who brings the paying customer: a workspace that has paid for its plan, or pays outside Stripe,
+  -- was not brought by this partner. The standing says so, marked as decided when they joined, and a platform admin
+  -- may change it. A payment is a last_paid_at from the trial's end on: until this change the edge stamped a trial's
+  -- $0 first invoice too, at the trial's start, before the trial_end Stripe keeps on the row after a cancel; a
+  -- workspace with no trial on record has no such stamp to discount.
   select coalesce(b.mode = 'direct'
                   or (b.last_paid_at is not null
-                      and b.status not in ('none', 'trialing', 'incomplete', 'incomplete_expired')), false)
+                      and b.last_paid_at >= coalesce(b.trial_end, '-infinity'::timestamptz)), false)
     into v_paying
     from public.billing_accounts b where b.tenant_id = p_tenant;
   v_paying := coalesce(v_paying, false);
@@ -279,15 +307,25 @@ begin
   -- Someone already on the team (an operator, a viewer) becomes its partner: the owner asked for exactly them, and the
   -- event keeps the role they had.
   select m.role into v_was from public.memberships m where m.tenant_id = p_tenant and m.user_id = v_user;
+  -- Never an owner's seat: one made an owner since the check above keeps it, and joins nothing.
   insert into public.memberships (tenant_id, user_id, role)
   values (p_tenant, v_user, 'partner')
-  on conflict (user_id, tenant_id) do update set role = 'partner';
+  on conflict (user_id, tenant_id) do update set role = 'partner' where memberships.role <> 'owner';
+  if not found then
+    raise exception 'You own this workspace, so you cannot be its partner.' using errcode = '55000';
+  end if;
   insert into public.partner_tenants
-    (tenant_id, partner_id, code_used, origin, invited_by, standing, standing_why, standing_at)
+    (tenant_id, partner_id, code_used, origin, invited_by, standing, standing_why, standing_at, checks)
   values (p_tenant, v_partner.id, v_partner.code, 'invite', v_row.invited_by,
           case when v_paying then 'disqualified' end,
           case when v_paying then 'It was already paying for its plan when the partner joined, so it earns no share.' end,
-          case when v_paying then now() end);
+          case when v_paying then now() end,
+          case when v_paying then jsonb_build_object('already_paying', true) else '{}'::jsonb end);
+  if v_paying then
+    insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
+    values (p_tenant, 'partner.standing_set', 'billing', 'tenant', p_tenant,
+            jsonb_build_object('partner_id', v_partner.id, 'standing', 'disqualified', 'by', 'joining'));
+  end if;
   delete from public.partner_invitations i where i.tenant_id = p_tenant;
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (p_tenant, 'partner.invite_accepted', 'workspace', 'tenant', p_tenant,
@@ -454,3 +492,269 @@ begin
   return jsonb_build_object('judged', v_judged, 'review', v_review, 'payable', v_payable, 'void', v_void,
                             'forgot', v_forgot);
 end $$;
+
+-- ------------------------------------------------------------------------------ a partner who cannot answer
+
+-- A partner paused, closed or erased cannot join anything (partner_invite_accept), so the invitations waiting for them
+-- go: the owner's card stops saying it waits, and the owner may ask someone else. A declined one stays for the owner
+-- to read.
+create or replace function public.partner_invitations_lapse() returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.partner_invitations i where i.partner_id = new.id and i.declined_at is null;
+  return new;
+end $$;
+
+-- A definer function is not a session's to call, trigger or not (00132; privileges.db.test.mjs).
+revoke execute on function public.partner_invitations_lapse() from public, anon, authenticated;
+
+drop trigger if exists partners_invitations_lapse on public.partners;
+create trigger partners_invitations_lapse
+  after update of status on public.partners
+  for each row when (old.status = 'active' and new.status <> 'active')
+  execute function public.partner_invitations_lapse();
+
+comment on function public.partner_invitations_lapse() is
+  'A partner who stops being active (paused, closed) loses the invitations waiting for them (0018): they could not join, and the owners who asked may ask someone else.';
+
+-- -------------------------------------------------------------------------------- the partner's daily letter
+
+-- 00214's letter, with one thing left out: the standing decided as a partner joined a workspace that was already
+-- paying. They were told when they joined, and the letter's "a workspace you brought" is not what happened.
+create or replace function public.partner_letters_due(p_now timestamptz default now())
+returns table (
+  partner_id  uuid,
+  email       text,
+  code        text,
+  status      text,
+  since       timestamptz,
+  through     timestamptz,
+  news        jsonb
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with who as (
+    select p.id, u.email::text as email, p.code, p.status, p.status_why, p.status_at, p.written_through as since
+      from public.partners p
+      join auth.users u on u.id = p.user_id
+     where p.letters
+       and p.written_through < p_now
+       and coalesce(u.email, '') <> ''
+       -- A closed partner hears one thing more: that they were closed.
+       and (p.status <> 'closed' or p.status_at > p.written_through)
+  ),
+  written as (
+    select w.id,
+           coalesce(jsonb_agg(jsonb_build_object('kind', e.kind, 'currency', e.currency,
+                                                 'count', e.n, 'cents', e.cents)
+                              order by e.kind, e.currency) filter (where e.kind is not null), '[]') as rows
+      from who w
+      left join lateral (
+        select x.kind, x.currency, count(*)::int as n, sum(x.earned_cents)::bigint as cents
+          from public.partner_earnings x
+         where x.partner_id = w.id and x.created_at > w.since and x.created_at <= p_now and x.state <> 'void'
+         group by x.kind, x.currency
+      ) e on true
+     group by w.id
+  ),
+  matured as (
+    -- Rows that were written before the last letter and became payable since: the thirty days, or a person's yes.
+    select w.id,
+           coalesce(jsonb_agg(jsonb_build_object('currency', m.currency, 'cents', m.cents)
+                              order by m.currency) filter (where m.currency is not null), '[]') as rows
+      from who w
+      left join lateral (
+        select x.currency, sum(x.earned_cents)::bigint as cents
+          from public.partner_earnings x
+         where x.partner_id = w.id and x.state = 'payable'
+           and x.created_at <= w.since and x.updated_at > w.since and x.updated_at <= p_now
+         group by x.currency
+      ) m on true
+     group by w.id
+  ),
+  voided as (
+    select w.id,
+           coalesce(jsonb_agg(jsonb_build_object('currency', v.currency, 'cents', v.cents)
+                              order by v.currency) filter (where v.currency is not null), '[]') as rows
+      from who w
+      left join lateral (
+        select x.currency, sum(x.earned_cents)::bigint as cents
+          from public.partner_earnings x
+         where x.partner_id = w.id and x.state = 'void' and x.earned_cents > 0
+           and x.updated_at > w.since and x.updated_at <= p_now
+         group by x.currency
+      ) v on true
+     group by w.id
+  ),
+  paid as (
+    select w.id,
+           coalesce(jsonb_agg(jsonb_build_object('currency', o.currency, 'cents', o.total_cents,
+                                                 'reference', o.reference, 'sent_at', o.sent_at)
+                              order by o.sent_at) filter (where o.id is not null), '[]') as rows
+      from who w
+      left join public.partner_payouts o
+        on o.partner_id = w.id and o.sent_at > w.since and o.sent_at <= p_now
+     group by w.id
+  ),
+  standing as (
+    -- A workspace held for review, or a person's decision on one. The sweep's own "qualified" is the ordinary path,
+    -- not news; a person's is the answer to a review.
+    select w.id,
+           coalesce(jsonb_agg(jsonb_build_object('workspace', t.name, 'standing', pt.standing,
+                                                 'why', case when pt.standing_by is not null then pt.standing_why end)
+                              order by pt.standing_at) filter (where pt.tenant_id is not null), '[]') as rows
+      from who w
+      left join public.partner_tenants pt
+        on pt.partner_id = w.id and pt.standing_at > w.since and pt.standing_at <= p_now
+       and (pt.standing in ('review', 'disqualified') or pt.standing_by is not null)
+       -- Decided as the partner joined at an invitation (0018): they were told then, as they know a handover they made.
+       and not (pt.standing_by is null and pt.checks ? 'already_paying')
+      left join public.tenants t on t.id = pt.tenant_id
+     group by w.id
+  ),
+  brought as (
+    select w.id,
+           coalesce(jsonb_agg(t.name order by pt.attributed_at) filter (where pt.tenant_id is not null), '[]') as rows
+      from who w
+      left join public.partner_tenants pt
+        on pt.partner_id = w.id and pt.origin = 'link'
+       and pt.attributed_at > w.since and pt.attributed_at <= p_now
+      left join public.tenants t on t.id = pt.tenant_id
+     group by w.id
+  ),
+  -- A handover is news when its owner answers it (0016), not when the partner made it: they know that already.
+  accepted as (
+    select w.id,
+           coalesce(jsonb_agg(t.name order by pt.handover_accepted_at) filter (where pt.tenant_id is not null), '[]')
+             as rows
+      from who w
+      left join public.partner_tenants pt
+        on pt.partner_id = w.id and pt.origin = 'handover'
+       and pt.handover_accepted_at > w.since and pt.handover_accepted_at <= p_now
+      left join public.tenants t on t.id = pt.tenant_id
+     group by w.id
+  ),
+  declined as (
+    select w.id,
+           coalesce(jsonb_agg(t.name order by pt.handover_declined_at) filter (where pt.tenant_id is not null), '[]')
+             as rows
+      from who w
+      left join public.partner_tenants pt
+        on pt.partner_id = w.id and pt.origin = 'handover'
+       and pt.handover_declined_at > w.since and pt.handover_declined_at <= p_now
+      left join public.tenants t on t.id = pt.tenant_id
+     group by w.id
+  ),
+  now_stand as (
+    select w.id,
+           coalesce(jsonb_agg(jsonb_build_object('currency', b.currency, 'held', b.held, 'payable', b.payable,
+                                                 'paid', b.paid, 'next_payable_at', b.next_at)
+                              order by b.currency) filter (where b.currency is not null), '[]') as rows
+      from who w
+      left join lateral (
+        select x.currency,
+               coalesce(sum(x.earned_cents) filter (where x.state = 'held'), 0)::bigint as held,
+               coalesce(sum(x.earned_cents) filter (where x.state = 'payable'), 0)::bigint as payable,
+               coalesce(sum(x.earned_cents) filter (where x.state = 'paid'), 0)::bigint as paid,
+               min(x.payable_at) filter (where x.state = 'held') as next_at
+          from public.partner_earnings x
+         where x.partner_id = w.id and x.state <> 'void'
+         group by x.currency
+      ) b on true
+     group by w.id
+  )
+  select w.id, w.email, w.code, w.status, w.since, p_now,
+         jsonb_build_object(
+           'written', wr.rows,
+           'matured', m.rows,
+           'voided', v.rows,
+           'paid', pd.rows,
+           'standing', s.rows,
+           'brought', br.rows,
+           'accepted', ac.rows,
+           'declined', dc.rows,
+           'status', case when w.status_at > w.since and w.status_at <= p_now
+                          then jsonb_build_object('status', w.status, 'why', w.status_why) end,
+           'balance', ns.rows)
+    from who w
+    join written wr on wr.id = w.id
+    join matured m on m.id = w.id
+    join voided v on v.id = w.id
+    join paid pd on pd.id = w.id
+    join standing s on s.id = w.id
+    join brought br on br.id = w.id
+    join accepted ac on ac.id = w.id
+    join declined dc on dc.id = w.id
+    join now_stand ns on ns.id = w.id
+   where jsonb_array_length(wr.rows) > 0
+      or jsonb_array_length(m.rows) > 0
+      or jsonb_array_length(v.rows) > 0
+      or jsonb_array_length(pd.rows) > 0
+      or jsonb_array_length(s.rows) > 0
+      or jsonb_array_length(br.rows) > 0
+      or jsonb_array_length(ac.rows) > 0
+      or jsonb_array_length(dc.rows) > 0
+      or (w.status_at > w.since and w.status_at <= p_now)
+   order by w.id
+$$;
+
+comment on function public.partner_letters_due(timestamptz) is
+  'For the edge alone (0014): each partner with letters on, an address, and a change to their ledger since written_through -- shares and reversals written, shares that became payable or void, payouts sent, workspaces brought through the link, handovers accepted or declined, held for review or decided by a person (not what was decided as they joined a workspace that asked them, 0018), their own status -- with where they stand now.';
+
+revoke execute on function public.partner_letters_due(timestamptz) from public, anon, authenticated;
+grant execute on function public.partner_letters_due(timestamptz) to service_role;
+
+-- ---------------------------------------------------------------------------------------------- back office
+
+-- 00205's list, with how each partner came (the origin) and a third answer to who decided the standing: 'joining',
+-- the rule 0018 applies as a partner joins a workspace that was already paying, which is neither the nightly check nor
+-- a person. The columns change, so the function is made again.
+drop function if exists public.platform_partner_workspaces();
+create function public.platform_partner_workspaces()
+returns table (
+  tenant_id      uuid,
+  partner_id     uuid,
+  code           text,
+  attributed_at  timestamptz,
+  standing       text,
+  standing_why   text,
+  standing_at    timestamptz,
+  decided_by     text,
+  checks         jsonb,
+  origin         text
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_platform_admin() then
+    raise exception 'Not a Chanlytics platform admin.' using errcode = '42501';
+  end if;
+  return query
+  select pt.tenant_id, pt.partner_id, p.code, pt.attributed_at, pt.standing, pt.standing_why, pt.standing_at,
+         case when pt.standing is null then null
+              when pt.standing_by is not null then 'person'
+              when pt.checks ? 'already_paying' then 'joining'
+              else 'sweep' end,
+         pt.checks, pt.origin
+    from public.partner_tenants pt
+    join public.partners p on p.id = pt.partner_id
+   order by (pt.standing = 'review') desc nulls last, pt.attributed_at desc;
+end $$;
+
+comment on function public.platform_partner_workspaces() is
+  'Who brought each workspace, how (link, handover or invite), and its standing with who decided it (the nightly check, a person, or the rule as the partner joined), for the back office (0012, P5; 0018). Platform admins only.';
+
+revoke execute on function public.platform_partner_workspaces() from public, anon;
+grant execute on function public.platform_partner_workspaces() to authenticated;
+
+comment on table public.partner_tenants is
+  'Which partner brought this workspace (0012), one row per workspace and never moved to another partner: through their link when it was made, set up and handed over (0016), or asked for by its owner (0018), as origin says. standing is what the sweep, a person, or the rule as an invited partner joined decided about it; null until one has.';

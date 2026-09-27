@@ -2,12 +2,15 @@
  * An existing workspace brings in a partner (decision 0018, 00222), against the replayed stack: only the owner asks,
  * by a code that names an active partner who is someone else; the partner answers, joining only on a session that
  * showed its second factor; joining seats them as partner and credits them, earning from a workspace that had never
- * paid and not from one that was already paying; a declined or withdrawn invitation is the owner's to see and ask
- * again; and a workspace with a partner asks no second. Skips without a local database.
+ * paid and not from one that was already paying, judged against the trial's end; a declined or withdrawn invitation
+ * is the owner's to see and ask again; a workspace with a partner asks no second; an invitation stands while its
+ * sender is an owner and its partner is active; and a join-time decision is said as one, never as the nightly
+ * check's, and is not the partner's letter's news. Skips without a local database.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { DAY_MS } from "@chanlytics/contracts";
 import { showSecondFactor } from "../_second-factor.mjs";
 
 const URL_ = process.env.SUPABASE_URL;
@@ -37,6 +40,15 @@ let operator;
 let fresh; // a workspace that has never paid
 let paying; // a workspace that already pays
 let trial; // a workspace in its trial, whose $0 first invoice was once stamped as a payment
+let cancelled; // cancelled in its trial: the $0 stamp, from before the edge stopped writing it, before the trial's end
+let forgotten; // paid for months, then Stripe deleted its customer: no status, no trial on record, the payment kept
+let shared; // two owners, one of whom asks and is then made an operator
+let lapseA; // asks a partner who is then paused
+let lapseB; // asks the same partner, who declines first
+let coOwner;
+let sleeper; // a second partner, paused by the platform
+let admin;
+const ago = (days) => new Date(Date.now() - days * DAY_MS).toISOString();
 
 async function signIn(email, password) {
   const client = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -84,6 +96,27 @@ before(async () => {
       .upsert({ tenant_id: trial, status: "trialing", last_paid_at: new Date().toISOString() }),
   );
   ok(await db.from("memberships").insert({ tenant_id: fresh, user_id: operator.userId, role: "operator" }));
+  coOwner = await person("coowner");
+  admin = await person("admin");
+  sleeper = await person("sleeper", { factor: true });
+  sleeper.code = `iz-${Math.random().toString(36).slice(2, 8)}`;
+  sleeper.id = ok(await sleeper.client.rpc("partner_become", { p_code: sleeper.code })).id;
+  cancelled = await workspace("Cancelled Shop");
+  ok(
+    await db
+      .from("billing_accounts")
+      .upsert({ tenant_id: cancelled, status: "canceled", last_paid_at: ago(30), trial_end: ago(16) }),
+  );
+  forgotten = await workspace("Forgotten Shop");
+  ok(
+    await db
+      .from("billing_accounts")
+      .upsert({ tenant_id: forgotten, status: "none", last_paid_at: ago(60), trial_end: null }),
+  );
+  shared = await workspace("Shared Shop");
+  ok(await db.from("memberships").insert({ tenant_id: shared, user_id: coOwner.userId, role: "owner" }));
+  lapseA = await workspace("Lapse A");
+  lapseB = await workspace("Lapse B");
 });
 
 after(async () => {
@@ -93,7 +126,8 @@ after(async () => {
     await db.from("partner_tenants").delete().eq("tenant_id", id);
     await db.from("tenants").delete().eq("id", id);
   }
-  if (partner?.id) await db.from("partners").delete().eq("id", partner.id);
+  if (admin?.userId) await db.from("platform_admins").delete().eq("user_id", admin.userId);
+  for (const p of [partner, sleeper]) if (p?.id) await db.from("partners").delete().eq("id", p.id);
   for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
 });
 
@@ -208,5 +242,101 @@ test(
     assert.equal(joined.earns, true);
     const [link] = ok(await db.from("partner_tenants").select("standing, invited_by").eq("tenant_id", trial));
     assert.deepEqual(link, { standing: null, invited_by: owner.userId }, "judged by the nightly check, who asked kept");
+  },
+);
+
+test(
+  "a workspace cancelled in its trial has not paid, whatever its $0 stamp says, and joining it earns; one that paid before its customer was deleted was paying",
+  { skip },
+  async () => {
+    ok(await owner.client.rpc("partner_invite", { p_tenant: cancelled, p_code: partner.code }));
+    const [c] = ok(await partner.client.rpc("partner_invite_accept", { p_tenant: cancelled }));
+    assert.equal(c.earns, true, "the stamp predates the trial's end: it was the trial's $0 invoice");
+    ok(await owner.client.rpc("partner_invite", { p_tenant: forgotten, p_code: partner.code }));
+    const [f] = ok(await partner.client.rpc("partner_invite_accept", { p_tenant: forgotten }));
+    assert.equal(f.earns, false, "a payment with no trial on record, whatever the status says now");
+  },
+);
+
+test(
+  "a join to a workspace that was paying is decided as the partner joined: on the row and the ledger, in the back office's words, and never the letter's news",
+  { skip },
+  async () => {
+    const [link] = ok(
+      await db.from("partner_tenants").select("standing, standing_by, checks").eq("tenant_id", forgotten),
+    );
+    assert.deepEqual(link, { standing: "disqualified", standing_by: null, checks: { already_paying: true } });
+    const said = ok(
+      await db.from("events").select("data").eq("tenant_id", forgotten).eq("kind", "partner.standing_set"),
+    );
+    assert.deepEqual(
+      said.map((e) => [e.data.standing, e.data.by]),
+      [["disqualified", "joining"]],
+    );
+    ok(await db.from("platform_admins").insert({ user_id: admin.userId }));
+    try {
+      const rows = Object.fromEntries(
+        ok(await admin.client.rpc("platform_partner_workspaces")).map((w) => [w.tenant_id, w]),
+      );
+      assert.deepEqual([rows[forgotten].origin, rows[forgotten].decided_by], ["invite", "joining"], "not the sweep's");
+      assert.deepEqual([rows[cancelled].origin, rows[cancelled].decided_by], ["invite", null], "not judged yet");
+    } finally {
+      await db.from("platform_admins").delete().eq("user_id", admin.userId);
+    }
+    // The share written for Fresh Shop above is news; the two decided as the partner joined are not.
+    const letters = ok(await db.rpc("partner_letters_due", { p_now: new Date(Date.now() + 1000).toISOString() }));
+    const mine = letters.find((l) => l.partner_id === partner.id);
+    assert.ok(mine, "the partner has news: a share written");
+    const standing = (mine.news.standing ?? []).map((row) => row.workspace);
+    assert.deepEqual(
+      standing.filter((w) => w === "Forgotten Shop" || w === "Paying Shop"),
+      [],
+      "they were told when they joined",
+    );
+  },
+);
+
+test(
+  "an invitation stands while its sender is an owner: made an operator, their ask leaves the partner's list, is refused, and waits on nobody's card",
+  { skip },
+  async () => {
+    ok(await owner.client.rpc("partner_invite", { p_tenant: shared, p_code: partner.code }));
+    ok(await db.from("memberships").update({ role: "operator" }).eq("tenant_id", shared).eq("user_id", owner.userId));
+    const listed = async () => ok(await partner.client.rpc("partner_invitations_mine"));
+    assert.ok(!(await listed()).some((i) => i.workspace === "Shared Shop"), "not on the partner's list");
+    const refused = await partner.client.rpc("partner_invite_accept", { p_tenant: shared });
+    assert.equal(refused.error?.code, "55000");
+    assert.match(refused.error?.message ?? "", /no longer its owner/);
+    const card = ok(await coOwner.client.rpc("workspace_partner", { p_tenant: shared }));
+    assert.equal(card.invitation, null, "the other owner's card waits for nobody, and may ask");
+    ok(await coOwner.client.rpc("partner_invite", { p_tenant: shared, p_code: partner.code }));
+    assert.ok(
+      (await listed()).some((i) => i.workspace === "Shared Shop"),
+      "asked again by an owner, it stands",
+    );
+  },
+);
+
+test(
+  "a partner who stops being active loses the invitations waiting for them, a declined one stays for its owner, and their code is refused as one naming nobody",
+  { skip },
+  async () => {
+    ok(await owner.client.rpc("partner_invite", { p_tenant: lapseA, p_code: sleeper.code }));
+    ok(await owner.client.rpc("partner_invite", { p_tenant: lapseB, p_code: sleeper.code }));
+    ok(await sleeper.client.rpc("partner_invite_decline", { p_tenant: lapseB }));
+    ok(await db.from("partners").update({ status: "paused" }).eq("id", sleeper.id));
+    const left = ok(
+      await db.from("partner_invitations").select("tenant_id, declined_at").in("tenant_id", [lapseA, lapseB]),
+    );
+    assert.deepEqual(
+      left.map((i) => [i.tenant_id, i.declined_at !== null]),
+      [[lapseB, true]],
+    );
+    const owners = ok(await owner.client.rpc("workspace_partner", { p_tenant: lapseA }));
+    assert.equal(owners.invitation, null, "the owner may ask someone else");
+    const nobody = await owner.client.rpc("partner_invite", { p_tenant: lapseA, p_code: "nobody-has-this" });
+    const paused = await owner.client.rpc("partner_invite", { p_tenant: lapseA, p_code: sleeper.code });
+    assert.equal(paused.error?.code, "P0002");
+    assert.equal(paused.error?.message, nobody.error?.message, "which codes exist is not learned a code at a time");
   },
 );

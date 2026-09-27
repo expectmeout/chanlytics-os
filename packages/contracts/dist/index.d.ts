@@ -3481,10 +3481,10 @@ declare const PARTNER_WORDS: {
     readonly tab: "Partner";
     readonly title: "Bring a business to Chanlytics";
     /** The offer, before the share, which is printed from the row (shareWords). */
-    readonly offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.";
+    readonly offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.";
     readonly codeLabel: "Your code";
     readonly codeHint: "3 to 24 letters, digits or dashes. It is the end of your link, and it is yours for good.";
-    readonly terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.";
+    readonly terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.";
     readonly termsAgree: "I agree to these terms.";
     readonly become: "Become a partner";
     readonly becoming: "Setting you up…";
@@ -3503,7 +3503,7 @@ declare const PARTNER_WORDS: {
     readonly open: "Open";
     readonly readingWorkspaces: "Reading your workspaces…";
     readonly failedWorkspaces: "your workspaces";
-    readonly noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.";
+    readonly noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.";
     /**
      * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
      * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -3517,7 +3517,10 @@ declare const PARTNER_WORDS: {
 };
 /** The share, as a sentence: "25% of what it pays for its plan". */
 declare function shareWords(shareBp: number): string;
-/** How many workspaces came through the link, as a sentence. Zero is a real count and is said. */
+/**
+ * How many workspaces have this person as their partner, as a sentence: through the link, a handover its owner took,
+ * or an owner's invitation (partner_tenants). Zero is a real count and is said.
+ */
 declare function broughtWords(count: number): string;
 /** One line of partner_balance() (00203): a currency's total in one state, and when the next held one is due. */
 interface PartnerBalanceRow {
@@ -3609,7 +3612,7 @@ interface PlatformPartnerBalanceDto {
     paid_cents: number;
     last_paid_at: string | null;
 }
-/** One line of platform_partner_workspaces() (00205): who brought a workspace, and its standing. */
+/** One line of platform_partner_workspaces() (00205, 00222): who brought a workspace, how, and its standing. */
 interface PlatformPartnerWorkspaceDto {
     tenant_id: string;
     partner_id: string;
@@ -3618,9 +3621,14 @@ interface PlatformPartnerWorkspaceDto {
     standing: string | null;
     standing_why: string | null;
     standing_at: string | null;
-    /** Who decided it: the sweep's checks, or a person in the back office. Null until it is judged. */
+    /**
+     * Who decided it: the sweep's checks ('sweep'), a person in the back office ('person'), or the rule as a partner
+     * joined a workspace that was already paying ('joining', 0018). Null until it is judged.
+     */
     decided_by: string | null;
     checks: Record<string, unknown> | null;
+    /** How the partner came: link, handover or invite (0018). Absent from a database before 00222. */
+    origin?: string | null;
 }
 /** A person's three decisions, as the back office's buttons say them. */
 declare const PARTNER_STANDING_VERBS: Record<(typeof PARTNER_STANDINGS)[number], string>;
@@ -3662,7 +3670,7 @@ declare function platformPartnerRows(rows: readonly PlatformPartnerBalanceDto[])
 /** The card's one line: "2 partners · $125.00 payable · 1 workspace under review", counted from the rows. */
 declare function platformPartnerSummary(rows: readonly PlatformPartnerBalanceDto[]): string;
 interface PlatformPartnerStandingVM {
-    /** "Brought by ada-co" */
+    /** "Brought by ada-co", "Set up and handed over by ada-co", "ada-co, asked in by its owner" */
     by: string;
     /** Its standing and why, in words: "Under review: The card that pays for it also pays for a workspace the partner owns." */
     standing: string;
@@ -22811,8 +22819,8 @@ declare function secondFactorResetWords(code: string, removed: number): string;
 /** How long an owner's invitation to a partner is open (00222). */
 declare const PARTNER_INVITE_DAYS = 14;
 /**
- * A partner's code as the owner may give it: the code itself, or the partner's whole link, whose last segment after
- * `/p/` is the code. Anything else is passed on as typed, for the database to say it names nobody.
+ * A partner's code as the owner may give it: the code itself, or the partner's whole link, whose segment after `/p/`
+ * is the code. Anything else is passed on as typed, for the database to say it names nobody.
  */
 declare function partnerCodeFrom(raw: string): string;
 /** `POST team/partner`: the partner's code, or their link. */
@@ -22845,13 +22853,15 @@ interface PartnerInvitationDto {
 declare const PARTNER_INVITE_WORDS: {
     /** Settings › Team, the owner's card. */
     readonly title: "Your partner";
-    readonly intro: "A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing, the team or exports. Ask one by their code, the end of their link. They have 14 days to accept.";
+    readonly intro: "A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have 14 days to accept.";
     readonly codeLabel: "Their code or link";
     readonly codePlaceholder: "their-code";
     readonly invite: "Ask them";
     readonly inviting: "Asking…";
     readonly withdraw: "Take it back";
     readonly withdrawing: "Taking it back…";
+    /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+    readonly notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.";
     readonly failed: "your partner";
     readonly failedAnswer: "the invitation";
     /** Settings › Partner, the partner's pane. */

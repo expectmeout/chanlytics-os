@@ -11,20 +11,19 @@ import { dayWords } from "./partner";
 /** How long an owner's invitation to a partner is open (00222). */
 export const PARTNER_INVITE_DAYS = 14;
 
+/** A code in a link: the characters a code is made of (partner.ts CODE_SHAPE), after `/p/`. */
+const CODE_IN_LINK = /\/p\/([a-z0-9-]+)/i;
+/** What no code begins or ends with: the full stop, bracket or quote a pasted link or code brings from its sentence. */
+const AROUND_A_CODE = /^[^a-z0-9]+|[^a-z0-9]+$/gi;
+
 /**
- * A partner's code as the owner may give it: the code itself, or the partner's whole link, whose last segment after
- * `/p/` is the code. Anything else is passed on as typed, for the database to say it names nobody.
+ * A partner's code as the owner may give it: the code itself, or the partner's whole link, whose segment after `/p/`
+ * is the code. Anything else is passed on as typed, for the database to say it names nobody.
  */
 export function partnerCodeFrom(raw: string): string {
   const typed = raw.trim();
-  const inLink = /\/p\/([^/?#\s]+)/i.exec(typed);
-  if (!inLink) return typed.toLowerCase();
-  try {
-    return decodeURIComponent(inLink[1]).toLowerCase();
-  } catch {
-    // A link cut short mid-escape: its segment as it stands, for the database to say it names nobody.
-    return inLink[1].toLowerCase();
-  }
+  const inLink = CODE_IN_LINK.exec(typed);
+  return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
 }
 
 /** `POST team/partner`: the partner's code, or their link. */
@@ -56,13 +55,16 @@ export interface PartnerInvitationDto {
 export const PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
   title: "Your partner",
-  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing, the team or exports. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
   codeLabel: "Their code or link",
   codePlaceholder: "their-code",
   invite: "Ask them",
   inviting: "Asking…",
   withdraw: "Take it back",
   withdrawing: "Taking it back…",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent:
+    "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
   failed: "your partner",
   failedAnswer: "the invitation",
   /** Settings › Partner, the partner's pane. */
@@ -151,7 +153,7 @@ export function partnerInviteEmail(i: { workspace: string; expiresAt: string; si
   return {
     subject: `${workspace} asks you to be its partner on Chanlytics`,
     body: [
-      `${workspace} asked you to join its team as its partner: you'd set up and run its receptionist with its owner, and never touch its billing, its team or its exports.`,
+      `${workspace} asked you to join its team as its partner: you'd set up and run its receptionist with its owner, and never touch its billing or its team.`,
       "",
       "A workspace that has not paid for a plan yet earns you your share once it does, as one you brought. One that was already paying earns you none.",
       "",

@@ -26375,10 +26375,10 @@ var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -26397,7 +26397,7 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -26415,9 +26415,9 @@ function shareWords(shareBp) {
   return `${shown}% of what it pays for its plan`;
 }
 function broughtWords(count2) {
-  if (count2 <= 0) return "No workspace has come through your link yet.";
-  if (count2 === 1) return "1 workspace came through your link.";
-  return `${count2} workspaces came through your link.`;
+  if (count2 <= 0) return "No workspace has you as its partner yet.";
+  if (count2 === 1) return "1 workspace has you as its partner.";
+  return `${count2} workspaces have you as their partner.`;
 }
 var dayWords2 = (at2) => new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 function sumWords(rows, state) {
@@ -26515,7 +26515,7 @@ function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "act
   const needs = rows.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
   const parts2 = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
   if (needs) parts2.push(`${needs} need${needs === 1 ? "s" : ""} you`);
-  return { rows, summary: total ? parts2.join(" \xB7 ") : "No workspace has come through your link yet." };
+  return { rows, summary: total ? parts2.join(" \xB7 ") : broughtWords(0) };
 }
 var PARTNER_STANDING_VERBS = {
   qualified: "Qualify",
@@ -26593,12 +26593,22 @@ var STANDING_LABELS = {
   review: "Under review",
   disqualified: "Disqualified"
 };
+var DECIDED_BY_WORDS = {
+  person: " (decided by a person)",
+  sweep: " (the nightly check)",
+  joining: " (as the partner joined)"
+};
+var BY_ORIGIN = {
+  link: (code2) => `Brought by ${code2}`,
+  handover: (code2) => `Set up and handed over by ${code2}`,
+  invite: (code2) => `${code2}, asked in by its owner`
+};
 function platformPartnerStanding(w) {
   const label = w.standing ? STANDING_LABELS[w.standing] ?? w.standing : "Not judged yet";
-  const whose = w.decided_by === "person" ? " (decided by a person)" : w.decided_by === "sweep" ? " (the nightly check)" : "";
+  const whose = (w.decided_by && DECIDED_BY_WORDS[w.decided_by]) ?? "";
   const why = w.standing ? w.standing_why ? `: ${w.standing_why}` : "" : ": judged once it has paid";
   return {
-    by: `Brought by ${w.code}`,
+    by: (BY_ORIGIN[w.origin ?? "link"] ?? BY_ORIGIN.link)(w.code),
     standing: `${label}${whose}${why}`,
     tone: w.standing === "review" ? "warn" : w.standing === "disqualified" ? "danger" : w.standing === "qualified" ? "ok" : "plain",
     choices: partnerStandingChoices(w.standing).map((s) => ({ standing: s, label: PARTNER_STANDING_VERBS[s] }))
@@ -26911,15 +26921,12 @@ function secondFactorResetWords(code2, removed) {
 // src/workspace/partner-invite.ts
 import { z as z17 } from "zod";
 var PARTNER_INVITE_DAYS = 14;
+var CODE_IN_LINK = /\/p\/([a-z0-9-]+)/i;
+var AROUND_A_CODE = /^[^a-z0-9]+|[^a-z0-9]+$/gi;
 function partnerCodeFrom(raw) {
   const typed = raw.trim();
-  const inLink = /\/p\/([^/?#\s]+)/i.exec(typed);
-  if (!inLink) return typed.toLowerCase();
-  try {
-    return decodeURIComponent(inLink[1]).toLowerCase();
-  } catch {
-    return inLink[1].toLowerCase();
-  }
+  const inLink = CODE_IN_LINK.exec(typed);
+  return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
 }
 var PartnerInviteSchema = z17.object({
   code: z17.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
@@ -26927,13 +26934,15 @@ var PartnerInviteSchema = z17.object({
 var PARTNER_INVITE_WORDS = {
   /** Settings › Team, the owner's card. */
   title: "Your partner",
-  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing, the team or exports. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
   codeLabel: "Their code or link",
   codePlaceholder: "their-code",
   invite: "Ask them",
   inviting: "Asking\u2026",
   withdraw: "Take it back",
   withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
   failed: "your partner",
   failedAnswer: "the invitation",
   /** Settings › Partner, the partner's pane. */
@@ -26991,7 +27000,7 @@ function partnerInviteEmail(i) {
   return {
     subject: `${workspace} asks you to be its partner on Chanlytics`,
     body: [
-      `${workspace} asked you to join its team as its partner: you'd set up and run its receptionist with its owner, and never touch its billing, its team or its exports.`,
+      `${workspace} asked you to join its team as its partner: you'd set up and run its receptionist with its owner, and never touch its billing or its team.`,
       "",
       "A workspace that has not paid for a plan yet earns you your share once it does, as one you brought. One that was already paying earns you none.",
       "",

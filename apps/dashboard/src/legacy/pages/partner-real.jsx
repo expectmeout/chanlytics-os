@@ -455,6 +455,7 @@ const PartnerInvitations = ({ api, flash, onJoined }) => {
     if (busy) return;
     setBusy({ id: workspaceId, join });
     const r = await api.answer(workspaceId, join);
+    if (r.ok) setState((s) => ({ ...s, rows: s.rows.filter((x) => x.workspaceId !== workspaceId) }));
     setBusy(null);
     if (!r.ok) { flash({ tone: "warn", msg: <>Couldn't answer {W.failedAnswer}: {r.message}</> }); return; }
     if (join) { flash({ tone: "ok", msg: <>{r.message}</> }); onJoined(); }
@@ -484,7 +485,7 @@ const PartnerInvitations = ({ api, flash, onJoined }) => {
 };
 
 // Settings › Team, below the team (0018): the workspace's partner, or asking one by their code. The owner's alone: for
-// anyone else the read is refused and nothing is drawn.
+// anyone else the read is refused and nothing is drawn, and an owner's View as another role sees what that role does.
 const TeamPartnerCard = ({ flash }) => {
   const api = window.__partner;
   const W = api && api.inviteWords;
@@ -493,6 +494,7 @@ const TeamPartnerCard = ({ flash }) => {
   const [code, setCode] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
+  const [, setViewing] = React.useState(0);
   React.useEffect(() => {
     if (!api) return undefined;
     let live = true;
@@ -503,7 +505,14 @@ const TeamPartnerCard = ({ flash }) => {
     });
     return () => { live = false; };
   }, [api, again]);
-  if (!api || state.hidden) return null;
+  // View as is announced as team:changed (ST_STORE.setViewAs).
+  React.useEffect(() => {
+    const bump = () => setViewing((n) => n + 1);
+    window.addEventListener("team:changed", bump);
+    return () => window.removeEventListener("team:changed", bump);
+  }, []);
+  const previewing = !!(window.ST_STORE && window.ST_STORE.viewAsRole && window.ST_STORE.viewAsRole !== "owner");
+  if (!api || state.hidden || previewing) return null;
   if (state.problem) {
     return <window.FailedRead kind="card" what={W.failed} why={state.problem} onRetry={() => setAgain((n) => n + 1)} testid="team-partner-failed" />;
   }
@@ -516,10 +525,11 @@ const TeamPartnerCard = ({ flash }) => {
     setError(null);
     const r = await api.team.invite(code);
     setBusy(false);
+    // Read again either way: a refusal that came after the ask was kept (a timeout) must not invite a second press.
+    setAgain((n) => n + 1);
     if (!r.ok) { setError(r.message); return; }
     setCode("");
-    if (!r.sent) flash({ tone: "warn", msg: <>Asked. Their email didn't go: they'll see it on their Partner page.</> });
-    setAgain((n) => n + 1);
+    if (!r.sent) flash({ tone: "warn", msg: <>{W.notSent}</> });
   };
   const withdraw = async () => {
     if (busy) return;
@@ -537,7 +547,7 @@ const TeamPartnerCard = ({ flash }) => {
       {vm.sentence ? <p className="set-row-hint" data-testid={`team-partner-${vm.state}`}>{vm.sentence}</p> : null}
       {vm.canWithdraw ? (
         <div className="set-form-actions">
-          <button type="button" className="btn btn-sm btn-ghost" onClick={withdraw} disabled={busy} aria-busy={busy || undefined} data-testid="team-partner-withdraw">
+          <button type="button" className="btn btn-sm btn-ghost" onClick={withdraw} disabled={busy} aria-busy={busy || undefined} data-testid="team-partner-withdraw" {...window.gate("team", "take back the invitation")}>
             {busy ? W.withdrawing : W.withdraw}
           </button>
         </div>
@@ -550,7 +560,7 @@ const TeamPartnerCard = ({ flash }) => {
             <input className="input" value={code} onChange={(e) => { setCode(e.target.value); setError(null); }} placeholder={W.codePlaceholder} autoComplete="off" spellCheck={false} data-testid="team-partner-code" />
           </label>
           {error ? <p className="set-error" role="alert" data-testid="team-partner-error">{error}</p> : null}
-          <button type="submit" className="btn" disabled={busy || !code.trim()} aria-busy={busy || undefined} data-testid="team-partner-ask">
+          <button type="submit" className="btn" disabled={busy || !code.trim()} aria-busy={busy || undefined} data-testid="team-partner-ask" {...window.gate("team", "ask a partner to join")}>
             {busy ? W.inviting : W.invite}
           </button>
         </form>

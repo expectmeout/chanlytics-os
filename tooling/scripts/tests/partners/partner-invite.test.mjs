@@ -89,7 +89,21 @@ test("a partner's code, typed or inside their link, lower-cased; the form takes 
   assert.equal(partnerCodeFrom("https://app.chanlytics.com/p/Ada-Co"), "ada-co");
   assert.equal(partnerCodeFrom("app.chanlytics.com/p/ada-co?utm=x#y"), "ada-co");
   assert.equal(partnerCodeFrom("not a code"), "not a code", "passed on, for the database to say it names nobody");
-  assert.equal(partnerCodeFrom("https://example.com/p/abc%E0"), "abc%e0", "a link cut mid-escape never throws");
+  assert.equal(
+    partnerCodeFrom("https://example.com/p/abc%E0"),
+    "abc",
+    "a link cut mid-escape gives the code before it",
+  );
+  // A link or a code pasted from a sentence brings its punctuation; no code begins or ends with any.
+  for (const pasted of [
+    "https://app.chanlytics.com/p/ada-co.",
+    "(https://app.chanlytics.com/p/ada-co)",
+    "<app.chanlytics.com/p/ada-co>",
+    "ada-co,",
+    '"Ada-Co"',
+    "/p/ada-co-",
+  ])
+    assert.equal(partnerCodeFrom(pasted), "ada-co", pasted);
   assert.equal(PartnerInviteSchema.safeParse({ code: "ada-co" }).success, true);
   assert.equal(PartnerInviteSchema.safeParse({ code: "  " }).success, false);
   assert.equal(PartnerInviteSchema.safeParse({ code: "ada-co", role: "owner" }).success, false);
@@ -151,7 +165,7 @@ test("what the partner is shown and sent: who asked and until when; whether join
   assert.match(partnerJoinedWords("Harbor", false), /already paying when you joined, so it earns you no share/);
   const mail = partnerInviteEmail({ workspace: "Harbor", expiresAt: row.expiresAt, signInUrl: "https://app/login" });
   assert.equal(mail.subject, "Harbor asks you to be its partner on Chanlytics");
-  assert.match(mail.body, /never touch its billing, its team or its exports/);
+  assert.match(mail.body, /never touch its billing or its team\./);
   assert.match(mail.body, /Settings › Partner to join or decline: https:\/\/app\/login/);
 });
 
@@ -173,7 +187,8 @@ test("the owner's routes: the workspace's, the owner's, counted; the code taken 
   const rpcs = {
     partner_invite: (a) => {
       asked.push(a);
-      if (a.p_code.startsWith("nobody")) throw Object.assign(new Error("No partner has that code."), { code: "P0002" });
+      if (a.p_code.startsWith("nobody"))
+        throw Object.assign(new Error("No active partner has that code."), { code: "P0002" });
       return { code: a.p_code, sent_at: "2026-09-28T00:00:00Z", expires_at: "2026-10-12T00:00:00Z" };
     },
     partner_invite_withdraw: (a) => {
@@ -185,12 +200,12 @@ test("the owner's routes: the workspace's, the owner's, counted; the code taken 
   const r = await team.POST.run(inA("POST", { code: "https://app.chanlytics.com/p/Ada-Co" }), ctxFor(rpcs));
   assert.deepEqual(r, { code: "ada-co", expiresAt: "2026-10-12T00:00:00Z", sent: false }, "off production, no email");
   assert.deepEqual(asked[0], { p_tenant: A, p_code: "ada-co" });
-  await refused(team.POST.run(inA("POST", { code: "nobody" }), ctxFor(rpcs)), "not_found", 404, /No partner/);
+  await refused(team.POST.run(inA("POST", { code: "nobody" }), ctxFor(rpcs)), "not_found", 404, /No active partner/);
   await refused(
     team.POST.run(inA("POST", { code: "https://app.chanlytics.com/p/nobody%E0" }), ctxFor(rpcs)),
     "not_found",
     404,
-    /No partner/,
+    /No active partner/,
   );
   assert.deepEqual(await team.DELETE.run(inA("DELETE"), ctxFor(rpcs)), { withdrawn: true });
   assert.deepEqual(asked.at(-1), ["withdraw", { p_tenant: A }]);

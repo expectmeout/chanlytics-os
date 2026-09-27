@@ -6141,6 +6141,7 @@ type Database = {
                     checks: Json;
                     code: string;
                     decided_by: string;
+                    origin: string;
                     partner_id: string;
                     standing: string;
                     standing_at: string;

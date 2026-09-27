@@ -219,8 +219,8 @@ export function installPartner(win: Window = window): void {
       }
       const r = await api()("POST partner/invitations/[id]/accept", { params: { id: workspaceId } });
       if (!r.ok) return { ok: false, message: r.message };
-      // The switcher reads its list again, so the workspace just joined is there to open.
-      void refreshSurfaces([workspaceOverride]).catch(() => {});
+      // The switcher reads its list again, so the workspace just joined is there to open, and the pane its count.
+      void refreshSurfaces([workspaceOverride, partnerOverride]).catch(() => {});
       return { ok: true, message: partnerJoinedWords(r.data.workspace.name, r.data.earns) };
     },
     team: {
