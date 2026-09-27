@@ -120,8 +120,8 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, onEdit }
   // settings while nobody has saved since, anything else for ten minutes.
   const settingsVersion = window.__SETTINGS && typeof window.__SETTINGS.version === "number" ? window.__SETTINGS.version : null;
   const undoOpen = state === "done" && !!undoData && !!p.undo && !!(A && A.undoOpen && A.undoOpen(p.kind, undoData, doneAt, Date.now(), settingsVersion));
-  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, lead_search: t.kLeads, deal: t.kDeal };
-  const ICON = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", lead_search: "search", deal: "users" };
+  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, lead_search: t.kLeads, deal: t.kDeal, note: t.kNote, person_details: t.kDetails };
+  const ICON = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", lead_search: "search", deal: "users", note: "edit", person_details: "user" };
   const openRoute = A && A.cardOpenRoute ? A.cardOpenRoute(p) : null;
   return (
     <div className={`ask-card ${state}`} data-testid="ask-card" data-kind={p.kind}>
