@@ -62,7 +62,7 @@ import { coldReplyDomain } from "../email/email.js";
 import { env } from "../env.js";
 import { checkedWordsOf, reachOutRequest, reachOutWords } from "./request.js";
 import { REPLAN_GIVE_UP_MS, replanSends, type Replan } from "./replan.js";
-import type { Logger } from "../log.js";
+import type { LogEvent, Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -465,7 +465,7 @@ export async function claimAndWrite(p: {
     said: new Set(),
   };
   const late = () => Date.now() - p.started > CLAIM_YIELD_AT_MS;
-  const failed = (event: string, fields: Record<string, unknown>, e: unknown) => {
+  const failed = (event: LogEvent, fields: Record<string, unknown>, e: unknown) => {
     out.errors += 1;
     p.log.error(event, { ...fields, error: e instanceof Error ? e.message : String(e) });
   };

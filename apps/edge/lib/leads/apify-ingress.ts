@@ -13,6 +13,7 @@
  */
 import crypto from "node:crypto";
 import { APIFY_RUN_END_EVENTS } from "../packages/channels.js";
+import type { LogEvent } from "../log.js";
 
 /** The endings, spelled once: exactly the events every run is started asking for (core runner.ts). Anything else is progress. */
 export const APIFY_FINAL_EVENTS: ReadonlySet<string> = new Set(APIFY_RUN_END_EVENTS);
@@ -40,9 +41,9 @@ export function tokenMatches(token: string, hash: string): boolean {
 }
 
 export type IngressVerdict =
-  | { action: "refuse"; status: 400 | 401; log: string }
-  | { action: "ignore"; log: string }
-  | { action: "abort_foreign"; apifyRunId: string; log: string }
+  | { action: "refuse"; status: 400 | 401; log: LogEvent }
+  | { action: "ignore"; log: LogEvent }
+  | { action: "abort_foreign"; apifyRunId: string; log: LogEvent }
   | {
       action: "schedule_final";
       runRowId: string;
