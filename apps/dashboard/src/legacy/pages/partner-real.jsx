@@ -207,6 +207,83 @@ const PartnerLettersRow = ({ W, api, letters, flash }) => {
   );
 };
 
+// Two-step sign-in (0013): a partner's account changes the receptionist of every business they brought, so it asks
+// for an authenticator's code at sign-in. Read from Supabase Auth, which holds the factor; set up in two presses:
+// scan (or type the key), then the first code, which turns it on. A project with TOTP switched off says so.
+const PartnerSecondFactor = ({ api, flash }) => {
+  const F = api.secondFactor;
+  const W = F.words;
+  const [state, setState] = React.useState({ phase: "reading" });
+  const [code, setCode] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  React.useEffect(() => {
+    let live = true;
+    F.state().then((r) => {
+      if (live) setState(r.ok ? { phase: r.on ? "on" : "off" } : { phase: "failed", message: r.message });
+    });
+    return () => { live = false; };
+  }, [F]);
+  const start = async () => {
+    setBusy(true);
+    setError(null);
+    const r = await F.start();
+    setBusy(false);
+    if (r.ok) setState({ phase: "setup", enrolment: r.enrolment });
+    else if (r.unavailable) setState({ phase: "unavailable" });
+    else setError(r.message);
+  };
+  const confirm = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const refused = await F.confirm(state.enrolment.factorId, code);
+    setBusy(false);
+    if (refused) { setError(refused); return; }
+    setCode("");
+    setState({ phase: "on" });
+    flash({ tone: "ok", msg: <>{W.done}</> });
+  };
+  const hint = (id, text) => <span className="set-row-hint" data-testid={id}>{text}</span>;
+  return (
+    <div className="set-row" data-testid="partner-second-factor">
+      <div className="set-row-info">
+        <span className="set-row-label">{W.title}</span>
+        {state.phase === "reading" && hint("partner-second-factor-reading", W.reading)}
+        {state.phase === "failed" && hint("partner-second-factor-failed", `Couldn't read ${W.failed}: ${state.message}`)}
+        {state.phase === "unavailable" && hint("partner-second-factor-unavailable", W.unavailable)}
+        {state.phase === "on" && hint("partner-second-factor-on", W.on)}
+        {state.phase === "off" && hint("partner-second-factor-intro", W.intro)}
+        {state.phase === "setup" && (
+          <form onSubmit={confirm} className="set-form" data-testid="partner-second-factor-setup">
+            <span className="set-row-hint">{W.scan}</span>
+            <img src={state.enrolment.qr} alt="" width="176" height="176" data-testid="partner-second-factor-qr" />
+            <span className="set-row-hint">{W.keyLabel}: <code data-testid="partner-second-factor-key">{state.enrolment.secret}</code></span>
+            <label className="set-field">
+              <span className="set-field-label">{W.codeLabel}</span>
+              <input className="input" inputMode="numeric" autoComplete="one-time-code" maxLength={7} value={code} onChange={(e) => { setCode(e.target.value); setError(null); }} data-testid="partner-second-factor-code" />
+            </label>
+            <div className="set-form-actions">
+              <button type="submit" className="btn" disabled={busy || !code.trim()} aria-busy={busy || undefined} data-testid="partner-second-factor-confirm">
+                {busy ? W.confirming : W.confirm}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => { setState({ phase: "off" }); setCode(""); setError(null); }} disabled={busy} data-testid="partner-second-factor-cancel">{W.cancel}</button>
+            </div>
+          </form>
+        )}
+        {(state.phase === "on" || state.phase === "setup") && hint("partner-second-factor-lost", W.lost)}
+        {error ? <p className="set-error" role="alert" data-testid="partner-second-factor-error">{error}</p> : null}
+      </div>
+      {state.phase === "off" && (
+        <button type="button" className="btn btn-sm" onClick={start} disabled={busy} aria-busy={busy || undefined} data-testid="partner-second-factor-start">
+          {busy ? W.starting : W.start}
+        </button>
+      )}
+    </div>
+  );
+};
+
 const PanePartner = ({ flash }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
@@ -335,6 +412,7 @@ const PanePartner = ({ flash }) => {
         </div>
       </div>
       <PartnerLettersRow W={W} api={api} letters={P.dto.letters} flash={flash} />
+      {api.secondFactor ? <PartnerSecondFactor api={api} flash={flash} /> : null}
     </section>
     <PartnerWorkspaces W={W} api={api} flash={flash} active={P.dto.status === "active"} />
     </>

@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { ASK_THREAD_VERBS, clockWhen, shiftKey, zoneMidnight } from "@chanlytics/contracts";
-import { UUID, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import { UUID, defineAct, noteRow, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
 
 /** The one list, from contracts: the committer in the browser reads the same one. */
 export const THREAD_VERBS = ASK_THREAD_VERBS;
@@ -67,7 +67,7 @@ async function proposeThreadVerb(
     resolve: `Resolve ${who}'s escalation`,
   };
   // The undo's words are the spec's (contracts ask-proposals/): a wake's card offers none (D8).
-  t.read.thread.add(id);
+  noteRow(t, "thread", id, who, `inbox/th-${id}`);
   return propose({
     kind: "thread_verb",
     title: TITLES[verb],

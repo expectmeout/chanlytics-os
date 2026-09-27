@@ -144,6 +144,8 @@ export const RATE = {
   platform_partner_standing: { limit: 60, windowMs: HOUR_MS, noun: "partner standings set" },
   platform_partner_payout: { limit: 30, windowMs: HOUR_MS, noun: "partner payouts recorded" },
   platform_partner_status: { limit: 20, windowMs: HOUR_MS, noun: "partners paused or restored" },
+  /** A partner's authenticator removed after a person checked it is them (0013): rare, and each one is a phone call. */
+  platform_partner_second_factor: { limit: 10, windowMs: HOUR_MS, noun: "second factors reset" },
   /** The native app's sign-in door (app/auth/native): per network, a token that does not verify costs a call each time. */
   native_sign_in: { limit: 20, windowMs: HOUR_MS, noun: "sign-ins" },
   /** The phone app registers its push token on launch (me/devices); sixty an hour is a loop, not a person. */

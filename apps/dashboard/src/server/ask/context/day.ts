@@ -1,5 +1,12 @@
 import "server-only";
-import { toCallVM, toInboxThreadVM, toTodayVM, type CallVM, type InboxThreadVM } from "@chanlytics/contracts";
+import {
+  leadsRoute,
+  toCallVM,
+  toInboxThreadVM,
+  toTodayVM,
+  type CallVM,
+  type InboxThreadVM,
+} from "@chanlytics/contracts";
 import { load, type ReaderContext } from "../../readers";
 import * as facts from "../../readers/facts";
 import { today as todayReader } from "../../readers/today";
@@ -34,15 +41,18 @@ const threadLine = (v: InboxThreadVM, route: string): string =>
   line([v.who, threadState(v), held(v), v.preview, v.lastAtFull], route);
 
 /** A call's line, as calls.list says a call: who, how it went, when, how long, what it was about. */
-const callLine = (v: CallVM): string =>
-  line([v.who, v.outcome, v.at, v.duration, v.summary.headline], `conversations/cv-${v.callId}`);
+const callLine = (v: CallVM, route: string): string =>
+  line([v.who, v.outcome, v.at, v.duration, v.summary.headline], route);
 
-const callRow = (v: CallVM): ContextRow => ({
-  source: sourceOf("call", v.callId),
-  title: v.who,
-  text: callLine(v),
-  ref: refOf("call", v.callId, v.who),
-});
+const callRow = (v: CallVM): ContextRow => {
+  const route = `conversations/cv-${v.callId}`;
+  return {
+    source: sourceOf("call", v.callId),
+    title: v.who,
+    text: callLine(v, route),
+    ref: refOf("call", v.callId, v.who, route),
+  };
+};
 
 /** The open escalation each thread shows, as the Inbox picks it: the last one keyed wins, so a thread shows its oldest. */
 const escalationsBy = <E extends { conversation_id: string }>(open: E[]): Map<string, E> =>
@@ -64,11 +74,18 @@ export const today: Provider = async (rc, ctx) => {
           (r.kind === "thread" ? x.conversationId === r.id : !x.conversationId && x.callId === r.id),
     );
     if (!q) continue;
+    // Each row at its kind's one route, whatever its button opens (the line keeps the button's, a search's question).
+    const ref =
+      r.kind === "search"
+        ? refOf("search", r.id, q.who, leadsRoute({ searchId: r.id }))
+        : r.kind === "thread"
+          ? refOf("thread", r.id, q.who, `inbox/th-${r.id}`)
+          : refOf("call", r.id, q.who, `conversations/cv-${r.id}`);
     rows.push({
       source: sourceOf(r.kind, r.id),
       title: q.who,
       text: line([q.who, q.status[0], q.when, ...q.status.slice(1), q.sentence], q.cta.to),
-      ref: r.kind === "thread" ? refOf("thread", r.id, q.who) : r.kind === "call" ? refOf("call", r.id, q.who) : null,
+      ref,
     });
   }
   return {
@@ -97,11 +114,12 @@ export const inbox: Provider = async (rc, ctx) => {
   for (const r of idsOf(ctx, "thread")) {
     const v = byId.get(r.id);
     if (!v) continue;
+    const route = `inbox/th-${r.id}`;
     rows.push({
       source: sourceOf("thread", r.id),
       title: v.who,
-      text: threadLine(v, `inbox/th-${r.id}`),
-      ref: refOf("thread", r.id, v.who),
+      text: threadLine(v, route),
+      ref: refOf("thread", r.id, v.who, route),
     });
   }
   const count = (f: (v: InboxThreadVM) => boolean) => vms.filter(f).length;
@@ -149,11 +167,12 @@ export const conversations: Provider = async (rc, ctx) => {
       const v = threads.get(r.id);
       if (!v) continue;
       nConv++;
+      const route = `conversations/${r.id}`;
       rows.push({
         source: sourceOf("conversation", r.id),
         title: v.who,
-        text: threadLine(v, `conversations/${r.id}`),
-        ref: refOf("conversation", r.id, v.who),
+        text: threadLine(v, route),
+        ref: refOf("conversation", r.id, v.who, route),
       });
     } else {
       const v = callVms.get(r.id);

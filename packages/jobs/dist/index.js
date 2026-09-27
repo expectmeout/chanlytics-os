@@ -171,6 +171,7 @@ import { z as z12 } from "zod";
 import { z as z13 } from "zod";
 import { z as z14 } from "zod";
 import { z as z15 } from "zod";
+import { z as z16 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -2102,7 +2103,22 @@ var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
     duration_min: z8.number().int().min(1).max(1440).optional()
   })
 ]);
-var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
+var ASK_CITATION_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "deal",
+  "list",
+  "broadcast",
+  "playbook",
+  "template",
+  "domain"
+];
+var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -2118,9 +2134,10 @@ var ASK_ANSWER_CAPS = {
   line: 160,
   question: 90
 };
+var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -2173,7 +2190,7 @@ var ASK_ANSWER_FORMAT = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS}), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -2896,9 +2913,13 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
+var PartnerSecondFactorResetSchema = z16.object({
+  partner_id: z16.string().uuid("That partner does not exist."),
+  why: z16.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
 
 // ../channels/dist/index.js
-import { z as z16 } from "zod";
+import { z as z17 } from "zod";
 import { z as z82 } from "zod";
 import { z as z42 } from "zod";
 import { z as z32 } from "zod";
@@ -2913,6 +2934,7 @@ import { z as z122 } from "zod";
 import { z as z132 } from "zod";
 import { z as z142 } from "zod";
 import { z as z152 } from "zod";
+import { z as z162 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -7853,7 +7875,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
-z16.config({ jitless: true });
+z17.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
@@ -9780,7 +9802,22 @@ var AskSettingsChangeSchema2 = z82.discriminatedUnion("op", [
     duration_min: z82.number().int().min(1).max(1440).optional()
   })
 ]);
-var ASK_CITATION_KINDS2 = ["thread", "conversation", "call", "person", "page"];
+var ASK_CITATION_KINDS2 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "deal",
+  "list",
+  "broadcast",
+  "playbook",
+  "template",
+  "domain"
+];
+var ASK_ROW_WORDS2 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS2 = {
   headline: 160,
   detail: 700,
@@ -9796,9 +9833,10 @@ var ASK_ANSWER_CAPS2 = {
   line: 160,
   question: 90
 };
+var ROW_KINDS2 = ASK_CITATION_KINDS2.filter((k) => k !== "page");
 var SOURCE2 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS2, "none"] },
     id: { type: "string" },
@@ -9851,7 +9889,7 @@ var ASK_ANSWER_FORMAT2 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS2.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS2}), at most ${ASK_ANSWER_CAPS2.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -10532,6 +10570,10 @@ var HANDOVER_WORDS2 = {
   later: "Not now",
   failedAnswer: "your answer"
 };
+var PartnerSecondFactorResetSchema2 = z162.object({
+  partner_id: z162.string().uuid("That partner does not exist."),
+  why: z162.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -10639,7 +10681,7 @@ var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
 
 // ../core/dist/index.js
-import { z as z17 } from "zod";
+import { z as z18 } from "zod";
 import { z as z83 } from "zod";
 import { z as z43 } from "zod";
 import { z as z33 } from "zod";
@@ -10654,7 +10696,8 @@ import { z as z123 } from "zod";
 import { z as z133 } from "zod";
 import { z as z143 } from "zod";
 import { z as z153 } from "zod";
-import { z as z162 } from "zod";
+import { z as z163 } from "zod";
+import { z as z172 } from "zod";
 import { z as z822 } from "zod";
 import { z as z422 } from "zod";
 import { z as z322 } from "zod";
@@ -10669,7 +10712,8 @@ import { z as z1222 } from "zod";
 import { z as z1322 } from "zod";
 import { z as z1422 } from "zod";
 import { z as z1522 } from "zod";
-import { z as z172 } from "zod";
+import { z as z1622 } from "zod";
+import { z as z182 } from "zod";
 import { z as z832 } from "zod";
 import { z as z432 } from "zod";
 import { z as z332 } from "zod";
@@ -10684,6 +10728,7 @@ import { z as z1232 } from "zod";
 import { z as z1332 } from "zod";
 import { z as z1432 } from "zod";
 import { z as z1532 } from "zod";
+import { z as z1632 } from "zod";
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -11603,7 +11648,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
-z17.config({ jitless: true });
+z18.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -13530,7 +13575,22 @@ var AskSettingsChangeSchema3 = z83.discriminatedUnion("op", [
     duration_min: z83.number().int().min(1).max(1440).optional()
   })
 ]);
-var ASK_CITATION_KINDS3 = ["thread", "conversation", "call", "person", "page"];
+var ASK_CITATION_KINDS3 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "deal",
+  "list",
+  "broadcast",
+  "playbook",
+  "template",
+  "domain"
+];
+var ASK_ROW_WORDS3 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS3 = {
   headline: 160,
   detail: 700,
@@ -13546,9 +13606,10 @@ var ASK_ANSWER_CAPS3 = {
   line: 160,
   question: 90
 };
+var ROW_KINDS3 = ASK_CITATION_KINDS3.filter((k) => k !== "page");
 var SOURCE3 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS3, "none"] },
     id: { type: "string" },
@@ -13601,7 +13662,7 @@ var ASK_ANSWER_FORMAT3 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS3.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS3}), at most ${ASK_ANSWER_CAPS3.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -14282,6 +14343,10 @@ var HANDOVER_WORDS3 = {
   later: "Not now",
   failedAnswer: "your answer"
 };
+var PartnerSecondFactorResetSchema3 = z163.object({
+  partner_id: z163.string().uuid("That partner does not exist."),
+  why: z163.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS2 = [
   {
@@ -14375,7 +14440,7 @@ var STATE_TTL_MS2 = 10 * MIN_MS3;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
-z162.config({ jitless: true });
+z172.config({ jitless: true });
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -16373,7 +16438,22 @@ var AskSettingsChangeSchema22 = z822.discriminatedUnion("op", [
     duration_min: z822.number().int().min(1).max(1440).optional()
   })
 ]);
-var ASK_CITATION_KINDS22 = ["thread", "conversation", "call", "person", "page"];
+var ASK_CITATION_KINDS22 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "deal",
+  "list",
+  "broadcast",
+  "playbook",
+  "template",
+  "domain"
+];
+var ASK_ROW_WORDS22 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS22 = {
   headline: 160,
   detail: 700,
@@ -16389,9 +16469,10 @@ var ASK_ANSWER_CAPS22 = {
   line: 160,
   question: 90
 };
+var ROW_KINDS22 = ASK_CITATION_KINDS22.filter((k) => k !== "page");
 var SOURCE22 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS22, "none"] },
     id: { type: "string" },
@@ -16444,7 +16525,7 @@ var ASK_ANSWER_FORMAT22 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS22.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS22}), at most ${ASK_ANSWER_CAPS22.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -17150,7 +17231,11 @@ var HANDOVER_WORDS22 = {
   later: "Not now",
   failedAnswer: "your answer"
 };
-z172.config({ jitless: true });
+var PartnerSecondFactorResetSchema22 = z1622.object({
+  partner_id: z1622.string().uuid("That partner does not exist."),
+  why: z1622.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
+z182.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
@@ -19070,7 +19155,22 @@ var AskSettingsChangeSchema32 = z832.discriminatedUnion("op", [
     duration_min: z832.number().int().min(1).max(1440).optional()
   })
 ]);
-var ASK_CITATION_KINDS32 = ["thread", "conversation", "call", "person", "page"];
+var ASK_CITATION_KINDS32 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "deal",
+  "list",
+  "broadcast",
+  "playbook",
+  "template",
+  "domain"
+];
+var ASK_ROW_WORDS32 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS32 = {
   headline: 160,
   detail: 700,
@@ -19086,9 +19186,10 @@ var ASK_ANSWER_CAPS32 = {
   line: 160,
   question: 90
 };
+var ROW_KINDS32 = ASK_CITATION_KINDS32.filter((k) => k !== "page");
 var SOURCE32 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS32, "none"] },
     id: { type: "string" },
@@ -19141,7 +19242,7 @@ var ASK_ANSWER_FORMAT32 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS32.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS32}), at most ${ASK_ANSWER_CAPS32.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -19822,6 +19923,10 @@ var HANDOVER_WORDS32 = {
   later: "Not now",
   failedAnswer: "your answer"
 };
+var PartnerSecondFactorResetSchema32 = z1632.object({
+  partner_id: z1632.string().uuid("That partner does not exist."),
+  why: z1632.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
 async function recordCarrierOptOut(db, p) {
   const { data, error } = await db.from("contacts").update({
     consent: "opted_out",
@@ -20533,7 +20638,7 @@ var STALE_MS = 10 * 60 * 1e3;
 var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 
 // ../db/dist/index.js
-import { z as z18 } from "zod";
+import { z as z19 } from "zod";
 import { z as z84 } from "zod";
 import { z as z44 } from "zod";
 import { z as z34 } from "zod";
@@ -20548,7 +20653,8 @@ import { z as z124 } from "zod";
 import { z as z134 } from "zod";
 import { z as z144 } from "zod";
 import { z as z154 } from "zod";
-z18.config({ jitless: true });
+import { z as z164 } from "zod";
+z19.config({ jitless: true });
 var LABEL4 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL4 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE4 = new RegExp(`^(${LOCAL4})@(${LABEL4}(?:\\.${LABEL4})+)$`);
@@ -22475,7 +22581,22 @@ var AskSettingsChangeSchema4 = z84.discriminatedUnion("op", [
     duration_min: z84.number().int().min(1).max(1440).optional()
   })
 ]);
-var ASK_CITATION_KINDS4 = ["thread", "conversation", "call", "person", "page"];
+var ASK_CITATION_KINDS4 = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "deal",
+  "list",
+  "broadcast",
+  "playbook",
+  "template",
+  "domain"
+];
+var ASK_ROW_WORDS4 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS4 = {
   headline: 160,
   detail: 700,
@@ -22491,9 +22612,10 @@ var ASK_ANSWER_CAPS4 = {
   line: 160,
   question: 90
 };
+var ROW_KINDS4 = ASK_CITATION_KINDS4.filter((k) => k !== "page");
 var SOURCE4 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS4, "none"] },
     id: { type: "string" },
@@ -22546,7 +22668,7 @@ var ASK_ANSWER_FORMAT4 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS4.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS4}), at most ${ASK_ANSWER_CAPS4.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -23227,6 +23349,10 @@ var HANDOVER_WORDS4 = {
   later: "Not now",
   failedAnswer: "your answer"
 };
+var PartnerSecondFactorResetSchema4 = z164.object({
+  partner_id: z164.string().uuid("That partner does not exist."),
+  why: z164.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,

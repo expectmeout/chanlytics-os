@@ -126,8 +126,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z16] = m;
-  if (z16) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z17] = m;
+  if (z17) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -12563,9 +12563,29 @@ var FOLLOWUP_ECHO = [
 ];
 
 // src/ask/citations.ts
-var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
+var ASK_CITATION_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "deal",
+  "list",
+  "broadcast",
+  "playbook",
+  "template",
+  "domain"
+];
+var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 function emptyReadSet() {
-  return { thread: /* @__PURE__ */ new Set(), conversation: /* @__PURE__ */ new Set(), call: /* @__PURE__ */ new Set(), person: /* @__PURE__ */ new Set() };
+  return Object.fromEntries(
+    ASK_CITATION_KINDS.filter((k) => k !== "page").map((k) => [k, /* @__PURE__ */ new Map()])
+  );
+}
+function noteRows(read, refs) {
+  for (const r2 of refs) if (r2.kind !== "page") read[r2.kind].set(r2.id, r2);
 }
 var ASK_PAGE_ROUTES = [
   "today",
@@ -12590,7 +12610,7 @@ var ASK_PAGE_ROUTES = [
   "admin/activity",
   "admin/profile"
 ];
-var PAGE_PREFIX = /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
+var PAGE_PREFIX = /^(?!clients\/list:)(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|start|admin)(\/[A-Za-z0-9:_-]+)?$/;
 function groundCitations(citations, read) {
   const kept = [];
   let dropped = 0;
@@ -12607,19 +12627,15 @@ function groundCitations(citations, read) {
   }
   return { kept, dropped };
 }
-function citationRoute(c) {
-  switch (c.kind) {
-    case "thread":
-      return `inbox/th-${c.id}`;
-    case "conversation":
-      return `conversations/${c.id}`;
-    case "call":
-      return `conversations/cv-${c.id}`;
-    case "person":
-      return `clients/${c.id}`;
-    default:
-      return c.id;
-  }
+var OWN_ROUTES = {
+  thread: (id) => `inbox/th-${id}`,
+  conversation: (id) => `conversations/${id}`,
+  call: (id) => `conversations/cv-${id}`,
+  person: (id) => `clients/${id}`
+};
+function citationRoute(c, read) {
+  if (c.kind === "page") return c.id;
+  return read?.[c.kind].get(c.id)?.route ?? OWN_ROUTES[c.kind]?.(c.id) ?? "";
 }
 
 // src/ask/ask-shape.ts
@@ -13124,8 +13140,36 @@ function oneDoor(a, cards = []) {
   };
 }
 var KIND_WORDS = {
-  en: { thread: "Thread", conversation: "Conversation", call: "Call", person: "Profile", page: "Page" },
-  es: { thread: "Hilo", conversation: "Conversaci\xF3n", call: "Llamada", person: "Perfil", page: "P\xE1gina" }
+  en: {
+    thread: "Thread",
+    conversation: "Conversation",
+    call: "Call",
+    person: "Profile",
+    page: "Page",
+    lead: "Lead",
+    search: "Search",
+    deal: "Deal",
+    list: "List",
+    broadcast: "Broadcast",
+    playbook: "Playbook",
+    template: "Template",
+    domain: "Domain"
+  },
+  es: {
+    thread: "Hilo",
+    conversation: "Conversaci\xF3n",
+    call: "Llamada",
+    person: "Perfil",
+    page: "P\xE1gina",
+    lead: "Lead",
+    search: "B\xFAsqueda",
+    deal: "Acuerdo",
+    list: "Lista",
+    broadcast: "Difusi\xF3n",
+    playbook: "Playbook",
+    template: "Plantilla",
+    domain: "Dominio"
+  }
 };
 function answerFromV1(m) {
   const language = m.language ?? "en";
@@ -13278,23 +13322,25 @@ var asObj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
 var asArr = (v) => Array.isArray(v) ? v : [];
 var words2 = (v, n) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
 var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
-var UUID2 = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-var ROW_KINDS = ["call", "thread", "conversation", "person"];
-var ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|clients\/(?!leads(?:[/:]|$)|seg:|list:))/;
+var UUID2 = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
+var ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|outbound\/|broadcasts\/run:|clients\/leads.*:[sp]-|clients\/(?!leads(?:[/:]|$)|seg:))/;
 function groundRef(v, read) {
   const r2 = asObj(v);
   const kind = typeof r2.kind === "string" ? r2.kind : "none";
   const spelled = typeof r2.id === "string" ? r2.id.trim().replace(/^#?\/+/, "") : "";
   if (!spelled || !ASK_CITATION_KINDS.includes(kind)) return null;
   const label = words2(r2.label, C.label) || spelled;
-  const row2 = UUID2.exec(spelled)?.[0].toLowerCase();
-  const tries = row2 ? [kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k, id: row2, label })) : [
-    ...kind === "page" ? [] : [{ kind, id: spelled, label }],
-    // A row's route with an id cut short or misspelled names no row read, and is no page either.
-    ...ROW_ROUTE.test(spelled) ? [] : [{ kind: "page", id: spelled, label }]
+  const ids = spelled.match(UUID2);
+  const row2 = ids?.[ids.length - 1]?.toLowerCase();
+  const page = row2 || ROW_ROUTE.test(spelled) ? [] : [{ kind: "page", id: spelled, label }];
+  const tries = [
+    ...kind === "page" ? page : [],
+    ...[kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k, id: row2 ?? spelled, label })),
+    ...page
   ];
   const kept = groundCitations(tries, read).kept[0];
-  return kept ? { ...kept, to: citationRoute(kept), door: true } : null;
+  return kept ? { ...kept, to: citationRoute(kept, read), door: true } : null;
 }
 function normalizeAnswer(raw, read, fallback) {
   let json = raw;
@@ -13459,7 +13505,7 @@ function v1FromAnswer(a) {
 // src/ask/answer-format.ts
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -13512,7 +13558,7 @@ var ASK_ANSWER_FORMAT = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS}), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -20186,7 +20232,15 @@ function reachLineOf(r2, includeUnconfirmed) {
   const why = [];
   if (unconfirmed > 0)
     why.push(
-      includeUnconfirmed ? { tone: "plain", text: `${unconfirmed} unconfirmed addresses, included`, door: "Leave them out" } : { tone: "warn", text: `${unconfirmed} unconfirmed addresses, held`, door: "Include them" }
+      includeUnconfirmed ? {
+        tone: "plain",
+        text: `${plural(unconfirmed, "unconfirmed address", "unconfirmed addresses")}, included`,
+        door: "Leave them out"
+      } : {
+        tone: "warn",
+        text: `${plural(unconfirmed, "unconfirmed address", "unconfirmed addresses")}, held`,
+        door: "Include them"
+      }
     );
   if (r2.phone_only > 0) why.push({ tone: "plain", text: `${r2.phone_only} by phone only, kept for calls`, door: null });
   return {
@@ -20198,7 +20252,7 @@ function reachLineOf(r2, includeUnconfirmed) {
 }
 function paceWords(p) {
   const next = DOMAIN_RAMP.find((s) => s.days > p.sentDays);
-  const why = next ? `${p.sentDays < 1 ? "Recommended for a new domain. " : ""}Rises to ${next.perDay} a day after ${next.days} clean days.` : "The most a domain sends in a day.";
+  const why = next ? `${p.sentDays < 1 ? "The pace for a new domain. " : ""}Rises to ${next.perDay} a day after ${next.days} clean days.` : "The most a domain sends in a day.";
   return {
     parts: [
       "",
@@ -20274,10 +20328,19 @@ function nextRunWords(c, tz, now) {
   return { tone: "plain", text: `Next run ${at2}.`, run_id: null };
 }
 var clock2 = (iso, tz) => clockTime(Date.parse(iso), tz);
+function firstSendWhen(firstAt, tz, now) {
+  if (!firstAt) return null;
+  const ms2 = Date.parse(firstAt);
+  return zoneDayKey(ms2, tz) === zoneDayKey(now, tz) ? clock2(firstAt, tz) : clockWhen(ms2, tz, now);
+}
+function approveWords(today, from) {
+  if (!from) return `Approve \u2014 ${today}`;
+  return today > 0 ? `Approve \u2014 ${today} from ${from}` : `Approve \u2014 from ${from}`;
+}
 function approvalWordsOf(r2, p) {
   const earlier = !!r2.run_for && r2.run_for < p.today;
   const passed = !earlier && !!r2.first_at && Date.parse(r2.first_at) <= p.now;
-  const at2 = earlier || passed ? null : r2.first_at ? clock2(r2.first_at, p.timezone) : null;
+  const at2 = earlier || passed ? null : firstSendWhen(r2.first_at, p.timezone, p.now);
   const total = r2.today + r2.later;
   const why = [];
   if (r2.later > 0)
@@ -20314,7 +20377,7 @@ function approvalWordsOf(r2, p) {
     ],
     words: words4,
     reader: r2.first ? `as ${r2.first.business_name} reads it \xB7 every opening is its own; your offer and ask are the same for all ${total}` : null,
-    approve: `Approve \u2014 ${r2.today}${earlier || passed ? " from now" : at2 ? ` from ${at2}` : ""}`,
+    approve: approveWords(r2.today, earlier || passed ? "now" : at2),
     approveNote: r2.checking > 0 ? `${r2.checking} more are being checked; they go once they pass.` : null,
     note: "Skipping loses this run only \u2014 the reach-out keeps its place and asks again tomorrow.",
     recheck: r2.held.some((h) => h.reason === "check_unavailable" && h.detail === null) ? REACH_OUT_SHEET_WORDS.recheck : null,
@@ -20692,7 +20755,8 @@ function reachOutRunWordsOf(r2, p) {
     }),
     skipAsk: `Skip ${r2.chain_name}'s run?`,
     // What Approve released, as the flash says it: the checked sends due today, never the run's whole count (R21).
-    approved: `${r2.chain_name} approved \u2014 ${plural(r2.today, "email", "emails")} today, in their hours`,
+    // Nothing today (planned after hours, or on a closed day) says when they go instead of "0 emails today".
+    approved: r2.today === 0 && r2.later > 0 ? `${r2.chain_name} approved \u2014 ${plural(r2.later, "email", "emails")} in the coming days, in their hours` : `${r2.chain_name} approved \u2014 ${plural(r2.today, "email", "emails")} today, in their hours`,
     labels: REACH_OUT_RUN_LABELS,
     listHead: r2.checking > 0 ? `Who gets it \xB7 ${plural(r2.checking, "more is", "more are")} being checked` : "Who gets it"
   };
@@ -22979,6 +23043,7 @@ var ROUTE_KEYS = [
   "POST platform/lines/replace",
   "POST platform/lines/retry",
   "POST platform/partners/payout",
+  "POST platform/partners/second-factor",
   "POST platform/partners/standing",
   "POST platform/partners/status",
   "POST platform/waitlist/invited",
@@ -26281,6 +26346,68 @@ function handoverInviteEmail(h) {
     ].join("\n")
   };
 }
+
+// src/workspace/second-factor.ts
+import { z as z16 } from "zod";
+function factorStepNeeded(aal) {
+  return !!aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
+}
+var SECOND_FACTOR_PATH = "/verify";
+var SECOND_FACTOR_WORDS = {
+  /** Settings › Partner. */
+  title: "Protect your partner account",
+  intro: "Your partner account can change the receptionist of every business you brought, so it asks for a second step when you sign in: a six-digit code from an authenticator app on your phone.",
+  on: "Two-step sign-in is on. You'll be asked for a code from your authenticator app each time you sign in.",
+  off: "Two-step sign-in is off.",
+  start: "Set it up",
+  starting: "Preparing\u2026",
+  scan: "Scan this with your authenticator app (Google Authenticator, 1Password, Authy or any other), or type the key below into it.",
+  keyLabel: "Key",
+  codeLabel: "The six-digit code it shows",
+  confirm: "Turn it on",
+  confirming: "Checking\u2026",
+  cancel: "Cancel",
+  done: "Two-step sign-in is on.",
+  unavailable: "Two-step sign-in isn't switched on for Chanlytics yet. You'll be asked to set it up once it is.",
+  lost: "Lost your phone? Write to us: a person at Chanlytics removes the old authenticator after checking it's you, and you set up a new one at your next sign-in.",
+  reading: "Reading your sign-in settings\u2026",
+  failed: "your sign-in settings",
+  /** The page after the first factor. */
+  verifyTitle: "One more step",
+  verifyBody: "Enter the six-digit code from your authenticator app.",
+  verifySubmit: "Continue",
+  verifying: "Checking\u2026",
+  signOut: "Sign out",
+  /** The back office. */
+  resetLabel: "Reset two-step sign-in",
+  resetQuestion: (code2) => `Remove ${code2}'s authenticator?`,
+  resetDetail: "They can sign in with their password or an email code, and set up a new authenticator on their partner pane. Check it's them before you do this.",
+  resetYes: "Yes, reset it",
+  resetTyped: "why, and how you checked it's them"
+};
+function enrolRefusalWords(message) {
+  const m = String(message ?? "");
+  if (/disabled|not enabled|not allowed/i.test(m)) return { unavailable: true, words: SECOND_FACTOR_WORDS.unavailable };
+  return { unavailable: false, words: "We could not start the setup just now. Try again in a minute." };
+}
+function factorCodeWords(message) {
+  const m = String(message ?? "");
+  if (/invalid|expired|mismatch|incorrect|wrong/i.test(m))
+    return "That code didn't match. Open the app and type the code it shows now.";
+  if (/rate|too many/i.test(m)) return "Too many tries. Wait a minute, then type the code the app shows now.";
+  return "We could not check that code just now. Try again in a minute.";
+}
+function cleanFactorCode(raw) {
+  const code2 = String(raw ?? "").replace(/\s+/g, "");
+  return /^\d{6}$/.test(code2) ? code2 : null;
+}
+var PartnerSecondFactorResetSchema = z16.object({
+  partner_id: z16.string().uuid("That partner does not exist."),
+  why: z16.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
+function secondFactorResetWords(code2, removed) {
+  return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -26309,6 +26436,7 @@ export {
   ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_RETENTION_DAYS,
+  ASK_ROW_WORDS,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
   ASK_THREAD_ROUTES,
@@ -26762,6 +26890,7 @@ export {
   PartnerBecomeSchema,
   PartnerLetterNewsSchema,
   PartnerLettersSchema,
+  PartnerSecondFactorResetSchema,
   PendingWorkspaceSchema,
   PeopleExportQuerySchema,
   PolicyLimitsSchema,
@@ -26842,6 +26971,8 @@ export {
   RenameLeadSearchSchema,
   SAME_SITTING_MS,
   SCHEMA_SETS,
+  SECOND_FACTOR_PATH,
+  SECOND_FACTOR_WORDS,
   SELF_LIFTING_HOLDS,
   SELLS_BY,
   SELLS_BY_FIRST,
@@ -27042,6 +27173,7 @@ export {
   cleanDisplayName,
   cleanDraft,
   cleanEmailCandidates,
+  cleanFactorCode,
   cleanParam,
   cleanPartnerCode,
   cleanTimezone,
@@ -27158,6 +27290,7 @@ export {
   emptyBusinessRecord,
   emptyReadSet,
   endingOfRound,
+  enrolRefusalWords,
   erasedEmailHash,
   erasedPhoneHash,
   err,
@@ -27169,6 +27302,8 @@ export {
   factConflicts,
   factNeeds,
   factValue,
+  factorCodeWords,
+  factorStepNeeded,
   failedAnswer,
   fallbackMessages,
   fallbacksWords,
@@ -27446,6 +27581,7 @@ export {
   normalizeLocalPart,
   normalizePhone,
   notFoundPageMetadata,
+  noteRows,
   noteSuggestSystemPrompt,
   noteSuggestUserContent,
   notesWords,
@@ -27705,6 +27841,7 @@ export {
   scheduleLine,
   scopeFromRoute,
   seasonHorizon,
+  secondFactorResetWords,
   sellsBySaved,
   sellsByVM,
   sendFailureIsOurs,

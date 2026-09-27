@@ -31,6 +31,12 @@ export interface ShellState {
   /** The site said this app is older than it speaks to (/api/version min_app): the update screen stands. */
   tooOld: boolean;
   /**
+   * Nobody is in the middle of anything: the native sign-in chooser is what shows (SignIn.tsx). The one moment an
+   * update fetched in the background may restart the app at once (the root layout); anywhere else it waits for the
+   * next launch, since a restart mid-page, mid-typing or behind the lock is a page lost.
+   */
+  idle: boolean;
+  /**
    * The theme the page is drawn in, as the page last said (the member's own choice, not the device's): what every
    * native screen, the tab bar and the status bar follow. Dark until a page says otherwise, which is the web's own
    * default for a device that has chosen nothing.
@@ -51,6 +57,7 @@ export const INITIAL: ShellState = {
   pendingRoute: null,
   badge: 0,
   tooOld: false,
+  idle: false,
   theme: "dark",
 };
 

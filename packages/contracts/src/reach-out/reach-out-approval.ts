@@ -91,7 +91,11 @@ export function reachOutRunWordsOf(
     }),
     skipAsk: `Skip ${r.chain_name}'s run?`,
     // What Approve released, as the flash says it: the checked sends due today, never the run's whole count (R21).
-    approved: `${r.chain_name} approved — ${plural(r.today, "email", "emails")} today, in their hours`,
+    // Nothing today (planned after hours, or on a closed day) says when they go instead of "0 emails today".
+    approved:
+      r.today === 0 && r.later > 0
+        ? `${r.chain_name} approved — ${plural(r.later, "email", "emails")} in the coming days, in their hours`
+        : `${r.chain_name} approved — ${plural(r.today, "email", "emails")} today, in their hours`,
     labels: REACH_OUT_RUN_LABELS,
     listHead:
       r.checking > 0 ? `Who gets it · ${plural(r.checking, "more is", "more are")} being checked` : "Who gets it",

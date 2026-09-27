@@ -189,3 +189,14 @@ export {
   partnerHandoverVM,
 } from "./handover";
 export type { HandoverState, OpenHandoverDto, PartnerHandoverDto, PartnerHandoverVM } from "./handover";
+export {
+  PartnerSecondFactorResetSchema,
+  SECOND_FACTOR_PATH,
+  SECOND_FACTOR_WORDS,
+  cleanFactorCode,
+  enrolRefusalWords,
+  factorCodeWords,
+  factorStepNeeded,
+  secondFactorResetWords,
+} from "./second-factor";
+export type { AssuranceLevels } from "./second-factor";

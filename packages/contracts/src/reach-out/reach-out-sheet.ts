@@ -3,7 +3,7 @@
  * Playbooks' row and open row, Templates' email row, and the doors' refusals. The canvas's words with the database's
  * numbers in; a count the database does not hold is never said (interested and booked are Part 5's).
  */
-import { clockTime } from "../shared/clock";
+import { clockTime, clockWhen, zoneDayKey } from "../shared/clock";
 import { DOMAIN_RAMP, domainDailyCap } from "../email/sending-domains";
 import { nextRunLabel } from "../playbooks/playbook-schedule";
 // The one "3 emails" (shared/words.ts), not an eleventh copy of it.
@@ -91,8 +91,16 @@ export function reachLineOf(r: ReachOutReachDto, includeUnconfirmed: boolean) {
   if (unconfirmed > 0)
     why.push(
       includeUnconfirmed
-        ? { tone: "plain", text: `${unconfirmed} unconfirmed addresses, included`, door: "Leave them out" }
-        : { tone: "warn", text: `${unconfirmed} unconfirmed addresses, held`, door: "Include them" },
+        ? {
+            tone: "plain",
+            text: `${plural(unconfirmed, "unconfirmed address", "unconfirmed addresses")}, included`,
+            door: "Leave them out",
+          }
+        : {
+            tone: "warn",
+            text: `${plural(unconfirmed, "unconfirmed address", "unconfirmed addresses")}, held`,
+            door: "Include them",
+          },
     );
   if (r.phone_only > 0) why.push({ tone: "plain", text: `${r.phone_only} by phone only, kept for calls`, door: null });
   return {
@@ -107,7 +115,7 @@ export function reachLineOf(r: ReachOutReachDto, includeUnconfirmed: boolean) {
 export function paceWords(p: { share: number; sentDays: number; gapMinutes: number }) {
   const next = DOMAIN_RAMP.find((s) => s.days > p.sentDays);
   const why = next
-    ? `${p.sentDays < 1 ? "Recommended for a new domain. " : ""}Rises to ${next.perDay} a day after ${next.days} clean days.`
+    ? `${p.sentDays < 1 ? "The pace for a new domain. " : ""}Rises to ${next.perDay} a day after ${next.days} clean days.`
     : "The most a domain sends in a day.";
   return {
     parts: [
@@ -213,6 +221,25 @@ export function nextRunWords(
 const clock = (iso: string, tz: string): string => clockTime(Date.parse(iso), tz);
 
 /**
+ * The first send's time, with its day when that is not today ("tomorrow 9:40 AM"): a run planned after hours or on a
+ * closed day starts on a later day, and a bare "9:40 AM" would read as this morning. Null without one.
+ */
+function firstSendWhen(firstAt: string | null, tz: string, now: number): string | null {
+  if (!firstAt) return null;
+  const ms = Date.parse(firstAt);
+  return zoneDayKey(ms, tz) === zoneDayKey(now, tz) ? clock(firstAt, tz) : clockWhen(ms, tz, now);
+}
+
+/**
+ * Approve's words: today's count and from when. Nothing today with a time to go from is no count: "Approve — 0 from
+ * tomorrow 9:40 AM" would say none go then.
+ */
+function approveWords(today: number, from: string | null): string {
+  if (!from) return `Approve — ${today}`;
+  return today > 0 ? `Approve — ${today} from ${from}` : `Approve — from ${from}`;
+}
+
+/**
  * The approval sheet for a reach-out run (F13; canvas board 05; R21, R22). `today` is the workspace's date and `now`
  * the moment it is said: a run from an earlier day goes from now, re-timed in their hours, and one whose first time has
  * passed today goes from now; never a time already past.
@@ -220,7 +247,7 @@ const clock = (iso: string, tz: string): string => clockTime(Date.parse(iso), tz
 export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share: number; today: string; now: number }) {
   const earlier = !!r.run_for && r.run_for < p.today;
   const passed = !earlier && !!r.first_at && Date.parse(r.first_at) <= p.now;
-  const at = earlier || passed ? null : r.first_at ? clock(r.first_at, p.timezone) : null;
+  const at = earlier || passed ? null : firstSendWhen(r.first_at, p.timezone, p.now);
   const total = r.today + r.later;
   const why: Array<{ tone: "warn" | "plain" | "info"; text: string; door: string | null }> = [];
   if (r.later > 0)
@@ -272,7 +299,7 @@ export function approvalWordsOf(r: ReachOutRunDto, p: { timezone: string; share:
     reader: r.first
       ? `as ${r.first.business_name} reads it · every opening is its own; your offer and ask are the same for all ${total}`
       : null,
-    approve: `Approve — ${r.today}${earlier || passed ? " from now" : at ? ` from ${at}` : ""}`,
+    approve: approveWords(r.today, earlier || passed ? "now" : at),
     approveNote: r.checking > 0 ? `${r.checking} more are being checked; they go once they pass.` : null,
     note: "Skipping loses this run only — the reach-out keeps its place and asks again tomorrow.",
     recheck: r.held.some((h) => h.reason === "check_unavailable" && h.detail === null)

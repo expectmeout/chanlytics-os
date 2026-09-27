@@ -6,8 +6,8 @@ import { stamp, type Reader } from "./index";
  * GET channels, as the route answers it: the workspace's channels as the page may see them, by kind -- each row, when
  * it last heard from a customer, and the quality Meta has assigned the WhatsApp number (kept on the row's config by
  * the edge). The route's body, moved here whole, so Settings, the Broadcasts page's number and Ask's
- * workspace.settings and campaigns.audiences read the same rows the same way. A channel is not a row a citation names
- * until Phase 4.
+ * workspace.settings and campaigns.audiences read the same rows the same way. A channel is not a row a citation names:
+ * none of the thirteen is a line's.
  */
 export const channels: Reader<undefined, { channels: ChannelDto[] }> = {
   name: "channels",

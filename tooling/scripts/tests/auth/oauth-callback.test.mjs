@@ -11,7 +11,9 @@ import { firstWorkspaceDoor, googleCallbackUrl, providerNameOf, SIGNUP_WORDS } f
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { callbackPlan, safeNext, OAUTH_FAILED } = await import(at("apps/dashboard/src/server/auth/oauth-callback.ts"));
+const { callbackPlan, landingAfter, safeNext, OAUTH_FAILED } = await import(
+  at("apps/dashboard/src/server/auth/oauth-callback.ts")
+);
 
 test("the callback exchanges a code and lands on this site only", () => {
   assert.deepEqual(callbackPlan({ code: "abc", next: "/#/inbox", error: null }), {
@@ -193,4 +195,11 @@ test("the words on the two doors", () => {
   assert.equal(SIGNUP_WORDS.google, "Continue with Google");
   assert.match(SIGNUP_WORDS.googleFailed, /use your email/);
   assert.match(SIGNUP_WORDS.firstWorkspaceCode, /invite code/);
+});
+
+test("an account with an authenticator shows its code before it lands anywhere; Google is never the second factor (0013)", () => {
+  assert.equal(landingAfter("/#/inbox", { currentLevel: "aal1", nextLevel: "aal2" }), "/verify");
+  assert.equal(landingAfter("/#/inbox", { currentLevel: "aal1", nextLevel: "aal1" }), "/#/inbox", "no factor");
+  assert.equal(landingAfter("/#/inbox", { currentLevel: "aal2", nextLevel: "aal2" }), "/#/inbox", "shown");
+  assert.equal(landingAfter("/#/inbox", null), "/#/inbox", "unread lands as planned; the partner door asks again");
 });

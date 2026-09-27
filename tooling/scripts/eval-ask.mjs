@@ -32,7 +32,7 @@
  * says the same and stops there: every case, its page, the turns and their cost, with nothing read and nothing spent.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { ASK_TOKENS_DAY, cardOpenRoute, oneDoor } from "@chanlytics/contracts";
+import { ASK_TOKENS_DAY, BUILTIN_LISTS, cardOpenRoute, oneDoor } from "@chanlytics/contracts";
 import { spread, wilson, pct } from "./ask-stats.mjs";
 import { usedAny } from "../evals/rename-ask-tools.mjs";
 import {
@@ -295,7 +295,12 @@ export function judge(c, r) {
     fails.push(`answer lacks all of ${e.includes_any.join("/")}`);
   for (const s of e.excludes ?? [])
     if (text.toLowerCase().includes(s.toLowerCase())) fails.push(`answer contains “${s}”`);
-  if (e.no_invented_citations && m.citations.some((x) => x.kind !== "page" && !/^[0-9a-f-]{36}$/.test(x.id)))
+  // A row's id is a uuid a read returned, but a People list's, which is its name (contracts BUILTIN_LISTS: quiet).
+  const named = (x) => x.kind === "list" && BUILTIN_LISTS.some((l) => l.id === x.id);
+  if (
+    e.no_invented_citations &&
+    m.citations.some((x) => x.kind !== "page" && !named(x) && !/^[0-9a-f-]{36}$/.test(x.id))
+  )
     fails.push("a citation with an id no tool could have returned");
   const kinds = (m.proposals ?? []).map((p) => p.kind);
   if (e.proposals_any && !e.proposals_any.some((k) => kinds.includes(k)))

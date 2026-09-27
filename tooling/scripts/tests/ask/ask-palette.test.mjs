@@ -16,11 +16,14 @@ import {
   PROPOSAL_GATE,
   ROLE_PERMS,
   roleGate,
+  ASK_CITATION_KINDS,
   ASK_PAGES,
   ASK_PAGE_ROUTES,
+  ASK_SCOPE_KINDS,
   answerText,
   askJump,
   cardOpenRoute,
+  emptyReadSet,
   groundCitations,
   normalizeAnswer,
   LeadSearchPlanSchema,
@@ -1776,6 +1779,54 @@ test("Earlier finds a conversation by the words typed and Enter opens it; with n
 
 /* ------------------------------ N18 ------------------------------ */
 
+test("a row of every kind an answer names draws its kind's mark, from the one map the Line's scope reads too: a run is marked as the broadcast it is (PR 4.2)", () => {
+  const { AskAnswer, askKindGlyph } = globalThis.window.AskAnswerKit;
+  const marks = {
+    thread: "chat",
+    conversation: "chat",
+    call: "phone",
+    person: "users",
+    page: "arrow-right",
+    lead: "star",
+    search: "search",
+    deal: "deal",
+    list: "filter",
+    broadcast: "wave",
+    playbook: "bolt",
+    template: "content",
+    domain: "globe",
+  };
+  assert.deepEqual(Object.keys(marks), [...ASK_CITATION_KINDS], "every kind a citation names");
+  const answer = {
+    v: 2,
+    form: "structured",
+    say: { headline: "Everything, once.", detail: "" },
+    show: {
+      figures: [],
+      items: ASK_CITATION_KINDS.map((kind, i) => ({
+        title: kind,
+        meta: "",
+        line: "",
+        source: { kind, id: `r${i}`, label: kind, to: `somewhere/${i}`, door: true },
+      })),
+      breakdown: null,
+    },
+    do: { open: null, next: [] },
+    language: "en",
+  };
+  const tree = render(AskAnswer, { answer, cardOpen: {}, cards: [], t: {}, onNav() {}, onFollow() {} });
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "ask-item-mark").map(
+      (m) => find(m, (n) => n.type === "Icon").props.name,
+    ),
+    Object.values(marks),
+    "each row its kind's mark",
+  );
+  for (const k of ASK_SCOPE_KINDS)
+    assert.equal(askKindGlyph(k), k === "run" ? marks.broadcast : marks[k], `a scope's ${k} is marked as its row`);
+  assert.equal(askKindGlyph("something new"), "chat", "a kind the map does not know is a chat");
+});
+
 test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'calendar' offered only to ask about it", async () => {
   ask();
   render(Palette, OPEN);
@@ -1788,7 +1839,7 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
     `REGRESSION: ${jumps.join(" | ") || "no jump"}`,
   );
 
-  const read = { person: new Set(), thread: new Set(), conversation: new Set(), call: new Set() };
+  const read = emptyReadSet();
   const none = { kind: "none", id: "", label: "" };
   const opens = (to) => {
     const r = normalizeAnswer(

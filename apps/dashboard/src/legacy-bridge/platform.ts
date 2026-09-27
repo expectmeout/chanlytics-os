@@ -29,6 +29,8 @@ import {
   partnerPayoutOutcomeWords,
   partnerStandingOutcomeWords,
   partnerStatusOutcomeWords,
+  SECOND_FACTOR_WORDS,
+  secondFactorResetWords,
   clockTime,
   clockDateYear,
   clockDayLabel,
@@ -150,6 +152,9 @@ export interface PlatformApi {
   ): Promise<{ ok: boolean; message: string }>;
   /** Pause, close or restore a partner, with why. A pause takes their seat on every workspace they brought. */
   setStatus(partnerId: string, code: string, status: string, why: string): Promise<{ ok: boolean; message: string }>;
+  /** Remove a partner's authenticator after checking it is them (0013), with why; they set up a new one at sign-in. */
+  resetSecondFactor(partnerId: string, code: string, why: string): Promise<{ ok: boolean; message: string }>;
+  secondFactorWords: typeof SECOND_FACTOR_WORDS;
 }
 
 declare global {
@@ -252,6 +257,12 @@ export function installPlatform(win: Window = window): void {
       if (!r.ok) return { ok: false, message: r.message };
       return { ok: true, message: partnerStatusOutcomeWords(code, r.data.result) };
     },
+    async resetSecondFactor(partnerId, code, why) {
+      const r = await api()("POST platform/partners/second-factor", { body: { partner_id: partnerId, why } });
+      if (!r.ok) return { ok: false, message: r.message };
+      return { ok: true, message: secondFactorResetWords(code, r.data.result.removed) };
+    },
+    secondFactorWords: SECOND_FACTOR_WORDS,
     partnerRows: platformPartnerRows,
     partnerSummary: platformPartnerSummary,
     partnerStanding: platformPartnerStanding,

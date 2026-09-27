@@ -961,6 +961,13 @@
       "rate": "platform_partner_status",
       "spend": false
     },
+    "POST platform/partners/second-factor": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_partner_second_factor",
+      "spend": false
+    },
     "POST platform/waitlist/invited": {
       "kind": "write",
       "scope": "platform",

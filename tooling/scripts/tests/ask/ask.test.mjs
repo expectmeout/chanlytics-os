@@ -33,6 +33,7 @@ import {
   describeSettingsChange,
   detectLanguage,
   emptyReadSet,
+  noteRows,
   askIntent,
   groundCitations,
   isUngrounded,
@@ -57,8 +58,29 @@ const ID2 = "9f8b2c1a-4d5e-4f6a-8b9c-0d1e2f3a4b5d";
 
 test("grounding: a citation must name a row a tool returned this turn; pages are always allowed", () => {
   const read = emptyReadSet();
-  read.thread.add(ID);
-  read.person.add(ID2);
+  noteRows(read, [
+    { kind: "thread", id: ID, route: `inbox/th-${ID}`, label: "Dani" },
+    { kind: "person", id: ID2, route: `clients/${ID2}`, label: "Rosa" },
+    { kind: "page", id: "reports", route: "reports", label: "Reports" },
+  ]);
+  assert.deepEqual(
+    Object.entries(read).map(([k, rows]) => [k, [...rows.keys()]]),
+    [
+      ["thread", [ID]],
+      ["conversation", []],
+      ["call", []],
+      ["person", [ID2]],
+      ["lead", []],
+      ["search", []],
+      ["deal", []],
+      ["list", []],
+      ["broadcast", []],
+      ["playbook", []],
+      ["template", []],
+      ["domain", []],
+    ],
+    "the read set is kind → id → RowRef, one map per row kind; a page needs no read and is not kept",
+  );
   const { kept, dropped } = groundCitations(
     [
       { kind: "thread", id: ID, label: "Dani" },
@@ -76,10 +98,31 @@ test("grounding: a citation must name a row a tool returned this turn; pages are
     ["thread:Dani", "person:Rosa", "page:Reports"],
   );
   assert.equal(dropped, 4);
+  // Where a citation opens is the RowRef the read set holds: the reader's route, never one derived for the citation.
+  noteRows(read, [{ kind: "deal", id: ID, route: `clients/${ID2}`, label: "Rosa's move" }]);
+  assert.equal(citationRoute({ kind: "deal", id: ID, label: "" }, read), `clients/${ID2}`, "a deal opens its person");
+  assert.equal(
+    citationRoute({ kind: "deal", id: ID, label: "" }),
+    "",
+    "a row of a new kind no reader returned: nowhere",
+  );
+  // A citation stored before answers kept its `to` was a thread, a conversation, a call or a person, each at its own.
   assert.equal(citationRoute({ kind: "thread", id: ID, label: "" }), `inbox/th-${ID}`);
+  assert.equal(citationRoute({ kind: "conversation", id: ID, label: "" }), `conversations/${ID}`);
   assert.equal(citationRoute({ kind: "call", id: ID, label: "" }), `conversations/cv-${ID}`);
   assert.equal(citationRoute({ kind: "person", id: ID2, label: "" }), `clients/${ID2}`);
   assert.equal(citationRoute({ kind: "page", id: "admin/autonomy", label: "" }), "admin/autonomy");
+  assert.deepEqual(
+    groundCitations(
+      [
+        { kind: "page", id: `clients/list:${ID}`, label: "a list of the workspace's own" },
+        { kind: "page", id: "clients/seg:quiet", label: "a People list" },
+      ],
+      read,
+    ).kept.map((c) => c.id),
+    ["clients/seg:quiet"],
+    "a list of the workspace's own is a row, so its address is no page; People's own view is",
+  );
   assert.equal(isUngrounded("We open at 10.", 0), true, "a figure with no read behind it");
   assert.equal(isUngrounded("We open at 10.", 1), false);
   assert.equal(isUngrounded("Nobody wrote today.", 0), false);
@@ -174,19 +217,20 @@ test("the question about proposals is offered only where deals are a thing (0004
   );
 });
 
-test("the surfaces are one list, Leads among them, and a scope may be any kind a citation names, and the rows a page opens: the route and the prompt read the same names", () => {
+test("the surfaces are one list, Leads among them, and every kind a scope may have is a kind a citation names, a run as a broadcast: the route and the prompt read the same names", () => {
   assert.ok(ASK_SURFACES.includes("leads"), "Leads is a page Ask knows it is on");
   assert.ok(ASK_SURFACES.includes("people") && ASK_SURFACES.includes("other"));
   assert.equal(new Set(ASK_SURFACES).size, ASK_SURFACES.length, "each said once");
   assert.deepEqual(
-    ASK_CITATION_KINDS.filter((k) => !ASK_SCOPE_KINDS.includes(k)),
-    [],
-    "a scope may have the five kinds a citation may name",
-  );
-  assert.deepEqual(
     ASK_SCOPE_KINDS.filter((k) => !ASK_CITATION_KINDS.includes(k)),
-    ["lead", "search", "run"],
-    "and the rows a page opens that no citation names until Phase 4",
+    ["run"],
+    "a run is the one scope word no citation spells: its address's word for a Broadcasts row",
+  );
+  assert.ok(ASK_CITATION_KINDS.includes("broadcast"), "which a citation names a broadcast");
+  assert.deepEqual(
+    ASK_CITATION_KINDS.filter((k) => !ASK_SCOPE_KINDS.includes(k)),
+    ["deal", "list", "broadcast", "playbook", "template", "domain"],
+    "the rows a reader returns that no page opens as a scope",
   );
 });
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { callbackPlan, OAUTH_FAILED } from "@/server/auth/oauth-callback";
+import { callbackPlan, landingAfter, OAUTH_FAILED } from "@/server/auth/oauth-callback";
 
 /**
  * GET /auth/callback -- where a provider sends the browser back.
@@ -39,6 +39,10 @@ export async function GET(request: Request) {
       // to try again, not an error page.
       console.warn("oauth_exchange_failed", JSON.stringify({ message: error.message.slice(0, 120) }));
       to = OAUTH_FAILED;
+    } else {
+      // An account with an authenticator shows its code before it lands anywhere (0013).
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel().catch(() => ({ data: null }));
+      to = landingAfter(to, aal);
     }
   }
   // A RELATIVE Location, resolved by the browser against the address it asked

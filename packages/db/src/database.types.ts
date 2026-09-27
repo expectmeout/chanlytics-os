@@ -3572,6 +3572,9 @@ export type Database = {
           id: string
           letters: boolean
           payout_facts: Json
+          second_factor_reset_at: string | null
+          second_factor_reset_by: string | null
+          second_factor_reset_why: string | null
           share_bp: number
           status: string
           status_at: string | null
@@ -3588,6 +3591,9 @@ export type Database = {
           id?: string
           letters?: boolean
           payout_facts?: Json
+          second_factor_reset_at?: string | null
+          second_factor_reset_by?: string | null
+          second_factor_reset_why?: string | null
           share_bp?: number
           status?: string
           status_at?: string | null
@@ -3604,6 +3610,9 @@ export type Database = {
           id?: string
           letters?: boolean
           payout_facts?: Json
+          second_factor_reset_at?: string | null
+          second_factor_reset_by?: string | null
+          second_factor_reset_why?: string | null
           share_bp?: number
           status?: string
           status_at?: string | null
@@ -5415,6 +5424,10 @@ export type Database = {
           p_kind: string
         }
         Returns: Json
+      }
+      partner_second_factor_reset: {
+        Args: { p_partner: string; p_why: string }
+        Returns: string
       }
       partner_standing_set: {
         Args: { p_standing: string; p_tenant: string; p_why: string }

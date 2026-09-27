@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { LEAD_ENDING_WORDS } from "@chanlytics/contracts";
+import { LEAD_ENDING_WORDS, noteRows } from "@chanlytics/contracts";
 import { waitingQuestionOf } from "../../../leads/leads";
 import { load } from "../../../readers";
 import { searches } from "../../../readers/searches";
@@ -28,7 +28,10 @@ const ROUND_WORDS: Record<string, string> = {
 async function listLeadSearches(t: ToolContext): Promise<unknown> {
   // The Leads page's own read (readers/searches.ts), once a turn: every kept search with its latest round as the page
   // maps it, and the rail's counts read with them (ledger #12).
-  const { searches: rows, counts } = (await load(t.rc, searches, undefined)).data;
+  const read = await load(t.rc, searches, undefined);
+  const { searches: rows, counts } = read.data;
+  // Every search it lists is a row an answer may cite, opened on Leads at that search: the reader's RowRefs.
+  noteRows(t.read, read.rows);
   const cut = (v: string | null | undefined) => (typeof v === "string" ? v.slice(0, 120) : "");
   return {
     route: "clients/leads",

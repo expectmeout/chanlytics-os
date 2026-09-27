@@ -283,6 +283,7 @@ export async function leadsPage(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   q: LeadsQuery,
+  opts: { month?: boolean } = {},
 ): Promise<LeadsPageAnswer> {
   const first = !q.after_key && !q.after_id;
   const [answer, names, counts, month] = await Promise.all([
@@ -300,8 +301,9 @@ export async function leadsPage(
     searchNamesOf(ctx, tenantId),
     first ? listCounts(ctx, tenantId) : Promise.resolve(null),
     // The month rides the first page, as the counts do: the workbench says what a press costs without a read of
-    // its own, and paging through five hundred rows never asks for it again.
-    first ? monthStanding(ctx, tenantId) : Promise.resolve(null),
+    // its own, and paging through five hundred rows never asks for it again. Only for a member who may find: the
+    // month's door (00143) is theirs, and refuses anyone else, which took the whole page down with it.
+    first && opts.month !== false ? monthStanding(ctx, tenantId) : Promise.resolve(null),
   ]);
   if (answer.error) throw new Error(`leads_page: ${answer.error.message}`);
   const raw = (Array.isArray(answer.data) ? answer.data : []) as unknown as LeadPageRow[];
