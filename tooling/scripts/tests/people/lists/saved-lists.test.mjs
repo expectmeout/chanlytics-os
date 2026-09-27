@@ -138,7 +138,7 @@ test("Lists is a view of People: a kept list is the page's title with its rename
     "REGRESSION: a second page of the same people",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy/pages/segments.jsx").includes("window.SegmentsPage = SegmentsPage;"),
+    readCode("apps/dashboard/src/legacy/demo/pages/segments.jsx").includes("window.SegmentsPage = SegmentsPage;"),
     "the demo's page under the name the shell draws",
   );
   const p = readCode("apps/dashboard/src/legacy/pages/people.jsx");

@@ -359,7 +359,7 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   assert.ok(page.includes('testid="pb-empty"'), "the empty state, through the one EmptyState, with the verb on it");
   assert.ok(
     page.includes("window.OutboundPage = (props) =>") &&
-      readCode("apps/dashboard/src/legacy/demo/pages/outbound.jsx").includes("window.OutboundSeed = OutboundPage;"),
+      readCode("apps/dashboard/src/legacy/demo/pages/outbound.jsx").includes("window.OutboundSeed = OutboundSeed;"),
   );
   assert.ok(
     !/\$[\d,]+|revenue|Attributed|booked/.test(page.replace(/\/\/[^\n]*/g, "")),

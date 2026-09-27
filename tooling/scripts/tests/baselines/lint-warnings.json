@@ -44,6 +44,9 @@
   "apps/dashboard/src/legacy/demo/pages/pipeline.jsx": {
     "react-hooks/exhaustive-deps": 1
   },
+  "apps/dashboard/src/legacy/demo/pages/segments.jsx": {
+    "react-hooks/exhaustive-deps": 3
+  },
   "apps/dashboard/src/legacy/demo/pages/tasks.jsx": {
     "react-hooks/exhaustive-deps": 2
   },
@@ -97,9 +100,6 @@
   },
   "apps/dashboard/src/legacy/pages/reports.jsx": {
     "react-hooks/exhaustive-deps": 2
-  },
-  "apps/dashboard/src/legacy/pages/segments.jsx": {
-    "react-hooks/exhaustive-deps": 3
   },
   "apps/dashboard/src/legacy/pages/settings.jsx": {
     "react-hooks/exhaustive-deps": 4

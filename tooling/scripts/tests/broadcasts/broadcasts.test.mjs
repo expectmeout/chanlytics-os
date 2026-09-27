@@ -505,7 +505,7 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
     readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/broadcasts.jsx";'),
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy/demo/pages/broadcasts.jsx").includes("window.BroadcastsSeed = BroadcastsPage;"),
+    readCode("apps/dashboard/src/legacy/demo/pages/broadcasts.jsx").includes("window.BroadcastsSeed = BroadcastsSeed;"),
   );
   const p = readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx");
   for (const id of [
