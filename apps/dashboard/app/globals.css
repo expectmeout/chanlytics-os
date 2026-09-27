@@ -271,6 +271,14 @@ body {
   height: 1px;
   background: var(--line);
 }
+/* Inside the native app (html.in-app, stamped before paint from the shell's
+   User-Agent): Google refuses OAuth in an embedded WebView and the app signs
+   in natively, so the web door and its "or" are not drawn. The rule lives here
+   and not in the OS's mobile.css, which the sign-in page never loads. */
+html.in-app .auth-google,
+html.in-app .auth-or {
+  display: none;
+}
 
 /* A button that reads as a link: the way to the code door, the way back from
    it, and "resend". */
