@@ -78,10 +78,13 @@ test(
             (t, cid, 'report-days-' || gen_random_uuid(), 'ended', day0 - interval '1 day' + interval '3 minutes', 30500),
             (t, cid, 'report-days-' || gen_random_uuid(), 'not_connected', day0 - interval '1 day' + interval '4 minutes', 0);
         end if;
-        -- Three escalations two days ago.
+        -- Three escalations two days ago. A thread holds one open at a time (escalations_one_open, 00004), so the first
+        -- two were resolved; the report counts each, whatever it came to.
         if k = 2 then
-          insert into public.escalations (tenant_id, conversation_id, reason, created_at)
-            select t, conv, 'manual', day0 - interval '2 days' + make_interval(mins => g) from generate_series(5, 7) g;
+          insert into public.escalations (tenant_id, conversation_id, reason, state, created_at)
+            select t, conv, 'manual', case when g < 7 then 'resolved' else 'open' end,
+                   day0 - interval '2 days' + make_interval(mins => g)
+              from generate_series(5, 7) g;
         end if;
       end loop;
       perform set_config('enable_seqscan', 'off', true);
