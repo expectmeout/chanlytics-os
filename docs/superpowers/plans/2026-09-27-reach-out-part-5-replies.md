@@ -422,14 +422,14 @@ An independent review read the plan against `99a28ab0`. Each finding was checked
 | `supabase/migrations/00220_a_no_reaches_the_business_s_own_domain.sql` (new) | The domain suppression and its one predicate; `set_email_marketing`'s reply sources; D18's count; `leads.resume_at`; `person_step_from_playbook`; `lead_convert_by`, and `lead_set_stage` over it | 2 |
 | `apps/edge/lib/leads/lead-db.ts` | The finder's `suppressed` asks the one predicate | 2 |
 | `packages/contracts/src/people/person-timeline.ts` | The words of a reply's no and its undo | 2 |
-| `supabase/migrations/00221_a_reply_is_read_for_what_it_means.sql` (new) | `reach_out_replies`; the reads' spend; the job's unique index; the job and notification kinds; `outreach_wrote_back`'s fourth reading; `reach_out_reply_of`, `_apply`, `_draft`, `_tell_claim`, `_told`, `_undoable`, `_undo` | 3 |
+| `supabase/migrations/00222_a_reply_is_read_for_what_it_means.sql` (new) | `reach_out_replies`; the reads' spend; the job's unique index; the job and notification kinds; `outreach_wrote_back`'s fourth reading; `reach_out_reply_of`, `_apply`, `_draft`, `_tell_claim`, `_told`, `_undoable`, `_undo` | 3 |
 | `packages/core/src/messages/reply-read.ts` (new) | `readReply` and (PR 5) `draftReply`, verbs over `ReplyReadPorts` | 3, 5 |
 | `packages/core/src/messages/email-ingest.ts` | A reach-out's reply is handed to the reading, and not told twice | 3 |
 | `packages/jobs/src/handlers.ts`, `context.ts`, `ledger.ts` | `reply_read`: its handler, `ctx.replies`, `ctx.scheduleOnce`, its retries | 3 |
 | `packages/db/src/repositories/outreach.ts` | `replyOf`, `applyReading`, `recordDraft`, `claimTell`, `markTold`, `readTake`, the readings for the routes | 3, 6 |
 | `apps/edge/lib/reach-out/reply-read.ts` (new) | The edge's ports: the reader through `askJson`, the notice through `notifyOnce`, and (PR 5) the draft through `generateReply` | 3, 5 |
 | `packages/contracts/src/shared/enums.ts`, `workspace/activity.ts` | `reply_read`; `reach_out.replied`, `reach_out.reply_undone` and their words | 3 |
-| `supabase/migrations/00222_an_out_of_office_pauses_a_chain.sql` (new) | `outreach_lead_facts` gains `away`; `reach_out_followers` leaves the away out and takes them back after | 4 |
+| `supabase/migrations/00223_an_out_of_office_pauses_a_chain.sql` (new) | `outreach_lead_facts` gains `away`; `reach_out_followers` leaves the away out and takes them back after | 4 |
 | `packages/contracts/src/reach-out/reach-out-rules.ts`, `consent/consent.ts` | `outreach_away`, its words | 4 |
 | `packages/core/src/deliver.ts`, `packages/channels/src/email.ts` types | `emailSender`: a person's reply may take its own route by its twin, else the mailbox's; `left_as` | 4 |
 | `apps/edge/lib/receptionist/budget.ts` | The one usage writer and the day's cap for the draft | 5 |
@@ -796,14 +796,21 @@ A reach-out's reply is read once, what it means is applied in one transaction, t
 >   - The day's read is taken before the call, so a run that throws after the call and before the apply pays again on its retry (G3's one gap), and a run with no time left before its call spends a read on `model_failed`.
 >   - The undo's keep-check reads each person's current address: an unsubscribe pressed in an email sent to an address its person no longer has, whose row a reading wrote first, is not seen, and neither is another lead's erasure of an address a reading wrote (the reading's own lead erased is refused). Both want the writers of the list to say what holds a row (an unsubscribe or an erasure lifting a `said_no` row to its own `what`), which re-creates `set_email_marketing` and `lead_erase` and is its own change.
 >   - A `reply_read` job that fails for good is not scheduled again; re-reads still due are lost with it. After a rollback of the edge (which fails `reply_read` rows as unknown work), re-schedule what is owed once the edge is back: `insert into jobs (tenant_id, kind, due_at, payload) select tenant_id, 'reply_read', now(), jsonb_build_object('message_id', message_id, 'stage', 'reread-' || (rereads + 1)) from reach_out_replies where unread is not null and undone_at is null and rereads < 3 and read_at > now() - interval '7 days' on conflict do nothing;`.
->   - The live eval (`evals/reply-intents.mjs --live`) and a real Microsoft 365 capture for fixture 14 are still owed (PR 1's As built): this session has no model key and no Exchange Online mailbox.
+> - **The live eval, by proxy (2026-09-27).** No model key reached this session, so the reader's prompt was put to Haiku through subagents: the system text and fenced user content `readerInputOf` builds, one call per reply, each answer scored by `parseReplyReading`, `judgeReading` and `readingPlan`. It is a proxy, not the edge's call (no structured output, another system prompt around it); `--live` with a key stays the check of record.
+>   - The prompt as PR 1 wrote it read 16 of 17, every effect right. The miss, "Can you send me more details?" as a question, makes the same plan as interested. The reader put the referred person's name in both wrong-person summaries, which a lock screen shows.
+>   - Replies beyond the set found the mistake G4 forbids: "Not interested at this time." read as not now, a step in 90 days and nothing suppressed.
+>   - So the prompt changed. Interested takes a request for details, and a question is a particular one. Not now is "a matter of when, not whether". "Not interested" is no even with "right now", "for now" or "at this time", unless they say when to write again or that they may want it later. Away may say when they are back. Other names an acknowledgement, and a summary names someone by their role. `parseReplyReading` now also replaces a wrong person's summary that names whom they named with "They say to write to someone else.", whatever the reader was told, as it already takes out an address or a number.
+>   - Fixtures 18 ("Not interested at this time.", a no) and 19 ("Not right now, thanks.", a not now) hold that line from both sides.
+>   - The final prompt read 19 of 19, every effect right. Sampled again, 18 read no 3 times of 3 and 19 read not now 3 of 3. Wordings in neither the set nor the prompt read 10 of 11: "Not interested for now, thanks." read not now once in three.
+>   - No temperature is set. The reader would take one on Haiku 4.5, but newer models refuse a sampling parameter with a 400, and `askJson` falls back only on a format error, so a model swap would quietly turn every read into `model_failed`.
+>   - Fixture 14 is still modeled, not captured. Microsoft's out-of-office troubleshooting page names the headers it carries (`Auto-Submitted: auto-generated`, `X-Auto-Response-Suppress: All`, `X-MS-Exchange-Inbox-Rules-Loop`), so a Microsoft 365 out-of-office is claimed automated and stops the chain with a step on the day they are back, never sending more. Whether it should pause instead (N1) is PR 4's question: the capture is owed before PR 4 merges.
 > - **Proved on a real Postgres.** Every migration replayed onto Postgres 16 with main's 00215–00219 and PR 2's 00220, 00222 applied twice: the schema dumps are identical. `database.types.ts` (public-schema hunks only) and `schema-sets.generated.ts` were regenerated from that replay as PR 2 did. Every `*.db.test.mjs` passes on it (458 of 463, 2 skipped) but the three that fail the same way on the replay of PR 2's head `d1faee4d` with its own suites (storage and `pg_net`, which the stand-in lacks); the second factor was stood in for so the partner, tenancy and sheet suites ran too. `d1faee4d`'s suites on the new schema (an older edge and dashboard on 00222) pass but its tenancy list, which does not know the new table.
 > - **Tests.** `reach-out-replies/` holds eight modules: the verb over fakes (`reply-read-verb`), the intake (`reply-intake`), the door over the fake database with the real handlers and the edge's reader (`reply-read-door`), and the database suite (`reply-read.db`), beside PR 1's and PR 2's.
 > - **Baselines.** Merged with `main` at `26ba6eb0` (#1201's counting, #1207's lowered baselines): `activityWords` fell (159 lines, 76 branches → 154, 75), banked. Nothing rose: the intake's flag and tell moved into `flagForAPerson` so `ingestEmail` stays under 30 branches, and the repository's string reader is `textOf` so no helper name gains a copy. Dead exports 190, unchanged.
 
 ### Task 3.1: The migration
 
-**Files:** Create `supabase/migrations/00221_a_reply_is_read_for_what_it_means.sql`; regenerate `database.types.ts` and the closed sets.
+**Files:** Create `supabase/migrations/00222_a_reply_is_read_for_what_it_means.sql`; regenerate `database.types.ts` and the closed sets.
 
 - [ ] **The header**, in 00125's shape.
 - [ ] **The readings.** No insert or update policy: the doors below write.
@@ -1013,7 +1020,7 @@ An automatic out-of-office pauses a chain until the day it names (G8). A person'
 
 ### Task 4.1: The migration
 
-**Files:** Create `supabase/migrations/00222_an_out_of_office_pauses_a_chain.sql`; regenerate the types.
+**Files:** Create `supabase/migrations/00223_an_out_of_office_pauses_a_chain.sql`; regenerate the types.
 
 - [ ] Re-create `outreach_lead_facts` from 00220's body whole, with `'away'`: `exists` a `reach_out_replies` row of this tenant where (`contact_id = p_contact_id` or `lead_id = p_lead_id`), `intent = 'away'`, `claim = 'auto_reply'`, `until_at > now()` and `undone_at is null`.
 - [ ] Re-create `reach_out_followers` from `00185:73-107` whole, with two changes:

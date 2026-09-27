@@ -10020,7 +10020,8 @@ declare function replyUserContent(p: {
  * reading: a valid no or wrong person is never lost to another field, since a no missed is the one mistake that must
  * not be made (G4). The rest degrades: a summary is cut to its words with any address or number taken out, a day that
  * is no real date ("null", "2026-02-30", a number) is none, and a missing refer_to is none. A day is kept only where it
- * means something (not_now, away), and refer_to only for wrong_person, held to its bound.
+ * means something (not_now, away), and refer_to only for wrong_person, held to its bound; a wrong person's summary
+ * that names whom they named says only that they named someone.
  */
 declare function parseReplyReading(a: unknown): ReplyReading | null;
 /**
