@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { Appearance, AppState, Platform, StyleSheet, useColorScheme, View } from "react-native";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from "expo-router";
-import { askForToken, coldStartRoute, installForegroundHandler, listen, tabOf } from "@/shell/notifications";
+import { askForToken, coldStartTap, installForegroundHandler, listen, tabOf, type Tap } from "@/shell/notifications";
 import { StatusBar } from "expo-status-bar";
 import { useNetworkState } from "expo-network";
 import * as Updates from "expo-updates";
@@ -96,15 +96,15 @@ export default function RootLayout() {
   // nobody is signed in there are no tabs to navigate (the sign-in screen stands in their place): the route waits,
   // and the effect below opens it as the person comes in.
   useEffect(() => {
-    const open = (route: string) => {
-      setState({ pendingRoute: route });
+    const open = ({ route, workspace }: Tap) => {
+      setState({ pendingRoute: route, pendingWorkspace: workspace });
       if (getState().session !== "out") router.navigate(`/(tabs)/${tabOf(route)}` as never);
     };
     void askForToken().then((token) => {
       if (token) setState({ token });
     });
-    void coldStartRoute().then((route) => {
-      if (route) open(route);
+    void coldStartTap().then((tap) => {
+      if (tap) open(tap);
     });
     const offTaps = listen({ tap: open, token: (token) => setState({ token }) });
     // The Live Activity's push-to-start token, registered beside the push token the moment the phone hands it out.

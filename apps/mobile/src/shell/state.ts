@@ -26,6 +26,8 @@ export interface ShellState {
   refused: string | null;
   /** A tapped notification's route, until the owning tab's page has been asked to open it. */
   pendingRoute: string | null;
+  /** The workspace (its id) that route was told for: its page opens it when it is not the one on screen. */
+  pendingWorkspace: string | null;
   /** The icon's number, as the bell last said it. */
   badge: number;
   /** The site said this app is older than it speaks to (/api/version min_app): the update screen stands. */
@@ -55,6 +57,7 @@ export const INITIAL: ShellState = {
   registered: null,
   refused: null,
   pendingRoute: null,
+  pendingWorkspace: null,
   badge: 0,
   tooOld: false,
   idle: false,
