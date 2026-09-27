@@ -738,9 +738,8 @@ const watchKeyboard = () => {
       /* kept for this page only */
     }
   };
-  const focusIn = (e) => {
-    if (!up && typesIn(e.target)) expect(true);
-  };
+  // Not where the phone app shrinks the page above the keys (contracts APP_KEYS_RESIZE_CLASS): room made would then go.
+  const focusIn = (e) => !up && typesIn(e.target) && !(cls && cls.contains("app-keys-resize")) && expect(true);
   const focusOut = () => expect(false);
   set();
   vv.addEventListener("resize", set);
