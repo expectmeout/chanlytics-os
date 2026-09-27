@@ -123,6 +123,16 @@ export function installAppBridge(
     receive: (raw: string) => answerShell(answering, raw),
     forgetPhone: () => forgetPhone(doors, post, phone),
   };
+  // A file the page made (chart-core's CSV), asked for with a cancelable `app:file`: taken to the app's share sheet,
+  // and the event cancelled so the page does not also try the download a WebView drops. One that is no file the app
+  // would take is left to the page.
+  const file = (e: Event) => {
+    const raw = JSON.stringify({ t: "file", ...((e as CustomEvent<object>).detail ?? {}) });
+    if (!parsePageMessage(raw)) return;
+    win.ReactNativeWebView?.postMessage(raw);
+    e.preventDefault();
+  };
+  win.addEventListener("app:file", file);
   // The bell's number is the icon's: said at install and on every change of the feed or the marks.
   const badge = () => {
     const n = win.__notifs?.unread();
@@ -142,6 +152,7 @@ export function installAppBridge(
     win.removeEventListener("workspace:changed", workspace);
     win.removeEventListener("surface:today", today);
     win.removeEventListener("surface:live", calls);
+    win.removeEventListener("app:file", file);
     stopTheme();
     overlays.stop();
     shell.stop();
