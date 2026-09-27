@@ -7,6 +7,7 @@
 // opens (window.__reachOuts.report), never before and never invented (R23). Every sentence is contracts'
 // (window.__reachOuts.words, reach-out-sheet.ts); every act goes through window.__reachOuts, and the surfaces are read
 // again behind it. Who may press is the role store's answer (window.gate / canDo "approve": owner, operator, partner).
+// Edit opens the reach-out sheet (reach-out-sheet.jsx, PR 6) over the chain as read, for a role that may change it.
 
 /**
  * A chain's report and its search's reach, read when a row of it opens (this one, or a Templates email row), or why they
@@ -70,8 +71,8 @@ const ReachOutReport = ({ said }) => (
   </>
 );
 
-/** Pause or Resume, and Remove only while the report says it may go (R16), asking first. */
-const ReachOutActs = ({ chain, said, W, flash }) => {
+/** Edit, Pause or Resume, and Remove only while the report says it may go (R16), asking first. */
+const ReachOutActs = ({ chain, said, W, flash, onEdit }) => {
   const V = window.__reachOuts;
   const RW = W.REACH_OUT_ROW_WORDS;
   const [busy, setBusy] = React.useState(false);
@@ -93,6 +94,8 @@ const ReachOutActs = ({ chain, said, W, flash }) => {
         <Confirm question={RW.removeAsk(chain.name)} detail={said ? said.remove : null} yes={RW.removeYes} danger busy={busy} onYes={remove} onNo={() => setSure(false)} testid="ro-remove" />
       ) : (
         <>
+          {/* A secondary act: out of sight for a role that may not change the chain (legacy/CLAUDE.md, Role gates). */}
+          {onEdit && window.canDo && window.canDo("approve") && <button className="btn btn-sm" disabled={busy} onClick={onEdit} data-testid="ro-edit">{RW.edit}</button>}
           <button className="btn btn-sm" disabled={busy} onClick={toggle} data-testid="ro-toggle" {...window.gate("approve", paused ? "resume a reach-out" : "pause a reach-out")}>{paused ? RW.resume : RW.pause}</button>
           {/* Removed only before its first email goes (R16): after that it is paused, and its history stays. */}
           {said && said.canRemove && <button className="cl-bucket-link danger" disabled={busy} onClick={() => setSure(true)} data-testid="ro-remove" {...window.gate("approve", "remove a reach-out")}>{RW.remove}</button>}
@@ -105,6 +108,7 @@ const ReachOutActs = ({ chain, said, W, flash }) => {
 /** The open row: the chain's path, its report as read, its acts. */
 const ReachOutOpen = ({ chain, canAct, flash, W, pace }) => {
   const [read, retry] = useReachOutReport(chain.root_id, true);
+  const [editing, setEditing] = React.useState(false);
   const RW = W.REACH_OUT_ROW_WORDS;
   const said = read && read.state === "ok" ? W.chainReportWordsOf(chain, read.report, read.reach || RO_NO_REACH, pace) : null;
   return (
@@ -113,10 +117,10 @@ const ReachOutOpen = ({ chain, canAct, flash, W, pace }) => {
       {(!read || read.state === "reading") && <p className="cm-standing" data-testid="ro-reading">{RW.reading}</p>}
       {read && read.state === "failed" && <FailedRead kind="line" what={RW.failed} onRetry={retry} testid="ro-failed" />}
       {said && <ReachOutReport said={said} />}
-      <p className="bc-excl-hint" data-testid="ro-edit-note">{RW.edit}</p>
-      <ReachOutActs chain={chain} said={said} W={W} flash={flash} />
+      <ReachOutActs chain={chain} said={said} W={W} flash={flash} onEdit={chain.search && window.ReachOutSheet ? () => setEditing(true) : null} />
       {/* Who may is the role store's one answer (contracts roleGate, a partner included), never a copy of it. */}
-      {!canAct && window.gateTitle && <p className="bc-excl-hint" data-testid="ro-role">{window.gateTitle("approve", "pause, resume or remove a reach-out")}</p>}
+      {!canAct && window.gateTitle && <p className="bc-excl-hint" data-testid="ro-role">{window.gateTitle("approve", "change, pause, resume or remove a reach-out")}</p>}
+      {editing && <window.ReachOutSheet search={chain.search} chain={chain} onClose={() => setEditing(false)} />}
     </div>
   );
 };

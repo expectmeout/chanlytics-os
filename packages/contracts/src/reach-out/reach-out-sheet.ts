@@ -326,7 +326,7 @@ export const REACH_OUT_ROW_WORDS = {
   removed: (name: string) => `${name} is removed, and its words with it`,
   runs: (n: number) => (n === 1 ? "1 run" : `${n} runs`),
   noRun: "No run yet",
-  edit: "Its words and its pace are changed on its sheet, which comes with the reach-out sheet.",
+  edit: "Edit",
 } as const;
 
 /** Playbooks' row for a chain (F14; canvas board 07): what the list says before the row is opened. */
