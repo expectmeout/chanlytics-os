@@ -205,7 +205,11 @@ var EVENT_KINDS = [
   // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
   "partner.handover_sent",
   "partner.handover_accepted",
-  "partner.handover_declined"
+  "partner.handover_declined",
+  // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
+  "reach_out.replied",
+  // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
+  "reach_out.reply_undone"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -3420,6 +3424,87 @@ async function addressesHeldBefore00220(db, tenantId, asked) {
   if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
   return new Set((data ?? []).flatMap((r2) => byHash.get(r2.hash) ?? []));
 }
+var textOf = (v) => typeof v === "string" && v !== "" ? v : null;
+async function reachOutReplyOf(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_of", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_days: p.days
+  });
+  if (error && missingDoor(error)) return null;
+  if (error) throw new Error(`cannot read whose reply this is: ${error.message}`);
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : null;
+  const sendId = textOf(o?.send_id);
+  const leadId = textOf(o?.lead_id);
+  const conversationId = textOf(o?.conversation_id);
+  const receivedAt = textOf(o?.received_at);
+  if (!o || !sendId || !leadId || !conversationId || !receivedAt) return null;
+  const claim = o.claim === "auto_reply" || o.claim === "automated" ? o.claim : "person";
+  return {
+    send_id: sendId,
+    lead_id: leadId,
+    lead_contact_id: textOf(o.lead_contact_id),
+    lead_email: textOf(o.lead_email),
+    lead_website: textOf(o.lead_website),
+    answered_message_id: textOf(o.answered_message_id),
+    answered_text: textOf(o.answered_text),
+    business: textOf(o.business) ?? "",
+    chain: textOf(o.chain),
+    signed_by: textOf(o.signed_by),
+    tz: textOf(o.tz),
+    conversation_id: conversationId,
+    contact_id: textOf(o.contact_id),
+    claim,
+    from: textOf(o.from),
+    subject: textOf(o.subject),
+    text: textOf(o.text),
+    received_at: receivedAt
+  };
+}
+async function replyReadingOf(db, p) {
+  const { data, error } = await db.from("reach_out_replies").select("intent, claim, summary, unread, rereads, plan, told_at, undone_at").eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
+  if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
+  return data ?? null;
+}
+async function takeReplyRead(db, p) {
+  const { data, error } = await db.rpc("reach_out_read_take", {
+    p_tenant_id: p.tenantId,
+    p_cap: p.cap,
+    p_at: p.at.toISOString()
+  });
+  if (error) throw new Error(`cannot take the day's read: ${error.message}`);
+  return data === true;
+}
+async function applyReplyReading(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_apply", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_reading: p.reading,
+    p_plan: p.plan,
+    p_reread: p.reread,
+    p_days: p.days
+  });
+  if (error) throw new Error(`cannot apply the reply's reading: ${error.message}`);
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return o.applied === true;
+}
+async function claimReplyTell(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_tell_claim", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_stale_before: p.staleBefore.toISOString()
+  });
+  if (error) throw new Error(`cannot claim the reply's notice: ${error.message}`);
+  return typeof data === "string" && data !== "" ? data : null;
+}
+async function markReplyTold(db, p) {
+  const { error } = await db.rpc("reach_out_reply_told", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_claimed_at: p.claim
+  });
+  if (error) throw new Error(`cannot mark the reply's notice told: ${error.message}`);
+}
 
 // src/repositories/reach-out-sheet.ts
 var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, run_hour, last_run_for, created_at";
@@ -4955,6 +5040,7 @@ export {
   addToList,
   addressesSuppressed,
   applyDomainCheck,
+  applyReplyReading,
   archiveList,
   assembleHistory,
   becomePartner,
@@ -4963,6 +5049,7 @@ export {
   claimCallNotification,
   claimControl,
   claimIdempotencyKey,
+  claimReplyTell,
   claimSends,
   closedRunSends,
   coldReceiptsOwed,
@@ -5022,6 +5109,7 @@ export {
   markHeldNotice,
   markPartnerPaid,
   markProcessed,
+  markReplyTold,
   monthSent,
   moveSend,
   notesForReceptionist,
@@ -5039,6 +5127,7 @@ export {
   reachOutFollowers,
   reachOutPerson,
   reachOutRecord,
+  reachOutReplyOf,
   reachOutRootOf,
   reachOutRunSendsOf,
   reachOutSendRefOf,
@@ -5064,6 +5153,7 @@ export {
   releaseIdempotencyKey,
   releaseUnavailableHolds,
   renameList,
+  replyReadingOf,
   reputationHoldsSince,
   resendHandover,
   reserveSendingDomain,
@@ -5103,6 +5193,7 @@ export {
   suppressEmailOf,
   takeCheckAttempt,
   takeIdempotencyKey,
+  takeReplyRead,
   templatesFor,
   tenantZoneOf,
   touchIndex,

@@ -1048,7 +1048,14 @@ var JOB_KINDS = [
    * the phone did, and a phone answered gone is forgotten here. Carries the
    * tickets in its payload; a transport failure throws and is tried again.
    */
-  "push_receipts"
+  "push_receipts",
+  /**
+   * One reply to a reach-out, read for what it means (Reach out Part 5, 00222): the model's reading, applied through
+   * reach_out_reply_apply, and the workspace told once. Scheduled by the email intake once per message
+   * (jobs_reply_read_once, scheduleJobOnce), and by itself for a re-read of a reply it could not read ({ stage:
+   * "reread-<n>" }). Internal work written to be run again: a second claim finds the reading and pays nothing.
+   */
+  "reply_read"
 ];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var WABA_FIELDS = [
@@ -1188,7 +1195,11 @@ var EVENT_KINDS = [
   // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
   "partner.handover_sent",
   "partner.handover_accepted",
-  "partner.handover_declined"
+  "partner.handover_declined",
+  // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
+  "reach_out.replied",
+  // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
+  "reach_out.reply_undone"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -6661,7 +6672,9 @@ var NOTE_FROM = {
   bulk: null,
   moved: null,
   call: "After a call",
-  thread: "After a conversation"
+  thread: "After a conversation",
+  // A step a reach-out's reply made (Reach out Part 5, 00220 person_step_from_playbook): the words say which.
+  reach_out: "From a reach-out"
 };
 function noteStepOf(n, tz, nowMs) {
   const day = stepDayOf(n.due_on, tz, nowMs);
@@ -20940,6 +20953,8 @@ function withinChars(text, max) {
   const t = text.trim();
   return t.length <= max ? t : clipAtWord(t, max - 1);
 }
+var REPLY_UNREADS = ["no_model", "may_not_spend", "day_spent", "model_failed"];
+var isUnread = (v) => REPLY_UNREADS.includes(v);
 var REACH_OUT_READS_PER_DAY = 200;
 var REACH_OUT_REPLY_DAYS = 30;
 var REACH_OUT_AWAY_DAYS = 7;
@@ -23204,7 +23219,8 @@ var SCHEMA_SETS = {
     "lead_collect",
     "lead_check",
     "push_send",
-    "push_receipts"
+    "push_receipts",
+    "reply_read"
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -23309,7 +23325,8 @@ var SCHEMA_SETS = {
     "broadcast_stopped",
     "leads_ready",
     "leads_question",
-    "note_for_you"
+    "note_for_you",
+    "reach_out_replied"
   ],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
@@ -23350,6 +23367,10 @@ var SCHEMA_SETS = {
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
   "push_devices.platform": ["ios", "android"],
+  "reach_out_replies.claim": ["person", "automated", "auto_reply"],
+  "reach_out_replies.draft_state": ["none", "waiting", "written", "not_written"],
+  "reach_out_replies.intent": ["interested", "question", "not_now", "no", "wrong_person", "away", "other"],
+  "reach_out_replies.unread": ["no_model", "may_not_spend", "day_spent", "model_failed"],
   "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"],
   "sending_domains.dmarc": ["found", "missing"],
   "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
@@ -23873,7 +23894,8 @@ var PUSH_KINDS = [
   "job_failed",
   "billing",
   "number",
-  "review"
+  "review",
+  "reach_out_replied"
 ];
 var isPushKind = (kind) => PUSH_KINDS.includes(kind);
 function unreadFor(rows, seenAt, marks) {
@@ -23998,7 +24020,9 @@ var SERVER_NOTIFICATION_KINDS = [
   "leads_ready",
   "leads_question",
   /** A note left for one member (0007, 00158): addressed to them alone. */
-  "note_for_you"
+  "note_for_you",
+  /** A business wrote back to a reach-out, and what it meant (Reach out Part 5, 00222): told once per reading. */
+  "reach_out_replied"
 ];
 var JOB_WORK = {
   outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
@@ -24009,7 +24033,9 @@ var JOB_WORK = {
   lead_collect: { stopped: "A search stopped partway", to: "clients/leads" },
   lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
   push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
-  push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" }
+  push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
+  // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
+  reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" }
 };
 var JOB_WORK_OTHER = { stopped: "Something in the background did not finish", to: "today" };
 function jobNewsWords(jobKind, end, attempts = 1) {
@@ -24069,6 +24095,8 @@ var SERVER_LOOK = {
   billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
   /** A note a teammate left for you on a person (0007): its row names them and opens their page, where the note is. */
   note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
+  /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
+  reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
   alert: { icon: "bell", tone: "", action: "Open Today", to: "today" }
 };
 var ROUTE_VERBS = [
@@ -26056,6 +26084,10 @@ var WORDS = {
   "sending_domain.removed": "A domain to send from was removed",
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
+  "lead.converted": "A lead is Talking",
+  // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
+  "reach_out.replied": "A business wrote back to a reach-out",
+  "reach_out.reply_undone": "A reply read as no was undone",
   "workspace.created": "The workspace was created",
   "settings.changed": "Settings changed",
   "policy.changed": "An autonomy setting changed",
@@ -26080,9 +26112,37 @@ function humanize(kind) {
 }
 var str = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
 var num2 = (o, k) => typeof o[k] === "number" ? o[k] : null;
+function importWords(p) {
+  const n = (k) => num2(p, k) ?? 0;
+  const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
+  const stopped = n("failed") > 0 ? ", then stopped at a fault" : "";
+  return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
+}
+var CONVERTED_HOW = {
+  call: "after a call",
+  reply: "they wrote back",
+  booking: "they booked",
+  deal: "a deal was opened"
+};
+function readingWords(kind, p, base) {
+  if (kind === "lead.converted") {
+    const how = CONVERTED_HOW[str(p, "how") ?? ""];
+    return how ? `${base} \xB7 ${how}` : base;
+  }
+  const who = str(p, "business") ?? "A business";
+  if (str(p, "unread")) return `${who} wrote back \xB7 not read yet`;
+  return isReplyIntent(p.intent) && p.intent !== "other" ? `${who} wrote back \xB7 ${REPLY_INTENT_WORDS[p.intent]}` : `${who} wrote back`;
+}
+var WHOLE_SENTENCE = /* @__PURE__ */ new Map([
+  ["import", (p) => importWords(p)],
+  ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
+  ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)]
+]);
 function activityWords(kind, payload) {
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const base = kind === "take_over" && str(p, "how") === "transfer" ? "Took over a call" : WORDS[kind] ?? humanize(kind);
+  const whole = WHOLE_SENTENCE.get(kind);
+  if (whole) return whole(p, base);
   const bits2 = [];
   switch (kind) {
     case "take_over": {
@@ -26123,12 +26183,6 @@ function activityWords(kind, payload) {
       const rows = num2(p, "rows");
       if (rows !== null) bits2.push(`${rows} rows`);
       break;
-    }
-    case "import": {
-      const n = (k) => num2(p, k) ?? 0;
-      const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
-      const stopped = n("failed") > 0 ? ", then stopped at a fault" : "";
-      return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
     }
     case "pause_agent":
     case "resume_agent": {
@@ -27447,6 +27501,7 @@ export {
   REPLY_SCHEMA,
   REPLY_SUBJECT_MAX,
   REPLY_SUMMARY_WORDS,
+  REPLY_UNREADS,
   REPLY_WINDOW_HOURS,
   REPLY_WINDOW_MS,
   REPLY_WINDOW_WORDS,
@@ -27559,6 +27614,7 @@ export {
   TRY_SKIPPED,
   TenantConfigSchema,
   TenantConfigWriteSchema,
+  UNREAD_READING,
   UNSUBSCRIBE_PAGE_HEADER,
   US_STATE_ZONES,
   UUID3 as UUID,
@@ -27952,6 +28008,7 @@ export {
   isTimezone,
   isTypingTarget,
   isUngrounded,
+  isUnread,
   isUsablePassword,
   isUuid,
   isWaitRefusal,

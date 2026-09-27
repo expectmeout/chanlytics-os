@@ -137,7 +137,7 @@ function matches(row, filters) {
 }
 
 /**
- * A partial unique index (`opts.uniqueIndexes`: `[{ table, name, columns, where }]`): among the rows `where` admits,
+ * A partial unique index (`opts.uniqueIndexes`: `[{ table, name, columns | key, where }]`): among the rows `where` admits,
  * the `columns` hold each combination once. An insert or an update that would leave two such rows fails as Postgres
  * fails the statement (23505, naming the index, nothing written). Modelled for the one line a workspace holds
  * (lines_one_live_per_tenant_idx, 00195): two buys that crossed both read no line, and it is the database, not the
@@ -147,9 +147,12 @@ function matches(row, filters) {
 function uniqueViolation(indexes, table, candidates, others) {
   for (const ix of indexes.filter((i) => i.table === table)) {
     const held = others.filter((r) => ix.where(r));
+    // An index on expressions (`key`: the row's key, as a string) rather than columns: jobs_reply_read_once is on the
+    // payload's message and stage (00222).
+    const same = ix.key ? (a, b) => ix.key(a) === ix.key(b) : (a, b) => ix.columns.every((c) => a[c] === b[c]);
     for (const row of candidates) {
       if (!ix.where(row)) continue;
-      if (held.some((r) => ix.columns.every((c) => r[c] === row[c])))
+      if (held.some((r) => same(r, row)))
         return { code: "23505", message: `duplicate key value violates unique constraint "${ix.name}"` };
       held.push(row);
     }

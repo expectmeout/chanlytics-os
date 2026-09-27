@@ -58,8 +58,10 @@ export interface ReplyReading {
   referTo: string | null;
 }
 
-/** Why a reply was not read: it is `other`, and it is read again later (G4). */
-export type Unread = "no_model" | "may_not_spend" | "day_spent" | "model_failed";
+/** Why a reply was not read: it is `other`, and it is read again later (G4). The table's CHECK holds the same list. */
+export const REPLY_UNREADS = ["no_model", "may_not_spend", "day_spent", "model_failed"] as const;
+export type Unread = (typeof REPLY_UNREADS)[number];
+export const isUnread = (v: unknown): v is Unread => (REPLY_UNREADS as readonly unknown[]).includes(v);
 
 /** Replies a workspace reads a UTC day (G4), beside the check's REACH_OUT_CHECKS_PER_DAY. */
 export const REACH_OUT_READS_PER_DAY = 200;
@@ -432,8 +434,8 @@ const NO_EFFECT: ReadingPlan = {
   tell: false,
 };
 
-/** A reply that could not be read is `other` (§4.12). */
-const UNREAD_READING: ReplyReading = { intent: "other", summary: "", day: null, referTo: null };
+/** A reply that could not be read is `other` (§4.12): the reading its door is handed. */
+export const UNREAD_READING: ReplyReading = { intent: "other", summary: "", day: null, referTo: null };
 
 /** The address that wrote, when it is another than the one the reach-out wrote to. */
 function otherWriter(leadAddress: string | null, replyFrom: string | null): string | null {

@@ -36,7 +36,7 @@ function toNoteDto(n: NoteRow, names: Map<string, string>, me: string): PersonNo
     for_me: !!n.for_user_id && n.for_user_id === me,
     team_only: n.team_only,
     state: n.state === "suggested" ? "suggested" : "kept",
-    source: (["page", "bulk", "moved", "call", "thread"] as const).find((s) => s === n.source) ?? "page",
+    source: (["page", "bulk", "moved", "call", "thread", "reach_out"] as const).find((s) => s === n.source) ?? "page",
     version: n.version,
     created_at: n.created_at,
     updated_at: n.updated_at,

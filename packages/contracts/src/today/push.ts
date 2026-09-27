@@ -57,6 +57,7 @@ export const PUSH_KINDS = [
   "billing",
   "number",
   "review",
+  "reach_out_replied",
 ] as const satisfies readonly ServerNotificationKind[];
 export type PushKind = (typeof PUSH_KINDS)[number];
 export const isPushKind = (kind: string): kind is PushKind => (PUSH_KINDS as readonly string[]).includes(kind);

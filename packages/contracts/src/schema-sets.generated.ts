@@ -57,7 +57,7 @@ export const SCHEMA_SETS = {
   "invitations.role": ["operator", "viewer"],
   "jobs.kind": [
     "outbound_send", "broadcast_send", "line_provision", "email_ingest", "lead_round_start",
-    "lead_collect", "lead_check", "push_send", "push_receipts",
+    "lead_collect", "lead_check", "push_send", "push_receipts", "reply_read",
   ],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lead_counters.kind": ["allowance", "budget", "day"],
@@ -111,7 +111,7 @@ export const SCHEMA_SETS = {
   "notifications.kind": [
     "handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people",
     "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent",
-    "broadcast_stopped", "leads_ready", "leads_question", "note_for_you",
+    "broadcast_stopped", "leads_ready", "leads_question", "note_for_you", "reach_out_replied",
   ],
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
@@ -135,6 +135,10 @@ export const SCHEMA_SETS = {
   "policies.mode": ["auto", "veto", "ask", "never"],
   "policies.subject_type": ["segment", "contact"],
   "push_devices.platform": ["ios", "android"],
+  "reach_out_replies.claim": ["person", "automated", "auto_reply"],
+  "reach_out_replies.draft_state": ["none", "waiting", "written", "not_written"],
+  "reach_out_replies.intent": ["interested", "question", "not_now", "no", "wrong_person", "away", "other"],
+  "reach_out_replies.unread": ["no_model", "may_not_spend", "day_spent", "model_failed"],
   "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"],
   "sending_domains.dmarc": ["found", "missing"],
   "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
