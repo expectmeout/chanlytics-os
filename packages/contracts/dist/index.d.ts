@@ -8950,7 +8950,7 @@ declare function peopleListAction(id: string, members: PersonRowVM[]): PeopleLis
 declare function savedListAction(id: string, members: PersonRowVM[]): PeopleListAction;
 /**
  * Why nobody can be sent a thing when somebody said the yes it needs: what a broadcast reaches. The reason in
- * `noNumberWords`, and the arithmetic under Today's reach row (today.ts todayLeaks), in one spelling.
+ * `noNumberWords`, and the arithmetic under Today's reach row (today-leaks.ts todayLeaks), in one spelling.
  */
 declare const NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
 /**
@@ -10092,7 +10092,7 @@ type JobNewsKind = Extract<ServerNotificationKind, "job_failed" | "broadcast_sen
  * One alert from a job: what it IS, where its button goes, and the words.
  * The verb that raises it decides `kind` and `route`; the sender never
  * re-derives either (the rule waba-events.ts already follows). How it then
- * reads is SERVER_LOOK's, and how it groups is today.ts AWAY_NOUN's.
+ * reads is SERVER_LOOK's, and how it groups is today-away.ts AWAY_NOUN's.
  */
 interface JobNews {
     kind: JobNewsKind;
@@ -17131,96 +17131,9 @@ declare function lineReleasedWords(i: Omit<LineReleaseWordsInput, "on">): {
 };
 
 /**
- * Today (Slice 4): the morning brief.
- *
- * The rule that shapes every line below: a number that cannot be traced to a
- * row does not appear, and a region with nothing true to say is not rendered
- * at all rather than rendered empty. Zero traffic stated positively — with a
- * timestamp and a channel status — is reassurance; the same morning rendered
- * as four zeroes and a flat sparkline reads as a product that died overnight.
- *
- * Every clock value comes from the SERVER's tenant-local time, never the
- * browser's: the owner of a New York salon checking from Madrid must still be
- * told what time it is at the salon.
+ * Today's view model: the shape of the brief (`TodayVM`) and of each row and figure in it. Types only; the brief
+ * that builds it is today-brief.ts, over the facts (today-facts.ts) and the bands, rows and queue beside them.
  */
-
-/**
- * One wire a workspace can be reached on.
- *
- * `metrics_summary` answers the ROUTING rows (tenant_channels, 00087). Email
- * is not one of them: a workspace's email line is its `mailboxes` row plus the
- * deployment's mail domain (mailbox.ts), and the domain lives in EMAIL_DOMAIN,
- * which the database cannot see. `emailWires` below puts it in the same list,
- * from the same read Setup and Connections use, so the three cannot disagree.
- */
-interface MetricsChannelDto {
-    kind: string;
-    /** `tenant_channels.status`: "active" or "disabled"; "active" for a mailbox that exists. */
-    status: string;
-    /** The phone number customers reach this wire on; null on a wire that is not a number. */
-    number: string | null;
-    /** Where customers reach a wire that is not a number: the workspace's email address. */
-    address?: string | null;
-}
-/**
- * The email wire, for that list.
- *
- * A workspace HAS email when this deployment has it and the owner has made the
- * mailbox (00129), the judgement `emailSetupFor` already makes for Setup and
- * Connections. Nothing switches a mailbox off, so a mailbox that exists is a
- * wire that is connected: `last_error` is an intake that failed, which
- * Connections tells as "Waiting on us", and a failed intake is not a wire that
- * is down.
- */
-declare function emailWires(email: EmailSetupDto | null | undefined): MetricsChannelDto[];
-interface MetricsSummaryDto {
-    workspace: {
-        name: string;
-        timezone: string;
-        status: string;
-    };
-    channels: MetricsChannelDto[];
-    /**
-     * False when the workspace's email line could not be read (server/metrics.ts
-     * caught the mailbox read): the count above the work is short by a wire it
-     * cannot name, and says so rather than printing a smaller whole. Absent is
-     * true, as every payload the database answers is.
-     */
-    linesRead?: boolean;
-    window: {
-        days: number;
-        since: string;
-        since_local: string;
-        now_local: string;
-    };
-    now: {
-        escalations_open: number;
-        oldest_open_escalation_at: string | null;
-        threads_needing_human: number;
-        threads_snoozed: number;
-        threads_awaiting_reply: number;
-        last_inbound_at: string | null;
-        last_outbound_at: string | null;
-    };
-    period: {
-        messages_in: number;
-        messages_out_ai: number;
-        messages_out_you: number;
-        conversations_active: number;
-        answered_by_ai: number;
-        answered_by_you: number;
-        unanswered_in_window: number;
-        median_reply_seconds_ai: number | null;
-        send_failures: number;
-        escalations_new: number;
-        escalation_reasons: Record<string, number>;
-        calls: number;
-        call_seconds: number;
-        call_sentiments: Record<string, number>;
-        calls_voicemail: number;
-        new_contacts: number;
-    };
-}
 interface TodayNeedsRowVM {
     id: string;
     conversationId: string;
@@ -17297,18 +17210,6 @@ interface TodayQueueRowVM {
     /** For the order: the longest wait first; a window by how soon it closes; a call last. */
     waitedMs: number;
 }
-/** Six rows on Today; the rest is a count for the Inbox link. */
-declare const TODAY_QUEUE_MAX = 6;
-/**
- * How much of a customer's own words a queue row carries.
- *
- * It was a bare `.slice(0, 110)`: a hard cut mid-word, with nothing to say a
- * cut had happened, at a length the row could not have shown anyway. The row's
- * line is the only thing that knows how wide it is, so it does the truncating
- * now -- two lines with a real ellipsis -- and this is only a ceiling on what
- * the view model carries, set well past what two lines can draw.
- */
-declare const QUOTE_MAX = 240;
 /** What an empty queue MEANS for this workspace: the colour rides with a glyph and the words. */
 interface TodayQueueEmptyVM {
     title: string;
@@ -17344,8 +17245,6 @@ interface TodayNoReplyVM {
     sinceMs: number;
     to: string;
 }
-/** A message with nothing back for this long is one nobody answered; the receptionist answers in seconds. */
-declare const NO_REPLY_AFTER_MS = 3600000;
 interface TodayVM {
     standing: {
         eyebrow: string;
@@ -17434,520 +17333,6 @@ interface TodayVM {
         } | null;
     } | null;
 }
-/** Wall-clock time AT THE SALON, whatever clock the reader is holding. */
-/**
- * A clock time that says which day when it is not today: "3:30 PM",
- * "tomorrow 6:46 PM", "Wed 9:00 AM". A closing window printed as "6:46 PM"
- * beside "since 6:46 PM" read as the same moment.
- */
-declare function tzClock(iso: string | null | undefined, tz: string, now: Date): string | null;
-/**
- * The proof the lines are listening: when the last message arrived and how long the receptionist took to answer it.
- * Always said, never gated on the queue: on this workspace (no traffic, three open escalations) it was suppressed
- * exactly when an owner needed it. On a day with traffic it is the messages figure's clause; on a quiet day the
- * card's line, and the quiet card's own sentence ends with it, so the two cannot drift.
- */
-declare function todayProof(live: {
-    last_inbound_at: string | null;
-    last_outbound_at: string | null;
-}, tz: string, now: Date): string;
-/**
- * Today's brief: the facts read once, then one builder per band. The quiet day (no traffic, nobody waiting, no
- * alert) proves the lines are listening instead of drawing a row of zeroes; every other day gets the headline
- * ladder, the recap, the figures, the calls and the queue.
- */
-declare function toTodayVM(m: MetricsSummaryDto, conversations: ConversationDto[], escalations: Array<EscalationDto & {
-    conversation_id: string;
-}>, calls: CallDto[] | null, now?: Date, searches?: LeadSearchDto[] | null): TodayVM;
-/** What the day module reads, as the calendar surface publishes it. Minimal on purpose: the page hands the surface in. */
-interface DayFrameLike {
-    key: string;
-    long: string;
-    today: boolean;
-    past: boolean;
-    closed: {
-        yes: boolean;
-        note: string | null;
-    };
-    blocks: Array<{
-        id: string;
-        t: number;
-        dur: number;
-        time: string;
-        title: string;
-        /** The title with the person's name taken out of it (calendar.ts serviceOf). */
-        service: string;
-        person: {
-            id: string;
-            name: string;
-        } | null;
-    }>;
-    allDay: Array<{
-        id: string;
-        t: number;
-        dur: number;
-        time: string;
-        title: string;
-        /** The title with the person's name taken out of it (calendar.ts serviceOf). */
-        service: string;
-        person: {
-            id: string;
-            name: string;
-        } | null;
-    }>;
-    windows: Array<{
-        label: string;
-    }>;
-}
-interface CalendarLike {
-    days: DayFrameLike[];
-    /** The clock now, as hours in the business's zone (14.5 is 2:30 PM). */
-    now: number;
-    feed: {
-        state: "ok" | "unavailable" | "none";
-    };
-    stats: {
-        next: string;
-    };
-}
-/** A playbook card as the playbooks surface publishes it. */
-interface PlaybookCardLike {
-    trigger: string;
-    state: string;
-    candidates: number;
-    next: string;
-}
-interface TodayDayItemVM {
-    id: string;
-    /** "2 PM" · "10:15 AM" · "All day" — the column. */
-    start: string;
-    /** "2 – 5 PM" — the whole span, for the hover. */
-    time: string;
-    /** "3h" · "1h 30m" · "45m"; empty for all-day. */
-    dur: string;
-    title: string;
-    /** What it is FOR, with the person's name taken out of the title (calendar.ts serviceOf): the row names them
-     *  once. "Gloss" from "Gloss · Emily Chen". */
-    service: string;
-    person: {
-        id: string;
-        name: string;
-    } | null;
-    allDay: boolean;
-    /** Where it sits against the clock, today only: past · now · next · later. */
-    phase: "past" | "now" | "next" | "later";
-    /** The person's open thread, when they have one: "Needs you — in Inbox". */
-    flag: string | null;
-}
-interface TodayDayFrameVM {
-    key: string;
-    /** "Today · Sunday, September 6" */
-    label: string;
-    today: boolean;
-    past: boolean;
-    closed: {
-        yes: boolean;
-        note: string | null;
-    };
-    items: TodayDayItemVM[];
-    /** "2 booked", and "1 needs you" when a person on the day has an open thread. */
-    summary: {
-        booked: string;
-        flagged: string | null;
-    } | null;
-    /** The windows the receptionist would offer, as labels; none on a closed or past day. */
-    open: string[];
-    /** How many of the day's entries the cap left out, and the line that says so ("2 more on the Calendar"). */
-    more: number;
-    moreLine: string | null;
-}
-/** "45m" · "1h" · "1h 30m" */
-declare function durationLabel(minutes: number): string;
-interface TodayDayVM {
-    feed: "ok" | "unavailable" | "none";
-    frames: TodayDayFrameVM[];
-    nextOpening: string | null;
-    /** The visit playbooks' line — what goes out and when — or the offer to start one. */
-    reminders: {
-        text: string;
-        to: string;
-    } | null;
-}
-/** Rows on Today's day card; the Calendar has the rest. */
-declare const TODAY_DAY_MAX = 5;
-/**
- * Today and tomorrow, as the calendar reads them: who is coming and when,
- * what is open, what is closed — and the visit playbooks' line. Nothing here
- * is derived from a message; the calendar is the source, the playbooks say
- * what they will do about it.
- */
-declare function todayDay(cal: CalendarLike | null, playbooks: PlaybookCardLike[] | null, 
-/** People's rows, for the red line: a person on the day whose thread needs someone. */
-people?: {
-    rows: Array<{
-        id: string;
-        state: string;
-    }>;
-} | null, max?: number): TodayDayVM;
-/** A Reports tile as Reports builds it; the page draws it with Reports' own component. */
-interface WeekTileLike {
-    id: string;
-    label: string;
-    value: string;
-    meta: string;
-    delta: {
-        text: string;
-        tone: "pos" | "neg" | "";
-    } | null;
-    spark: number[];
-    /** The period before, in counts ("up from 99"), as Reports says it; null with nothing to compare. */
-    compare?: string | null;
-}
-/** What the Reports surface publishes, as far as Today reads it. */
-interface ReportsLike {
-    vm: {
-        days: number;
-        rangeLabel: string;
-        since: string;
-        until: string;
-        empty: boolean;
-        tiles: WeekTileLike[];
-        /** Who answered the period's customer messages: `none` is the number nobody ever answered. */
-        answered?: {
-            totals: {
-                in: number;
-                ai: number;
-                you: number;
-                none: number;
-            };
-            share?: number | null;
-        };
-        /** Why the receptionist stopped, most common first — the period's "driven by". */
-        reasons?: Array<{
-            id: string;
-            label: string;
-            value: number;
-        }>;
-        /** The reply time as Reports computes it; the period line says the median once. */
-        replyTime?: {
-            count: number;
-            medianLabel: string;
-        };
-        /** Reports' own words for the period ("Last 7 days"), so the foot line never spells them a second time. */
-        period?: {
-            now: string;
-        };
-        /** Reports' own count of the period's calls: a number, never a tile's formatted value. */
-        calls?: {
-            total: number;
-        };
-    };
-    /** Null: the offers' read failed on its own and the receptionist's own numbers still stand (the bridge's D9 catch). */
-    campaigns: {
-        tiles: WeekTileLike[];
-        empty: boolean;
-    } | null;
-    booking: {
-        present: boolean;
-        headline: string;
-        sub: string;
-        pct: number | null;
-        asked?: number;
-        booked?: number;
-    };
-}
-/**
- * The last seven (or thirty, or ninety) days in one sentence at the foot of the day's card, with a door to Reports,
- * which was rebuilt on 19 September to carry exactly this material. Every number is one Reports prints, read from the
- * view model Reports itself draws and never derived a second time here: its period words (`period.now`), the messages
- * tile's comparison in counts, its `answered.share` rounded as its tile rounds it, its `calls.total`. Not its median
- * reply: that is Reports' own figure, and with it the foot ran three lines on a phone (22 Sep). "Messages", not
- * "customer messages": the card's figure above already says whose. It never reads `campaigns`: that read fails on its
- * own (#686), and a period line that dereferenced it took the whole page down.
- */
-declare function todayPeriodLine(r: ReportsLike | null): {
-    text: string;
-    to: "reports";
-} | null;
-/** A broadcast or a playbook's run as the broadcasts surface publishes it (toBroadcastVM), as far as the words read it. */
-interface RunLike {
-    state: string;
-    recipient_count: number;
-    /** "today 9:00 AM" / "Sep 12 · 10:00 AM", by the business's clock (toBroadcastVM). */
-    when: string;
-    counts: {
-        sent: number;
-        replied: number;
-    };
-}
-interface TodayRunWordsVM {
-    /** "3 people" */
-    people: string;
-    /** A run waiting for a word. */
-    waiting: {
-        sentence: string;
-        status: string[];
-    };
-    /** A run under the veto window: scheduled, not yet sending. */
-    soon: {
-        meta: string;
-        sentence: string;
-        status: string[];
-    };
-    /** A run that went out today: what it earned so far, and whether it is still sending. */
-    done: {
-        counts: string;
-        still: boolean;
-    };
-}
-/**
- * Every sentence with a number the queue and the day's card say about a playbook's run. The page kept seven of
- * them (dashboard-a-command.jsx, dashboard-a-brief.jsx); the rule that a number's sentence lives in contracts was
- * stated in this file's own header and enforced next door on Reports. The page keeps deciding WHICH rows wait, are
- * scheduled or went out today; it composes none of their words. The words are sentences now ("3 people. Nothing
- * sends until you say so."), where the page had a middle dot and no capital.
- */
-declare function todayRunWords(r: RunLike): TodayRunWordsVM;
-/** "2 runs waiting" beside the queue's own parts; null when none waits. */
-declare function todayRunsSub(n: number): string | null;
-/**
- * The toast when a waiting run is approved: the audience's name, which the page sets in bold, then who it reaches
- * and when it really goes (bcWhenWords). Two parts, so the page keeps its typography without composing the number.
- */
-declare function todayRunApproved(label: string, n: number, when: string): {
-    lead: string;
-    rest: string;
-};
-/** A People list as the People surface publishes it. */
-interface JourneyListLike {
-    id: string;
-    label: string;
-    group: string;
-    count: number;
-    action: {
-        text: string;
-        cta: string;
-        to: string;
-        enabled: boolean;
-    } | null;
-}
-/**
- * The few things this page holds that no row on it says on its own.
- *
- * Every one of them is a RE-PRINT: the numbers are the ones Reports and
- * People already publish, said together so the shape shows. "18 wrote or
- * called" sits on Reports and "17 asked, never booked" sits on People, and
- * neither page can tell you they are the same eighteen people. Nothing here
- * is counted twice, and nothing here is a trend -- a period over a period is
- * noise at these counts (reports.ts dropped tile deltas for exactly that).
- */
-type TodayLeakId = "never-booked" | "unanswered" | "consults-waiting" | "proposals-waiting" | "unreachable" | "quiet";
-interface TodayLeakVM {
-    id: TodayLeakId;
-    /** A look, never a failure: amber where a person should look, blue for what waits on someone else. */
-    tone: "warn" | "info";
-    /** The tone as a word, so severity never rides on colour alone: "Booking gap", "No reply", "Reach", "Gone quiet". */
-    tag: string;
-    /** The tone's icon (the legacy Icon set). */
-    icon: "calendar" | "alert" | "users" | "clock";
-    /** The problem, in one sentence, with the number in it. */
-    text: string;
-    /** The arithmetic behind the sentence, so nobody has to take it on faith. */
-    math: string;
-    /**
-     * Who the row names, up to two, each with where a press goes and the words it says on hover. The unanswered row
-     * names who is waiting NOW with nothing back, the threads Today holds: not the count's own subjects (the count is
-     * Reports' over its period), so its lead says "Waiting now" and never draws them as the people the sentence counts.
-     * The consultations row names the count's own people, the first two the Pipeline lists, each to their page.
-     */
-    people: Array<{
-        id: string;
-        name: string;
-        to: string;
-        title: string;
-    }>;
-    /** The words in front of `people`, which say who they are; null on a row that names nobody. */
-    peopleLead: string | null;
-    /** What "Ask why" asks: the row's own sentence and its arithmetic. Ask grounds every citation in what it read. */
-    ask: string;
-    /** The door. */
-    cta: {
-        label: string;
-        to: string;
-    };
-    /** The act, when the list this is about has one it can actually run. */
-    also: {
-        label: string;
-        to: string;
-    } | null;
-}
-/** The rows that made the cut, how many qualified past the cap, and the line that says so ("and 2 more"). */
-interface TodayLeaksVM {
-    rows: TodayLeakVM[];
-    more: number;
-    moreLine: string | null;
-}
-/** What People publishes, as far as this reads it. */
-interface PeopleListsLike {
-    lists: JourneyListLike[];
-    aggregates?: {
-        total: number;
-    };
-    /**
-     * Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not; their
-     * deal and when they last wrote, for the proposals waiting (0004); and who they are and when their last
-     * consultation ended, for the consultations with no proposal yet (0008), where the surface carries them.
-     */
-    rows: ReadonlyArray<Pick<PersonRowVM, "consent"> & Partial<Pick<PersonRowVM, "id" | "name" | "deal" | "askedMs" | "consultedMs" | "followUp">>>;
-    /** Whether deals are on here (dealsAreOn, 0008): the consultations and the proposals waiting are rows only then. */
-    dealsOn?: boolean;
-    /**
-     * When People was read and its rows worked out: the deal rows are counted at that moment, as the Pipeline counts
-     * the same rows (pipeline-scope.jsx), so the two pages never say two numbers for one list.
-     */
-    fetchedAt?: number;
-    /** The workspace's pace (dealPaceOf), which says when a proposal out is waiting; none until five are decided. */
-    dealPace?: DealPaceVM | null;
-}
-/** At most this many; the rest is not an insight, it is a list. */
-declare const TODAY_LEAK_MAX = 2;
-declare function todayLeaks(reports: ReportsLike | null, people: PeopleListsLike | null, 
-/** Who is waiting with nothing back, from the day's view model (`noReply`); the unanswered row names two of them. */
-noReply?: readonly TodayNoReplyVM[], max?: number, nowMs?: number): TodayLeaksVM;
-/** A bell row as the bell publishes it, as far as this reads it. */
-interface AwayRowLike {
-    id?: string;
-    key?: string;
-    kind?: string;
-    unread: boolean;
-    title: string;
-    message: string;
-    tone: "" | "ok" | "warn";
-    icon: string;
-    about?: {
-        type: string;
-        id: string;
-    } | null;
-    /** Where the row's button goes (the bell's rows carry it as actions[0].to): a held draft is keyed by its message and names its thread only here. */
-    to?: string;
-    actions?: Array<{
-        to: string;
-    }>;
-}
-/**
- * What a queue row is about, for the away card's dedupe: its thread, its call, or both. A bare string is a thread.
- * `searchTo` is a waiting search's door (leadQuestionRoute), which the bell's question row about it opens too.
- */
-type AwayQueueRef = string | {
-    conversationId?: string | null;
-    callId?: string | null;
-    runLabel?: string | null;
-    searchTo?: string | null;
-};
-interface AwayGroupVM<T extends AwayRowLike> {
-    /** The row itself when it stands alone; the newest of the group otherwise. */
-    row: T;
-    /** How many rows this stands for. 1 is an ordinary row. */
-    count: number;
-    /** The group's words when it stands for more than one. */
-    title: string | null;
-    /** Every row it swallowed, so read and dismiss reach all of them. */
-    ids: string[];
-}
-/** The away card: the rows it draws, the numbers beside them, and every sentence it says. */
-interface TodayAwayVM<T extends AwayRowLike> {
-    /** What it draws, grouped and capped. */
-    groups: Array<AwayGroupVM<T>>;
-    /**
-     * The head's number: EVERY unread row the bell holds, including the ones
-     * this card does not draw. The card and the badge are two readings of one
-     * set, and a head counting only what survived the queue rule read 0 beside
-     * a bell of 4. "Mark all read" sits against this number and clears exactly
-     * this set.
-     */
-    total: number;
-    /** Of `total`, how many are not on screen: under the cap, or in the queue above. */
-    more: number;
-    /** Of `more`, the ones dropped because the queue above already holds what they are about: their thread or their call. */
-    queued: number;
-    /** The foot, when a row is drawn and something unread is not on screen. */
-    foot: string | null;
-    /** What the card says when it draws no row, and the glyph beside it. */
-    empty: {
-        icon: string;
-        text: string;
-    } | null;
-}
-/**
- * What happened while the owner was away, as Today reads it rather than as
- * the bell lists it.
- *
- * Three rules, and each one was a real page: a row about anything already sitting
- * in the queue at the top of this page (its thread or its call) is NOT repeated here; twelve calls
- * from the same line become one row that says twelve, because five identical
- * "No conversation happened" cards pushed a WhatsApp quality downgrade and
- * three failed jobs off the bottom; and a warning sorts above good news, so
- * the downgrade is not outranked by a five-star rating that landed later.
- */
-declare function todayAwayGrouped<T extends AwayRowLike>(rows: readonly T[], inQueue?: readonly AwayQueueRef[], max?: number): TodayAwayVM<T>;
-/** What the bell's grouping reads of a note: who it is, what kind, and whether it is new. */
-interface BellNoteLike {
-    id?: string;
-    key?: string;
-    kind?: string;
-    unread: boolean;
-}
-/** One line of the bell: a note, or several notes of one kind said once ("9 calls"), which open with a tap. */
-interface BellLineVM<T extends BellNoteLike> {
-    /** Stable across repaints: the note's own id, or the section and kind for a group. */
-    key: string;
-    /** The note itself when it stands alone; the newest of the group otherwise. */
-    row: T;
-    /** How many notes this stands for. 1 is an ordinary note. */
-    count: number;
-    /** The group's words when it stands for more than one. */
-    title: string | null;
-    /** Every note it stands for, newest first: what the group shows when it is opened. */
-    members: T[];
-}
-interface BellSectionVM<T extends BellNoteLike> {
-    label: "New" | "Earlier";
-    lines: Array<BellLineVM<T>>;
-}
-/**
- * The bell, read the way the away card reads it: new above earlier, and notes of one kind said once, where the
- * newest of them stood. On the salon's phone the bell was 48 notes and 6,677px, nine of them "… phoned · 12 s" and
- * eight "Your search for … is done", every one a card with its own button. The nouns are the away card's, so the
- * bell and Today say "9 calls" about the same nine calls. A kind with no noun (a thread that needs you) is never
- * folded: each of those is its own decision.
- */
-declare function bellSections<T extends BellNoteLike>(rows: readonly T[]): Array<BellSectionVM<T>>;
-/** One step due as Today names it: who, what, and when it was due, the oldest first. */
-interface TodayStepVM {
-    personId: string;
-    name: string;
-    words: string;
-    /** "Due today", "Overdue since Mon". */
-    when: string;
-    due: StepDue;
-    forWho: string | null;
-}
-interface TodayStepsVM {
-    title: string;
-    items: TodayStepVM[];
-    /** "and 2 more", to People's Steps due; null when every one is named. */
-    more: {
-        words: string;
-        to: string;
-    } | null;
-}
-/**
- * The steps due at the head of the day (0007, amended), in every workspace, calendar or not: whose next step's day has
- * come or gone, the oldest first, three at most, and a line to People's Steps due for the rest. Null with none due.
- * Each day is judged at `nowMs`: the page passes the moment People's rows were published, as every page judges a
- * step (steps.ts dueStepDay), so this block and the list its line opens say one thing.
- */
-declare function todaySteps(rows: readonly Pick<PersonRowVM, "id" | "name" | "nextStep">[] | null | undefined, nowMs: number, tz: string, max?: number): TodayStepsVM | null;
 
 /**
  * What the home-screen widget shows (the phone app's PRD, M7): Today's four figures, how many need you and the first
@@ -22076,6 +21461,672 @@ declare function slotToWrite(t: {
     language?: string | null;
     variables?: unknown;
 }): string | null;
+
+/**
+ * What Today's brief reads from the metrics summary (server/metrics.ts): the workspace, its wires and the day's
+ * counts, with the email wire the database cannot see. What the brief says is today-vm.ts; the brief that reads
+ * this is today-brief.ts.
+ */
+
+/**
+ * One wire a workspace can be reached on.
+ *
+ * `metrics_summary` answers the ROUTING rows (tenant_channels, 00087). Email
+ * is not one of them: a workspace's email line is its `mailboxes` row plus the
+ * deployment's mail domain (mailbox.ts), and the domain lives in EMAIL_DOMAIN,
+ * which the database cannot see. `emailWires` below puts it in the same list,
+ * from the same read Setup and Connections use, so the three cannot disagree.
+ */
+interface MetricsChannelDto {
+    kind: string;
+    /** `tenant_channels.status`: "active" or "disabled"; "active" for a mailbox that exists. */
+    status: string;
+    /** The phone number customers reach this wire on; null on a wire that is not a number. */
+    number: string | null;
+    /** Where customers reach a wire that is not a number: the workspace's email address. */
+    address?: string | null;
+}
+/**
+ * The email wire, for that list.
+ *
+ * A workspace HAS email when this deployment has it and the owner has made the
+ * mailbox (00129), the judgement `emailSetupFor` already makes for Setup and
+ * Connections. Nothing switches a mailbox off, so a mailbox that exists is a
+ * wire that is connected: `last_error` is an intake that failed, which
+ * Connections tells as "Waiting on us", and a failed intake is not a wire that
+ * is down.
+ */
+declare function emailWires(email: EmailSetupDto | null | undefined): MetricsChannelDto[];
+interface MetricsSummaryDto {
+    workspace: {
+        name: string;
+        timezone: string;
+        status: string;
+    };
+    channels: MetricsChannelDto[];
+    /**
+     * False when the workspace's email line could not be read (server/metrics.ts
+     * caught the mailbox read): the count above the work is short by a wire it
+     * cannot name, and says so rather than printing a smaller whole. Absent is
+     * true, as every payload the database answers is.
+     */
+    linesRead?: boolean;
+    window: {
+        days: number;
+        since: string;
+        since_local: string;
+        now_local: string;
+    };
+    now: {
+        escalations_open: number;
+        oldest_open_escalation_at: string | null;
+        threads_needing_human: number;
+        threads_snoozed: number;
+        threads_awaiting_reply: number;
+        last_inbound_at: string | null;
+        last_outbound_at: string | null;
+    };
+    period: {
+        messages_in: number;
+        messages_out_ai: number;
+        messages_out_you: number;
+        conversations_active: number;
+        answered_by_ai: number;
+        answered_by_you: number;
+        unanswered_in_window: number;
+        median_reply_seconds_ai: number | null;
+        send_failures: number;
+        escalations_new: number;
+        escalation_reasons: Record<string, number>;
+        calls: number;
+        call_seconds: number;
+        call_sentiments: Record<string, number>;
+        calls_voicemail: number;
+        new_contacts: number;
+    };
+}
+
+/** Wall-clock time AT THE SALON, whatever clock the reader is holding. */
+/**
+ * A clock time that says which day when it is not today: "3:30 PM",
+ * "tomorrow 6:46 PM", "Wed 9:00 AM". A closing window printed as "6:46 PM"
+ * beside "since 6:46 PM" read as the same moment.
+ */
+declare function tzClock(iso: string | null | undefined, tz: string, now: Date): string | null;
+
+/**
+ * How much of a customer's own words a queue row carries.
+ *
+ * It was a bare `.slice(0, 110)`: a hard cut mid-word, with nothing to say a
+ * cut had happened, at a length the row could not have shown anyway. The row's
+ * line is the only thing that knows how wide it is, so it does the truncating
+ * now -- two lines with a real ellipsis -- and this is only a ceiling on what
+ * the view model carries, set well past what two lines can draw.
+ */
+declare const QUOTE_MAX = 240;
+
+/**
+ * The day's four figures (customer messages, answered by the receptionist, calls, new people), each with its
+ * clause and its receipt, and the proof the lines are listening. The words they are said in live here too;
+ * the list join and the seconds phrase are today-bands.ts's.
+ */
+
+/**
+ * The proof the lines are listening: when the last message arrived and how long the receptionist took to answer it.
+ * Always said, never gated on the queue: on this workspace (no traffic, three open escalations) it was suppressed
+ * exactly when an owner needed it. On a day with traffic it is the messages figure's clause; on a quiet day the
+ * card's line, and the quiet card's own sentence ends with it, so the two cannot drift.
+ */
+declare function todayProof(live: {
+    last_inbound_at: string | null;
+    last_outbound_at: string | null;
+}, tz: string, now: Date): string;
+
+/** A message with nothing back for this long is one nobody answered; the receptionist answers in seconds. */
+declare const NO_REPLY_AFTER_MS = 3600000;
+
+/** Six rows on Today; the rest is a count for the Inbox link. */
+declare const TODAY_QUEUE_MAX = 6;
+
+/**
+ * Today (Slice 4): the morning brief.
+ *
+ * The rule that shapes every line below: a number that cannot be traced to a
+ * row does not appear, and a region with nothing true to say is not rendered
+ * at all rather than rendered empty. Zero traffic stated positively — with a
+ * timestamp and a channel status — is reassurance; the same morning rendered
+ * as four zeroes and a flat sparkline reads as a product that died overnight.
+ *
+ * Every clock value comes from the SERVER's tenant-local time, never the
+ * browser's: the owner of a New York salon checking from Madrid must still be
+ * told what time it is at the salon.
+ *
+ * The brief is composed here from its parts: the facts (today-facts.ts), the bands (today-bands.ts), the
+ * figures (today-figures.ts), the rows (today-rows.ts) and the queue (today-queue.ts), in the shape today-vm.ts
+ * declares.
+ */
+
+/**
+ * Today's brief: the facts read once, then one builder per band. The quiet day (no traffic, nobody waiting, no
+ * alert) proves the lines are listening instead of drawing a row of zeroes; every other day gets the headline
+ * ladder, the recap, the figures, the calls and the queue.
+ */
+declare function toTodayVM(m: MetricsSummaryDto, conversations: ConversationDto[], escalations: Array<EscalationDto & {
+    conversation_id: string;
+}>, calls: CallDto[] | null, now?: Date, searches?: LeadSearchDto[] | null): TodayVM;
+
+/** What the day module reads, as the calendar surface publishes it. Minimal on purpose: the page hands the surface in. */
+interface DayFrameLike {
+    key: string;
+    long: string;
+    today: boolean;
+    past: boolean;
+    closed: {
+        yes: boolean;
+        note: string | null;
+    };
+    blocks: Array<{
+        id: string;
+        t: number;
+        dur: number;
+        time: string;
+        title: string;
+        /** The title with the person's name taken out of it (calendar.ts serviceOf). */
+        service: string;
+        person: {
+            id: string;
+            name: string;
+        } | null;
+    }>;
+    allDay: Array<{
+        id: string;
+        t: number;
+        dur: number;
+        time: string;
+        title: string;
+        /** The title with the person's name taken out of it (calendar.ts serviceOf). */
+        service: string;
+        person: {
+            id: string;
+            name: string;
+        } | null;
+    }>;
+    windows: Array<{
+        label: string;
+    }>;
+}
+interface CalendarLike {
+    days: DayFrameLike[];
+    /** The clock now, as hours in the business's zone (14.5 is 2:30 PM). */
+    now: number;
+    feed: {
+        state: "ok" | "unavailable" | "none";
+    };
+    stats: {
+        next: string;
+    };
+}
+/** A playbook card as the playbooks surface publishes it. */
+interface PlaybookCardLike {
+    trigger: string;
+    state: string;
+    candidates: number;
+    next: string;
+}
+interface TodayDayItemVM {
+    id: string;
+    /** "2 PM" · "10:15 AM" · "All day" — the column. */
+    start: string;
+    /** "2 – 5 PM" — the whole span, for the hover. */
+    time: string;
+    /** "3h" · "1h 30m" · "45m"; empty for all-day. */
+    dur: string;
+    title: string;
+    /** What it is FOR, with the person's name taken out of the title (calendar.ts serviceOf): the row names them
+     *  once. "Gloss" from "Gloss · Emily Chen". */
+    service: string;
+    person: {
+        id: string;
+        name: string;
+    } | null;
+    allDay: boolean;
+    /** Where it sits against the clock, today only: past · now · next · later. */
+    phase: "past" | "now" | "next" | "later";
+    /** The person's open thread, when they have one: "Needs you — in Inbox". */
+    flag: string | null;
+}
+interface TodayDayFrameVM {
+    key: string;
+    /** "Today · Sunday, September 6" */
+    label: string;
+    today: boolean;
+    past: boolean;
+    closed: {
+        yes: boolean;
+        note: string | null;
+    };
+    items: TodayDayItemVM[];
+    /** "2 booked", and "1 needs you" when a person on the day has an open thread. */
+    summary: {
+        booked: string;
+        flagged: string | null;
+    } | null;
+    /** The windows the receptionist would offer, as labels; none on a closed or past day. */
+    open: string[];
+    /** How many of the day's entries the cap left out, and the line that says so ("2 more on the Calendar"). */
+    more: number;
+    moreLine: string | null;
+}
+/** "45m" · "1h" · "1h 30m" */
+declare function durationLabel(minutes: number): string;
+interface TodayDayVM {
+    feed: "ok" | "unavailable" | "none";
+    frames: TodayDayFrameVM[];
+    nextOpening: string | null;
+    /** The visit playbooks' line — what goes out and when — or the offer to start one. */
+    reminders: {
+        text: string;
+        to: string;
+    } | null;
+}
+/** Rows on Today's day card; the Calendar has the rest. */
+declare const TODAY_DAY_MAX = 5;
+/**
+ * Today and tomorrow, as the calendar reads them: who is coming and when,
+ * what is open, what is closed — and the visit playbooks' line. Nothing here
+ * is derived from a message; the calendar is the source, the playbooks say
+ * what they will do about it.
+ */
+declare function todayDay(cal: CalendarLike | null, playbooks: PlaybookCardLike[] | null, 
+/** People's rows, for the red line: a person on the day whose thread needs someone. */
+people?: {
+    rows: Array<{
+        id: string;
+        state: string;
+    }>;
+} | null, max?: number): TodayDayVM;
+
+/**
+ * The period line at the foot of the day's card (today-day.ts): the last seven, thirty or ninety days in one
+ * sentence, every number one Reports prints. `ReportsLike` is also what Worth a look reads (today-leaks.ts).
+ */
+/** A Reports tile as Reports builds it; the page draws it with Reports' own component. */
+interface WeekTileLike {
+    id: string;
+    label: string;
+    value: string;
+    meta: string;
+    delta: {
+        text: string;
+        tone: "pos" | "neg" | "";
+    } | null;
+    spark: number[];
+    /** The period before, in counts ("up from 99"), as Reports says it; null with nothing to compare. */
+    compare?: string | null;
+}
+/** What the Reports surface publishes, as far as Today reads it. */
+interface ReportsLike {
+    vm: {
+        days: number;
+        rangeLabel: string;
+        since: string;
+        until: string;
+        empty: boolean;
+        tiles: WeekTileLike[];
+        /** Who answered the period's customer messages: `none` is the number nobody ever answered. */
+        answered?: {
+            totals: {
+                in: number;
+                ai: number;
+                you: number;
+                none: number;
+            };
+            share?: number | null;
+        };
+        /** Why the receptionist stopped, most common first — the period's "driven by". */
+        reasons?: Array<{
+            id: string;
+            label: string;
+            value: number;
+        }>;
+        /** The reply time as Reports computes it; the period line says the median once. */
+        replyTime?: {
+            count: number;
+            medianLabel: string;
+        };
+        /** Reports' own words for the period ("Last 7 days"), so the foot line never spells them a second time. */
+        period?: {
+            now: string;
+        };
+        /** Reports' own count of the period's calls: a number, never a tile's formatted value. */
+        calls?: {
+            total: number;
+        };
+    };
+    /** Null: the offers' read failed on its own and the receptionist's own numbers still stand (the bridge's D9 catch). */
+    campaigns: {
+        tiles: WeekTileLike[];
+        empty: boolean;
+    } | null;
+    booking: {
+        present: boolean;
+        headline: string;
+        sub: string;
+        pct: number | null;
+        asked?: number;
+        booked?: number;
+    };
+}
+/**
+ * The last seven (or thirty, or ninety) days in one sentence at the foot of the day's card, with a door to Reports,
+ * which was rebuilt on 19 September to carry exactly this material. Every number is one Reports prints, read from the
+ * view model Reports itself draws and never derived a second time here: its period words (`period.now`), the messages
+ * tile's comparison in counts, its `answered.share` rounded as its tile rounds it, its `calls.total`. Not its median
+ * reply: that is Reports' own figure, and with it the foot ran three lines on a phone (22 Sep). "Messages", not
+ * "customer messages": the card's figure above already says whose. It never reads `campaigns`: that read fails on its
+ * own (#686), and a period line that dereferenced it took the whole page down.
+ */
+declare function todayPeriodLine(r: ReportsLike | null): {
+    text: string;
+    to: "reports";
+} | null;
+
+/**
+ * The runs' words: every sentence with a number the queue and the day's card say about a playbook's run, and the
+ * toast when a waiting run is approved. The page decides which runs wait; it composes none of their words.
+ */
+/** A broadcast or a playbook's run as the broadcasts surface publishes it (toBroadcastVM), as far as the words read it. */
+interface RunLike {
+    state: string;
+    recipient_count: number;
+    /** "today 9:00 AM" / "Sep 12 · 10:00 AM", by the business's clock (toBroadcastVM). */
+    when: string;
+    counts: {
+        sent: number;
+        replied: number;
+    };
+}
+interface TodayRunWordsVM {
+    /** "3 people" */
+    people: string;
+    /** A run waiting for a word. */
+    waiting: {
+        sentence: string;
+        status: string[];
+    };
+    /** A run under the veto window: scheduled, not yet sending. */
+    soon: {
+        meta: string;
+        sentence: string;
+        status: string[];
+    };
+    /** A run that went out today: what it earned so far, and whether it is still sending. */
+    done: {
+        counts: string;
+        still: boolean;
+    };
+}
+/**
+ * Every sentence with a number the queue and the day's card say about a playbook's run. The page kept seven of
+ * them (dashboard-a-command.jsx, dashboard-a-brief.jsx); the rule that a number's sentence lives in contracts was
+ * stated in this file's own header and enforced next door on Reports. The page keeps deciding WHICH rows wait, are
+ * scheduled or went out today; it composes none of their words. The words are sentences now ("3 people. Nothing
+ * sends until you say so."), where the page had a middle dot and no capital.
+ */
+declare function todayRunWords(r: RunLike): TodayRunWordsVM;
+/** "2 runs waiting" beside the queue's own parts; null when none waits. */
+declare function todayRunsSub(n: number): string | null;
+/**
+ * The toast when a waiting run is approved: the audience's name, which the page sets in bold, then who it reaches
+ * and when it really goes (bcWhenWords). Two parts, so the page keeps its typography without composing the number.
+ */
+declare function todayRunApproved(label: string, n: number, when: string): {
+    lead: string;
+    rest: string;
+};
+
+/**
+ * Worth a look: the few things Today holds that no row on it says on its own, each a re-print of a number
+ * Reports (today-period.ts's `ReportsLike`) or People already publishes, in the order of what they cost.
+ */
+
+/**
+ * The few things this page holds that no row on it says on its own.
+ *
+ * Every one of them is a RE-PRINT: the numbers are the ones Reports and
+ * People already publish, said together so the shape shows. "18 wrote or
+ * called" sits on Reports and "17 asked, never booked" sits on People, and
+ * neither page can tell you they are the same eighteen people. Nothing here
+ * is counted twice, and nothing here is a trend -- a period over a period is
+ * noise at these counts (reports.ts dropped tile deltas for exactly that).
+ */
+type TodayLeakId = "never-booked" | "unanswered" | "consults-waiting" | "proposals-waiting" | "unreachable" | "quiet";
+interface TodayLeakVM {
+    id: TodayLeakId;
+    /** A look, never a failure: amber where a person should look, blue for what waits on someone else. */
+    tone: "warn" | "info";
+    /** The tone as a word, so severity never rides on colour alone: "Booking gap", "No reply", "Reach", "Gone quiet". */
+    tag: string;
+    /** The tone's icon (the legacy Icon set). */
+    icon: "calendar" | "alert" | "users" | "clock";
+    /** The problem, in one sentence, with the number in it. */
+    text: string;
+    /** The arithmetic behind the sentence, so nobody has to take it on faith. */
+    math: string;
+    /**
+     * Who the row names, up to two, each with where a press goes and the words it says on hover. The unanswered row
+     * names who is waiting NOW with nothing back, the threads Today holds: not the count's own subjects (the count is
+     * Reports' over its period), so its lead says "Waiting now" and never draws them as the people the sentence counts.
+     * The consultations row names the count's own people, the first two the Pipeline lists, each to their page.
+     */
+    people: Array<{
+        id: string;
+        name: string;
+        to: string;
+        title: string;
+    }>;
+    /** The words in front of `people`, which say who they are; null on a row that names nobody. */
+    peopleLead: string | null;
+    /** What "Ask why" asks: the row's own sentence and its arithmetic. Ask grounds every citation in what it read. */
+    ask: string;
+    /** The door. */
+    cta: {
+        label: string;
+        to: string;
+    };
+    /** The act, when the list this is about has one it can actually run. */
+    also: {
+        label: string;
+        to: string;
+    } | null;
+}
+/** The rows that made the cut, how many qualified past the cap, and the line that says so ("and 2 more"). */
+interface TodayLeaksVM {
+    rows: TodayLeakVM[];
+    more: number;
+    moreLine: string | null;
+}
+/** A People list as the People surface publishes it. */
+interface JourneyListLike {
+    id: string;
+    label: string;
+    group: string;
+    count: number;
+    action: {
+        text: string;
+        cta: string;
+        to: string;
+        enabled: boolean;
+    } | null;
+}
+/** What People publishes, as far as this reads it. */
+interface PeopleListsLike {
+    lists: JourneyListLike[];
+    aggregates?: {
+        total: number;
+    };
+    /**
+     * Everyone the lists are counted from: whether anybody said yes to offers is theirs to say, a number or not; their
+     * deal and when they last wrote, for the proposals waiting (0004); and who they are and when their last
+     * consultation ended, for the consultations with no proposal yet (0008), where the surface carries them.
+     */
+    rows: ReadonlyArray<Pick<PersonRowVM, "consent"> & Partial<Pick<PersonRowVM, "id" | "name" | "deal" | "askedMs" | "consultedMs" | "followUp">>>;
+    /** Whether deals are on here (dealsAreOn, 0008): the consultations and the proposals waiting are rows only then. */
+    dealsOn?: boolean;
+    /**
+     * When People was read and its rows worked out: the deal rows are counted at that moment, as the Pipeline counts
+     * the same rows (pipeline-scope.jsx), so the two pages never say two numbers for one list.
+     */
+    fetchedAt?: number;
+    /** The workspace's pace (dealPaceOf), which says when a proposal out is waiting; none until five are decided. */
+    dealPace?: DealPaceVM | null;
+}
+/** At most this many; the rest is not an insight, it is a list. */
+declare const TODAY_LEAK_MAX = 2;
+declare function todayLeaks(reports: ReportsLike | null, people: PeopleListsLike | null, 
+/** Who is waiting with nothing back, from the day's view model (`noReply`); the unanswered row names two of them. */
+noReply?: readonly TodayNoReplyVM[], max?: number, nowMs?: number): TodayLeaksVM;
+
+/** A bell row as the bell publishes it, as far as this reads it. */
+interface AwayRowLike {
+    id?: string;
+    key?: string;
+    kind?: string;
+    unread: boolean;
+    title: string;
+    message: string;
+    tone: "" | "ok" | "warn";
+    icon: string;
+    about?: {
+        type: string;
+        id: string;
+    } | null;
+    /** Where the row's button goes (the bell's rows carry it as actions[0].to): a held draft is keyed by its message and names its thread only here. */
+    to?: string;
+    actions?: Array<{
+        to: string;
+    }>;
+}
+/**
+ * What a queue row is about, for the away card's dedupe: its thread, its call, or both. A bare string is a thread.
+ * `searchTo` is a waiting search's door (leadQuestionRoute), which the bell's question row about it opens too.
+ */
+type AwayQueueRef = string | {
+    conversationId?: string | null;
+    callId?: string | null;
+    runLabel?: string | null;
+    searchTo?: string | null;
+};
+interface AwayGroupVM<T extends AwayRowLike> {
+    /** The row itself when it stands alone; the newest of the group otherwise. */
+    row: T;
+    /** How many rows this stands for. 1 is an ordinary row. */
+    count: number;
+    /** The group's words when it stands for more than one. */
+    title: string | null;
+    /** Every row it swallowed, so read and dismiss reach all of them. */
+    ids: string[];
+}
+/** The away card: the rows it draws, the numbers beside them, and every sentence it says. */
+interface TodayAwayVM<T extends AwayRowLike> {
+    /** What it draws, grouped and capped. */
+    groups: Array<AwayGroupVM<T>>;
+    /**
+     * The head's number: EVERY unread row the bell holds, including the ones
+     * this card does not draw. The card and the badge are two readings of one
+     * set, and a head counting only what survived the queue rule read 0 beside
+     * a bell of 4. "Mark all read" sits against this number and clears exactly
+     * this set.
+     */
+    total: number;
+    /** Of `total`, how many are not on screen: under the cap, or in the queue above. */
+    more: number;
+    /** Of `more`, the ones dropped because the queue above already holds what they are about: their thread or their call. */
+    queued: number;
+    /** The foot, when a row is drawn and something unread is not on screen. */
+    foot: string | null;
+    /** What the card says when it draws no row, and the glyph beside it. */
+    empty: {
+        icon: string;
+        text: string;
+    } | null;
+}
+/**
+ * What happened while the owner was away, as Today reads it rather than as
+ * the bell lists it.
+ *
+ * Three rules, and each one was a real page: a row about anything already sitting
+ * in the queue at the top of this page (its thread or its call) is NOT repeated here; twelve calls
+ * from the same line become one row that says twelve, because five identical
+ * "No conversation happened" cards pushed a WhatsApp quality downgrade and
+ * three failed jobs off the bottom; and a warning sorts above good news, so
+ * the downgrade is not outranked by a five-star rating that landed later.
+ */
+declare function todayAwayGrouped<T extends AwayRowLike>(rows: readonly T[], inQueue?: readonly AwayQueueRef[], max?: number): TodayAwayVM<T>;
+/** What the bell's grouping reads of a note: who it is, what kind, and whether it is new. */
+interface BellNoteLike {
+    id?: string;
+    key?: string;
+    kind?: string;
+    unread: boolean;
+}
+/** One line of the bell: a note, or several notes of one kind said once ("9 calls"), which open with a tap. */
+interface BellLineVM<T extends BellNoteLike> {
+    /** Stable across repaints: the note's own id, or the section and kind for a group. */
+    key: string;
+    /** The note itself when it stands alone; the newest of the group otherwise. */
+    row: T;
+    /** How many notes this stands for. 1 is an ordinary note. */
+    count: number;
+    /** The group's words when it stands for more than one. */
+    title: string | null;
+    /** Every note it stands for, newest first: what the group shows when it is opened. */
+    members: T[];
+}
+interface BellSectionVM<T extends BellNoteLike> {
+    label: "New" | "Earlier";
+    lines: Array<BellLineVM<T>>;
+}
+/**
+ * The bell, read the way the away card reads it: new above earlier, and notes of one kind said once, where the
+ * newest of them stood. On the salon's phone the bell was 48 notes and 6,677px, nine of them "… phoned · 12 s" and
+ * eight "Your search for … is done", every one a card with its own button. The nouns are the away card's, so the
+ * bell and Today say "9 calls" about the same nine calls. A kind with no noun (a thread that needs you) is never
+ * folded: each of those is its own decision.
+ */
+declare function bellSections<T extends BellNoteLike>(rows: readonly T[]): Array<BellSectionVM<T>>;
+
+/**
+ * The steps due at the head of the day (0007, amended): whose next step's day has come or gone, the oldest first,
+ * as steps.ts judges them.
+ */
+
+/** One step due as Today names it: who, what, and when it was due, the oldest first. */
+interface TodayStepVM {
+    personId: string;
+    name: string;
+    words: string;
+    /** "Due today", "Overdue since Mon". */
+    when: string;
+    due: StepDue;
+    forWho: string | null;
+}
+interface TodayStepsVM {
+    title: string;
+    items: TodayStepVM[];
+    /** "and 2 more", to People's Steps due; null when every one is named. */
+    more: {
+        words: string;
+        to: string;
+    } | null;
+}
+/**
+ * The steps due at the head of the day (0007, amended), in every workspace, calendar or not: whose next step's day has
+ * come or gone, the oldest first, three at most, and a line to People's Steps due for the rest. Null with none due.
+ * Each day is judged at `nowMs`: the page passes the moment People's rows were published, as every page judges a
+ * step (steps.ts dueStepDay), so this block and the list its line opens say one thing.
+ */
+declare function todaySteps(rows: readonly Pick<PersonRowVM, "id" | "name" | "nextStep">[] | null | undefined, nowMs: number, tz: string, max?: number): TodayStepsVM | null;
 
 declare function frameWhisper(text: string): string;
 /**
