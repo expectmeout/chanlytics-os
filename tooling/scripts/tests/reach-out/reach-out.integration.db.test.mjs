@@ -21,7 +21,22 @@
  * Each tick checks before it claims (Part 4): the check's own tick (lib/reach-out/check.ts) runs first, over a model
  * that is never asked, since these words name no opening; the claim takes only what it checked.
  *
- * Kept to its own workspace (every clock and claim call takes it). Local stack only: it makes a workspace and a user.
+ * The second test is Part 4's proof, from the sheet's door, in a workspace of its own and from its owner's session:
+ *
+ *   1. reach_out_save makes a two-step chain whose words name {{opening}}, {{your name}} and {{booking link}}, over a
+ *      search with two ready businesses, one of which shares its website with two more of the workspace's leads;
+ *   2. runReachOutStep (what Start asks through the run-now door) plans the first run, which waits for its owner;
+ *   3. the check's tick (checkSends), over a scripted model, writes and reads an opening for each: one is planned with
+ *      its opening, the other held `chain`;
+ *   4. the dashboard's reachOutRunOf, on the owner's session, answers one for today, one held with its words, and the
+ *      first email as it reads, its opening in;
+ *   5. reach_out_send_decide(include) puts the held one back, checked, its opening kept;
+ *   6. approved, ticked and its jobs run: both emails leave, each body opening with its own sentence and ending with the
+ *      name it signs with, the booking link filled in;
+ *   7. reach_out_remove is refused: the chain wrote.
+ *
+ * Each is kept to its own workspace (every clock and claim call takes it). Local stack only: they make workspaces and
+ * users.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -29,6 +44,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { emailReceiptFrom, verifyUnsubscribeToken } from "@chanlytics/channels";
+import { REACH_OUT_REFUSALS, ReachOutChainSchema, holdWords, validateReachOutChain } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -38,6 +54,8 @@ const skip =
     : !/^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
       ? "refusing a database that is not on this machine: this suite makes workspaces"
       : false;
+const ANON = process.env.SUPABASE_ANON_KEY;
+const skipSheet = skip || (!ANON ? "no SUPABASE_ANON_KEY in env: the owner this proof signs in as needs it" : false);
 
 // The deployment's email, for this process: the platform's and the cold account's keys (the fetch below answers for
 // both), the mail domain the replies come back on, the seal. Made-up values.
@@ -68,6 +86,7 @@ let step;
 let search;
 let domain;
 let lib;
+let dash;
 let L;
 const leads = {};
 const ok = (res) => {
@@ -122,18 +141,18 @@ async function leadOf(id) {
   return ok(await db.from("leads").select("*").eq("id", id).single());
 }
 /** The workspace's send jobs, taken as the runner takes them (fired, leased) in one update, run, and marked done. */
-async function runJobs() {
+async function runJobs(tenantId = A) {
   const now = Date.now();
   const jobs = ok(
     await db
       .from("jobs")
       .update({ state: "fired", fired_at: iso(now), lease_until: iso(now + MIN) })
-      .eq("tenant_id", A)
+      .eq("tenant_id", tenantId)
       .eq("kind", "outbound_send")
       .eq("state", "scheduled")
       .select("*"),
   );
-  const wire = { email: await lib.emailWireFor(db, A) };
+  const wire = { email: await lib.emailWireFor(db, tenantId) };
   for (const j of jobs) {
     await lib.dispatchJob(
       { db, wire, alert: async () => {}, schedule: async () => {}, deadline: Date.now() + 60_000 },
@@ -160,6 +179,7 @@ before(async () => {
   stubProvider();
   lib = {
     ...(await import(at("apps/edge/lib/reach-out/run-context.ts"))),
+    ...(await import(at("apps/edge/lib/reach-out/run-step.ts"))),
     ...(await import(at("apps/edge/lib/reach-out/clock.ts"))),
     ...(await import(at("apps/edge/lib/reach-out/check.ts"))),
     ...(await import(at("apps/edge/lib/reach-out/sender.ts"))),
@@ -171,6 +191,8 @@ before(async () => {
     ...(await import(at("packages/jobs/dist/index.js"))),
     ...(await import(at("packages/db/dist/index.js"))),
   };
+  // The dashboard's own reads behind the approval sheet (GET broadcasts/[id]'s reach_out block).
+  dash = await import(at("apps/dashboard/src/server/campaigns/reach-outs.ts"));
   L = (await import(at("apps/edge/lib/log.ts"))).logger({ suite: "reach_out_e2e" });
 
   A = await one(
@@ -629,5 +651,323 @@ test(
       ["planned", null, 1, null],
       "planned again, its next email a new one: a wait, never an end",
     );
+  },
+);
+
+/* ---- Part 4's proof: from the sheet's door to two emails, each with its own opening ---- */
+
+let B;
+const bUsers = [];
+after(async () => {
+  if (skipSheet) return;
+  if (B) ok(await db.from("tenants").delete().eq("id", B));
+  for (const u of bUsers) await db.auth.admin.deleteUser(u);
+});
+
+const BOOKING = "https://book.example.com/harbor";
+const SIGNED = "Sam";
+/** What the scripted writer says of each business, by its name in the record: an opening, an angle, the facts used. */
+const OPENINGS = {
+  "Austin Movers": {
+    opening: "Saw Austin Movers is rated 4.8 by customers in Austin.",
+    angle: "their rating",
+    facts_used: ["rating", "city"],
+  },
+  "Fresno Movers": {
+    opening: "Saw Fresno Movers is a moving company in Fresno.",
+    angle: "their trade",
+    facts_used: ["category", "city"],
+  },
+};
+
+/**
+ * The model, scripted: the writer answers each business's opening by the name its record gives; the reader finds it
+ * backed, no pitch, in English. Every call is kept, so the proof counts what the check asked.
+ */
+function scriptedModel() {
+  const calls = [];
+  const ask = async (system, user, schema) => {
+    const writer = "opening" in (schema.properties ?? {});
+    const name = /^name: (.+)$/m.exec(user)?.[1]?.trim();
+    calls.push({ writer, name });
+    if (!writer)
+      return { answer: { backed: true, unbacked: "", pitch: false, language: "en" }, tokens: { input: 1, output: 1 } };
+    const o = OPENINGS[name] ?? assert.fail(`the writer was asked about a business the proof does not know: ${name}`);
+    return { answer: o, tokens: { input: 1, output: 1 } };
+  };
+  return { ask, calls };
+}
+
+test(
+  "Part 4, end to end from the sheet's door: saved, planned, checked, held, read, included, approved, sent with their openings, not removable",
+  { skip: skipSheet },
+  async () => {
+    const HOST_B = `e2e-sheet-${stamp}.example`;
+    B = await one(
+      db.from("tenants").insert({ slug: `e2e-sheet-${stamp}`, name: "Harbor Moving Co", timezone: "America/Chicago" }),
+    );
+    // The owner, signed in: the session the sheet, the approval sheet and a held email's doors run on.
+    const email = `owner-sheet-${stamp}@fixture-e2e.example`;
+    const password = `pw-${stamp}-sheet-Aa1!`;
+    const owner = ok(await db.auth.admin.createUser({ email, password, email_confirm: true })).user.id;
+    bUsers.push(owner);
+    ok(await db.from("memberships").insert({ tenant_id: B, user_id: owner, role: "owner" }));
+    const session = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+    ok(await session.auth.signInWithPassword({ email, password }));
+    const ctx = { supabase: session, userId: owner, email, metadata: {} };
+
+    ok(await db.from("billing_accounts").upsert({ tenant_id: B, mode: "direct", status: "active" }));
+    ok(
+      await db
+        .from("policies")
+        .upsert(
+          { tenant_id: B, class: "outreach", mode: "veto", limits: {} },
+          { onConflict: "tenant_id,class,subject_type,subject_id" },
+        ),
+    );
+    ok(
+      await db.from("tenant_config").upsert({
+        tenant_id: B,
+        config: {
+          brain: {
+            business_name: "Harbor Moving Co",
+            system_prompt: "You answer for Harbor Moving Co, a moving company in Austin, Texas.",
+            fallbacks: { greeting: "g", error: "e", non_text: "n" },
+            booking_link: BOOKING,
+            profile: { address: "100 Example St, Austin, TX 78701" },
+          },
+        },
+      }),
+    );
+    const token = Array.from(
+      crypto.getRandomValues(new Uint8Array(24)),
+      (b) => "abcdefghijklmnopqrstuvwxyz234567"[b % 32],
+    ).join("");
+    ok(
+      await db
+        .from("mailboxes")
+        .insert({ tenant_id: B, local_part: `e2e-sheet-${stamp}`, reply_token: token, from_name: "Harbor Moving Co" }),
+    );
+    ok(
+      await db.from("sending_domains").insert({
+        tenant_id: B,
+        host: HOST_B,
+        from_local: "sam",
+        from_name: "Sam at Harbor",
+        state: "verified",
+        provider_status: "verified",
+        dmarc: "found",
+        verified_at: iso(Date.now() - 40 * DAY),
+        clean_since: iso(Date.now() - 40 * DAY),
+        counted_since: iso(Date.now() - 40 * DAY),
+        provider_domain_id: `pd-sheet-${stamp}`,
+      }),
+    );
+    const s = await one(
+      db
+        .from("lead_searches")
+        .insert({ tenant_id: B, via: "people", card: "movers", name: "Movers", asked: "movers", plan: {} }),
+    );
+    // Two ready businesses in the search. Fresno's website is shared by two more of the workspace's leads, found by
+    // another search: three listings, one site, so it reads like a chain (F4).
+    const ids = {};
+    let n = 0;
+    const leadIn = async (name, over, member) => {
+      n += 1;
+      const id = await one(
+        db.from("leads").insert({
+          tenant_id: B,
+          place_id: `ChIJfixtureSheet${stamp}${n}`,
+          business_name: name,
+          category: "Moving company",
+          region: over.region ?? "TX",
+          email_state: "ok",
+          stage: "ready",
+          ...over,
+        }),
+      );
+      if (member)
+        ok(
+          await db.from("lead_search_members").insert({
+            tenant_id: B,
+            search_id: s,
+            lead_id: id,
+            class: "qualified",
+            counted: true,
+            counted_month: new Date().toISOString().slice(0, 7),
+            fit: "strong",
+            judgment: {},
+          }),
+        );
+      return id;
+    };
+    const fresnoSite = `fresno-movers-${stamp}.example`;
+    ids.austin = await leadIn(
+      "Austin Movers",
+      {
+        city: "Austin",
+        rating: 4.8,
+        website_host: `austin-movers-${stamp}.example`,
+        email: `owner@austin-movers-${stamp}.example`,
+      },
+      true,
+    );
+    ids.fresno = await leadIn(
+      "Fresno Movers",
+      { city: "Fresno", region: "CA", website_host: fresnoSite, email: `owner@fresno-movers-${stamp}.example` },
+      true,
+    );
+    for (const [name, city] of [
+      ["Clovis Relocation", "Clovis"],
+      ["Madera Relocation", "Madera"],
+    ])
+      await leadIn(name, { city, region: "CA", website_host: `www.${fresnoSite}`, email_state: "none" }, false);
+
+    // 1. The chain, as the sheet sends it: validated as the route validates it, then saved whole by the service role
+    // with the owner's id (R15).
+    const chain = {
+      name: "Movers",
+      search_id: s,
+      include_unconfirmed: false,
+      gap_minutes: 5,
+      domain_ids: [],
+      signed_by: SIGNED,
+      steps: [
+        {
+          subject: "A quick one for {{business}}",
+          body: "{{opening}}\n\nWe help movers in {{city}} fill their quiet weeks. Pick a time: {{booking link}}\n\n{{your name}}",
+          after_days: null,
+        },
+        { subject: null, body: "Just following up, {{business}}.\n\n{{your name}}", after_days: 4 },
+      ],
+    };
+    assert.deepEqual(validateReachOutChain(ReachOutChainSchema.parse(chain), { bookingLink: true }), []);
+    const saved = ok(await db.rpc("reach_out_save", { p_tenant_id: B, p_user_id: owner, p_chain: chain }));
+    assert.equal(saved.step_ids.length, 2);
+    const root = saved.root_id;
+
+    // 2. Start: the first step's run, planned now, waiting for its owner.
+    const started = await lib.runReachOutStep(db, await playbook(root), new Date(), "America/Chicago", L);
+    assert.deepEqual([started.outcome, started.reason, started.planned], ["held", "waiting_for_you", 2]);
+    const run = ok(await db.from("broadcasts").select("*").eq("id", started.runId).single());
+    assert.equal(run.state, "pending_approval");
+    const sendFor = async (leadId) => (await sendsOf(run.id)).find((x) => x.lead_id === leadId);
+    for (const id of [ids.austin, ids.fresno]) {
+      const x = await sendFor(id);
+      assert.deepEqual([x.state, x.checked_at, x.opening], ["planned", null, null], "planned, not yet checked");
+    }
+
+    // 3. The check's tick, over the scripted model: a writer's and a reader's call for each business. Austin's opening
+    // is backed, and it is planned with it; Fresno's is too, but the business reads like a chain, so it is held.
+    const model = scriptedModel();
+    const c3 = await lib.checkSends({ db, now: new Date(), started: Date.now(), log: L, tenantId: B, ask: model.ask });
+    assert.deepEqual(
+      [c3.read, c3.checked, c3.held, c3.failed, c3.errors, c3.calls],
+      [2, 2, 1, 0, 0, 4],
+      JSON.stringify(c3),
+    );
+    assert.deepEqual(model.calls.map((c) => `${c.writer ? "writer" : "reader"}:${c.name}`).sort(), [
+      "reader:Austin Movers",
+      "reader:Fresno Movers",
+      "writer:Austin Movers",
+      "writer:Fresno Movers",
+    ]);
+    const austin = await sendFor(ids.austin);
+    assert.deepEqual(
+      [austin.state, austin.opening, austin.angle, austin.facts_used],
+      ["planned", OPENINGS["Austin Movers"].opening, "their rating", ["rating", "city"]],
+    );
+    assert.ok(austin.checked_at && austin.checked_words, "checked, against the words as they stand");
+    const fresno = await sendFor(ids.fresno);
+    assert.deepEqual(
+      [fresno.state, fresno.reason, fresno.hold_detail, fresno.opening],
+      ["held", "chain", "site:3", OPENINGS["Fresno Movers"].opening],
+      "held for the business, its opening kept for an Include",
+    );
+    await due(run.id);
+
+    // 4. The approval sheet's read, on the owner's session: one today, one held with its words, the first email as it
+    // reads.
+    const r4 = await dash.reachOutRunOf(ctx, B, run);
+    assert.deepEqual([r4.root_id, r4.step_n, r4.today, r4.later, r4.checking], [root, 0, 1, 0, 0], JSON.stringify(r4));
+    assert.deepEqual(
+      r4.held.map((h) => [h.business_name, h.reason, holdWords(h.reason, h.detail), h.opening]),
+      [
+        [
+          "Fresno Movers",
+          "chain",
+          "reads like a chain: 3 listings share their website",
+          OPENINGS["Fresno Movers"].opening,
+        ],
+      ],
+    );
+    assert.deepEqual(
+      [r4.first.business_name, r4.first.subject, r4.first.opening],
+      ["Austin Movers", "A quick one for Austin Movers", OPENINGS["Austin Movers"].opening],
+    );
+    assert.equal(
+      r4.first.body,
+      `${OPENINGS["Austin Movers"].opening}\n\nWe help movers in Austin fill their quiet weeks. Pick a time: ${BOOKING}\n\n${SIGNED}`,
+    );
+    assert.deepEqual(
+      r4.domains.map((d) => d.host),
+      [HOST_B],
+    );
+
+    // 5. The owner includes the held one: planned again, still checked, its opening kept; never held for it again (R7).
+    ok(await session.rpc("reach_out_send_decide", { p_send_id: fresno.id, p_decision: "include" }));
+    const included = await sendFor(ids.fresno);
+    assert.deepEqual(
+      [included.state, included.reason, included.included_for, included.opening],
+      ["planned", null, ["chain"], OPENINGS["Fresno Movers"].opening],
+    );
+    assert.ok(included.checked_at, "an Include is no new check");
+    await due(run.id);
+    const r5 = await dash.reachOutRunOf(ctx, B, run);
+    assert.deepEqual([r5.today, r5.held.length, r5.checking], [2, 0, 0]);
+
+    // 6. Approved on the owner's session, then the ticks: nothing left to check, both claimed and written, their jobs
+    // run. Each email opens with its own sentence and ends with the name it signs with, the booking link filled in.
+    const approved = await lib.approveRun(lib.approveRunPorts(ctx, B), { row: run, now: new Date() });
+    assert.equal(approved.state, "scheduled");
+    await due(run.id);
+    const again = await lib.checkSends({
+      db,
+      now: new Date(),
+      started: Date.now(),
+      log: L,
+      tenantId: B,
+      ask: model.ask,
+    });
+    assert.deepEqual([again.read, again.calls, model.calls.length], [0, 0, 4], "nothing is checked twice");
+    await lib.reachOutClock(db, new Date(), L, Date.now(), B);
+    const c6 = await lib.claimAndWrite({ db, now: new Date(), started: Date.now(), lane: LANE, log: L, tenantId: B });
+    assert.deepEqual([c6.claimed, c6.written, c6.errors], [2, 2, 0], JSON.stringify(c6));
+    const before6 = coldSent().length;
+    assert.equal(await runJobs(B), 2);
+    const out = coldSent().slice(before6);
+    assert.equal(out.length, 2);
+    for (const [key, id] of [
+      ["Austin Movers", ids.austin],
+      ["Fresno Movers", ids.fresno],
+    ]) {
+      const x = await sendFor(id);
+      assert.equal(x.state, "queued");
+      const m = ok(await db.from("messages").select("body, meta").eq("id", x.message_id).single());
+      assert.ok(m.body.startsWith(`${OPENINGS[key].opening}\n\n`), m.body);
+      assert.ok(m.body.includes(`Pick a time: ${BOOKING}`), m.body);
+      assert.ok(m.body.endsWith(`\n\n${SIGNED}`), m.body);
+      assert.equal(m.meta.email.request.subject, `A quick one for ${key}`);
+      const wire = out.find((o) => o.body.subject === `A quick one for ${key}`);
+      assert.ok(wire, `the provider took ${key}'s email`);
+      assert.match(wire.body.from, new RegExp(`<sam@${HOST_B.replace(/\./g, "\\.")}>$`));
+      assert.ok(wire.body.text.startsWith(OPENINGS[key].opening), wire.body.text);
+    }
+
+    // 7. The chain wrote, so it is not removed: its owner pauses it instead (R16).
+    const removed = await session.rpc("reach_out_remove", { p_tenant_id: B, p_root_id: root });
+    assert.equal(removed.error?.code, "23503", removed.error?.message);
+    assert.equal(removed.error.message, REACH_OUT_REFUSALS.wrote);
+    assert.equal(ok(await db.from("playbooks").select("id").eq("id", root)).length, 1, "the chain stands");
   },
 );

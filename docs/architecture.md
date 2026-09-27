@@ -159,6 +159,32 @@ functions (00186, 00187), and any list of ids the clock still sends goes a
 hundred at a time: a list of ids in a URL breaks past about two hundred, and
 a page cut at a thousand rows would have finished a run with a send open.
 
+Every reach-out email is checked before the claim may take it (Part 4,
+00197). The check is a clock of its own (`/api/cron/reach-out-check`, every
+minute, `lib/reach-out/check.ts`), not a phase of the reach-out clock, so a
+slow model never takes the claim's minute. It leases a few unchecked sends
+of each workspace, asks each workspace's gates before any call (may it
+spend, room in its month, its model attempts for the day), and for words
+that name `{{opening}}` asks Haiku twice through `lib/model.ts`: a writer
+over the business's record, then a reader. Code reads both answers
+(contracts `checkOpening`, `openingVerdict`); a broken rule asks one
+rewrite, then the send is held with its reason for its owner. Each send is
+stamped with the words it was checked against, and the sender sends it back
+to be checked when they changed. The model is injected (`AskModel`), so the
+tests script it.
+
+A reach-out is made from the sheet, through one route and one database door.
+The Leads door opens the sheet (`pages/reach-out/`, fed by
+`legacy-bridge/reach-out/reach-outs.ts`); `POST /api/v1/reach-outs`
+validates the chain in contracts, and `reach_out_save` (00211, the service
+role's, called with the member's id after the route's role check) writes its
+email templates and playbook rows in one transaction. Start asks the edge's
+run-now door, which runs the chain's root through `lib/reach-out/run-step.ts`,
+the playbooks sweep's own loop body, so the first run waits for its owner at
+once. What the owner then answers (Approve, a held email's four doors) goes
+through the session's own doors, and Broadcasts reads the run from its sends
+(`server/campaigns/reach-outs.ts`, `reachOutRunOf`).
+
 A send that happens later is a job: `packages/jobs` is the ledger (`claim_due_jobs`, a lease, a heartbeat, `settle`), `apps/edge/api/jobs/tick.ts` runs it, and `packages/jobs/src/handlers.ts` maps each kind to a core verb. Every clock is a timestamp on a row that a sweep acts on, and every sweep is registered in `sweep_status` and judged by `/api/cron/health`.
 
 ## The packages, and the direction of dependency
