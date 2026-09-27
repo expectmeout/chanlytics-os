@@ -28,7 +28,7 @@ import { recordNotification } from "./ops/notify.js";
 import { logger, errField } from "./log.js";
 import { env } from "./env.js";
 import { DEFAULT_DASHBOARD_ORIGIN, dashboardOrigin } from "./dashboard-origin.js";
-import { cardFingerprintOf, markCard } from "./partner-earnings.js";
+import { cardFingerprintOf, markCard } from "./partners/earnings.js";
 
 type Db = SupabaseClient<Database>;
 export type BillingRow = Database["public"]["Tables"]["billing_accounts"]["Row"];
