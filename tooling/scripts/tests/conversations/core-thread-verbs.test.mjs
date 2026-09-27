@@ -157,7 +157,7 @@ test("snooze: a missing, malformed, past or too-distant until is refused before 
     new Date(NOW - 1).toISOString(),
     new Date(NOW + core.MAX_SNOOZE_MS + 1).toISOString(),
   ]) {
-    const { ports, call, ops } = fakes();
+    const { ports, ops } = fakes();
     await refused(core.snooze(ports, { conv: conv(), until }), "validation", undefined, /snooze/);
     assert.deepEqual(ops(), []);
   }
@@ -182,7 +182,7 @@ test("snooze: hides the thread, and leaves the escalation OPEN", async () => {
 });
 
 test("wake: only a snoozed thread wakes, only while still snoozed, and it goes back to being whatever it was", async () => {
-  const { ports, call, ops } = fakes();
+  const { ports, ops } = fakes();
   assert.deepEqual(await core.wake(ports, { conv: conv({ state: "snoozed" }) }), { state: "open", decision_id: "d1" });
   assert.deepEqual(ops(), ["wake", "record"]);
   const open = fakes();

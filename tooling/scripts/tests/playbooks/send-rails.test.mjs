@@ -26,7 +26,6 @@ const B = await import(at("apps/dashboard/src/server/campaigns/broadcasts.ts"));
 const P = await import(at("apps/dashboard/src/server/campaigns/playbooks.ts"));
 
 const NY = "America/New_York";
-const iso = (s) => new Date(s).toISOString();
 
 test("the next open moment, by the business's clock: inside stays, before goes to nine, after goes to nine tomorrow, and a clock change still yields nine", () => {
   assert.deepEqual(PLAYBOOK_HOURS, { min: 9, max: 20 });
