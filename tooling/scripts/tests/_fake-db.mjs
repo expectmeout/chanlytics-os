@@ -115,6 +115,8 @@ function matches(row, filters) {
                               const [c, o, ...rest] = clause.split(".");
                               const v = rest.join(".");
                               if (o === "is") return v === "null" ? cell(row, c) == null : String(cell(row, c)) === v;
+                              // A handover accepted, or a link's row (0016): "brought" is either.
+                              if (o === "not" && v === "is.null") return cell(row, c) != null;
                               if (o === "lt") return cell(row, c) != null && cell(row, c) < v;
                               if (o === "eq") return String(cell(row, c)) === v;
                               // SQL's <>: a NULL is not unequal to anything, which is why a filter pairs it with

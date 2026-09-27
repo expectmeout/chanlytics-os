@@ -21,6 +21,7 @@ import { z as z11 } from "zod";
 import { z as z12 } from "zod";
 import { z as z13 } from "zod";
 import { z as z14 } from "zod";
+import { z as z15 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -198,7 +199,11 @@ var EVENT_KINDS = [
   "partner.reversed",
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
-  "partner.paid"
+  "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -2820,6 +2825,9 @@ var PartnerLetterNewsSchema = z14.object({
   standing: z14.array(z14.object({ workspace: z14.string().nullable(), standing: z14.string(), why: z14.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
   brought: z14.array(z14.string().nullable()).default([]),
+  /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
+  accepted: z14.array(z14.string().nullable()).default([]),
+  declined: z14.array(z14.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
   status: z14.object({ status: z14.string(), why: z14.string().nullable() }).nullable().default(null),
   balance: z14.array(
@@ -2832,6 +2840,42 @@ var PartnerLetterNewsSchema = z14.object({
     })
   ).default([])
 });
+var HANDOVER_DAYS = 14;
+var ownerEmail = z15.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z15.object({
+  name: z15.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z15.string().trim().max(64).nullish(),
+  email: ownerEmail
+}).strict();
+var HandoverResendSchema = z15.object({ email: ownerEmail }).strict();
+var HANDOVER_WORDS = {
+  start: "Set up a workspace for a business",
+  intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
+  nameLabel: "The business's name",
+  emailLabel: "Its owner's email",
+  emailHint: "They'll be asked to accept it when they sign in with this address.",
+  make: "Set it up",
+  making: "Setting it up\u2026",
+  cancel: "Cancel",
+  resend: "Send again",
+  resendTo: "Send to",
+  resending: "Sending\u2026",
+  failed: "the workspace",
+  failedResend: "the invitation",
+  waiting: "Handed to their owners",
+  sentAgain: "Sent again.",
+  notSent: "The workspace is set up, but its invitation did not go. Send it again from its row below.",
+  unnamed: "A workspace you set up",
+  /** The accept screen. */
+  title: (workspace) => `${workspace} is ready for you`,
+  body: (partnerCode, workspace) => `${partnerCode} set ${workspace} up for you. Accept to become its owner: you'll choose a plan and pay for it, and ${partnerCode} stays on your team as your partner, whom you can remove in Team at any time.`,
+  accept: "Accept and open it",
+  accepting: "Opening\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026",
+  later: "Not now",
+  failedAnswer: "your answer"
+};
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
@@ -4503,9 +4547,12 @@ async function getOwnPartner(db) {
   return data;
 }
 async function getPartnerBroughtCount(db, partnerId) {
-  const { count, error } = await db.from("partner_tenants").select("tenant_id", { count: "exact", head: true }).eq("partner_id", partnerId);
-  if (error) return null;
-  return count ?? 0;
+  const of = () => db.from("partner_tenants").select("tenant_id", { count: "exact", head: true }).eq("partner_id", partnerId);
+  const r2 = await of().or("origin.eq.link,handover_accepted_at.not.is.null");
+  if (!r2.error) return r2.count ?? 0;
+  if (!/\b(origin|handover_accepted_at)\b/.test(r2.error.message)) return null;
+  const older = await of();
+  return older.error ? null : older.count ?? 0;
 }
 async function getPartnerBalance(db) {
   const { data, error } = await db.rpc("partner_balance");
@@ -4595,6 +4642,85 @@ async function setPartnerStatus(db, partnerId, status, why) {
   const { data, error } = await db.rpc("partner_status_set", { p_partner: partnerId, p_status: status, p_why: why });
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   return { ok: true, value: data };
+}
+async function createWorkspaceForBusiness(db, input) {
+  const { data, error } = await db.rpc("create_workspace_for_business", {
+    p_name: input.name,
+    p_timezone: input.timezone ?? "",
+    p_owner_email: input.ownerEmail
+  });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const row = data?.[0];
+  if (!row) return { ok: false, code: "", message: "The workspace was not made." };
+  return { ok: true, value: { id: row.id, slug: row.slug, name: row.name } };
+}
+async function resendHandover(db, tenantId, email) {
+  const { data, error } = await db.rpc("partner_handover_resend", { p_tenant: tenantId, p_email: email });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data ?? {};
+  return {
+    ok: true,
+    value: { email: String(v.email ?? email), sentAt: String(v.sent_at ?? ""), expiresAt: String(v.expires_at ?? "") }
+  };
+}
+async function getOpenHandovers(db) {
+  const { data, error } = await Promise.resolve().then(() => db.rpc("handovers_mine")).catch((e) => ({ data: null, error: { code: "", message: e instanceof Error ? e.message : String(e) } }));
+  if (error) return { handovers: [], error: noFunction(error) ? null : error.message };
+  return {
+    handovers: (data ?? []).map((r2) => ({
+      tenantId: r2.tenant_id,
+      workspace: r2.workspace,
+      partnerCode: r2.partner_code,
+      expiresAt: r2.expires_at
+    })),
+    error: null
+  };
+}
+async function acceptHandover(db, tenantId) {
+  const { data, error } = await db.rpc("handover_accept", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const row = data?.[0];
+  if (!row) return { ok: false, code: "P0002", message: "There is no workspace waiting for you there." };
+  return { ok: true, value: { id: row.id, slug: row.slug, name: row.name } };
+}
+async function declineHandover(db, tenantId) {
+  const { error } = await db.rpc("handover_decline", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: null };
+}
+async function getPartnerHandovers(db) {
+  const { data, error } = await db.from("partner_tenants").select(
+    "tenant_id, handover_email, handover_sent_at, handover_expires_at, handover_accepted_at, handover_declined_at, tenants(name)"
+  ).eq("origin", "handover").order("handover_sent_at", { ascending: false });
+  if (error) {
+    if (/\b(origin|handover_\w+)\b/.test(error.message) && /does not exist|could not find/i.test(error.message))
+      return [];
+    throw new Error(`getPartnerHandovers: ${error.message}`);
+  }
+  return (data ?? []).map((r2) => ({
+    tenantId: r2.tenant_id,
+    name: r2.tenants?.name ?? null,
+    email: r2.handover_email ?? "",
+    sentAt: r2.handover_sent_at ?? "",
+    expiresAt: r2.handover_expires_at ?? "",
+    acceptedAt: r2.handover_accepted_at,
+    declinedAt: r2.handover_declined_at
+  }));
+}
+async function getHandoverInvite(db, tenantId) {
+  const { data, error } = await db.from("partner_tenants").select(
+    "handover_email, handover_expires_at, handover_accepted_at, handover_declined_at, tenants(name), partners(code)"
+  ).eq("tenant_id", tenantId).eq("origin", "handover").maybeSingle();
+  if (error) throw new Error(`getHandoverInvite: ${error.message}`);
+  if (!data?.handover_email || !data.handover_expires_at) return null;
+  if (data.handover_accepted_at || data.handover_declined_at) return null;
+  if (Date.parse(data.handover_expires_at) <= Date.now()) return null;
+  return {
+    email: data.handover_email,
+    workspace: data.tenants?.name ?? "",
+    partnerCode: data.partners?.code ?? "",
+    expiresAt: data.handover_expires_at
+  };
 }
 
 // src/repositories/leads.ts
@@ -4726,6 +4852,7 @@ export {
   HISTORY_COLUMNS,
   MAX_ROWS,
   PEOPLE_PAGE,
+  acceptHandover,
   addToList,
   applyDomainCheck,
   archiveList,
@@ -4742,6 +4869,8 @@ export {
   countSentToday,
   createList,
   createServiceClient,
+  createWorkspaceForBusiness,
+  declineHandover,
   deleteList,
   deleteSendingDomain,
   deleteSendingDomainAsRead,
@@ -4759,9 +4888,12 @@ export {
   finishableRuns,
   followUpTouchesSince,
   forgetNotification,
+  getHandoverInvite,
+  getOpenHandovers,
   getOwnPartner,
   getPartnerBalance,
   getPartnerBroughtCount,
+  getPartnerHandovers,
   getPartnerLetters,
   getPartnerWorkspaces,
   getPlatformPartners,
@@ -4829,6 +4961,7 @@ export {
   releaseUnavailableHolds,
   renameList,
   reputationHoldsSince,
+  resendHandover,
   reserveSendingDomain,
   resolveChannel,
   resolveChannelDetailed,

@@ -176,3 +176,16 @@ export type {
 } from "./partner";
 export { PartnerLettersSchema, PartnerLetterNewsSchema, partnerPaneUrl, partnerLetter } from "./partner";
 export type { PartnerLetterNews } from "./partner";
+export {
+  HANDOVER_DAYS,
+  HANDOVER_WAITING_MAX,
+  HANDOVER_WORDS,
+  HandoverCreateSchema,
+  HandoverResendSchema,
+  handoverInviteEmail,
+  handoverRoom,
+  handoverUntilWords,
+  maskedEmail,
+  partnerHandoverVM,
+} from "./handover";
+export type { HandoverState, OpenHandoverDto, PartnerHandoverDto, PartnerHandoverVM } from "./handover";

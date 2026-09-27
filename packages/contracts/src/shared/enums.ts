@@ -251,6 +251,10 @@ export const EVENT_KINDS = [
   "partner.standing_set",
   // A payout sent by hand (0012, P5), on each workspace it came from, with that workspace's part.
   "partner.paid",
+  // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
+  "partner.handover_sent",
+  "partner.handover_accepted",
+  "partner.handover_declined",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 

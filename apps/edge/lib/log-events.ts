@@ -143,6 +143,7 @@ export const LOG_EVENTS = [
   "google_sweep",
   "google_sweep_failed",
   "google_unlinked",
+  "handover_invite_sent",
   "inbound_ctx_failed",
   "inbound_ctx_unrouted",
   "inbound_email_taken",
