@@ -5436,7 +5436,10 @@ export type Database = {
           workspace: string
         }[]
       }
-      partner_invite: { Args: { p_code: string; p_tenant: string }; Returns: Json }
+      partner_invite: {
+        Args: { p_code: string; p_tenant: string }
+        Returns: Json
+      }
       partner_invite_accept: {
         Args: { p_tenant: string }
         Returns: {
@@ -5447,7 +5450,10 @@ export type Database = {
         }[]
       }
       partner_invite_decline: { Args: { p_tenant: string }; Returns: undefined }
-      partner_invite_withdraw: { Args: { p_tenant: string }; Returns: undefined }
+      partner_invite_withdraw: {
+        Args: { p_tenant: string }
+        Returns: undefined
+      }
       partner_letter_written: {
         Args: { p_partner: string; p_through: string }
         Returns: boolean
