@@ -19,7 +19,7 @@ export interface JsonAnswer {
   tokens: { input: number; output: number };
 }
 
-export interface JsonAsk {
+interface JsonAsk {
   model: string;
   system: string;
   user: string;

@@ -122,7 +122,7 @@ const ENDED_STATUSES = BILLING_STATUSES.filter((s) => !receptionistOn(s));
 const MAX_RELEASES_PER_TICK = 2;
 const MAX_WARNINGS_PER_TICK = 10;
 
-export interface EndedLinesPorts {
+interface EndedLinesPorts {
   release(tenantId: string, row: LineDbRow, endedAt: string): Promise<LineReleaseResult>;
   /** The bell and the workspace's alert addresses (notify). */
   tell(tenantId: string, msg: { subject: string; body: string }): Promise<boolean>;

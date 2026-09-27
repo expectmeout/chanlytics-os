@@ -116,7 +116,7 @@ export function answerPlanOf(
   };
 }
 
-export async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<SearchViewRow[]> {
+async function listSearches(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<SearchViewRow[]> {
   const { data, error } = await ctx.supabase
     .from("lead_searches_view")
     .select("*")
@@ -152,7 +152,7 @@ export interface LeadRow {
 const LEAD_SCOPE_COLUMNS =
   "id, tenant_id, business_name, email, email_state, stage, closed_reason, contact_id, place_id, erased_at, blanked_at";
 
-export async function loadLead(ctx: Pick<RouteContext, "supabase">, id: string): Promise<LeadRow> {
+async function loadLead(ctx: Pick<RouteContext, "supabase">, id: string): Promise<LeadRow> {
   const leadId = requireUuid(id, "lead");
   const { data, error } = await ctx.supabase.from("leads").select(LEAD_SCOPE_COLUMNS).eq("id", leadId).maybeSingle();
   if (error) throw new Error(error.message);
@@ -163,7 +163,7 @@ export async function loadLead(ctx: Pick<RouteContext, "supabase">, id: string):
 
 export const leadScope = row((ctx: RouteContext, params: Params) => loadLead(ctx, String(params.id ?? "")));
 
-export interface LeadSearchScopeRow {
+interface LeadSearchScopeRow {
   id: string;
   tenant_id: string;
   name: string;
@@ -171,7 +171,7 @@ export interface LeadSearchScopeRow {
   removed_at: string | null;
 }
 
-export async function loadLeadSearch(ctx: Pick<RouteContext, "supabase">, id: string): Promise<LeadSearchScopeRow> {
+async function loadLeadSearch(ctx: Pick<RouteContext, "supabase">, id: string): Promise<LeadSearchScopeRow> {
   const searchId = requireUuid(id, "search");
   const { data, error } = await ctx.supabase
     .from("lead_searches")

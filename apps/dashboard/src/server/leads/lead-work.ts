@@ -45,7 +45,7 @@ function stageToast(input: LeadStageInput, a: DoorAnswer, name: string): string 
   }
 }
 
-export interface StageAnswer {
+interface StageAnswer {
   stage: string;
   closed_reason: string | null;
   contact_id: string | null;

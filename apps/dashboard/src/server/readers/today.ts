@@ -7,7 +7,7 @@ import { escalations } from "./escalations";
 import { calls } from "./calls";
 import { searches } from "./searches";
 
-export interface TodayRead {
+interface TodayRead {
   metrics: MetricsSummaryDto;
   /** The newest hundred, as the Today page reads them. */
   conversations: ConversationDto[];

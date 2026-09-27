@@ -13,7 +13,7 @@ import { recordDecision } from "@/server/verbs";
  * person is not written on; what was not ours, or not there, comes back as
  * skipped rather than as a failure.
  */
-export interface ManyOutcome {
+interface ManyOutcome {
   done: number;
   failed: { id: string; message: string }[];
   skipped: string[];
@@ -21,7 +21,7 @@ export interface ManyOutcome {
 
 export const NOTE_LINE_MAX = 200;
 export const RECEPTIONIST_MODES = ["auto", "ask", "never", "inherit"] as const;
-export type ReceptionistMode = (typeof RECEPTIONIST_MODES)[number];
+type ReceptionistMode = (typeof RECEPTIONIST_MODES)[number];
 
 async function ours<T extends { id: string; tenant_id: string; erased_at: string | null }>(
   ctx: RouteContext,

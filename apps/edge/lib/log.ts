@@ -23,7 +23,7 @@ import type { LogEvent } from "./log-events.js";
 
 export type { LogEvent };
 
-export type LogLevel = "info" | "warn" | "error";
+type LogLevel = "info" | "warn" | "error";
 
 /**
  * Fields carried by every line from one logical unit of work. Anything JSON

@@ -21,7 +21,7 @@ function anthropic(): Anthropic {
   return client;
 }
 
-export type DraftResult =
+type DraftResult =
   | { ok: true; text: string; usage: { input_tokens: number; output_tokens: number } | null }
   | { ok: false; error: "no_model_key" | "model_failed" | "empty_draft"; detail?: string };
 

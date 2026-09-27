@@ -26,13 +26,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
 
 /** How long a receipt may take before its absence is a condition. */
-export const NO_RECEIPT_AFTER_MS = 6 * 3600_000;
+const NO_RECEIPT_AFTER_MS = 6 * 3600_000;
 /** How long a silent message stays watched after that: a day, and then it is history rather than news. */
-export const WATCHED_FOR_MS = 24 * 3600_000;
+const WATCHED_FOR_MS = 24 * 3600_000;
 /** Far past any real incident; the count is of what was read. */
 const READ_LIMIT = 1000;
 
-export interface SilentWorkspace {
+interface SilentWorkspace {
   tenantId: string;
   /** Messages Meta accepted that have had no receipt for six hours. */
   count: number;
@@ -41,7 +41,7 @@ export interface SilentWorkspace {
   lastSentAt: string;
 }
 
-export interface ReceiptsWatch {
+interface ReceiptsWatch {
   /** The workspaces to report, the longest silent first. */
   silent: SilentWorkspace[];
   /** The last read that failed, for the log. */

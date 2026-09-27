@@ -11,7 +11,7 @@ import { formatPhoneDisplay } from "../packages/contracts.js";
  * imported from inbound.ts: ports.ts already imports this module, so taking
  * the type back from the handler would close a cycle for two string literals.
  */
-export type InboundChannel = "whatsapp" | "sms";
+type InboundChannel = "whatsapp" | "sms";
 
 /**
  * The customer's own words travel in this email, so it goes only to an address
@@ -53,7 +53,7 @@ const REASON_WORDS: Record<string, string> = {
  * a dozen edits -- which is how `channel` came to be known at every one of
  * them and stated at none.
  */
-export interface HandoffContext {
+interface HandoffContext {
   target: NotifyTarget;
   /**
    * The wire the customer wrote on. This is the SHARED handoff alert: the SMS

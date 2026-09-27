@@ -26,7 +26,7 @@ export function metaAppId(): string {
 }
 const GRAPH = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
-export type GraphResult<T> = { ok: true; data: T } | { ok: false; error: string; code: number | null; status: number };
+type GraphResult<T> = { ok: true; data: T } | { ok: false; error: string; code: number | null; status: number };
 
 interface GraphError {
   error?: { message?: string; code?: number; error_subcode?: number; type?: string };
@@ -66,7 +66,7 @@ export function exchangeCode(
   return call(`/oauth/access_token?${qs}`, { method: "GET" });
 }
 
-export interface PhoneNumberInfo {
+interface PhoneNumberInfo {
   id: string;
   display_phone_number?: string;
   verified_name?: string;

@@ -79,7 +79,7 @@ export function unwrap<O>(r: ApiResult<O>): O {
   throw new ApiError(r.code, r.status, r.message);
 }
 
-export interface ApiDeps {
+interface ApiDeps {
   fetch: (url: string, init: RequestInit) => Promise<Response>;
   /** The workspace this tab holds; appended as ?workspace= unless the caller named one. */
   workspace: () => string | null;

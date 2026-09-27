@@ -8,7 +8,6 @@
  * Unset is nothing: the route answers 404, and the stores learn of the app the day the accounts exist, never of a
  * placeholder they would cache for a day.
  */
-export type Store = "apple" | "android";
 
 /** Paths that stay in a browser: the sign-in return, a workspace's public pages, and the policies every review links to. */
 export const BROWSER_ONLY = ["/auth/*", "/yes/*", "/b/*", "/privacy", "/terms", "/data-deletion"] as const;

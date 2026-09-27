@@ -35,7 +35,7 @@ export async function notificationsFor(
 /** The fields the product handles, from contracts: one event kind each, `channel.<field>`. */
 export const WABA_FIELDS = new Set<string>(WABA_FIELD_LIST);
 
-export interface WabaChange {
+interface WabaChange {
   field: string;
   value: Record<string, unknown>;
 }
@@ -70,7 +70,7 @@ async function routeByWaba(db: SupabaseClient<Database>, wabaId: string): Promis
  * as kind "number" — the number's own kind — so a template approval reached
  * the bell in a warning's colour, behind a shield, pointing at Connections.
  */
-export interface WabaWords {
+interface WabaWords {
   subject: string;
   body: string;
   alert: boolean;

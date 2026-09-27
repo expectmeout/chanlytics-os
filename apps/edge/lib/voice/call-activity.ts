@@ -17,7 +17,7 @@ export interface CallForActivity {
   who?: string | null;
 }
 
-export interface ActivityOutcome {
+interface ActivityOutcome {
   started: number;
   refused: { token: string; error: string }[];
 }

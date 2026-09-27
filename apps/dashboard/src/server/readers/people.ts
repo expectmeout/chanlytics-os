@@ -15,7 +15,7 @@ import { load, stamp, type Reader, type RowRef } from "./index";
 import * as facts from "./facts";
 
 /** GET contacts' answer: one page of People with their appointments, and what the page draws beside the rows. */
-export interface PeoplePage {
+interface PeoplePage {
   people: PersonRowDto[];
   calendar: PeopleVisits["calendar"];
   booking_link: string | null;

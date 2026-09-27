@@ -28,7 +28,7 @@ import {
 } from "./line-resume.js";
 import { env } from "../env.js";
 
-export interface LineProvisionOutcome {
+interface LineProvisionOutcome {
   ok: boolean;
   step?: string;
   error?: string;
@@ -39,14 +39,14 @@ export interface LineProvisionOutcome {
   why?: string;
 }
 
-export interface LineProvisionDeps {
+interface LineProvisionDeps {
   provider: () => LineProviderChoice | null;
   env: { apiKey: string | undefined; fnSecret: string | undefined };
   provision: typeof provisionLine;
   now: () => number;
 }
 
-export function realLineProvisionDeps(): LineProvisionDeps {
+function realLineProvisionDeps(): LineProvisionDeps {
   return {
     provider: lineProviderFromEnv,
     env: { apiKey: env.RETELL_API_KEY, fnSecret: env.RETELL_FN_SECRET },

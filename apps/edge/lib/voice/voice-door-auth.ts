@@ -60,7 +60,7 @@ function sameSecret(given: string | null, secret: string | undefined): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-export type VoiceDoor = "inbound" | "fn" | "availability";
+type VoiceDoor = "inbound" | "fn" | "availability";
 
 /**
  * Which doors still read the shared secret beside the signature, and where -- each with its reason. A door absent

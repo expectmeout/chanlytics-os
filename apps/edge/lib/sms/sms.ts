@@ -35,7 +35,7 @@ export async function lineByNumber(db: Db, e164: string): Promise<SmsLine | null
 }
 
 /** The line a workspace texts from: the one with a Messaging Service, newest first. */
-export async function smsLineForTenant(db: Db, tenantId: string): Promise<SmsLine | null> {
+async function smsLineForTenant(db: Db, tenantId: string): Promise<SmsLine | null> {
   const { data, error } = await db
     .from("lines")
     .select(COLS)

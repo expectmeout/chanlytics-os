@@ -10,9 +10,11 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { Surface } from "./Surface";
 import { doorForm, type DoorHandoff } from "./sign-in";
 import { appleAvailable, GOOGLE, signInWithApple, signInWithGoogle } from "./native-auth";
+import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts";
 
-const PAPER = "#0c0d0f";
-const INK = "#fbfaf8";
+// The sign-in stands in the web's default theme: no page has said the member's yet.
+const PAPER = THEME_COLORS.dark;
+const INK = THEME_INK.dark;
 const MUTED = "#a7a8ab";
 
 export function SignIn() {
