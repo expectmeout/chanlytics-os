@@ -751,6 +751,51 @@ test("a row of each new kind a reader returned is kept and opens where the reade
   );
 });
 
+test("REGRESSION (PR 4.2 review): People's page is People, never the built-in list of the same name; a list's own spelling still reaches the list", () => {
+  const set = reads(
+    ref("list", "clients", "clients/seg:clients", "Clients"),
+    ref("list", "quiet", "clients/seg:quiet"),
+  );
+  const source = (s) =>
+    read1(withShow({ items: [{ title: "x", meta: "", line: "", source: s }] }), "en", set).answer.show.items[0]?.source;
+  assert.deepEqual(
+    source({ kind: "page", id: "clients", label: "People" }),
+    { kind: "page", id: "clients", label: "People", to: "clients", door: true },
+    "REGRESSION: a page citation of clients grounded as the Clients list, clients/seg:clients",
+  );
+  assert.equal(
+    source({ kind: "list", id: "clients", label: "Clients" }).to,
+    "clients/seg:clients",
+    "written as the list",
+  );
+  assert.equal(source({ kind: "page", id: "quiet", label: "Quiet" }).kind, "list", "no page is called quiet");
+});
+
+test("REGRESSION (PR 4.2 review): a lead cited by its route on a search's view is the lead, the route's last id; every other spelling grounds as before", () => {
+  const LEAD_ID = "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a2";
+  const SEARCH = "b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b3";
+  const leadRoute = `clients/leads:s-${SEARCH}:p-${LEAD_ID}`;
+  const lead = ref("lead", LEAD_ID, leadRoute, "Bright Movers");
+  const search = ref("search", SEARCH, `clients/leads:s-${SEARCH}`, "Movers in Queens");
+  const grounded = (s, set = reads(lead, search)) =>
+    read1(withShow({ items: [{ title: "x", meta: "", line: "", source: s }] }), "en", set).answer.show.items[0]
+      ?.source ?? null;
+  for (const kind of ["lead", "page"]) {
+    const g = grounded({ kind, id: leadRoute, label: "Bright Movers" });
+    assert.deepEqual(
+      [g?.kind, g?.id, g?.to],
+      ["lead", LEAD_ID, leadRoute],
+      `REGRESSION: written as a ${kind}, the lead's route grounded as its search, or not at all`,
+    );
+  }
+  assert.equal(grounded({ kind: "lead", id: leadRoute, label: "x" }, reads(search)), null, "a lead not read goes");
+  assert.equal(grounded({ kind: "search", id: `clients/leads:s-${SEARCH}`, label: "x" }).kind, "search");
+  assert.equal(grounded({ kind: "page", id: `clients/leads:s-${SEARCH}:l-ready`, label: "x" }).kind, "search");
+  assert.equal(grounded({ kind: "thread", id: PERSON, label: "x" }).kind, "person", "a person written as a thread");
+  assert.equal(grounded({ kind: "page", id: "reports", label: "Reports" }).to, "reports");
+  assert.equal(grounded({ kind: "page", id: "outbound/1234", label: "x" }), null, "a playbook's route cut short");
+});
+
 test("an item is its row, so one not read goes; a figure keeps its words and loses its receipt; the rows not read are counted", () => {
   const r = read1(
     withShow({

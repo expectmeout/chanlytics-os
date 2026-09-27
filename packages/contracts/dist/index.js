@@ -12578,6 +12578,7 @@ var ASK_CITATION_KINDS = [
   "template",
   "domain"
 ];
+var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 function emptyReadSet() {
   return Object.fromEntries(
     ASK_CITATION_KINDS.filter((k) => k !== "page").map((k) => [k, /* @__PURE__ */ new Map()])
@@ -13162,7 +13163,7 @@ var KIND_WORDS = {
     page: "P\xE1gina",
     lead: "Lead",
     search: "B\xFAsqueda",
-    deal: "Trato",
+    deal: "Acuerdo",
     list: "Lista",
     broadcast: "Difusi\xF3n",
     playbook: "Playbook",
@@ -13321,7 +13322,7 @@ var asObj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : {};
 var asArr = (v) => Array.isArray(v) ? v : [];
 var words2 = (v, n) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
 var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : Number.NaN;
-var UUID2 = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+var UUID2 = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 var ROW_ROUTE = /^(inbox\/th-|conversations\/cv-|outbound\/|broadcasts\/run:|clients\/leads.*:[sp]-|clients\/(?!leads(?:[/:]|$)|seg:))/;
 function groundRef(v, read) {
@@ -13330,11 +13331,13 @@ function groundRef(v, read) {
   const spelled = typeof r2.id === "string" ? r2.id.trim().replace(/^#?\/+/, "") : "";
   if (!spelled || !ASK_CITATION_KINDS.includes(kind)) return null;
   const label = words2(r2.label, C.label) || spelled;
-  const row2 = UUID2.exec(spelled)?.[0].toLowerCase();
+  const ids = spelled.match(UUID2);
+  const row2 = ids?.[ids.length - 1]?.toLowerCase();
+  const page = row2 || ROW_ROUTE.test(spelled) ? [] : [{ kind: "page", id: spelled, label }];
   const tries = [
+    ...kind === "page" ? page : [],
     ...[kind, ...ROW_KINDS].filter((k) => k !== "page").map((k) => ({ kind: k, id: row2 ?? spelled, label })),
-    // A row's route with an id cut short or misspelled names no row read, and is no page either.
-    ...row2 || ROW_ROUTE.test(spelled) ? [] : [{ kind: "page", id: spelled, label }]
+    ...page
   ];
   const kept = groundCitations(tries, read).kept[0];
   return kept ? { ...kept, to: citationRoute(kept, read), door: true } : null;
@@ -13555,7 +13558,7 @@ var ASK_ANSWER_FORMAT = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS}), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -26370,6 +26373,7 @@ export {
   ASK_PAGES,
   ASK_PAGE_ROUTES,
   ASK_RETENTION_DAYS,
+  ASK_ROW_WORDS,
   ASK_SCOPE_KINDS,
   ASK_SURFACES,
   ASK_THREAD_ROUTES,

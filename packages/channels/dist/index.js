@@ -1981,6 +1981,7 @@ var ASK_CITATION_KINDS = [
   "template",
   "domain"
 ];
+var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -2052,7 +2053,7 @@ var ASK_ANSWER_FORMAT = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS}), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {

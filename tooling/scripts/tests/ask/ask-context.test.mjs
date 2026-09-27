@@ -9,7 +9,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { leadQuestionRoute } from "@chanlytics/contracts";
+import { leadQuestionRoute, leadsRoute } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 import { PLAN } from "../_lead-fixtures.mjs";
 
@@ -323,7 +323,7 @@ test("Today: the queue's rows the page drew, each as the queue says it (who, the
   assert.ok(!lines.some((l) => l.includes(CB)), "and no log line does");
 });
 
-test("Today: a search waiting for the owner's answer is a row a citation names, a search opened where the queue's button sends it", async () => {
+test("Today: a search waiting for the owner's answer is a row a citation names, opened where every search opens; its line keeps the queue's button, the question", async () => {
   const S1 = "34343434-3434-4343-8343-343434343435";
   const waiting = {
     id: S1,
@@ -368,9 +368,10 @@ test("Today: a search waiting for the owner's answer is a row a citation names, 
   assert.deepEqual(b.refs.at(-1), {
     kind: "search",
     id: S1,
-    route: leadQuestionRoute(S1),
+    route: leadsRoute({ searchId: S1 }),
     label: b.blocks[1].title,
   });
+  assert.equal(b.refs.at(-1).route, `clients/leads:s-${S1}`, "the searches reader's route: one route per kind of row");
 });
 
 test("the Inbox: the threads in the bucket the page drew, each in inbox.list's words, and every bucket counted as inbox.list counts it; Conversations: its threads and calls; Live: its calls -- another workspace's rows absent from each", async () => {

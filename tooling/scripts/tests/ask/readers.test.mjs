@@ -3541,10 +3541,10 @@ test("the templates, for the composers, Settings and Ask: GET templates answers 
       r.data.templates.map((t) => ({
         kind: "template",
         id: t.id,
-        route: all ? "messages" : "broadcasts",
+        route: "messages",
         label: t.title || t.name,
       })),
-      "Settings' read is the Templates page's; the composers' is the Broadcasts composer that offers it",
+      "a template opens Templates, from Settings' read and the composers' alike",
     );
     assert.deepEqual(asked(ctx), reads);
     assert.deepEqual(asked(routed), ["memberships.select", ...reads], "the workspace's door, then the same reads");

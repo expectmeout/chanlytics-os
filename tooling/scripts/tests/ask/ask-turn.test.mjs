@@ -18,6 +18,7 @@ import {
   ASK_ANSWER_FORMAT,
   ASK_CITATION_KINDS,
   ASK_MAX_ROUNDS,
+  ASK_ROW_WORDS,
   ASK_MAX_TOKENS,
   ASK_MODEL,
   ASK_MODEL_PROFILES,
@@ -4278,10 +4279,10 @@ test("thirteen names in a turn (PR 4.2): the rows leads.searches, campaigns.audi
     [
       ["search", WAITING_SEARCH.id, `clients/leads:s-${WAITING_SEARCH.id}`],
       ["list", offered.audience_id, `clients/seg:${offered.audience_id}`],
-      ["template", TPL, "broadcasts"],
+      ["template", TPL, "messages"],
       ["playbook", PB, `outbound/${PB}`],
     ],
-    "each where its reader said: a search on Leads, a People list on People, a template on the composer, a playbook at its card",
+    "each where its reader said: a search on Leads, a People list on People, a template on Templates, a playbook at its card",
   );
   assert.deepEqual(
     lines.map((l) => JSON.parse(l).dropped),
@@ -4715,7 +4716,7 @@ test("the three retries run in their order, each once: the page's data, then the
   assert.deepEqual([r.shape.context_dropped, r.shape.format], [true, false]);
 });
 
-test("thirteen names move four spans of the request (PR 4.2): the format's kind enum and its source's words, the rules' items list and their source rule", async () => {
+test("thirteen names move five spans of the request (PR 4.2): the format's kind enum, its source's words and its items' words, the rules' items list and their source rule", async () => {
   const s = scripted([ROUND([answer("Fine.")])]);
   await runAskTurn(turn(ctxFor(), { role: "owner" }).input, ports(s.round));
   const req = s.requests[0];
@@ -4730,13 +4731,14 @@ test("thirteen names move four spans of the request (PR 4.2): the format's kind 
     assert.deepEqual(source.properties.kind.enum, [...ASK_CITATION_KINDS, "none"], "a page, twelve rows, and none");
     assert.ok(source.description.includes("(a page's id is its route; a run is kind broadcast)"), source.description);
   }
-  const rules = req.system[0].text;
+  const every = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+  assert.equal(ASK_ROW_WORDS, every, "the rows an answer's items may name, said once");
   assert.ok(
-    rules.includes(
-      "items for the rows it names (people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains)",
-    ),
-    "the items list names every kind of row",
+    show.properties.items.description.startsWith(`The rows the answer names (${every}), at most 5;`),
+    show.properties.items.description,
   );
+  const rules = req.system[0].text;
+  assert.ok(rules.includes(`items for the rows it names (${every})`), "the rules' items list says the same words");
   assert.ok(
     rules.includes(
       "A row the Broadcasts page calls a run is kind broadcast; a list is kind list, with the audience_id campaigns gave it.",

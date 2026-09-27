@@ -2115,6 +2115,7 @@ var ASK_CITATION_KINDS = [
   "template",
   "domain"
 ];
+var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -2186,7 +2187,7 @@ var ASK_ANSWER_FORMAT = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS}), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -9807,6 +9808,7 @@ var ASK_CITATION_KINDS2 = [
   "template",
   "domain"
 ];
+var ASK_ROW_WORDS2 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS2 = {
   headline: 160,
   detail: 700,
@@ -9878,7 +9880,7 @@ var ASK_ANSWER_FORMAT2 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS2.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS2}), at most ${ASK_ANSWER_CAPS2.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -13571,6 +13573,7 @@ var ASK_CITATION_KINDS3 = [
   "template",
   "domain"
 ];
+var ASK_ROW_WORDS3 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS3 = {
   headline: 160,
   detail: 700,
@@ -13642,7 +13645,7 @@ var ASK_ANSWER_FORMAT3 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS3.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS3}), at most ${ASK_ANSWER_CAPS3.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -16428,6 +16431,7 @@ var ASK_CITATION_KINDS22 = [
   "template",
   "domain"
 ];
+var ASK_ROW_WORDS22 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS22 = {
   headline: 160,
   detail: 700,
@@ -16499,7 +16503,7 @@ var ASK_ANSWER_FORMAT22 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS22.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS22}), at most ${ASK_ANSWER_CAPS22.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -19139,6 +19143,7 @@ var ASK_CITATION_KINDS32 = [
   "template",
   "domain"
 ];
+var ASK_ROW_WORDS32 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS32 = {
   headline: 160,
   detail: 700,
@@ -19210,7 +19215,7 @@ var ASK_ANSWER_FORMAT32 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS32.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS32}), at most ${ASK_ANSWER_CAPS32.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {
@@ -22558,6 +22563,7 @@ var ASK_CITATION_KINDS4 = [
   "template",
   "domain"
 ];
+var ASK_ROW_WORDS4 = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS4 = {
   headline: 160,
   detail: 700,
@@ -22629,7 +22635,7 @@ var ASK_ANSWER_FORMAT4 = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS4.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS4}), at most ${ASK_ANSWER_CAPS4.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {

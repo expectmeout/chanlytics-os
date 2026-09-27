@@ -27,6 +27,10 @@ export const ASK_CITATION_KINDS = [
 ] as const;
 export type AskCitationKind = (typeof ASK_CITATION_KINDS)[number];
 
+/** The rows an answer's items may name, in words: said once, by the prompt's rules and the format's items alike. */
+export const ASK_ROW_WORDS =
+  "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
+
 export interface AskCitation {
   kind: AskCitationKind;
   /** A row's id as its reader gave it (a People list's is its name, `quiet`); for a page, its route. */
@@ -38,8 +42,8 @@ export interface AskCitation {
 
 /**
  * A row a reader returned: its kind and id, where it opens as its page opens it -- a deal at its person's page, a
- * template on the page it came from, a list at `clients/list:<id>` or `clients/seg:<id>`, a domain on Connections --
- * and its name. The server's readers return these (server/readers RowRef), and the read set keeps them.
+ * template on Templates, a list at `clients/list:<id>` or `clients/seg:<id>`, a domain on Connections -- and its name.
+ * The server's readers return these (server/readers RowRef), and the read set keeps them.
  */
 export interface AskRowRef {
   kind: AskCitationKind;
@@ -125,9 +129,9 @@ const OWN_ROUTES: Partial<Record<AskCitationKind, (id: string) => string>> = {
 
 /**
  * Where a citation opens: a page at its route; a row at the route its reader gave it, the RowRef the read set holds,
- * never one derived here (a deal opens its person's page, a template the page it came from). A citation stored
- * without its `to` was made before answers kept one, when a row was a thread, a conversation, a call or a person: it
- * opens where the pages open those. A row of another kind the read set does not hold opens nowhere: "".
+ * never one derived here (a deal opens its person's page, a template Templates). A citation stored without its `to`
+ * was made before answers kept one, when a row was a thread, a conversation, a call or a person: it opens where the
+ * pages open those. A row of another kind the read set does not hold opens nowhere: "".
  */
 export function citationRoute(c: AskCitation, read?: AskReadSet): string {
   if (c.kind === "page") return c.id;

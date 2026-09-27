@@ -1,5 +1,12 @@
 import "server-only";
-import { toCallVM, toInboxThreadVM, toTodayVM, type CallVM, type InboxThreadVM } from "@chanlytics/contracts";
+import {
+  leadsRoute,
+  toCallVM,
+  toInboxThreadVM,
+  toTodayVM,
+  type CallVM,
+  type InboxThreadVM,
+} from "@chanlytics/contracts";
 import { load, type ReaderContext } from "../../readers";
 import * as facts from "../../readers/facts";
 import { today as todayReader } from "../../readers/today";
@@ -67,10 +74,10 @@ export const today: Provider = async (rc, ctx) => {
           (r.kind === "thread" ? x.conversationId === r.id : !x.conversationId && x.callId === r.id),
     );
     if (!q) continue;
-    // A thread and a call open at their own routes, whatever the row's button opens; a search where the queue sends it.
+    // Each row at its kind's one route, whatever its button opens (the line keeps the button's, a search's question).
     const ref =
       r.kind === "search"
-        ? refOf("search", r.id, q.who, q.cta.to)
+        ? refOf("search", r.id, q.who, leadsRoute({ searchId: r.id }))
         : r.kind === "thread"
           ? refOf("thread", r.id, q.who, `inbox/th-${r.id}`)
           : refOf("call", r.id, q.who, `conversations/cv-${r.id}`);

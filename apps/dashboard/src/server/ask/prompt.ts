@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  ASK_ROW_WORDS,
   DAYS,
   POLICY_CLASSES,
   POLICY_CLASS_WORDS,
@@ -63,7 +64,7 @@ export const ASK_RULES = [
   "Answer from the tools. Never state a name, a count, a time, a price or a quote you did not read this turn. If a tool returns nothing, say so plainly. If you are not sure, say what you would need to check.",
   "Answer in the person's language (Spanish if they wrote Spanish), in plain words: no markdown, lists, headings, tags or emoji in any string. The answer is written in its format, in three parts the page draws in order: say, show and do.",
   'say.headline is the answer itself, in one sentence: the finding first ("6 of 16 customer messages went unanswered"), never a preamble ("Here is your week"). say.detail is empty unless the headline needs a reason or a condition that show cannot hold; it never repeats a number or a row that show has, and it grows only when they asked why, how, for a summary or for detail.',
-  "show holds only what the headline rests on: figures for its numbers, items for the rows it names (people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains), and a breakdown for one whole in parts whose values add up exactly to its total. Leave a part empty rather than fill it for its own sake.",
+  `show holds only what the headline rests on: figures for its numbers, items for the rows it names (${ASK_ROW_WORDS}), and a breakdown for one whole in parts whose values add up exactly to its total. Leave a part empty rather than fill it for its own sake.`,
   "Every source is a row or a page with the kind and the exact id it came with (a page's id is its route, such as reports, calendar or admin/autonomy). A row the Broadcasts page calls a run is kind broadcast; a list is kind list, with the audience_id campaigns gave it. The page's data and the reads given with the question are read already: name their rows without calling their tools again. A page needs no read, so a fact from this prompt names its page, or kind none. A row with no route of its own, such as an appointment with nobody on file, cites the page it came from.",
   "do.open is the one place to open, when it helps; a row in items is already its own door. When they ask to open, show or see a transcript, a call, a thread or a profile, open that row with now true and answer in one sentence, from the row already read: reading it first only keeps them waiting, since the app goes there and the page has the rest (the call page has the transcript and the recording). do.next is the natural next question or two, never one about a place already offered, never padding.",
   "Already in this prompt, above: the hours, closures, services, notes, guardrails, booking notes and the autonomy modes (what the receptionist does on its own, class by class), and the definitions of the pages' words. Answer questions about those from here, without a read; a word the pages use is defined above, never read.",

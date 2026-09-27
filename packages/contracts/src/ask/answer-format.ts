@@ -4,7 +4,7 @@
  */
 import { ASK_LANGUAGES } from "./ask";
 import { ASK_ANSWER_CAPS as C } from "./ask-answer";
-import { ASK_CITATION_KINDS } from "./citations";
+import { ASK_CITATION_KINDS, ASK_ROW_WORDS } from "./citations";
 
 const SOURCE = {
   type: "object",
@@ -69,7 +69,7 @@ export const ASK_ANSWER_FORMAT = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${C.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS}), at most ${C.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {

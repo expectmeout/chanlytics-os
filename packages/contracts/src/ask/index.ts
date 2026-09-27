@@ -54,6 +54,7 @@ export {
   citationRoute,
   ASK_CITATION_KINDS,
   ASK_PAGE_ROUTES,
+  ASK_ROW_WORDS,
 } from "./citations";
 export type { AskCitationKind, AskCitation, AskReadSet, AskRowRef } from "./citations";
 export { cacheHitOf } from "./ask-shape";

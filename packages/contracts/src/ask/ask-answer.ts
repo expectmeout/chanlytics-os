@@ -201,7 +201,7 @@ const KIND_WORDS: Record<"en" | "es", Record<AskCitationKind, string>> = {
     page: "Página",
     lead: "Lead",
     search: "Búsqueda",
-    deal: "Trato",
+    deal: "Acuerdo",
     list: "Lista",
     broadcast: "Difusión",
     playbook: "Playbook",
@@ -487,7 +487,8 @@ const asArr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const words = (v: unknown, n: number) => clip(cleanAnswer(typeof v === "string" ? v : ""), n);
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number.NaN);
 
-const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+/** Every id in what the model spelled: global, so a route that carries two is read whole (groundRef takes the last). */
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 /** The twelve kinds of row, in the grammar's order: a row not read as the kind written is looked for under each. */
 const ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 /**
@@ -503,7 +504,9 @@ const ROW_ROUTE =
  * "conversations/cv-<id>") and now and then under another kind, and dropping a real row over its spelling left
  * "Opening the call…" opening nothing: any spelling of a row read this turn is that row -- by the id inside it, or as
  * spelled when its id is a name (a People list's, `quiet`) -- as the kind written if that kind read it, else the kind
- * that did. A page is a route that names no row: an id inside one is a row, and must have been read.
+ * that did. A page is a route that names no row: an id inside one is a row, and must have been read. A source written
+ * as a page is tried as that page first, so People's address (`clients`) is People, never the built-in list of the same
+ * name, which a list's own spelling still reaches.
  */
 function groundRef(v: unknown, read: AskReadSet): AskSource | null {
   const r = asObj(v);
@@ -511,13 +514,18 @@ function groundRef(v: unknown, read: AskReadSet): AskSource | null {
   const spelled = typeof r.id === "string" ? r.id.trim().replace(/^#?\/+/, "") : "";
   if (!spelled || !(ASK_CITATION_KINDS as readonly string[]).includes(kind)) return null;
   const label = words(r.label, C.label) || spelled;
-  const row = UUID.exec(spelled)?.[0].toLowerCase();
+  // The row is the route's LAST id: every row's route carries one, but a lead's on a search's view carries the search's
+  // first (leadsRoute: `clients/leads:s-<search>:p-<lead>`, the open lead last), and the lead is the row it names.
+  const ids = spelled.match(UUID);
+  const row = ids?.[ids.length - 1]?.toLowerCase();
+  // A row's route with an id cut short or misspelled names no row read, and is no page either.
+  const page = row || ROW_ROUTE.test(spelled) ? [] : [{ kind: "page" as const, id: spelled, label }];
   const tries: AskCitation[] = [
+    ...(kind === "page" ? page : []),
     ...[kind, ...ROW_KINDS]
       .filter((k) => k !== "page")
       .map((k) => ({ kind: k as AskCitationKind, id: row ?? spelled, label })),
-    // A row's route with an id cut short or misspelled names no row read, and is no page either.
-    ...(row || ROW_ROUTE.test(spelled) ? [] : [{ kind: "page" as const, id: spelled, label }]),
+    ...page,
   ];
   const kept = groundCitations(tries, read).kept[0];
   return kept ? { ...kept, to: citationRoute(kept, read), door: true } : null;

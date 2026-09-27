@@ -134,17 +134,21 @@ export type TemplatesRead = Awaited<ReturnType<typeof templatesOf>>;
  * each row the message as the customer receives it (templateParts) and why this product cannot send it (`blocked`).
  * `all` is Settings': every template with its status, what sends each and how many went out. The route's body, moved
  * here whole, so the composers and Ask's campaigns.audiences read the same rows the same way; the route checks
- * `?all=`. Each template is a row a citation names, with no address of its own: it opens the page it came from,
- * Templates for `all`, else the Broadcasts composer that offers it.
+ * `?all=`. Each template is a row a citation names, with no address of its own: it opens Templates, whichever read
+ * returned it.
  */
 export const templates: Reader<{ all: boolean }, TemplatesRead> = {
   name: "templates",
   async read(rc, { all }) {
     const data = await templatesOf(rc, all);
-    const route = all ? "messages" : "broadcasts";
     return {
       data,
-      rows: data.templates.map((t) => ({ kind: "template" as const, id: t.id, route, label: t.title || t.name })),
+      rows: data.templates.map((t) => ({
+        kind: "template" as const,
+        id: t.id,
+        route: "messages",
+        label: t.title || t.name,
+      })),
       stamp: stamp(),
     };
   },
