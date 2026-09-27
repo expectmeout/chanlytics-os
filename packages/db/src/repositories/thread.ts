@@ -20,6 +20,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   type DealFacts,
   clockDate,
+  DAY_MS,
   dealSentence,
   dealsAreOn,
   pickCurrentDeal,
@@ -55,8 +56,6 @@ export interface PgThreadState {
  *  failed send was never seen by the customer, so it must not appear in the
  *  model's context as something "we said". */
 const DELIVERED = ["sent", "delivered", "read"];
-
-const DAY_MS = 24 * 3600 * 1000;
 
 /**
  * Voice notes moved in from before the database, as ordinary assistant turns.

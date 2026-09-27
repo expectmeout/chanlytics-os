@@ -21,7 +21,7 @@
  * and this file adds only the cross-workspace judgement that nobody else needs.
  */
 import type { Tone } from "../shell/tone";
-import { agoWords } from "../shared/time";
+import { agoWords, DAY_MS } from "../shared/time";
 import { textingWords, lineStuckProvisioning, type LineDto } from "../setup/setup";
 import { receptionistOn, maySpend, whyCannotSpend, type BillingMode, type BillingStatus } from "./billing";
 import { formatPhoneDisplay } from "../shared/phone";
@@ -108,7 +108,6 @@ export interface PlatformRowVM {
   members: number;
 }
 
-const DAY = 86_400_000;
 /** Younger than this and "nothing is set up" is not yet a fact about anything. */
 export const PLATFORM_NEW_DAYS = 1;
 /** Answering, but nobody has reached them: long enough to be worth a call, short enough to still matter. */
@@ -180,7 +179,7 @@ function verdictFor(r: PlatformTenantDto, nowMs: number): PlatformVerdict {
   // the owner-action states on purpose: `needs_record` is the ordinary state of
   // every workspace on its first day, and calling that "waiting on them" would
   // put the whole signup queue at the top of the page.
-  if (!answering && age <= PLATFORM_NEW_DAYS * DAY) return "new";
+  if (!answering && age <= PLATFORM_NEW_DAYS * DAY_MS) return "new";
 
   // Theirs: a state the owner has to act on, whether or not anything answers
   // yet. A refused registration is the owner's next move even on a workspace
@@ -192,14 +191,14 @@ function verdictFor(r: PlatformTenantDto, nowMs: number): PlatformVerdict {
   if (!answering) return "stalled";
 
   const heard = at(r.last_inbound_at);
-  if (heard === null) return age > PLATFORM_QUIET_DAYS * DAY ? "quiet" : "new";
-  if (nowMs - heard > PLATFORM_QUIET_DAYS * DAY) return "quiet";
+  if (heard === null) return age > PLATFORM_QUIET_DAYS * DAY_MS ? "quiet" : "new";
+  if (nowMs - heard > PLATFORM_QUIET_DAYS * DAY_MS) return "quiet";
   return "live";
 }
 
 function sentenceFor(r: PlatformTenantDto, verdict: PlatformVerdict, nowMs: number): string {
   const heard = at(r.last_inbound_at);
-  const quietFor = heard === null ? null : Math.floor((nowMs - heard) / DAY);
+  const quietFor = heard === null ? null : Math.floor((nowMs - heard) / DAY_MS);
   switch (verdict) {
     case "broken":
       return r.line_error

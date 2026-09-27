@@ -785,7 +785,11 @@ test("the service-role client cannot be obtained without passing the check", () 
     !/export function platformDb|export async function platformDb/.test(src),
     "REGRESSION: a service-role client handed to any importer",
   );
-  assert.match(src, /function serviceDb\(\)/, "the client is module-private");
+  assert.match(
+    src,
+    /import \{ serviceDb \} from "\.\.\/service-db";/,
+    "the dashboard's one service client, kept to this module",
+  );
   assert.ok(!/export .*serviceDb/.test(src));
   // The only way to a client is a handle only the check can make, and the brand
   // stops an object literal standing in for one.

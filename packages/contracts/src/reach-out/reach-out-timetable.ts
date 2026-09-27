@@ -13,13 +13,12 @@
  */
 import { dayPlusInZone, localToUtcMs } from "../calendar/availability";
 import { DEFAULT_WEEK, type OpenWindow, type WeekHours, type WeekdayKey } from "./lead-hours";
+import { DAY_MS, MIN_MS } from "../shared/time";
 
 export const SEND_WINDOW_MARGIN_MIN = 30;
 /** The part of any day a cold email may arrive in, in the lead's own time (minutes after midnight). */
 export const SEND_DAY_FRAME: OpenWindow = { from: 8 * 60, to: 20 * 60 };
 export const TIMETABLE_HORIZON_DAYS = 7;
-const DAY_MS = 86_400_000;
-const MIN_MS = 60_000;
 
 export interface TimetableSend {
   id: string;

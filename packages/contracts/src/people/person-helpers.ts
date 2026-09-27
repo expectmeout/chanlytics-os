@@ -1,15 +1,13 @@
 /**
- * The small helpers people.ts and the person modules share: time spans, a timestamp read, the dates and durations
- * they print. Internal: index.ts never re-exports it (the person-words.ts / run-words.ts pattern).
+ * The small helpers people.ts and the person modules share: a month's span, a timestamp read, the dates they print.
+ * Internal: index.ts never re-exports it (the person-words.ts / run-words.ts pattern). A day, a week, a call's length
+ * and a capital letter are the shared modules' (shared/time.ts, shared/clock.ts, shared/words.ts).
  */
 import { clockDate } from "../shared/clock";
+import { DAY_MS } from "../shared/time";
 import type { PersonDetailDto, PersonProposalVM } from "./people";
 import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
 import { type ConversationDto, writtenChannelOf } from "../conversations/viewmodels";
-
-export const DAY_MS = 86_400_000;
-
-export const WEEK_MS = 7 * DAY_MS;
 
 export const MONTH_MS = 30 * DAY_MS;
 
@@ -26,14 +24,6 @@ export const ts = (iso: string | null | undefined): number | null => (iso ? new 
 export function fmtDate(ms: number, tz: string, nowMs: number): string {
   return clockDate(ms, tz, nowMs);
 }
-
-export function mmss(ms: number | null | undefined): string | undefined {
-  if (ms == null || ms <= 0) return undefined;
-  const s = Math.round(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-
-export const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /** The wire a reply goes out on, exactly: where they last wrote (the reply route's own rule, verbs replyChannelOf). */
 export function replyChannelOfThreads(

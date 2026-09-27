@@ -34,6 +34,9 @@ function normalizePhone(raw) {
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -944,8 +947,6 @@ function clockDate(atMs, tz, nowMs) {
   return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
 }
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var DAY_MS2 = 864e5;
-var WEEK_MS = 7 * DAY_MS2;
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -1211,9 +1212,7 @@ var PERSON_CAME_FROM_WORDS = {
   lead: "A lead you found"
 };
 var CARRIER_CONSENT_SOURCE = "carrier";
-var DAY_MS4 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS4;
-var MONTH_MS = 30 * DAY_MS4;
+var MONTH_MS = 30 * DAY_MS;
 var NOTE_MAX = 600;
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -1370,7 +1369,6 @@ function parseParamSpec(raw) {
 function parseParamSpecs(raw) {
   return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
 }
-var DAY_MS5 = 864e5;
 var SWEEP_TICK_MS = 5 * 6e4;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -1474,7 +1472,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -1981,7 +1979,7 @@ function maySpend(mode, status) {
   if (mode !== "stripe") return true;
   return status === "active";
 }
-var DATE_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -2033,7 +2031,7 @@ function localDate(tz, now) {
   return parts(tz, now).date;
 }
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -2258,12 +2256,9 @@ var PageContextSchema = z9.object({
   askedAt: z9.number().int().nonnegative()
 }).strict();
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS3 = 7 * 864e5;
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
@@ -2496,9 +2491,7 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var DAY_MS7 = 864e5;
-var QUIET_AFTER_MS = 7 * DAY_MS7;
-var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var QUIET_AFTER_MS = 7 * DAY_MS;
 var CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -2637,7 +2630,6 @@ var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
 var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
-var DAY_MS10 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS = 12 * 36e5;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
@@ -3883,7 +3875,6 @@ async function claimCallNotification(db, tenantId, callId) {
 
 // src/repositories/thread.ts
 var DELIVERED = ["sent", "delivered", "read"];
-var DAY_MS = 24 * 3600 * 1e3;
 var IMPORTED_CALL_NOTE = /^\[voice call note /;
 var isBackfill = (m) => !!m.meta && typeof m.meta === "object" && m.meta.backfill === true;
 var isAcknowledgement = (m) => !!m.meta && typeof m.meta === "object" && m.meta.ack === true;

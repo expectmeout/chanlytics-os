@@ -13,18 +13,7 @@ import "server-only";
  * for jobs, signup.ts for the one door a stranger may open), and like the
  * second it touches no tenant data.
  */
-import { createServiceClient } from "@chanlytics/db";
-import type { Database } from "@chanlytics/db";
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-let svc: SupabaseClient<Database> | null = null;
-function serviceDb(): SupabaseClient<Database> {
-  svc ??= createServiceClient({
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  });
-  return svc;
-}
+import { serviceDb } from "../service-db";
 
 interface ConsentPageRow {
   businessName: string;

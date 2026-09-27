@@ -175,6 +175,9 @@ z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+var DAY_MS = 864e5;
+var WEEK_MS = 7 * DAY_MS;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V6 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -1046,8 +1049,6 @@ var LeadSuggestAnswerSchema = z4.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
-var DAY_MS2 = 864e5;
-var WEEK_MS = 7 * DAY_MS2;
 var BRAIN_INTENTS = [
   "booking",
   "pricing",
@@ -1269,9 +1270,7 @@ var PERSON_CAME_FROM_WORDS = {
   import: "Imported",
   lead: "A lead you found"
 };
-var DAY_MS4 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS4;
-var MONTH_MS = 30 * DAY_MS4;
+var MONTH_MS = 30 * DAY_MS;
 var NOTE_MAX = 600;
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -1411,7 +1410,6 @@ var WHATSAPP_LANGUAGES = [
   L("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS5 = 864e5;
 var SWEEP_TICK_MS = 5 * 6e4;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -1515,7 +1513,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -2018,7 +2016,7 @@ var LIMIT_TIERS = {
 var REPLY_WINDOW_HOURS = 72;
 var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
 var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
-var DATE_FMT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -2050,7 +2048,7 @@ var LEAD_MAP_STATE_WORDS = {
   out: `${LEAD_STAGE_WORDS.archived} or ${LEAD_LEFT_OUT_WORD.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION}\u201D with \u201C${SELLS_BY_WORDS.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS5;
+var PLAYBOOK_TOUCH_WINDOW_MS = (365 + 7) * DAY_MS;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -2275,12 +2273,9 @@ var PageContextSchema = z9.object({
   askedAt: z9.number().int().nonnegative()
 }).strict();
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS3 = 7 * 864e5;
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
@@ -2513,9 +2508,7 @@ var K = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var DAY_MS7 = 864e5;
-var QUIET_AFTER_MS = 7 * DAY_MS7;
-var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var QUIET_AFTER_MS = 7 * DAY_MS;
 var CHANNEL_KIND_WORDS = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -2679,7 +2672,6 @@ function pushFor(n2, targets) {
 }
 var PUSH_RECEIPTS_AFTER_MS = 15 * 6e4;
 var BELL_WINDOW_DAYS = 30;
-var DAY_MS10 = 24 * 3600 * 1e3;
 var JOB_WORK = {
   outbound_send: { stopped: "A message may not have been sent", to: "inbox" },
   broadcast_send: { stopped: "A broadcast stopped partway", to: "broadcasts" },
@@ -7834,6 +7826,9 @@ z16.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
+var DAY_MS2 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS2;
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST2 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT2 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V62 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -8693,8 +8688,6 @@ var LeadSuggestAnswerSchema2 = z42.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
-var DAY_MS22 = 864e5;
-var WEEK_MS4 = 7 * DAY_MS22;
 var BRAIN_INTENTS2 = [
   "booking",
   "pricing",
@@ -8924,9 +8917,7 @@ var PERSON_CAME_FROM_WORDS2 = {
   import: "Imported",
   lead: "A lead you found"
 };
-var DAY_MS42 = 864e5;
-var WEEK_MS22 = 7 * DAY_MS42;
-var MONTH_MS2 = 30 * DAY_MS42;
+var MONTH_MS2 = 30 * DAY_MS2;
 var NOTE_MAX2 = 600;
 var NOTE_REFUSALS2 = {
   empty: "Write something first.",
@@ -9066,7 +9057,6 @@ var WHATSAPP_LANGUAGES2 = [
   L2("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS52 = 864e5;
 var SWEEP_TICK_MS2 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS2 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -9170,7 +9160,7 @@ var SENDING_HOURS_WORDS2 = {
   range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
   between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
 };
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS2;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var FIRST2 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS2 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -9673,7 +9663,7 @@ var LIMIT_TIERS2 = {
 var REPLY_WINDOW_HOURS2 = 72;
 var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
 var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
-var DATE_FMT5 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS2 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -9705,7 +9695,7 @@ var LEAD_MAP_STATE_WORDS2 = {
   out: `${LEAD_STAGE_WORDS2.archived} or ${LEAD_LEFT_OUT_WORD2.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS2 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION2}\u201D with \u201C${SELLS_BY_WORDS2.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS52;
+var PLAYBOOK_TOUCH_WINDOW_MS2 = (365 + 7) * DAY_MS2;
 var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
   campaign: POLICY_CLASS_WORDS2.campaign.short,
@@ -9930,12 +9920,9 @@ var PageContextSchema2 = z92.object({
   askedAt: z92.number().int().nonnegative()
 }).strict();
 var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
-var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
 var BOOTSTRAP_MS2 = 3600 * 1e3;
-var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS32 = 7 * 864e5;
 var NAME_MAX2 = BrainConfigSchema2.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
@@ -10168,9 +10155,7 @@ var K2 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var DAY_MS72 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS72;
-var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var QUIET_AFTER_MS2 = 7 * DAY_MS2;
 var CHANNEL_KIND_WORDS2 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -10309,7 +10294,6 @@ var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS2 = 10 * 60 * 1e3;
 var PUSH_RECEIPTS_AFTER_MS2 = 15 * 6e4;
-var DAY_MS102 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS2 = 12 * 36e5;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
@@ -11561,6 +11545,9 @@ z17.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
+var DAY_MS3 = 864e5;
+var WEEK_MS3 = 7 * DAY_MS3;
+var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST3 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT3 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V63 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -12420,8 +12407,6 @@ var LeadSuggestAnswerSchema3 = z43.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
-var DAY_MS23 = 864e5;
-var WEEK_MS5 = 7 * DAY_MS23;
 var BRAIN_INTENTS3 = [
   "booking",
   "pricing",
@@ -12651,9 +12636,7 @@ var PERSON_CAME_FROM_WORDS3 = {
   import: "Imported",
   lead: "A lead you found"
 };
-var DAY_MS43 = 864e5;
-var WEEK_MS23 = 7 * DAY_MS43;
-var MONTH_MS3 = 30 * DAY_MS43;
+var MONTH_MS3 = 30 * DAY_MS3;
 var NOTE_MAX3 = 600;
 var NOTE_REFUSALS3 = {
   empty: "Write something first.",
@@ -12793,7 +12776,6 @@ var WHATSAPP_LANGUAGES3 = [
   L3("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS53 = 864e5;
 var SWEEP_TICK_MS3 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS3 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -12897,7 +12879,7 @@ var SENDING_HOURS_WORDS3 = {
   range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
   between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
 };
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS3;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -13400,7 +13382,7 @@ var LIMIT_TIERS3 = {
 var REPLY_WINDOW_HOURS3 = 72;
 var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
 var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
-var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT23 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS3 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -13432,7 +13414,7 @@ var LEAD_MAP_STATE_WORDS3 = {
   out: `${LEAD_STAGE_WORDS3.archived} or ${LEAD_LEFT_OUT_WORD3.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS3 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION3}\u201D with \u201C${SELLS_BY_WORDS3.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS53;
+var PLAYBOOK_TOUCH_WINDOW_MS3 = (365 + 7) * DAY_MS3;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
   campaign: POLICY_CLASS_WORDS3.campaign.short,
@@ -13657,12 +13639,9 @@ var PageContextSchema3 = z93.object({
   askedAt: z93.number().int().nonnegative()
 }).strict();
 var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
-var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
 var BOOTSTRAP_MS3 = 3600 * 1e3;
-var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS33 = 7 * 864e5;
 var NAME_MAX3 = BrainConfigSchema3.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
@@ -13895,9 +13874,7 @@ var K3 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var DAY_MS73 = 864e5;
-var QUIET_AFTER_MS3 = 7 * DAY_MS73;
-var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var QUIET_AFTER_MS3 = 7 * DAY_MS3;
 var CHANNEL_KIND_WORDS3 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -14036,7 +14013,6 @@ var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
 var PUSH_RECEIPTS_AFTER_MS3 = 15 * 6e4;
-var DAY_MS103 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS3 = 12 * 36e5;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
@@ -14320,6 +14296,9 @@ function normalizeEmail(raw) {
   if (!m || m[1].length > MAX_LOCAL) return null;
   return s2;
 }
+var DAY_MS22 = 864e5;
+var WEEK_MS22 = 7 * DAY_MS22;
+var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST22 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT22 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V622 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -15179,8 +15158,6 @@ var LeadSuggestAnswerSchema22 = z422.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS22 = 24 * 60 * 6e4;
-var DAY_MS222 = 864e5;
-var WEEK_MS42 = 7 * DAY_MS222;
 var BRAIN_INTENTS22 = [
   "booking",
   "pricing",
@@ -15419,9 +15396,7 @@ var PERSON_CAME_FROM_WORDS22 = {
   lead: "A lead you found"
 };
 var CARRIER_CONSENT_SOURCE = "carrier";
-var DAY_MS422 = 864e5;
-var WEEK_MS222 = 7 * DAY_MS422;
-var MONTH_MS22 = 30 * DAY_MS422;
+var MONTH_MS22 = 30 * DAY_MS22;
 var NOTE_MAX22 = 600;
 var NOTE_REFUSALS22 = {
   empty: "Write something first.",
@@ -15604,7 +15579,6 @@ function resolveParams(specs, f) {
     }
   });
 }
-var DAY_MS522 = 864e5;
 var SWEEP_TICK_MS22 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS22 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -15708,7 +15682,7 @@ var SENDING_HOURS_WORDS22 = {
   range: `${PLAYBOOK_HOURS22.min}:00\u2013${PLAYBOOK_HOURS22.max}:59`,
   between: `between ${PLAYBOOK_HOURS22.min}:00 and ${PLAYBOOK_HOURS22.max}:59`
 };
-var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS522;
+var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS22;
 var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
 var FIRST22 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS22 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -16220,7 +16194,7 @@ function renderTemplate(body, params) {
   });
 }
 var OUTCOME_UNKNOWN = "outcome_unknown";
-var DATE_FMT52 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT222 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS22 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -16252,7 +16226,7 @@ var LEAD_MAP_STATE_WORDS22 = {
   out: `${LEAD_STAGE_WORDS22.archived} or ${LEAD_LEFT_OUT_WORD22.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS22 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION22}\u201D with \u201C${SELLS_BY_WORDS22.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS522;
+var PLAYBOOK_TOUCH_WINDOW_MS22 = (365 + 7) * DAY_MS22;
 var PLAYBOOK_CLASS_LABEL22 = {
   reengage: POLICY_CLASS_WORDS22.reengage.short,
   campaign: POLICY_CLASS_WORDS22.campaign.short,
@@ -16477,12 +16451,9 @@ var PageContextSchema22 = z922.object({
   askedAt: z922.number().int().nonnegative()
 }).strict();
 var REVIEW_AUTO_REPLY_MAX_AGE_MS22 = 14 * 864e5;
-var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS22 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS22 = 14 * 864e5;
 var BOOTSTRAP_MS22 = 3600 * 1e3;
-var DATE_FMT322 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS322 = 7 * 864e5;
 var NAME_MAX22 = BrainConfigSchema22.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
 var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
@@ -16725,9 +16696,7 @@ var K22 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var DAY_MS722 = 864e5;
-var QUIET_AFTER_MS22 = 7 * DAY_MS722;
-var DATE_FMT422 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var QUIET_AFTER_MS22 = 7 * DAY_MS22;
 var CHANNEL_KIND_WORDS22 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -16881,7 +16850,6 @@ var LIVE_STALE_MS22 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS22 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS22 = 10 * 60 * 1e3;
 var PUSH_RECEIPTS_AFTER_MS22 = 15 * 6e4;
-var DAY_MS1022 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS22 = 12 * 36e5;
 var SIGNUP_NAME_MIN22 = 2;
 var SIGNUP_NAME_MAX22 = 120;
@@ -17062,6 +17030,9 @@ z172.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
+var DAY_MS32 = 864e5;
+var WEEK_MS32 = 7 * DAY_MS32;
+var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST32 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT32 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V632 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -17921,8 +17892,6 @@ var LeadSuggestAnswerSchema32 = z432.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS32 = 24 * 60 * 6e4;
-var DAY_MS232 = 864e5;
-var WEEK_MS52 = 7 * DAY_MS232;
 var BRAIN_INTENTS32 = [
   "booking",
   "pricing",
@@ -18145,9 +18114,7 @@ var PERSON_CAME_FROM_WORDS32 = {
   lead: "A lead you found"
 };
 var CARRIER_CONSENT_SOURCE2 = "carrier";
-var DAY_MS432 = 864e5;
-var WEEK_MS232 = 7 * DAY_MS432;
-var MONTH_MS32 = 30 * DAY_MS432;
+var MONTH_MS32 = 30 * DAY_MS32;
 var NOTE_MAX32 = 600;
 var NOTE_REFUSALS32 = {
   empty: "Write something first.",
@@ -18287,7 +18254,6 @@ var WHATSAPP_LANGUAGES32 = [
   L32("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID32 = new Map(WHATSAPP_LANGUAGES32.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS532 = 864e5;
 var SWEEP_TICK_MS32 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS32 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -18391,7 +18357,7 @@ var SENDING_HOURS_WORDS32 = {
   range: `${PLAYBOOK_HOURS32.min}:00\u2013${PLAYBOOK_HOURS32.max}:59`,
   between: `between ${PLAYBOOK_HOURS32.min}:00 and ${PLAYBOOK_HOURS32.max}:59`
 };
-var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS532;
+var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS32;
 var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
 var FIRST32 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS32 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -18894,7 +18860,7 @@ var LIMIT_TIERS32 = {
 var REPLY_WINDOW_HOURS32 = 72;
 var REPLY_WINDOW_MS32 = REPLY_WINDOW_HOURS32 * 36e5;
 var REPLY_WINDOW_WORDS32 = `within ${REPLY_WINDOW_HOURS32 / 24} days`;
-var DATE_FMT62 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT232 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS32 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -18926,7 +18892,7 @@ var LEAD_MAP_STATE_WORDS32 = {
   out: `${LEAD_STAGE_WORDS32.archived} or ${LEAD_LEFT_OUT_WORD32.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS32 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION32}\u201D with \u201C${SELLS_BY_WORDS32.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS32 = (365 + 7) * DAY_MS532;
+var PLAYBOOK_TOUCH_WINDOW_MS32 = (365 + 7) * DAY_MS32;
 var PLAYBOOK_CLASS_LABEL32 = {
   reengage: POLICY_CLASS_WORDS32.reengage.short,
   campaign: POLICY_CLASS_WORDS32.campaign.short,
@@ -19151,12 +19117,9 @@ var PageContextSchema32 = z932.object({
   askedAt: z932.number().int().nonnegative()
 }).strict();
 var REVIEW_AUTO_REPLY_MAX_AGE_MS32 = 14 * 864e5;
-var DATE_FMT232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS32 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS32 = 14 * 864e5;
 var BOOTSTRAP_MS32 = 3600 * 1e3;
-var DATE_FMT332 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS332 = 7 * 864e5;
 var NAME_MAX32 = BrainConfigSchema32.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE32 = OFFERS_OPT_IN_PHRASES32.en;
 var CONSENT_PHRASE_ES32 = OFFERS_OPT_IN_PHRASES32.es;
@@ -19389,9 +19352,7 @@ var K32 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var DAY_MS732 = 864e5;
-var QUIET_AFTER_MS32 = 7 * DAY_MS732;
-var DATE_FMT432 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var QUIET_AFTER_MS32 = 7 * DAY_MS32;
 var CHANNEL_KIND_WORDS32 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -19530,7 +19491,6 @@ var LIVE_STALE_MS32 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS32 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS32 = 10 * 60 * 1e3;
 var PUSH_RECEIPTS_AFTER_MS32 = 15 * 6e4;
-var DAY_MS1032 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS32 = 12 * 36e5;
 var SIGNUP_NAME_MIN32 = 2;
 var SIGNUP_NAME_MAX32 = 120;
@@ -19789,7 +19749,6 @@ async function outreachFactsOf(db, p) {
 }
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
-var DAY_MS = 24 * 3600 * 1e3;
 var CALL_CONTROL_S = 15 * 60;
 function kindOf(d) {
   if (d.purpose === "outreach") return "broadcast";
@@ -20446,6 +20405,9 @@ function normalizePhone(raw) {
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
+var DAY_MS4 = 864e5;
+var WEEK_MS4 = 7 * DAY_MS4;
+var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST4 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 var CARRIER_NAT4 = /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./;
 var PRIVATE_V64 = /^\[(::1?|f[cd][0-9a-f]{0,2}:.*|fe[89ab][0-9a-f]?:.*|::ffff:.*)\]$/i;
@@ -21305,8 +21267,6 @@ var LeadSuggestAnswerSchema4 = z44.object({
   ).min(1).max(4)
 });
 var LEAD_UNDO_MS4 = 24 * 60 * 6e4;
-var DAY_MS24 = 864e5;
-var WEEK_MS6 = 7 * DAY_MS24;
 var BRAIN_INTENTS4 = [
   "booking",
   "pricing",
@@ -21528,9 +21488,7 @@ var PERSON_CAME_FROM_WORDS4 = {
   import: "Imported",
   lead: "A lead you found"
 };
-var DAY_MS44 = 864e5;
-var WEEK_MS24 = 7 * DAY_MS44;
-var MONTH_MS4 = 30 * DAY_MS44;
+var MONTH_MS4 = 30 * DAY_MS4;
 var NOTE_MAX4 = 600;
 var NOTE_REFUSALS4 = {
   empty: "Write something first.",
@@ -21670,7 +21628,6 @@ var WHATSAPP_LANGUAGES4 = [
   L4("zu", "Zulu", null, "isiZulu")
 ];
 var BY_ID4 = new Map(WHATSAPP_LANGUAGES4.map((l2) => [l2.id.toLowerCase(), l2]));
-var DAY_MS54 = 864e5;
 var SWEEP_TICK_MS4 = 5 * 6e4;
 var PLAYBOOK_TRIGGERS4 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -21774,7 +21731,7 @@ var SENDING_HOURS_WORDS4 = {
   range: `${PLAYBOOK_HOURS4.min}:00\u2013${PLAYBOOK_HOURS4.max}:59`,
   between: `between ${PLAYBOOK_HOURS4.min}:00 and ${PLAYBOOK_HOURS4.max}:59`
 };
-var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS54;
+var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS4;
 var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
 var FIRST4 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS4 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -22277,7 +22234,7 @@ var LIMIT_TIERS4 = {
 var REPLY_WINDOW_HOURS4 = 72;
 var REPLY_WINDOW_MS4 = REPLY_WINDOW_HOURS4 * 36e5;
 var REPLY_WINDOW_WORDS4 = `within ${REPLY_WINDOW_HOURS4 / 24} days`;
-var DATE_FMT7 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT24 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var CHECKOUT_OUTCOME_WORDS4 = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -22309,7 +22266,7 @@ var LEAD_MAP_STATE_WORDS4 = {
   out: `${LEAD_STAGE_WORDS4.archived} or ${LEAD_LEFT_OUT_WORD4.toLowerCase()}`
 };
 var FOLLOW_UP_NEEDS_DEALS4 = `Proposal follow-ups need deals: in Settings \u203A Business, answer \u201C${SELLS_BY_QUESTION4}\u201D with \u201C${SELLS_BY_WORDS4.proposal.label}\u201D.`;
-var PLAYBOOK_TOUCH_WINDOW_MS4 = (365 + 7) * DAY_MS54;
+var PLAYBOOK_TOUCH_WINDOW_MS4 = (365 + 7) * DAY_MS4;
 var PLAYBOOK_CLASS_LABEL4 = {
   reengage: POLICY_CLASS_WORDS4.reengage.short,
   campaign: POLICY_CLASS_WORDS4.campaign.short,
@@ -22534,12 +22491,9 @@ var PageContextSchema4 = z94.object({
   askedAt: z94.number().int().nonnegative()
 }).strict();
 var REVIEW_AUTO_REPLY_MAX_AGE_MS4 = 14 * 864e5;
-var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var REVIEW_NEWS_MS4 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS4 = 14 * 864e5;
 var BOOTSTRAP_MS4 = 3600 * 1e3;
-var DATE_FMT34 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WEEK_MS34 = 7 * 864e5;
 var NAME_MAX4 = BrainConfigSchema4.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;
 var CONSENT_PHRASE_ES4 = OFFERS_OPT_IN_PHRASES4.es;
@@ -22772,9 +22726,7 @@ var K4 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-var DAY_MS74 = 864e5;
-var QUIET_AFTER_MS4 = 7 * DAY_MS74;
-var DATE_FMT44 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var QUIET_AFTER_MS4 = 7 * DAY_MS4;
 var CHANNEL_KIND_WORDS4 = {
   whatsapp: "WhatsApp",
   voice: "Phone line",
@@ -22913,7 +22865,6 @@ var LIVE_STALE_MS4 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS4 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS4 = 10 * 60 * 1e3;
 var PUSH_RECEIPTS_AFTER_MS4 = 15 * 6e4;
-var DAY_MS104 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS4 = 12 * 36e5;
 var SIGNUP_NAME_MIN4 = 2;
 var SIGNUP_NAME_MAX4 = 120;
@@ -23228,7 +23179,6 @@ async function stampMailboxReceived(db, mailboxId, at) {
 }
 var POS_TTL_MS2 = 5 * 60 * 1e3;
 var NEG_TTL_MS2 = 60 * 1e3;
-var DAY_MS3 = 24 * 3600 * 1e3;
 var CALL_CONTROL_S2 = 15 * 60;
 
 // src/escalate.ts

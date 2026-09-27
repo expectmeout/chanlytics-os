@@ -9,6 +9,7 @@
  * pure helpers the saga and the endpoint share.
  */
 import { randomInt } from "node:crypto";
+import { E164 } from "@chanlytics/contracts";
 
 export type LineProviderName = "twilio" | "dry";
 
@@ -191,7 +192,6 @@ export function isValidSipPassword(p: string): boolean {
   return p.length >= 12 && /\d/.test(p) && /[a-z]/.test(p) && /[A-Z]/.test(p);
 }
 
-const E164 = /^\+[1-9]\d{6,14}$/;
 export const isE164 = (s: unknown): s is string => typeof s === "string" && E164.test(s);
 export const isAreaCode = (n: unknown): n is number =>
   typeof n === "number" && Number.isInteger(n) && n >= 200 && n <= 999;

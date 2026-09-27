@@ -189,7 +189,7 @@ test("the wiring: public, indexed, reads by slug, writes nothing", () => {
   );
 
   const server = readCode("apps/dashboard/src/server/public/business-page.ts");
-  assert.ok(server.includes('import "server-only";') && server.includes("createServiceClient({"));
+  assert.ok(server.includes('import "server-only";') && server.includes('import { serviceDb } from "../service-db";'));
   assert.ok(
     server.includes('if (!tenant || tenant.status === "test") return null;'),
     "a fixture workspace has no page",
