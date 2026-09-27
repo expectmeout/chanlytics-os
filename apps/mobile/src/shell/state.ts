@@ -4,6 +4,7 @@
  * site last reported. Every page's messages land here (bridge.ts); every tab and the root layout read from here.
  */
 import { useSyncExternalStore } from "react";
+import type { Theme } from "@chanlytics/contracts";
 
 export type Session = "unknown" | "in" | "out";
 export type Tab = "today" | "inbox" | "calendar" | "people" | "more";
@@ -29,8 +30,12 @@ export interface ShellState {
   tooOld: boolean;
   /** The session's access token for the shell's own calls (decision 0011), as the page last handed it over; memory only. */
   access: { token: string; expires: number } | null;
-  /** Counts the page's refreshes of Today: the native Today (PR 9) reads again on each, so the two never disagree for long. */
-  todayTick: number;
+  /**
+   * The theme the page is drawn in, as the page last said (the member's own choice, not the device's): what every
+   * native screen, the tab bar and the status bar follow. Dark until a page says otherwise, which is the web's own
+   * default for a device that has chosen nothing.
+   */
+  theme: Theme;
 }
 
 export const INITIAL: ShellState = {
@@ -47,7 +52,7 @@ export const INITIAL: ShellState = {
   badge: 0,
   tooOld: false,
   access: null,
-  todayTick: 0,
+  theme: "dark",
 };
 
 let state: ShellState = INITIAL;

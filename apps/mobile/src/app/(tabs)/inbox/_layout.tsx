@@ -4,9 +4,7 @@
  */
 import { Stack } from "expo-router";
 import { Platform, useColorScheme } from "react-native";
-
-const PAPER = { light: "#fbfaf8", dark: "#0c0d0f" };
-const INK = { light: "#161616", dark: "#fbfaf8" };
+import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts";
 
 export default function InboxLayout() {
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
@@ -14,9 +12,9 @@ export default function InboxLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: PAPER[scheme] },
-        headerStyle: { backgroundColor: PAPER[scheme] },
-        headerTintColor: INK[scheme],
+        contentStyle: { backgroundColor: THEME_COLORS[scheme] },
+        headerStyle: { backgroundColor: THEME_COLORS[scheme] },
+        headerTintColor: THEME_INK[scheme],
         headerShadowVisible: false,
         headerBackButtonDisplayMode: "minimal",
         ...(Platform.OS === "ios" ? { headerLargeTitle: false } : {}),
