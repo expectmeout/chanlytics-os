@@ -340,7 +340,7 @@ test("an input a schema refuses comes back in the zod's words, under the tool's 
   assert.deepEqual(supabase.seen, [], "nothing was read: the handler never ran");
 });
 
-test("a null on an optional key is absent, in an action's fields too; a null on a required key is refused; an unknown key, or another action's field, is stripped, not refused", async () => {
+test("a null on an optional key is absent, in an action's fields too; a null on a required key is refused; an unknown key is stripped, not refused; a field only another action takes is refused, so a card never quietly becomes another", async () => {
   const { supabase, t } = contextFor("owner");
   // audience_id: null passes the parse as no audience_id: the handler runs, and refuses the template id itself.
   const nul = await buildProposal(t, "propose_campaign", {
@@ -362,7 +362,7 @@ test("a null on an optional key is absent, in an action's fields too; a null on 
     [required.isError, JSON.parse(required.result).error],
     [true, "inbox: conversation_id Invalid input: expected string, received null"],
   );
-  // An extra key is dropped on the way in, and so is a field of the tool's other action: the card is made without it.
+  // An extra key no action takes is dropped on the way in: the card is made without it.
   const extra = await buildProposal(t, "propose_team", {
     action: "invite",
     email: "ada@example.com",
@@ -371,13 +371,37 @@ test("a null on an optional key is absent, in an action's fields too; a null on 
   });
   assert.equal(extra.isError, false, extra.result);
   assert.deepEqual(extra.proposal.payload, { email: "ada@example.com", role: "viewer" });
+  // A field only the tool's other action takes is refused by name, before the handler runs: stripped, the broadcast
+  // below would have gone out now, and to everyone, where a playbook's run_hour and list were asked for.
   const other = await buildProposal(t, "propose_campaign", {
+    action: "broadcast",
+    template_id: "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+    audience_kind: "everyone",
+    params: [],
+    run_hour: 15,
+    list: "seg:quiet",
+  });
+  assert.deepEqual(
+    [other.proposal, other.isError, JSON.parse(other.result).error],
+    [null, true, "propose_campaign: list, run_hour not taken by action broadcast"],
+  );
+  const read = await runTool(t, { name: "inbox", input: { action: "list", filter: "held", conversation_id: C1 } });
+  assert.deepEqual(
+    [read.isError, JSON.parse(read.result).error, read.label],
+    [true, "inbox: conversation_id not taken by action list", "Reading the Inbox"],
+  );
+  // A field both actions take is the one named; a null on another action's field is absent, as any null is.
+  const nullOther = await buildProposal(t, "propose_campaign", {
     action: "broadcast",
     template_id: "nope",
     audience_kind: "everyone",
-    trigger: "quiet_30",
+    trigger: null,
+    name: "October",
   });
-  assert.equal(JSON.parse(other.result).error, "template_id must be an id campaigns with action audiences returned");
+  assert.equal(
+    JSON.parse(nullOther.result).error,
+    "template_id must be an id campaigns with action audiences returned",
+  );
   assert.deepEqual(supabase.seen, [], "none of these reached the database");
 });
 

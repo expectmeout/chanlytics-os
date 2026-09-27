@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { TOOL_NAMES, renameCases, toolNow, usedAny } from "../../rename-ask-tools.mjs";
+import { TOOL_NAMES, renameCases, toolNow, usedAny } from "../../../evals/rename-ask-tools.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const CASES = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/evals/ask-cases.json"), "utf8"));

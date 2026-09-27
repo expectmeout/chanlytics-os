@@ -8,14 +8,14 @@
  * The judge (eval-ask.mjs) reads names through the table too (`usedAny`), on both sides: a case or a stored turn that still says
  * an old name is judged as the new one, so PR 2.3's baseline stays comparable.
  *
- *   node tooling/scripts/rename-ask-tools.mjs [tooling/evals/ask-cases.json]           # say what would change
- *   node tooling/scripts/rename-ask-tools.mjs --apply [tooling/evals/ask-cases.json]   # write it (then prettier)
+ *   node tooling/evals/rename-ask-tools.mjs [tooling/evals/ask-cases.json]           # say what would change
+ *   node tooling/evals/rename-ask-tools.mjs --apply [tooling/evals/ask-cases.json]   # write it (then prettier)
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 /** Old tool name -> `name.action`, or `name` for a tool with no action. */
-export const TOOL_NAMES = JSON.parse(readFileSync(new URL("../evals/tool-names.json", import.meta.url), "utf8"));
+export const TOOL_NAMES = JSON.parse(readFileSync(new URL("./tool-names.json", import.meta.url), "utf8"));
 const NOW = new Set(Object.values(TOOL_NAMES));
 
 /** A tool name as the registry records it today: an old one through the table, any other as it is. */

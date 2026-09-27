@@ -282,7 +282,7 @@ export default [
 
   // Test and operational scripts.
   {
-    files: ["tooling/scripts/**/*.mjs"],
+    files: ["tooling/{scripts,evals}/**/*.mjs"],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",

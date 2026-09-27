@@ -159,7 +159,7 @@ export const inboxTool = defineActions({
     }),
     thread: readAction({
       input: z.object({ conversation_id: z.string(), more: z.boolean().optional() }),
-      examples: [{ conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f", more: true }],
+      examples: [{ conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f" }],
       label: "Reading the conversation",
       run: getThread,
     }),

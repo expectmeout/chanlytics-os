@@ -107,14 +107,13 @@ function defFor<D>(t: Tool<D>, raw: unknown): D {
 
 /**
  * The zod a tool's input is parsed by (D2): its one definition's, or the union of its actions on `action`, each
- * branch the action literal and then that action's own fields -- so what each action takes is its own, and a field
- * only another action takes is unknown to it, stripped as every unknown key is.
+ * branch that action's own fields extended by the action literal -- so what each action takes is its own (a field
+ * only another action takes is refused by parseInput), and an action's input that could not be extended (one with
+ * an object-level refinement) fails when the registry loads, never quietly.
  */
 function inputOf(t: Tool<{ input: z.ZodObject }>): z.ZodType {
   if (!takesAction(t)) return t.actions[NO_ACTION].input;
-  const branches = Object.entries(t.actions).map(([action, d]) =>
-    z.object({ action: z.literal(action), ...d.input.shape }),
-  );
+  const branches = Object.entries(t.actions).map(([action, d]) => d.input.extend({ action: z.literal(action) }));
   return z.discriminatedUnion("action", branches as [(typeof branches)[number], ...typeof branches]);
 }
 
@@ -299,12 +298,30 @@ function withoutNulls(schema: z.ZodType, value: unknown): unknown {
 }
 
 /**
+ * A call's fields that another of its tool's actions takes and the one it named does not, sorted: the flat schema shows
+ * every action's fields at once (D11), so a broadcast asked with a playbook's run_hour or list would be stripped and
+ * go out now, to everyone -- a different card from the one asked for. Refused instead, in words; a null is absent, and
+ * a key no action takes is stripped as every unknown key is.
+ */
+function othersFields(tool: Tool<{ input: z.ZodObject }>, action: string, raw: unknown): string[] {
+  const own = tool.actions[action].input.shape;
+  const others = new Set(
+    Object.entries(tool.actions).flatMap(([a, d]) => (a === action ? [] : Object.keys(d.input.shape))),
+  );
+  return Object.entries(raw as Record<string, unknown>)
+    .filter(([k, v]) => k !== "action" && v !== null && !(k in own) && others.has(k))
+    .map(([k]) => k)
+    .sort();
+}
+
+/**
  * The input parsed by the tool's zod (the Phase 3 plan, D2), and the definition it runs (D11): what passes is what
  * the handler gets, typed -- for a tool with actions, its action's definition, and the input without `action`, which
  * is what that action's old tool was given; what fails goes back to the model as the zod's own words,
- * `<tool>: <path> <message>; ...`, and the handler never runs.
+ * `<tool>: <path> <message>; ...`, or, for a field only another action takes, `<tool>: <fields> not taken by action
+ * <action>`, and the handler never runs.
  */
-function parseInput<D>(
+function parseInput<D extends { input: z.ZodObject }>(
   tool: Tool<D>,
   raw: unknown,
 ): { ok: true; def: D; data: Record<string, unknown> } | { ok: false; error: string } {
@@ -316,8 +333,10 @@ function parseInput<D>(
   }
   const data = r.data as Record<string, unknown>;
   if (!takesAction(tool)) return { ok: true, def: tool.actions[NO_ACTION], data };
-  const { action, ...rest } = data;
-  return { ok: true, def: tool.actions[action as string], data: rest };
+  const { action, ...rest } = data as { action: string };
+  const stray = othersFields(tool, action, raw);
+  if (stray.length) return { ok: false, error: `${tool.name}: ${stray.join(", ")} not taken by action ${action}` };
+  return { ok: true, def: tool.actions[action], data: rest };
 }
 
 /* ----------------------------------------------------------- dispatch */

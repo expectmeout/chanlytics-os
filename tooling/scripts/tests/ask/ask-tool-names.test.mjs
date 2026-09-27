@@ -6,7 +6,17 @@
  * it. Each case below is a call as the old tool took it, run over one workspace in memory; the fixture holds what the
  * registry at 7405e34bb answered for it -- the result the model read, the trace line and, for a card, the card -- and
  * which reads it made. The same call, made as `{name, input: {action, ...input}}`, must answer the same bytes after
- * one change: a refusal that named an old tool names its new one, in words ("campaigns with action audiences").
+ * one change: a refusal that named an old tool names its new one, in words ("campaigns with action audiences"). A
+ * refusal named list_audiences in twelve places, in ten wordings; every wording is called here, and eleven of the
+ * places. The twelfth, a playbook whose list the pool does not hold, follows checkPlaybookInput's read of that same
+ * list, so it is reached only if the list goes between the two reads: its call here answers "List not found.", the
+ * check's, before it.
+ *
+ * How the fixture was made, once, and how to make it again: extract the tree at 7405e34bb outside the repository
+ * (`git archive 7405e34bb | tar -x -C <dir>`), install it (`corepack pnpm install --frozen-lockfile --ignore-scripts`),
+ * copy this file and tooling/evals/tool-names.json into the same paths there, and run it with its FIXTURE read replaced
+ * by a loop that calls each case by its OLD name through `answer` and writes `[{call, ...answer}]` to the fixture
+ * path: the old registry, answering. No capture script is committed; the old names no longer dispatch here.
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -39,6 +49,9 @@ const K1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc9";
 const K2 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc8";
 const TPL = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
 const TPL2 = "dddddddd-dddd-4ddd-8ddd-ddddddddddd2";
+/** A template and a list of the workspace's own that are not in it. */
+const GONE = "dddddddd-dddd-4ddd-8ddd-ddddddddddd9";
+const LIST_GONE = "bbbbbbbb-bbbb-4bbb-8bbb-000000000000";
 const USER = "u1";
 const TZ = "America/New_York";
 /** A Monday at 10:00 in New York. */
@@ -375,6 +388,7 @@ const CASES = [
   ["search_people", { query: "", list: "quiet" }],
   ["search_people", { query: "rosa", list: null }],
   ["search_people", { query: "", list: "no such list!" }],
+  ["search_people", { query: "", list: `list:${LIST_GONE}` }],
   ["get_person", { contact_id: P1 }],
   ["get_person", { contact_id: C2 }],
   ["list_calls", { filter: "recent" }],
@@ -413,10 +427,19 @@ const CASES = [
   ["propose_broadcast", { template_id: TPL, audience_kind: "everyone", params: [] }],
   ["propose_broadcast", { template_id: TPL, audience_kind: "list", audience_id: "nope" }],
   ["propose_broadcast", { template_id: "nope", audience_kind: "everyone", audience_id: null }],
+  ["propose_broadcast", { template_id: TPL, audience_kind: "saved", audience_id: "nope" }],
+  ["propose_broadcast", { template_id: GONE, audience_kind: "everyone" }],
+  ["propose_broadcast", { template_id: TPL, audience_kind: "saved", audience_id: LIST_GONE, params: [] }],
   ["propose_playbook", { trigger: "quiet_30", template_id: TPL, params: [] }],
   ["propose_playbook", { trigger: "quiet_30", template_id: TPL, params: [], list: null, name: null }],
   ["propose_playbook", { trigger: "new_week" }],
   ["propose_playbook", { trigger: "saved_list" }],
+  ["propose_playbook", { trigger: "quiet_30", template_id: "nope" }],
+  ["propose_playbook", { trigger: "quiet_30", template_id: GONE }],
+  [
+    "propose_playbook",
+    { trigger: "saved_list", list: `list:${LIST_GONE}`, policy_class: "campaign", template_id: TPL, params: [] },
+  ],
   ["propose_invite", { email: "bea@example.com", role: "operator" }],
   ["propose_invite", { email: "bea@example.com", role: "viewer" }, "partner"],
   ["propose_lead_search", PLAN],

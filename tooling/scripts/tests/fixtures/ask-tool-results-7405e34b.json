@@ -179,6 +179,28 @@
   },
   {
     "call": [
+      "search_people",
+      {
+        "query": "",
+        "list": "list:bbbbbbbb-bbbb-4bbb-8bbb-000000000000"
+      },
+      "owner"
+    ],
+    "result": "{\"error\":\"no such list; list_audiences names them\",\"people\":[]}",
+    "isError": true,
+    "label": "Looking through People",
+    "reads": [
+      "tenants.select",
+      "tenants.select",
+      "segments.select",
+      "segment_members.select",
+      "rpc:people_list",
+      "policies.select",
+      "tenant_config.select"
+    ]
+  },
+  {
+    "call": [
       "get_person",
       {
         "contact_id": "abababab-abab-4aba-8aba-abababababa1"
@@ -789,6 +811,60 @@
   },
   {
     "call": [
+      "propose_broadcast",
+      {
+        "template_id": "dddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+        "audience_kind": "saved",
+        "audience_id": "nope"
+      },
+      "owner"
+    ],
+    "result": "{\"error\":\"audience_id must be a saved list id from list_audiences\"}",
+    "isError": true,
+    "proposal": null,
+    "reads": []
+  },
+  {
+    "call": [
+      "propose_broadcast",
+      {
+        "template_id": "dddddddd-dddd-4ddd-8ddd-ddddddddddd9",
+        "audience_kind": "everyone"
+      },
+      "owner"
+    ],
+    "result": "{\"error\":\"that template is not approved by WhatsApp; list_audiences names the approved ones\"}",
+    "isError": true,
+    "proposal": null,
+    "reads": ["templates.select"]
+  },
+  {
+    "call": [
+      "propose_broadcast",
+      {
+        "template_id": "dddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+        "audience_kind": "saved",
+        "audience_id": "bbbbbbbb-bbbb-4bbb-8bbb-000000000000",
+        "params": []
+      },
+      "owner"
+    ],
+    "result": "{\"error\":\"no such list; list_audiences names them\"}",
+    "isError": true,
+    "proposal": null,
+    "reads": [
+      "templates.select",
+      "tenants.select",
+      "tenants.select",
+      "rpc:people_list",
+      "policies.select",
+      "tenant_config.select",
+      "segments.select",
+      "segment_members.select"
+    ]
+  },
+  {
+    "call": [
       "propose_playbook",
       {
         "trigger": "quiet_30",
@@ -862,6 +938,51 @@
     "isError": true,
     "proposal": null,
     "reads": []
+  },
+  {
+    "call": [
+      "propose_playbook",
+      {
+        "trigger": "quiet_30",
+        "template_id": "nope"
+      },
+      "owner"
+    ],
+    "result": "{\"error\":\"template_id must be an id list_audiences returned, or omitted for the trigger's starter\"}",
+    "isError": true,
+    "proposal": null,
+    "reads": []
+  },
+  {
+    "call": [
+      "propose_playbook",
+      {
+        "trigger": "quiet_30",
+        "template_id": "dddddddd-dddd-4ddd-8ddd-ddddddddddd9"
+      },
+      "owner"
+    ],
+    "result": "{\"error\":\"that template is not approved by WhatsApp, or the workspace keeps it out of the composers; list_audiences names the ones that may send\"}",
+    "isError": true,
+    "proposal": null,
+    "reads": ["templates.select"]
+  },
+  {
+    "call": [
+      "propose_playbook",
+      {
+        "trigger": "saved_list",
+        "list": "list:bbbbbbbb-bbbb-4bbb-8bbb-000000000000",
+        "policy_class": "campaign",
+        "template_id": "dddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+        "params": []
+      },
+      "owner"
+    ],
+    "result": "{\"error\":\"List not found.\"}",
+    "isError": true,
+    "proposal": null,
+    "reads": ["templates.select", "segments.select"]
   },
   {
     "call": [

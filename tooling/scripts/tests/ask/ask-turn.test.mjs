@@ -46,7 +46,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runAskTurn, foldHistory, askPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
-const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES } = await import(
+const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, READ_DEFS } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
 // The tools as the loop offers them, sorted by name (D11), the acts among the reads: told apart by the act names the
@@ -1040,7 +1040,8 @@ test("the fourteen reads, each an action of the nine read tools, run against the
   const tc = newToolContext(ctx, A, "operator", TZ, NOW);
   const run = (name, input = {}) => runTool(tc, { name, input });
   const out = {};
-  // Every action of every read tool, each given every field (the zod keeps its action's own), keyed as a turn records it.
+  // Every action of every read tool, each given its own fields from one set (a field only another action takes is
+  // refused), keyed as a turn records it.
   const fields = {
     conversation_id: C1,
     contact_id: P1,
@@ -1051,12 +1052,11 @@ test("the fourteen reads, each an action of the nine read tools, run against the
     day: "today",
     service: "",
   };
-  for (const tool of READ_TOOLS)
-    for (const action of tool.input_schema.properties.action?.enum ?? [null])
-      out[action ? `${tool.name}.${action}` : tool.name] = await run(
-        tool.name,
-        action ? { action, ...fields } : fields,
-      );
+  for (const tool of READ_DEFS)
+    for (const [action, def] of Object.entries(tool.actions)) {
+      const own = Object.fromEntries(Object.entries(fields).filter(([k]) => k in def.input.shape));
+      out[action ? `${tool.name}.${action}` : tool.name] = await run(tool.name, action ? { action, ...own } : own);
+    }
   assert.deepEqual(
     Object.keys(out).sort(),
     [

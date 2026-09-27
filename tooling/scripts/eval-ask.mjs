@@ -34,7 +34,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, cardOpenRoute, oneDoor } from "@chanlytics/contracts";
 import { spread, wilson, pct } from "./ask-stats.mjs";
-import { usedAny } from "./rename-ask-tools.mjs";
+import { usedAny } from "../evals/rename-ask-tools.mjs";
 import {
   ROW_SOURCES,
   announcement,
