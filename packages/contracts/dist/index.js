@@ -3,7 +3,7 @@ import { z } from "zod";
 z.config({ jitless: true });
 
 // src/ask/ask.ts
-import { z as z8 } from "zod";
+import { z as z7 } from "zod";
 
 // src/config/no-booking-link.ts
 var NO_LINK_DETAILS = "their name, what they need, and where and when";
@@ -4247,176 +4247,6 @@ function roleAtLeast(role, atLeast) {
   return have !== void 0 && have >= ROLE_RANK[atLeast];
 }
 
-// src/conversations/standing.ts
-function standingOf(i, nowMs) {
-  const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
-  const flagged = i.open_escalation || i.state === "needs_human" || paused;
-  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
-  const mine = !!i.assignee_user_id || paused && !i.open_escalation;
-  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
-  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
-}
-function replyWaitsOnYou(r2, nowMs) {
-  if (r2.held) return false;
-  if (r2.endsAtMs !== void 0 && r2.endsAtMs !== null) return r2.endsAtMs > nowMs;
-  return !!r2.queued;
-}
-
-// src/voice/whisper.ts
-var OPEN = 'Owner: "';
-function frameWhisper(text) {
-  return `A whisper from the business owner, who is listening to this call. The caller cannot hear it.
-${OPEN}${text.trim()}"
-Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked \u2014 if the whisper asks for one of those, use what you can of it and leave the rest.`;
-}
-function frameGuardrail(rule, opts) {
-  const what = rule === "price" ? "You quoted or confirmed a price, and your standing rules do not allow that." : "You broke one of your standing rules.";
-  return `A correction from the Chanlytics platform, not from the business. The caller cannot hear it.
-${what}
-Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${priceNextStep(opts.hasBookingLink)}. Do not repeat the figure, and never read this out.`;
-}
-function frameSteer(text) {
-  return `An instruction from the business owner, who read your draft before it went out. The customer cannot see it.
-${OPEN}${text.trim()}"
-Write your reply again and follow it where it fits. Keep everything else that was right. Never repeat the instruction word for word. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, no health advice, and say you are an automated assistant if asked \u2014 if the instruction asks for one of those, use what you can of it and leave the rest.`;
-}
-function whisperText(content) {
-  const c = (content ?? "").replace(/\r\n/g, "\n");
-  const at2 = c.indexOf(OPEN);
-  if (at2 === -1) return c.trim();
-  const rest = c.slice(at2 + OPEN.length);
-  const close = rest.indexOf('"\n');
-  return (close === -1 ? rest.replace(/"$/, "") : rest.slice(0, close)).trim();
-}
-function frameHandOver() {
-  return "A message from the Chanlytics platform, not from the business. The caller cannot hear it.\nThe business owner is picking up this call themselves.\nTransfer the caller to the business's own line now with transfer_to_staff. Say only that you are connecting them to someone at the business; do not ask why, do not answer anything else first, and never read this out.";
-}
-var PLATFORM = "from the Chanlytics platform";
-function injectedTurn(content) {
-  const c = (content ?? "").replace(/\r\n/g, "\n");
-  if (c.includes(OPEN)) return { speaker: "whisper", text: whisperText(c) };
-  const lines = c.split("\n").map((l) => l.trim()).filter(Boolean);
-  if (lines.length >= 2 && lines[0].includes(PLATFORM)) return { speaker: "platform", text: lines[1] };
-  return { speaker: "whisper", text: c.trim() };
-}
-
-// src/config/brain.ts
-import { z as z5 } from "zod";
-var BRAIN_INTENTS = [
-  "booking",
-  "pricing",
-  "hours",
-  "services",
-  "location",
-  "complaint",
-  "smalltalk",
-  "other"
-];
-var INTENT_LABELS = {
-  booking: "Booking",
-  pricing: "Pricing question",
-  hours: "Hours",
-  services: "Services",
-  location: "Location",
-  complaint: "Complaint",
-  smalltalk: "Small talk",
-  other: "Other"
-};
-var BRAIN_LANGUAGES = ["en", "es", "other"];
-var BRAIN_OUTPUT_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    reply: {
-      type: "string",
-      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
-    },
-    intent: {
-      type: "string",
-      enum: [...BRAIN_INTENTS],
-      description: "What the customer is after."
-    },
-    escalate: {
-      type: "boolean",
-      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
-    },
-    reason: {
-      type: "string",
-      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
-    },
-    confidence: {
-      type: "number",
-      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
-    },
-    facts_used: {
-      type: "array",
-      items: { type: "string" },
-      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
-    },
-    language: {
-      type: "string",
-      enum: [...BRAIN_LANGUAGES],
-      description: "The language the reply is written in."
-    }
-  },
-  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
-  additionalProperties: false
-};
-var BrainOutputSchema = z5.object({
-  reply: z5.string(),
-  intent: z5.enum(BRAIN_INTENTS).catch("other"),
-  escalate: z5.boolean().catch(false),
-  reason: z5.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z5.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z5.array(z5.string()).catch([]).transform(
-    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
-  ),
-  language: z5.enum(BRAIN_LANGUAGES).catch("other")
-});
-function parseBrainOutput(raw) {
-  let json;
-  try {
-    json = JSON.parse(raw);
-  } catch (e) {
-    return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
-  }
-  const r2 = BrainOutputSchema.safeParse(json);
-  if (!r2.success)
-    return { ok: false, error: r2.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
-  if (!r2.data.reply.trim()) return { ok: false, error: "empty reply" };
-  return { ok: true, value: r2.data };
-}
-function brainMetaOf(out, model) {
-  return {
-    intent: out.intent,
-    confidence: Math.round(out.confidence * 100) / 100,
-    reason: out.reason,
-    facts_used: out.facts_used,
-    language: out.language,
-    model
-  };
-}
-function replyWhy(meta) {
-  if (!meta || typeof meta !== "object") return null;
-  const intent = BRAIN_INTENTS.includes(String(meta.intent)) ? meta.intent : null;
-  const conf = typeof meta.confidence === "number" && Number.isFinite(meta.confidence) ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100) : null;
-  if (intent === null && conf === null) return null;
-  const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
-  const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
-  const source = typeof meta.source === "string" ? meta.source : null;
-  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
-  const label = intent ? INTENT_LABELS[intent] : "Reply";
-  return {
-    intent: intent ?? "other",
-    intentLabel: label,
-    confidence: conf,
-    reason,
-    facts,
-    heldFor: heldFor2,
-    summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
-  };
-}
-var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
-
 // src/people/person-name.ts
 function personName(c) {
   return c?.display_name || c?.wa_profile_name || formatPhoneDisplay(c?.phone_e164) || c?.email || "Unknown";
@@ -4428,334 +4258,9 @@ function callerName(c) {
   return withheld ? "Caller ID withheld" : name || phone || c.from_raw || "Unknown caller";
 }
 
-// src/consent/consent.ts
-function isOptedOutContact(c) {
-  return c.consent === "opted_out" || c.dnc === true;
-}
-var OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
-function mayMessageFor(c, purpose, opts = {}) {
-  if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
-  if (purpose === "outreach")
-    return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
-  if (purpose === "marketing") {
-    return c.marketing_consent === "opted_in" ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
-  }
-  if (opts.proactive && c.consent !== "opted_in") return { ok: false, reason: "not_opted_in" };
-  return { ok: true, reason: null };
-}
-var DELIVERY_REFUSALS = [
-  "opted_out",
-  "not_opted_in",
-  "no_marketing_consent",
-  "erased",
-  "paused",
-  "human_has_it",
-  "superseded_by_human",
-  "sms_carries_no_promotions",
-  "email_marketing_disabled",
-  "email_suppressed",
-  "recipient_changed",
-  // Reach out's (a cold email to a business the finder found): the person's own no, then the rules the lane is built on.
-  "unsubscribed",
-  "outreach_is_email_only",
-  "outreach_not_a_lead",
-  "outreach_lead_closed",
-  "outreach_suppressed",
-  "outreach_wrote_back",
-  "outreach_without_unsubscribe",
-  "outreach_needs_own_domain",
-  "sending_domain_not_ready",
-  "sending_domain_at_cap"
-];
-var PURPOSE_REFUSALS = {
-  opted_out: OPT_OUT_REFUSAL,
-  not_opted_in: "This customer has not said yes to messages yet.",
-  no_marketing_consent: "This customer has not said yes to OFFERS. Appointment messages are fine; promotions are not.",
-  // The texting line's carrier registration covers replies and appointment
-  // messages and nothing else -- an informational campaign, filed that way
-  // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
-  // go out under a consent the carriers were never told about.
-  sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
-  // Email's three, at the wire (deliver.ts). Replies only until promotions by
-  // email are a release of their own; a suppression is a fact about the address.
-  email_marketing_disabled: "Offers and news do not go by email yet. This customer hears about offers on WhatsApp, once they have said yes to them there.",
-  email_suppressed: "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
-  recipient_changed: "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
-  // The door's own, said the way a person reads them in a thread.
-  erased: "This person asked to be forgotten. Nothing is sent to them.",
-  paused: "The workspace is paused, so nothing automatic was sent.",
-  human_has_it: "Someone on your team has this conversation, so nothing automatic was sent.",
-  superseded_by_human: "Someone on your team answered first, so this was not sent.",
-  // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
-  unsubscribed: "This person unsubscribed from your emails. Nothing goes to them by email unless they write first.",
-  outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
-  outreach_not_a_lead: "Cold email goes only to a business your searches found.",
-  outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",
-  outreach_suppressed: "This address is on the never-again list: it unsubscribed, complained, or was erased.",
-  outreach_wrote_back: "This business wrote back or called, so it is a conversation now: answer it from the Inbox. No cold email goes to it again.",
-  outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
-  outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
-  sending_domain_not_ready: "The domain this email was to leave from isn't sending right now. Connections, under Email, says why.",
-  sending_domain_at_cap: "The domain this email was to leave from has sent its day's share. It goes when there is room."
-};
-var OFFERS_BY_WHATSAPP_NOTE = "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
-function consentChangeOf(e) {
-  const d = e.data ?? {};
-  const str2 = (k) => typeof d[k] === "string" && d[k] !== "" ? d[k] : null;
-  return {
-    id: e.id,
-    contact_id: e.subject_id,
-    at: e.created_at,
-    // Email's answer is its own (00174): read as the conversational one, an unsubscribe said "nothing goes out".
-    purpose: d.purpose === "marketing" ? "marketing" : d.purpose === "email_marketing" ? "email_marketing" : "conversational",
-    consent: str2("consent"),
-    previous: str2("previous"),
-    source: str2("source"),
-    by: str2("by"),
-    note: str2("note"),
-    channel: str2("channel"),
-    message_external_id: str2("message_external_id"),
-    words: str2("words")
-  };
-}
-function purposeOfTemplate(category) {
-  return category === "utility" || category === "authentication" ? "conversational" : "marketing";
-}
-function purposeOfPlaybook(policyClass) {
-  return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
-}
-
-// src/config/policy.ts
-var PRICE_PATTERNS = [
-  /\$\s?\d/,
-  /\b\d+(?:[.,]\d{2})?\s?(?:dollars?|usd|bucks?)\b/i,
-  /\b\d+(?:[.,]\d{2})?\s?(?:d[oó]lares?|pesos?)\b/i
-];
-function violatesNoPrices(text) {
-  return PRICE_PATTERNS.some((p) => p.test(text));
-}
-function spokenBreach(turns) {
-  if (!turns?.length) return null;
-  let n = 0;
-  for (const t of turns) {
-    if (t?.role !== "agent") continue;
-    n += 1;
-    const said = (t.content ?? "").trim();
-    if (said && violatesNoPrices(said)) return { rule: "price", said: said.slice(0, 300), turn: n };
-  }
-  return null;
-}
-function spokenBreachDetails(b) {
-  return `The phone receptionist quoted a price out loud, which its standing rules do not allow. It said: "${b.said}" A call cannot be taken back the way a draft can, so check what the caller was told before confirming anything.`;
-}
-function guardSpokenTurns(o) {
-  const breach = spokenBreach(o.turns);
-  if (!breach) return { breach: null, escalate: null, correct: false };
-  return {
-    breach,
-    escalate: { reason: "policy_block", details: spokenBreachDetails(breach) },
-    correct: o.live && !o.alreadyCorrected
-  };
-}
-var WA_WINDOW_MS = 24 * HOUR_MS;
-function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
-  if (!lastWaInboundAtIso) return { open: false, closesAtIso: null };
-  const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS;
-  return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
-}
-function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
-  return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
-}
-var REPLY_LIMITS = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
-var CALL_HEARTBEAT_MS = 10 * MIN_MS;
-function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
-  if (call.status !== "ongoing") return false;
-  const beat = call.updated_at ?? call.started_at;
-  if (!beat) return false;
-  const at2 = new Date(beat).getTime();
-  if (Number.isNaN(at2)) return false;
-  return now.getTime() - at2 < CALL_HEARTBEAT_MS;
-}
-var REPLY_DELAY_DEFAULT_MS = 3e4;
-var REPLY_DELAY_MIN_MS = 5e3;
-var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
-var REPLY_CAP_DEFAULT = 20;
-var PAUSE_HOURS_DEFAULT = 24;
-function hardLimitsWords(limits) {
-  const stored = (v) => {
-    const n = Number(v);
-    return v !== void 0 && v !== null && v !== "" && Number.isFinite(n) && n > 0 ? n : null;
-  };
-  return {
-    sub: "The first two never change; the last two are yours to set",
-    replies: `How many it sends before it stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
-    pause: `Counted from Take over, a reply sent from the Inbox or the WhatsApp Business app, or a handoff to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
-    cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
-    hours: stored(limits?.pause_hours) ?? PAUSE_HOURS_DEFAULT
-  };
-}
-function replyDelayMs(mode, limits) {
-  if (mode !== "veto") return 0;
-  const raw = limits?.reply_delay_ms;
-  if (typeof raw !== "number" || !Number.isFinite(raw)) return REPLY_DELAY_DEFAULT_MS;
-  return Math.min(REPLY_DELAY_MAX_MS, Math.max(REPLY_DELAY_MIN_MS, Math.round(raw)));
-}
-
-// src/voice/call-words.ts
-var CALL_OUTCOMES = [
-  "answered",
-  "booking_link_sent",
-  "callback_needed",
-  "voicemail",
-  "no_request",
-  "other"
-];
-var CALL_OUTCOME_WORDS = {
-  answered: "Question answered",
-  booking_link_sent: "Booking link sent",
-  callback_needed: "Needs a call back",
-  voicemail: "Reached voicemail",
-  no_request: "No request made",
-  other: "Handled"
-};
-function callOutcomeOf(v) {
-  return typeof v === "string" && CALL_OUTCOMES.includes(v) ? v : null;
-}
-function callOutcomeWords(v) {
-  const o = callOutcomeOf(v);
-  return o ? CALL_OUTCOME_WORDS[o] : null;
-}
-function tidyCallSummary(text) {
-  const t = (text ?? "").replace(/\s+/g, " ").trim();
-  if (!t) return null;
-  const folded = t.replace(
-    /^The (?:user|caller|customer) (?:called|phoned|contacted|reached out to) [^.,;]*? (to|and) /i,
-    (_m, joiner) => joiner.toLowerCase() === "to" ? "Called to " : "Called and "
-  );
-  return folded.charAt(0).toUpperCase() + folded.slice(1);
-}
-
-// src/workspace/retention.ts
-var RETENTION_DAYS = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
-  call_recordings: 90,
-  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
-  events_evidence: 30,
-  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
-  ask_threads: 90,
-  /** The bell's rows and their marks (purge_notifications, 00057). */
-  notifications: 90,
-  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
-  leads_untouched: 90,
-  leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
-  leads_excluded_blanked: 30,
-  /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
-  jobs_finished: 7,
-  /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
-  jobs_failed: 90
-};
-var RATE_HITS_RETENTION_HOURS = 2;
-var EVENT_EVIDENCE_KINDS = [
-  "webhook.auth",
-  "webhook.delivery",
-  "ingest.allowlist_skip",
-  "ingest.unreachable_sender",
-  "ingest.unroutable",
-  "usage.llm_tokens",
-  "usage.ask_tokens"
-];
-function retentionWords() {
-  const d = RETENTION_DAYS;
-  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Everything else stays while the workspace exists.`;
-}
-var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
-var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
-
-// src/conversations/viewmodels.ts
-function messageAt(m) {
-  return m.channel_ts ?? m.created_at;
-}
-function isOptedOut(dto) {
-  return isOptedOutContact(dto.contact);
-}
-function messageStatusLabel(status) {
-  switch (status) {
-    case "queued":
-      return "Sending\u2026";
-    case "failed":
-      return "Didn't send";
-    case "canceled":
-      return "Canceled before sending";
-    case "read":
-      return "Read";
-    case "delivered":
-      return "Delivered";
-    default:
-      return void 0;
-  }
-}
-function reachedCustomer(status) {
-  return status !== "queued" && status !== "failed" && status !== "canceled";
-}
-var AGENTS = {
-  whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
-  sms: { glyph: "T", name: "Text Receptionist" },
-  email: { glyph: "Y", name: "Your team" },
-  phone: { glyph: "P", name: "Phone Receptionist" }
-};
-function agentFor(channel) {
-  return AGENTS[channel] ?? AGENTS.whatsapp;
-}
-var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/;
-function shortTime(iso, tz, now) {
-  const ms2 = iso ? Date.parse(iso) : Number.NaN;
-  return Number.isFinite(ms2) ? clockShort(ms2, tz, now.getTime()) : "";
-}
-function bubbleTime(iso, tz, now) {
-  const ms2 = Date.parse(iso);
-  return Number.isFinite(ms2) ? clockStamp(ms2, tz, now.getTime()) : "";
-}
+// src/conversations/thread-contact.ts
 function contactName(dto) {
   return personName(dto.contact);
-}
-function writtenChannelOf(channel) {
-  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
-}
-var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
-function threadChannelOf(messages) {
-  const written = [...messages].reverse().find((m) => m.type !== "call_summary");
-  return written ? writtenChannelOf(written.channel) : "phone";
-}
-function threadChannelWords(messages) {
-  return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
-}
-function emailSubjectOf(m) {
-  const email = m.meta?.email;
-  return typeof email?.subject === "string" && email.subject.trim() ? email.subject.trim() : null;
-}
-function emailLeftOutOf(meta) {
-  const email = meta?.email;
-  if (!email) return null;
-  const files = Array.isArray(email.attachments) ? email.attachments : [];
-  const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;
-  const names2 = files.map((f) => f?.filename).filter((n) => typeof n === "string" && n.trim().length > 0);
-  const total = files.length + unnamed;
-  const said = [];
-  if (total) {
-    const rest = total - names2.length;
-    const listed = names2.length ? `: ${names2.join(", ")}${rest > 0 ? ` and ${rest} more` : ""}` : "";
-    said.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed}.`);
-  }
-  if (email.truncated === true) said.push("This email was longer than Chanlytics keeps; the rest was left out.");
-  return said.length ? said.join(" ") : null;
 }
 function isIdentifierName(name) {
   return /^[+\d(]/.test(name) || name.includes("@");
@@ -4771,546 +4276,6 @@ function initialsOf(name) {
   if (parts2.length >= 2 && parts2[0] && parts2[1]) return (parts2[0][0] + parts2[1][0]).toUpperCase();
   const p = parts2[0] || "?";
   return p.slice(0, 2).toUpperCase();
-}
-function isHeldDraft(m) {
-  return m.status === "queued" && m.sender === "ai";
-}
-function draftSendsAtMs(m) {
-  const delay = typeof m.meta?.delay_ms === "number" ? m.meta.delay_ms : 0;
-  return new Date(m.created_at).getTime() + delay;
-}
-var MEDIA_LABEL = {
-  image: "Photo",
-  audio: "Voice note",
-  video: "Video",
-  document: "Document",
-  other: "Attachment"
-};
-function mediaKind(mime, raw) {
-  const t = (mime ?? "").toLowerCase();
-  if (t.startsWith("image/")) return "image";
-  if (t.startsWith("audio/")) return "audio";
-  if (t.startsWith("video/")) return "video";
-  if (t.startsWith("application/") || t.startsWith("text/")) return "document";
-  switch (raw) {
-    case "image":
-    case "sticker":
-      return "image";
-    case "audio":
-      return "audio";
-    case "video":
-      return "video";
-    case "document":
-      return "document";
-    default:
-      return "other";
-  }
-}
-function mediaVM(m) {
-  if (m.type !== "media" || !m.media) return null;
-  const mime = m.media.mime_type ?? null;
-  return {
-    messageId: m.id,
-    kind: mediaKind(mime, m.meta && m.meta.raw_type || null),
-    mime,
-    filename: m.media.filename ?? null,
-    caption: m.media.caption ?? null,
-    available: m.media.fetch_state === "stored"
-  };
-}
-var QUOTE_BLOCK = /^[ \t]*(?:(?:-{2,}[ \t]*Original Message[ \t]*-{2,})|(?:_{5,})|(?:>[ \t]?))/m;
-var QUOTE_ATTRIBUTION = /\bOn\b[\s\S]{0,240}?\bwrote:[ \t]*(?=\r?\n|>)/;
-function splitQuotedReply(body) {
-  const cuts = [QUOTE_ATTRIBUTION.exec(body), QUOTE_BLOCK.exec(body)].filter((m) => m !== null).map((m) => m.index);
-  if (cuts.length === 0) return { text: body, quoted: null };
-  const cut = Math.min(...cuts);
-  const text = body.slice(0, cut).trim();
-  const quoted = body.slice(cut).trim();
-  if (!text || !quoted) return { text: body, quoted: null };
-  return { text, quoted };
-}
-function messageWords(m) {
-  return m.channel === "email" ? splitQuotedReply(messageText(m)).text : messageText(m);
-}
-function messageText(m) {
-  if (m.type === "call_summary" && m.body) {
-    return m.body.replace(CALL_NOTE_PREFIX, "").trim();
-  }
-  if (m.body) return m.body;
-  if (m.type === "media") {
-    const label = MEDIA_LABEL[mediaKind(m.media?.mime_type, m.meta && m.meta.raw_type || null)];
-    const caption = m.media?.caption?.trim();
-    return caption ? `${label}: ${caption}` : label;
-  }
-  return `[${m.type}]`;
-}
-var ESCALATION_REASON_LABELS = {
-  human_token: "Customer asked for a person",
-  refusal: "Assistant declined to answer",
-  brain_error: "The receptionist hit an error \u2014 a holding message went out",
-  non_text: "Sent a voice note / photo",
-  send_failed: "Reply failed to deliver",
-  policy_block: "Held by your reply setting \u2014 nothing was sent",
-  policy_ask: "Set to Ask me first \u2014 a person answers this one",
-  person_hold: "You handle this person \u2014 the receptionist stays out",
-  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
-  deadman: "Nobody picked this up \u2014 flagged after silence",
-  manual: "Flagged manually",
-  opt_out: "Asked to stop receiving messages",
-  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
-  stale: "Arrived hours late \u2014 too old to answer automatically",
-  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
-  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
-  paused: "Held \u2014 the workspace is paused until billing resumes",
-  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
-  email_review: "Wrote by email \u2014 a person answers"
-};
-var ESCALATION_SUMMARIES = {
-  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
-  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
-  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
-  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
-  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
-  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
-  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
-  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
-  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
-  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
-  manual: "Flagged by hand for a human.",
-  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
-  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
-  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
-  callback: "They phoned and the receptionist couldn't finish it.",
-  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
-  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
-  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
-};
-function formatWaited(ms2) {
-  return waitedLabel(ms2);
-}
-function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
-  const v = standingOf(
-    {
-      state: dto.state,
-      paused_until: dto.paused_until,
-      assignee_user_id: dto.assignee_user_id,
-      assignee_is_me: dto.assignee_is_me,
-      open_escalation: !!escalation
-    },
-    now.getTime()
-  );
-  const state = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
-  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
-}
-function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
-  const who = contactName(dto);
-  const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
-  let draftMsg = null;
-  for (let i = dto.messages.length - 1; i >= 0; i--) {
-    if (isHeldDraft(dto.messages[i])) {
-      draftMsg = dto.messages[i];
-      break;
-    }
-  }
-  const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
-  const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
-  const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
-  const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
-  const hasCalls = dto.messages.some((m) => m.type === "call_summary");
-  const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
-  const chatChannel = writtenChannelOf(lastInbound?.channel);
-  const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";
-  const written = [
-    ...new Set(dto.messages.filter((m) => m.type !== "call_summary").map((m) => writtenChannelOf(m.channel)))
-  ];
-  const channels = [
-    ...hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : [],
-    ...hasCalls ? ["phone"] : []
-  ];
-  const timeline = dto.messages.map((m) => {
-    const onPhone = m.type === "call_summary";
-    const media = mediaVM(m);
-    const why = m.sender === "ai" ? replyWhy(m.meta) : null;
-    const subject = m.channel === "email" ? emailSubjectOf(m) : null;
-    const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) : null;
-    const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
-    return {
-      type: "msg",
-      messageId: m.id,
-      from: m.sender === "customer" ? "client" : "agent",
-      channel: onPhone ? "phone" : writtenChannelOf(m.channel),
-      // An email's subject line, above its words.
-      ...subject ? { subject } : {},
-      ...leftOut ? { leftOut } : {},
-      at: bubbleTime(messageAt(m), tz, now),
-      body: said ? said.text : messageText(m),
-      ...said && said.quoted ? { quoted: said.quoted } : {},
-      ...media ? { media } : {},
-      ...why ? { why } : {},
-      // Who said it, per BUBBLE. The thread carries one agent identity, and the
-      // pane rendered that under every agent row — so a phone call summary was
-      // signed "by WhatsApp Receptionist", crediting the wrong assistant with
-      // work it did not do. The bubble already knows its own channel.
-      ...m.sender !== "customer" ? (() => {
-        const a = agentFor(onPhone ? "phone" : writtenChannelOf(m.channel));
-        return { agentName: a.name, agentGlyph: a.glyph };
-      })() : {},
-      ...m.sender === "human" ? { byYou: true } : {},
-      // The words Conversations says too (messageAuthor): a person's reply is the team's.
-      ...m.sender === "human" && messageAuthor(m) ? { byWords: messageAuthor(m).words } : {},
-      ...messageVia(m) ? { via: messageVia(m) } : {},
-      ...m.sender !== "customer" && m.status ? {
-        status: m.status,
-        // The words themselves live in messageStatusLabel, so this pane and
-        // the Conversations pane cannot describe the same message
-        // differently — which is exactly what they were doing.
-        ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
-        // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
-        reachedCustomer: reachedCustomer(m.status)
-      } : {},
-      // A held draft is not a sent message and must not read as one.
-      ...isHeldDraft(m) ? { pending: true, sendsAtMs: draftSendsAtMs(m) } : {}
-    };
-  });
-  if (escalation) {
-    const idx = dto.messages.findIndex((m) => m.created_at > escalation.created_at);
-    const entry = {
-      type: "event",
-      kind: "flag",
-      at: shortTime(escalation.created_at, tz, now),
-      // Why it was flagged, and the details that say more -- except a call back's, which are the band's own sentence (the
-      // to-do): quoted here as well, they were said a third time. Any other reason's details, the cause of a failed send,
-      // are said only here.
-      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details && escalation.reason !== "callback" ? ` \xB7 \u201C${clipAtWord(escalation.details, 120)}\u201D` : ""}`
-    };
-    if (idx === -1) timeline.push(entry);
-    else timeline.splice(idx, 0, entry);
-  }
-  const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
-  const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { kind: "call", label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? lastInbound.type === "text" ? { kind: "wrote", label: "They wrote", text: messageWords(lastInbound), quoted: true } : { kind: "sent", label: "They sent", text: messageWords(lastInbound), quoted: false } : null;
-  const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
-  return {
-    id: `th-${dto.id}`,
-    real: true,
-    conversationId: dto.id,
-    clientId: dto.contact.id || null,
-    escalationId: escalation?.id ?? null,
-    windowOpen: win,
-    optedOut: isOptedOut(dto),
-    offersOk: dto.contact.marketing_consent === "opted_in",
-    who,
-    whoMeta: contactMeta(dto, THREAD_CHANNEL_WORDS[primaryChannel]),
-    avatar: initialsOf(who),
-    state,
-    takenOver,
-    needsYou,
-    claimedByOther,
-    assigneeUserId: dto.assignee_user_id ?? null,
-    ask,
-    archived: dto.state === "archived",
-    lastWord,
-    heldDraft,
-    ...heldDraft ? {
-      veto: {
-        window: Math.max(1, Math.round((heldDraft.sendsAtMs - new Date(draftMsg.created_at).getTime()) / 1e3)),
-        draft: heldDraft.body,
-        endsAtMs: heldDraft.sendsAtMs,
-        messageId: heldDraft.messageId,
-        ...replyWhy(draftMsg.meta) ? { why: replyWhy(draftMsg.meta) } : {}
-      }
-    } : {},
-    channels,
-    primaryChannel,
-    replyVia: THREAD_CHANNEL_WORDS[primaryChannel],
-    hasChat,
-    phone: dto.contact.phone_e164 ?? null,
-    phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
-    proposalUrl: dto.contact.proposal_url?.trim() || null,
-    ...waitingMin ? { waited: formatWaited(waitingMin * MIN_MS) } : {},
-    agent: agentFor(primaryChannel),
-    // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
-    // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
-    // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
-    // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
-    subject: reasonLabel ?? "",
-    // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
-    preview: last ? messageWords(last).slice(0, 110) : "",
-    // A thread a teammate has is theirs to answer: the reason's sentence ("they're
-    // waiting on you") would tell everyone else the opposite of what is true.
-    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? (
-      // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
-      // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
-      escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`
-    ) : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
-    lastAt: shortTime(dto.last_message_at, tz, now),
-    lastAtFull: shortTime(dto.last_message_at, tz, now),
-    lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
-    ...escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {},
-    // The dot means a person is needed and nobody has it: needsYou, the one rule.
-    // "Escalated and not mine" lit it on a thread a teammate is answering too.
-    unread: needsYou,
-    pinned: false,
-    tags: [],
-    priority: "P2",
-    ...waitingMin !== void 0 ? { waitingMin } : {},
-    ...state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, tz, now) } : {},
-    timeline
-  };
-}
-function messageVia(m) {
-  if (m.meta?.source !== "broadcast") return null;
-  return m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
-}
-function messageAuthor(m) {
-  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
-  const via = messageVia(m);
-  if (via) {
-    return via.kind === "playbook" ? (
-      // A playbook named "The month's offer" is not "the The month's offer playbook".
-      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
-    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
-  }
-  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
-}
-function lastWordLine(needsHuman, last, author) {
-  if (needsHuman) return "Receptionist paused \u2014 a human has this thread";
-  if (!last) return "No messages yet";
-  if (last.direction === "inbound") return "They wrote last \u2014 no reply yet";
-  if (!author) return "Answered automatically";
-  if (author.kind === "receptionist") return "Answered by the receptionist";
-  if (author.kind === "team") return "Answered by your team";
-  return `Last message: ${author.words}`;
-}
-function lastWordOf(dto) {
-  const chat = dto.messages.filter((m) => m.type !== "call_summary");
-  let at2 = chat.length - 1;
-  let failed = null;
-  for (; at2 >= 0; at2--) {
-    const m = chat[at2];
-    if (m.direction === "inbound" || reachedCustomer(m.status)) break;
-    if (!failed && m.status === "failed") failed = m;
-  }
-  const last = at2 >= 0 ? chat[at2] : null;
-  const failedBy = failed ? messageAuthor(failed)?.words ?? "us" : null;
-  if (!last) {
-    if (failedBy)
-      return {
-        text: `Nothing has reached them \u2014 the message from ${failedBy} didn't send.`,
-        tone: "danger",
-        short: "Didn't send"
-      };
-    return dto.messages.some((m) => m.type === "call_summary") ? { text: "The phone receptionist handled their call \u2014 no one asked for you.", tone: "ok", short: null } : { text: "No messages yet.", tone: "plain", short: null };
-  }
-  if (last.direction === "inbound") {
-    return failedBy ? {
-      text: `They wrote last, and the reply from ${failedBy} didn't send \u2014 as far as they know, nobody answered.`,
-      tone: "danger",
-      short: "Didn't send"
-    } : { text: "They wrote last \u2014 no reply yet.", tone: "plain", short: null };
-  }
-  const said = lastWordLine(false, last, messageAuthor(last));
-  return failedBy ? { text: `${said} \u2014 the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send" } : { text: `${said} \u2014 no one asked for you.`, tone: "ok", short: null };
-}
-function clipAtWord(text, max) {
-  const t = text.trim();
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max + 1);
-  const space = cut.lastIndexOf(" ");
-  return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
-}
-function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
-  const who = contactName(dto);
-  const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
-  const msgs = dto.messages.map((m) => ({
-    from: m.sender === "customer" ? "client" : "agent",
-    // The row's own channel, not an assumption. Every bubble on this surface
-    // was drawn as WhatsApp -- so a text conversation, live since the SMS
-    // channel shipped, has been labelled WhatsApp on the Conversations page
-    // this whole time, and an email one would be too. The Inbox has read the
-    // column since I1 (toInboxThreadVM); these two view models had drifted.
-    channel: m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel),
-    at: bubbleTime(messageAt(m), tz, now),
-    text: messageWords(m),
-    ...mediaVM(m) ? { media: mediaVM(m) } : {},
-    ...m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) } : {},
-    ...messageAuthor(m) ? { by: messageAuthor(m).words } : {},
-    // Only for OUR messages. A customer's inbound message has no send status,
-    // and labelling it would be inventing one.
-    ...m.sender !== "customer" ? {
-      ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
-      reachedCustomer: reachedCustomer(m.status)
-    } : {}
-  }));
-  const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
-  const chat = dto.messages.filter((m) => m.type !== "call_summary");
-  const callNotes = dto.messages.length - chat.length;
-  const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
-  const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
-  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
-  const needsHuman = dto.state === "needs_human" || paused;
-  const outcome = needsHuman ? "escalated" : last?.direction === "inbound" || dto.state === "snoozed" ? "open" : "handled";
-  return {
-    id: dto.id,
-    who,
-    whoShort,
-    initials: initialsOf(who),
-    clientId: dto.contact.id || null,
-    // The Inbox's id for this conversation (toInboxThreadVM): the door from a transcript to its thread.
-    threadId: `th-${dto.id}`,
-    answeredBy: lastAuthor ? lastAuthor.kind : null,
-    // The wire the conversation's last written words travelled. A thread with
-    // nothing but a call note is the phone, which is what it looks like.
-    channel: threadChannelOf(dto.messages),
-    agent: agentFor(threadChannelOf(dto.messages)),
-    // The row's time and its preview must come from the SAME message —
-    // last_message_at ignored call notes, so a row read "3:22 AM" beside a
-    // preview imported at 2:15 PM.
-    at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
-    outcome,
-    snippet: last ? messageWords(last).slice(0, 110) : "",
-    hasChat: chat.length > 0,
-    ts: last ? new Date(messageAt(last)).getTime() : dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
-    summary: {
-      headline: lastInbound ? messageWords(lastInbound).slice(0, 110) : "No customer messages yet.",
-      bullets: [
-        `${chat.length} message${chat.length === 1 ? "" : "s"}${callNotes ? ` \xB7 ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""}${dto.messages[0] ? ` \xB7 started ${shortTime(messageAt(dto.messages[0]), tz, now)}` : ""}`,
-        lastWordLine(needsHuman, last, lastAuthor)
-      ]
-    },
-    messages: msgs
-  };
-}
-var ABANDONED_MS = 15e3;
-function abandonedCall(dto) {
-  if (dto.direction !== "inbound") return false;
-  if (dto.status === "not_connected" || dto.in_voicemail) return false;
-  const ms2 = dto.duration_ms;
-  if (typeof ms2 !== "number" || ms2 <= 0 || ms2 >= ABANDONED_MS) return false;
-  return dto.disconnection_reason === "user_hangup";
-}
-var DISCONNECTION_LABELS = {
-  user_hangup: "Customer hung up",
-  agent_hangup: "Receptionist ended the call",
-  call_transfer: "Transferred to a person",
-  voicemail_reached: "Reached voicemail",
-  dial_no_answer: "No answer",
-  dial_busy: "Line was busy",
-  dial_failed: "Call couldn't connect",
-  inactivity: "Ended after silence",
-  max_duration_reached: "Hit the call length limit",
-  concurrency_limit_reached: "Line was busy \u2014 all agents in use",
-  user_declined: "Customer declined the call",
-  marked_as_spam: "Flagged as spam by the carrier",
-  // The endings the Live page's own controls produce, and the provider's
-  // newer names for a transfer.
-  manual_stopped: "Ended from the dashboard",
-  call_take_over: "A person took over the call",
-  transfer_bridged: "Transferred to a person",
-  transfer_cancelled: "Transfer did not go through"
-};
-function spokenDuration(ms2) {
-  if (!ms2) return "Duration not recorded";
-  const total = Math.round(ms2 / 1e3);
-  const m = Math.floor(total / 60);
-  const sec = total % 60;
-  return m ? `${m} min ${sec} sec` : `${sec} sec`;
-}
-var CALL_MOOD = { Positive: "Sounded positive", Negative: "Sounded negative" };
-var RECORDING_NOTE = {
-  none: "No recording",
-  pending: "Recording still processing",
-  failed: "Recording couldn't be saved",
-  purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
-};
-function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
-  const withheld = !dto.from_e164 && !dto.from_raw;
-  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
-  const who = callerName(dto);
-  const whoShort = name ? isIdentifierName(name) ? name : name.split(" ")[0] : "Caller";
-  const dur = callLength(dto.duration_ms);
-  const live = isLiveCall(dto, now);
-  const missed = dto.status === "not_connected";
-  const wanted = (dto.wanted || "").trim();
-  const headSummary = tidyCallSummary(dto.summary) ?? "";
-  const firstSentence = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
-  const bullets = [
-    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} \xB7 ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`
-  ];
-  const ending = dto.disconnection_reason ? DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ") : null;
-  if (ending) bullets.push(`Ended: ${ending}`);
-  if (dto.sentiment) {
-    bullets.push(`Caller sentiment: ${dto.sentiment} \u2014 the voice provider's own read`);
-  }
-  const outcomeWords = callOutcomeWords(dto.outcome);
-  if (outcomeWords) bullets.push(outcomeWords);
-  if (dto.follow_up?.trim()) bullets.push(`To do: ${dto.follow_up.trim()}`);
-  if (dto.caller_name?.trim()) bullets.push(`Gave their name as ${dto.caller_name.trim()}`);
-  if (dto.caller_email) bullets.push(`Gave their email as ${dto.caller_email}`);
-  const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
-  if (!missed) {
-    bullets.push(
-      recState === "ready" ? "Recording saved" : recState === "pending" ? "Recording still processing" : recState === "failed" ? "Recording couldn't be saved from the voice provider" : recState === "purged" ? RECORDING_PURGED_WORDS : "No recording for this call"
-    );
-  }
-  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
-  const turns = dto.transcript_object ?? [];
-  const given = turns.map((turn) => turn.role === "injected" ? null : turn.start ?? turn.words?.[0]?.start ?? null);
-  const starts = given.map((s, i) => {
-    if (s != null || turns[i].role === "injected") return s;
-    const before = given.slice(0, i).reverse().find((x) => x != null) ?? null;
-    const after = given.slice(i + 1).find((x) => x != null) ?? null;
-    return before != null && after != null ? (before + after) / 2 : before ?? after;
-  });
-  const transcript = turns.map((turn, i) => {
-    if (turn.role === "injected") {
-      return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content), start: null, end: null };
-    }
-    const own = given[i];
-    const start = starts[i];
-    const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
-    const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
-    return {
-      t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "\u2014",
-      speaker: turn.role === "agent" ? "agent" : "client",
-      text: turn.content ?? "",
-      start,
-      end
-    };
-  });
-  const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
-  return {
-    id: `cv-${dto.id}`,
-    real: true,
-    callId: dto.id,
-    who,
-    whoShort,
-    initials: withheld ? "\u2013" : initialsOf(who),
-    clientId: dto.contact_id,
-    channel: "phone",
-    agent: { glyph: "P", name: "Phone Receptionist" },
-    at: shortTime(dto.started_at, tz, now),
-    ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
-    ...dur ? { duration: dur } : {},
-    outcome: live ? "live" : missed ? "missed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : "handled",
-    ...live ? { live: true } : {},
-    snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
-    summary: { headline: wanted || firstSentence || snippetBody, bullets },
-    transcript,
-    durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1e3) : null,
-    recordingState: recState,
-    ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
-    ...dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {},
-    // The call's facts as facts, for the thread's call card: they were only inside the bullets' sentences.
-    ...dto.message_id ? { messageId: dto.message_id } : {},
-    direction: dto.direction === "outbound" ? "outbound" : "inbound",
-    missed,
-    // A voicemail says so in how it ended; "Reached voicemail." here said it twice.
-    about: missed ? null : wanted || firstSentence || null,
-    facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? void 0 : RECORDING_NOTE[recState]].filter(
-      (f) => !!f
-    )
-  };
 }
 
 // src/leads/lead-peek.ts
@@ -6392,6 +5357,21 @@ function toDealReportVM(dto, rangeLabel) {
   return { present: true, headline, stock, outcomes, lines };
 }
 
+// src/conversations/standing.ts
+function standingOf(i, nowMs) {
+  const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
+  const flagged = i.open_escalation || i.state === "needs_human" || paused;
+  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
+  const mine = !!i.assignee_user_id || paused && !i.open_escalation;
+  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
+  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
+}
+function replyWaitsOnYou(r2, nowMs) {
+  if (r2.held) return false;
+  if (r2.endsAtMs !== void 0 && r2.endsAtMs !== null) return r2.endsAtMs > nowMs;
+  return !!r2.queued;
+}
+
 // src/people/person-words.ts
 var REPLY_VIA = {
   whatsapp: "WhatsApp",
@@ -6414,6 +5394,184 @@ var PERSON_CAME_FROM_WORDS = {
   import: "Imported",
   lead: "A lead you found"
 };
+
+// src/consent/consent.ts
+function isOptedOutContact(c) {
+  return c.consent === "opted_out" || c.dnc === true;
+}
+var OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
+function mayMessageFor(c, purpose, opts = {}) {
+  if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
+  if (purpose === "outreach")
+    return c.email_marketing === "opted_out" ? { ok: false, reason: "unsubscribed" } : { ok: true, reason: null };
+  if (purpose === "marketing") {
+    return c.marketing_consent === "opted_in" ? { ok: true, reason: null } : { ok: false, reason: "no_marketing_consent" };
+  }
+  if (opts.proactive && c.consent !== "opted_in") return { ok: false, reason: "not_opted_in" };
+  return { ok: true, reason: null };
+}
+var DELIVERY_REFUSALS = [
+  "opted_out",
+  "not_opted_in",
+  "no_marketing_consent",
+  "erased",
+  "paused",
+  "human_has_it",
+  "superseded_by_human",
+  "sms_carries_no_promotions",
+  "email_marketing_disabled",
+  "email_suppressed",
+  "recipient_changed",
+  // Reach out's (a cold email to a business the finder found): the person's own no, then the rules the lane is built on.
+  "unsubscribed",
+  "outreach_is_email_only",
+  "outreach_not_a_lead",
+  "outreach_lead_closed",
+  "outreach_suppressed",
+  "outreach_wrote_back",
+  "outreach_without_unsubscribe",
+  "outreach_needs_own_domain",
+  "sending_domain_not_ready",
+  "sending_domain_at_cap"
+];
+var PURPOSE_REFUSALS = {
+  opted_out: OPT_OUT_REFUSAL,
+  not_opted_in: "This customer has not said yes to messages yet.",
+  no_marketing_consent: "This customer has not said yes to OFFERS. Appointment messages are fine; promotions are not.",
+  // The texting line's carrier registration covers replies and appointment
+  // messages and nothing else -- an informational campaign, filed that way
+  // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
+  // go out under a consent the carriers were never told about.
+  sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+  // Email's three, at the wire (deliver.ts). Replies only until promotions by
+  // email are a release of their own; a suppression is a fact about the address.
+  email_marketing_disabled: "Offers and news do not go by email yet. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+  email_suppressed: "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
+  recipient_changed: "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
+  // The door's own, said the way a person reads them in a thread.
+  erased: "This person asked to be forgotten. Nothing is sent to them.",
+  paused: "The workspace is paused, so nothing automatic was sent.",
+  human_has_it: "Someone on your team has this conversation, so nothing automatic was sent.",
+  superseded_by_human: "Someone on your team answered first, so this was not sent.",
+  // Reach out's, at the wire (deliver.ts): a cold email goes only as the rules it was built under allow.
+  unsubscribed: "This person unsubscribed from your emails. Nothing goes to them by email unless they write first.",
+  outreach_is_email_only: "Cold messages go only by email: never by text or WhatsApp.",
+  outreach_not_a_lead: "Cold email goes only to a business your searches found.",
+  outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",
+  outreach_suppressed: "This address is on the never-again list: it unsubscribed, complained, or was erased.",
+  outreach_wrote_back: "This business wrote back or called, so it is a conversation now: answer it from the Inbox. No cold email goes to it again.",
+  outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
+  outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
+  sending_domain_not_ready: "The domain this email was to leave from isn't sending right now. Connections, under Email, says why.",
+  sending_domain_at_cap: "The domain this email was to leave from has sent its day's share. It goes when there is room."
+};
+var OFFERS_BY_WHATSAPP_NOTE = "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
+function consentChangeOf(e) {
+  const d = e.data ?? {};
+  const str2 = (k) => typeof d[k] === "string" && d[k] !== "" ? d[k] : null;
+  return {
+    id: e.id,
+    contact_id: e.subject_id,
+    at: e.created_at,
+    // Email's answer is its own (00174): read as the conversational one, an unsubscribe said "nothing goes out".
+    purpose: d.purpose === "marketing" ? "marketing" : d.purpose === "email_marketing" ? "email_marketing" : "conversational",
+    consent: str2("consent"),
+    previous: str2("previous"),
+    source: str2("source"),
+    by: str2("by"),
+    note: str2("note"),
+    channel: str2("channel"),
+    message_external_id: str2("message_external_id"),
+    words: str2("words")
+  };
+}
+function purposeOfTemplate(category) {
+  return category === "utility" || category === "authentication" ? "conversational" : "marketing";
+}
+function purposeOfPlaybook(policyClass) {
+  return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
+}
+
+// src/config/policy.ts
+var PRICE_PATTERNS = [
+  /\$\s?\d/,
+  /\b\d+(?:[.,]\d{2})?\s?(?:dollars?|usd|bucks?)\b/i,
+  /\b\d+(?:[.,]\d{2})?\s?(?:d[oó]lares?|pesos?)\b/i
+];
+function violatesNoPrices(text) {
+  return PRICE_PATTERNS.some((p) => p.test(text));
+}
+function spokenBreach(turns) {
+  if (!turns?.length) return null;
+  let n = 0;
+  for (const t of turns) {
+    if (t?.role !== "agent") continue;
+    n += 1;
+    const said = (t.content ?? "").trim();
+    if (said && violatesNoPrices(said)) return { rule: "price", said: said.slice(0, 300), turn: n };
+  }
+  return null;
+}
+function spokenBreachDetails(b) {
+  return `The phone receptionist quoted a price out loud, which its standing rules do not allow. It said: "${b.said}" A call cannot be taken back the way a draft can, so check what the caller was told before confirming anything.`;
+}
+function guardSpokenTurns(o) {
+  const breach = spokenBreach(o.turns);
+  if (!breach) return { breach: null, escalate: null, correct: false };
+  return {
+    breach,
+    escalate: { reason: "policy_block", details: spokenBreachDetails(breach) },
+    correct: o.live && !o.alreadyCorrected
+  };
+}
+var WA_WINDOW_MS = 24 * HOUR_MS;
+function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
+  if (!lastWaInboundAtIso) return { open: false, closesAtIso: null };
+  const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS;
+  return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
+}
+function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
+  return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
+}
+var REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
+var CALL_HEARTBEAT_MS = 10 * MIN_MS;
+function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
+  if (call.status !== "ongoing") return false;
+  const beat = call.updated_at ?? call.started_at;
+  if (!beat) return false;
+  const at2 = new Date(beat).getTime();
+  if (Number.isNaN(at2)) return false;
+  return now.getTime() - at2 < CALL_HEARTBEAT_MS;
+}
+var REPLY_DELAY_DEFAULT_MS = 3e4;
+var REPLY_DELAY_MIN_MS = 5e3;
+var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
+var REPLY_CAP_DEFAULT = 20;
+var PAUSE_HOURS_DEFAULT = 24;
+function hardLimitsWords(limits) {
+  const stored = (v) => {
+    const n = Number(v);
+    return v !== void 0 && v !== null && v !== "" && Number.isFinite(n) && n > 0 ? n : null;
+  };
+  return {
+    sub: "The first two never change; the last two are yours to set",
+    replies: `How many it sends before it stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
+    pause: `Counted from Take over, a reply sent from the Inbox or the WhatsApp Business app, or a handoff to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
+    cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
+    hours: stored(limits?.pause_hours) ?? PAUSE_HOURS_DEFAULT
+  };
+}
+function replyDelayMs(mode, limits) {
+  if (mode !== "veto") return 0;
+  const raw = limits?.reply_delay_ms;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return REPLY_DELAY_DEFAULT_MS;
+  return Math.min(REPLY_DELAY_MAX_MS, Math.max(REPLY_DELAY_MIN_MS, Math.round(raw)));
+}
 
 // src/notes/steps.ts
 function stepDayOf(day, tz, nowMs) {
@@ -6491,6 +5649,19 @@ function todayStepsDue(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
   };
 }
 
+// src/conversations/thread-clock.ts
+function shortTime(iso, tz, now) {
+  const ms2 = iso ? Date.parse(iso) : Number.NaN;
+  return Number.isFinite(ms2) ? clockShort(ms2, tz, now.getTime()) : "";
+}
+function bubbleTime(iso, tz, now) {
+  const ms2 = Date.parse(iso);
+  return Number.isFinite(ms2) ? clockStamp(ms2, tz, now.getTime()) : "";
+}
+function formatWaited(ms2) {
+  return waitedLabel(ms2);
+}
+
 // src/people/person-consent.ts
 var CONSENT_SOURCES = [
   { id: "in_person", label: "In person" },
@@ -6547,6 +5718,28 @@ function saidYesTo(r2, purpose) {
     purpose,
     { proactive: true }
   ).ok;
+}
+
+// src/conversations/thread-channel.ts
+var AGENTS = {
+  whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
+  sms: { glyph: "T", name: "Text Receptionist" },
+  email: { glyph: "Y", name: "Your team" },
+  phone: { glyph: "P", name: "Phone Receptionist" }
+};
+function agentFor(channel) {
+  return AGENTS[channel] ?? AGENTS.whatsapp;
+}
+function writtenChannelOf(channel) {
+  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+}
+var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
+function threadChannelOf(messages) {
+  const written = [...messages].reverse().find((m) => m.type !== "call_summary");
+  return written ? writtenChannelOf(written.channel) : "phone";
+}
+function threadChannelWords(messages) {
+  return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
 }
 
 // src/people/person-helpers.ts
@@ -8445,10 +7638,10 @@ function broadcastFailureWords(failure) {
 }
 
 // src/people/lists.ts
-import { z as z7 } from "zod";
+import { z as z6 } from "zod";
 
 // src/people/list-rules.ts
-import { z as z6 } from "zod";
+import { z as z5 } from "zod";
 var LIST_NEEDS = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS = [
   {
@@ -8576,36 +7769,36 @@ var LIST_DEAL_STAGES = ["consultation", "proposed", "won", "lost", "ended"];
 var LIST_RULE_MAX = 12;
 var LIST_ANY_MAX = 6;
 var DAY_OPS = ["more_than", "within", "never", "ever", "this_week"];
-var Days = { op: z6.enum(DAY_OPS), days: z6.number().int().min(1).max(3650).optional() };
-var YesNo = { op: z6.literal("is"), yes: z6.boolean() };
-var Count = { op: z6.enum(["at_least", "at_most"]), n: z6.number().int().min(0).max(1e4) };
-var IsOrNot = z6.enum(["is", "is_not"]);
-var Token = z6.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
-var fact = (shape) => z6.object(shape).strict();
-var ListFactSchema = z6.discriminatedUnion("field", [
-  fact({ field: z6.literal("last_visit"), ...Days }),
-  fact({ field: z6.literal("next_visit"), ...Days }),
-  fact({ field: z6.literal("booked"), ...YesNo }),
-  fact({ field: z6.literal("asked_not_booked"), ...YesNo }),
-  fact({ field: z6.literal("last_heard"), ...Days }),
-  fact({ field: z6.literal("first_contact"), ...Days }),
-  fact({ field: z6.literal("channel"), op: IsOrNot, channel: z6.enum(CHANNELS) }),
-  fact({ field: z6.literal("came_from"), op: IsOrNot, from: z6.enum(CAME_FROM) }),
-  fact({ field: z6.literal("calls"), ...Count }),
-  fact({ field: z6.literal("conversations"), ...Count }),
-  fact({ field: z6.literal("has_chat"), ...YesNo }),
-  fact({ field: z6.literal("said_yes"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  fact({ field: z6.literal("can_receive"), ...YesNo, to: z6.enum(LIST_PURPOSES) }),
-  fact({ field: z6.literal("stopped"), ...YesNo }),
-  fact({ field: z6.literal("standing"), op: IsOrNot, value: z6.enum(LIST_STANDINGS) }),
-  fact({ field: z6.literal("assigned"), op: IsOrNot, value: z6.enum(LIST_ASSIGNED) }),
-  fact({ field: z6.literal("deal_stage"), op: IsOrNot, value: z6.enum(LIST_DEAL_STAGES) }),
-  fact({ field: z6.literal("consultation"), ...YesNo }),
-  fact({ field: z6.literal("step_due"), ...YesNo }),
-  fact({ field: z6.literal("in_list"), op: IsOrNot, list: Token })
+var Days = { op: z5.enum(DAY_OPS), days: z5.number().int().min(1).max(3650).optional() };
+var YesNo = { op: z5.literal("is"), yes: z5.boolean() };
+var Count = { op: z5.enum(["at_least", "at_most"]), n: z5.number().int().min(0).max(1e4) };
+var IsOrNot = z5.enum(["is", "is_not"]);
+var Token = z5.string().regex(/^(seg:[a-z_]{1,40}|list:[0-9a-f-]{36})$/i);
+var fact = (shape) => z5.object(shape).strict();
+var ListFactSchema = z5.discriminatedUnion("field", [
+  fact({ field: z5.literal("last_visit"), ...Days }),
+  fact({ field: z5.literal("next_visit"), ...Days }),
+  fact({ field: z5.literal("booked"), ...YesNo }),
+  fact({ field: z5.literal("asked_not_booked"), ...YesNo }),
+  fact({ field: z5.literal("last_heard"), ...Days }),
+  fact({ field: z5.literal("first_contact"), ...Days }),
+  fact({ field: z5.literal("channel"), op: IsOrNot, channel: z5.enum(CHANNELS) }),
+  fact({ field: z5.literal("came_from"), op: IsOrNot, from: z5.enum(CAME_FROM) }),
+  fact({ field: z5.literal("calls"), ...Count }),
+  fact({ field: z5.literal("conversations"), ...Count }),
+  fact({ field: z5.literal("has_chat"), ...YesNo }),
+  fact({ field: z5.literal("said_yes"), ...YesNo, to: z5.enum(LIST_PURPOSES) }),
+  fact({ field: z5.literal("can_receive"), ...YesNo, to: z5.enum(LIST_PURPOSES) }),
+  fact({ field: z5.literal("stopped"), ...YesNo }),
+  fact({ field: z5.literal("standing"), op: IsOrNot, value: z5.enum(LIST_STANDINGS) }),
+  fact({ field: z5.literal("assigned"), op: IsOrNot, value: z5.enum(LIST_ASSIGNED) }),
+  fact({ field: z5.literal("deal_stage"), op: IsOrNot, value: z5.enum(LIST_DEAL_STAGES) }),
+  fact({ field: z5.literal("consultation"), ...YesNo }),
+  fact({ field: z5.literal("step_due"), ...YesNo }),
+  fact({ field: z5.literal("in_list"), op: IsOrNot, list: Token })
 ]);
-var AnySchema = z6.object({ any: z6.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
-var ListConditionSchema = z6.union([AnySchema, ListFactSchema]);
+var AnySchema = z5.object({ any: z5.array(ListFactSchema).min(2).max(LIST_ANY_MAX) }).strict();
+var ListConditionSchema = z5.union([AnySchema, ListFactSchema]);
 function factProblem(f) {
   if (f.field !== "last_visit" && f.field !== "next_visit" && f.field !== "last_heard" && f.field !== "first_contact")
     return null;
@@ -8613,13 +7806,13 @@ function factProblem(f) {
   if (f.op === "this_week" && f.field !== "next_visit") return "only the next visit can be this week";
   return null;
 }
-var ListRuleSchema = z6.object({
-  v: z6.literal(2).optional(),
-  all: z6.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
+var ListRuleSchema = z5.object({
+  v: z5.literal(2).optional(),
+  all: z5.array(ListConditionSchema).min(1).max(LIST_RULE_MAX)
 }).strict().superRefine((r2, ctx) => {
   for (const f of r2.all.flatMap((c) => "any" in c ? c.any : [c])) {
     const p = factProblem(f);
-    if (p) ctx.addIssue({ code: z6.ZodIssueCode.custom, message: p });
+    if (p) ctx.addIssue({ code: z5.ZodIssueCode.custom, message: p });
   }
 });
 function upgradeFact(raw) {
@@ -8873,10 +8066,10 @@ var LIST_DRAFT_JSON_SCHEMA = {
     }
   }
 };
-var ListDraftAnswerSchema = z6.object({
-  name: z6.string().trim().min(1).max(60),
-  cannot: z6.string().trim().max(200),
-  all: z6.array(z6.unknown()).max(LIST_RULE_MAX)
+var ListDraftAnswerSchema = z5.object({
+  name: z5.string().trim().min(1).max(60),
+  cannot: z5.string().trim().max(200),
+  all: z5.array(z5.unknown()).max(LIST_RULE_MAX)
 });
 
 // src/people/lists.ts
@@ -9195,8 +8388,8 @@ function savedListTip(list2) {
   if (list2.byHand) return "A list kept by hand \u2014 add people from their profile";
   return `Keeps itself current: ${(list2.rule ?? []).join(" \xB7 ")}`;
 }
-var PeopleExportQuerySchema = z7.object({
-  list: z7.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
+var PeopleExportQuerySchema = z6.object({
+  list: z6.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
 function ruleNeedsViewer(rule) {
   if (rule == null) return false;
@@ -12192,11 +11385,11 @@ function isUngrounded(answer, reads) {
 }
 var ASK_THREAD_VERBS = ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"];
 var ASK_UNDO_MS = 10 * 6e4;
-var AskProposalOutcomeSchema = z8.object({
-  state: z8.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z8.string().max(300).catch(""),
-  atMs: z8.number().catch(0),
-  undo: z8.record(z8.string(), z8.unknown()).nullable().optional()
+var AskProposalOutcomeSchema = z7.object({
+  state: z7.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z7.string().max(300).catch(""),
+  atMs: z7.number().catch(0),
+  undo: z7.record(z7.string(), z7.unknown()).nullable().optional()
 });
 var ASK_SCOPE_KINDS = ["thread", "conversation", "call", "person", "page", "lead", "search", "run"];
 var UUID = /^[0-9a-f-]{36}$/;
@@ -12519,24 +11712,24 @@ function callsToday(calls, now, tz) {
     live: calls.filter((c) => c.live)
   };
 }
-var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
-  z8.object({
-    op: z8.literal("add_closure"),
-    date: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    until: z8.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-    note: z8.string().max(200).optional()
+var AskSettingsChangeSchema = z7.discriminatedUnion("op", [
+  z7.object({
+    op: z7.literal("add_closure"),
+    date: z7.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    until: z7.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    note: z7.string().max(200).optional()
   }),
-  z8.object({
-    op: z8.literal("set_hours"),
-    day: z8.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
-    open: z8.string().regex(/^\d{2}:\d{2}$/).nullable(),
-    close: z8.string().regex(/^\d{2}:\d{2}$/).nullable()
+  z7.object({
+    op: z7.literal("set_hours"),
+    day: z7.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]),
+    open: z7.string().regex(/^\d{2}:\d{2}$/).nullable(),
+    close: z7.string().regex(/^\d{2}:\d{2}$/).nullable()
   }),
-  z8.object({ op: z8.literal("add_note"), title: z8.string().min(1).max(80), text: z8.string().min(1).max(1200) }),
-  z8.object({
-    op: z8.literal("add_service"),
-    name: z8.string().min(1).max(80),
-    duration_min: z8.number().int().min(1).max(1440).optional()
+  z7.object({ op: z7.literal("add_note"), title: z7.string().min(1).max(80), text: z7.string().min(1).max(1200) }),
+  z7.object({
+    op: z7.literal("add_service"),
+    name: z7.string().min(1).max(80),
+    duration_min: z7.number().int().min(1).max(1440).optional()
   })
 ]);
 function applySettingsChange(config, change) {
@@ -13763,7 +12956,7 @@ var ASK_ANSWER_FORMAT = {
 };
 
 // src/ask/ask-context.ts
-import { z as z9 } from "zod";
+import { z as z8 } from "zod";
 var ASK_CONTEXT_MAX_ROWS = 40;
 var ASK_CONTEXT_ROW_KINDS = [
   "thread",
@@ -13776,16 +12969,133 @@ var ASK_CONTEXT_ROW_KINDS = [
   "playbook",
   "template"
 ];
-var Id = z9.string().min(1).max(120);
-var PageContextSchema = z9.object({
-  v: z9.literal(1),
-  surface: z9.enum(ASK_SURFACES),
-  route: z9.string().max(200),
-  view: z9.string().max(80).nullish(),
-  focus: z9.object({ kind: z9.enum(ASK_SCOPE_KINDS), id: Id, label: z9.string().max(80) }).strict().nullish(),
-  rows: z9.array(z9.object({ kind: z9.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
-  askedAt: z9.number().int().nonnegative()
+var Id = z8.string().min(1).max(120);
+var PageContextSchema = z8.object({
+  v: z8.literal(1),
+  surface: z8.enum(ASK_SURFACES),
+  route: z8.string().max(200),
+  view: z8.string().max(80).nullish(),
+  focus: z8.object({ kind: z8.enum(ASK_SCOPE_KINDS), id: Id, label: z8.string().max(80) }).strict().nullish(),
+  rows: z8.array(z8.object({ kind: z8.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
+  askedAt: z8.number().int().nonnegative()
 }).strict();
+
+// src/config/brain.ts
+import { z as z9 } from "zod";
+var BRAIN_INTENTS = [
+  "booking",
+  "pricing",
+  "hours",
+  "services",
+  "location",
+  "complaint",
+  "smalltalk",
+  "other"
+];
+var INTENT_LABELS = {
+  booking: "Booking",
+  pricing: "Pricing question",
+  hours: "Hours",
+  services: "Services",
+  location: "Location",
+  complaint: "Complaint",
+  smalltalk: "Small talk",
+  other: "Other"
+};
+var BRAIN_LANGUAGES = ["en", "es", "other"];
+var BRAIN_OUTPUT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: {
+      type: "string",
+      description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here."
+    },
+    intent: {
+      type: "string",
+      enum: [...BRAIN_INTENTS],
+      description: "What the customer is after."
+    },
+    escalate: {
+      type: "boolean",
+      description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so."
+    },
+    reason: {
+      type: "string",
+      description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies."
+    },
+    confidence: {
+      type: "number",
+      description: "How sure you are that this reply is right and complete for this customer, from 0 to 1."
+    },
+    facts_used: {
+      type: "array",
+      items: { type: "string" },
+      description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none."
+    },
+    language: {
+      type: "string",
+      enum: [...BRAIN_LANGUAGES],
+      description: "The language the reply is written in."
+    }
+  },
+  required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
+  additionalProperties: false
+};
+var BrainOutputSchema = z9.object({
+  reply: z9.string(),
+  intent: z9.enum(BRAIN_INTENTS).catch("other"),
+  escalate: z9.boolean().catch(false),
+  reason: z9.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  confidence: z9.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  facts_used: z9.array(z9.string()).catch([]).transform(
+    (a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))
+  ),
+  language: z9.enum(BRAIN_LANGUAGES).catch("other")
+});
+function parseBrainOutput(raw) {
+  let json;
+  try {
+    json = JSON.parse(raw);
+  } catch (e) {
+    return { ok: false, error: `not JSON: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  const r2 = BrainOutputSchema.safeParse(json);
+  if (!r2.success)
+    return { ok: false, error: r2.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
+  if (!r2.data.reply.trim()) return { ok: false, error: "empty reply" };
+  return { ok: true, value: r2.data };
+}
+function brainMetaOf(out, model) {
+  return {
+    intent: out.intent,
+    confidence: Math.round(out.confidence * 100) / 100,
+    reason: out.reason,
+    facts_used: out.facts_used,
+    language: out.language,
+    model
+  };
+}
+function replyWhy(meta) {
+  if (!meta || typeof meta !== "object") return null;
+  const intent = BRAIN_INTENTS.includes(String(meta.intent)) ? meta.intent : null;
+  const conf = typeof meta.confidence === "number" && Number.isFinite(meta.confidence) ? Math.round(Math.min(1, Math.max(0, meta.confidence)) * 100) : null;
+  if (intent === null && conf === null) return null;
+  const facts = Array.isArray(meta.facts_used) ? meta.facts_used.filter((f) => typeof f === "string" && !!f.trim()) : [];
+  const reason = typeof meta.reason === "string" && meta.reason.trim() ? meta.reason.trim() : null;
+  const source = typeof meta.source === "string" ? meta.source : null;
+  const heldFor2 = source === "low_confidence" ? "low_confidence" : source === "veto_window" ? "veto_window" : null;
+  const label = intent ? INTENT_LABELS[intent] : "Reply";
+  return {
+    intent: intent ?? "other",
+    intentLabel: label,
+    confidence: conf,
+    reason,
+    facts,
+    heldFor: heldFor2,
+    summary: conf === null ? label : `${label} \xB7 ${conf}% sure`
+  };
+}
+var CONFIDENCE_STEPS = [0, 0.6, 0.75, 0.9];
 
 // src/config/business-tab.ts
 var GUARDRAIL_KEYS = /* @__PURE__ */ (() => GuardrailsSchema.keyof().options)();
@@ -15728,6 +15038,720 @@ function deskSignVM(f) {
 }
 function deskSignMetadata(f) {
   return f ? { title: `Desk sign: ${deskSignVM(f).business}`, robots: { index: false, follow: false } } : notFoundPageMetadata();
+}
+
+// src/conversations/thread-dto.ts
+function messageAt(m) {
+  return m.channel_ts ?? m.created_at;
+}
+function isOptedOut(dto) {
+  return isOptedOutContact(dto.contact);
+}
+
+// src/conversations/message-media.ts
+var MEDIA_LABEL = {
+  image: "Photo",
+  audio: "Voice note",
+  video: "Video",
+  document: "Document",
+  other: "Attachment"
+};
+function mediaKind(mime, raw) {
+  const t = (mime ?? "").toLowerCase();
+  if (t.startsWith("image/")) return "image";
+  if (t.startsWith("audio/")) return "audio";
+  if (t.startsWith("video/")) return "video";
+  if (t.startsWith("application/") || t.startsWith("text/")) return "document";
+  switch (raw) {
+    case "image":
+    case "sticker":
+      return "image";
+    case "audio":
+      return "audio";
+    case "video":
+      return "video";
+    case "document":
+      return "document";
+    default:
+      return "other";
+  }
+}
+function mediaVM(m) {
+  if (m.type !== "media" || !m.media) return null;
+  const mime = m.media.mime_type ?? null;
+  return {
+    messageId: m.id,
+    kind: mediaKind(mime, m.meta && m.meta.raw_type || null),
+    mime,
+    filename: m.media.filename ?? null,
+    caption: m.media.caption ?? null,
+    available: m.media.fetch_state === "stored"
+  };
+}
+
+// src/conversations/message-email.ts
+function emailSubjectOf(m) {
+  const email = m.meta?.email;
+  return typeof email?.subject === "string" && email.subject.trim() ? email.subject.trim() : null;
+}
+function emailLeftOutOf(meta) {
+  const email = meta?.email;
+  if (!email) return null;
+  const files = Array.isArray(email.attachments) ? email.attachments : [];
+  const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;
+  const names2 = files.map((f) => f?.filename).filter((n) => typeof n === "string" && n.trim().length > 0);
+  const total = files.length + unnamed;
+  const said = [];
+  if (total) {
+    const rest = total - names2.length;
+    const listed = names2.length ? `: ${names2.join(", ")}${rest > 0 ? ` and ${rest} more` : ""}` : "";
+    said.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed}.`);
+  }
+  if (email.truncated === true) said.push("This email was longer than Chanlytics keeps; the rest was left out.");
+  return said.length ? said.join(" ") : null;
+}
+var QUOTE_BLOCK = /^[ \t]*(?:(?:-{2,}[ \t]*Original Message[ \t]*-{2,})|(?:_{5,})|(?:>[ \t]?))/m;
+var QUOTE_ATTRIBUTION = /\bOn\b[\s\S]{0,240}?\bwrote:[ \t]*(?=\r?\n|>)/;
+function splitQuotedReply(body) {
+  const cuts = [QUOTE_ATTRIBUTION.exec(body), QUOTE_BLOCK.exec(body)].filter((m) => m !== null).map((m) => m.index);
+  if (cuts.length === 0) return { text: body, quoted: null };
+  const cut = Math.min(...cuts);
+  const text = body.slice(0, cut).trim();
+  const quoted = body.slice(cut).trim();
+  if (!text || !quoted) return { text: body, quoted: null };
+  return { text, quoted };
+}
+
+// src/conversations/message-words.ts
+function messageStatusLabel(status) {
+  switch (status) {
+    case "queued":
+      return "Sending\u2026";
+    case "failed":
+      return "Didn't send";
+    case "canceled":
+      return "Canceled before sending";
+    case "read":
+      return "Read";
+    case "delivered":
+      return "Delivered";
+    default:
+      return void 0;
+  }
+}
+function reachedCustomer(status) {
+  return status !== "queued" && status !== "failed" && status !== "canceled";
+}
+var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/;
+function isHeldDraft(m) {
+  return m.status === "queued" && m.sender === "ai";
+}
+function draftSendsAtMs(m) {
+  const delay = typeof m.meta?.delay_ms === "number" ? m.meta.delay_ms : 0;
+  return new Date(m.created_at).getTime() + delay;
+}
+function messageWords(m) {
+  return m.channel === "email" ? splitQuotedReply(messageText(m)).text : messageText(m);
+}
+function messageText(m) {
+  if (m.type === "call_summary" && m.body) {
+    return m.body.replace(CALL_NOTE_PREFIX, "").trim();
+  }
+  if (m.body) return m.body;
+  if (m.type === "media") {
+    const label = MEDIA_LABEL[mediaKind(m.media?.mime_type, m.meta && m.meta.raw_type || null)];
+    const caption = m.media?.caption?.trim();
+    return caption ? `${label}: ${caption}` : label;
+  }
+  return `[${m.type}]`;
+}
+function clipAtWord(text, max) {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max + 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
+}
+
+// src/conversations/message-author.ts
+function messageVia(m) {
+  if (m.meta?.source !== "broadcast") return null;
+  return m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") };
+}
+function messageAuthor(m) {
+  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
+  const via = messageVia(m);
+  if (via) {
+    return via.kind === "playbook" ? (
+      // A playbook named "The month's offer" is not "the The month's offer playbook".
+      { kind: "playbook", words: `${/^the\s/i.test(via.name) ? "" : "the "}${via.name} playbook` }
+    ) : { kind: "broadcast", words: m.meta?.broadcast_name ? `a broadcast (${via.name})` : "a broadcast" };
+  }
+  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
+}
+function lastWordLine(needsHuman, last, author) {
+  if (needsHuman) return "Receptionist paused \u2014 a human has this thread";
+  if (!last) return "No messages yet";
+  if (last.direction === "inbound") return "They wrote last \u2014 no reply yet";
+  if (!author) return "Answered automatically";
+  if (author.kind === "receptionist") return "Answered by the receptionist";
+  if (author.kind === "team") return "Answered by your team";
+  return `Last message: ${author.words}`;
+}
+
+// src/conversations/escalations.ts
+var ESCALATION_REASON_LABELS = {
+  human_token: "Customer asked for a person",
+  refusal: "Assistant declined to answer",
+  brain_error: "The receptionist hit an error \u2014 a holding message went out",
+  non_text: "Sent a voice note / photo",
+  send_failed: "Reply failed to deliver",
+  policy_block: "Held by your reply setting \u2014 nothing was sent",
+  policy_ask: "Set to Ask me first \u2014 a person answers this one",
+  person_hold: "You handle this person \u2014 the receptionist stays out",
+  rate_cap: "Too many replies too fast \u2014 the receptionist paused itself",
+  deadman: "Nobody picked this up \u2014 flagged after silence",
+  manual: "Flagged manually",
+  opt_out: "Asked to stop receiving messages",
+  state_unavailable: "The receptionist could not read this thread \u2014 needs a human",
+  stale: "Arrived hours late \u2014 too old to answer automatically",
+  budget: "The day's model budget is used up \u2014 the receptionist paused itself",
+  callback: "Needs a call back \u2014 the phone receptionist could not finish it",
+  paused: "Held \u2014 the workspace is paused until billing resumes",
+  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
+  email_review: "Wrote by email \u2014 a person answers"
+};
+var ESCALATION_SUMMARIES = {
+  human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
+  refusal: "The receptionist wouldn't answer this one. A holding message went out.",
+  brain_error: "The receptionist errored and sent a holding message. They're waiting on a real answer.",
+  non_text: "They sent a voice note or photo the receptionist can't read. Open it and reply yourself.",
+  send_failed: "The reply never reached them \u2014 as far as the customer knows, nobody answered.",
+  policy_block: "Your reply setting holds every message for a person. Nothing was sent \u2014 answer them yourself.",
+  policy_ask: "Your Autonomy setting hands bookings or service questions to a person. The receptionist told them someone will follow up \u2014 that someone is you.",
+  person_hold: "You set the receptionist to stay out of this person's thread. Nothing was sent \u2014 answer them yourself.",
+  rate_cap: "The receptionist hit its daily reply limit and stopped. NOTHING was sent \u2014 they're waiting in silence.",
+  deadman: "This sat unanswered long enough to flag. Nobody has replied.",
+  manual: "Flagged by hand for a human.",
+  opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
+  state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
+  stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
+  callback: "They phoned and the receptionist couldn't finish it.",
+  paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
+  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
+  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
+};
+
+// src/conversations/inbox-thread.ts
+function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
+  const v = standingOf(
+    {
+      state: dto.state,
+      paused_until: dto.paused_until,
+      assignee_user_id: dto.assignee_user_id,
+      assignee_is_me: dto.assignee_is_me,
+      open_escalation: !!escalation
+    },
+    now.getTime()
+  );
+  const state = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
+  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
+}
+function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
+  const who = contactName(dto);
+  const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
+  let draftMsg = null;
+  for (let i = dto.messages.length - 1; i >= 0; i--) {
+    if (isHeldDraft(dto.messages[i])) {
+      draftMsg = dto.messages[i];
+      break;
+    }
+  }
+  const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
+  const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
+  const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
+  const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
+  const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
+  const hasCalls = dto.messages.some((m) => m.type === "call_summary");
+  const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
+  const chatChannel = writtenChannelOf(lastInbound?.channel);
+  const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";
+  const written = [
+    ...new Set(dto.messages.filter((m) => m.type !== "call_summary").map((m) => writtenChannelOf(m.channel)))
+  ];
+  const channels = [
+    ...hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : [],
+    ...hasCalls ? ["phone"] : []
+  ];
+  const timeline = dto.messages.map((m) => {
+    const onPhone = m.type === "call_summary";
+    const media = mediaVM(m);
+    const why = m.sender === "ai" ? replyWhy(m.meta) : null;
+    const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+    const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) : null;
+    const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
+    return {
+      type: "msg",
+      messageId: m.id,
+      from: m.sender === "customer" ? "client" : "agent",
+      channel: onPhone ? "phone" : writtenChannelOf(m.channel),
+      // An email's subject line, above its words.
+      ...subject ? { subject } : {},
+      ...leftOut ? { leftOut } : {},
+      at: bubbleTime(messageAt(m), tz, now),
+      body: said ? said.text : messageText(m),
+      ...said && said.quoted ? { quoted: said.quoted } : {},
+      ...media ? { media } : {},
+      ...why ? { why } : {},
+      // Who said it, per BUBBLE. The thread carries one agent identity, and the
+      // pane rendered that under every agent row — so a phone call summary was
+      // signed "by WhatsApp Receptionist", crediting the wrong assistant with
+      // work it did not do. The bubble already knows its own channel.
+      ...m.sender !== "customer" ? (() => {
+        const a = agentFor(onPhone ? "phone" : writtenChannelOf(m.channel));
+        return { agentName: a.name, agentGlyph: a.glyph };
+      })() : {},
+      ...m.sender === "human" ? { byYou: true } : {},
+      // The words Conversations says too (messageAuthor): a person's reply is the team's.
+      ...m.sender === "human" && messageAuthor(m) ? { byWords: messageAuthor(m).words } : {},
+      ...messageVia(m) ? { via: messageVia(m) } : {},
+      ...m.sender !== "customer" && m.status ? {
+        status: m.status,
+        // The words themselves live in messageStatusLabel, so this pane and
+        // the Conversations pane cannot describe the same message
+        // differently — which is exactly what they were doing.
+        ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
+        // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
+        reachedCustomer: reachedCustomer(m.status)
+      } : {},
+      // A held draft is not a sent message and must not read as one.
+      ...isHeldDraft(m) ? { pending: true, sendsAtMs: draftSendsAtMs(m) } : {}
+    };
+  });
+  if (escalation) {
+    const idx = dto.messages.findIndex((m) => m.created_at > escalation.created_at);
+    const entry = {
+      type: "event",
+      kind: "flag",
+      at: shortTime(escalation.created_at, tz, now),
+      // Why it was flagged, and the details that say more -- except a call back's, which are the band's own sentence (the
+      // to-do): quoted here as well, they were said a third time. Any other reason's details, the cause of a failed send,
+      // are said only here.
+      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details && escalation.reason !== "callback" ? ` \xB7 \u201C${clipAtWord(escalation.details, 120)}\u201D` : ""}`
+    };
+    if (idx === -1) timeline.push(entry);
+    else timeline.splice(idx, 0, entry);
+  }
+  const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / MIN_MS)) : void 0;
+  const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { kind: "call", label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? lastInbound.type === "text" ? { kind: "wrote", label: "They wrote", text: messageWords(lastInbound), quoted: true } : { kind: "sent", label: "They sent", text: messageWords(lastInbound), quoted: false } : null;
+  const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
+  return {
+    id: `th-${dto.id}`,
+    real: true,
+    conversationId: dto.id,
+    clientId: dto.contact.id || null,
+    escalationId: escalation?.id ?? null,
+    windowOpen: win,
+    optedOut: isOptedOut(dto),
+    offersOk: dto.contact.marketing_consent === "opted_in",
+    who,
+    whoMeta: contactMeta(dto, THREAD_CHANNEL_WORDS[primaryChannel]),
+    avatar: initialsOf(who),
+    state,
+    takenOver,
+    needsYou,
+    claimedByOther,
+    assigneeUserId: dto.assignee_user_id ?? null,
+    ask,
+    archived: dto.state === "archived",
+    lastWord,
+    heldDraft,
+    ...heldDraft ? {
+      veto: {
+        window: Math.max(1, Math.round((heldDraft.sendsAtMs - new Date(draftMsg.created_at).getTime()) / 1e3)),
+        draft: heldDraft.body,
+        endsAtMs: heldDraft.sendsAtMs,
+        messageId: heldDraft.messageId,
+        ...replyWhy(draftMsg.meta) ? { why: replyWhy(draftMsg.meta) } : {}
+      }
+    } : {},
+    channels,
+    primaryChannel,
+    replyVia: THREAD_CHANNEL_WORDS[primaryChannel],
+    hasChat,
+    phone: dto.contact.phone_e164 ?? null,
+    phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
+    proposalUrl: dto.contact.proposal_url?.trim() || null,
+    ...waitingMin ? { waited: formatWaited(waitingMin * MIN_MS) } : {},
+    agent: agentFor(primaryChannel),
+    // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
+    // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
+    // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
+    // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
+    subject: reasonLabel ?? "",
+    // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
+    preview: last ? messageWords(last).slice(0, 110) : "",
+    // A thread a teammate has is theirs to answer: the reason's sentence ("they're
+    // waiting on you") would tell everyone else the opposite of what is true.
+    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? (
+      // A call back's to-do is its one sentence: "They phoned and the receptionist couldn't finish it." sat beneath the
+      // call it describes, over "From the call: <the to-do>". Without a to-do, the reason's sentence.
+      escalation.reason === "callback" && escalation.details?.trim() ? escalation.details.trim() : ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`
+    ) : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
+    lastAt: shortTime(dto.last_message_at, tz, now),
+    lastAtFull: shortTime(dto.last_message_at, tz, now),
+    lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
+    ...escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {},
+    // The dot means a person is needed and nobody has it: needsYou, the one rule.
+    // "Escalated and not mine" lit it on a thread a teammate is answering too.
+    unread: needsYou,
+    pinned: false,
+    tags: [],
+    priority: "P2",
+    ...waitingMin !== void 0 ? { waitingMin } : {},
+    ...state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, tz, now) } : {},
+    timeline
+  };
+}
+function lastWordOf(dto) {
+  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  let at2 = chat.length - 1;
+  let failed = null;
+  for (; at2 >= 0; at2--) {
+    const m = chat[at2];
+    if (m.direction === "inbound" || reachedCustomer(m.status)) break;
+    if (!failed && m.status === "failed") failed = m;
+  }
+  const last = at2 >= 0 ? chat[at2] : null;
+  const failedBy = failed ? messageAuthor(failed)?.words ?? "us" : null;
+  if (!last) {
+    if (failedBy)
+      return {
+        text: `Nothing has reached them \u2014 the message from ${failedBy} didn't send.`,
+        tone: "danger",
+        short: "Didn't send"
+      };
+    return dto.messages.some((m) => m.type === "call_summary") ? { text: "The phone receptionist handled their call \u2014 no one asked for you.", tone: "ok", short: null } : { text: "No messages yet.", tone: "plain", short: null };
+  }
+  if (last.direction === "inbound") {
+    return failedBy ? {
+      text: `They wrote last, and the reply from ${failedBy} didn't send \u2014 as far as they know, nobody answered.`,
+      tone: "danger",
+      short: "Didn't send"
+    } : { text: "They wrote last \u2014 no reply yet.", tone: "plain", short: null };
+  }
+  const said = lastWordLine(false, last, messageAuthor(last));
+  return failedBy ? { text: `${said} \u2014 the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send" } : { text: `${said} \u2014 no one asked for you.`, tone: "ok", short: null };
+}
+
+// src/conversations/conversation-vm.ts
+function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
+  const who = contactName(dto);
+  const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
+  const msgs = dto.messages.map((m) => ({
+    from: m.sender === "customer" ? "client" : "agent",
+    // The row's own channel, not an assumption. Every bubble on this surface
+    // was drawn as WhatsApp -- so a text conversation, live since the SMS
+    // channel shipped, has been labelled WhatsApp on the Conversations page
+    // this whole time, and an email one would be too. The Inbox has read the
+    // column since I1 (toInboxThreadVM); these two view models had drifted.
+    channel: m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel),
+    at: bubbleTime(messageAt(m), tz, now),
+    text: messageWords(m),
+    ...mediaVM(m) ? { media: mediaVM(m) } : {},
+    ...m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) } : {},
+    ...messageAuthor(m) ? { by: messageAuthor(m).words } : {},
+    // Only for OUR messages. A customer's inbound message has no send status,
+    // and labelling it would be inventing one.
+    ...m.sender !== "customer" ? {
+      ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
+      reachedCustomer: reachedCustomer(m.status)
+    } : {}
+  }));
+  const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
+  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  const callNotes = dto.messages.length - chat.length;
+  const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
+  const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
+  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
+  const needsHuman = dto.state === "needs_human" || paused;
+  const outcome = needsHuman ? "escalated" : last?.direction === "inbound" || dto.state === "snoozed" ? "open" : "handled";
+  return {
+    id: dto.id,
+    who,
+    whoShort,
+    initials: initialsOf(who),
+    clientId: dto.contact.id || null,
+    // The Inbox's id for this conversation (toInboxThreadVM): the door from a transcript to its thread.
+    threadId: `th-${dto.id}`,
+    answeredBy: lastAuthor ? lastAuthor.kind : null,
+    // The wire the conversation's last written words travelled. A thread with
+    // nothing but a call note is the phone, which is what it looks like.
+    channel: threadChannelOf(dto.messages),
+    agent: agentFor(threadChannelOf(dto.messages)),
+    // The row's time and its preview must come from the SAME message —
+    // last_message_at ignored call notes, so a row read "3:22 AM" beside a
+    // preview imported at 2:15 PM.
+    at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
+    outcome,
+    snippet: last ? messageWords(last).slice(0, 110) : "",
+    hasChat: chat.length > 0,
+    ts: last ? new Date(messageAt(last)).getTime() : dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
+    summary: {
+      headline: lastInbound ? messageWords(lastInbound).slice(0, 110) : "No customer messages yet.",
+      bullets: [
+        `${chat.length} message${chat.length === 1 ? "" : "s"}${callNotes ? ` \xB7 ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""}${dto.messages[0] ? ` \xB7 started ${shortTime(messageAt(dto.messages[0]), tz, now)}` : ""}`,
+        lastWordLine(needsHuman, last, lastAuthor)
+      ]
+    },
+    messages: msgs
+  };
+}
+
+// src/conversations/call-dto.ts
+var ABANDONED_MS = 15e3;
+function abandonedCall(dto) {
+  if (dto.direction !== "inbound") return false;
+  if (dto.status === "not_connected" || dto.in_voicemail) return false;
+  const ms2 = dto.duration_ms;
+  if (typeof ms2 !== "number" || ms2 <= 0 || ms2 >= ABANDONED_MS) return false;
+  return dto.disconnection_reason === "user_hangup";
+}
+var DISCONNECTION_LABELS = {
+  user_hangup: "Customer hung up",
+  agent_hangup: "Receptionist ended the call",
+  call_transfer: "Transferred to a person",
+  voicemail_reached: "Reached voicemail",
+  dial_no_answer: "No answer",
+  dial_busy: "Line was busy",
+  dial_failed: "Call couldn't connect",
+  inactivity: "Ended after silence",
+  max_duration_reached: "Hit the call length limit",
+  concurrency_limit_reached: "Line was busy \u2014 all agents in use",
+  user_declined: "Customer declined the call",
+  marked_as_spam: "Flagged as spam by the carrier",
+  // The endings the Live page's own controls produce, and the provider's
+  // newer names for a transfer.
+  manual_stopped: "Ended from the dashboard",
+  call_take_over: "A person took over the call",
+  transfer_bridged: "Transferred to a person",
+  transfer_cancelled: "Transfer did not go through"
+};
+
+// src/voice/whisper.ts
+var OPEN = 'Owner: "';
+function frameWhisper(text) {
+  return `A whisper from the business owner, who is listening to this call. The caller cannot hear it.
+${OPEN}${text.trim()}"
+Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked \u2014 if the whisper asks for one of those, use what you can of it and leave the rest.`;
+}
+function frameGuardrail(rule, opts) {
+  const what = rule === "price" ? "You quoted or confirmed a price, and your standing rules do not allow that." : "You broke one of your standing rules.";
+  return `A correction from the Chanlytics platform, not from the business. The caller cannot hear it.
+${what}
+Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and ${priceNextStep(opts.hasBookingLink)}. Do not repeat the figure, and never read this out.`;
+}
+function frameSteer(text) {
+  return `An instruction from the business owner, who read your draft before it went out. The customer cannot see it.
+${OPEN}${text.trim()}"
+Write your reply again and follow it where it fits. Keep everything else that was right. Never repeat the instruction word for word. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, no health advice, and say you are an automated assistant if asked \u2014 if the instruction asks for one of those, use what you can of it and leave the rest.`;
+}
+function whisperText(content) {
+  const c = (content ?? "").replace(/\r\n/g, "\n");
+  const at2 = c.indexOf(OPEN);
+  if (at2 === -1) return c.trim();
+  const rest = c.slice(at2 + OPEN.length);
+  const close = rest.indexOf('"\n');
+  return (close === -1 ? rest.replace(/"$/, "") : rest.slice(0, close)).trim();
+}
+function frameHandOver() {
+  return "A message from the Chanlytics platform, not from the business. The caller cannot hear it.\nThe business owner is picking up this call themselves.\nTransfer the caller to the business's own line now with transfer_to_staff. Say only that you are connecting them to someone at the business; do not ask why, do not answer anything else first, and never read this out.";
+}
+var PLATFORM = "from the Chanlytics platform";
+function injectedTurn(content) {
+  const c = (content ?? "").replace(/\r\n/g, "\n");
+  if (c.includes(OPEN)) return { speaker: "whisper", text: whisperText(c) };
+  const lines = c.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length >= 2 && lines[0].includes(PLATFORM)) return { speaker: "platform", text: lines[1] };
+  return { speaker: "whisper", text: c.trim() };
+}
+
+// src/voice/call-words.ts
+var CALL_OUTCOMES = [
+  "answered",
+  "booking_link_sent",
+  "callback_needed",
+  "voicemail",
+  "no_request",
+  "other"
+];
+var CALL_OUTCOME_WORDS = {
+  answered: "Question answered",
+  booking_link_sent: "Booking link sent",
+  callback_needed: "Needs a call back",
+  voicemail: "Reached voicemail",
+  no_request: "No request made",
+  other: "Handled"
+};
+function callOutcomeOf(v) {
+  return typeof v === "string" && CALL_OUTCOMES.includes(v) ? v : null;
+}
+function callOutcomeWords(v) {
+  const o = callOutcomeOf(v);
+  return o ? CALL_OUTCOME_WORDS[o] : null;
+}
+function tidyCallSummary(text) {
+  const t = (text ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  const folded = t.replace(
+    /^The (?:user|caller|customer) (?:called|phoned|contacted|reached out to) [^.,;]*? (to|and) /i,
+    (_m, joiner) => joiner.toLowerCase() === "to" ? "Called to " : "Called and "
+  );
+  return folded.charAt(0).toUpperCase() + folded.slice(1);
+}
+
+// src/workspace/retention.ts
+var RETENTION_DAYS = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
+  leads_excluded_blanked: 30,
+  /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
+  jobs_finished: 7,
+  /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
+  jobs_failed: 90
+};
+var RATE_HITS_RETENTION_HOURS = 2;
+var EVENT_EVIDENCE_KINDS = [
+  "webhook.auth",
+  "webhook.delivery",
+  "ingest.allowlist_skip",
+  "ingest.unreachable_sender",
+  "ingest.unroutable",
+  "usage.llm_tokens",
+  "usage.ask_tokens"
+];
+function retentionWords() {
+  const d = RETENTION_DAYS;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Leads nobody has worked are set aside after ${d.leads_untouched} days and their details removed after ${d.leads_untouched_blanked}; places a search left out lose their details after ${d.leads_excluded_blanked} days. Background jobs, which carry a message while it is sent, are removed ${d.jobs_finished} days after they finish, or ${d.jobs_failed} days after they fail. Everything else stays while the workspace exists.`;
+}
+var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
+var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
+
+// src/conversations/call-vm.ts
+function spokenDuration(ms2) {
+  if (!ms2) return "Duration not recorded";
+  const total = Math.round(ms2 / 1e3);
+  const m = Math.floor(total / 60);
+  const sec = total % 60;
+  return m ? `${m} min ${sec} sec` : `${sec} sec`;
+}
+var CALL_MOOD = { Positive: "Sounded positive", Negative: "Sounded negative" };
+var RECORDING_NOTE = {
+  none: "No recording",
+  pending: "Recording still processing",
+  failed: "Recording couldn't be saved",
+  purged: `Recording removed after ${RECORDING_RETENTION_DAYS} days`
+};
+function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
+  const withheld = !dto.from_e164 && !dto.from_raw;
+  const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
+  const who = callerName(dto);
+  const whoShort = name ? isIdentifierName(name) ? name : name.split(" ")[0] : "Caller";
+  const dur = callLength(dto.duration_ms);
+  const live = isLiveCall(dto, now);
+  const missed = dto.status === "not_connected";
+  const wanted = (dto.wanted || "").trim();
+  const headSummary = tidyCallSummary(dto.summary) ?? "";
+  const firstSentence = headSummary ? headSummary.split(/(?<=[.!?])\s/)[0] ?? headSummary : "";
+  const bullets = [
+    `${dto.direction === "inbound" ? "Inbound" : "Outbound"} \xB7 ${missed ? "never connected" : spokenDuration(dto.duration_ms)}`
+  ];
+  const ending = dto.disconnection_reason ? DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ") : null;
+  if (ending) bullets.push(`Ended: ${ending}`);
+  if (dto.sentiment) {
+    bullets.push(`Caller sentiment: ${dto.sentiment} \u2014 the voice provider's own read`);
+  }
+  const outcomeWords = callOutcomeWords(dto.outcome);
+  if (outcomeWords) bullets.push(outcomeWords);
+  if (dto.follow_up?.trim()) bullets.push(`To do: ${dto.follow_up.trim()}`);
+  if (dto.caller_name?.trim()) bullets.push(`Gave their name as ${dto.caller_name.trim()}`);
+  if (dto.caller_email) bullets.push(`Gave their email as ${dto.caller_email}`);
+  const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
+  if (!missed) {
+    bullets.push(
+      recState === "ready" ? "Recording saved" : recState === "pending" ? "Recording still processing" : recState === "failed" ? "Recording couldn't be saved from the voice provider" : recState === "purged" ? RECORDING_PURGED_WORDS : "No recording for this call"
+    );
+  }
+  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
+  const turns = dto.transcript_object ?? [];
+  const given = turns.map((turn) => turn.role === "injected" ? null : turn.start ?? turn.words?.[0]?.start ?? null);
+  const starts = given.map((s, i) => {
+    if (s != null || turns[i].role === "injected") return s;
+    const before = given.slice(0, i).reverse().find((x) => x != null) ?? null;
+    const after = given.slice(i + 1).find((x) => x != null) ?? null;
+    return before != null && after != null ? (before + after) / 2 : before ?? after;
+  });
+  const transcript = turns.map((turn, i) => {
+    if (turn.role === "injected") {
+      return { t: "\u2014", speaker: "whisper", text: whisperText(turn.content), start: null, end: null };
+    }
+    const own = given[i];
+    const start = starts[i];
+    const next = start == null ? null : starts.slice(i + 1).find((x) => x != null && x > start) ?? null;
+    const end = start == null ? null : turn.end ?? turn.words?.[turn.words.length - 1]?.end ?? next;
+    return {
+      t: typeof own === "number" ? `${Math.floor(own / 60)}:${String(Math.floor(own % 60)).padStart(2, "0")}` : "\u2014",
+      speaker: turn.role === "agent" ? "agent" : "client",
+      text: turn.content ?? "",
+      start,
+      end
+    };
+  });
+  const snippetBody = missed ? "The call never connected." : wanted || firstSentence || (dto.in_voicemail ? "Reached voicemail." : "No summary from this call.");
+  return {
+    id: `cv-${dto.id}`,
+    real: true,
+    callId: dto.id,
+    who,
+    whoShort,
+    initials: withheld ? "\u2013" : initialsOf(who),
+    clientId: dto.contact_id,
+    channel: "phone",
+    agent: { glyph: "P", name: "Phone Receptionist" },
+    at: shortTime(dto.started_at, tz, now),
+    ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
+    ...dur ? { duration: dur } : {},
+    outcome: live ? "live" : missed ? "missed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : "handled",
+    ...live ? { live: true } : {},
+    snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
+    summary: { headline: wanted || firstSentence || snippetBody, bullets },
+    transcript,
+    durationSec: dto.duration_ms ? Math.round(dto.duration_ms / 1e3) : null,
+    recordingState: recState,
+    ...recState === "ready" ? { recordingUrl: `/api/v1/calls/${dto.id}/recording` } : {},
+    ...dto.conversation_id ? { threadId: `th-${dto.conversation_id}` } : {},
+    // The call's facts as facts, for the thread's call card: they were only inside the bullets' sentences.
+    ...dto.message_id ? { messageId: dto.message_id } : {},
+    direction: dto.direction === "outbound" ? "outbound" : "inbound",
+    missed,
+    // A voicemail says so in how it ended; "Reached voicemail." here said it twice.
+    about: missed ? null : wanted || firstSentence || null,
+    facts: [CALL_MOOD[dto.sentiment ?? ""], ending, missed ? void 0 : RECORDING_NOTE[recState]].filter(
+      (f) => !!f
+    )
+  };
 }
 
 // src/deals/pace.ts

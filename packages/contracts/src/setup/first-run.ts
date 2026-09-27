@@ -12,7 +12,7 @@
  */
 import { formatPhoneDisplay } from "../shared/phone";
 import { greetingFor } from "../voice/greeting";
-import { initialsOf } from "../conversations/viewmodels";
+import { initialsOf } from "../conversations/thread-contact";
 import { openWeekWords, servicesWords, type ServiceWordsInput } from "../config/business-tab";
 import { DAY_NAMES, ROLE_PERMS, type Hours, type Role } from "../config/config";
 import { bookingLinkOptional } from "../deals/deals";

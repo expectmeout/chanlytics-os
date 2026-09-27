@@ -555,7 +555,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
     "a run's message names its playbook",
   );
   assert.ok(
-    readCode("packages/contracts/src/conversations/viewmodels.ts").includes(
+    readCode("packages/contracts/src/conversations/message-author.ts").includes(
       '{ kind: "playbook", name: String(m.meta.playbook_name) }',
     ),
   );

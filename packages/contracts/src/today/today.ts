@@ -13,23 +13,14 @@ import { standingOf } from "../conversations/standing";
  * browser's: the owner of a New York salon checking from Madrid must still be
  * told what time it is at the salon.
  */
-import {
-  toCallVM,
-  abandonedCall,
-  spokenDuration,
-  contactName,
-  contactMeta,
-  threadChannelWords,
-  messageText,
-  messageWords,
-  ESCALATION_REASON_LABELS,
-  DISCONNECTION_LABELS,
-  formatWaited,
-  initialsOf,
-  type ConversationDto,
-  type EscalationDto,
-  type CallDto,
-} from "../conversations/viewmodels";
+import { toCallVM, spokenDuration } from "../conversations/call-vm";
+import { abandonedCall, DISCONNECTION_LABELS, type CallDto } from "../conversations/call-dto";
+import { contactName, contactMeta, initialsOf } from "../conversations/thread-contact";
+import { threadChannelWords } from "../conversations/thread-channel";
+import { messageText, messageWords } from "../conversations/message-words";
+import { ESCALATION_REASON_LABELS, type EscalationDto } from "../conversations/escalations";
+import { formatWaited } from "../conversations/thread-clock";
+import type { ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
 import { ANALYSIS_GRACE_MS } from "../voice/live";
 import { NO_NUMBER_REACH, NOTE_WORDS, reasonShort, saidYesTo, type PersonRowVM } from "../people/people";
@@ -41,7 +32,7 @@ import {
   type DealPaceVM,
   type DealVM,
 } from "../deals/deals";
-import { clipAtWord } from "../conversations/viewmodels";
+import { clipAtWord } from "../conversations/message-words";
 import { pipelineRoute } from "../deals/pipeline";
 import { isOptedOutContact } from "../consent/consent";
 import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
@@ -529,8 +520,8 @@ function figuresOf(
     x.meta?.backfill !== true && new Date(x.created_at).getTime() >= windowMs;
 
   // Customer messages: the proof as the clause, the wires as the why. A message with no wire named is WhatsApp, which
-  // is what every row was before the column said (viewmodels.ts writtenChannelOf). The receipt says nothing when the
-  // read holds none of today's messages, and says what it counted when the read holds fewer than the figure.
+  // is what every row was before the column said (thread-channel.ts writtenChannelOf). The receipt says nothing when
+  // the read holds none of today's messages, and says what it counted when the read holds fewer than the figure.
   const gap = replyGapSeconds(live);
   const lastAt = tzClock(live.last_inbound_at, tz, now);
   const wires = tally(

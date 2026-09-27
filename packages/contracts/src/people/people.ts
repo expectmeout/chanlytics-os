@@ -28,13 +28,10 @@ import { replyWindow } from "../config/policy";
 import type { FollowUpStand } from "../playbooks/playbooks";
 import { visitAnswersAsk, visitDateKey, visitDay, visitLine, type PersonVisitsDto } from "../calendar/calendar-people";
 import { nextStepOf, stepIsDue, type PersonNextStepVM, type StepColumns } from "../notes/steps";
-import {
-  initialsOf,
-  isIdentifierName,
-  shortTime,
-  type CallDto,
-  type ConversationDto,
-} from "../conversations/viewmodels";
+import { initialsOf, isIdentifierName } from "../conversations/thread-contact";
+import { shortTime } from "../conversations/thread-clock";
+import type { CallDto } from "../conversations/call-dto";
+import type { ConversationDto } from "../conversations/thread-dto";
 import {
   dealOf,
   dealStageOf,
@@ -303,7 +300,7 @@ export const QUIET_AFTER_DAYS = 30;
 
 /**
  * The escalation reasons in the words an owner uses across a table row.
- * ESCALATION_REASON_LABELS in viewmodels are sentences for Today's headlines;
+ * ESCALATION_REASON_LABELS in conversations/escalations.ts are sentences for Today's headlines;
  * these are clauses that follow "Escalated, …".
  */
 const REASON_SHORT: Record<string, string> = {
