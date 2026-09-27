@@ -23,6 +23,7 @@ export function signedOut(state: ShellState): ShellState {
     registered: null,
     refused: null,
     pendingRoute: null,
+    pendingWorkspace: null,
   };
 }
 

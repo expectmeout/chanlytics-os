@@ -18,6 +18,7 @@ import {
   type TodayVM,
 } from "@chanlytics/contracts";
 import { api } from "./api";
+import { workspaceHref } from "./workspace";
 
 interface BridgeWindow {
   document: {
@@ -27,7 +28,9 @@ interface BridgeWindow {
       getAttribute?(name: string): string | null;
     };
   };
-  location: { hash: string; pathname: string };
+  location: { hash: string; pathname: string; assign(url: string): void };
+  /** The workspace this page is about, by id, once the page has read its workspaces (surface-data.ts). */
+  __ACTIVE_WORKSPACE?: string;
   ReactNativeWebView?: { postMessage(s: string): void };
   __appBridge?: { receive(raw: string): void; forgetPhone(): Promise<void> };
   /** The bell (notifications.ts), when it is installed: its number is the icon's. */
@@ -186,7 +189,11 @@ function answerShell({ win, doors, post, phone, shell }: Answering, raw: string)
   const m = parseShellMessage(v);
   if (!m) return;
   if (m.t === "navigate") {
-    win.location.hash = "/" + m.route;
+    // A push told for another workspace opens that workspace's page: the site takes its id in the path as it takes a
+    // slug. One for this workspace, or with no workspace said, moves the hash.
+    if (m.workspace && m.workspace !== win.__ACTIVE_WORKSPACE)
+      win.location.assign(workspaceHref(m.workspace, `#/${m.route}`));
+    else win.location.hash = "/" + m.route;
     return;
   }
   if (m.t === "menu" || m.t === "top") {

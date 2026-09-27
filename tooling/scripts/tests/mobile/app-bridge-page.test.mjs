@@ -33,7 +33,13 @@ function windowOf({
         getAttribute: (n) => (n === "data-theme" ? theme : null),
       },
     },
-    location: { hash, pathname },
+    location: {
+      hash,
+      pathname,
+      assign(url) {
+        posted.push({ assigned: url });
+      },
+    },
     ...(native ? { ReactNativeWebView: { postMessage: (s) => posted.push(JSON.parse(s)) } } : {}),
     addEventListener: (t, fn) => listeners.set(t, [...(listeners.get(t) ?? []), fn]),
     removeEventListener: (t, fn) =>
@@ -109,6 +115,24 @@ test("the shell's navigate sets the hash; menu and top become the shell's events
   win.__appBridge.receive("nope");
   assert.deepEqual(heard, ["menu", "top"]);
   assert.equal(win.location.hash, "/inbox");
+});
+
+test("a tapped push for another workspace opens that workspace's page; one for this workspace moves the hash", () => {
+  const HERE = "11111111-1111-4111-8111-111111111111";
+  const THERE = "22222222-2222-4222-8222-222222222222";
+  const { win, posted } = windowOf();
+  win.__ACTIVE_WORKSPACE = HERE;
+  installAppBridge(win);
+  win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-1", workspace: HERE }));
+  assert.equal(win.location.hash, "/inbox/th-1");
+  assert.equal(posted.filter((p) => p.assigned).length, 0, "this workspace: no load");
+  win.__appBridge.receive(JSON.stringify({ t: "navigate", route: "inbox/th-2", workspace: THERE }));
+  assert.deepEqual(
+    posted.filter((p) => p.assigned),
+    [{ assigned: `/w/${THERE}#/inbox/th-2` }],
+    "REGRESSION: a push for one workspace opened its thread in whichever workspace the phone was showing",
+  );
+  assert.equal(win.location.hash, "/inbox/th-1", "and this page's hash is not moved under it");
 });
 
 test("a menu ask that arrives before the shell has mounted waits for it; a scroll to the top of nothing is dropped", () => {
