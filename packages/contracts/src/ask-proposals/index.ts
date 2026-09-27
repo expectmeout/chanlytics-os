@@ -70,12 +70,15 @@ export function proposalSpec(kind: string): ProposalSpec | null {
 }
 
 /**
- * What the model is told when the member's role may not commit this kind: the route's rule, in its words. A partner's
- * door says owner as an owner's does (requireRole): until a workspace can say whether it has a partner, "owner" is
- * what is true of every workspace.
+ * What the model is told when the member's role may not commit this kind, by the role the kind needs: a partner's
+ * card names the owner and the workspace's partner (the lead search's words since #1159, decision 0012); an owner's
+ * names the owner alone. One derivation, for every kind above operator.
  */
 export function proposalBelowNeeds(kind: ProposalKindAboveOperator): string {
-  return `only an owner can ${PROPOSAL_SPECS[kind].doing}; say so, and that an owner can ask`;
+  const { needs, doing } = PROPOSAL_SPECS[kind];
+  return needs === "partner"
+    ? `only an owner or the workspace's partner can ${doing}; say so, and that one of them can ask`
+    : `only an owner can ${doing}; say so, and that an owner can ask`;
 }
 
 /* ------------------------------------------------------------ the readings */

@@ -1408,21 +1408,29 @@ test("a card above an operator is refused to a member below it in its route's wo
     const ctx = ctxFor();
     return { ctx, tc: newToolContext(ctx, A, role, TZ, NOW) };
   };
+  // Each ask, and the refusal a member below its card's role hears: an owner's card names the owner; a partner's
+  // names the owner and the workspace's partner, as the lead search's words do (#1159, decision 0012).
   const ASKS = [
-    ["propose_person_mode", { contact_id: P1, mode: "never" }, "change how the receptionist treats one person"],
+    [
+      "propose_person_mode",
+      { contact_id: P1, mode: "never" },
+      "only an owner can change how the receptionist treats one person; say so, and that an owner can ask",
+    ],
     [
       "propose_settings",
       { change: { op: "add_closure", date: "2026-12-25", note: "Christmas" } },
-      "change the workspace's settings",
+      "only an owner or the workspace's partner can change the workspace's settings; say so, and that one of them can ask",
     ],
-    ["propose_invite", { email: "ada@example.com", role: "viewer" }, "invite someone to the team"],
+    [
+      "propose_invite",
+      { email: "ada@example.com", role: "viewer" },
+      "only an owner can invite someone to the team; say so, and that an owner can ask",
+    ],
   ];
-  // The route's rule, in its words: a partner's door says owner as an owner's does (requireRole).
-  const refusal = (doing) => `only an owner can ${doing}; say so, and that an owner can ask`;
-  for (const [name, input, doing] of ASKS) {
+  for (const [name, input, refusal] of ASKS) {
     const { ctx, tc } = as("operator");
     const out = await buildProposal(tc, name, input);
-    assert.deepEqual([out.proposal, out.isError, JSON.parse(out.result).error], [null, true, refusal(doing)], name);
+    assert.deepEqual([out.proposal, out.isError, JSON.parse(out.result).error], [null, true, refusal], name);
     assert.deepEqual(ctx.supabase.seen, [], `${name}: an operator is refused before anything is read`);
   }
   // REGRESSION (D7): an operator used to be handed these three cards, which the palette gated and the routes refused.
@@ -1430,8 +1438,8 @@ test("a card above an operator is refused to a member below it in its route's wo
   const settings = await buildProposal(partner, "propose_settings", ASKS[1][1]);
   assert.equal(settings.isError, false, settings.result);
   assert.deepEqual([settings.proposal.kind, settings.proposal.needs], ["settings", "partner"]);
-  for (const [name, input, doing] of [ASKS[0], ASKS[2]])
-    assert.equal(JSON.parse((await buildProposal(partner, name, input)).result).error, refusal(doing), name);
+  for (const [name, input, refusal] of [ASKS[0], ASKS[2]])
+    assert.equal(JSON.parse((await buildProposal(partner, name, input)).result).error, refusal, name);
   // An owner gets all three, each needing its route's role and wearing its spec's undo words.
   const owner = as("owner").tc;
   const made = [];

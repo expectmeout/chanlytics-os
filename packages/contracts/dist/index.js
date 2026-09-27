@@ -18416,7 +18416,8 @@ function proposalSpec(kind) {
   return Object.prototype.hasOwnProperty.call(PROPOSAL_SPECS, kind) ? PROPOSAL_SPECS[kind] : null;
 }
 function proposalBelowNeeds(kind) {
-  return `only an owner can ${PROPOSAL_SPECS[kind].doing}; say so, and that an owner can ask`;
+  const { needs, doing } = PROPOSAL_SPECS[kind];
+  return needs === "partner" ? `only an owner or the workspace's partner can ${doing}; say so, and that one of them can ask` : `only an owner can ${doing}; say so, and that an owner can ask`;
 }
 var PROPOSAL_GATE = /* @__PURE__ */ (() => Object.fromEntries(Object.entries(PROPOSAL_SPECS).map(([kind, spec]) => [kind, spec.gate])))();
 function askUndoOpen(kind, undo, atMs, nowMs, settingsVersion) {
@@ -23416,6 +23417,9 @@ var ROUTE_KEYS = [
   "POST platform/lines/release",
   "POST platform/lines/replace",
   "POST platform/lines/retry",
+  "POST platform/partners/payout",
+  "POST platform/partners/standing",
+  "POST platform/partners/status",
   "POST platform/waitlist/invited",
   "POST playbooks",
   "POST playbooks/[id]/run",
