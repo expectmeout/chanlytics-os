@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import {
   AppError,
+  ROLE_PERMS,
   ProposeLeadSearchSchema,
   planLeadSearch,
   planSentence,
@@ -80,7 +81,11 @@ const LeadSearchPlanInput = z.preprocess((raw) => shapeAsk(raw as LeadSearchAskI
  * the owner's answer applied, at the version and count the server sets.
  */
 async function proposeLeadSearch(t: ToolContext, input: LeadSearchAskInput): Promise<ProposalOutcome> {
-  if (t.role !== "owner") return refuse("only an owner can start a lead search; say so, and that an owner can ask");
+  // The lead finder is `find` (ROLE_PERMS): an owner's, and the partner's who sets the workspace up (0012).
+  if (!ROLE_PERMS[t.role as keyof typeof ROLE_PERMS]?.find)
+    return refuse(
+      "only an owner or the workspace's partner can start a lead search; say so, and that one of them can ask",
+    );
   const shaped = LeadSearchPlanInput.safeParse(input);
   if (!shaped.success)
     return refuse(

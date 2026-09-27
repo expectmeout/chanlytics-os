@@ -2641,7 +2641,8 @@ const PeopleReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSa
     window.addEventListener("segments:new", onNew);
     return () => window.removeEventListener("segments:new", onNew);
   }, []);
-  const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // The roles ROLE_PERMS gives `approve`: owner, operator, and the partner (0012).
+  const canEditLists = !!(window.__ME && ["owner", "operator", "partner"].includes(window.__ME.role));
   // A list made on the rail says so and is the one shown: the rail used to close
   // with no word, the new list somewhere down it. The answer goes back to the
   // rail, which shows a refusal where the name was typed.
