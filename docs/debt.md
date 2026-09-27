@@ -41,6 +41,17 @@ it is deleted in the same change. The plan that orders the work is
 | `docs/takeover.md` is scored by hand and dated 21 September                                                        | Its counts come from the block below                                                                 | Phase 4                                                                                                                                                                                                                                                         |
 | Decisions 0004 and 0006 to 0009 read as unbuilt though built; the glossary says Deal has no table (00156 made one) | The status lines say what the code does                                                              | Phase 4                                                                                                                                                                                                                                                         |
 
+## Rises, each with its reason
+
+A number that rises is banked with `UPDATE_BASELINES=1 corepack pnpm test` in the same change as its row here: what
+rose and by how much, why nothing that exists would do, and what takes it back down. The row leaves when its number
+falls back.
+
+| Rise                                                                                                                                                               | Why                                                                                                                                                                                                                                                                                                              | Falls when                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Window globals +2 (Reach out, Part 4 PR 8): `__REACH_OUTS`, the chains, and `__reachOuts`, their verbs and contracts' words                                        | The shell's pages read the bridge only through window. The chains are a surface of their own so the moments' read (`surface-data.ts`, at its file and function caps) takes nothing more; Templates' email rows are drawn from the same `__REACH_OUTS` through contracts' `emailTemplateRowsOf`, not a third name | Playbooks and Templates leave the shell (the shell's exit decision) |
+| Window publishers +3 (Reach out, Part 4 PR 8): the bridge's `installReachOuts`, and `Object.assign(window, …)` in `reach-out-row.jsx` and `email-template-row.jsx` | The legacy tree's only way to share a component between files; the two rows are files of their own in `pages/reach-out/` so neither page, both at their function caps, grows                                                                                                                                     | The same                                                            |
+
 ## The numbers
 
 Written by `UPDATE_BASELINES=1 corepack pnpm test` from the baselines; `debt-register.test.mjs`
@@ -49,11 +60,11 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            274   of which over 200 lines: 66
+functions over the limit            274   of which over 200 lines: 65
 files over 800 lines                 36
 directories over 20 modules           8
-window globals                      193   names
-window publishers                   388   sites in 141 files
+window globals                      195   names
+window publishers                   391   sites in 144 files
 copies                              197   of 45 names
 as unknown as                       223
 table names outside packages/db     535

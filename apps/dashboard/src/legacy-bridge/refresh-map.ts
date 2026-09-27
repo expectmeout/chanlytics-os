@@ -29,10 +29,15 @@ import { googleOverride } from "./google";
 import { leadsOverride } from "./leads";
 import { setupOverride } from "./setup";
 import { refreshSurfaces } from "./surface-runner";
+import { reachOutsOverride } from "./reach-out/reach-outs";
 
 const thread = () => [inboxOverride, conversationsOverride, todayOverride];
 const people = () => [peopleOverride];
 const runs = () => [playbooksOverride, broadcastsOverride];
+// What also moves a reach-out's row (Part 4 PR 8): its chain's pause and resume are the playbook's own door on its
+// first step, and its run waiting (the row's "next run") is approved or skipped as any run is. The chains' read scans
+// no audience (reach-outs.ts), so reading it behind a door that moved an ordinary playbook costs little.
+const runsAndChains = () => [...runs(), reachOutsOverride];
 const templates = () => [settingsOverride, inboxOverride];
 const leads = () => [leadsOverride];
 const setup = () => [setupOverride];
@@ -100,16 +105,18 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST leads/[id]/stage": () => [leadsOverride, peopleOverride],
   // Outbound.
   "POST broadcasts": () => [broadcastsOverride],
-  "POST broadcasts/[id]/approve": runs,
-  "POST broadcasts/[id]/cancel": runs,
+  "POST broadcasts/[id]/approve": runsAndChains,
+  "POST broadcasts/[id]/cancel": runsAndChains,
   "POST playbooks": runs,
-  "PUT playbooks/[id]": runs,
+  "PUT playbooks/[id]": runsAndChains,
   "DELETE playbooks/[id]": runs,
   "POST playbooks/[id]/run": runs,
-  // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads.
-  "POST reach-outs": () => [playbooksOverride, broadcastsOverride, leadsOverride],
-  "PUT reach-outs/[id]": () => [playbooksOverride, broadcastsOverride, leadsOverride],
-  "DELETE reach-outs/[id]": () => [playbooksOverride, broadcastsOverride, leadsOverride],
+  // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads,
+  // and its chain is the reach-outs surface (Playbooks' row, and Templates' email rows drawn from it).
+  "POST reach-outs": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
+  "PUT reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
+  "DELETE reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
+  // One held email decided moves its run and its lead, never its chain: the row's counts are its report, read on open.
   "POST reach-out-sends/[id]/decide": () => [broadcastsOverride, playbooksOverride, leadsOverride],
   "POST broadcasts/[id]/recheck": runs,
   "POST templates": templates,

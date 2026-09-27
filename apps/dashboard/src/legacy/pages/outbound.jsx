@@ -4,7 +4,9 @@ const { PB_NONE, pbReach, pbSpell } = window;
 // playbook-card.jsx, which loads before this file.
 const { PlaybookTile, PlaybookSlot } = window;
 // playbook-composer.jsx, which loads before this file.
-const { PlaybookComposer } = window;/* global React, Icon, PolicyChip, Confirm, EmptyState, FailedRead */
+const { PlaybookComposer } = window;
+// reach-out-row.jsx, which loads before this file.
+const { ReachOutRow } = window;/* global React, Icon, PolicyChip, Confirm, EmptyState, FailedRead */
 // Campaigns › Playbooks, real: a standing rule that sends one approved
 // template to newly eligible people who said yes, under the workspace's
 // autonomy mode. Same chrome as the seeded Outbound page (outbound.jsx);
@@ -23,9 +25,59 @@ const usePlaybooks = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
     window.addEventListener("surface:playbooks", bump);
-    return () => window.removeEventListener("surface:playbooks", bump);
+    // The reach-outs are their own surface (Part 4 PR 8): their rows draw when they land.
+    window.addEventListener("surface:reach_outs", bump);
+    return () => { window.removeEventListener("surface:playbooks", bump); window.removeEventListener("surface:reach_outs", bump); };
   }, []);
   return window.__PLAYBOOKS;
+};
+
+// The head counts the chains with the moments (Reach out Part 4 PR 8): a chain is one thing, running, waiting on you
+// or paused.
+const pbStanding = (rows, chains) => ({
+  runningN: rows.filter((p) => p.state === "running" && !p.totals.waiting).length + chains.filter((c) => c.state === "running" && !c.next.waiting_run_id).length,
+  waitingN: rows.filter((p) => p.totals.waiting).length + chains.filter((c) => c.state === "running" && c.next.waiting_run_id).length,
+  pausedN: rows.filter((p) => p.state === "paused").length + chains.filter((c) => c.state !== "running").length,
+});
+
+// The reach-outs, each a chain drawn as one row above the moments (reach-out/reach-out-row.jsx); none when their read
+// failed, which is said once over the rows, and whose Retry reads the reach_outs surface again. A link to a playbook is
+// "gone" only once the chains were read: unread, a chain's id is not yet known to be missing.
+const pbChainsOf = () => window.__REACH_OUTS || PB_NONE;
+const pbChainHere = (chains, id) => !!id && chains.some((c) => c.root_id === id);
+const pbGone = (id, rows, chainHere) => !!id && !rows.some((p) => p.id === id) && Array.isArray(window.__REACH_OUTS) && !chainHere;
+const PbChainsFailed = () => (window.__REACH_OUTS === null ? <FailedRead kind="line" what="your reach-outs" body="The moments below are current." surface="reach_outs" testid="pb-chains-failed" /> : null);
+const PbChains = ({ chains, canAct, flash, tz, openId, setOpenId, focusId }) => (ReachOutRow ? chains.map((c) => (
+  <ReachOutRow key={c.root_id} chain={c} canAct={canAct} flash={flash} tz={tz} open={openId === c.root_id} onOpen={() => setOpenId((o) => (o === c.root_id ? null : c.root_id))} focus={c.root_id === focusId} />
+)) : null);
+
+// The three rules that quietly shape every run, under the rows they shape: one quiet line, each rule's longer words
+// its hover (they were a 78px card of three headed columns) -- the sending hours, the weekly breath across playbooks,
+// and the gap before the same playbook reaches the same person again, the one number a playbook sets itself.
+const PbAlwaysOn = ({ rows }) => {
+  const hours = window.__clock && window.__clock.hours;
+  const gaps = [...new Set(rows.map((p) => p.gap_days))];
+  return (
+    <p className="pb-rules" data-testid="pb-always">
+      <span className="pb-rules-k">Always on</span>
+      {/* Each rule's longer words are its hover, and a focus's: reachable from a keyboard and read to a screen
+          reader (aria-description), as the composer's Guardrails are. */}
+      {[
+        { icon: "clock", words: `Sends ${hours ? hours.range : "9:00–20:59"}`, more: "A run that would land outside them waits for the morning" },
+        { icon: "wave", words: "One a week, per person", more: "Across every playbook, not per playbook" },
+        {
+          icon: "refresh",
+          words: gaps.length === 1 ? `${gaps[0]} days between repeats` : "Days between repeats",
+          more: gaps.length === 1 ? "The same playbook will not reach the same person sooner" : "Each playbook keeps its own gap before reaching the same person again",
+        },
+      ].map((r) => (
+        <span key={r.icon} className="pb-rule" tabIndex={0} data-tip={r.more} aria-description={r.more}>
+          <Icon name={r.icon} size={12} />
+          {r.words}
+        </span>
+      ))}
+    </p>
+  );
 };
 
 const PlaybooksReal = ({ initialPlaybook = null }) => {
@@ -55,15 +107,16 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
     window.addEventListener("playbooks:new", open);
     return () => window.removeEventListener("playbooks:new", open);
   }, []);
-  // A link to one playbook lands on its card: marked, and brought into view when it is out of it.
+  const [rows, chains] = [data.rows || PB_NONE, pbChainsOf()];
+  // A link to one playbook lands on its card: marked, and brought into view (again when a chain's row lands later).
+  const linkedChainHere = pbChainHere(chains, initialPlaybook);
   React.useEffect(() => {
     const el = initialPlaybook && typeof document !== "undefined" && document.getElementById ? document.getElementById(`pb-${initialPlaybook}`) : null;
     if (!el || !el.getBoundingClientRect || !el.scrollIntoView) return;
     const at = el.getBoundingClientRect();
     if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
-  }, [initialPlaybook]);
+  }, [initialPlaybook, linkedChainHere]);
 
-  const rows = data.rows || PB_NONE;
   // Every moment, in its own order: the playbooks doing one, as rows, and under
   // them the moments nothing is doing yet, as a compact group -- so a first day
   // still names every moment it could act on, and a busy one shows which is idle
@@ -75,9 +128,7 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
   const cards = [];
   for (const t of triggers) rows.filter((p) => p.trigger === t.id).forEach((p) => cards.push(p));
   rows.filter((p) => !known.has(p.trigger)).forEach((p) => cards.push(p));
-  const runningN = rows.filter((p) => p.state === "running" && !p.totals.waiting).length;
-  const waitingN = rows.filter((p) => p.totals.waiting).length;
-  const pausedN = rows.filter((p) => p.state === "paused").length;
+  const { runningN, waitingN, pausedN } = pbStanding(rows, chains);
   const nobody = rows.filter((p) => pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting }) === "nobody");
   const reachesNobody = nobody.length;
   const closeComposer = () => { setComposing(false); setEditing(null); setSlot(null); };
@@ -90,11 +141,6 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
     pausedN > 0 && { n: pausedN, k: "paused", tone: "plain" },
     unused.length > 0 && { n: unused.length, k: "not set up", tone: "dim" },
   ].filter(Boolean);
-  // What the three rules that shape every run are, said once under the cards: the
-  // sending hours, the weekly breath across playbooks, and the gap before the same
-  // playbook reaches the same person again -- the one number a playbook sets itself.
-  const hours = window.__clock && window.__clock.hours;
-  const gaps = [...new Set(rows.map((p) => p.gap_days))];
 
   return (
     <div className="reports pb-page" data-testid="playbooks-real">
@@ -115,7 +161,7 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
           testid="pb-standing"
           sub={(
             <span className="pb-standing" data-tip="Standing rules your receptionist runs — one approved template to newly eligible people who said yes, on your clock, under Settings › Autonomy. Replies land in the Inbox.">
-              {rows.length === 0
+              {rows.length === 0 && chains.length === 0
                 ? <span>{triggers.length > 0 ? `${pbSpell(triggers.length, true)} moments, none set up yet` : "No playbook yet"}</span>
                 : tally.map((t, i) => (
                     <React.Fragment key={t.k}>
@@ -138,7 +184,7 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
           )}
           right={<button className="btn btn-primary" onClick={startNew} data-testid="pb-new" {...window.gate("approve", "start a playbook")}><Icon name="plus" size={12} /> <span>New<span className="cm-act-noun"> playbook</span></span></button>}
         />
-        {initialPlaybook && !rows.some((p) => p.id === initialPlaybook) && (
+        {pbGone(initialPlaybook, rows, linkedChainHere) && (
           <EmptyState kind="line" title="That playbook isn't here any more." body="Its runs stay in Broadcasts, with their numbers." testid="pb-gone" />
         )}
         {rows.length > 0 && data.templates === null && (
@@ -149,8 +195,9 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
         {(cards.length > 0 || unused.length > 0) && data.countsRead === false && (
           <FailedRead kind="line" what="who each moment reaches" body="The cards show who they reach once it reads. Everything else here is current." surface="playbooks" testid="pb-counts-failed" />
         )}
-        {/* The playbooks, as People's table: the columns named once above the rows. */}
-        {cards.length > 0 && (
+        <PbChainsFailed />
+        {/* The playbooks, as People's table: the columns named once above the rows; a reach-out's chain first. */}
+        {(cards.length > 0 || chains.length > 0) && (
           <div className="pb-list">
             <div className="pb-list-head" aria-hidden="true">
               <span>Playbook</span>
@@ -159,6 +206,7 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
               <span>Next run</span>
               <span className="pb-list-head-runs">Runs</span>
             </div>
+            <PbChains chains={chains} canAct={canAct} flash={flash} tz={data.timezone} openId={openId} setOpenId={setOpenId} focusId={initialPlaybook} />
             {cards.map((p) => (
               <PlaybookTile key={p.id} p={p} canAct={canAct} flash={flash} open={openId === p.id} onOpen={() => setOpenId((o) => (o === p.id ? null : p.id))} focus={p.id === initialPlaybook} onEdit={(e) => { setComposing(false); setEditing(e); }} />
             ))}
@@ -178,7 +226,7 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
             </div>
           </section>
         )}
-        {rows.length === 0 && unused.length === 0 && !composing && (
+        {rows.length === 0 && chains.length === 0 && unused.length === 0 && !composing && (
           <EmptyState
             kind="card"
             glyph="bolt"
@@ -188,30 +236,7 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
             testid="pb-empty"
           />
         )}
-        {/* The three rules that quietly shape every run, under the rows they shape: one
-            quiet line, each rule's longer words its hover. They were a 78px card of
-            three headed columns. */}
-        {(cards.length > 0 || unused.length > 0) && (
-          <p className="pb-rules" data-testid="pb-always">
-            <span className="pb-rules-k">Always on</span>
-            {/* Each rule's longer words are its hover, and a focus's: reachable from a keyboard and read to a screen
-                reader (aria-description), as the composer's Guardrails are. */}
-            {[
-              { icon: "clock", words: `Sends ${hours ? hours.range : "9:00–20:59"}`, more: "A run that would land outside them waits for the morning" },
-              { icon: "wave", words: "One a week, per person", more: "Across every playbook, not per playbook" },
-              {
-                icon: "refresh",
-                words: gaps.length === 1 ? `${gaps[0]} days between repeats` : "Days between repeats",
-                more: gaps.length === 1 ? "The same playbook will not reach the same person sooner" : "Each playbook keeps its own gap before reaching the same person again",
-              },
-            ].map((r) => (
-              <span key={r.icon} className="pb-rule" tabIndex={0} data-tip={r.more} aria-description={r.more}>
-                <Icon name={r.icon} size={12} />
-                {r.words}
-              </span>
-            ))}
-          </p>
-        )}
+        {(cards.length > 0 || unused.length > 0) && <PbAlwaysOn rows={rows} />}
         {!canAct && rows.length > 0 && <div className="bc-excl-hint" data-testid="pb-role">{window.gateTitle("approve", "pause, run, change or delete a playbook")}</div>}
       </div>
 

@@ -15,7 +15,7 @@ import {
   type Json,
 } from "../packages/db.js";
 import type { ReachOutRunPorts, ReachOutStep } from "../packages/core.js";
-import { domainDailyCap, type TimetableDomain } from "../packages/contracts.js";
+import { domainDailyCap, reachOutSendsFrom, type TimetableDomain } from "../packages/contracts.js";
 import { notify } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { logger } from "../log.js";
@@ -156,12 +156,12 @@ export async function reachOutRunContext(
         limit: s.cap_per_run,
       }),
     domains: async (s) => {
-      let q = db.from("sending_domains").select("id").eq("tenant_id", tenantId).eq("state", "verified");
+      let q = db.from("sending_domains").select("id, state, clean_since").eq("tenant_id", tenantId);
       if (s.domain_ids.length > 0) q = q.in("id", s.domain_ids);
       const { data, error } = await q;
       if (error) throw new Error(`cannot read the workspace's domains: ${error.message}`);
       const out: TimetableDomain[] = [];
-      for (const d of data ?? []) {
+      for (const d of (data ?? []).filter((r) => reachOutSendsFrom(r, s.domain_ids))) {
         const c = await domainCapacityOf(db, d.id, now);
         out.push({ id: d.id, cap: c.clean_since ? domainDailyCap(c.sent_days) : 0, recent: c.recent });
       }

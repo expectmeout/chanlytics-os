@@ -15662,6 +15662,9 @@ function domainDailyCap(sentDays) {
   for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap2 = step2.perDay;
   return cap2;
 }
+function reachOutSendsFrom(d, named) {
+  return d.state === "verified" && !!d.clean_since && (named.length === 0 || named.includes(d.id));
+}
 function normalizeHost(typed) {
   return typed.trim().toLowerCase().replace(/\.$/, "");
 }
@@ -19669,6 +19672,18 @@ function slotsNamed(text) {
 function replaceSlots(text, fill2) {
   return text.replace(SLOT, (whole, name) => fill2(slotKey(name)) ?? whole);
 }
+function slotParts(text) {
+  const out = [];
+  let at2 = 0;
+  for (const m of text.matchAll(SLOT)) {
+    const i = m.index ?? 0;
+    if (i > at2) out.push({ text: text.slice(at2, i), slot: false });
+    out.push({ text: slotKey(m[1] ?? ""), slot: true });
+    at2 = i + m[0].length;
+  }
+  if (at2 < text.length) out.push({ text: text.slice(at2), slot: false });
+  return out;
+}
 function slotCount(text, slot) {
   let n = 0;
   for (const m of text.matchAll(SLOT)) if (slotKey(m[1] ?? "") === slot) n += 1;
@@ -20375,6 +20390,37 @@ function approvalWordsOf(r2, p) {
 var runDayWords = (runFor) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(
   /* @__PURE__ */ new Date(`${runFor}T12:00:00Z`)
 );
+function chainPaceOf(c) {
+  return {
+    host: c.domains.length === 1 ? c.domains[0].host : null,
+    share: c.domains.reduce((t, d) => t + domainDailyCap(d.sent_days), 0)
+  };
+}
+function chainPathWords(c) {
+  return {
+    steps: c.steps.map((s) => ({
+      id: s.id,
+      label: stepLabel(s.n),
+      after: s.n === 0 ? null : `after ${s.after_days ?? "?"} days, nothing back`
+    })),
+    stops: "Stops for anyone who writes back, books or says no."
+  };
+}
+var REACH_OUT_ROW_WORDS = {
+  reading: "Reading how it is doing\u2026",
+  failed: "how this reach-out is doing",
+  pause: "Pause",
+  resume: "Resume",
+  remove: "Remove",
+  removeAsk: (name) => `Remove \u201C${name}\u201D?`,
+  removeYes: "Yes, remove",
+  paused: (name) => `${name} is paused \u2014 nothing more is planned until you resume it`,
+  resumed: (name) => `${name} is running \u2014 its next run is on its row`,
+  removed: (name) => `${name} is removed, and its words with it`,
+  runs: (n) => n === 1 ? "1 run" : `${n} runs`,
+  noRun: "No run yet",
+  edit: "Its words and its pace are changed on its sheet, which comes with the reach-out sheet."
+};
 function chainHintOf(c, host) {
   const labels = c.steps.map((s) => stepLabel(s.n).toLowerCase());
   return `${labels.join(", ").replace(/^your email/, "Your email")}${host ? ` \xB7 from ${host}` : ""}`;
@@ -20408,7 +20454,9 @@ function chainReportWordsOf(c, report, reach, p) {
       String(s.said_no),
       String(s.bounced)
     ]),
-    sentence: `${p.share} a day${p.host ? ` from ${p.host}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.` + (held > 0 ? ` ${held} wait for your say.` : ""),
+    sentence: p.share > 0 ? `${p.share} a day${p.host ? ` from ${p.host}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.` : `${REACH_OUT_SHEET_WORDS.noDomain} ${clauses.join("; ")}.`,
+    // The held wait for their owner in their run (R20): the newest run that holds some opens them.
+    waiting: held > 0 ? { text: `${held} wait for your say`, run_id: report.runs.find((r2) => r2.held > 0)?.id ?? null } : null,
     history: report.runs.map((r2) => ({
       id: r2.id,
       text: `${r2.run_for ? runDayWords(r2.run_for) : "A run"} \xB7 ${r2.written} written${r2.held > 0 ? ` \xB7 ${r2.held} held` : ""}`
@@ -20429,6 +20477,32 @@ function emailTemplateWords(p) {
     edit: "Edit in its reach-out"
   };
 }
+function emailTemplateRowsOf(chains) {
+  return chains.flatMap(
+    (c) => c.steps.flatMap(
+      (s) => s.template_id ? [
+        {
+          template_id: s.template_id,
+          step_id: s.id,
+          subject: s.subject,
+          body: s.body,
+          root_id: c.root_id,
+          chain_name: c.name,
+          step_n: s.n,
+          after_days: s.after_days
+        }
+      ] : []
+    )
+  );
+}
+function emailRowWrittenOf(report, stepId) {
+  return report?.steps.find((x) => x.id === stepId)?.written ?? null;
+}
+var EMAIL_TEMPLATE_LIST_WORDS = {
+  /** Said after WhatsApp's hover when the head's count takes email rows too. */
+  headTip: (emails) => emails > 0 ? `The count takes ${plural4(emails, "email")} of your reach-outs too: their own words, sent by email, with no review.` : "",
+  failed: "your reach-outs' emails"
+};
 
 // src/reports/campaign-report.ts
 var sum2 = (xs) => xs.reduce((a, b) => a + b, 0);
@@ -25916,6 +25990,7 @@ export {
   EARLIER_FALLBACK_DEFAULTS,
   EMAIL_ELSEWHERE_SENTENCE,
   EMAIL_NOT_ANSWERED_SENTENCE,
+  EMAIL_TEMPLATE_LIST_WORDS,
   EMPTY_READ_STATE,
   ERROR_CODES,
   ESCALATION_REASONS,
@@ -26260,6 +26335,7 @@ export {
   REACH_OUT_NAME_MAX,
   REACH_OUT_PREVIEW_INDEX_MAX,
   REACH_OUT_REFUSALS,
+  REACH_OUT_ROW_WORDS,
   REACH_OUT_SEND_STATES,
   REACH_OUT_SHEET_WORDS,
   REACH_OUT_SLOTS,
@@ -26489,6 +26565,8 @@ export {
   chainHintOf,
   chainIssueWords,
   chainOf,
+  chainPaceOf,
+  chainPathWords,
   chainReportWordsOf,
   changedConfigFields,
   channelFor,
@@ -26613,6 +26691,8 @@ export {
   emailDomainOf,
   emailLeftOutOf,
   emailNotConfirmed,
+  emailRowWrittenOf,
+  emailTemplateRowsOf,
   emailTemplateWords,
   emailWires,
   emailWordCount,
@@ -27067,6 +27147,7 @@ export {
   ratingWords,
   reachLineOf,
   reachLines,
+  reachOutSendsFrom,
   reachOutSlots,
   reachedCustomer,
   readAgoLabel,
@@ -27175,6 +27256,7 @@ export {
   slotCount,
   slotKey,
   slotLabels,
+  slotParts,
   slotToWrite,
   slotsNamed,
   slugTemplateName,
