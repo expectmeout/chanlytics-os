@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { doorForm, googleIds, reversedClientId, shouldLock, LOCK_GRACE_MS } from "../src/shell/sign-in.ts";
+import { doorForm, googleIds, reversedClientId, mayLock, shouldLock, LOCK_GRACE_MS } from "../src/shell/sign-in.ts";
 
 test("the door's form carries the provider, the token, Apple's raw nonce, and lands on the home", () => {
   assert.equal(
@@ -45,4 +45,8 @@ test("the lock: on by default where the phone can lock, at launch and after two 
     shouldLock({ enabled: true, canLock: true, backgroundedAt: now - LOCK_GRACE_MS, now, launch: false }),
     "two minutes away",
   );
+  // What the cover follows as the app leaves the screen: the same rule, with no clock in it.
+  assert.ok(mayLock({ enabled: null, canLock: true }), "a phone that can lock covers the app as it leaves");
+  assert.ok(!mayLock({ enabled: false, canLock: true }), "turned off: nothing to cover");
+  assert.ok(!mayLock({ enabled: true, canLock: false }), "nothing to lock with: nothing to cover");
 });

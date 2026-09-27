@@ -5,11 +5,12 @@
  * WebView, so the cookie lands where the pages read it.
  */
 import { useCallback, useEffect, useState } from "react";
-import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { Surface } from "./Surface";
 import { doorForm, type DoorHandoff } from "./sign-in";
 import { appleAvailable, GOOGLE, signInWithApple, signInWithGoogle } from "./native-auth";
+import { isNativeDoorFailedUrl } from "@/site";
 import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts";
 import { setState } from "./state";
 
@@ -35,6 +36,12 @@ export function SignIn() {
     return () => setState({ idle: false });
   }, [email, handoff]);
 
+  const backIfRefused = useCallback((url: string) => {
+    if (!isNativeDoorFailedUrl(url)) return;
+    setHandoff(null);
+    setError("That sign-in didn't finish. Try again, or use your email.");
+  }, []);
+
   const run = useCallback(async (go: () => Promise<DoorHandoff | null>, failed: string) => {
     setBusy(true);
     setError(null);
@@ -48,7 +55,9 @@ export function SignIn() {
     }
   }, []);
 
-  if (handoff) return <Surface route="login" post={doorForm(handoff)} />;
+  // A door that refused the token lands on the login page: back to the chooser, saying so, rather than a web page
+  // with no way back to the native buttons.
+  if (handoff) return <Surface route="login" post={doorForm(handoff)} onLanded={backIfRefused} />;
   if (email) return <Surface route="login" />;
 
   const nativeDoors = apple || !!GOOGLE;
@@ -62,7 +71,9 @@ export function SignIn() {
           buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
           cornerRadius={999}
           style={styles.apple}
-          onPress={() => void run(signInWithApple, "Apple sign-in didn't complete. Try again, or use your email.")}
+          onPress={() => {
+            if (!busy) void run(signInWithApple, "Apple sign-in didn't complete. Try again, or use your email.");
+          }}
         />
       )}
       {GOOGLE && (
@@ -86,7 +97,6 @@ export function SignIn() {
         </Text>
       </Pressable>
       {error && <Text style={styles.error}>{error}</Text>}
-      {Platform.OS === "android" && !GOOGLE && <View />}
     </View>
   );
 }

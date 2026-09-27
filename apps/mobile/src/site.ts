@@ -38,6 +38,16 @@ export function isOurs(url: string): boolean {
   }
 }
 
+/** Where a native sign-in the site's door refused lands (the site's NATIVE_FAILED): the login page, `error=native`. */
+export function isNativeDoorFailedUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.origin === SITE_ORIGIN && u.pathname === "/login" && u.searchParams.get("error") === "native";
+  } catch {
+    return false;
+  }
+}
+
 /** Whether a URL is the sign-in page or one of its doors: the shell reads "signed out" from the address. */
 export function isSignedOutUrl(url: string): boolean {
   try {
