@@ -8,7 +8,12 @@ import type { LeadClass, LeadStage } from "./lead-words";
 /* ------------------------------------------------- what the doors answer -- */
 
 export interface LeadCheck {
-  key: LeadCheckKey;
+  /**
+   * A seen check's key (LEAD_CHECK_KEYS), or the key the judge answered a read one under: the engine's `kind`, or the
+   * search plan's own criterion or exclusion key ("open_weekends"). The judge keys its answers by the plan's names, so
+   * a read check carries whatever key the plan gave it (Reach out Part 4, PR 9); `leadCheckWord` says it in words.
+   */
+  key: LeadCheckKey | (string & {});
   how: "seen" | "read";
   answer: "yes" | "no" | "unknown";
   source: string;

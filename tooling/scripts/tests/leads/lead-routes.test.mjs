@@ -1106,6 +1106,180 @@ test("a row says what was seen and what Claude read, and wears the name of the s
   );
 });
 
+test("the checks read the judge's own keys: the kind and every criterion it answered, in its order, whatever the plan named them (PR 9)", async () => {
+  const judged = (criteria) => ({
+    op_id: OP,
+    term: "personal trainer",
+    model: "m",
+    reasons: ["fit"],
+    answer: { ref: 1, reason: "open Saturdays, per the listing", criteria },
+  });
+  const out = await leads.GET.run(
+    get(inA),
+    ctxOf(
+      world({ role: "viewer" }),
+      {},
+      doors({
+        leads_page: () => [
+          pageRow({
+            judgment: judged([
+              { key: "kind", answer: "pass", facts: ["name", "category"] },
+              { key: "open_weekends", answer: "unknown", facts: [] },
+              { key: "chains", answer: "fail", facts: ["name"] },
+              // A key that shares a seen check's name is measured, never read: it is not said twice.
+              { key: "mailbox", answer: "pass", facts: ["emails"] },
+            ]),
+          }),
+        ],
+      }),
+    ),
+  );
+  const read = out.rows[0].member.checks.filter((c) => c.how === "read");
+  assert.deepEqual(
+    read.map((c) => [c.key, c.answer, c.source, c.reason]),
+    [
+      ["kind", "yes", "Claude · the listing", "open Saturdays, per the listing"],
+      ["open_weekends", "unknown", "Claude · the listing", "open Saturdays, per the listing"],
+      ["chains", "no", "Claude · the listing", "open Saturdays, per the listing"],
+    ],
+    "every criterion the judge answered, under the plan's key: only LEAD_CHECK_KEYS were, and no plan's keys were those",
+  );
+  assert.equal(out.rows[0].member.checks.filter((c) => c.key === "mailbox").length, 1, "the mailbox is the seen one");
+});
+
+test("GET leads/[id] answers one lead as a row of the page, built by the list's own builder, for any member; a lead gone or not theirs is a 404 (PR 9)", async () => {
+  assert.deepEqual(
+    erase.GET.policy,
+    { kind: "read", scope: "workspace", role: null, rate: null, spend: false },
+    "the workspace the tab named, never the lead's own",
+  );
+  const OTHER = "aaaaaaaa-3333-4333-8333-aaaaaaaaaaaa";
+  // The lead as `leads` holds it, and two memberships of it: an older one in another search, and this search's.
+  const tables = (over = {}) => {
+    const w = world({ role: "viewer" });
+    const page = pageRow();
+    w.leads = [
+      {
+        ...w.leads[0],
+        street: page.street,
+        postal_code: page.postal_code,
+        neighborhood: null,
+        lat: page.lat,
+        lng: page.lng,
+        mark_path: null,
+        instagram_url: null,
+        phone_e164: page.phone_e164,
+        phone_sources: 2,
+        phone_wrong: false,
+        email_alternates: page.email_alternates,
+        email_checked_at: page.email_checked_at,
+        last_outcome: null,
+        last_note: null,
+        about: null,
+        hours: [],
+        contacted_at: null,
+        converted_at: null,
+        exported_at: null,
+        found_at: page.found_at,
+        version: 3,
+        ...over.lead,
+      },
+    ];
+    w.lead_search_members = [
+      {
+        id: "m-0",
+        tenant_id: A,
+        lead_id: LEAD,
+        search_id: OTHER,
+        class: "review",
+        excluded_by: null,
+        fit: "look",
+        reason: "older",
+        distance_m: null,
+        counted: false,
+        judgment: {},
+        blanked_at: null,
+        created_at: "2026-09-10T00:00:00Z",
+      },
+      {
+        id: "m-1",
+        tenant_id: A,
+        lead_id: LEAD,
+        search_id: SEARCH,
+        class: page.class,
+        excluded_by: null,
+        fit: page.fit,
+        reason: page.reason,
+        distance_m: page.distance_m,
+        counted: true,
+        judgment: page.judgment,
+        blanked_at: null,
+        created_at: "2026-09-19T10:00:00Z",
+        ...over.member,
+      },
+    ];
+    w.lead_places = [
+      { id: "p1", lead_id: LEAD, tenant_id: A },
+      { id: "p2", lead_id: LEAD, tenant_id: A },
+    ];
+    return w;
+  };
+  // The membership the page would show is the database's to choose (00212 lead_member_of, over lead_member_shown, the
+  // one rule leads_page asks): proved in leads.db.test.mjs. Here it answers from the table what the door is asked.
+  const memberOf = (t) => (a) => {
+    calls.push({ name: "lead_member_of", args: a });
+    return (
+      t.lead_search_members
+        .filter(
+          (m) =>
+            m.tenant_id === a.p_tenant_id &&
+            m.lead_id === a.p_lead_id &&
+            (!a.p_search_id || m.search_id === a.p_search_id) &&
+            !m.blanked_at,
+        )
+        .sort((x, y) => (x.created_at < y.created_at ? 1 : -1))[0] ?? null
+    );
+  };
+  const one = (q, t = tables(), params = { id: LEAD }) =>
+    erase.GET.run(get(`${inA}${q}`), ctxOf(t, params, { ...doors(), lead_member_of: memberOf(t) }));
+  const listed = (await leads.GET.run(get(inA), ctxOf(world({ role: "viewer" }), {}, doors()))).rows[0];
+  const { row } = await one(`&search=${SEARCH}`);
+  assert.deepEqual(
+    { ...row, places: listed.places },
+    listed,
+    "the same row the list answers for this lead in this search, word for word",
+  );
+  assert.equal(row.places, 2, "the places it was found at, counted");
+  assert.equal((await one("")).row.search_id, SEARCH, "no search named: the newest membership");
+  assert.equal((await one(`&search=${OTHER}`)).row.member.class, "review", "a search named: its own membership");
+  await refused(one(`&search=${SEARCH}`, tables({ member: { blanked_at: "2026-09-20T00:00:00Z" } })), "not_found", 404);
+  await refused(one("", tables({ lead: { erased_at: "2026-09-20T00:00:00Z" } })), "not_found", 404);
+  await refused(one("", tables(), { id: OTHER }), "not_found", 404);
+  await refused(one("&search=nope"), "validation", 400);
+  assert.deepEqual(
+    rpcCalls("lead_member_of").at(-1),
+    { p_tenant_id: A, p_lead_id: OTHER },
+    "the membership is asked for in the workspace the tab named",
+  );
+  // A member of two workspaces, on A's page, opening a lead of B's: never drawn, or acted on, in A.
+  const B = "bbbbbbbb-4444-4444-8444-bbbbbbbbbbbb";
+  const two = tables();
+  two.memberships = [...two.memberships, { ...two.memberships[0], tenant_id: B, tenants: { slug: "other" } }];
+  two.leads = two.leads.map((l) => ({ ...l, tenant_id: B }));
+  two.lead_search_members = two.lead_search_members.map((m) => ({ ...m, tenant_id: B }));
+  await refused(one(`&search=${SEARCH}`, two), "not_found", 404);
+  assert.equal(
+    (
+      await erase.GET.run(
+        get(`?workspace=${B}`),
+        ctxOf(two, { id: LEAD }, { ...doors(), lead_member_of: memberOf(two) }),
+      )
+    ).row.id,
+    LEAD,
+    "and in B's own page it opens",
+  );
+});
+
 test("the searches read brings the rail's counts with it, and a round says whether it is stopping", async () => {
   const rpcs = doors();
   const tables = world({ role: "viewer" });

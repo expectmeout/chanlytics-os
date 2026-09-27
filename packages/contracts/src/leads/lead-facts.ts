@@ -6,7 +6,7 @@ import type { LeadRowDto, LeadSearchDto } from "./lead-dtos";
 import { CLOCK, hourOf } from "./lead-helpers";
 import type { LeadSlot, LeadSlotState } from "./lead-row";
 import { LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord } from "./lead-search";
-import { LEAD_LEFT_OUT_WORD, LEAD_MAILBOX_WORDS, LEAD_UNREACHABLE_WORD } from "./lead-words";
+import { LEAD_CHECK_WORDS, LEAD_LEFT_OUT_WORD, LEAD_MAILBOX_WORDS, LEAD_UNREACHABLE_WORD } from "./lead-words";
 
 /**
  * Today, as an owner about to call needs it: whether they are open NOW. "Open today · 11 AM to 5 PM" made them work
@@ -114,6 +114,32 @@ export function leadExclusionWord(search: LeadSearchDto | null, key: string | nu
   return cr ? cr.text : LEAD_LEFT_OUT_WORD;
 }
 
+const LEAD_CHECK_UNSURE_WORD = "couldn't tell";
+
+/**
+ * A check in words, under whatever key it was answered (Reach out Part 4, PR 9). The judge keys its answers by the
+ * plan's own names, so a read check is the plan's criterion (its text), or an exclusion (the place is NOT what is
+ * left out: that is what a pass means), or the engine's kind (the plan's name). A key the plan does not name -- a
+ * seen check, or a criterion a changed plan dropped -- is the fixed words where there are some, else the key said
+ * plainly ("open_weekends" -> "Open weekends"): shown, never dropped. An unknown says what could not be told.
+ */
+export function leadCheckWord(search: LeadSearchDto | null, key: string, answer: "yes" | "no" | "unknown"): string {
+  const plan = search?.plan;
+  const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+  // "Chain gyms" -> "chain gyms"; an acronym ("YMCA branches") keeps its capitals.
+  const low = (s: string) => (s[1] && s[1] === s[1].toLowerCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+  const said = (yes: string, no: string) =>
+    answer === "yes" ? yes : answer === "no" ? no : `${yes}: ${LEAD_CHECK_UNSURE_WORD}`;
+  if (key === LEAD_KIND_KEY && plan) return said(`One of the ${plan.name}`, leadKindWord(plan.name));
+  const cr = plan?.criteria.find((c) => c.key === key);
+  if (cr) return said(cap(cr.text), `${cap(cr.text)}: no`);
+  const ex = plan?.exclusions.find((e) => e.key === key);
+  if (ex) return said(`Not ${low(ex.text)}`, `One of the ${low(ex.text)}`);
+  const fixed = (LEAD_CHECK_WORDS as Record<string, Record<"yes" | "no" | "unknown", string>>)[key];
+  if (fixed) return fixed[answer];
+  const plain = cap(key.replace(/_+/g, " ").trim()) || key;
+  return said(plain, `${plain}: no`);
+}
 export const LEAD_SLOT_WORDS: Record<LeadSlotState, string> = {
   ok: "Checked",
   part: "Unconfirmed",

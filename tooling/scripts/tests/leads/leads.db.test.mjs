@@ -1213,3 +1213,57 @@ test(
     );
   },
 );
+
+test(
+  "the peek's membership is the one the page would show: lead_member_of and leads_page ask one rule (00212)",
+  { skip },
+  async () => {
+    // A second search found lead 2 and has not counted it: qualified, uncounted, newer than the first membership.
+    const later = ok(
+      await db
+        .from("lead_searches")
+        .insert({
+          tenant_id: A,
+          created_by: owner.userId,
+          via: "people",
+          card: "local_businesses",
+          name: "trainers again",
+          asked: "trainers again",
+          plan: { version: 1 },
+        })
+        .select("id")
+        .single(),
+    ).id;
+    ok(
+      await db.from("lead_search_members").insert({
+        search_id: later,
+        lead_id: ids.lead2,
+        tenant_id: A,
+        judgment: { reasons: [], shares: [] },
+        class: "qualified",
+        fit: "strong",
+        reason: "A fixture, not yet counted.",
+        counted: false,
+      }),
+    );
+    const of = (args) => owner.client.rpc("lead_member_of", { p_tenant_id: A, p_lead_id: ids.lead2, ...args });
+    assert.equal(ok(await of({ p_search_id: later })), null, "an uncounted qualified membership is not shown");
+    assert.equal(
+      ok(await owner.client.rpc("leads_page", { p_tenant_id: A, p_search_id: later, p_class: "qualified" })).length,
+      0,
+      "and the page agrees: the same rule",
+    );
+    assert.equal(ok(await of({})).search_id, ids.search, "the newest one shown, past the one that is not");
+    assert.equal(ok(await of({ p_search_id: ids.search })).class, "qualified");
+    assert.equal(
+      ok(await owner.client.rpc("lead_member_of", { p_tenant_id: A, p_lead_id: ids.lead5 })).class,
+      "review",
+      "a review membership is shown uncounted",
+    );
+    assert.equal(
+      ok(await of({ p_tenant_id: "00000000-0000-4000-8000-000000000000" })),
+      null,
+      "another workspace's id finds nothing",
+    );
+  },
+);

@@ -49,6 +49,7 @@ export const ROUTES = {
   "GET lead-searches/[id]": { method: "GET", path: "/api/v1/lead-searches/[id]" },
   "GET lead-suggestions": { method: "GET", path: "/api/v1/lead-suggestions" },
   "GET leads": { method: "GET", path: "/api/v1/leads" },
+  "GET leads/[id]": { method: "GET", path: "/api/v1/leads/[id]" },
   "GET leads/export": { method: "GET", path: "/api/v1/leads/export" },
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
@@ -234,6 +235,7 @@ export type Routes = {
   "GET lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").GET;
   "GET lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").GET;
   "GET leads": typeof import("../../app/api/v1/leads/route").GET;
+  "GET leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").GET;
   "GET leads/export": typeof import("../../app/api/v1/leads/export/route").GET;
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
