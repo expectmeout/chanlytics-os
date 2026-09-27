@@ -57,7 +57,7 @@ window publishers                   388   sites in 141 files
 copies                              191   of 44 names
 as unknown as                       223
 table names outside packages/db     535
-dead exports, types and modules     403
+dead exports, types and modules     214
 source-text reads in tests          833
 lint warnings allowed                46
 ```

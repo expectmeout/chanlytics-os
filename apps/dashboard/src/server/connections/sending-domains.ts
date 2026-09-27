@@ -13,7 +13,7 @@ import type { EdgeAnswer } from "./lines";
 const AUD = "/api/admin/sending-domains";
 
 /** The columns the page may see: every one but the provider's id. */
-export const SENDING_DOMAIN_COLUMNS =
+const SENDING_DOMAIN_COLUMNS =
   "id, host, from_local, from_name, records, state, provider_status, dmarc, held_why, held_at, verified_at, clean_since, counted_since, checked_at, created_at, sent_recent, bounced_recent, complaints, sent_days, resume_by";
 
 export async function sendingDomainsFor(db: SupabaseClient<Database>, tenantId: string): Promise<SendingDomainDto[]> {
@@ -27,7 +27,7 @@ export async function sendingDomainsFor(db: SupabaseClient<Database>, tenantId: 
 }
 
 /** One call to the edge's sending-domains door. Never throws: a failure is a status the caller reads. */
-export async function edgeDomains(body: Record<string, unknown>, timeoutMs = 25_000): Promise<EdgeAnswer> {
+async function edgeDomains(body: Record<string, unknown>, timeoutMs = 25_000): Promise<EdgeAnswer> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
   // The deployment gate every provider door keeps: a preview never creates a domain at the real account.
   if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };

@@ -21,7 +21,7 @@ import type { CallDto, ConsentChange, MessageDto, PersonRowDto } from "@chanlyti
 export { consentChangeOf } from "@chanlytics/contracts";
 
 export const BUNDLE_FORMAT = "chanlytics-workspace-export";
-export const BUNDLE_VERSION = 1;
+const BUNDLE_VERSION = 1;
 /** Rows per page, per section. */
 export const BUNDLE_PAGE = 500;
 
@@ -42,7 +42,7 @@ export interface BundleReaders {
   consentHistory(offset: number, limit: number): Promise<ConsentChange[]>;
 }
 
-export interface BundleOpts {
+interface BundleOpts {
   workspaceId: string;
   business: string;
   /** The workspace's zone, stated once in the header; every timestamp in the body is ISO 8601 UTC. */

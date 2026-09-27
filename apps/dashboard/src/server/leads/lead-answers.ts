@@ -138,7 +138,7 @@ export function refusalOf(a: DoorAnswer): AppError | null {
 }
 
 /** The yield assumed before a probe has measured one: half the places qualify (contracts' LEAD_ASSUMED_YIELD, which the plan card's minutes read too). */
-export const ASSUMED_YIELD = LEAD_ASSUMED_YIELD;
+const ASSUMED_YIELD = LEAD_ASSUMED_YIELD;
 
 /**
  * What a round is expected to cost, from the card's brief prices: the probe and

@@ -13,7 +13,7 @@
 import { csvCell, personName, whisperText, type CsvCell } from "@chanlytics/contracts";
 import type { CallDto, ConversationDto, MessageDto, PersonRowDto } from "@chanlytics/contracts";
 
-export interface ExportOpts {
+interface ExportOpts {
   /** The workspace's name, for the header line. */
   business: string;
   /** IANA zone every timestamp is written in. */
@@ -69,7 +69,7 @@ export function stamp(iso: string | null | undefined, tz: string): string {
 }
 
 /** Who a line is from, in the words an owner uses. */
-export function speaker(m: Pick<MessageDto, "sender" | "direction">, customer: string): string {
+function speaker(m: Pick<MessageDto, "sender" | "direction">, customer: string): string {
   switch (m.sender) {
     case "customer":
       return customer;

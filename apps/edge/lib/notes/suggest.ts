@@ -23,7 +23,7 @@ import { askJson } from "../model.js";
 import type { Logger } from "../log.js";
 
 /** One look, as note_candidates hands it over. */
-export interface NoteCandidate {
+interface NoteCandidate {
   source: "call" | "thread";
   tenant_id: string;
   contact_id: string;
@@ -37,13 +37,13 @@ export interface NoteCandidate {
 }
 
 /** The model's answer to one look, with what it cost; null when there is no model to ask. */
-export type AskNote = (
+type AskNote = (
   system: string,
   user: string,
 ) => Promise<{ answer: unknown; tokens: { input: number; output: number } } | null>;
 
 /** The database the sweep needs: the batch, and the one door a suggestion goes through. */
-export interface NotesDb {
+interface NotesDb {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string } | null }>;
 }
 
@@ -60,7 +60,7 @@ export const askNoteModel: AskNote = (system, user) =>
     maxRetries: 1,
   });
 
-export interface NotesSweepOutcome {
+interface NotesSweepOutcome {
   looked: number;
   asked: number;
   suggested: number;

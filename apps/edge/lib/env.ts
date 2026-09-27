@@ -248,5 +248,3 @@ export const env = {
     return read(process.env.VERCEL_ENV);
   },
 };
-
-export type EdgeEnv = typeof env;

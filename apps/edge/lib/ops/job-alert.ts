@@ -20,7 +20,7 @@ import { loadTenantNotifications } from "../tenant-runtime.js";
 import type { pg } from "../pg.js";
 import type { JobNews, JobNewsKind } from "../packages/contracts.js";
 
-export interface AlertableJob {
+interface AlertableJob {
   tenant_id: string;
   kind: string;
 }

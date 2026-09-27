@@ -13,14 +13,14 @@ import { coldReceiptsOwed, type Database } from "../packages/db.js";
 import { errField, type Logger } from "../log.js";
 
 /** The window a delivery receipt must have come in: back a day, and two hours for the slowest server. */
-export const RECEIPTS_FROM_MS = 26 * 3600_000;
-export const RECEIPTS_TO_MS = 2 * 3600_000;
+const RECEIPTS_FROM_MS = 26 * 3600_000;
+const RECEIPTS_TO_MS = 2 * 3600_000;
 /** Fewer emails than this say nothing: one slow server is not a secret set wrong. */
-export const RECEIPTS_AT_LEAST = 3;
+const RECEIPTS_AT_LEAST = 3;
 
-export const COLD_RECEIPTS_PAGE = "email_cold_receipts_missing";
+const COLD_RECEIPTS_PAGE = "email_cold_receipts_missing";
 
-export interface ColdReceiptPorts {
+interface ColdReceiptPorts {
   db: SupabaseClient<Database>;
   now: () => number;
   log: Logger;

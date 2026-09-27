@@ -21,7 +21,7 @@ export const MESSAGE_COLUMNS =
 export const CALL_COLUMNS =
   "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, analysis, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164)";
 
-export interface ConversationRow {
+interface ConversationRow {
   id: string;
   state: string;
   paused_until: string | null;
@@ -60,7 +60,7 @@ export interface MessageRow {
   channel: string | null;
 }
 
-export interface CallRow {
+interface CallRow {
   id: string;
   retell_call_id: string;
   direction: string;

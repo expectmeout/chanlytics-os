@@ -21,7 +21,7 @@
  */
 
 /** A provider's refusal, as the fragment spells it. Kept for the log and the page's one sentence. */
-export interface HashAuthError {
+interface HashAuthError {
   error: string;
   code: string | null;
   description: string | null;
