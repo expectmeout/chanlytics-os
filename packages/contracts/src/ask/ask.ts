@@ -22,12 +22,7 @@ import { parsePipelineRoute } from "../deals/pipeline";
 
 /** One question, in characters. Longer than this is a document, not a question. */
 export const ASK_MAX_CHARS = 1000;
-/**
- * Tool rounds per turn: reads, then the answer. The last round is forced to
- * finish (tool_choice none). Three since the page rides in before the question
- * (Ask Rewired, D10): the context makes one round the norm, a read and the
- * answer two, and a fourth was a turn that had already lost its way.
- */
+/** Tool rounds per turn: reads, then the answer, the last forced to finish. Three since the page rides in (D10). */
 export const ASK_MAX_ROUNDS = 3;
 /** End to end, under the route's sixty-second ceiling. */
 export const ASK_TURN_BUDGET_MS = 45_000;
@@ -36,10 +31,7 @@ export const ASK_TURN_BUDGET_MS = 45_000;
  * together. One number, read by the loop's request and by the edge's clamp on
  * Ask, so the two cannot drift again: the loop asked for 2400 while the edge
  * clamped every request to 2000, so 2000 was the ceiling a round really had.
- * Raised to 4000 (Ask Rewired, D10) when the lead plan's card was cut
- * mid-argument at 2000: a cut-off tool call does not parse at all and costs
- * the round. An older edge clamps to its own copy, 2000, and refuses nothing.
- * A cap is a ceiling on what may be generated, never a spend.
+ * 4000 since the lead plan's card was cut mid-argument at 2000 (D10); an older edge clamps to its own copy.
  */
 export const ASK_MAX_TOKENS = 4000;
 /**

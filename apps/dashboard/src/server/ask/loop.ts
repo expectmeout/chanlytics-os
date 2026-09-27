@@ -26,15 +26,15 @@ import {
 import type { MembershipRole } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { load, type ReaderContext } from "../readers";
-import { GatewayRefused, featureRejected } from "./gateway";
+import { GatewayRefused } from "./gateway";
+import { DROP_EVENTS, dropFor } from "./refusals";
 import {
-  ACT_TOOLS,
   ACT_TOOL_NAMES,
-  READ_TOOLS,
   buildProposal,
   newToolContext,
   proposalLabel,
   runTool,
+  toApiTools,
   toolLabel,
   type ToolContext,
   type ToolRun,
@@ -70,10 +70,8 @@ import { askModel } from "./model";
 // the cap in the MIDDLE of that JSON. A cut-off tool call is not a smaller tool
 // call: it does not parse at all (see `argsOf`). The loop then asked for 2400,
 // but the edge clamped every round to 2000, so 2000 was the real ceiling; it is
-// one number now, 4000 since the lead plan's card was cut at 2000 (D10), and an
-// older edge clamps to its own copy and refuses nothing. A cap is not a spend,
-// only a ceiling on what may be generated. Rounds are ASK_MAX_ROUNDS, three:
-// the page rides in first, so one round is the norm and the last is forced.
+// one number now, 4000 since the lead plan's card was cut at 2000 (D10). A cap
+// is not a spend, only a ceiling on what may be generated.
 const MAX_HISTORY = 12;
 const HISTORY_CHARS = 1200;
 /** Say is sent at most this often while it is written (spec 7.4). */
@@ -175,16 +173,6 @@ export function askPorts(): AskPorts {
     propose: buildProposal,
     ...(overrides ?? {}),
   };
-}
-
-/** A refusal of the request for its search_result blocks, or their cache marks (D14). */
-export function blocksRefused(message: string): boolean {
-  return /^400\b/.test(message) && /search_result|citation|cache_control/i.test(message);
-}
-
-/** A refusal of the request for its tools' `input_examples` (the Phase 3 plan, D9): asked once more without them. */
-export function examplesRefused(message: string): boolean {
-  return /^400\b/.test(message) && /input_examples/.test(message);
 }
 
 function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
@@ -361,19 +349,9 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // once more without them (D14).
   const questionAt = messages.length - 1;
   let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
-  const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS)];
-  // The tools as the API takes them: the three fields, and the examples where a tool carries them (D9). Built once
-  // for the turn, so every round sends the same bytes and the tools block stays the cache's first prefix; built once
-  // more without the examples when the API refuses them, and never with them again in that turn.
-  const toolsFor = (examples: boolean) =>
-    baseTools.map((d) => ({
-      name: d.name,
-      description: d.description,
-      input_schema: d.input_schema,
-      ...(examples && d.input_examples ? { input_examples: d.input_examples } : {}),
-    }));
-  let tools = toolsFor(true);
+  // The tools as the API takes them (registry.ts): the same bytes every round, until the API refuses their examples.
   let examples = true;
+  let tools = toApiTools(input.role, examples);
   // The answer has its format until the API refuses it: then it is dropped and
   // the same round is asked again. No tool is strict: the API takes twenty
   // strict tools and twenty-four optional parameters across them (26 tools,
@@ -591,48 +569,30 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         }
       } catch (e) {
         if (e instanceof GatewayRefused) {
-          // The format refused: the same round is asked again without it, and
-          // what comes back is read as JSON when it is, else as prose (D15).
+          // Something the turn can do without, refused (refusals.ts): the same round is asked again without it, once
+          // each. Without the page's data, their reads leave the count and the words stop pointing at them; without
+          // the format, what comes back is read as JSON when it is, else as prose (D15).
           const m = e.refusal.kind === "bad_request" ? e.refusal.message : "";
-          // The page's data refused (D14): nothing in the repo sent a search_result block before this phase, so a 400
-          // that names the blocks is asked once more without them, before the answer's format is ever given up for it.
-          // Any other refusal -- the format's, an overload, a size -- is not theirs, and the page stays. Their reads
-          // leave the count; the words stop pointing at them.
-          if (m && !dataDropped && blocksRefused(m)) {
-            console.error("ask_context_rejected", JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
-            dataDropped = true;
-            reads -= (pageRead ? 1 : 0) + prefetched.length + (scopedRow ? 1 : 0);
-            const bare = {
-              ...words,
-              text: turnWords({ ...wordsFacts, context: false, crossPage: false, scopeRead: false }),
-            };
-            messages[questionAt] = {
-              role: "user",
-              content: (messages[questionAt].content as Array<{ type?: string }>)
-                .filter((b) => b.type !== "search_result")
-                .map((b) => (b === words ? bare : b)),
-            };
-            round--;
-            continue;
-          }
-          // The examples refused (D9): a 400 that names input_examples is asked once more without them, after the
-          // page's data and before the answer's format is given up for it; the schemas and the descriptions stay. A
-          // second such refusal, with them already gone, is the turn's -- never the format's, whose predicate would
-          // match the "input_schema" the real refusal names.
-          if (m && examplesRefused(m)) {
-            if (examples) {
-              console.error(
-                "ask_examples_rejected",
-                JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }),
-              );
+          const drop = dropFor(m, { context: !dataDropped, examples, format });
+          if (drop) {
+            console.error(DROP_EVENTS[drop], JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
+            if (drop === "context") {
+              dataDropped = true;
+              reads -= (pageRead ? 1 : 0) + prefetched.length + (scopedRow ? 1 : 0);
+              const bare = {
+                ...words,
+                text: turnWords({ ...wordsFacts, context: false, crossPage: false, scopeRead: false }),
+              };
+              messages[questionAt] = {
+                role: "user",
+                content: (messages[questionAt].content as Array<{ type?: string }>)
+                  .filter((b) => b.type !== "search_result")
+                  .map((b) => (b === words ? bare : b)),
+              };
+            } else if (drop === "examples") {
               examples = false;
-              tools = toolsFor(false);
-              round--;
-              continue;
-            }
-          } else if (m && format && featureRejected(m)) {
-            console.error("ask_format_rejected", JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
-            format = false;
+              tools = toApiTools(input.role, examples);
+            } else format = false;
             round--;
             continue;
           }

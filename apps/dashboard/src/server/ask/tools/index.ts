@@ -10,6 +10,7 @@ export {
   buildProposal,
   proposalLabel,
   runTool,
+  toApiTools,
   toolLabel,
   toolSchema,
 } from "./registry";

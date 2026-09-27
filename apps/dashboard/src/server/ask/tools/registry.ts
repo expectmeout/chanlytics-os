@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import type { MembershipRole } from "@chanlytics/contracts";
 import {
   json,
   refuse,
@@ -153,6 +154,20 @@ const defOf = (t: ReadTool | ActTool): ToolDef => ({
 export const READ_TOOLS: ToolDef[] = READ_DEFS.map(defOf);
 export const ACT_TOOLS: ToolDef[] = ACT_DEFS.map(defOf);
 export const ACT_TOOL_NAMES = new Set(ACT_TOOLS.map((t) => t.name));
+
+/**
+ * The tools as the API takes them, for a person of this role: the reads, and the acts for everyone but a viewer, each
+ * with its three fields and, while `examples`, its examples (D9). Everyone of one role gets the same bytes on every
+ * round, so the tools block stays the cache's first prefix; a turn the API refused for the examples asks without them.
+ */
+export function toApiTools(role: MembershipRole, examples: boolean): ToolDef[] {
+  return [...READ_TOOLS, ...(role === "viewer" ? [] : ACT_TOOLS)].map((d) => ({
+    name: d.name,
+    description: d.description,
+    input_schema: d.input_schema,
+    ...(examples && d.input_examples ? { input_examples: d.input_examples } : {}),
+  }));
+}
 
 const READ_BY_NAME = new Map(READ_DEFS.map((t) => [t.name, t]));
 const ACT_BY_NAME = new Map(ACT_DEFS.map((t) => [t.name, t]));

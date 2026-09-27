@@ -43,9 +43,8 @@ delete process.env.ASK_MODEL;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { runAskTurn, foldHistory, askPorts, blocksRefused, examplesRefused } = await import(
-  at("apps/dashboard/src/server/ask/loop.ts")
-);
+const { runAskTurn, foldHistory, askPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { blocksRefused, examplesRefused, dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
 const { runTool, newToolContext, READ_TOOLS, buildProposal, ACT_TOOLS } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
@@ -4393,6 +4392,15 @@ test("a request refused for its input_examples is asked once more without them: 
   assert.equal(examplesRefused("400 tools: too many"), false, "a refusal of the tools for something else");
   assert.equal(examplesRefused("400 messages.0.content.0: search_result is not supported here"), false);
   assert.equal(examplesRefused("500 input_examples"), false, "a 400 only");
+  // The one decision the loop asks (refusals.ts): what to give up for this refusal, given what the turn still carries.
+  const all = { context: true, examples: true, format: true };
+  const real = "400 tools.3.input_examples.0: does not match the tool's input_schema";
+  assert.equal(dropFor(real, all), "examples");
+  assert.equal(dropFor(real, { ...all, examples: false }), null, "a second is the turn's, never the format's");
+  assert.equal(dropFor("400 messages.0.content.0: search_result is not supported", all), "context");
+  assert.equal(dropFor("400 output_config.format: not supported", all), "format");
+  assert.equal(dropFor("400 output_config.format: not supported", { ...all, format: false }), null);
+  assert.equal(dropFor("", all), null, "no message, nothing to drop");
 });
 
 test("the three retries run in their order, each once: the page's data, then the examples, then the answer's format; the fourth request carries none of them and the turn answers", async () => {
