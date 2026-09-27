@@ -153,6 +153,21 @@ const BcSheet = ({ d, people, avm, sheet, onClose, seeAll, onSeeAll }) => {
   );
 };
 
+// A live reach-out run the check is still reading, read again every fifteen seconds until nothing is being checked or
+// the run is closed (R21): the bridge's one timer (window.__reachOuts.watchRun), each answer kept as the run's.
+const useBcRunWatch = (id, d, setAnswer) => {
+  const checking = !!(d && d.reach_out && BC_LIVE.has(d.broadcast.state) && d.reach_out.checking > 0);
+  React.useEffect(() => {
+    if (!checking || !window.__reachOuts || !window.__reachOuts.watchRun) return undefined;
+    return window.__reachOuts.watchRun(id, (data) => setAnswer({ id, ok: true, data, gone: false }));
+  }, [id, checking, setAnswer]);
+};
+
+// A live reach-out run is its own block (Reach out Part 4 PR 7, reach-out-approval.jsx), waiting on you or not (R20).
+const bcReachOutBlock = (d, p) => (d.reach_out && BC_LIVE.has(d.broadcast.state) && window.ReachOutRun
+  ? <div className="bc-report is-sheet" data-testid="bc-detail"><window.ReachOutRun d={d} {...p} /></div>
+  : null);
+
 const BroadcastDetail = ({ id, onClose, acts = null, again = null, sheet = null }) => {
   // The last answer, kept with the broadcast it answered for: a read of another id is not this one's.
   const [answer, setAnswer] = React.useState(null);
@@ -187,6 +202,7 @@ const BroadcastDetail = ({ id, onClose, acts = null, again = null, sheet = null 
     });
     return () => { on = false; };
   }, [id, asks]);
+  useBcRunWatch(id, d, setAnswer);
   const close = <button className="btn btn-ghost" onClick={onClose} data-testid="bc-detail-close">Close</button>;
   if (!mine) return <div className="bc-report" data-testid="bc-detail"><div className="bc-report-wait"><span className="cl-prof-aut-hint">Reading who got it…</span>{close}</div></div>;
   if (mine.gone) {
@@ -206,6 +222,7 @@ const BroadcastDetail = ({ id, onClose, acts = null, again = null, sheet = null 
     );
   }
   const b = d.broadcast;
+  const ro = bcReachOutBlock(d, { sheet, acts, onClose, onDecided: ask }); if (ro) return ro;
   const vm = window.__broadcasts.report ? window.__broadcasts.report(d) : null;
   const avm = sheet && b.state === "pending_approval" && window.__broadcasts.approval ? window.__broadcasts.approval(d, sheet.playbook, sheet.businessName) : null;
   if (avm) {

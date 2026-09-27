@@ -205,8 +205,11 @@ const RUN = (over = {}) => ({
   ...over,
 });
 
+/** 8:00 AM in Chicago on the run's day, before its first send at 9:40. */
+const MORNING = Date.parse("2026-09-28T13:00:00Z");
+
 test("the approval sheet says who today, who later, what the check held, and names the first send's time (R21, R22)", () => {
-  const w = approvalWordsOf(RUN(), { timezone: "America/Chicago", share: 30, today: "2026-09-28" });
+  const w = approvalWordsOf(RUN(), { timezone: "America/Chicago", share: 30, today: "2026-09-28", now: MORNING });
   assert.equal(
     flat(w.sub),
     "Reach-out · step 1, your email · goes from 9:40 AM once you approve it, one every 12 minutes as each business opens",
@@ -246,6 +249,7 @@ test("the approval sheet says who today, who later, what the check held, and nam
     timezone: "America/Chicago",
     share: 30,
     today: "2026-09-28",
+    now: MORNING,
   });
   assert.equal(later.approve, "Approve — 30 from now");
   assert.equal(later.approveNote, "5 more are being checked; they go once they pass.");
@@ -255,6 +259,7 @@ test("the approval sheet says who today, who later, what the check held, and nam
     timezone: "America/Chicago",
     share: 30,
     today: "2026-09-28",
+    now: MORNING,
   });
   assert.equal(unconfirmed.rules.includes("each has a checked address"), false);
   // A hold the check could not answer offers the run's one "check the held again" (R18).
@@ -262,6 +267,7 @@ test("the approval sheet says who today, who later, what the check held, and nam
     timezone: "America/Chicago",
     share: 30,
     today: "2026-09-28",
+    now: MORNING,
   });
   assert.equal(down.recheck, "Check the held again");
   // A run whose step was dropped from its chain since says so, never another step's name (R17).
@@ -269,8 +275,19 @@ test("the approval sheet says who today, who later, what the check held, and nam
     timezone: "America/Chicago",
     share: 30,
     today: "2026-09-28",
+    now: MORNING,
   });
   assert.match(dropped.sub, /^Reach-out · a step since removed · goes from/);
+  // Today's run whose first time has passed goes from now, never at 9:40 once it is 10 (R21).
+  const past = approvalWordsOf(RUN(), {
+    timezone: "America/Chicago",
+    share: 30,
+    today: "2026-09-28",
+    now: Date.parse("2026-09-28T15:00:00Z"),
+  });
+  assert.equal(past.approve, "Approve — 30 from now");
+  assert.match(past.sub, /goes from now, in their hours, once you approve it/);
+  assert.doesNotMatch(past.sub, /9:40/);
 });
 
 const CHAIN = {
