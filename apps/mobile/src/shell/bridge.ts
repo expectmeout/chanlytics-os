@@ -57,6 +57,7 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
     case "today":
       return { state, effect: "nothing" };
     case "route":
+    case "overlay":
       return { state, effect: "nothing" };
     case "theme":
       return { state: { ...state, theme: m.theme }, effect: "theme" };

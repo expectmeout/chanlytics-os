@@ -4,9 +4,9 @@
  * With them, the two decision tables the rolls pick from (FIDGETS, WAITS), the join and the leave of the reading
  * ring, and what each event a page sends does: a state change, a reaction, a glow, a read that landed, a word.
  *
- * Every function is a reducer over the record (character-core.ts): `(record, input) → record`, or what the API
- * answers. The order of the rolls inside each one is the order the closure rolled them in, so a seed still gives the
- * same turns.
+ * Every function is a step over the record (character-core.ts): it applies its input to the record in place and hands
+ * back the same record, or what the API answers. The order of the rolls inside each one is the order the closure
+ * rolled them in, so a seed still gives the same turns.
  */
 import { clamp } from "./math";
 import type { CharacterState, Reaction } from "./character";
@@ -229,7 +229,7 @@ export function rhythm(st: Core, dt: number): Core {
 /** What a state does once nothing is moving and its time has come: the fidgets at rest, the waits while listening. */
 const SCHEDULE: Record<CharacterState, (st: Core) => void> = {
   idle(st) {
-    if (st.W.idle > 0.95) {
+    if (st.blend.idle > 0.95) {
       const quiet = st.awake < 0.5;
       fidget(st, quiet);
       st.nextFidgetAt =
@@ -237,7 +237,7 @@ const SCHEDULE: Record<CharacterState, (st: Core) => void> = {
     }
   },
   listening(st) {
-    if (st.W.listening > 0.95 && st.quietFor > 1.2) {
+    if (st.blend.listening > 0.95 && st.quietFor > 1.2) {
       waiting(st);
       st.nextFidgetAt = st.clock + 2.5 + roll(st) * 2.5;
     }
@@ -252,7 +252,7 @@ export function schedule(st: Core): Core {
 }
 
 /** The tiles by how far toward you each is held, nearest first (its place in the stack breaks a tie). */
-const byDepth = (st: Core): Body[] => st.bodies.slice().sort((a, b) => b.lf - a.lf || b.step - a.step);
+const byDepth = (st: Core): Body[] => st.bodies.slice().sort((a, b) => b.lift - a.lift || b.step - a.step);
 
 // Joining the ring: each tile takes the point nearest it, in depth as well as on the page, except that two tiles
 // that overlap now never trade depths on the way (the stack's top stays nearest, its back goes farthest), so the
@@ -261,7 +261,7 @@ export function join(st: Core): Core {
   const { bodies } = st;
   const points = JOIN.map((th) => ring(th, st.clock));
   const apart = (b: Body, [px, py, z]: [number, number, number]) =>
-    (b.x - px) ** 2 + (b.y - py) ** 2 + (2 * (b.lf - (RING_LIFT.far + RING_LIFT.near * z))) ** 2;
+    (b.x - px) ** 2 + (b.y - py) ** 2 + (2 * (b.lift - (RING_LIFT.far + RING_LIFT.near * z))) ** 2;
   const overlapping = (a: Body, b: Body) => Math.abs(a.out.x - b.out.x) < 0.9 && Math.abs(a.out.y - b.out.y) < 0.9;
   const cost = (pairing: number[]) => {
     let sum = 0;
@@ -290,7 +290,7 @@ export function join(st: Core): Core {
 function release(st: Core, next: CharacterState): void {
   for (const b of st.bodies) {
     const o = b.out;
-    b.lf = o.lift - b.obreath;
+    b.lift = o.lift - b.obreath;
     b.x = o.x - b.ox;
   }
   const near = byDepth(st);
@@ -310,11 +310,11 @@ function release(st: Core, next: CharacterState): void {
     b.y = o.y - b.oy;
     b.vx = b.vox;
     b.vy = b.voy;
-    b.vlf = 0;
-    b.sc = Math.max(0, o.size - 0.05 * Math.max(0, b.lf));
-    b.vsc = 0;
+    b.vlift = 0;
+    b.scale = Math.max(0, o.size - 0.05 * Math.max(0, b.lift));
+    b.vscale = 0;
     b.shade = o.shade;
-    b.ech = Math.max(0, o.charge - clamp(b.ch, 0, 1));
+    b.afterglow = Math.max(0, o.charge - clamp(b.ch, 0, 1));
   }
   st.orb = 0;
 }

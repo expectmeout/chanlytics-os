@@ -122,7 +122,9 @@ export interface AskProposal {
     | "broadcast"
     | "playbook"
     | "lead_search"
-    | "deal";
+    | "deal"
+    | "note"
+    | "person_details";
   /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
   needs: ProposalNeeds;
   title: string;
@@ -151,11 +153,7 @@ export interface AskProposalOutcome {
   undo?: Record<string, unknown> | null;
 }
 
-/**
- * How long a committed card's undo stays open, for every verb whose route sets no window of its own. What each kind
- * does -- its route, its receipt, its undo and the gate before Approve (PROPOSAL_GATE, askUndoOpen) -- is its spec's,
- * ask-proposals/.
- */
+/** How long a committed card's undo stays open, for every verb whose route sets no window of its own (askUndoOpen). */
 export const ASK_UNDO_MS = 10 * 60_000;
 
 export const AskProposalOutcomeSchema = z.object({

@@ -315,6 +315,15 @@ export function judge(c, r) {
   )
     fails.push("neither a card nor a pointer to where to do it");
   if (e.proposals_none && kinds.length) fails.push(`no card expected, got ${JSON.stringify(kinds)}`);
+  // What the words decide on a card, kind by kind: every card of that kind carries each field so (a note's reader, which
+  // has no default: the Phase 4 plan, D8). That such a card was made at all is proposals_any's.
+  for (const [kind, fields] of Object.entries(e.card_fields ?? {}))
+    for (const p of (m.proposals ?? []).filter((x) => x.kind === kind))
+      for (const [k, v] of Object.entries(fields))
+        if (p.payload?.[k] !== v)
+          fails.push(
+            `a ${kind} card with ${k} ${JSON.stringify(p.payload?.[k])}, where the words said ${JSON.stringify(v)}`,
+          );
   if (e.navigate_now && !(m.navigate && m.navigate.now && m.navigate.to))
     fails.push(`expected the app to go there; navigate=${JSON.stringify(m.navigate)}`);
   if (

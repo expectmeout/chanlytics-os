@@ -5,9 +5,11 @@
  * PR 3.1 moved twenty-six tools here (their names, order and schemas frozen in fixtures/ask-tools-0c136563.json); PR
  * 3.4 consolidated them to nineteen (D11), sorted by name, each read family under an `action` and each act by its card
  * family, and offered each role the acts whose card it may approve (D12). PR 4.3 (the Phase 4 plan, D2) offers each role
- * the ACTIONS it may use, each tool built per role from them. What the model is sent is frozen per role in
- * fixtures/ask-tools-4-3.json, and a tool PR 4.3 did not change reads to every role offered all of it as
- * fixtures/ask-tools-3-4.json froze it; the rest is held as structure: the order, the four prefixes, the flattened
+ * the ACTIONS it may use, each tool built per role from them; PR 4.6 gave propose_person a note and a person's details
+ * beside its mode, an operator's two beside an owner's one. What the model is sent is frozen per role in
+ * fixtures/ask-tools-4-6.json, and every other tool reads to every role as fixtures/ask-tools-4-3.json froze it (which
+ * PR 4.3 held to PR 3.4's for the tools it did not change); the rest is held as structure: the order, the four
+ * prefixes, the flattened
  * schema of a tool with actions, each action's fields the old tool's (read against the 3.1 fixture through
  * tooling/evals/tool-names.json), the words each description owes, the examples, and the parse, proven by running the
  * registry over the database in memory and watching what reached it. That every action answers what its old tool
@@ -41,12 +43,12 @@ const { PROPOSAL_SPECS, roleAtLeast } = await import("@chanlytics/contracts");
 
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures", name), "utf8"));
 /** What the model is sent, per role, frozen from the finished registry. */
-const FROZEN = fixture("ask-tools-4-3.json");
-/** What PR 3.4 sent, per role: a tool PR 4.3 did not change reads the same (the Phase 4 plan, D2). */
-const TODAY = fixture("ask-tools-3-4.json");
-/** The tools whose actions PR 4.3 changed: their descriptions, schemas and examples moved on purpose. */
-const CHANGED = ["campaigns", "leads", "people", "workspace"];
-/** The actions PR 4.3 added (the Phase 4 plan, D1): no old tool was any of them. The eval's one list of them. */
+const FROZEN = fixture("ask-tools-4-6.json");
+/** What PR 4.3 sent, per role: every tool PR 4.6 did not change reads the same. */
+const TODAY = fixture("ask-tools-4-3.json");
+/** The tool whose actions PR 4.6 changed: its description, schema and examples moved on purpose, per role. */
+const CHANGED = ["propose_person"];
+/** The actions added since the rename (the Phase 4 plan, D1): no old tool was any of them. The eval's one list of them. */
 const { ADDED_SINCE: PHASE_4 } = await import(at("tooling/evals/rename-ask-tools.mjs"));
 /** The twenty-six tools as PR 3.1 froze them: each action's own fields are its old tool's. */
 const OLD = fixture("ask-tools-0c136563.json").operator;
@@ -100,6 +102,7 @@ const OFFERED = {
     "propose_autonomy",
     "propose_campaign",
     "propose_deal",
+    "propose_person",
     "propose_reply",
     "propose_thread_verb",
     "propose_whisper",
@@ -111,6 +114,7 @@ const OFFERED = {
     "propose_campaign",
     "propose_deal",
     "propose_lead_search",
+    "propose_person",
     "propose_reply",
     "propose_settings",
     "propose_thread_verb",
@@ -133,7 +137,7 @@ const OFFERED = {
   ],
 };
 
-test("each role is offered its tools, sorted by name, the same bytes every build and the bytes the fixture froze: a viewer the nine reads, an operator six acts more, a partner the settings and the lead search too, an owner all nineteen", () => {
+test("each role is offered its tools, sorted by name, the same bytes every build and the bytes the fixture froze: a viewer the nine reads, an operator seven acts more, a partner the settings and the lead search too, an owner all nineteen", () => {
   for (const role of ROLES) {
     const tools = toApiTools(role, true);
     assert.deepEqual(
@@ -215,23 +219,37 @@ test("every role is offered exactly the actions it may use (D2): a tool with non
         assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
 });
 
-test("the invariant (D2): a tool whose every action reaches a role, and whose actions PR 4.3 did not change, reads to that role byte for byte as PR 3.4 sent it -- per tool, per role, with its examples and without", () => {
+test("the invariant (PR 4.6): every tool but propose_person reads to every role byte for byte as PR 4.3 sent it -- per tool, per role, with its examples and without -- and every tool PR 4.3 offered a role is offered it still", () => {
+  const bare = ({ input_examples: _, ...t }) => t;
   for (const role of ROLES) {
     const was = new Map(TODAY[role].map((t) => [t.name, t]));
-    for (const t of toApiTools(role, true)) {
-      if (CHANGED.includes(t.name)) continue;
-      assert.ok(usable(t.name, role).length === Math.max(1, actionsOf(t.name).length), `${role} ${t.name}: all of it`);
-      assert.equal(JSON.stringify(t), JSON.stringify(was.get(t.name)), `${role} ${t.name}: PR 3.4's bytes`);
-    }
+    for (const examples of [true, false])
+      for (const t of toApiTools(role, examples)) {
+        if (CHANGED.includes(t.name)) continue;
+        const then = examples ? was.get(t.name) : bare(was.get(t.name));
+        assert.equal(JSON.stringify(t), JSON.stringify(then), `${role} ${t.name}: PR 4.3's bytes`);
+      }
     for (const name of was.keys())
       assert.ok(
-        CHANGED.includes(name) || toApiTools(role, true).some((t) => t.name === name),
+        toApiTools(role, true).some((t) => t.name === name),
         `${role} ${name}: still offered`,
       );
   }
+  // What moved, and to whom: propose_person reaches an operator and a partner now, with the two actions an operator
+  // may approve, and an owner with all three.
+  const gained = (role) =>
+    toApiTools(role, true)
+      .map((t) => t.name)
+      .filter((n) => !TODAY[role].some((t) => t.name === n));
+  assert.deepEqual(ROLES.map(gained), [[], ["propose_person"], ["propose_person"], []]);
+  const person = (role) => toApiTools(role, true).find((t) => t.name === "propose_person");
+  assert.deepEqual(
+    ROLES.map((role) => person(role)?.input_schema.properties.action.enum ?? null),
+    [null, ["note", "details"], ["note", "details"], ["mode", "note", "details"]],
+  );
 });
 
-test("the rename is a bijection: every old tool is one tool and action of the registry, every action but Phase 4's ten one old tool, and each action takes exactly the fields its old tool took", () => {
+test("the rename is a bijection: every old tool is one tool and action of the registry, every action but Phase 4's twelve one old tool, and each action takes exactly the fields its old tool took", () => {
   const pairs = Object.values(NAMES);
   const registry = [...DEFS.keys()].flatMap((name) =>
     actionsOf(name).length ? actionsOf(name).map((a) => `${name}.${a}`) : [name],
@@ -244,7 +262,7 @@ test("the rename is a bijection: every old tool is one tool and action of the re
   assert.deepEqual(
     registry.filter((n) => PHASE_4.includes(n)).sort(),
     PHASE_4,
-    "and Phase 4's ten, each an action of a tool that was",
+    "and Phase 4's twelve, each an action of a tool that was",
   );
   for (const [old, to] of Object.entries(NAMES)) {
     const [name, action = ""] = to.split(".");
@@ -486,7 +504,7 @@ test("an action the caller's role may not use is refused in words, under the too
   );
   for (const [role, name, whose] of [
     ["operator", "propose_team", "an owner's"],
-    ["partner", "propose_person", "an owner's"],
+    ["partner", "propose_team", "an owner's"],
     ["viewer", "propose_reply", "an owner's, a partner's or an operator's"],
   ]) {
     const out = await buildProposal(contextFor(role).t, name, {});

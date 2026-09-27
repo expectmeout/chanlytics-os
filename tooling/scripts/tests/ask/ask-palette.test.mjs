@@ -1844,6 +1844,42 @@ test("a row of every kind an answer names draws its kind's mark, from the one ma
   assert.equal(askKindGlyph("something new"), "chat", "a kind the map does not know is a chat");
 });
 
+test("a person's note and a person's details (PR 4.6) are drawn as their own kinds: each its word in the Line's English and Spanish and its own mark, over its title and the summary that says who reads it or what changes", () => {
+  const { AskCard } = globalThis.window.AskAnswerKit;
+  const cards = [
+    {
+      id: "p1",
+      kind: "note",
+      needs: "operator",
+      title: "Note on Rosa",
+      summary: "“Prefers mornings.” · The receptionist reads it before it answers Rosa",
+      payload: { contact_id: "c1", body: "Prefers mornings.", team_only: false, who: "Rosa" },
+      undo: "Delete it",
+    },
+    {
+      id: "p2",
+      kind: "person_details",
+      needs: "operator",
+      title: "Details for Rosa",
+      summary: "Name: Rosa → Rosa Díaz · Email: no address → rosa@example.com",
+      payload: { contact_id: "c1", who: "Rosa", name: "Rosa Díaz", email: "rosa@example.com", previous: {} },
+      undo: "Set it back",
+    },
+  ];
+  const words = { en: ["note", "details"], es: ["nota", "datos"] };
+  const marks = ["edit", "user"];
+  for (const lang of ["en", "es"])
+    cards.forEach((p, i) => {
+      const tree = render(AskCard, { p, t: globalThis.window.askText(lang), onNav() {} });
+      assert.equal(byTestId(tree, "ask-card").props["data-kind"], p.kind);
+      const head = byClass(tree, "ask-card-head")[0];
+      assert.equal(textOf(byClass(head, "ask-card-kind")[0]), words[lang][i], `${p.kind} in ${lang}: its word`);
+      assert.equal(find(head, (n) => n.type === "Icon").props.name, marks[i], `${p.kind}: its mark, not the inbox's`);
+      assert.ok(textOf(head).startsWith(p.title), `${p.kind}: its title`);
+      assert.equal(textOf(byClass(tree, "ask-card-summary")[0]), p.summary, `${p.kind}: its summary`);
+    });
+});
+
 test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'calendar' offered only to ask about it", async () => {
   ask();
   render(Palette, OPEN);
