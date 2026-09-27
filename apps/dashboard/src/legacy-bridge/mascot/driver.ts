@@ -171,6 +171,20 @@ function signature(f: ReturnType<Character["frame"]>, pal: Palette, side: number
   ].join(";");
 }
 
+/**
+ * A face's share of the page's WebGL2 context, asked for the first time its tiles may fuse, never at mount: at rest
+ * (every page's first draw, and every tab the phone app opens) the mark is 2D, and a context made for it cost each page
+ * its GPU memory and, measured on an Android WebView (27 Sep 2026), 1.5 s of the main thread as Today loaded. Until its
+ * program links, the draw says so and the 2D mark stands in. None under reduced motion, whose frames are all 2D.
+ */
+function liquidOnDemand(env: DriverEnv): { now(): Liquid | null; release(): void } {
+  let liquid: Liquid | null | undefined = env.reduced ? null : undefined; // undefined: not asked yet
+  return {
+    now: () => (liquid === undefined ? (liquid = env.liquid() || null) : liquid),
+    release: () => liquid?.release(),
+  };
+}
+
 export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mounted | null {
   const env: DriverEnv = { ...browserEnv(), ...(opts.env ?? {}) };
   const button = typeof canvas.closest === "function" ? canvas.closest("button, a") : null;
@@ -178,7 +192,7 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
   const own = typeof canvas.getContext === "function" ? canvas.getContext("2d") : null;
   if (!own) return null;
   const ctx: CanvasRenderingContext2D = own;
-  const liquid: Liquid | null = env.reduced ? null : env.liquid() || null;
+  const liquid = liquidOnDemand(env);
   const character: Character = createCharacter({
     seed: opts.seed ?? 7,
     calm: env.reduced,
@@ -239,7 +253,7 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
     if (sig === drawn) return;
     drawn = sig;
     // the GPU draws only what the 2D drawing cannot: the tiles while they may fuse; at rest, the mark in 2D
-    const fused = liquid !== null && f.liquid > 0.001 && liquid.draw(ctx, f, pal, side, w, h);
+    const fused = f.liquid > 0.001 && (liquid.now()?.draw(ctx, f, pal, side, w, h) ?? false);
     if (!fused) drawCharacter(ctx, w, h, f, pal, side);
   }
   function loop(ms: number): void {
@@ -384,7 +398,7 @@ export function mountCharacter(canvas: CanvasLike, opts: MountOptions = {}): Mou
       dead = true;
       if (raf) env.caf(raf);
       raf = 0;
-      liquid?.release();
+      liquid.release();
       for (const u of undo.splice(0)) u();
     },
   };
