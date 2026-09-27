@@ -55,7 +55,7 @@ const threadCall = (verb: RoutedVerb, conversationId: unknown, until: unknown): 
     : { route: ASK_THREAD_ROUTES[verb], params: { id: asText(conversationId) } };
 
 /** The thread a card names, in the Inbox. */
-export const cardThreadRoute = ({ payload }: Pick<AskProposal, "payload">): string | null => {
+const cardThreadRoute = ({ payload }: Pick<AskProposal, "payload">): string | null => {
   const id = idIn(payload, "conversation_id");
   return id ? `inbox/th-${id}` : null;
 };
@@ -101,8 +101,8 @@ export const threadVerbSpec: ProposalSpec = {
   gate: "approve",
   commit: (p) => {
     const verb = asText(p.payload.verb);
-    if (!(ASK_THREAD_VERBS as readonly string[]).includes(verb) || (verb !== "resolve" && !isRoutedVerb(verb)))
-      return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    if (!(ASK_THREAD_VERBS as readonly string[]).includes(verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    // Every proposable verb but resolve has its route: ASK_THREAD_ROUTES satisfies the whole list.
     return verb === "resolve"
       ? { route: "POST escalations/[id]/resolve", params: { id: asText(p.payload.escalation_id) } }
       : threadCall(verb as RoutedVerb, p.payload.conversation_id, p.payload.until);

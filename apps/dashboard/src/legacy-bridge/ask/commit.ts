@@ -73,10 +73,11 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
   if (!r.ok) return r;
   tell(win, call);
   // The second call (a deal's next step), on the first one's answer. The first stands either way, and the receipt
-  // says how the second went.
+  // says how the second went: refused by its route, or by its spec before anything was sent.
   const next = spec.then?.(p, r.data) ?? null;
   let then: ProposalThen | undefined;
-  if (next) {
+  if (next && isRefusal(next)) then = { ok: false, message: next.refused };
+  else if (next) {
     const n = await send(client, next);
     if (n.ok) tell(win, next);
     then = n.ok ? { ok: true } : { ok: false, message: n.message };

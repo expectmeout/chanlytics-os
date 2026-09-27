@@ -23,7 +23,7 @@ import { broadcastSpec, playbookSpec } from "./campaigns";
 import { replySpec, steerSpec, threadVerbSpec, whisperSpec } from "./inbox";
 import { leadSearchSpec } from "./leads";
 import { dealSpec, personModeSpec } from "./person";
-import type { ProposalGate, ProposalSpec } from "./spec";
+import type { ProposalGate, ProposalSpec, ProposalSpecAboveOperator } from "./spec";
 import { inviteSpec, policySpec, settingsSpec } from "./workspace";
 
 export { ASK_THREAD_ROUTES } from "./inbox";
@@ -35,12 +35,14 @@ export type {
   ProposalNeeds,
   ProposalRefusal,
   ProposalSpec,
+  ProposalSpecAboveOperator,
   ProposalTab,
   ProposalThen,
   ProposalUndo,
 } from "./spec";
 
-export const PROPOSAL_SPECS: Record<AskProposal["kind"], ProposalSpec> = {
+/** Every kind's spec. Each keeps its own type, so the kinds above operator are known to say what they do. */
+export const PROPOSAL_SPECS = {
   reply: replySpec,
   steer: steerSpec,
   thread_verb: threadVerbSpec,
@@ -53,7 +55,12 @@ export const PROPOSAL_SPECS: Record<AskProposal["kind"], ProposalSpec> = {
   playbook: playbookSpec,
   lead_search: leadSearchSpec,
   deal: dealSpec,
-};
+} satisfies Record<AskProposal["kind"], ProposalSpec>;
+
+/** The kinds above operator, whose refusal below `needs` is said in words (person_mode, settings, invite, lead_search). */
+export type ProposalKindAboveOperator = {
+  [K in keyof typeof PROPOSAL_SPECS]: (typeof PROPOSAL_SPECS)[K] extends ProposalSpecAboveOperator ? K : never;
+}[keyof typeof PROPOSAL_SPECS];
 
 /** The spec for a kind, or null for a kind no card has. */
 export function proposalSpec(kind: string): ProposalSpec | null {
@@ -67,8 +74,8 @@ export function proposalSpec(kind: string): ProposalSpec | null {
  * door says owner as an owner's does (requireRole): until a workspace can say whether it has a partner, "owner" is
  * what is true of every workspace.
  */
-export function proposalBelowNeeds(kind: AskProposal["kind"]): string {
-  return `only an owner can ${PROPOSAL_SPECS[kind].doing ?? "do this"}; say so, and that an owner can ask`;
+export function proposalBelowNeeds(kind: ProposalKindAboveOperator): string {
+  return `only an owner can ${PROPOSAL_SPECS[kind].doing}; say so, and that an owner can ask`;
 }
 
 /* ------------------------------------------------------------ the readings */

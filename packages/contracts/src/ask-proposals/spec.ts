@@ -59,17 +59,26 @@ export interface ProposalUndo {
 
 export interface ProposalSpec {
   needs: ProposalNeeds;
-  /** What the card does, for the refusal a member below `needs` hears; set on every kind above operator. */
+  /** What the card does, for the refusal a member below `needs` hears: every kind above operator says it. */
   doing?: string;
   gate: ProposalGate;
   /** The call Approve makes; `tab` is what the tab held when Approve was pressed. */
   commit(p: AskProposal, tab: ProposalTab): ProposalCall | ProposalRefusal;
-  /** A second call on the first one's answer, or null: a deal's next step names the row the door wrote. */
-  then?(p: AskProposal, data: unknown): ProposalCall | null;
+  /**
+   * A second call on the first one's answer, or null for none: a deal's next step names the row the door wrote. A
+   * refusal sends nothing and is said on the receipt as the second call's failure; the first call stands.
+   */
+  then?(p: AskProposal, data: unknown): ProposalCall | ProposalRefusal | null;
   receipt(p: AskProposal, data: unknown, then?: ProposalThen): string;
   undo?: ProposalUndo;
   /** Where the card's Open goes, or null; `outcome` is what became of it. */
   open(p: Pick<AskProposal, "payload">, outcome: AskProposalOutcome | null): string | null;
+}
+
+/** A kind above operator: a member below it is refused in words, so its spec says what the card does. */
+export interface ProposalSpecAboveOperator extends ProposalSpec {
+  needs: "partner" | "owner";
+  doing: string;
 }
 
 /** The words the walk says where no spec answers. */

@@ -18170,8 +18170,7 @@ var threadVerbSpec = {
   gate: "approve",
   commit: (p) => {
     const verb = asText(p.payload.verb);
-    if (!ASK_THREAD_VERBS.includes(verb) || verb !== "resolve" && !isRoutedVerb(verb))
-      return refuseWith(PROPOSAL_WORDS.cannotApprove);
+    if (!ASK_THREAD_VERBS.includes(verb)) return refuseWith(PROPOSAL_WORDS.cannotApprove);
     return verb === "resolve" ? { route: "POST escalations/[id]/resolve", params: { id: asText(p.payload.escalation_id) } } : threadCall(verb, p.payload.conversation_id, p.payload.until);
   },
   receipt: (p) => {
@@ -18306,14 +18305,20 @@ var dealSpec = {
     };
   },
   // The step after the deal (0007, amended), naming the row the door wrote (a new proposal's card has no id to name):
-  // the team's note, with its day. It answers as the door takes it, People read again behind it.
-  then: (p, data) => p.step ? {
-    route: "POST contacts/[id]/notes",
-    params: { id: asText(p.payload.contact_id) },
-    body: { body: p.step.body, due_on: p.step.due_on, team_only: true, deal_id: rec(rec(data).deal).id },
-    refresh: "behind",
-    events: [{ type: "note:saved", detail: { personId: asText(p.payload.contact_id) } }]
-  } : null,
+  // the team's note, with its day. It answers as the door takes it, People read again behind it. An answer that names
+  // no deal sends no step: a note tied to no deal is not the step the card said, so it is said as not saved.
+  then: (p, data) => {
+    if (!p.step) return null;
+    const dealId = idIn(rec(rec(data).deal), "id");
+    if (!dealId) return refuseWith("the deal came back without its id; set it on their page");
+    return {
+      route: "POST contacts/[id]/notes",
+      params: { id: asText(p.payload.contact_id) },
+      body: { body: p.step.body, due_on: p.step.due_on, team_only: true, deal_id: dealId },
+      refresh: "behind",
+      events: [{ type: "note:saved", detail: { personId: asText(p.payload.contact_id) } }]
+    };
+  },
   // The deal stands either way, so a step the door refused is said on the receipt, to set again on their page.
   receipt: ({ payload: pl }, _data, then) => {
     const receipt = `${asText(pl.who)} \xB7 ${DEAL_STAGE_WORDS[asText(pl.stage)] ?? asText(pl.stage)}`;
@@ -18411,7 +18416,7 @@ function proposalSpec(kind) {
   return Object.prototype.hasOwnProperty.call(PROPOSAL_SPECS, kind) ? PROPOSAL_SPECS[kind] : null;
 }
 function proposalBelowNeeds(kind) {
-  return `only an owner can ${PROPOSAL_SPECS[kind].doing ?? "do this"}; say so, and that an owner can ask`;
+  return `only an owner can ${PROPOSAL_SPECS[kind].doing}; say so, and that an owner can ask`;
 }
 var PROPOSAL_GATE = /* @__PURE__ */ (() => Object.fromEntries(Object.entries(PROPOSAL_SPECS).map(([kind, spec]) => [kind, spec.gate])))();
 function askUndoOpen(kind, undo, atMs, nowMs, settingsVersion) {

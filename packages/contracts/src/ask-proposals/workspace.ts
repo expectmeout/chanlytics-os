@@ -2,7 +2,7 @@
  * The workspace's cards: what the receptionist may do alone, the settings it follows, and who is on the team.
  */
 import { applySettingsChange } from "../ask";
-import { asText, rec, refuseWith, type ProposalSpec } from "./spec";
+import { asText, rec, refuseWith, type ProposalSpec, type ProposalSpecAboveOperator } from "./spec";
 
 const policyBody = (cls: unknown, mode: unknown, confidence: unknown): Record<string, unknown> => {
   const body: Record<string, unknown> = { class: cls };
@@ -36,7 +36,7 @@ export const policySpec: ProposalSpec = {
   open: () => "admin/autonomy",
 };
 
-export const settingsSpec: ProposalSpec = {
+export const settingsSpec: ProposalSpecAboveOperator = {
   needs: "partner",
   doing: "change the workspace's settings",
   gate: "settings",
@@ -69,7 +69,7 @@ export const settingsSpec: ProposalSpec = {
   open: () => "admin/workspace",
 };
 
-export const inviteSpec: ProposalSpec = {
+export const inviteSpec: ProposalSpecAboveOperator = {
   needs: "owner",
   doing: "invite someone to the team",
   gate: "team",

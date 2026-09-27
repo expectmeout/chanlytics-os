@@ -5,7 +5,16 @@ import type { AskProposal } from "../ask";
 import { DEAL_STAGE_WORDS } from "../deals";
 import { PERSON_MODE_WORDS } from "../people";
 import { NOTE_WORDS } from "../person-notes";
-import { PEOPLE_CHANGED, asText, decisionOf, idIn, rec, type ProposalSpec } from "./spec";
+import {
+  PEOPLE_CHANGED,
+  asText,
+  decisionOf,
+  idIn,
+  rec,
+  refuseWith,
+  type ProposalSpec,
+  type ProposalSpecAboveOperator,
+} from "./spec";
 
 /** The person a card names, on their page. */
 const cardPersonRoute = ({ payload }: Pick<AskProposal, "payload">): string | null => {
@@ -13,7 +22,7 @@ const cardPersonRoute = ({ payload }: Pick<AskProposal, "payload">): string | nu
   return id ? `clients/${id}` : null;
 };
 
-export const personModeSpec: ProposalSpec = {
+export const personModeSpec: ProposalSpecAboveOperator = {
   needs: "owner",
   doing: "change how the receptionist treats one person",
   gate: "settings",
@@ -60,17 +69,20 @@ export const dealSpec: ProposalSpec = {
     };
   },
   // The step after the deal (0007, amended), naming the row the door wrote (a new proposal's card has no id to name):
-  // the team's note, with its day. It answers as the door takes it, People read again behind it.
-  then: (p, data) =>
-    p.step
-      ? {
-          route: "POST contacts/[id]/notes",
-          params: { id: asText(p.payload.contact_id) },
-          body: { body: p.step.body, due_on: p.step.due_on, team_only: true, deal_id: rec(rec(data).deal).id },
-          refresh: "behind",
-          events: [{ type: "note:saved", detail: { personId: asText(p.payload.contact_id) } }],
-        }
-      : null,
+  // the team's note, with its day. It answers as the door takes it, People read again behind it. An answer that names
+  // no deal sends no step: a note tied to no deal is not the step the card said, so it is said as not saved.
+  then: (p, data) => {
+    if (!p.step) return null;
+    const dealId = idIn(rec(rec(data).deal), "id");
+    if (!dealId) return refuseWith("the deal came back without its id; set it on their page");
+    return {
+      route: "POST contacts/[id]/notes",
+      params: { id: asText(p.payload.contact_id) },
+      body: { body: p.step.body, due_on: p.step.due_on, team_only: true, deal_id: dealId },
+      refresh: "behind",
+      events: [{ type: "note:saved", detail: { personId: asText(p.payload.contact_id) } }],
+    };
+  },
   // The deal stands either way, so a step the door refused is said on the receipt, to set again on their page.
   receipt: ({ payload: pl }, _data, then) => {
     const receipt = `${asText(pl.who)} · ${DEAL_STAGE_WORDS[asText(pl.stage) as keyof typeof DEAL_STAGE_WORDS] ?? asText(pl.stage)}`;

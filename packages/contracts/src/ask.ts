@@ -13,6 +13,7 @@
 import type { SchemaSet } from "./schema-sets";
 import { z } from "zod";
 import type { AskAnswer } from "./ask-answer";
+import type { ProposalNeeds } from "./ask-proposals/spec";
 import { dayPlusInZone } from "./availability";
 import { parseLeadsRoute } from "./lead-plan";
 import { parsePipelineRoute } from "./pipeline";
@@ -206,7 +207,7 @@ export interface AskProposal {
     | "lead_search"
     | "deal";
   /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
-  needs: "operator" | "partner" | "owner";
+  needs: ProposalNeeds;
   title: string;
   /** The exact change, in the person's words. */
   summary: string;

@@ -2,7 +2,7 @@
  * The lead finder's card: a search planned in Ask, or the answer to a search that stopped to ask.
  */
 import { leadQuestionRoute, leadsRoute } from "../leads";
-import { asText, idIn, rec, type ProposalSpec } from "./spec";
+import { asText, idIn, rec, type ProposalSpecAboveOperator } from "./spec";
 
 /** The search a lead card answers (spec G4), when it answers one rather than starting its own. */
 const amendsOf = (pl: Record<string, unknown> | undefined): { search_id: string; name?: unknown } | null => {
@@ -10,7 +10,7 @@ const amendsOf = (pl: Record<string, unknown> | undefined): { search_id: string;
   return am && typeof am.search_id === "string" && am.search_id ? (am as { search_id: string; name?: unknown }) : null;
 };
 
-export const leadSearchSpec: ProposalSpec = {
+export const leadSearchSpec: ProposalSpecAboveOperator = {
   needs: "partner",
   doing: "start a lead search",
   gate: "find",

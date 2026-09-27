@@ -466,6 +466,20 @@ test("a deal with its next step: the deal first, then the step as a note of the 
   const no = tab(() => refusal(409, "conflict", "Someone moved this deal."));
   assert.equal((await commitProposal(no.win, withStep, no.client)).ok, false);
   assert.equal(no.sent.length, 1);
+  // A deal the door took whose answer names no deal writes no step either: a note tied to no deal is not the step the
+  // card said. The deal stands, and the receipt says the step was not saved, as for a step the door refused.
+  const bare = tab((key) => (key === deal ? envelope({ from: "proposed", decision_id: "x" }) : null));
+  assert.deepEqual(await commitProposal(bare.win, withStep, bare.client), {
+    ok: true,
+    receipt: "Maria · Client · the next step was not saved: the deal came back without its id; set it on their page",
+    undo: null,
+  });
+  assert.deepEqual(
+    bare.sent.map((s) => s.key),
+    [deal],
+    "no notes request",
+  );
+  assert.ok(bare.events.includes("event:surface:clients") && !bare.events.includes("event:note:saved"));
 });
 
 test("the step's write answers as the door takes it: People is read again behind it, after the deal's own read", async () => {
