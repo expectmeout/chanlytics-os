@@ -888,5 +888,123 @@
       "no_write": true,
       "includes_any": ["not on", "aren't on", "isn't on", "turned on", "turn on", "no deals", "don't track", "off"]
     }
+  },
+  {
+    "id": "leads_rows_off_page",
+    "text": "which of my ready leads have the best ratings?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["leads.leads"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "leads_one_lead",
+    "text": "what is the website and the phone number of the first lead on this page?",
+    "surface": "leads",
+    "context": {
+      "surface": "leads",
+      "route": "clients/leads",
+      "view": "all",
+      "rows": "GET leads:40"
+    },
+    "expect": {
+      "tools_any": ["leads.lead"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "leads_one_search",
+    "text": "how many emails did my newest lead search check, and how many of its leads have a phone?",
+    "surface": "leads",
+    "context": {
+      "surface": "leads",
+      "route": "clients/leads",
+      "view": "all",
+      "rows": "GET leads:40"
+    },
+    "expect": {
+      "tools_any": ["leads.search"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "people_lists",
+    "text": "which lists do I have, and how many people are on each?",
+    "surface": "people",
+    "context": {
+      "surface": "people",
+      "route": "clients",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "tools_any": ["people.lists"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "pipeline_read",
+    "text": "where do my deals stand in the pipeline?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["people.pipeline"],
+      "no_write": true,
+      "includes_any": [
+        "not on",
+        "aren't on",
+        "isn't on",
+        "turned on",
+        "turn on",
+        "no deals",
+        "don't track",
+        "not tracking",
+        "off"
+      ]
+    }
+  },
+  {
+    "id": "broadcasts_list",
+    "text": "how did our recent broadcasts do?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["campaigns.broadcasts"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "broadcast_one",
+    "text": "who replied to our most recent broadcast?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["campaigns.broadcast", "campaigns.broadcasts"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "connections_read",
+    "text": "is our email mailbox set up, and is the calendar connected?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["workspace.connections"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "notifications_read",
+    "text": "what is in my notifications?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["workspace.notifications"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "activity_read",
+    "text": "who took over a conversation this week, and when?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["workspace.activity"],
+      "no_write": true
+    }
   }
 ]
