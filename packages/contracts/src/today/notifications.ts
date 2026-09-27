@@ -250,7 +250,7 @@ export type JobNewsKind = Extract<
  * One alert from a job: what it IS, where its button goes, and the words.
  * The verb that raises it decides `kind` and `route`; the sender never
  * re-derives either (the rule waba-events.ts already follows). How it then
- * reads is SERVER_LOOK's, and how it groups is today.ts AWAY_NOUN's.
+ * reads is SERVER_LOOK's, and how it groups is today-away.ts AWAY_NOUN's.
  */
 export interface JobNews {
   kind: JobNewsKind;

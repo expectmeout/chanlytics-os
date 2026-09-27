@@ -15,7 +15,7 @@ import { asListRule, ruleLists } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { listScope, recordDecision } from "@/server/verbs";
 import { jsonBody } from "@/server/request-guards";
-import { cleanIdList, cleanListName, cleanListRule, type SavedListDto } from "@/server/people/lists";
+import { LIST_NAME_TAKEN, cleanIdList, cleanListName, cleanListRule, type SavedListDto } from "@/server/people/lists";
 
 /**
  * One saved list.
@@ -89,7 +89,7 @@ export const PUT = write({
     if (rename && rename !== list.name && !restore) {
       const { error } = await renameList(ctx.supabase, id, rename);
       if (error) {
-        if (error.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);
+        if (error.code === "23505") throw new AppError("conflict", LIST_NAME_TAKEN, 409);
         throw new Error(error.message);
       }
       await recordDecision(ctx, tenantId, "list", id, "rename_list", { from: list.name, to: rename });

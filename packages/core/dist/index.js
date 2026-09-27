@@ -3522,8 +3522,8 @@ var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
-var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SEARCH_WARN_MS = 12 * HOUR_MS;
+var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var InviteCodeSchema = z16.string().trim().max(80);
@@ -7082,6 +7082,9 @@ var PLAYBOOK_CLASS_LABEL2 = {
   follow_up: POLICY_CLASS_WORDS2.follow_up.short,
   outreach: POLICY_CLASS_WORDS2.outreach.short
 };
+function runDayPassed(run, today) {
+  return run.playbook_id && run.run_for && run.run_for !== today ? `This run was made for ${run.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.` : null;
+}
 function playbookListRef(p) {
   if (triggerOf(p.trigger)?.kind !== "saved") return null;
   if (p.list_key) return { kind: "builtin", id: p.list_key };
@@ -8659,8 +8662,8 @@ var DEFAULT_STATUS = {
 var LIVE_STALE_MS2 = 5 * MIN_MS2;
 var LIVE_OVERLONG_MS2 = 30 * MIN_MS2;
 var ANALYSIS_GRACE_MS2 = 10 * MIN_MS2;
-var PUSH_RECEIPTS_AFTER_MS2 = 15 * MIN_MS2;
 var SEARCH_WARN_MS2 = 12 * HOUR_MS2;
+var PUSH_RECEIPTS_AFTER_MS2 = 15 * MIN_MS2;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
 var InviteCodeSchema2 = z162.string().trim().max(80);
@@ -11410,8 +11413,8 @@ var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS3 = 5 * MIN_MS3;
 var LIVE_OVERLONG_MS3 = 30 * MIN_MS3;
 var ANALYSIS_GRACE_MS3 = 10 * MIN_MS3;
-var PUSH_RECEIPTS_AFTER_MS3 = 15 * MIN_MS3;
 var SEARCH_WARN_MS3 = 12 * HOUR_MS3;
+var PUSH_RECEIPTS_AFTER_MS3 = 15 * MIN_MS3;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
 var InviteCodeSchema3 = z163.string().trim().max(80);
@@ -12988,13 +12991,8 @@ async function approveRun(ports, cmd) {
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
   if (isReachOutRun(b.audience)) return approveReachOut(ports, b, cmd.now);
   const tz = await ports.timezone();
-  if (b.playbook_id && b.run_for && localDate(tz, cmd.now) !== b.run_for) {
-    throw new AppError(
-      "conflict",
-      `This run was made for ${b.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`,
-      409
-    );
-  }
+  const late = runDayPassed(b, localDate(tz, cmd.now));
+  if (late) throw new AppError("conflict", late, 409);
   const open = nextOpenMoment(tz, cmd.now);
   const at = open.at;
   if (!await ports.release(b.id, at)) throw new AppError("conflict", "This run just changed state; look again.", 409);

@@ -809,6 +809,28 @@ closed. An owner is offered twenty tools. **Proof:** each new action answers wha
 same reader; a case per new action and card in the eval set; a db test that the index answers under RLS as the person;
 the wiring map's Ask column re-read.
 
+**Phase 4, landed** (27 Sep 2026). PR 4.1 (#1185), PR 4.2 (#1189), PR 4.3 (#1202), PR 4.4 (#1203), PR 4.5 (#1220),
+PR 4.6 (#1209) and PR 4.7 (#1228), each merged on green (D15); 4.4's migration went to production on Ruben's yes before
+its merge (D7), as `00219` — `00217` and `00218` had gone to other branches by then. What landed beyond the plan: 4.3
+keeps money out of the activity by each row's own category (a partner's commission is filed as billing without a
+`billing.` kind) and parses a call as the role's own tool, so no error names an action the role is not offered; 4.4's
+function is `strict`, parses the words once per statement, and its header says truly that the planner may walk a
+workspace's newest rows rather than read the index (at today's sizes it always does; the indexes are capacity);
+4.5's hits say who wrote each and what became of a reply — a held, canceled or failed draft never reached the customer
+— as `inbox.thread` says it, name a caller as the Calls page does, and do not search a person's notes (they are
+`person_notes`, read by `people.get`); 4.6 found the details door setting a name before an address it could refuse,
+and now sets the address first, and a person card, like `propose_deal`, reads only the workspace's people; 4.7 reads a
+list's rule strictly (the drafter's lenient read is held by its structured output; Ask's tools are not strict), and a
+reach-out run is refused as approved on its own sheet, not on Leads as D11 said. Outside Ask, #1218 pinned the clock of
+a broadcast test that had turned main red at 21:00 UTC. The set: nine reads (twenty-five actions) and eleven acts,
+sixteen card kinds, thirteen citation names, offered per action (viewer 9 tools, operator 17, partner 19, owner 20;
+the tools block with examples 22,952 / 42,499 / 47,805 / 50,153 characters). The eval set is 80 cases (≈ $0.96 a pass);
+Ruben's re-run follows. The wiring map's Ask parts were re-read at `c04092974` with 4.7's branch and republished
+(the 25 Sep artifact is gone): https://claude.ai/artifact/SQXx5jKuC111AD2iATuX9B — four Ask defects closed, seven open
+loops narrowed, and six rows added for what Phases 5–7 and three follow-ups own (a broadcast's copies crowding
+`inbox.search`; the person and deal cards naming people by a rule of their own rather than `personName`;
+`campaigns.audiences` offering a template the Broadcasts composer withholds).
+
 **Phase 5 · Memory.** Raw turn blocks stored for a warm verbatim replay; the compact rebuild with cards, outcomes and
 cited ids for a cold reopen; replay bounded to twelve turns; newest-sixty; scope updated per turn; a name as a scrub
 needle. No migration. **Proof:** two-turn eval cases; a db test for the scrub.
