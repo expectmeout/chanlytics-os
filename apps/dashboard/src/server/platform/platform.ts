@@ -28,6 +28,7 @@ import {
   getPlatformPartners,
   markPartnerPaid,
   setPartnerStanding,
+  recordPartnerSecondFactorReset,
   setPartnerStatus,
   type PartnerPayoutAnswer,
 } from "@chanlytics/db";
@@ -386,4 +387,34 @@ export async function platformPartnerStatus(
   const r = await setPartnerStatus(office.session, partnerId, status, why);
   if (!r.ok) throw partnerVerbError(r);
   return r.value;
+}
+
+/**
+ * A partner's second factor removed, so they can set up a new one at their next sign-in (decision 0013, M2). The
+ * function checks the caller is a platform admin and records who, when and why (00215) before anything is removed;
+ * the factor itself lives in Supabase Auth, so the platform's own client removes it. A record with nothing removed is
+ * a partner who had no authenticator, and says so.
+ */
+export async function platformPartnerSecondFactorReset(
+  office: BackOffice,
+  partnerId: string,
+  why: string,
+  svc: SupabaseClient<Database> = serviceDb(),
+): Promise<{ removed: number }> {
+  const r = await recordPartnerSecondFactorReset(office.session, partnerId, why);
+  if (!r.ok) {
+    if (r.code === "55000") throw new AppError("conflict", r.message, 409);
+    throw partnerVerbError(r);
+  }
+  const userId = r.value;
+  const { data, error } = await svc.auth.admin.mfa.listFactors({ userId });
+  if (error) throw new AppError("upstream_auth", "Could not reach sign-in just now. Try again in a moment.", 503);
+  let removed = 0;
+  for (const f of data?.factors ?? []) {
+    const gone = await svc.auth.admin.mfa.deleteFactor({ id: f.id, userId });
+    if (gone.error)
+      throw new AppError("upstream_auth", "Could not remove the authenticator. Try again in a moment.", 503);
+    removed += 1;
+  }
+  return { removed };
 }

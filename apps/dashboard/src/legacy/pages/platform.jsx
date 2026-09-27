@@ -246,6 +246,65 @@ const WaitingRow = ({ row, P, onDone, flash }) => {
 };
 
 /**
+ * A partner's authenticator, removed after a person checked it is them (0013): once per partner, on their first line.
+ * It arms, asks why and how you checked, and says what happens; the partner sets up a new one at their next sign-in.
+ */
+const PartnerFactorReset = ({ row, P, flash }) => {
+  const W = P.secondFactorWords;
+  const [arm, setArm] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [why, setWhy] = React.useState("");
+  if (!row.first || !W) return null;
+  const run = async () => {
+    setBusy(true);
+    const r = await Promise.resolve()
+      .then(() => P.resetSecondFactor(row.partnerId, row.code, why.trim()))
+      .catch(() => ({ ok: false, message: "That did not go through." }));
+    setBusy(false);
+    setArm(false);
+    setWhy("");
+    flash({ tone: r.ok ? "ok" : "danger", msg: <>{r.message}</> });
+  };
+  return (
+    <div className="set-row" data-testid={`platform-partner-factor-${row.code}`}>
+      <div className="set-row-info">
+        {arm && (
+          <Confirm
+            block
+            question={W.resetQuestion(row.code)}
+            detail={W.resetDetail}
+            yes={W.resetYes}
+            no="Not now"
+            danger
+            typed={W.resetTyped}
+            value={why}
+            onType={setWhy}
+            ready={why.trim().length > 0 && why.trim().length <= 500}
+            busy={busy}
+            onYes={run}
+            onNo={() => { setArm(false); setWhy(""); }}
+            testid={`platform-partner-factor-reset-${row.code}`}
+          />
+        )}
+      </div>
+      {!arm && (
+        <button className="btn btn-sm btn-ghost" onClick={() => setArm(true)} disabled={busy} data-testid={`platform-partner-factor-arm-${row.code}`}>
+          {W.resetLabel}
+        </button>
+      )}
+    </div>
+  );
+};
+
+// A partner's line: what they earned in one currency, and on their first line the second factor's reset (0013).
+const PartnerLine = ({ row, P, onDone, flash }) => (
+  <>
+    <PartnerRow row={row} P={P} onDone={onDone} flash={flash} />
+    <PartnerFactorReset row={row} P={P} flash={flash} />
+  </>
+);
+
+/**
  * One partner and one currency of what they earned (0012, P5). The one action records a payout sent by hand: it arms,
  * asks for the payment's reference, and SENDS NOTHING -- the money left from the bank, and this is the record of it.
  */
@@ -545,7 +604,7 @@ const PanePlatform = () => {
           {partnerRows.length > 0 && (
             <div className="cl-attn-list" data-testid="platform-partner-rows">
               {partnerRows.map((row) => (
-                <PartnerRow key={`${row.partnerId}-${row.currency || "none"}`} row={row} P={P} onDone={load} flash={flash} />
+                <PartnerLine key={`${row.partnerId}-${row.currency || "none"}`} row={row} P={P} onDone={load} flash={flash} />
               ))}
             </div>
           )}

@@ -126,8 +126,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z16] = m;
-  if (z16) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z17] = m;
+  if (z17) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -22979,6 +22979,7 @@ var ROUTE_KEYS = [
   "POST platform/lines/replace",
   "POST platform/lines/retry",
   "POST platform/partners/payout",
+  "POST platform/partners/second-factor",
   "POST platform/partners/standing",
   "POST platform/partners/status",
   "POST platform/waitlist/invited",
@@ -26281,6 +26282,68 @@ function handoverInviteEmail(h) {
     ].join("\n")
   };
 }
+
+// src/workspace/second-factor.ts
+import { z as z16 } from "zod";
+function factorStepNeeded(aal) {
+  return !!aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
+}
+var SECOND_FACTOR_PATH = "/verify";
+var SECOND_FACTOR_WORDS = {
+  /** Settings › Partner. */
+  title: "Protect your partner account",
+  intro: "Your partner account can change the receptionist of every business you brought, so it asks for a second step when you sign in: a six-digit code from an authenticator app on your phone.",
+  on: "Two-step sign-in is on. You'll be asked for a code from your authenticator app each time you sign in.",
+  off: "Two-step sign-in is off.",
+  start: "Set it up",
+  starting: "Preparing\u2026",
+  scan: "Scan this with your authenticator app (Google Authenticator, 1Password, Authy or any other), or type the key below into it.",
+  keyLabel: "Key",
+  codeLabel: "The six-digit code it shows",
+  confirm: "Turn it on",
+  confirming: "Checking\u2026",
+  cancel: "Cancel",
+  done: "Two-step sign-in is on.",
+  unavailable: "Two-step sign-in isn't switched on for Chanlytics yet. You'll be asked to set it up once it is.",
+  lost: "Lost your phone? Write to us: a person at Chanlytics removes the old authenticator after checking it's you, and you set up a new one at your next sign-in.",
+  reading: "Reading your sign-in settings\u2026",
+  failed: "your sign-in settings",
+  /** The page after the first factor. */
+  verifyTitle: "One more step",
+  verifyBody: "Enter the six-digit code from your authenticator app.",
+  verifySubmit: "Continue",
+  verifying: "Checking\u2026",
+  signOut: "Sign out",
+  /** The back office. */
+  resetLabel: "Reset two-step sign-in",
+  resetQuestion: (code2) => `Remove ${code2}'s authenticator?`,
+  resetDetail: "They can sign in with their password or an email code, and set up a new authenticator on their partner pane. Check it's them before you do this.",
+  resetYes: "Yes, reset it",
+  resetTyped: "why, and how you checked it's them"
+};
+function enrolRefusalWords(message) {
+  const m = String(message ?? "");
+  if (/disabled|not enabled|not allowed/i.test(m)) return { unavailable: true, words: SECOND_FACTOR_WORDS.unavailable };
+  return { unavailable: false, words: "We could not start the setup just now. Try again in a minute." };
+}
+function factorCodeWords(message) {
+  const m = String(message ?? "");
+  if (/invalid|expired|mismatch|incorrect|wrong/i.test(m))
+    return "That code didn't match. Open the app and type the code it shows now.";
+  if (/rate|too many/i.test(m)) return "Too many tries. Wait a minute, then type the code the app shows now.";
+  return "We could not check that code just now. Try again in a minute.";
+}
+function cleanFactorCode(raw) {
+  const code2 = String(raw ?? "").replace(/\s+/g, "");
+  return /^\d{6}$/.test(code2) ? code2 : null;
+}
+var PartnerSecondFactorResetSchema = z16.object({
+  partner_id: z16.string().uuid("That partner does not exist."),
+  why: z16.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
+function secondFactorResetWords(code2, removed) {
+  return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -26762,6 +26825,7 @@ export {
   PartnerBecomeSchema,
   PartnerLetterNewsSchema,
   PartnerLettersSchema,
+  PartnerSecondFactorResetSchema,
   PendingWorkspaceSchema,
   PeopleExportQuerySchema,
   PolicyLimitsSchema,
@@ -26842,6 +26906,8 @@ export {
   RenameLeadSearchSchema,
   SAME_SITTING_MS,
   SCHEMA_SETS,
+  SECOND_FACTOR_PATH,
+  SECOND_FACTOR_WORDS,
   SELF_LIFTING_HOLDS,
   SELLS_BY,
   SELLS_BY_FIRST,
@@ -27042,6 +27108,7 @@ export {
   cleanDisplayName,
   cleanDraft,
   cleanEmailCandidates,
+  cleanFactorCode,
   cleanParam,
   cleanPartnerCode,
   cleanTimezone,
@@ -27158,6 +27225,7 @@ export {
   emptyBusinessRecord,
   emptyReadSet,
   endingOfRound,
+  enrolRefusalWords,
   erasedEmailHash,
   erasedPhoneHash,
   err,
@@ -27169,6 +27237,8 @@ export {
   factConflicts,
   factNeeds,
   factValue,
+  factorCodeWords,
+  factorStepNeeded,
   failedAnswer,
   fallbackMessages,
   fallbacksWords,
@@ -27705,6 +27775,7 @@ export {
   scheduleLine,
   scopeFromRoute,
   seasonHorizon,
+  secondFactorResetWords,
   sellsBySaved,
   sellsByVM,
   sendFailureIsOurs,

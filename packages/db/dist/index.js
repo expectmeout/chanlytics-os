@@ -22,6 +22,7 @@ import { z as z12 } from "zod";
 import { z as z13 } from "zod";
 import { z as z14 } from "zod";
 import { z as z15 } from "zod";
+import { z as z16 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -2837,6 +2838,10 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
+var PartnerSecondFactorResetSchema = z16.object({
+  partner_id: z16.string().uuid("That partner does not exist."),
+  why: z16.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+}).strict();
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
@@ -4589,6 +4594,11 @@ async function setPartnerStatus(db, partnerId, status, why) {
   if (error) return { ok: false, code: error.code ?? "", message: error.message };
   return { ok: true, value: data };
 }
+async function recordPartnerSecondFactorReset(db, partnerId, why) {
+  const { data, error } = await db.rpc("partner_second_factor_reset", { p_partner: partnerId, p_why: why });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: String(data) };
+}
 async function createWorkspaceForBusiness(db, input) {
   const { data, error } = await db.rpc("create_workspace_for_business", {
     p_name: input.name,
@@ -4899,6 +4909,7 @@ export {
   recordEmailNo,
   recordEmailStatus,
   recordOutbound,
+  recordPartnerSecondFactorReset,
   recordProviderDomain,
   recordStatusByExternalId,
   releaseControl,

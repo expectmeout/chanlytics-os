@@ -14,6 +14,7 @@ import GoogleSignIn from "@/auth/GoogleSignIn";
 import CodeStep from "@/auth/CodeStep";
 import AuthShell from "@/auth/AuthShell";
 import { authErrorInHash, OAUTH_CANCELLED } from "@/auth/hash-error";
+import { pathAfterSignIn } from "@/auth/second-factor";
 
 // The words for each failure and the resend wait live in contracts
 // (requestCodeWords, verifyCodeWords, resendLeft), where they are executed;
@@ -85,13 +86,13 @@ export default function LoginPage() {
     }
   }, []);
 
-  /** In, whichever door opened. Deep links survive: the browser carries the
-   *  hash through the middleware's redirect, and a full navigation re-runs it. */
-  function landed() {
+  /** In, whichever door opened, or to the second step first when the account has an authenticator (0013). Deep
+   *  links survive: the browser carries the hash through the middleware's redirect, and a full navigation re-runs it. */
+  async function landed() {
     // Whoever signs in next must not inherit the previous account's cached
     // conversations. Sign-out already clears this; sign-in is the other half.
     clearSurfaceCache();
-    window.location.assign("/" + window.location.hash);
+    window.location.assign((await pathAfterSignIn(supabase)) + window.location.hash);
   }
 
   async function signInWithPassword(e: React.FormEvent) {
@@ -133,7 +134,7 @@ export default function LoginPage() {
       setNudge(true);
       return;
     }
-    landed();
+    await landed();
   }
 
   async function sendCode(e?: React.FormEvent) {
@@ -225,7 +226,7 @@ export default function LoginPage() {
             onSubmit={async (typed) => {
               const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "email" });
               if (error) return verifyCodeWords(error.message);
-              landed();
+              await landed();
               return null;
             }}
             onResend={async () => {

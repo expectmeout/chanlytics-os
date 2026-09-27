@@ -238,6 +238,20 @@ export async function setPartnerStatus(
   return { ok: true, value: data as unknown as { status: string; from: string; seats: number } };
 }
 
+/**
+ * A platform admin records the reset of a partner's second factor (00215 partner_second_factor_reset, decision 0013)
+ * and learns whose account to act on; the factor itself is removed in Supabase Auth by the caller.
+ */
+export async function recordPartnerSecondFactorReset(
+  db: Db,
+  partnerId: string,
+  why: string,
+): Promise<PartnerVerbResult<string>> {
+  const { data, error } = await db.rpc("partner_second_factor_reset", { p_partner: partnerId, p_why: why });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: String(data) };
+}
+
 /* ------------------------------------------------------------------------------------------------ handovers */
 
 /*
