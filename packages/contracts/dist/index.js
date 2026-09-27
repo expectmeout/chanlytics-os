@@ -18275,7 +18275,8 @@ var PAGE_MESSAGES = {
     return snapshot ? { t: "today", snapshot } : null;
   },
   calls: (v) => isCount(v.live) ? { t: "calls", live: v.live } : null,
-  theme: (v) => v.theme === "light" || v.theme === "dark" ? { t: "theme", theme: v.theme } : null
+  theme: (v) => v.theme === "light" || v.theme === "dark" ? { t: "theme", theme: v.theme } : null,
+  overlay: (v) => typeof v.open === "boolean" ? { t: "overlay", open: v.open } : null
 };
 function parsePageMessage(raw) {
   let v;
@@ -18299,6 +18300,8 @@ function parseShellMessage(v) {
       return { t: "menu" };
     case "top":
       return { t: "top" };
+    case "close":
+      return { t: "close" };
     case "device": {
       const tok = token(v.token);
       const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;

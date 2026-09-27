@@ -55,6 +55,9 @@ interface Props {
 
 export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   const ref = useRef<WebView>(null);
+  // Whether a sheet, a dialog or a menu stands over the page, as the page last said (legacy-bridge/app-bridge.ts
+  // watchOverlays, at install and on every change): Android's Back closes it before it walks the history.
+  const overlay = useRef(false);
   const focused = useIsFocused();
   // Created the first time this tab is in front, kept afterwards: a latch set during render, not in an effect.
   const [mounted, setMounted] = useState(focused);
@@ -62,6 +65,10 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   // Counts the times Android's renderer died under this page: each one is a new WebView, since the old one is dead
   // and blank for good (the library only reports it). iOS reloads in place, below.
   const [epoch, setEpoch] = useState(0);
+  // A new WebView after a dead renderer has nothing standing over it until its page says so.
+  useEffect(() => {
+    overlay.current = false;
+  }, [epoch]);
   const slug = useShell((s) => s.slug);
   const theme = useShell((s) => s.theme);
   const token = useShell((s) => s.token);
@@ -93,6 +100,7 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   const onMessage = useCallback(
     (e: WebViewMessageEvent) => {
       const m = actOnPageMessage(e.nativeEvent.data);
+      if (m?.t === "overlay") overlay.current = m.open;
       if (m?.t === "route") {
         if (!ready) onReady?.(handle);
         setReady(true);
@@ -150,7 +158,7 @@ export function Surface({ route, tab, onReady, post, onLanded }: Props) {
     return false;
   }, []);
 
-  useAndroidBack(ref, canGoBack, focused);
+  useAndroidBack(ref, canGoBack, overlay, focused);
 
   // The page's paper, behind the WebView (the library's own is white) and in the strip under the status bar: the
   // shell pads the top itself, on both platforms, since the page's header draws to the top of its viewport.
@@ -211,20 +219,30 @@ function actOnPageMessage(raw: string): PageMessage | null {
 }
 
 /**
- * Android's Back walks the page's own history first, while its tab is in front; at the history's start, the system's
- * own Back (the last tab, then the app left). It used to answer "handled" whatever the page's history held, so the
- * app could not be left.
+ * Android's Back, while its tab is in front: first it closes what stands over the page (a sheet, a dialog, a menu:
+ * the page is asked, and closes it as Escape would), then it walks the page's own history, and at the history's start
+ * it is the system's own Back (the last tab, then the app left). It used to answer "handled" whatever the page's
+ * history held, so the app could not be left; and it left the page from under an open sheet, the app with it.
  */
-function useAndroidBack(ref: RefObject<WebView | null>, canGoBack: RefObject<boolean>, focused: boolean): void {
+function useAndroidBack(
+  ref: RefObject<WebView | null>,
+  canGoBack: RefObject<boolean>,
+  overlay: RefObject<boolean>,
+  focused: boolean,
+): void {
   useEffect(() => {
     if (Platform.OS !== "android" || !focused) return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (overlay.current) {
+        ref.current?.injectJavaScript(askPage({ t: "close" }));
+        return true;
+      }
       if (!canGoBack.current) return false;
       ref.current?.goBack();
       return true;
     });
     return () => sub.remove();
-  }, [focused, ref, canGoBack]);
+  }, [focused, ref, canGoBack, overlay]);
 }
 
 /**

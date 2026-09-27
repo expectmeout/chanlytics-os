@@ -194,6 +194,14 @@ const TodayReceipt = ({ f, i, last, nav }) => (
 const TodayCard = () => {
   useTcTick("surface:today,surface:reports");
   const [open, setOpen] = React.useState(null);
+  // An open receipt closes on Escape wherever the focus is, as every other dialog does: the phone app's Back hands the
+  // page an Escape (legacy-bridge/app-bridge.ts watchOverlays), and a figure's own key reached it only from the figure.
+  React.useEffect(() => {
+    if (open === null) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setOpen(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
   const vm = window.TODAY_DATA;
   if (!vm) return null;
   const { recap, quiet, figures } = vm;

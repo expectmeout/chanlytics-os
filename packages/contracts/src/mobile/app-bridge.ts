@@ -32,7 +32,12 @@ export type PageMessage =
    * resolveTheme), which the device's setting is not. The shell paints its bars, its tab bar and its own screens
    * in it, so nothing native stands in the other theme beside the page.
    */
-  | { t: "theme"; theme: Theme };
+  | { t: "theme"; theme: Theme }
+  /**
+   * Whether something stands over the page (a sheet, a dialog, the bell's panel), at install and on every change:
+   * Android's Back closes it before it walks the page's history, where it used to leave the page from under it.
+   */
+  | { t: "overlay"; open: boolean };
 
 /** A phone's push token, as expo-notifications hands it out. */
 export const PUSH_TOKEN_MAX = 200;
@@ -45,6 +50,8 @@ export type ShellMessage =
   | { t: "navigate"; route: string; workspace?: string }
   | { t: "menu" }
   | { t: "top" }
+  /** Close what stands over the page, as a keyboard's Escape would: Android's Back, while the page says one is open. */
+  | { t: "close" }
   /**
    * Register this phone for the person signed in: the page calls PUT me/devices through its own client, and forgets
    * it again on its own before a sign-out (legacy-bridge/app-bridge.ts forgetPhone), so no ask says "forget".
@@ -73,6 +80,7 @@ const PAGE_MESSAGES: { [K in PageMessage["t"]]: (v: Record<string, unknown>) => 
   },
   calls: (v) => (isCount(v.live) ? { t: "calls", live: v.live } : null),
   theme: (v) => (v.theme === "light" || v.theme === "dark" ? { t: "theme", theme: v.theme } : null),
+  overlay: (v) => (typeof v.open === "boolean" ? { t: "overlay", open: v.open } : null),
 };
 
 /** What the page said, or null when it is not one of its shapes. */
@@ -105,6 +113,8 @@ export function parseShellMessage(v: unknown): ShellMessage | null {
       return { t: "menu" };
     case "top":
       return { t: "top" };
+    case "close":
+      return { t: "close" };
     case "device": {
       const tok = token(v.token);
       const platform = v.platform === "ios" || v.platform === "android" ? v.platform : null;
