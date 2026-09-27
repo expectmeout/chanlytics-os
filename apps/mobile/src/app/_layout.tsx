@@ -6,18 +6,16 @@
  * EAS Update, the phone's push token and taps (the PR 2 design), and the lock in front of everything (the PR 3
  * design).
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Appearance, AppState, Platform, useColorScheme, View } from "react-native";
+import { useCallback, useEffect, useRef } from "react";
+import { Appearance, AppState, Platform, StyleSheet, useColorScheme, View } from "react-native";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from "expo-router";
-import { askForToken, coldStartRoute, installForegroundHandler, listen, tabOf } from "@/shell/notifications";
+import { askForToken, coldStartTap, installForegroundHandler, listen, tabOf, type Tap } from "@/shell/notifications";
 import { StatusBar } from "expo-status-bar";
 import { useNetworkState } from "expo-network";
 import * as Updates from "expo-updates";
 import { Offline } from "@/shell/Offline";
 import { SignIn } from "@/shell/SignIn";
-import { Lock } from "@/shell/LockScreen";
-import { canLock, lockChoice } from "@/shell/lock";
-import { shouldLock } from "@/shell/sign-in";
+import { Lock, useLockGate } from "@/shell/LockScreen";
 import { signOutNatively } from "@/shell/native-auth";
 import { listenPushToStart } from "@/shell/live-activity";
 import { getState, reloadEveryPage, setState, useShell } from "@/shell/state";
@@ -83,41 +81,8 @@ export default function RootLayout() {
   const net = useNetworkState();
   const offline = net.isConnected === false;
   const router = useRouter();
-  const [locked, setLocked] = useState(false);
-  const lockInfo = useRef<{ can: boolean; choice: boolean | null; backgroundedAt: number | null }>({
-    can: false,
-    choice: null,
-    backgroundedAt: null,
-  });
-
-  // The lock (shell/lock.ts, the rule in sign-in.ts): at launch, and after two minutes in the background.
-  useEffect(() => {
-    void Promise.all([canLock(), lockChoice()]).then(([can, choice]) => {
-      lockInfo.current = { ...lockInfo.current, can, choice };
-      if (shouldLock({ enabled: choice, canLock: can, backgroundedAt: null, now: Date.now(), launch: true }))
-        setLocked(true);
-    });
-    const sub = AppState.addEventListener("change", (s) => {
-      const info = lockInfo.current;
-      if (s === "background") info.backgroundedAt = Date.now();
-      if (s === "active") {
-        void lockChoice().then((choice) => {
-          info.choice = choice;
-          if (
-            shouldLock({
-              enabled: choice,
-              canLock: info.can,
-              backgroundedAt: info.backgroundedAt,
-              now: Date.now(),
-              launch: false,
-            })
-          )
-            setLocked(true);
-        });
-      }
-    });
-    return () => sub.remove();
-  }, []);
+  // The lock (LockScreen.tsx useLockGate): at launch, and after two minutes in the background; covered meanwhile.
+  const { locked, covered, unlocked } = useLockGate();
 
   // A sign-out on the web is one on the phone too: Google's SDK forgets the account it chose. A route that waited
   // through the sign-in (a tapped notification, a link) opens as the person comes in.
@@ -131,15 +96,15 @@ export default function RootLayout() {
   // nobody is signed in there are no tabs to navigate (the sign-in screen stands in their place): the route waits,
   // and the effect below opens it as the person comes in.
   useEffect(() => {
-    const open = (route: string) => {
-      setState({ pendingRoute: route });
+    const open = ({ route, workspace }: Tap) => {
+      setState({ pendingRoute: route, pendingWorkspace: workspace });
       if (getState().session !== "out") router.navigate(`/(tabs)/${tabOf(route)}` as never);
     };
     void askForToken().then((token) => {
       if (token) setState({ token });
     });
-    void coldStartRoute().then((route) => {
-      if (route) open(route);
+    void coldStartTap().then((tap) => {
+      if (tap) open(tap);
     });
     const offTaps = listen({ tap: open, token: (token) => setState({ token }) });
     // The Live Activity's push-to-start token, registered beside the push token the moment the phone hands it out.
@@ -175,15 +140,23 @@ export default function RootLayout() {
     <ThemeProvider value={{ ...theme, colors: { ...theme.colors, background: paper, card: paper } }}>
       <StatusBar style="auto" />
       <View style={{ flex: 1, backgroundColor: paper }}>
-        {session === "out" ? (
-          <SignIn />
-        ) : (
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: paper } }}>
-            <Stack.Screen name="(tabs)" />
-          </Stack>
-        )}
-        {offline && Platform.OS !== "web" && <Offline onRetry={retry} />}
-        {locked && <Lock onUnlocked={() => setLocked(false)} />}
+        {/* Behind the lock or the cover, nothing of the pages is read out by VoiceOver or TalkBack. */}
+        <View
+          style={{ flex: 1 }}
+          importantForAccessibility={locked || covered ? "no-hide-descendants" : "auto"}
+          accessibilityElementsHidden={locked || covered}
+        >
+          {session === "out" ? (
+            <SignIn />
+          ) : (
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: paper } }}>
+              <Stack.Screen name="(tabs)" />
+            </Stack>
+          )}
+          {offline && Platform.OS !== "web" && <Offline onRetry={retry} />}
+        </View>
+        {covered && !locked && <View style={[StyleSheet.absoluteFill, { backgroundColor: paper }]} />}
+        {locked && <Lock onUnlocked={unlocked} />}
         {tooOld && <Update />}
       </View>
     </ThemeProvider>

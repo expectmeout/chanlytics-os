@@ -9,9 +9,13 @@
  * iOS nobody was ever signed out.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { Appearance, BackHandler, Linking, Platform, StyleSheet, View } from "react-native";
+import { Appearance, BackHandler, Platform, StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
-import type { ShouldStartLoadRequest, WebViewSource } from "react-native-webview/lib/WebViewTypes";
+import type {
+  ShouldStartLoadRequest,
+  WebViewOpenWindowEvent,
+  WebViewSource,
+} from "react-native-webview/lib/WebViewTypes";
 import * as Application from "expo-application";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -45,9 +49,11 @@ interface Props {
   onReady?: (h: SurfaceHandle) => void;
   /** A form body to POST to the site's native door instead of loading the route: a native token becoming the cookie. */
   post?: string;
+  /** Called with each address the page lands on: the sign-in screen reads a door that refused from it. */
+  onLanded?: (url: string) => void;
 }
 
-export function Surface({ route, tab, onReady, post }: Props) {
+export function Surface({ route, tab, onReady, post, onLanded }: Props) {
   const ref = useRef<WebView>(null);
   const focused = useIsFocused();
   // Created the first time this tab is in front, kept afterwards: a latch set during render, not in an effect.
@@ -114,25 +120,33 @@ export function Surface({ route, tab, onReady, post }: Props) {
   // A tapped notification's route, opened by the tab it belongs to once its page is ready.
   useEffect(() => {
     if (!ready || !focused || !pendingRoute || !tab || tabOf(pendingRoute) !== tab) return;
-    setState({ pendingRoute: null });
-    handle.ask({ t: "navigate", route: pendingRoute });
+    const workspace = getState().pendingWorkspace;
+    setState({ pendingRoute: null, pendingWorkspace: null });
+    // Its workspace rides along: the page opens that workspace when it is not the one on screen.
+    handle.ask({ t: "navigate", route: pendingRoute, ...(workspace ? { workspace } : {}) });
   }, [ready, focused, pendingRoute, tab, handle]);
 
   // A signed-out address is the person gone: nothing of theirs stays in the shell, the icon wears no number, and a
   // call activity of theirs ends. The page itself has already forgotten the phone (shell.ts signOut).
   const canGoBack = useRef(false);
-  const onNavigation = useCallback((nav: WebViewNavigation) => {
-    canGoBack.current = nav.canGoBack;
-    if (nav.loading || !isSignedOutUrl(nav.url) || getState().session === "out") return;
-    setState(signedOut(getState()));
-    void setBadge(0);
-    void endCallActivities();
-  }, []);
+  const onNavigation = useCallback(
+    (nav: WebViewNavigation) => {
+      canGoBack.current = nav.canGoBack;
+      if (!nav.loading) onLanded?.(nav.url);
+      if (nav.loading || !isSignedOutUrl(nav.url) || getState().session === "out") return;
+      setState(signedOut(getState()));
+      void setBadge(0);
+      void endCallActivities();
+    },
+    [onLanded],
+  );
 
+  // The page itself stays on the site; another site opens in the browser. Only http(s) reaches here: the library opens
+  // tel:, mailto: and the rest itself. A frame inside the page (an embed, a payment form) loads where the page put it;
+  // iOS asks about every frame, and Android says nothing of frames, so only an explicit sub-frame is let through.
   const onShouldStart = useCallback((req: ShouldStartLoadRequest) => {
-    if (req.url.startsWith("about:") || isOurs(req.url)) return true;
-    if (/^(https?:)/.test(req.url)) void WebBrowser.openBrowserAsync(req.url);
-    else if (/^(tel|mailto|sms):/.test(req.url)) void Linking.openURL(req.url);
+    if (req.isTopFrame === false || isOurs(req.url)) return true;
+    void WebBrowser.openBrowserAsync(req.url);
     return false;
   }, []);
 
@@ -155,6 +169,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
         onMessage={onMessage}
         onNavigationStateChange={onNavigation}
         onShouldStartLoadWithRequest={onShouldStart}
+        onOpenWindow={openWindow}
         onContentProcessDidTerminate={() => ref.current?.reload()}
         onRenderProcessGone={() => setEpoch((n) => n + 1)}
         startInLoadingState
@@ -172,7 +187,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
         // iOS's "normal" as the number it means: Android's native prop is a Double, and the word crashed the app
         // the moment the first page mounted (the library converts it on iOS only).
         decelerationRate={0.998}
-        textZoom={100}
+        // No textZoom: Android's WebView follows the phone's font size, which 100 took from anyone who reads larger.
       />
     </View>
   );
@@ -217,14 +232,25 @@ function useAndroidBack(ref: RefObject<WebView | null>, canGoBack: RefObject<boo
  * identity token (the cookie it sets is the WebView's, and its 303 lands the page).
  */
 function sourceOf(route: string, slug: string | null, post: string | undefined): WebViewSource {
+  // iOS sends the form's type as told; Android's postUrl sends a form already, and warns of headers on every render.
   if (post)
     return {
       uri: NATIVE_DOOR,
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      ...(Platform.OS === "ios" ? { headers: { "Content-Type": "application/x-www-form-urlencoded" } } : {}),
       body: post,
     };
   return { uri: route === "login" ? LOGIN_HREF : hrefFor(slug, route) };
+}
+
+/**
+ * A link the page opens in a new window (`target="_blank"`: a booking page, a provider's console) opens in the
+ * browser, never in the tab, where a second page would stand in the workspace's place. Android handed it to the
+ * system past the rule above, and iOS opened one of the site's own inside the tab.
+ */
+function openWindow(e: WebViewOpenWindowEvent): void {
+  const url = e.nativeEvent.targetUrl;
+  if (/^https?:/.test(url)) void WebBrowser.openBrowserAsync(url);
 }
 
 /**
