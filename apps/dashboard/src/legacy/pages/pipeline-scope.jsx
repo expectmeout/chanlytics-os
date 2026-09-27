@@ -109,7 +109,8 @@ const pipePeekFocus = (peekId, cursor) => {
   if (el && el.focus) el.focus({ preventScroll: true });
 };
 // Whether this member may record a deal: an owner or an operator, as the person page decides it (client-profile.jsx).
-const pipeCanRecord = () => !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+// Whoever acts in the workspace: the roles contracts ROLE_PERMS gives `approve` (owner, operator, and the partner, 0012).
+const pipeCanRecord = () => !!(window.__ME && ["owner", "operator", "partner"].includes(window.__ME.role));
 // A send from the peek's card opens their thread with the words in the box where free text can go: the person page's
 // own path (client-profile.jsx openWith), and the thread reads the same key as it opens (inbox-thread.jsx).
 const pipeComposeIn = (person, text, nav) => {

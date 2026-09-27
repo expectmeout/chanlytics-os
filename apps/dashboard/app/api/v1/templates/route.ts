@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AppError, templateComponents, validateTemplateDraft } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
-import { createTemplate } from "@/server/service";
+import { createTemplate } from "@/server/campaigns/meta-templates";
 import { load, readerContext } from "@/server/readers";
 import { templates } from "@/server/readers/templates";
 

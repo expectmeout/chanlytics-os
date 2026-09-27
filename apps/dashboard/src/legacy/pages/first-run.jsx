@@ -83,7 +83,7 @@ const FrFind = ({ W, flash, done, go, make }) => {
   };
   const linkPicked = async () => {
     const c = found && found.candidates.find((x) => x.place_id === picked);
-    if (!c || busy || !window.__google || !(window.canDo && window.canDo("team"))) return;
+    if (!c || busy || !window.__google || !(window.canDo && window.canDo("settings"))) return;
     setBusy(true);
     const r = await window.__google.link(c.place_id);
     setBusy(false);
@@ -140,7 +140,7 @@ const FrFind = ({ W, flash, done, go, make }) => {
       </form>
       <div className="fr-find-acts">
         {hits.length > 0 ? (
-          <button type="button" className="fr-onward" onClick={linkPicked} disabled={busy || !picked} aria-busy={busy || undefined} data-testid="fr-find-yes" {...window.gate("team", "link the listing")}>{W.yes}</button>
+          <button type="button" className="fr-onward" onClick={linkPicked} disabled={busy || !picked} aria-busy={busy || undefined} data-testid="fr-find-yes" {...window.gate("settings", "link the listing")}>{W.yes}</button>
         ) : null}
         <button type="button" className="fr-find-link" onClick={notOnGoogle} disabled={busy} data-testid="fr-find-not">{W.notOnGoogle}</button>
       </div>
@@ -321,7 +321,7 @@ const FrCheck = ({ check, W, flash, make, making, go, canEdit, held }) => {
       return (
         <div className="fr-check-make" data-testid="fr-check-make">
           <p className="fr-check-note">{check.make.sentence}</p>
-          <button type="button" className="fr-onward" onClick={make} disabled={making} aria-busy={making || undefined} data-testid="fr-check-make-press" {...window.gate("team", "set up the receptionist")}>
+          <button type="button" className="fr-onward" onClick={make} disabled={making} aria-busy={making || undefined} data-testid="fr-check-make-press" {...window.gate("settings", "set up the receptionist")}>
             {making ? check.make.busy : check.make.cta}
           </button>
         </div>
@@ -492,7 +492,7 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
   };
   const buy = async () => {
     // A role that may not buy (View-as, or a teammate's tab) sends nothing, and the step goes back to its choice.
-    if (!P || !(window.canDo && window.canDo("team"))) {
+    if (!P || !(window.canDo && window.canDo("disconnect"))) {
       sent.current = false;
       setChoice({ ...c, pending: false, sent: false });
       return;
@@ -538,7 +538,7 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
   }, [ph.stage, fresh]);
   const find = async (e) => {
     if (e) e.preventDefault();
-    if (!P || busy || !(window.canDo && window.canDo("team"))) return;
+    if (!P || busy || !(window.canDo && window.canDo("disconnect"))) return;
     if (!/^\d{3}$/.test(area)) { setAreaProblem(W.threeDigits); return; }
     setBusy(true);
     const r = await P.lines.search(area);
@@ -552,7 +552,7 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
   const [help, setHelp] = React.useState(false);
   const forward = async () => {
     const carrier = F.forwardingCarrierOf(c.rings, c.company);
-    if (!P || !carrier || !ph.forwardFrom || !(window.canDo && window.canDo("team"))) return;
+    if (!P || !carrier || !ph.forwardFrom || !(window.canDo && window.canDo("disconnect"))) return;
     // Asked again and answered the same: the code saved stands, and saving it again would drop what a call proved.
     if (ph.saved && ph.saved.carrier === carrier) { answer({ redo: false }); return; }
     setBusy(true);
@@ -593,7 +593,7 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
       if (!r.ok) { setChoice({ ...next, pending: false }); flash({ tone: "danger", msg: <>{r.message}</> }); }
       return;
     }
-    if (!(window.canDo && window.canDo("team"))) return;
+    if (!(window.canDo && window.canDo("disconnect"))) return;
     setChoice(next);
     go("start/phone");
   };
@@ -601,8 +601,8 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
   const gateOf = {
     plan: ["billing", "start the plan"],
     startNow: ["billing", "start the plan"],
-    buy: ["team", "get a number"],
-    forward: ["team", "set up forwarding"],
+    buy: ["disconnect", "get a number"],
+    forward: ["disconnect", "set up forwarding"],
   };
   const gated = ph.cta && gateOf[ph.cta.act] ? window.gate(gateOf[ph.cta.act][0], gateOf[ph.cta.act][1]) : {};
   const foot = ownFoot && ph.cta ? (
@@ -675,7 +675,7 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
         ) : null}
         <div className="fr-code-links">
           {k.help.notes.length ? <button type="button" className="fr-find-link" aria-expanded={help} onClick={() => setHelp((v) => !v)} data-testid="fr-phone-help">{k.help.label}</button> : null}
-          {k.change ? <button type="button" className="fr-find-link" onClick={() => answer({ redo: true })} data-testid="fr-phone-change" {...window.gate("team", "set up forwarding")}>{k.change}</button> : null}
+          {k.change ? <button type="button" className="fr-find-link" onClick={() => answer({ redo: true })} data-testid="fr-phone-change" {...window.gate("disconnect", "set up forwarding")}>{k.change}</button> : null}
         </div>
         {help ? <ul className="fr-code-notes" data-testid="fr-phone-notes">{k.help.notes.map((t) => <li key={t}>{t}</li>)}</ul> : null}
         {foot}
@@ -728,7 +728,7 @@ const FrPhone = ({ ph, choice, setChoice, W, flash, go, back, backLabel, ownFoot
               aria-describedby={areaProblem ? "fr-phone-area-problem" : undefined}
               data-testid="fr-phone-area"
             />
-            <button type="submit" className="btn btn-sm" disabled={busy} data-testid="fr-phone-find" {...window.gate("team", "find a number")}>{busy ? W.finding : W.find}</button>
+            <button type="submit" className="btn btn-sm" disabled={busy} data-testid="fr-phone-find" {...window.gate("disconnect", "find a number")}>{busy ? W.finding : W.find}</button>
           </form>
           <window.FieldError id="fr-phone-area-problem" message={areaProblem} testid="fr-phone-area-problem" />
           {numbers && numbers.length ? (
@@ -816,7 +816,7 @@ const FrTry = ({ tr, W, flash, go, leave, back, backLabel }) => {
   React.useEffect(() => {
     const listening = tr.stage === "listen" || tr.stage === "quiet";
     if (!tr.openTest || !listening || Date.now() - opened.current < FR_TRY_WINDOW_MS) return;
-    if (!P || !P.forwarding || !(window.canDo && window.canDo("team"))) return;
+    if (!P || !P.forwarding || !(window.canDo && window.canDo("disconnect"))) return;
     opened.current = Date.now();
     P.forwarding.test(tr.openTest).then((r) => { if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> }); });
   }, [tr.openTest, tr.stage]);
@@ -1112,9 +1112,10 @@ const FirstRun = ({ param = null, onNavigate }) => {
       </div>
     );
   }
-  // Who is looking, for Find: an owner by the role gate (View-as included), and what the business goes by.
+  // Who is looking, for Find: whoever may set the workspace up (an owner, or the partner who brought it), by the
+  // role gate (View-as included), and what the business goes by.
   const who = {
-    owner: !!(window.canDo && window.canDo("team")),
+    owner: !!(window.canDo && window.canDo("settings")),
     receptionistName: S.dto.business.name,
     workspaceName: (frWorkspace() || {}).name || null,
   };
@@ -1159,13 +1160,13 @@ const FirstRun = ({ param = null, onNavigate }) => {
           dto: S.dto,
           emails: (cfgNow && cfgNow.notifications && cfgNow.notifications.escalation_emails) || [],
           business: S.dto.business.name,
-          owner: !!(window.canDo && window.canDo("team")),
+          owner: !!(window.canDo && window.canDo("settings")),
         })
       : null;
   // The step's foot is the phone step's own while its button is the one to press. A role that may not save the
   // forwarding has nothing to press in the questions, and the step is done then (its line answers): the page's own
   // foot, with Continue.
-  const phoneFoot = phoneDrawn && !!ph.cta && !(ph.stage === "ask" && !(window.canDo && window.canDo("team")));
+  const phoneFoot = phoneDrawn && !!ph.cta && !(ph.stage === "ask" && !(window.canDo && window.canDo("disconnect")));
   // Whether this role may change the business, as the Business tab asks it: its rows' acts, and the answer's door.
   const canEdit = !window.canDo || window.canDo("settings");
   // The step on screen is the address's, replaced rather than pushed, so the browser's Back leaves the first run. A
@@ -1194,7 +1195,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
     const P = window.__setup;
     const voice = S.dto.channels.voice;
     const activated = (S.dto.activations || []).some((a) => a.capability === "voice" && !a.deactivated_at);
-    if (!finishRefused.current && P && P.activate && voice.active && !activated && window.canDo && window.canDo("team")) {
+    if (!finishRefused.current && P && P.activate && voice.active && !activated && window.canDo && window.canDo("disconnect")) {
       setFinishing(true);
       const r = await P.activate("voice", { firstRun: true });
       setFinishing(false);
@@ -1255,7 +1256,7 @@ const FirstRun = ({ param = null, onNavigate }) => {
           {phoneDrawn ? <FrPhone ph={ph} choice={phoneChoice} setChoice={setPhoneChoice} W={F.phoneWords} flash={flash} go={go} back={fr.back} backLabel={W.back} ownFoot={phoneFoot} /> : null}
           {tryDrawn ? <FrTry tr={tr} W={F.tryWords} flash={flash} go={go} leave={leave} back={fr.back} backLabel={W.back} /> : null}
           {step.key === "try" && !tryDrawn && S.vm.tryIt ? <window.SetupTry tryIt={S.vm.tryIt} /> : null}
-          {lv ? <FrLive lv={lv} config={cfgNow} brain={cfgNow && cfgNow.brain} canEdit={canEdit} owner={!!(window.canDo && window.canDo("team"))} leave={leave} /> : null}
+          {lv ? <FrLive lv={lv} config={cfgNow} brain={cfgNow && cfgNow.brain} canEdit={canEdit} owner={!!(window.canDo && window.canDo("disconnect"))} leave={leave} /> : null}
           {!fr.find && !fr.check && !phoneDrawn && !tryDrawn && step.rows.length ? (
             <div className="fr-part">
               {step.key === "live" ? <h2 className="fr-sub">{W.liveNext}</h2> : null}

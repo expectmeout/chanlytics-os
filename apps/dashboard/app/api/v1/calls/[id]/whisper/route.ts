@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { callScope, recordDecision } from "@/server/verbs";
-import { whisperLiveCall } from "@/server/service";
+import { whisperLiveCall } from "@/server/conversations/live-call";
 
 const MAX_CHARS = 500;
 

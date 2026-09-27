@@ -1,7 +1,7 @@
 import { read, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
 import { authorizeUrl, newNonce, signState, STATE_TTL_MS } from "@chanlytics/channels";
-import { googleReadiness, stateSecret } from "@/server/google";
+import { googleReadiness, stateSecret } from "@/server/connections/google";
 
 /**
  * GET /api/v1/google/connect — the way to Google: a signed state naming the
@@ -11,7 +11,7 @@ import { googleReadiness, stateSecret } from "@/server/google";
  */
 export const GET = read({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "google_link",
   handle: async ({ ctx, member }) => {
     const ready = await googleReadiness();

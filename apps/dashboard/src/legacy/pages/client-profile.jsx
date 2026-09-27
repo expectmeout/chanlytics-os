@@ -1386,7 +1386,8 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const dealP = peopleRow && peopleRow.followUp ? { ...p, followUp: peopleRow.followUp } : p;
   const tone = p.rightNow.tone;
   const isOwner = !!(window.__ME && window.__ME.role === "owner");
-  const canRecord = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // The roles ROLE_PERMS gives `approve`: owner, operator, and the partner (0012).
+  const canRecord = !!(window.__ME && ["owner", "operator", "partner"].includes(window.__ME.role));
   const digitsOf = (x) => String(x || "").replace(/\D/g, "");
   const typedMatches =
     del.typed.trim() === p.name ||

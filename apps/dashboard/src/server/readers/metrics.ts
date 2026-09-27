@@ -1,6 +1,6 @@
 import "server-only";
 import { AppError, type MetricsSummaryDto } from "@chanlytics/contracts";
-import { metricsSummaryFor } from "../metrics";
+import { metricsSummaryFor } from "../metrics/metrics";
 import { stamp, type Reader } from "./index";
 
 /**
@@ -14,7 +14,7 @@ export const metrics: Reader<{ days: number }, { metrics: MetricsSummaryDto; wor
   async read(rc, { days }) {
     const tenantId = rc.tenantId;
     // The function answers the routing rows; the workspace's email line is
-    // added beside them (server/metrics.ts), so Today counts every wire.
+    // added beside them (server/metrics/metrics.ts), so Today counts every wire.
     const metrics = await metricsSummaryFor(rc.ctx.supabase, tenantId, days);
     if (!metrics) throw new AppError("not_found", "Workspace metrics unavailable.", 404);
     return { data: { metrics, workspaceId: tenantId }, rows: [], stamp: stamp() };

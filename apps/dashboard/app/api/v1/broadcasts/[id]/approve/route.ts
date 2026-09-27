@@ -1,7 +1,7 @@
 import { approveRun } from "@chanlytics/core";
 import { write } from "@/server/route";
 import { broadcastScope } from "@/server/verbs";
-import { approveRunPorts } from "@/server/campaign-ports";
+import { approveRunPorts } from "@/server/ports/campaign-ports";
 
 /**
  * POST /api/v1/broadcasts/:id/approve — a run that was waiting for a person

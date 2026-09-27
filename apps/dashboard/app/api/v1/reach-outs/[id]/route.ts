@@ -1,7 +1,7 @@
 import { ReachOutChainSchema } from "@chanlytics/contracts";
 import { read, write } from "@/server/route";
 import { reachOutScope } from "@/server/verbs";
-import { chainReportOf, reachOf, removeChain, saveChain } from "@/server/reach-outs";
+import { chainReportOf, reachOf, removeChain, saveChain } from "@/server/campaigns/reach-outs";
 
 /**
  * One reach-out, by its first step (reachOutScope: read under RLS, so one the caller cannot see is a 404).

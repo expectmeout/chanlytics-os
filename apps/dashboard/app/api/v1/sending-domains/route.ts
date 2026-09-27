@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
-import { addSendingDomain } from "@/server/sending-domains";
+import { addSendingDomain } from "@/server/connections/sending-domains";
 
 const Body = z
   .object({
@@ -19,7 +19,7 @@ const Body = z
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   input: Body,
   handle: async ({ ctx, member, input }) => ({

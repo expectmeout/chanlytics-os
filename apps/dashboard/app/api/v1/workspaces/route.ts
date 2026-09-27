@@ -10,8 +10,9 @@ import {
   signupPosture,
   type SellsBy,
 } from "@chanlytics/contracts";
-import { acceptOpenInvites } from "@/server/service";
-import { isPlatformAdmin } from "@/server/platform";
+import { acceptOpenInvites } from "@/server/workspace/team";
+import { getOwnPartner } from "@chanlytics/db";
+import { isPlatformAdmin } from "@/server/platform/platform";
 import { isSameOrigin } from "@/server/request-guards";
 
 /** A workspace as the list says it: its zone, and how its customers buy (0008), null when it was never asked. */
@@ -22,6 +23,8 @@ interface WorkspaceRow {
   status: string;
   timezone: string;
   sells_by: string | null;
+  /** The caller's role in it (0012): the switcher says it beside every workspace, and the partner's pane counts theirs. */
+  role?: string | null;
 }
 const COLUMNS = "id, slug, name, status, timezone, sells_by";
 const OLDER_COLUMNS = "id, slug, name, status, timezone";
@@ -84,6 +87,11 @@ export const GET = read({
     // to hand every session -- and it is NOT the authorization: every platform
     // route asks the database again.
     const platformAdmin = await isPlatformAdmin(ctx);
+    // Whether this person is a partner (0012), on the same payload for the same reason: the Partner pane and the
+    // switcher's role chips are drawn from what boot already fetched. Their own row alone, by RLS; null on a
+    // database 00202 has not reached.
+    const partnerRow = await getOwnPartner(supabase);
+    const partner = partnerRow ? { code: partnerRow.code, status: partnerRow.status } : null;
 
     // Accept any open invitation for this address, then re-read. Self-healing:
     // there is no accept endpoint to get wrong, and no link that expires into a
@@ -142,9 +150,19 @@ export const GET = read({
           role: null,
           display_name: displayName,
           platform_admin: platformAdmin,
+          partner,
         },
       };
     }
+
+    // The caller's role in each workspace (0012): one read of their own memberships, RLS-scoped.
+    const { data: mine, error: mineErr } = await supabase
+      .from("memberships")
+      .select("tenant_id, role")
+      .eq("user_id", userId);
+    if (mineErr) throw new Error(mineErr.message);
+    const roleOf = new Map((mine ?? []).map((m) => [m.tenant_id, m.role]));
+    const listed = data.map((w) => ({ ...w, role: roleOf.get(w.id) ?? null }));
 
     const preferred = new URL(_req.url).searchParams.get("workspace");
     // A STALE PREFERENCE, and nothing else. memberContext throws two things:
@@ -162,7 +180,7 @@ export const GET = read({
       return memberContext(ctx, null, { defaultAllowed: true });
     });
     return {
-      workspaces: data,
+      workspaces: listed,
       // Which workspace everything else on this page is scoped to. The client
       // echoes it back as ?workspace= so a reload lands where it left off.
       activeWorkspaceId: active.tenantId,
@@ -172,6 +190,7 @@ export const GET = read({
         role: active.role,
         display_name: displayName,
         platform_admin: platformAdmin,
+        partner,
       },
     };
   },
@@ -191,7 +210,7 @@ export const GET = read({
  */
 export const PATCH = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: null,
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => null)) as { timezone?: unknown; sells_by?: unknown } | null;

@@ -23,6 +23,12 @@ import {
   platformHealthWords,
   activityWords,
   platformQueue,
+  platformPartnerRows,
+  platformPartnerSummary,
+  platformPartnerStanding,
+  partnerPayoutOutcomeWords,
+  partnerStandingOutcomeWords,
+  partnerStatusOutcomeWords,
   clockTime,
   clockDateYear,
   clockDayLabel,
@@ -32,6 +38,8 @@ import {
   type PlatformLineAction,
   type PlatformHealth,
   type PlatformQueue,
+  type PlatformPartnerBalanceDto,
+  type PlatformPartnerWorkspaceDto,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { readCache } from "./read-cache";
@@ -58,6 +66,8 @@ type OverviewAnswer = {
   tenants: PlatformTenantDto[];
   health: PlatformHealth | null;
   queue: PlatformQueue | null;
+  /** Every partner and who brought each workspace (0012, P5); null when it could not be read. */
+  partners: { balances: PlatformPartnerBalanceDto[]; workspaces: PlatformPartnerWorkspaceDto[] } | null;
   message: string;
 };
 type DetailAnswer = { ok: boolean; detail: PlatformTenantDetail | null; message: string };
@@ -120,6 +130,26 @@ export interface PlatformApi {
    * and this passes the name rather than anything the edge would execute.
    */
   act(action: PlatformLineAction, tenantId: string, lineId: string): Promise<{ ok: boolean; message: string }>;
+  /** The partners, as rows and a sentence, and a workspace's partner as its row says it. Pure, from contracts. */
+  partnerRows: typeof platformPartnerRows;
+  partnerSummary: typeof platformPartnerSummary;
+  partnerStanding: typeof platformPartnerStanding;
+  /** A person's decision on a workspace a partner brought, with why. Recorded against the caller. */
+  setStanding(tenantId: string, standing: string, why: string): Promise<{ ok: boolean; message: string }>;
+  /**
+   * Record a payout sent by hand. IT SENDS NOTHING: the money leaves from the bank, and this records that it did,
+   * with the reference to find it by.
+   */
+  markPaid(
+    partnerId: string,
+    code: string,
+    currency: string,
+    reference: string,
+    /** The total the card showed: nothing is recorded when what is payable has moved since. */
+    expectedCents: number,
+  ): Promise<{ ok: boolean; message: string }>;
+  /** Pause, close or restore a partner, with why. A pause takes their seat on every workspace they brought. */
+  setStatus(partnerId: string, code: string, status: string, why: string): Promise<{ ok: boolean; message: string }>;
 }
 
 declare global {
@@ -133,7 +163,7 @@ export function installPlatform(win: Window = window): void {
     list: () =>
       overviews.through("all", async () => {
         const r = await api()("GET platform/overview");
-        if (!r.ok) return { ok: false, tenants: [], health: null, queue: null, message: r.message };
+        if (!r.ok) return { ok: false, tenants: [], health: null, queue: null, partners: null, message: r.message };
         // `health` rides on this read rather than a route of its own: the same
         // question, the same door, and the page that lists the workspaces is the
         // one that should say whether the machinery under them is running.
@@ -142,6 +172,7 @@ export function installPlatform(win: Window = window): void {
           tenants: r.data.tenants,
           health: r.data.health ?? null,
           queue: r.data.queue ?? null,
+          partners: r.data.partners ?? null,
           message: "",
         };
       }),
@@ -201,6 +232,29 @@ export function installPlatform(win: Window = window): void {
         ? { ok: true, message: "Somebody had already marked them." }
         : { ok: true, message: "Marked. They are off the list." };
     },
+    async setStanding(tenantId, standing, why) {
+      const r = await api()("POST platform/partners/standing", { body: { tenant_id: tenantId, standing, why } });
+      overviews.clear();
+      if (!r.ok) return { ok: false, message: r.message };
+      return { ok: true, message: partnerStandingOutcomeWords(r.data.result) };
+    },
+    async markPaid(partnerId, code, currency, reference, expectedCents) {
+      const r = await api()("POST platform/partners/payout", {
+        body: { partner_id: partnerId, currency, reference, expected_cents: expectedCents },
+      });
+      overviews.clear();
+      if (!r.ok) return { ok: false, message: r.message };
+      return { ok: r.data.result.paid, message: partnerPayoutOutcomeWords(code, r.data.result) };
+    },
+    async setStatus(partnerId, code, status, why) {
+      const r = await api()("POST platform/partners/status", { body: { partner_id: partnerId, status, why } });
+      overviews.clear();
+      if (!r.ok) return { ok: false, message: r.message };
+      return { ok: true, message: partnerStatusOutcomeWords(code, r.data.result) };
+    },
+    partnerRows: platformPartnerRows,
+    partnerSummary: platformPartnerSummary,
+    partnerStanding: platformPartnerStanding,
     rows: platformRows,
     healthWords: platformHealthWords,
     queue: platformQueue,

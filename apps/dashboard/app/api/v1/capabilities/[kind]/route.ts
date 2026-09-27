@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { AppError, CAPABILITY_KINDS, capabilityStatus, type CapabilityKind } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { setupDtoFor } from "@/server/setup";
-import { tellOwnerLive } from "@/server/service";
+import { setupDtoFor } from "@/server/workspace/setup";
+import { tellOwnerLive } from "@/server/workspace/tell";
 
 const Body = z.object({
   note: z.string().trim().max(200, "Two hundred characters at most.").optional(),
@@ -28,7 +28,7 @@ function kindOf(raw: unknown): CapabilityKind {
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   input: Body,
   handle: async ({ ctx, member, input }) => {
@@ -70,7 +70,7 @@ export const POST = write({
 /** DELETE /api/v1/capabilities/:kind — the owner switches it off again. The row stays; the history does. */
 export const DELETE = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   handle: async ({ ctx, member }) => {
     const kind = kindOf(ctx.params.kind);

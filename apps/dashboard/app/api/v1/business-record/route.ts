@@ -7,7 +7,7 @@ import {
   type BusinessRecordDto,
   type RegistrationPath,
 } from "@chanlytics/contracts";
-import { edgeLines } from "@/server/lines";
+import { edgeLines } from "@/server/connections/lines";
 import type { RouteContext } from "@/server/with-route";
 
 /**
@@ -67,7 +67,7 @@ async function ourNumbers(ctx: Pick<RouteContext, "supabase">, tenantId: string)
 
 export const PUT = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "business_record",
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => ({}))) as { record?: Partial<BusinessRecordDto>; path?: string };

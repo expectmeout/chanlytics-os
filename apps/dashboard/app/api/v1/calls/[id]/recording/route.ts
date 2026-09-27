@@ -1,7 +1,7 @@
 import { AppError } from "@chanlytics/contracts";
 import { read } from "@/server/route";
 import { callScope } from "@/server/verbs";
-import { signedMediaUrl } from "@/server/service";
+import { signedMediaUrl } from "@/server/conversations/media";
 
 /**
  * GET /api/v1/calls/:id/recording — a redirect to a short-lived signed URL for

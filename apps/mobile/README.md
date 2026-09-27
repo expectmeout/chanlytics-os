@@ -16,6 +16,11 @@ corepack pnpm exec eas build --profile development --platform android          #
 corepack pnpm start                                      # the dev client loop, once one is installed
 ```
 
+**The preview app on main** (`.eas/workflows/preview.yml`): a push to main that touches this app or the contracts
+fingerprints the native code. When a preview APK with that fingerprint exists, the push reaches it as an update on
+the `preview` channel (the app fetches it at launch and runs it on the next one); only a native change builds a new
+APK. Each build is one of the plan's builds, and the free plan's run out, so nothing else builds on a push.
+
 `EXPO_PUBLIC_SITE_ORIGIN` names the site the shell holds. Unset, it is the product's own address (`src/site.ts`); an
 EAS environment or a local `.env.local` may point it elsewhere, at a preview for instance.
 
@@ -36,7 +41,7 @@ icon's number is the bell's. Push credentials and the signing token are the runb
 ## Signing in, and the lock
 
 Apple's sheet and Google's yield a token that a Surface POSTs to the site's native door, so the cookie is the WebView's
-(`src/shell/native-auth.ts`, `sign-in.ts`). The lock (`lock.ts`, `Lock.tsx`) stands at launch and after two minutes
+(`src/shell/native-auth.ts`, `sign-in.ts`). The lock (`lock.ts`, `LockScreen.tsx`) stands at launch and after two minutes
 away, on by default where the phone can lock. Google's ids come from the EAS environment; see the runbook's "Turn on
 native sign-in".
 

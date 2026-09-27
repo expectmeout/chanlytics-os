@@ -15,7 +15,7 @@ submit profiles. PRD tier 1, PR 6.
       account; the two placeholders in `eas.json`; App Store Connect's review information with the reviewer
       workspace's email and password (`tooling/scripts/e2e-workspace.mjs` makes the workspace); the screenshots
       from a device build; the support URL the listing names, live at chanlytics.com/support.
-- [ ] Squash-merge.
+- [x] Squash-merge (#1136).
 
 ## As built (26 Sep 2026)
 

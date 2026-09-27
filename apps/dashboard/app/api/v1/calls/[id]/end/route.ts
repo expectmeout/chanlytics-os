@@ -1,7 +1,7 @@
 import { AppError } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { callScope, recordDecision } from "@/server/verbs";
-import { stopLiveCall } from "@/server/service";
+import { stopLiveCall } from "@/server/conversations/live-call";
 
 /**
  * POST /api/v1/calls/:id/end — end a call in progress. The call is the row

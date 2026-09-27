@@ -23,11 +23,22 @@ import {
   type AskTurnShape,
   type PageContext,
 } from "@chanlytics/contracts";
+import type { MembershipRole } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { load, type ReaderContext } from "../readers";
 import { GatewayRefused, featureRejected } from "./gateway";
-import { READ_TOOLS, newToolContext, runTool, toolLabel, type ToolContext, type ToolRun } from "./tools";
-import { ACT_TOOLS, ACT_TOOL_NAMES, buildProposal, proposalLabel } from "./proposals";
+import {
+  ACT_TOOLS,
+  ACT_TOOL_NAMES,
+  READ_TOOLS,
+  buildProposal,
+  newToolContext,
+  proposalLabel,
+  runTool,
+  toolLabel,
+  type ToolContext,
+  type ToolRun,
+} from "./tools";
 import { stableSystem, turnWords, type WorkspaceFacts } from "./prompt";
 import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
 import { crossPagePlan, readBlock } from "./cross-page";
@@ -79,7 +90,7 @@ export interface TurnEvent {
 export interface TurnInput {
   ctx: RouteContext;
   tenantId: string;
-  role: "owner" | "operator" | "viewer";
+  role: MembershipRole;
   facts: WorkspaceFacts;
   timezone: string;
   personLabel: string;

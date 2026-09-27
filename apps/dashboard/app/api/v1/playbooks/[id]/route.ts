@@ -9,7 +9,7 @@ import type { Json } from "@chanlytics/db";
 import { write } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { playbookScope, recordDecision } from "@/server/verbs";
-import { checkPlaybookInput, playbookWriteError, refuseOnArchivedList } from "@/server/playbooks";
+import { checkPlaybookInput, playbookWriteError, refuseOnArchivedList } from "@/server/campaigns/playbooks";
 
 /**
  * One playbook.

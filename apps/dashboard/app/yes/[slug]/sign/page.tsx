@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { deskSignMetadata, deskSignVM } from "@chanlytics/contracts";
-import { consentPageFor } from "@/server/consent-page";
+import { consentPageFor } from "@/server/public/consent-page";
 import { printableOrigin } from "@/server/origin";
 import { DeskSign } from "@/yes/DeskSign";
 

@@ -230,9 +230,8 @@ declare
   v_changed  uuid[] := '{}';
   v_reset    int := 0;
 begin
-  if p_tenant_id is null or p_user_id is null or not exists (
-       select 1 from public.memberships m
-        where m.tenant_id = p_tenant_id and m.user_id = p_user_id and m.role in ('owner', 'operator')) then
+  -- Who may: the one table of permissions (00201 has_permission's approve, a playbook's own: owner, operator, partner).
+  if p_tenant_id is null or p_user_id is null or not public.has_permission(p_user_id, p_tenant_id, 'approve') then
     raise exception 'Workspace not found.' using errcode = 'P0002';
   end if;
   if v_n < 1 then raise exception 'A reach-out has at least one email.' using errcode = '22023'; end if;

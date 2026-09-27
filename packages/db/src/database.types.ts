@@ -185,6 +185,32 @@ export type Database = {
           },
         ]
       }
+      billing_card_marks: {
+        Row: {
+          card_fingerprint: string
+          seen_at: string
+          tenant_id: string
+        }
+        Insert: {
+          card_fingerprint: string
+          seen_at?: string
+          tenant_id: string
+        }
+        Update: {
+          card_fingerprint?: string
+          seen_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_card_marks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_events: {
         Row: {
           id: string
@@ -1883,7 +1909,7 @@ export type Database = {
           email: string
           expires_at: string
           id: string
-          invited_by: string
+          invited_by: string | null
           revoked_at: string | null
           role: string
           tenant_id: string
@@ -1894,7 +1920,7 @@ export type Database = {
           email: string
           expires_at?: string
           id?: string
-          invited_by: string
+          invited_by?: string | null
           revoked_at?: string | null
           role: string
           tenant_id: string
@@ -1905,7 +1931,7 @@ export type Database = {
           email?: string
           expires_at?: string
           id?: string
-          invited_by?: string
+          invited_by?: string | null
           revoked_at?: string | null
           role?: string
           tenant_id?: string
@@ -3311,6 +3337,258 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_earnings: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          currency: string
+          earned_cents: number
+          id: string
+          kind: string
+          paid_at: string
+          partner_id: string
+          payable_at: string
+          payout_id: string | null
+          share_bp: number
+          state: string
+          stripe_event_id: string
+          stripe_invoice_id: string
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          currency: string
+          earned_cents: number
+          id?: string
+          kind: string
+          paid_at: string
+          partner_id: string
+          payable_at: string
+          payout_id?: string | null
+          share_bp: number
+          state?: string
+          stripe_event_id: string
+          stripe_invoice_id: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          currency?: string
+          earned_cents?: number
+          id?: string
+          kind?: string
+          paid_at?: string
+          partner_id?: string
+          payable_at?: string
+          payout_id?: string | null
+          share_bp?: number
+          state?: string
+          stripe_event_id?: string
+          stripe_invoice_id?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_earnings_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_earnings_payout_id_fkey"
+            columns: ["payout_id"]
+            isOneToOne: false
+            referencedRelation: "partner_payouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_earnings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_payouts: {
+        Row: {
+          created_at: string
+          currency: string
+          earnings: number
+          id: string
+          partner_id: string
+          period_end: string
+          period_start: string
+          reference: string
+          sent_at: string
+          sent_by: string | null
+          total_cents: number
+        }
+        Insert: {
+          created_at?: string
+          currency: string
+          earnings: number
+          id?: string
+          partner_id: string
+          period_end: string
+          period_start: string
+          reference: string
+          sent_at?: string
+          sent_by?: string | null
+          total_cents: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          earnings?: number
+          id?: string
+          partner_id?: string
+          period_end?: string
+          period_start?: string
+          reference?: string
+          sent_at?: string
+          sent_by?: string | null
+          total_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_payouts_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_reversals_waiting: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          kind: string
+          stripe_event_id: string
+          stripe_invoice_id: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          kind: string
+          stripe_event_id: string
+          stripe_invoice_id: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          kind?: string
+          stripe_event_id?: string
+          stripe_invoice_id?: string
+        }
+        Relationships: []
+      }
+      partner_tenants: {
+        Row: {
+          attributed_at: string
+          checks: Json
+          code_used: string
+          partner_id: string
+          seat_held_at: string | null
+          standing: string | null
+          standing_at: string | null
+          standing_by: string | null
+          standing_why: string | null
+          tenant_id: string
+        }
+        Insert: {
+          attributed_at?: string
+          checks?: Json
+          code_used: string
+          partner_id: string
+          seat_held_at?: string | null
+          standing?: string | null
+          standing_at?: string | null
+          standing_by?: string | null
+          standing_why?: string | null
+          tenant_id: string
+        }
+        Update: {
+          attributed_at?: string
+          checks?: Json
+          code_used?: string
+          partner_id?: string
+          seat_held_at?: string | null
+          standing?: string | null
+          standing_at?: string | null
+          standing_by?: string | null
+          standing_why?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_tenants_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partners: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          payout_facts: Json
+          share_bp: number
+          status: string
+          status_at: string | null
+          status_by: string | null
+          status_why: string | null
+          terms_accepted_at: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          payout_facts?: Json
+          share_bp?: number
+          status?: string
+          status_at?: string | null
+          status_by?: string | null
+          status_why?: string | null
+          terms_accepted_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          payout_facts?: Json
+          share_bp?: number
+          status?: string
+          status_at?: string | null
+          status_by?: string | null
+          status_why?: string | null
+          terms_accepted_at?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       person_notes: {
         Row: {
           author_kind: string
@@ -4349,7 +4627,15 @@ export type Database = {
       }
     }
     Functions: {
+      billing_card_mark: {
+        Args: { p_fingerprint: string; p_tenant_id: string }
+        Returns: undefined
+      }
       call_status_rank: { Args: { p_status: string }; Returns: number }
+      caller_has_permission: {
+        Args: { p_permission: string; p_tenant_id: string }
+        Returns: boolean
+      }
       campaign_series: {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
@@ -4412,7 +4698,7 @@ export type Database = {
         Returns: Json
       }
       create_workspace: {
-        Args: { p_name: string; p_timezone?: string }
+        Args: { p_name: string; p_partner_code?: string; p_timezone?: string }
         Returns: {
           id: string
           locale: string
@@ -4423,7 +4709,12 @@ export type Database = {
         }[]
       }
       create_workspace_for: {
-        Args: { p_name: string; p_timezone?: string; p_user: string }
+        Args: {
+          p_name: string
+          p_partner_code?: string
+          p_timezone?: string
+          p_user: string
+        }
         Returns: {
           id: string
           locale: string
@@ -4971,6 +5262,97 @@ export type Database = {
         Args: { p_contact_ids: string[]; p_tenant_id: string }
         Returns: string[]
       }
+      partner_balance: {
+        Args: never
+        Returns: {
+          currency: string
+          earned_cents: number
+          next_payable_at: string
+          state: string
+        }[]
+      }
+      partner_become: { Args: { p_code: string }; Returns: Json }
+      partner_earn: {
+        Args: {
+          p_amount_cents: number
+          p_currency: string
+          p_event_id: string
+          p_invoice_id: string
+          p_paid_at: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      partner_earnings_sweep: { Args: { p_now?: string }; Returns: Json }
+      partner_overview: {
+        Args: never
+        Returns: {
+          billing_mode: string
+          billing_status: string
+          created_at: string
+          current_period_end: string
+          last_inbound_at: string
+          line_e164: string
+          line_error: string
+          line_kind: string
+          members: number
+          name: string
+          reg_mock: boolean
+          reg_sole_prop: boolean
+          reg_step: string
+          slug: string
+          sms_state: string
+          status: string
+          tenant_id: string
+          timezone: string
+          trial_end: string
+          voice_active: boolean
+          voice_number: string
+          voice_state: string
+          whatsapp_active: boolean
+          whatsapp_number: string
+        }[]
+      }
+      partner_payout_mark: {
+        Args: {
+          p_currency: string
+          p_expected_cents?: number
+          p_partner: string
+          p_reference: string
+        }
+        Returns: Json
+      }
+      partner_reverse: {
+        Args: {
+          p_amount_cents: number
+          p_event_id: string
+          p_invoice_id: string
+          p_kind: string
+        }
+        Returns: Json
+      }
+      partner_standing_set: {
+        Args: { p_standing: string; p_tenant: string; p_why: string }
+        Returns: Json
+      }
+      partner_status_set: {
+        Args: { p_partner: string; p_status: string; p_why: string }
+        Returns: Json
+      }
+      partner_workspace_money: {
+        Args: never
+        Returns: {
+          currency: string
+          held_cents: number
+          month_cents: number
+          name: string
+          on_team: boolean
+          paid_cents: number
+          payable_cents: number
+          standing: string
+          tenant_id: string
+        }[]
+      }
       people_list: {
         Args: {
           p_contact_id?: string
@@ -5145,6 +5527,67 @@ export type Database = {
           voice_state: string
           whatsapp_active: boolean
           whatsapp_number: string
+        }[]
+      }
+      platform_overview_rows_for: {
+        Args: { p_tenants: string[] }
+        Returns: {
+          billing_mode: string
+          billing_status: string
+          created_at: string
+          current_period_end: string
+          last_inbound_at: string
+          line_e164: string
+          line_error: string
+          line_kind: string
+          members: number
+          name: string
+          reg_mock: boolean
+          reg_sole_prop: boolean
+          reg_step: string
+          slug: string
+          sms_state: string
+          status: string
+          tenant_id: string
+          timezone: string
+          trial_end: string
+          voice_active: boolean
+          voice_number: string
+          voice_state: string
+          whatsapp_active: boolean
+          whatsapp_number: string
+        }[]
+      }
+      platform_partner_balances: {
+        Args: never
+        Returns: {
+          code: string
+          currency: string
+          email: string
+          held_cents: number
+          joined_at: string
+          last_paid_at: string
+          paid_cents: number
+          partner_id: string
+          payable_cents: number
+          share_bp: number
+          status: string
+          under_review: number
+          workspaces: number
+        }[]
+      }
+      platform_partner_workspaces: {
+        Args: never
+        Returns: {
+          attributed_at: string
+          checks: Json
+          code: string
+          decided_by: string
+          partner_id: string
+          standing: string
+          standing_at: string
+          standing_why: string
+          tenant_id: string
         }[]
       }
       profile_set: { Args: { p_display_name: string }; Returns: Json }
@@ -5676,6 +6119,7 @@ export type Database = {
       trigger_leads_sweep: { Args: never; Returns: number }
       trigger_lines_sweep: { Args: never; Returns: number }
       trigger_notes_sweep: { Args: never; Returns: number }
+      trigger_partners_sweep: { Args: never; Returns: number }
       trigger_playbooks_sweep: { Args: never; Returns: number }
       trigger_reach_out_check_sweep: { Args: never; Returns: number }
       trigger_reach_out_sweep: { Args: never; Returns: number }

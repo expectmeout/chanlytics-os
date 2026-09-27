@@ -3,7 +3,7 @@ import { AppError, LeadSearchPlanSchema } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { write, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { answerOf, answerPlanOf, refusalOf, searchRow } from "@/server/leads";
+import { answerOf, answerPlanOf, refusalOf, searchRow } from "@/server/leads/leads";
 
 const Body = z.object({
   answer: z.enum(["keep", "include", "stop"]),
@@ -21,7 +21,7 @@ const Body = z.object({
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lead_answer",
   input: Body,
   handle: async ({ ctx, member, input }) => {

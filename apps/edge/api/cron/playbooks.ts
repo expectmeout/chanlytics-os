@@ -14,6 +14,7 @@ import { playbooksDue, reachOutsDue, noteBacklog, PLAYBOOKS_PER_TICK } from "../
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
 import type { ReachOutRow } from "../../lib/reach-out/run-context.js";
 import { runReachOutStep } from "../../lib/reach-out/run-step.js";
+import { stampReachOutStep, tenantZoneOf } from "../../lib/packages/db.js";
 import { localDate, runDueNow, type PlaybookDto } from "../../lib/packages/contracts.js";
 
 /** When the reach-outs stop for the tick: what is left runs next hour, as a step is due all day from its hour. */
@@ -86,8 +87,7 @@ export async function POST(request: Request): Promise<Response> {
       break;
     }
     if (!zones.has(row.tenant_id)) {
-      const { data: tenant } = await db.from("tenants").select("timezone").eq("id", row.tenant_id).maybeSingle();
-      zones.set(row.tenant_id, tenant?.timezone || "America/New_York");
+      zones.set(row.tenant_id, (await tenantZoneOf(db, row.tenant_id)) || "America/New_York");
     }
     const tz = zones.get(row.tenant_id) ?? "America/New_York";
     if (!runDueNow(row as unknown as PlaybookDto, tz, now)) continue;
@@ -99,7 +99,7 @@ export async function POST(request: Request): Promise<Response> {
     } catch (e) {
       L.error("reach_out_run_failed", { playbook_id: row.id, error: e instanceof Error ? e.message : String(e) });
       out.failed += 1;
-      await db.from("playbooks").update({ last_run_at: now.toISOString() }).eq("id", row.id);
+      await stampReachOutStep(db, row.id, { at: now }).catch(() => undefined);
     }
   }
   // `remaining` counts RUNNING playbooks past the page, and due-ness is judged

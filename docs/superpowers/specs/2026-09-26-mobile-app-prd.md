@@ -35,7 +35,11 @@ PR 1 (#1122, merged 26 Sep) put the shell in the tree: `apps/mobile` on SDK 57, 
 the bridge in contracts, the first cloud builds. PR 2 (#1128, merged 26 Sep) is push: the receipts job (00189), the badge, the page registering the phone, taps into
 their tab. PR 3 (#1130) is native sign-in and the lock. PR 4 is Today on the home screen. PR 5 is account deletion and the version gate. PR 6 is the store pack (`docs/store/`). PR 7 is the call in progress on
 the Lock Screen: a push-to-start token on the device's row (00191), the edge speaking to Apple's service directly
-(`lib/ops/apns.ts`), one activity per phone as a call starts, ended by the app when the Live page says none is on.
+(`lib/ops/apns.ts`), one activity per phone as a call starts, ended by the app when the Live page says none is on. PR 8
+is the first native screen, the Inbox thread, and the bearer token beside the cookie it needed (decision 0011): the
+page hands the shell its access token, the wrapper verifies a bearer as it verifies the cookie, RLS decides the rest.
+PR 9 is Today, native: `GET /api/v1/today` composes the day once on the server over the reader Ask uses, and the app
+draws it over the tab's page, which stays mounted for the bridge.
 
 Two facts about the web that shape the app: every page is a hash route under the workspace,
 `/w/<slug>#/today|inbox|calendar|clients|...`, and the page already raises the events a shell needs

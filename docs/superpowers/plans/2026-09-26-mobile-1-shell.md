@@ -189,7 +189,7 @@ test("a shell message is navigate, menu or top; a route is a hash route's name, 
       Wrap the root in `ThemeProvider` with the page's colours so a tab switch never flashes white.
 - [x] **Step 5: More.** Its Surface loads the workspace at `#/today` and, when the page reports the route, injects
       `{t:"menu"}` once per focus. A re-tap injects it again.
-- [x] **Step 6: Run it.** `corepack pnpm --filter @chanlytics/mobile exec expo run:ios` needs a Mac; from here,
+- [ ] **Step 6: Run it.** (Not done when ticked: first run 26 Sep on an Android 17 emulator found the two launch blockers fixed in the first-launch PR.) `corepack pnpm --filter @chanlytics/mobile exec expo run:ios` needs a Mac; from here,
       `eas build --profile development-simulator --platform ios` and Android's `eas build --profile development --platform android`
       (an APK the emulator installs), then `expo start --dev-client` is the loop. Screenshot every tab and the badge.
       Measure a cold boot to first paint of Today on each; write both numbers in the PR.
@@ -218,7 +218,7 @@ test("a shell message is navigate, menu or top; a route is a hash route's name, 
       `location.reload()` into every mounted Surface. Also `Updates.checkForUpdateAsync()` on the same foreground when
       not in development, `fetchUpdateAsync` then `reloadAsync` only while the app is on the sign-in screen or idle
       for a minute, never mid-page.
-- [x] **Step 4: Prove M4's constant.** On the iOS 26 simulator and an iOS 18 simulator, open Today and scroll to the
+- [ ] **Step 4: Prove M4's constant.** (Still unproven: needs a Mac or the Apple account.) On the iOS 26 simulator and an iOS 18 simulator, open Today and scroll to the
       last row: it clears the bar. If not, correct the constant in `Surface.tsx` and note the measured value in the PRD.
 - [x] **Step 5: Commit** `feat(mobile): sign-in through the web's doors, the offline screen, a reload when a deploy lands`.
 

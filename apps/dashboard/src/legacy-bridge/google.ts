@@ -97,7 +97,7 @@ export const CONNECT_OUTCOME_WORDS: Record<string, string> = {
   state_missing: "The way back from Google was incomplete. Start the connection again.",
   state_malformed: "The way back from Google was incomplete. Start the connection again.",
   someone_else: "That connection was started by a different account. Start it again from here.",
-  not_owner: "Only an owner can connect the Business Profile.",
+  not_owner: "Only an owner or the workspace's partner can connect the Business Profile.",
   no_workspace: "The workspace the connection was started for is not one of yours.",
   no_code: "Google sent nothing back. Start the connection again.",
   scope_missing: "Google connected without access to the Business Profile. Start again and allow it.",

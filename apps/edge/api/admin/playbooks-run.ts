@@ -19,6 +19,7 @@ import { pg } from "../../lib/pg.js";
 import { loadTenantRunContext, runPlaybook, type PlaybookRow } from "../../lib/playbooks.js";
 import { logger } from "../../lib/log.js";
 import { runReachOutStep } from "../../lib/reach-out/run-step.js";
+import { tenantZoneOf } from "../../lib/packages/db.js";
 import type { ReachOutRow } from "../../lib/reach-out/run-context.js";
 
 const L = logger();
@@ -57,8 +58,8 @@ export async function POST(request: Request): Promise<Response> {
   if ((p as { kind?: string }).kind === "reach_out") {
     const row = p as ReachOutRow;
     if (row.trigger !== "lead_first") return json(409, { ok: false, error: "reach_out_step" });
-    const { data: tenant } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
-    const r = await runReachOutStep(db, row, new Date(), tenant?.timezone || "America/New_York", L);
+    const tz = (await tenantZoneOf(db, tenantId)) || "America/New_York";
+    const r = await runReachOutStep(db, row, new Date(), tz, L);
     L.info("reach_out_run_now", {
       tenant_id: tenantId,
       playbook_id: playbookId,

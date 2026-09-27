@@ -7,7 +7,7 @@ import {
   type GoogleCandidateDto,
 } from "@chanlytics/contracts";
 import { getTenantConfig } from "@chanlytics/db";
-import { edgeGoogle } from "@/server/google";
+import { edgeGoogle } from "@/server/connections/google";
 import { tenantFacts } from "@/server/tenant";
 
 /**
@@ -20,7 +20,7 @@ import { tenantFacts } from "@/server/tenant";
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "google_search",
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => ({}))) as { query?: unknown };

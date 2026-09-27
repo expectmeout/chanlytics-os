@@ -1,5 +1,5 @@
 import { write, workspace } from "@/server/route";
-import { resumeSendingDomain } from "@/server/sending-domains";
+import { resumeSendingDomain } from "@/server/connections/sending-domains";
 
 /**
  * POST /api/v1/sending-domains/:id/resume
@@ -10,7 +10,7 @@ import { resumeSendingDomain } from "@/server/sending-domains";
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   handle: async ({ ctx, member }) => ({
     domain: await resumeSendingDomain(member.tenantId, ctx.userId, String(ctx.params.id ?? "")),

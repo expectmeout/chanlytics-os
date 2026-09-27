@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { write, workspace } from "@/server/route";
-import { renameMailbox } from "@/server/email";
+import { renameMailbox } from "@/server/connections/email";
 
 const Body = z.object({ from_name: z.string().max(200) }).strict();
 
@@ -14,7 +14,7 @@ const Body = z.object({ from_name: z.string().max(200) }).strict();
  */
 export const PUT = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   input: Body,
   handle: async ({ ctx, member, input }) => ({

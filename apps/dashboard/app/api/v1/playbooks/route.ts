@@ -2,7 +2,7 @@ import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { recordDecision } from "@/server/verbs";
-import { checkPlaybookInput, playbookWriteError } from "@/server/playbooks";
+import { checkPlaybookInput, playbookWriteError } from "@/server/campaigns/playbooks";
 import { load, readerContext } from "@/server/readers";
 import { playbooks } from "@/server/readers/playbooks";
 

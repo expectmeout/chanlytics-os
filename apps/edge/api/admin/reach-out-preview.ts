@@ -23,7 +23,7 @@ import {
   REACH_OUT_SUBJECT_MAX,
   SIGNED_BY_MAX,
 } from "../../lib/packages/contracts.js";
-import { PREVIEW_INDEX_MAX, previewOne } from "../../lib/reach-out/preview.js";
+import { PREVIEW_INDEX_MAX, previewOne, type PreviewInput } from "../../lib/reach-out/preview.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LANGUAGE = /^[a-z]{2,3}(_[A-Z]{2})?$/;
@@ -39,6 +39,66 @@ interface Body {
   language?: unknown;
 }
 
+const isUuid = (v: unknown): v is string => typeof v === "string" && UUID.test(v);
+const okIndex = (v: unknown): v is number =>
+  typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= PREVIEW_INDEX_MAX;
+const okBody = (v: unknown): v is string =>
+  typeof v === "string" && v.trim().length > 0 && v.length <= REACH_OUT_BODY_MAX * 2;
+const okSubject = (v: unknown): v is string | null =>
+  v === null || (typeof v === "string" && v.length <= REACH_OUT_SUBJECT_MAX * 2);
+const okSignedBy = (v: unknown): v is string | null | undefined =>
+  v === null || v === undefined || (typeof v === "string" && v.length <= SIGNED_BY_MAX);
+
+/** The body as the preview reads it, or null when it is not one: every field checked here, once. */
+function previewInputOf(body: Body, tenantId: string): (PreviewInput & { userId: string }) | null {
+  const w = body.words;
+  const language = body.language ?? "en";
+  if (
+    !isUuid(tenantId) ||
+    !isUuid(body.user_id) ||
+    !isUuid(body.search_id) ||
+    !okIndex(body.index) ||
+    typeof body.include_unconfirmed !== "boolean" ||
+    !okBody(w?.body) ||
+    !okSubject(w?.subject) ||
+    !okSignedBy(body.signed_by) ||
+    typeof language !== "string" ||
+    !LANGUAGE.test(language)
+  )
+    return null;
+  return {
+    userId: body.user_id,
+    tenantId,
+    searchId: body.search_id,
+    index: body.index,
+    includeUnconfirmed: body.include_unconfirmed,
+    words: { subject: w.subject, body: w.body },
+    signedBy: body.signed_by ?? null,
+    language,
+  };
+}
+
+/** What a preview cost, counted in Ask's daily budget against the member who asked (R12). */
+async function recordPreviewSpend(
+  db: NonNullable<ReturnType<typeof pg>>,
+  i: { tenantId: string; userId: string },
+  tokens: { input: number; output: number },
+  t0: number,
+): Promise<void> {
+  if (tokens.input + tokens.output <= 0) return;
+  await recordAskUsage(db, i.tenantId, i.userId, {
+    input_tokens: tokens.input,
+    output_tokens: tokens.output,
+    cache_read_input_tokens: 0,
+    cache_creation_input_tokens: 0,
+    model: REACH_OUT_MODEL,
+    latency_ms: Date.now() - t0,
+    stop_reason: null,
+    stream: false,
+    purpose: "reach_out_preview",
+  });
+}
+
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/reach-out-preview");
   if (!auth.ok) return auth.response;
@@ -51,34 +111,8 @@ export async function POST(request: Request): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = ws.tenantId ?? "";
-  const userId = typeof body.user_id === "string" ? body.user_id : "";
-  const searchId = typeof body.search_id === "string" ? body.search_id : "";
-  const subject = body.words?.subject;
-  const words = body.words?.body;
-  const signedBy = body.signed_by;
-  const language = body.language === undefined || body.language === null ? "en" : body.language;
-  if (
-    !UUID.test(tenantId) ||
-    !UUID.test(userId) ||
-    !UUID.test(searchId) ||
-    typeof body.index !== "number" ||
-    !Number.isInteger(body.index) ||
-    body.index < 0 ||
-    body.index > PREVIEW_INDEX_MAX ||
-    typeof body.include_unconfirmed !== "boolean" ||
-    typeof words !== "string" ||
-    !words.trim() ||
-    words.length > REACH_OUT_BODY_MAX * 2 ||
-    !(subject === null || (typeof subject === "string" && subject.length <= REACH_OUT_SUBJECT_MAX * 2)) ||
-    !(
-      signedBy === null ||
-      signedBy === undefined ||
-      (typeof signedBy === "string" && signedBy.length <= SIGNED_BY_MAX)
-    ) ||
-    typeof language !== "string" ||
-    !LANGUAGE.test(language)
-  )
-    return json(400, { ok: false, error: "bad_request" });
+  const input = previewInputOf(body, tenantId);
+  if (!input) return json(400, { ok: false, error: "bad_request" });
   const db = pg();
   if (!db) return json(503, { ok: false, error: "no_db" });
   const used = await askTokensLast24h(db, tenantId);
@@ -88,27 +122,9 @@ export async function POST(request: Request): Promise<Response> {
   }
   try {
     const t0 = Date.now();
-    const { tokens, ...preview } = await previewOne(db, {
-      tenantId,
-      searchId,
-      index: body.index,
-      includeUnconfirmed: body.include_unconfirmed,
-      words: { subject: typeof subject === "string" ? subject : null, body: words },
-      signedBy: typeof signedBy === "string" ? signedBy : null,
-      language,
-    });
-    if (tokens.input + tokens.output > 0)
-      await recordAskUsage(db, tenantId, userId, {
-        input_tokens: tokens.input,
-        output_tokens: tokens.output,
-        cache_read_input_tokens: 0,
-        cache_creation_input_tokens: 0,
-        model: REACH_OUT_MODEL,
-        latency_ms: Date.now() - t0,
-        stop_reason: null,
-        stream: false,
-        purpose: "reach_out_preview",
-      });
+    const { userId, ...ask } = input;
+    const { tokens, ...preview } = await previewOne(db, ask);
+    await recordPreviewSpend(db, { tenantId, userId }, tokens, t0);
     return json(200, { ok: true, preview });
   } catch (e) {
     logger({ tenant_id: tenantId }).error("reach_out_preview_failed", {

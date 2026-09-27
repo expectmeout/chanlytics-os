@@ -3141,8 +3141,9 @@ Expected: PASS. In the integration test, the explicit "mark checked" from PR 2 i
 
 A member saves a chain, counts a search's reach, answers a held send and reads a chain's report, each through a door that checks who is asking (F7). Starting a chain plans its first run now (F11).
 
-> **As built (PRs 4 and 5 shipped together, as one PR, with migration 00198).** The check took 00197 (00189–00196 were
-> `main`'s and #1146's), so the doors' migration is `00198_the_reach_out_sheet_s_doors.sql`. It applies twice on a
+> **As built (PRs 4 and 5 shipped together, as one PR, with migration 00198).** The check took 00197, and `main` took
+> 00198–00208 (partners and the rest) while this was open, with #1165 holding 00209 and 00210. So the doors' migration
+> is `00198_the_reach_out_sheet_s_doors.sql`, and PR 9's is 00199. It applies twice on a
 > replayed stack, and the generated database types match it. What departs from the task code below, and why:
 >
 > - **R5, one reset.** `reach_out_recheck(send_ids, tenant, from_state)` is the only reset of a send's check (planned,

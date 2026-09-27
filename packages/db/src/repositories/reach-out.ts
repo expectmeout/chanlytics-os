@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { maySpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
+import { emailWordsFrom } from "./reach-out-sheet";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutSendRow = Database["public"]["Tables"]["reach_out_sends"]["Row"];
@@ -401,23 +402,6 @@ export async function emailWordsOf(
   return data ? emailWordsFrom(data) : null;
 }
 
-/** An email template's words from its row: HEADER is the subject, BODY the body (the body preview when it has none). */
-export function emailWordsFrom(row: {
-  components: unknown;
-  body_preview: string | null;
-}): { subject: string | null; body: string } | null {
-  const part = (type: string): string | null => {
-    for (const c of Array.isArray(row.components) ? row.components : [])
-      if (c && typeof c === "object" && String((c as { type?: unknown }).type ?? "").toUpperCase() === type) {
-        const t = (c as { text?: unknown }).text;
-        return typeof t === "string" && t.trim() ? t : null;
-      }
-    return null;
-  };
-  const body = part("BODY") ?? (row.body_preview?.trim() || null);
-  return body ? { subject: part("HEADER"), body } : null;
-}
-
 /** A workspace's name and its configuration, as stored: the foot's who, and the profile its where is read from. */
 export async function workspaceNameAndConfig(
   db: Db,
@@ -748,27 +732,6 @@ export async function recordCheck(
   return (data ?? []).length === 1;
 }
 
-/**
- * Sends back to unchecked (R5), in one statement (00198 reach_out_recheck, the one reset): planned, not checked, at
- * their words' next version, so a check still under way for the old words writes nothing; what their owner included
- * them past stays (R7). Only from planned, held or claimed, and only from `fromState` when it is named: the sender
- * names "claimed", so a send another tick has claimed since is never reset. One past its fortnight is given up,
- * kept_waiting, instead (R10). How many went back.
- */
-export async function recheckSends(
-  db: Db,
-  p: { tenantId: string; ids: string[]; fromState?: "planned" | "held" | "claimed" },
-): Promise<number> {
-  if (p.ids.length === 0) return 0;
-  const { data, error } = await db.rpc("reach_out_recheck", {
-    p_send_ids: p.ids,
-    p_tenant_id: p.tenantId,
-    ...(p.fromState ? { p_from_state: p.fromState } : {}),
-  } as never);
-  if (error) throw new Error(`cannot put the sends back to be checked: ${error.message}`);
-  return typeof data === "number" ? data : 0;
-}
-
 /** Holds left past `before`, oldest planned first (00197: fourteen days from when a send was planned, R10). */
 export async function heldStale(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
   const { data, error } = await db.rpc("reach_out_held_stale", {
@@ -822,26 +785,6 @@ export async function workspaceMaySpend(db: Db, tenantId: string): Promise<boole
   if (billing.error) throw new Error(`cannot read the workspace's billing: ${billing.error.message}`);
   if (tenant.data?.status === "paused" || !billing.data) return false;
   return maySpend(billing.data.mode as BillingMode, billing.data.status as BillingStatus);
-}
-
-export type OutreachMode = "ask" | "veto" | "never";
-
-/**
- * Settings › Autonomy's outreach row (00183), the one reading of it: a workspace's own row, its mode as said; none, or
- * a mode it does not know, reads as ask, so a missing row can only wait for its owner. The step's run and the
- * dashboard's chains both ask it. A read that fails throws.
- */
-export async function outreachModeOf(db: Db, tenantId: string): Promise<OutreachMode> {
-  const { data, error } = await db
-    .from("policies")
-    .select("mode")
-    .eq("tenant_id", tenantId)
-    .eq("class", "outreach")
-    .is("subject_type", null)
-    .maybeSingle();
-  if (error) throw new Error(`cannot read the outreach mode: ${error.message}`);
-  const said = data?.mode;
-  return said === "veto" || said === "never" ? said : "ask";
 }
 
 /** The workspace's own words about what it does (business_records.about, 00152), for the writer. */

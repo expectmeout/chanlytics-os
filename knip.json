@@ -1,0 +1,51 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignore": ["**/dist/**", "**/*.generated.ts", "**/database.types.ts", "**/.next/**", "docs/**"],
+  "rules": {
+    "files": "error",
+    "exports": "error",
+    "types": "error",
+    "nsExports": "off",
+    "nsTypes": "off",
+    "enumMembers": "off",
+    "classMembers": "off",
+    "duplicates": "off",
+    "dependencies": "off",
+    "devDependencies": "off",
+    "optionalPeerDependencies": "off",
+    "unlisted": "off",
+    "unresolved": "off",
+    "binaries": "off",
+    "catalog": "off"
+  },
+  "workspaces": {
+    ".": {
+      "entry": ["eslint.config.mjs", "playwright.config.ts", "e2e/**/*.ts"],
+      "project": ["e2e/**/*.ts", "*.{ts,mjs}"]
+    },
+    "apps/edge": {
+      "entry": ["api/**/*.ts"],
+      "project": ["api/**/*.ts", "lib/**/*.ts"]
+    },
+    "apps/dashboard": {
+      "entry": [
+        "app/**/*.{ts,tsx}",
+        "proxy.ts",
+        "middleware.ts",
+        "next.config.ts",
+        "src/*.ts",
+        "src/legacy-bridge/manifest.ts",
+        "src/legacy-bridge/**/*.{ts,tsx}"
+      ],
+      "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "*.{ts,mjs}"]
+    },
+    "packages/*": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "tooling/scripts": {
+      "entry": ["*.mjs", "tests/**/*.mjs", "e2e-harness/**/*.{ts,mjs}"],
+      "project": ["**/*.{ts,mjs}"]
+    }
+  }
+}

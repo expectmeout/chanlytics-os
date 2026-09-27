@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
-import { edgeLines } from "@/server/lines";
+import { edgeLines } from "@/server/connections/lines";
 
 const Body = z.object({
   number: z
@@ -33,7 +33,7 @@ const Body = z.object({
  */
 export const POST = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lines_buy",
   spend: true,
   input: Body,

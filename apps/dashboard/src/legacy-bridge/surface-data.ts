@@ -7,7 +7,7 @@ import {
   type PersonRowDto,
   type TemplateSentWords,
 } from "@chanlytics/contracts";
-import type { PromptPreviewDto } from "../server/prompt-preview";
+import type { PromptPreviewDto } from "../server/receptionist/prompt-preview";
 /**
  * The SurfaceData seam (Blueprint v3.0, Slice 0 exit criterion).
  *
@@ -28,7 +28,14 @@ import { knownZone, pageClock, workspaceZone } from "./zone";
 import { heldViews } from "./held-views";
 export { getActiveWorkspace } from "./workspace";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
-import type { DealDto, NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
+import type {
+  DealDto,
+  MembershipRole,
+  NotificationsDto,
+  PendingWorkspace,
+  ResolvedFacts,
+  FactConflict,
+} from "@chanlytics/contracts";
 import type { PoliciesSurface } from "./policy-store";
 
 export interface SurfaceOverride {
@@ -84,15 +91,19 @@ export interface Workspace {
   timezone: string;
   /** How its customers buy (0008): deals are on exactly when it is "proposal" (dealsAreOn); null is not asked yet. */
   sells_by?: string | null;
+  /** The caller's role in it (0012): said beside every workspace on the switcher. */
+  role?: string | null;
 }
 
 export interface Me {
   id: string;
   email: string | null;
-  role?: "owner" | "operator" | "viewer" | null;
+  role?: MembershipRole | null;
   display_name?: string | null;
   /** Whether the Chanlytics back office exists for this person. Never the authorization -- every platform route asks the database. */
   platform_admin?: boolean;
+  /** Whether this person is a partner (0012), and their code. */
+  partner?: { code: string; status: string } | null;
 }
 
 export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {
@@ -1038,7 +1049,7 @@ async function peopleMore(): Promise<void> {
 
 /**
  * A person's current deal, laid on their People row as the door answers (0008): the deal door answers the deal their
- * row shows after the write (server/deals.ts currentDealOf, people_list's own rule), so the Pipeline moves the row as
+ * row shows after the write (server/people/deals.ts currentDealOf, people_list's own rule), so the Pipeline moves the row as
  * the sheet closes, instead of once all of People has been read again; the re-read the refresh map asks for behind
  * it says the rest. It was the deal the door recorded, which is not the row's when the move was on someone's older
  * deal: their row jumped to it until the re-read. True when a row took it.

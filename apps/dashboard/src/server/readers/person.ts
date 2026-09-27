@@ -19,11 +19,11 @@ import {
   toCallDto,
   toConversationDto,
 } from "../dto";
-import { personLike, personVisits } from "../calendar";
-import { personRuns } from "../broadcasts";
-import { leadOfPerson } from "../leads";
-import { personNotesRead, stepFor } from "../person-notes";
-import { DEAL_DTO_COLUMNS, dealPaceRead } from "../deals";
+import { personLike, personVisits } from "../calendar/calendar";
+import { personRuns } from "../campaigns/broadcasts";
+import { leadOfPerson } from "../leads/leads";
+import { personNotesRead, stepFor } from "../people/person-notes";
+import { DEAL_DTO_COLUMNS, dealPaceRead } from "../people/deals";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import * as facts from "./facts";
 

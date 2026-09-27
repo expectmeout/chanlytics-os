@@ -5,8 +5,11 @@
  * bearer so only this deployment may send to this app's tokens.
  *
  * A ticket per message, in the messages' order, is the contract the job
- * stands on, and the receipts a quarter of an hour on (00189) are the second door; a refusal or a dead wire throws with what happened, and the
- * ledger tries again (RETRY_WAITS_MS).
+ * stands on, and the receipts a quarter of an hour on (00189) are the second
+ * door. A refusal or a dead wire before anything has left throws with what
+ * happened, and the ledger tries again (RETRY_WAITS_MS); once a batch has
+ * left, a later batch's failure is said in its receipts instead, because a
+ * retry would tell the phones already told a second time.
  */
 import type { PushMessage } from "../packages/contracts.js";
 import type { PushPort, PushReceipt } from "../packages/jobs.js";
@@ -28,36 +31,100 @@ interface ExpoTicket {
 }
 type ExpoReceipt = Omit<ExpoTicket, "id">;
 
+/** The tickets of one batch, one per message in the batch's order. */
+function ticketsOf(batch: PushMessage[], body: { data?: ExpoTicket[] }): PushReceipt[] {
+  return batch.map((m, k) => {
+    const t = body.data?.[k];
+    return t?.status === "ok"
+      ? { to: m.to, status: "ok", ...(t.id ? { id: t.id } : {}) }
+      : { to: m.to, status: "error", error: t?.details?.error ?? t?.message ?? "unknown" };
+  });
+}
+
+const refused = (batch: PushMessage[], why: string): PushReceipt[] =>
+  batch.map((m) => ({ to: m.to, status: "error", error: why }));
+
+/**
+ * The apps a refused batch's tokens belong to, when the service says there was more than one
+ * (PUSH_TOO_MANY_EXPERIENCE_IDS: `details` names each app's tokens). One app's tokens are no groups.
+ */
+function experienceGroups(detail: string): Set<string>[] {
+  try {
+    const body = JSON.parse(detail) as { errors?: { details?: unknown }[] };
+    const groups: Set<string>[] = [];
+    for (const e of body.errors ?? []) {
+      if (!e.details || typeof e.details !== "object") continue;
+      for (const tokens of Object.values(e.details as Record<string, unknown>)) {
+        if (Array.isArray(tokens) && tokens.every((t) => typeof t === "string"))
+          groups.push(new Set(tokens as string[]));
+      }
+    }
+    return groups.length > 1 ? groups : [];
+  } catch {
+    return [];
+  }
+}
+
 export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
+  const post = (url: string, body: unknown): Promise<Response> => {
+    const token = env.EXPO_ACCESS_TOKEN;
+    return fetchImpl(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  };
+  const text = (r: Response) => r.text().catch(() => "");
+
   return {
     async send(messages: PushMessage[]): Promise<PushReceipt[]> {
       const receipts: PushReceipt[] = [];
       for (let i = 0; i < messages.length; i += PUSH_BATCH) {
         const batch = messages.slice(i, i + PUSH_BATCH);
-        const token = env.EXPO_ACCESS_TOKEN;
-        const r = await fetchImpl(EXPO_PUSH_URL, {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify(batch),
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-        });
-        if (!r.ok) {
-          const detail = await r.text().catch(() => "");
-          throw new Error(`push_rejected ${r.status} ${detail.slice(0, 200)}`.trim());
+        let r: Response;
+        try {
+          r = await post(EXPO_PUSH_URL, batch);
+        } catch (e) {
+          if (i === 0) throw e;
+          receipts.push(...refused(messages.slice(i), `push_rejected ${e instanceof Error ? e.message : String(e)}`));
+          break;
         }
-        const { data } = (await r.json()) as { data?: ExpoTicket[] };
-        batch.forEach((m, k) => {
-          const t = data?.[k];
+        if (r.ok) {
+          receipts.push(...ticketsOf(batch, (await r.json()) as { data?: ExpoTicket[] }));
+          continue;
+        }
+        const detail = await text(r);
+        const groups = r.status === 400 ? experienceGroups(detail) : [];
+        if (groups.length) {
+          // Tokens of more than one app in one request: the service refuses the whole batch, so each app's tokens go
+          // in a request of their own. This app's get through; the others' are the service's to answer for, and a
+          // phone whose token is not this app's is forgotten by its receipt like any other dead one.
+          const grouped = new Set<string>();
+          for (const g of groups) {
+            const sub = batch.filter((m) => g.has(m.to));
+            sub.forEach((m) => grouped.add(m.to));
+            if (!sub.length) continue;
+            const rr = await post(EXPO_PUSH_URL, sub).catch(() => null);
+            if (rr?.ok) receipts.push(...ticketsOf(sub, (await rr.json()) as { data?: ExpoTicket[] }));
+            else receipts.push(...refused(sub, `push_rejected ${rr ? rr.status : "unreachable"}`));
+          }
           receipts.push(
-            t?.status === "ok"
-              ? { to: m.to, status: "ok", ...(t.id ? { id: t.id } : {}) }
-              : { to: m.to, status: "error", error: t?.details?.error ?? t?.message ?? "unknown" },
+            ...refused(
+              batch.filter((m) => !grouped.has(m.to)),
+              "push_rejected 400",
+            ),
           );
-        });
+          continue;
+        }
+        const why = `push_rejected ${r.status} ${detail.slice(0, 200)}`.trim();
+        if (i === 0) throw new Error(why);
+        receipts.push(...refused(messages.slice(i), why));
+        break;
       }
       return receipts;
     },
@@ -65,19 +132,9 @@ export function expoPush(fetchImpl: typeof fetch = fetch): PushPort {
       const out: Record<string, { status: "ok" | "error"; error?: string }> = {};
       for (let i = 0; i < ids.length; i += RECEIPTS_BATCH) {
         const batch = ids.slice(i, i + RECEIPTS_BATCH);
-        const token = env.EXPO_ACCESS_TOKEN;
-        const r = await fetchImpl(EXPO_RECEIPTS_URL, {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ ids: batch }),
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-        });
+        const r = await post(EXPO_RECEIPTS_URL, { ids: batch });
         if (!r.ok) {
-          const detail = await r.text().catch(() => "");
+          const detail = await text(r);
           throw new Error(`push_receipts_rejected ${r.status} ${detail.slice(0, 200)}`.trim());
         }
         const { data } = (await r.json()) as { data?: Record<string, ExpoReceipt> };

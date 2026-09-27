@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
-import { reachOf } from "@/server/reach-outs";
+import { reachOf } from "@/server/campaigns/reach-outs";
 
 /**
  * GET /api/v1/reach-outs/reach?search= — a search's reach, for the sheet and the Leads door: who a chain over it

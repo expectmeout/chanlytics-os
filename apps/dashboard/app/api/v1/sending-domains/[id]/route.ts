@@ -1,5 +1,5 @@
 import { write, workspace } from "@/server/route";
-import { removeSendingDomain } from "@/server/sending-domains";
+import { removeSendingDomain } from "@/server/connections/sending-domains";
 
 /**
  * DELETE /api/v1/sending-domains/:id
@@ -9,7 +9,7 @@ import { removeSendingDomain } from "@/server/sending-domains";
  */
 export const DELETE = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "settings",
   handle: async ({ ctx, member }) => {
     await removeSendingDomain(member.tenantId, ctx.userId, String(ctx.params.id ?? ""));

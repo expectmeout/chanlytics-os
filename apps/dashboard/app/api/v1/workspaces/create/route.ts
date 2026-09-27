@@ -7,10 +7,11 @@ import {
   pendingWorkspaceOf,
   pendingCodeOf,
   InviteCodeSchema,
+  partnerCodeFromCookie,
 } from "@chanlytics/contracts";
 import { z } from "zod";
-import { inviteCodeMatches, notifyPlatformSignup } from "@/server/signup";
-import { giveFirstAlertAddress } from "@/server/first-alert";
+import { inviteCodeMatches, notifyPlatformSignup } from "@/server/platform/signup";
+import { giveFirstAlertAddress } from "@/server/workspace/first-alert";
 
 /**
  * POST /api/v1/workspaces/create — bring a new workspace into existence.
@@ -43,7 +44,18 @@ import { giveFirstAlertAddress } from "@/server/first-alert";
  *
  * The body stays the route's own to read: the first issue's message is what
  * the create screen shows, without a field name in front of it.
+ *
+ * AND IT READS THE PARTNER'S COOKIE (decision 0012). A partner's link (/p/<code>) leaves one cookie; a workspace
+ * made while it is there is credited to that partner by the function, in the same transaction as the tenant, and
+ * only then. The route passes the code and nothing more: who is credited, and whether anyone is, is the function's
+ * to decide (an unknown, paused or self code is recorded as ignored). On a database 00202 has not reached the
+ * three-argument function does not exist; the call is made again without the code, and the drop is logged, so
+ * either deploy order makes the workspace.
  */
+
+/** The error Postgres or PostgREST answers a call with an argument the function does not take. */
+const noSuchSignature = (code: string | null | undefined, message: string): boolean =>
+  code === "42883" || code === "PGRST202" || /could not find the function/i.test(message);
 
 const Body = z
   .object({
@@ -52,6 +64,8 @@ const Body = z
     timezone: z.string().trim().min(1).max(64).optional(),
     /** The invite code, asked of a first workspace when sign-up is by invitation. */
     code: InviteCodeSchema.optional(),
+    /** The partner's code the person agreed to add to their team, as the create screen asked (0012). */
+    partner: z.string().trim().max(40).optional(),
   })
   .strict();
 
@@ -92,9 +106,19 @@ export const POST = write({
     });
     if (!door.open) throw new AppError(door.code, door.message);
 
-    const { data, error } = await ctx.supabase
-      .rpc("create_workspace", { p_name: parsed.data.name, p_timezone: parsed.data.timezone ?? undefined })
+    // A partner's link leaves a cookie (0012), but a partner joins a team only with the owner's yes: the create
+    // screen names the partner and sends their code back when the person agrees. A cookie with no yes beside it,
+    // or a yes for some other code, credits nobody and seats nobody.
+    const cookieCode = partnerCodeFromCookie(req.headers.get("cookie"));
+    const partnerCode = cookieCode && parsed.data.partner === cookieCode ? cookieCode : null;
+    const args = { p_name: parsed.data.name, p_timezone: parsed.data.timezone ?? undefined };
+    let { data, error } = await ctx.supabase
+      .rpc("create_workspace", partnerCode ? { ...args, p_partner_code: partnerCode } : args)
       .single();
+    if (error && partnerCode && noSuchSignature(error.code, error.message)) {
+      console.error("partner_code_dropped", JSON.stringify({ code: partnerCode, error: error.message }));
+      ({ data, error } = await ctx.supabase.rpc("create_workspace", args).single());
+    }
 
     if (error) {
       // The messages on these codes are written for an owner to read — the
@@ -104,6 +128,8 @@ export const POST = write({
       if (mapped) throw new AppError(mapped.code, error.message, mapped.status);
       throw new Error(error.message);
     }
+    // A call that raised nothing answers one row; none is the database's fault, not a workspace to hand over.
+    if (!data) throw new Error("create_workspace answered no row");
 
     // The platform mailbox hears about a new workspace from the one place
     // workspaces are made. Bounded and best-effort: the workspace exists whether

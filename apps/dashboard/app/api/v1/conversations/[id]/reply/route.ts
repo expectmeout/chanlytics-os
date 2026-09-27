@@ -3,7 +3,7 @@ import { REPLY_MAX_ANY } from "@chanlytics/contracts";
 import { replyToConversation } from "@chanlytics/core";
 import { write } from "@/server/route";
 import { conversationScope } from "@/server/verbs";
-import { replyPorts } from "@/server/core-ports";
+import { replyPorts } from "@/server/ports/core-ports";
 
 /**
  * Validated at the door, not read hopefully.

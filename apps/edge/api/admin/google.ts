@@ -18,12 +18,18 @@
  *
  * The key and the client secret live here and nowhere else. Without them the
  * ops that need them say so, and the dashboard draws nothing it cannot do.
+ *
+ * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. What each op does with what it
+ * read is decided in lib/google/google-ops.ts; what is left here is the
+ * knock, the reads in the order the ops need them -- the connection, then the
+ * listing, each read once for the ops past it -- the writes, the log and the
+ * shape the dashboard wants back.
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { emitEvent } from "../../lib/packages/db.js";
-import { PLACE_ID, cleanReply } from "../../lib/packages/channels.js";
+import type { PlaceDetails } from "../../lib/packages/channels.js";
 import {
   bindLocation,
   checkListing,
@@ -41,248 +47,278 @@ import {
   replyOnProfile,
   reviewReplyMode,
   syncProfile,
+  type ConnectionRow,
+  type ListingRow,
 } from "../../lib/google/google.js";
-import { logger } from "../../lib/log.js";
+import { logger, type Logger } from "../../lib/log.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "../../lib/packages/db.js";
+import {
+  type GoogleAnswer,
+  type GoogleBody,
+  type ListingView,
+  UNKNOWN_GOOGLE_OP,
+  NO_PLACES_KEY,
+  NO_LISTING,
+  NOT_CONNECTED,
+  NO_REVIEW_ID,
+  planPlaceSearch,
+  googleFailedAnswer,
+  planLink,
+  unreadablePlaceAnswer,
+  linkRow,
+  linkedAnswer,
+  planConnect,
+  connectAnswer,
+  draftRefusal,
+  draftAnswer,
+  locationsAnswer,
+  planChoose,
+  chosenLocation,
+  bindFailedAnswer,
+  chosenAnswer,
+  planReply,
+  replyAnswer,
+  refreshAnswer,
+} from "../../lib/google/google-ops.js";
 
-interface Body {
-  op?: string;
-  tenant_id?: string;
-  user_id?: string;
-  place_id?: string;
-  query?: string;
-  code?: string;
-  account_name?: string;
-  location_name?: string;
-  id?: string;
-  comment?: string;
-}
+type Db = SupabaseClient<Database>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** An op's call past the knock: a database, the workspace on record with its clock, who pressed the button, and the log. */
+interface GoogleCall {
+  body: GoogleBody;
+  db: Db;
+  tenantId: string;
+  tz: string;
+  userId: string | null;
+  L: Logger;
+}
+
+type OnWorkspace = (c: GoogleCall) => Promise<Response>;
+type OnConnection = (c: GoogleCall, conn: ConnectionRow | null) => Promise<Response>;
+type OnListing = (c: GoogleCall, conn: ConnectionRow | null, row: ListingRow | null) => Promise<Response>;
+
+/**
+ * The ops, by what they need read first: the workspace alone; then the
+ * connection; then the listing too. An op runs once the reads before it are
+ * done, so the reads are the phases, and an op nobody knows falls through all
+ * of them.
+ */
+const ON_WORKSPACE: Record<"link" | "connect" | "draft", OnWorkspace> = { link, connect, draft };
+const ON_CONNECTION: Record<"locations" | "choose" | "disconnect" | "reply", OnConnection> = {
+  locations,
+  choose,
+  disconnect,
+  reply,
+};
+const ON_LISTING: Record<"unlink" | "refresh", OnListing> = { unlink, refresh };
+
+const pick = <T>(table: Record<string, T>, op: string): T | null => (Object.hasOwn(table, op) ? table[op] : null);
+const respond = (a: GoogleAnswer): Response => json(a.status, a.body);
+const stop = (response: Response): { ok: false; response: Response } => ({ ok: false, response });
+/** A review's row, as the body names it, or null. */
+const reviewIdOf = (v: unknown): string | null => {
+  const id = typeof v === "string" ? v.trim() : "";
+  return UUID.test(id) ? id : null;
+};
+
+/** The body as sent; not JSON is an empty body, validated below like any other. */
+async function readBody(request: Request): Promise<GoogleBody> {
+  try {
+    return JSON.parse(await request.text());
+  } catch {
+    return {};
+  }
+}
 
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/google");
   if (!auth.ok) return auth.response;
-  let body: Body = {};
-  try {
-    body = JSON.parse(await request.text());
-  } catch {
-    /* validated below */
-  }
+  const body = await readBody(request);
   const op = typeof body.op === "string" ? body.op : "";
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   body.tenant_id = ws.tenantId ?? undefined;
 
   if (op === "status") return json(200, { ok: true, ready: googleReadiness(), profile: profilePublic() });
+  if (op === "search") return search(body);
 
-  if (op === "search") {
-    const key = placesKey();
-    if (!key)
-      return json(503, {
-        ok: false,
-        error: "no_places_key",
-        hint: "GOOGLE_PLACES_API_KEY on the edge, a key with Places API (New) enabled",
-      });
-    const query = typeof body.query === "string" ? body.query.replace(/\s+/g, " ").trim().slice(0, 200) : "";
-    if (query.length < 3)
-      return json(400, { ok: false, error: "query must be a few words: the business name and where it is" });
-    try {
-      const candidates = await findPlaces(key, query);
-      return json(200, { ok: true, query, candidates });
-    } catch (e) {
-      return json(502, { ok: false, error: e instanceof Error ? e.message : String(e) });
-    }
-  }
+  const call = await workspaceCall(body);
+  if (!call.ok) return call.response;
+  const c = call.value;
+  const onWorkspace = pick(ON_WORKSPACE, op);
+  if (onWorkspace) return onWorkspace(c);
+  const conn = await c.db.from("google_connections").select("*").eq("tenant_id", c.tenantId).maybeSingle();
+  if (conn.error) return json(503, { ok: false, error: conn.error.message });
+  const onConnection = pick(ON_CONNECTION, op);
+  if (onConnection) return onConnection(c, conn.data);
+  const row = await c.db.from("google_listings").select("*").eq("tenant_id", c.tenantId).maybeSingle();
+  if (row.error) return json(503, { ok: false, error: row.error.message });
+  const onListing = pick(ON_LISTING, op);
+  if (onListing) return onListing(c, conn.data, row.data);
+  return respond(UNKNOWN_GOOGLE_OP);
+}
 
+/** Past status and search every op needs a database and a workspace on record, with its clock and who is asking. */
+async function workspaceCall(
+  body: GoogleBody,
+): Promise<{ ok: true; value: GoogleCall } | { ok: false; response: Response }> {
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return stop(json(503, { ok: false, error: "no_database" }));
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
-  if (!UUID.test(tenantId)) return json(400, { ok: false, error: "tenant_id (a workspace id) is required" });
+  if (!UUID.test(tenantId)) return stop(json(400, { ok: false, error: "tenant_id (a workspace id) is required" }));
   const tenant = await db.from("tenants").select("id, timezone").eq("id", tenantId).maybeSingle();
-  if (tenant.error) return json(503, { ok: false, error: tenant.error.message });
-  if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
+  if (tenant.error) return stop(json(503, { ok: false, error: tenant.error.message }));
+  if (!tenant.data) return stop(json(404, { ok: false, error: "no such workspace" }));
   const tz = tenant.data.timezone || "America/New_York";
   const userId = typeof body.user_id === "string" && UUID.test(body.user_id) ? body.user_id : null;
-  const L = logger({ tenant: tenantId });
-  const listingNow = async () => {
-    const r = await db.from("google_listings").select("*").eq("tenant_id", tenantId).maybeSingle();
-    return r.data ? listingForClient(r.data) : null;
-  };
-  const connectionNow = async () => {
-    const r = await db.from("google_connections").select("*").eq("tenant_id", tenantId).maybeSingle();
-    return r.data ? connectionForClient(r.data) : null;
-  };
+  return { ok: true, value: { body, db, tenantId, tz, userId, L: logger({ tenant: tenantId }) } };
+}
 
-  if (op === "link") {
-    const key = placesKey();
-    if (!key) return json(503, { ok: false, error: "no_places_key" });
-    const placeId = typeof body.place_id === "string" ? body.place_id.trim() : "";
-    if (!PLACE_ID.test(placeId)) return json(400, { ok: false, error: "place_id is required" });
-    // Read it before writing anything: a wrong id is refused here, not kept as a row that never reads.
-    let details;
-    try {
-      details = await readPlace(key, placeId);
-    } catch (e) {
-      return json(502, { ok: false, error: "unreadable", detail: e instanceof Error ? e.message : String(e) });
-    }
-    const saved = await db
-      .from("google_listings")
-      .upsert(
-        {
-          tenant_id: tenantId,
-          place_id: details.place_id,
-          name: details.name,
-          address: details.address,
-          maps_uri: details.maps_uri,
-          business_status: details.business_status,
-          // What the read just said about the place, never what the listing it replaces said.
-          facts: details.facts,
-          linked_by: userId,
-          linked_at: new Date().toISOString(),
-          rating: null,
-          review_count: null,
-          checked_at: null,
-          check_error: null,
-        },
-        { onConflict: "tenant_id" },
-      )
-      .select("*")
-      .single();
-    if (saved.error || !saved.data) return json(500, { ok: false, error: saved.error?.message ?? "write_failed" });
-    // A new listing forgets the old one's reviews and days: they were another place's.
-    await db.from("google_reviews").delete().eq("tenant_id", tenantId);
-    await db.from("google_listing_days").delete().eq("tenant_id", tenantId);
-    // The link reads the listing's website too, for the booking page it names: the only read that does.
-    const read = await checkListing(db, saved.data, tz, "read");
-    await emitEvent(db, tenantId, "google.linked", "google", "listing", null, {
-      place_id: details.place_id,
-      name: details.name,
-      by: userId,
-      read: read.ok,
-    }).catch(() => {});
-    L.info("google_linked", { place_id: details.place_id, read: read.ok });
-    return json(200, { ok: true, listing: (await listingNow()) ?? listingForClient(saved.data), read });
+/** The listing as the dashboard sees it, read now. */
+async function listingNow(c: GoogleCall): Promise<ListingView> {
+  const r = await c.db.from("google_listings").select("*").eq("tenant_id", c.tenantId).maybeSingle();
+  return r.data ? listingForClient(r.data) : null;
+}
+
+/** The connection as the dashboard sees it, read now. */
+async function connectionNow(c: GoogleCall) {
+  const r = await c.db.from("google_connections").select("*").eq("tenant_id", c.tenantId).maybeSingle();
+  return r.data ? connectionForClient(r.data) : null;
+}
+
+/* ---------------------------------------------------------------- search */
+
+/** What Google finds for the words: a question to Google, not to the database, and it needs no workspace. */
+async function search(body: GoogleBody): Promise<Response> {
+  const plan = planPlaceSearch(placesKey(), body.query);
+  if (plan.kind === "refuse") return respond(plan.answer);
+  try {
+    const candidates = await findPlaces(plan.key, plan.query);
+    return json(200, { ok: true, query: plan.query, candidates });
+  } catch (e) {
+    return respond(googleFailedAnswer(e));
   }
+}
 
-  if (op === "connect") {
-    const code = typeof body.code === "string" ? body.code.trim() : "";
-    if (!code || code.length > 2000) return json(400, { ok: false, error: "code is required" });
-    const r = await connectProfile(db, tenantId, userId, code, tz);
-    if (!r.ok) {
-      L.info("google_connect_failed", { error: r.error, detail: r.detail?.slice(0, 200) });
-      return json(r.error === "no_oauth_client" ? 503 : 502, { ok: false, error: r.error, detail: r.detail });
-    }
-    L.info("google_connected", { pending: r.pending, email: r.connection.google_email });
-    return json(200, {
-      ok: true,
-      pending: r.pending,
-      connection: connectionForClient(r.connection),
-      ...(r.pending ? { locations: r.locations } : { read: r.read, listing: await listingNow() }),
-    });
+/* ------------------------------------------------------------------ link */
+
+async function link(c: GoogleCall): Promise<Response> {
+  const plan = planLink(placesKey(), c.body.place_id);
+  if (plan.kind === "refuse") return respond(plan.answer);
+  // Read it before writing anything: a wrong id is refused here, not kept as a row that never reads.
+  let details: PlaceDetails;
+  try {
+    details = await readPlace(plan.key, plan.placeId);
+  } catch (e) {
+    return respond(unreadablePlaceAnswer(e));
   }
+  const saved = await c.db
+    .from("google_listings")
+    .upsert(linkRow(details, c.tenantId, c.userId, new Date()), { onConflict: "tenant_id" })
+    .select("*")
+    .single();
+  if (saved.error || !saved.data) return json(500, { ok: false, error: saved.error?.message ?? "write_failed" });
+  // A new listing forgets the old one's reviews and days: they were another place's.
+  await c.db.from("google_reviews").delete().eq("tenant_id", c.tenantId);
+  await c.db.from("google_listing_days").delete().eq("tenant_id", c.tenantId);
+  // The link reads the listing's website too, for the booking page it names: the only read that does.
+  const read = await checkListing(c.db, saved.data, c.tz, "read");
+  await emitEvent(c.db, c.tenantId, "google.linked", "google", "listing", null, {
+    place_id: details.place_id,
+    name: details.name,
+    by: c.userId,
+    read: read.ok,
+  }).catch(() => {});
+  c.L.info("google_linked", { place_id: details.place_id, read: read.ok });
+  return respond(linkedAnswer(await listingNow(c), saved.data, read));
+}
 
-  if (op === "draft") {
-    const id = typeof body.id === "string" ? body.id.trim() : "";
-    if (!UUID.test(id)) return json(400, { ok: false, error: "id (the review's row) is required" });
-    // The Autonomy row is read here, once, for the dashboard's draft and the sweep's replies alike.
-    const mode = await reviewReplyMode(db, tenantId);
-    if (mode === "never") return json(409, { ok: false, error: "policy_never", mode });
-    const r = await draftFor(db, tenantId, id);
-    if (!r.ok) {
-      L.info("google_review_draft_failed", { id, error: r.error });
-      return json(r.error === "no_review" ? 404 : r.error === "no_model_key" ? 503 : 502, r);
-    }
-    L.info("google_review_drafted", { id, chars: r.text.length });
-    return json(200, { ok: true, text: r.text, mode });
+/* --------------------------------------------------------------- connect */
+
+async function connect(c: GoogleCall): Promise<Response> {
+  const plan = planConnect(c.body.code);
+  if (plan.kind === "refuse") return respond(plan.answer);
+  const r = await connectProfile(c.db, c.tenantId, c.userId, plan.code, c.tz);
+  const { answer, log } = connectAnswer(r, r.ok && !r.pending ? await listingNow(c) : null);
+  c.L.info(log.event, log.fields);
+  return respond(answer);
+}
+
+/* ----------------------------------------------------------------- draft */
+
+async function draft(c: GoogleCall): Promise<Response> {
+  const id = reviewIdOf(c.body.id);
+  if (!id) return respond(NO_REVIEW_ID);
+  // The Autonomy row is read here, once, for the dashboard's draft and the sweep's replies alike.
+  const mode = await reviewReplyMode(c.db, c.tenantId);
+  const never = draftRefusal(mode);
+  if (never) return respond(never);
+  const { answer, log } = draftAnswer(id, mode, await draftFor(c.db, c.tenantId, id));
+  c.L.info(log.event, log.fields);
+  return respond(answer);
+}
+
+/* ---------------------------------------------------- locations, choose */
+
+async function locations(c: GoogleCall, conn: ConnectionRow | null): Promise<Response> {
+  if (!conn) return respond(NOT_CONNECTED);
+  return respond(locationsAnswer(await locationsFor(c.db, c.tenantId)));
+}
+
+async function choose(c: GoogleCall, conn: ConnectionRow | null): Promise<Response> {
+  const plan = planChoose(conn, c.body.account_name, c.body.location_name);
+  if (plan.kind === "refuse") return respond(plan.answer);
+  const chosen = chosenLocation(await locationsFor(c.db, c.tenantId), plan.accountName, plan.locationName);
+  if (chosen.kind === "refuse") return respond(chosen.answer);
+  const bound = await bindLocation(c.db, plan.conn, chosen.loc, c.userId, c.tz);
+  if (!bound.ok) return respond(bindFailedAnswer(bound));
+  c.L.info("google_location_chosen", { location: chosen.loc.name, read: bound.read.ok });
+  return respond(chosenAnswer(bound, await listingNow(c)));
+}
+
+/* ----------------------------------------------------- disconnect, reply */
+
+async function disconnect(c: GoogleCall): Promise<Response> {
+  const r = await disconnectProfile(c.db, c.tenantId);
+  c.L.info("google_disconnected", { removed: r.removed, revoked: r.revoked });
+  return json(200, r);
+}
+
+async function reply(c: GoogleCall): Promise<Response> {
+  const plan = planReply(reviewIdOf(c.body.id), c.body.comment);
+  if (plan.kind === "refuse") return respond(plan.answer);
+  const r = await replyOnProfile(c.db, c.tenantId, plan.id, plan.comment);
+  if (r.ok) c.L.info("google_replied", { id: plan.id });
+  return respond(replyAnswer(r));
+}
+
+/* ------------------------------------------------------- unlink, refresh */
+
+/** The listing, its reviews and its days, gone -- the profile disconnected first, the grant given back on the way. */
+async function unlink(c: GoogleCall, conn: ConnectionRow | null, row: ListingRow | null): Promise<Response> {
+  if (conn) await disconnectProfile(c.db, c.tenantId);
+  if (!row) return json(200, { ok: true, removed: false });
+  const del = await c.db.from("google_listings").delete().eq("tenant_id", c.tenantId);
+  if (del.error) return json(500, { ok: false, error: del.error.message });
+  await emitEvent(c.db, c.tenantId, "google.unlinked", "google", "listing", null, {
+    place_id: row.place_id,
+    name: row.name,
+    had_profile: !!conn,
+  }).catch(() => {});
+  c.L.info("google_unlinked", { place_id: row.place_id });
+  return json(200, { ok: true, removed: true });
+}
+
+async function refresh(c: GoogleCall, conn: ConnectionRow | null, row: ListingRow | null): Promise<Response> {
+  if (conn && conn.location_name) {
+    const read = await syncProfile(c.db, conn, c.tz);
+    return respond(refreshAnswer(read, await listingNow(c), await connectionNow(c)));
   }
-
-  const conn = await db.from("google_connections").select("*").eq("tenant_id", tenantId).maybeSingle();
-  if (conn.error) return json(503, { ok: false, error: conn.error.message });
-
-  if (op === "locations") {
-    if (!conn.data) return json(404, { ok: false, error: "not_connected" });
-    const r = await locationsFor(db, tenantId);
-    return json(r.ok ? 200 : 502, r);
-  }
-
-  if (op === "choose") {
-    if (!conn.data) return json(404, { ok: false, error: "not_connected" });
-    const accountName = typeof body.account_name === "string" ? body.account_name.trim() : "";
-    const locationName = typeof body.location_name === "string" ? body.location_name.trim() : "";
-    if (!/^accounts\/[\w-]{1,64}$/.test(accountName) || !/^locations\/[\w-]{1,64}$/.test(locationName))
-      return json(400, { ok: false, error: "account_name and location_name are required" });
-    // The choice is proven against what the account may manage, never taken on the client's word.
-    const r = await locationsFor(db, tenantId);
-    if (!r.ok) return json(502, { ok: false, error: r.error });
-    const loc = r.locations.find((l) => l.account_name === accountName && l.name === locationName);
-    if (!loc) return json(404, { ok: false, error: "no_such_location" });
-    const bound = await bindLocation(db, conn.data, loc, userId, tz);
-    if (!bound.ok) return json(502, { ok: false, error: bound.error, detail: bound.detail });
-    L.info("google_location_chosen", { location: loc.name, read: bound.read.ok });
-    return json(200, {
-      ok: true,
-      connection: connectionForClient(bound.connection),
-      listing: await listingNow(),
-      read: bound.read,
-    });
-  }
-
-  if (op === "disconnect") {
-    const r = await disconnectProfile(db, tenantId);
-    L.info("google_disconnected", { removed: r.removed, revoked: r.revoked });
-    return json(200, r);
-  }
-
-  if (op === "reply") {
-    const id = typeof body.id === "string" ? body.id.trim() : "";
-    const comment = cleanReply(body.comment);
-    if (!UUID.test(id)) return json(400, { ok: false, error: "id (the review's row) is required" });
-    if (!comment) return json(400, { ok: false, error: "comment is required" });
-    const r = await replyOnProfile(db, tenantId, id, comment);
-    if (!r.ok)
-      return json(
-        r.error === "not_connected" || r.error === "not_from_profile" ? 409 : r.error === "no_review" ? 404 : 502,
-        r,
-      );
-    L.info("google_replied", { id });
-    return json(200, r);
-  }
-
-  const row = await db.from("google_listings").select("*").eq("tenant_id", tenantId).maybeSingle();
-  if (row.error) return json(503, { ok: false, error: row.error.message });
-
-  if (op === "unlink") {
-    if (conn.data) await disconnectProfile(db, tenantId);
-    if (!row.data) return json(200, { ok: true, removed: false });
-    const del = await db.from("google_listings").delete().eq("tenant_id", tenantId);
-    if (del.error) return json(500, { ok: false, error: del.error.message });
-    await emitEvent(db, tenantId, "google.unlinked", "google", "listing", null, {
-      place_id: row.data.place_id,
-      name: row.data.name,
-      had_profile: !!conn.data,
-    }).catch(() => {});
-    L.info("google_unlinked", { place_id: row.data.place_id });
-    return json(200, { ok: true, removed: true });
-  }
-
-  if (op === "refresh") {
-    if (conn.data && conn.data.location_name) {
-      const read = await syncProfile(db, conn.data, tz);
-      return json(read.ok ? 200 : 502, {
-        ok: read.ok,
-        read,
-        listing: await listingNow(),
-        connection: await connectionNow(),
-      });
-    }
-    if (!row.data) return json(404, { ok: false, error: "no_listing" });
-    if (!placesKey()) return json(503, { ok: false, error: "no_places_key" });
-    const read = await checkListing(db, row.data, tz, "keep");
-    return json(read.ok ? 200 : 502, { ok: read.ok, read, listing: await listingNow(), connection: null });
-  }
-
-  return json(400, {
-    ok: false,
-    error: "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply or draft",
-  });
+  if (!row) return respond(NO_LISTING);
+  if (!placesKey()) return respond(NO_PLACES_KEY);
+  const read = await checkListing(c.db, row, c.tz, "keep");
+  return respond(refreshAnswer(read, await listingNow(c), null));
 }

@@ -11,13 +11,38 @@ import {
   type TenantConfig,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
-import { promptPreview, type PromptPreviewDto } from "../prompt-preview";
-import { linesFor } from "../lines";
+import { promptPreview, type PromptPreviewDto } from "../receptionist/prompt-preview";
+import { linesFor } from "../connections/lines";
 import { load, stamp, type Reader, type ReaderContext } from "./index";
 import * as readers from "./facts";
 
 function maskFeedUrl(u: string): string {
   return u.length <= 30 ? "…" : `${u.slice(0, 24)}…${u.slice(-6)}`;
+}
+
+/**
+ * The config as this member may see it: the calendar feed address grants read access to the owner's calendar, so
+ * only an owner sees it whole; anyone else learns that one is set. The read and the write's answer both say it this
+ * way: a partner's save (0012) answered with the whole address before.
+ */
+export function feedVisibleTo<T extends { calendar?: { ical_url: string } | null }>(role: string, cfg: T): T {
+  return role === "owner" || !cfg.calendar
+    ? cfg
+    : { ...cfg, calendar: { ical_url: maskFeedUrl(cfg.calendar.ical_url) } };
+}
+
+/**
+ * A save by someone shown the masked feed address (anyone but the owner) sends the mask back with the rest of the
+ * config: that is the stored address, unchanged, and is put back before the write is judged. A partner saving hours
+ * was refused on "calendar.ical_url" because the mask is not an address. A different address is a new feed, and is
+ * theirs to set.
+ */
+export function withHiddenFeed(role: string, incoming: unknown, stored: unknown): unknown {
+  if (role === "owner" || !incoming || typeof incoming !== "object") return incoming;
+  const storedUrl = (stored as { calendar?: { ical_url?: unknown } } | null)?.calendar?.ical_url;
+  const sent = (incoming as { calendar?: { ical_url?: unknown } }).calendar?.ical_url;
+  if (typeof storedUrl !== "string" || typeof sent !== "string" || sent !== maskFeedUrl(storedUrl)) return incoming;
+  return { ...(incoming as Record<string, unknown>), calendar: (stored as { calendar: unknown }).calendar };
 }
 
 /**
@@ -87,10 +112,7 @@ export const settings: Reader<undefined, SettingsRead> = {
       // The calendar feed address grants read access to the owner's calendar;
       // only an owner sees it whole. Anyone else learns that one is set.
       const cfg = parsed.config;
-      const visible =
-        rc.role === "owner" || !cfg.calendar
-          ? cfg
-          : { ...cfg, calendar: { ical_url: maskFeedUrl(cfg.calendar.ical_url) } };
+      const visible = feedVisibleTo(rc.role, cfg);
       const known = await knownFacts(rc.ctx, rc.tenantId);
       const facts = resolveFacts(cfg.brain ?? null, known);
       // What the receptionist is told, composed here with the inputs the browser

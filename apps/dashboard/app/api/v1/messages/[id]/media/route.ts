@@ -1,7 +1,7 @@
 import { AppError } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { signedMediaUrl } from "@/server/service";
+import { signedMediaUrl } from "@/server/conversations/media";
 
 /**
  * GET /api/v1/messages/:id/media — a redirect to a short-lived signed URL

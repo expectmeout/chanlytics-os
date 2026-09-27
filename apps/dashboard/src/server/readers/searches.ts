@@ -1,5 +1,5 @@
 import "server-only";
-import { searchesOf } from "../lead-searches";
+import { searchesOf } from "../leads/lead-searches";
 import { stamp, type Reader } from "./index";
 
 /**

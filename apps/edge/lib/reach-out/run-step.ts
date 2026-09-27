@@ -5,7 +5,7 @@
  * run-now door (api/admin/playbooks-run.ts) both call it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { stampReachOutStep, type Database } from "../packages/db.js";
 import { reachOutRunIdFor, runReachOut } from "../packages/core.js";
 import { localDate } from "../packages/contracts.js";
 import { reachOutRunContext, type ReachOutRow } from "./run-context.js";
@@ -13,7 +13,7 @@ import type { Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
-export interface ReachOutStepRun {
+interface ReachOutStepRun {
   /** core's outcomes, and "failed" when the step's context could not be read. */
   outcome: "sent" | "held" | "empty" | "off" | "failed";
   /** Why it held, came back empty, is off, or failed (R14: the words are contracts'). */
@@ -32,7 +32,8 @@ export async function runReachOutStep(
   log: Logger,
 ): Promise<ReachOutStepRun> {
   const runFor = localDate(tz, now);
-  const tried = () => db.from("playbooks").update({ last_run_at: now.toISOString() }).eq("id", row.id);
+  // A stamp that fails leaves the day open: the next hour tries the step again, and its run is made once (alreadyRan).
+  const tried = () => stampReachOutStep(db, row.id, { at: now }).catch(() => undefined);
   const ctx = await reachOutRunContext(db, row, now);
   if ("error" in ctx) {
     await tried();
@@ -43,7 +44,7 @@ export async function runReachOutStep(
   }
   const r = await runReachOut(ctx.ports, ctx.step, { runFor });
   log.info("reach_out_ran", { tenant_id: row.tenant_id, playbook_id: row.id, ...r });
-  await db.from("playbooks").update({ last_run_for: runFor, last_run_at: now.toISOString() }).eq("id", row.id);
+  await stampReachOutStep(db, row.id, { at: now, runFor }).catch(() => undefined);
   const reason = "reason" in r ? r.reason : undefined;
   const runId = r.planned > 0 || reason === "already_ran" ? await reachOutRunIdFor(row.id, runFor) : null;
   return { outcome: r.outcome, reason, planned: r.planned, runFor, runId };

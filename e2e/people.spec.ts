@@ -363,7 +363,7 @@ test.describe("People on a real workspace", () => {
       });
     });
     // Both consent doors, for one person or many, conversational or offers. The
-    // batch door answers with counts (server/consent.ts), a person's with the row.
+    // batch door answers with counts (server/people/consent.ts), a person's with the row.
     await page.route(/\/api\/v1\/contacts\/(?:[^/?#]+\/)?(?:marketing-)?consent(?:[?#]|$)/, async (route) => {
       const req = route.request();
       const body = req.postDataJSON() as { ids?: unknown } | null;

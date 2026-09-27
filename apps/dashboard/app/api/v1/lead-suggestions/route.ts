@@ -1,6 +1,6 @@
 import { BusinessLineSchema } from "@chanlytics/contracts";
 import { read, workspace, write } from "@/server/route";
-import { setBusinessLine, suggestionsFor } from "@/server/leads";
+import { setBusinessLine, suggestionsFor } from "@/server/leads/leads";
 
 /**
  * GET /api/v1/lead-suggestions — the three or four kinds of business worth
@@ -21,7 +21,7 @@ export const GET = read({
  */
 export const PUT = write({
   scope: workspace,
-  role: "owner",
+  role: "partner",
   rate: "lead_suggest",
   input: BusinessLineSchema,
   handle: ({ ctx, member, input }) => setBusinessLine(ctx, member.tenantId, input.business_line),

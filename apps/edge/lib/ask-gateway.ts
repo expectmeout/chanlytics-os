@@ -164,7 +164,7 @@ const EFFORTS = new Set(["low", "medium", "high"]);
 export const GATEWAY_PURPOSES = ["ask", "lead_draft", "lead_suggest", "list_draft"] as const;
 export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
 /** What Ask's daily budget counts: the gateway's purposes, and the reach-out sheet's preview (its own door, R12). */
-export type AskUsagePurpose = GatewayPurpose | "reach_out_preview";
+type AskUsagePurpose = GatewayPurpose | "reach_out_preview";
 const FORMAT_MAX = 8_000;
 
 function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, unknown> } | null | "bad" {

@@ -7,10 +7,10 @@
 # - A fake SIP password: a test pins that the Twilio adapter sends one that
 #   meets Twilio's rule (12+ characters, a digit, mixed case), and the
 #   fixture looked enough like a key for the scanner
-#   (tooling/scripts/tests/lines-saga.test.mjs).
+#   (tooling/scripts/tests/lines/lines-saga.test.mjs).
 # - Google's own documented sample place id, beside a variable named KEY in
 #   the Places test: a public identifier from Google's examples, high in
-#   entropy, and not a credential (tooling/scripts/tests/google.test.mjs).
+#   entropy, and not a credential (tooling/scripts/tests/google/google.test.mjs).
 
 [extend]
 useDefault = true

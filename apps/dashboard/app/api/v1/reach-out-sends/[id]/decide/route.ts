@@ -1,7 +1,7 @@
 import { ReachOutDecideSchema } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { reachOutSendScope } from "@/server/verbs";
-import { decideSend } from "@/server/reach-outs";
+import { decideSend } from "@/server/campaigns/reach-outs";
 
 /**
  * POST /api/v1/reach-out-sends/:id/decide — an owner's answer to one held email of a live run (R18): include it (never

@@ -2,7 +2,7 @@ import { AppError } from "@chanlytics/contracts";
 import { cancelSend } from "@chanlytics/core";
 import { write, row } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { cancelSendPorts } from "@/server/core-ports";
+import { cancelSendPorts } from "@/server/ports/core-ports";
 
 /** The message being called back, read under RLS: one the caller cannot see is a 404. */
 const theMessage = row(async (ctx, params) => {

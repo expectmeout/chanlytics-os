@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AppError, TEMPLATE_TITLE_MAX, playbooksStillSending } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { templateScope } from "@/server/verbs";
-import { deleteTemplate } from "@/server/service";
+import { deleteTemplate } from "@/server/campaigns/meta-templates";
 
 /**
  * PUT /api/v1/templates/:id — { hidden?: boolean, title?: string | null }.

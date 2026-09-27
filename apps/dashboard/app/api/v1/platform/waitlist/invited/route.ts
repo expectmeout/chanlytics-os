@@ -1,6 +1,6 @@
 import { write, platform } from "@/server/route";
 import { requireUuid } from "@/server/request-guards";
-import { platformWaitlistInvited } from "@/server/platform";
+import { platformWaitlistInvited } from "@/server/platform/platform";
 
 /**
  * POST /api/v1/platform/waitlist/invited — somebody on the waiting list was invited.
