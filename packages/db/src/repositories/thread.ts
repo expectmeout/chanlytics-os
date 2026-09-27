@@ -443,9 +443,7 @@ export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): s
   if (lead.hasEmail === true) bits.push("Their email address is on file.");
   else if (lead.hasEmail === false) bits.push("No email address on file.");
   if (lead.returning) {
-    const days = lead.lastSeenAt
-      ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / 86_400_000)
-      : null;
+    const days = lead.lastSeenAt ? Math.floor((now.getTime() - new Date(lead.lastSeenAt).getTime()) / DAY_MS) : null;
     const when =
       days === null
         ? ""

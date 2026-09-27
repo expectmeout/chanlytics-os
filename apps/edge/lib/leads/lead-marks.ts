@@ -18,6 +18,10 @@ import { logger } from "../log.js";
 import { BOT_USER_AGENT } from "../public-page.js";
 
 const STORE_TIMEOUT_MS = 4_000;
+/** A read is given at least this, whatever the caller has left, and at most the cap for what it reads. */
+const READ_FLOOR_MS = 500;
+const PAGE_READ_CAP_MS = 8_000;
+const IMAGE_READ_CAP_MS = 5_000;
 const A_YEAR_S = String(365 * 24 * 60 * 60);
 
 /** `<sha256 of the bytes>.<the kind they were read as>`: the only shape 00161's CHECK lets the column hold. */
@@ -34,7 +38,7 @@ const PAGE_MAX_BYTES = 96_000;
  * Anything that is not a page we can read answers null, because a lead without a mark is an ordinary lead.
  */
 export async function pageText(fetchImpl: typeof fetch, url: string, timeoutMs: number): Promise<string | null> {
-  const stop = AbortSignal.timeout(Math.max(500, Math.min(timeoutMs, 8_000)));
+  const stop = AbortSignal.timeout(Math.max(READ_FLOOR_MS, Math.min(timeoutMs, PAGE_READ_CAP_MS)));
   try {
     const res = await fetchImpl(url, {
       signal: stop,
@@ -63,7 +67,7 @@ export async function imageBytes(
   timeoutMs: number,
   maxBytes: number,
 ): Promise<Uint8Array | null> {
-  const stop = AbortSignal.timeout(Math.max(500, Math.min(timeoutMs, 5_000)));
+  const stop = AbortSignal.timeout(Math.max(READ_FLOOR_MS, Math.min(timeoutMs, IMAGE_READ_CAP_MS)));
   try {
     const res = await fetchImpl(url, {
       signal: stop,

@@ -11,10 +11,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { coldReceiptsOwed, type Database } from "../packages/db.js";
 import { errField, type Logger } from "../log.js";
+import { HOUR_MS } from "../packages/contracts.js";
 
 /** The window a delivery receipt must have come in: back a day, and two hours for the slowest server. */
-const RECEIPTS_FROM_MS = 26 * 3600_000;
-const RECEIPTS_TO_MS = 2 * 3600_000;
+const RECEIPTS_FROM_MS = 26 * HOUR_MS;
+const RECEIPTS_TO_MS = 2 * HOUR_MS;
 /** Fewer emails than this say nothing: one slow server is not a secret set wrong. */
 const RECEIPTS_AT_LEAST = 3;
 

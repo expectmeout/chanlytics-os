@@ -2,10 +2,9 @@
  * The sample's day: the one clock every builder under today-sample/ reads, so every moment is said relative to
  * `nowMs` and the day is always today. Built once per sample by today-sample.ts and handed to each surface's builder.
  */
-import { zoneDayKey, zoneMidnight } from "@chanlytics/contracts";
+import { zoneDayKey, zoneMidnight, MIN_MS } from "@chanlytics/contracts";
 
 export const ZONE = "America/New_York";
-export const MIN = 60_000;
 
 /**
  * Which day the sample is: the usual one the tests walk, a busy one that overflows every cap on the page, or
@@ -35,9 +34,9 @@ export function sampleClock(nowMs: number): SampleClock {
     now: new Date(nowMs),
     today,
     midnight,
-    ago: (min: number) => new Date(nowMs - min * MIN).toISOString(),
+    ago: (min: number) => new Date(nowMs - min * MIN_MS).toISOString(),
     at: (h: number, m = 0, dayOffset = 0) =>
-      new Date(midnight + dayOffset * 24 * 60 * MIN + (h * 60 + m) * MIN).toISOString(),
+      new Date(midnight + dayOffset * 24 * 60 * MIN_MS + (h * 60 + m) * MIN_MS).toISOString(),
   };
 }
 

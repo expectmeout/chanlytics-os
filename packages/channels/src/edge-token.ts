@@ -12,8 +12,9 @@
  * with one and verifies with the other.
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { MIN_MS } from "@chanlytics/contracts";
 
-export const EDGE_TOKEN_TTL_MS = 60_000;
+export const EDGE_TOKEN_TTL_MS = MIN_MS;
 
 export interface EdgeClaims {
   /** The door this token opens, as its path: "/api/admin/lines". */

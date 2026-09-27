@@ -1,4 +1,5 @@
 import type { DeliveryRefusal } from "../consent/consent";
+import { HOUR_MS } from "../shared/time";
 /**
  * What a run is read by, wherever it is read: the window a reply counts in, and the reasons a person is held back at
  * the wire, in the owner's words. The broadcast's run report, the Playbooks page and a person's page all read them;
@@ -10,7 +11,7 @@ import type { DeliveryRefusal } from "../consent/consent";
  * keeps the same window (migration 00064's '72 hours'), and every page says it in these words.
  */
 export const REPLY_WINDOW_HOURS = 72;
-export const REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 3_600_000;
+export const REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * HOUR_MS;
 export const REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 
 /**

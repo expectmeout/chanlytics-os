@@ -30,6 +30,9 @@ import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type Sig
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 import { serviceDb } from "../service-db";
 
+/** The operator's note of a sign-up gives up after this; a failure is logged, never the sign-up's. */
+const SIGNUP_NOTIFY_TIMEOUT_MS = 4_000;
+
 interface SignupOutcome {
   /** A new person: the user was made this call. Their workspace waits for their first sign-in. */
   created: boolean;
@@ -173,7 +176,7 @@ export async function notifyPlatformSignup(tenantId: string, email: string): Pro
       method: "POST",
       headers: edgeHeaders("/api/admin/signup-notify", { workspace: tenantId }),
       body: JSON.stringify({ tenant_id: tenantId, email }),
-      signal: AbortSignal.timeout(4_000),
+      signal: AbortSignal.timeout(SIGNUP_NOTIFY_TIMEOUT_MS),
     });
   } catch (e) {
     console.warn(

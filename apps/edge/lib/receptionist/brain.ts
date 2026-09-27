@@ -29,7 +29,8 @@ export const BRAIN_MODEL = "claude-opus-5";
  * destroy the customer's message rather than falling back to the holding
  * reply. 20s x 2 attempts leaves room for the send that follows.
  */
-const client = new Anthropic({ timeout: 20_000, maxRetries: 1 });
+const BRAIN_TIMEOUT_MS = 20_000;
+const client = new Anthropic({ timeout: BRAIN_TIMEOUT_MS, maxRetries: 1 });
 
 export interface BrainReply {
   text: string;

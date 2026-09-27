@@ -243,7 +243,8 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   const model = readCode("apps/edge/lib/google/review-reply.ts");
   assert.ok(
     model.includes('export const REVIEW_REPLY_MODEL = "claude-sonnet-5";') &&
-      model.includes("timeout: 15_000, maxRetries: 1") &&
+      model.includes("const DRAFT_TIMEOUT_MS = 15_000;") &&
+      model.includes("timeout: DRAFT_TIMEOUT_MS, maxRetries: 1") &&
       model.includes("max_tokens: 300"),
   );
   assert.ok(model.includes('if (!env.ANTHROPIC_API_KEY) return { ok: false, error: "no_model_key" };'));
