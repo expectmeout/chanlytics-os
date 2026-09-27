@@ -321,7 +321,7 @@ test("Today: the queue's rows the page drew, each as the queue says it (who, the
   assert.ok(!lines.some((l) => l.includes(CB)), "and no log line does");
 });
 
-test("the Inbox: the threads in the bucket the page drew, each in list_threads' words, and every bucket counted as list_threads counts it; Conversations: its threads and calls; Live: its calls -- another workspace's rows absent from each", async () => {
+test("the Inbox: the threads in the bucket the page drew, each in inbox.list's words, and every bucket counted as inbox.list counts it; Conversations: its threads and calls; Live: its calls -- another workspace's rows absent from each", async () => {
   const inbox = await buildContext(
     rcIn(ctxFor()),
     page(
@@ -395,7 +395,7 @@ test("the Inbox: the threads in the bucket the page drew, each in list_threads' 
 
 /* ------------------------------------------------------------------ people */
 
-test("People: the people the page drew, each as search_people says them, and how many there are in all; the Pipeline where deals are off draws People's rows; another workspace's person is absent", async () => {
+test("People: the people the page drew, each as people.search says them, and how many there are in all; the Pipeline where deals are off draws People's rows; another workspace's person is absent", async () => {
   const b = await buildContext(
     rcIn(ctxFor()),
     page(
@@ -789,7 +789,7 @@ test("Campaigns: the playbooks, the broadcasts or the messages the page drew, by
   );
 });
 
-test("Reports: the period the page shows, its tiles and lines, as get_report says them, and no row", async () => {
+test("Reports: the period the page shows, its tiles and lines, as the report tool says them, and no row", async () => {
   const series = (a) => ({
     tenant_id: A,
     days: a.p_days,
