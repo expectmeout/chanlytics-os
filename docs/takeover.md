@@ -37,7 +37,7 @@ functions over the limit            269   of which over 200 lines: 65
 files over 800 lines                 35
 directories over 20 modules           8
 window globals                      195   names
-window publishers                   391   sites in 144 files
+window publishers                   393   sites in 146 files
 copies                              129   of 35 names
 as unknown as                       223
 table names outside packages/db     535
