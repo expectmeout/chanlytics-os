@@ -2553,6 +2553,7 @@ var REACH_OUT_BODY_MAX = 1200;
 var OPENING_WORDS_MAX = 40;
 var OPENING_CHARS_MAX = 400;
 var REACH_OUT_STEPS_MAX = 5;
+var REACH_OUT_DOMAINS_MAX = 5;
 var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
 var REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60];
@@ -2573,7 +2574,7 @@ var ReachOutChainSchema = z11.object({
     message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
   }),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z11.array(z11.string().uuid()).max(5),
+  domain_ids: z11.array(z11.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
   signed_by: z11.string().trim().max(SIGNED_BY_MAX).nullable(),
   steps: z11.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
@@ -2642,6 +2643,36 @@ var REACH_OUT_REFUSALS = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET = new Set(Object.values(REACH_OUT_REFUSALS));
+var REACH_OUT_SHEET_PARTS = {
+  who: "Who gets it",
+  words: "What you'd say",
+  then: "Then",
+  pace: "Pace",
+  from: "From",
+  before: "Before it goes",
+  subject: "Subject",
+  body: "Your words",
+  signAs: "Sign as",
+  after: "After",
+  afterTail: "with nothing back \xB7 in the same thread",
+  dayOne: "Day one \xB7 the pace below",
+  remove: "Remove this step",
+  everyDomain: "Every verified domain",
+  domainsMax: `Up to ${REACH_OUT_DOMAINS_MAX} domains, or every verified one.`,
+  close: "Close",
+  recommended: "Recommended",
+  start: "Start it",
+  save: "Save",
+  starting: "Starting\u2026",
+  saving: "Saving\u2026",
+  cancel: "Cancel",
+  name: "The reach-out's name",
+  fromLine: "From",
+  toLine: "To",
+  subjectLine: "Subject",
+  footLine: "At the foot",
+  repliesLine: "Replies"
+};
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
@@ -10151,6 +10182,7 @@ var REACH_OUT_BODY_MAX2 = 1200;
 var OPENING_WORDS_MAX2 = 40;
 var OPENING_CHARS_MAX2 = 400;
 var REACH_OUT_STEPS_MAX2 = 5;
+var REACH_OUT_DOMAINS_MAX2 = 5;
 var REACH_OUT_NAME_MAX2 = 80;
 var SIGNED_BY_MAX2 = 60;
 var REACH_OUT_GAP_MINUTES2 = [5, 8, 12, 20, 30, 60];
@@ -10171,7 +10203,7 @@ var ReachOutChainSchema2 = z112.object({
     message: `One of ${REACH_OUT_GAP_MINUTES2.join(", ")} minutes.`
   }),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z112.array(z112.string().uuid()).max(5),
+  domain_ids: z112.array(z112.string().uuid()).max(REACH_OUT_DOMAINS_MAX2),
   signed_by: z112.string().trim().max(SIGNED_BY_MAX2).nullable(),
   steps: z112.array(ReachOutStepSchema2).min(1).max(REACH_OUT_STEPS_MAX2)
 });
@@ -10240,6 +10272,36 @@ var REACH_OUT_REFUSALS2 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET2 = new Set(Object.values(REACH_OUT_REFUSALS2));
+var REACH_OUT_SHEET_PARTS2 = {
+  who: "Who gets it",
+  words: "What you'd say",
+  then: "Then",
+  pace: "Pace",
+  from: "From",
+  before: "Before it goes",
+  subject: "Subject",
+  body: "Your words",
+  signAs: "Sign as",
+  after: "After",
+  afterTail: "with nothing back \xB7 in the same thread",
+  dayOne: "Day one \xB7 the pace below",
+  remove: "Remove this step",
+  everyDomain: "Every verified domain",
+  domainsMax: `Up to ${REACH_OUT_DOMAINS_MAX2} domains, or every verified one.`,
+  close: "Close",
+  recommended: "Recommended",
+  start: "Start it",
+  save: "Save",
+  starting: "Starting\u2026",
+  saving: "Saving\u2026",
+  cancel: "Cancel",
+  name: "The reach-out's name",
+  fromLine: "From",
+  toLine: "To",
+  subjectLine: "Subject",
+  footLine: "At the foot",
+  repliesLine: "Replies"
+};
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS2 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS2 = 30 * 60 * 1e3;
@@ -13824,6 +13886,7 @@ var REACH_OUT_BODY_MAX3 = 1200;
 var OPENING_WORDS_MAX3 = 40;
 var OPENING_CHARS_MAX3 = 400;
 var REACH_OUT_STEPS_MAX3 = 5;
+var REACH_OUT_DOMAINS_MAX3 = 5;
 var REACH_OUT_NAME_MAX3 = 80;
 var SIGNED_BY_MAX3 = 60;
 var REACH_OUT_GAP_MINUTES3 = [5, 8, 12, 20, 30, 60];
@@ -13844,7 +13907,7 @@ var ReachOutChainSchema3 = z113.object({
     message: `One of ${REACH_OUT_GAP_MINUTES3.join(", ")} minutes.`
   }),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z113.array(z113.string().uuid()).max(5),
+  domain_ids: z113.array(z113.string().uuid()).max(REACH_OUT_DOMAINS_MAX3),
   signed_by: z113.string().trim().max(SIGNED_BY_MAX3).nullable(),
   steps: z113.array(ReachOutStepSchema3).min(1).max(REACH_OUT_STEPS_MAX3)
 });
@@ -13913,6 +13976,36 @@ var REACH_OUT_REFUSALS3 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET3 = new Set(Object.values(REACH_OUT_REFUSALS3));
+var REACH_OUT_SHEET_PARTS3 = {
+  who: "Who gets it",
+  words: "What you'd say",
+  then: "Then",
+  pace: "Pace",
+  from: "From",
+  before: "Before it goes",
+  subject: "Subject",
+  body: "Your words",
+  signAs: "Sign as",
+  after: "After",
+  afterTail: "with nothing back \xB7 in the same thread",
+  dayOne: "Day one \xB7 the pace below",
+  remove: "Remove this step",
+  everyDomain: "Every verified domain",
+  domainsMax: `Up to ${REACH_OUT_DOMAINS_MAX3} domains, or every verified one.`,
+  close: "Close",
+  recommended: "Recommended",
+  start: "Start it",
+  save: "Save",
+  starting: "Starting\u2026",
+  saving: "Saving\u2026",
+  cancel: "Cancel",
+  name: "The reach-out's name",
+  fromLine: "From",
+  toLine: "To",
+  subjectLine: "Subject",
+  footLine: "At the foot",
+  repliesLine: "Replies"
+};
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
@@ -16608,6 +16701,7 @@ var REACH_OUT_BODY_MAX22 = 1200;
 var OPENING_WORDS_MAX22 = 40;
 var OPENING_CHARS_MAX22 = 400;
 var REACH_OUT_STEPS_MAX22 = 5;
+var REACH_OUT_DOMAINS_MAX22 = 5;
 var REACH_OUT_NAME_MAX22 = 80;
 var SIGNED_BY_MAX22 = 60;
 var REACH_OUT_GAP_MINUTES22 = [5, 8, 12, 20, 30, 60];
@@ -16628,7 +16722,7 @@ var ReachOutChainSchema22 = z1122.object({
     message: `One of ${REACH_OUT_GAP_MINUTES22.join(", ")} minutes.`
   }),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z1122.array(z1122.string().uuid()).max(5),
+  domain_ids: z1122.array(z1122.string().uuid()).max(REACH_OUT_DOMAINS_MAX22),
   signed_by: z1122.string().trim().max(SIGNED_BY_MAX22).nullable(),
   steps: z1122.array(ReachOutStepSchema22).min(1).max(REACH_OUT_STEPS_MAX22)
 });
@@ -16707,6 +16801,36 @@ var REACH_OUT_REFUSALS22 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET22 = new Set(Object.values(REACH_OUT_REFUSALS22));
+var REACH_OUT_SHEET_PARTS22 = {
+  who: "Who gets it",
+  words: "What you'd say",
+  then: "Then",
+  pace: "Pace",
+  from: "From",
+  before: "Before it goes",
+  subject: "Subject",
+  body: "Your words",
+  signAs: "Sign as",
+  after: "After",
+  afterTail: "with nothing back \xB7 in the same thread",
+  dayOne: "Day one \xB7 the pace below",
+  remove: "Remove this step",
+  everyDomain: "Every verified domain",
+  domainsMax: `Up to ${REACH_OUT_DOMAINS_MAX22} domains, or every verified one.`,
+  close: "Close",
+  recommended: "Recommended",
+  start: "Start it",
+  save: "Save",
+  starting: "Starting\u2026",
+  saving: "Saving\u2026",
+  cancel: "Cancel",
+  name: "The reach-out's name",
+  fromLine: "From",
+  toLine: "To",
+  subjectLine: "Subject",
+  footLine: "At the foot",
+  repliesLine: "Replies"
+};
 var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS22 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS22 = 30 * 60 * 1e3;
@@ -19216,6 +19340,7 @@ var REACH_OUT_BODY_MAX32 = 1200;
 var OPENING_WORDS_MAX32 = 40;
 var OPENING_CHARS_MAX32 = 400;
 var REACH_OUT_STEPS_MAX32 = 5;
+var REACH_OUT_DOMAINS_MAX32 = 5;
 var REACH_OUT_NAME_MAX32 = 80;
 var SIGNED_BY_MAX32 = 60;
 var REACH_OUT_GAP_MINUTES32 = [5, 8, 12, 20, 30, 60];
@@ -19236,7 +19361,7 @@ var ReachOutChainSchema32 = z1132.object({
     message: `One of ${REACH_OUT_GAP_MINUTES32.join(", ")} minutes.`
   }),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z1132.array(z1132.string().uuid()).max(5),
+  domain_ids: z1132.array(z1132.string().uuid()).max(REACH_OUT_DOMAINS_MAX32),
   signed_by: z1132.string().trim().max(SIGNED_BY_MAX32).nullable(),
   steps: z1132.array(ReachOutStepSchema32).min(1).max(REACH_OUT_STEPS_MAX32)
 });
@@ -19305,6 +19430,36 @@ var REACH_OUT_REFUSALS32 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET32 = new Set(Object.values(REACH_OUT_REFUSALS32));
+var REACH_OUT_SHEET_PARTS32 = {
+  who: "Who gets it",
+  words: "What you'd say",
+  then: "Then",
+  pace: "Pace",
+  from: "From",
+  before: "Before it goes",
+  subject: "Subject",
+  body: "Your words",
+  signAs: "Sign as",
+  after: "After",
+  afterTail: "with nothing back \xB7 in the same thread",
+  dayOne: "Day one \xB7 the pace below",
+  remove: "Remove this step",
+  everyDomain: "Every verified domain",
+  domainsMax: `Up to ${REACH_OUT_DOMAINS_MAX32} domains, or every verified one.`,
+  close: "Close",
+  recommended: "Recommended",
+  start: "Start it",
+  save: "Save",
+  starting: "Starting\u2026",
+  saving: "Saving\u2026",
+  cancel: "Cancel",
+  name: "The reach-out's name",
+  fromLine: "From",
+  toLine: "To",
+  subjectLine: "Subject",
+  footLine: "At the foot",
+  repliesLine: "Replies"
+};
 var WHEN232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS32 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS32 = 30 * 60 * 1e3;
@@ -22546,6 +22701,7 @@ var REACH_OUT_BODY_MAX4 = 1200;
 var OPENING_WORDS_MAX4 = 40;
 var OPENING_CHARS_MAX4 = 400;
 var REACH_OUT_STEPS_MAX4 = 5;
+var REACH_OUT_DOMAINS_MAX4 = 5;
 var REACH_OUT_NAME_MAX4 = 80;
 var SIGNED_BY_MAX4 = 60;
 var REACH_OUT_GAP_MINUTES4 = [5, 8, 12, 20, 30, 60];
@@ -22566,7 +22722,7 @@ var ReachOutChainSchema4 = z114.object({
     message: `One of ${REACH_OUT_GAP_MINUTES4.join(", ")} minutes.`
   }),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z114.array(z114.string().uuid()).max(5),
+  domain_ids: z114.array(z114.string().uuid()).max(REACH_OUT_DOMAINS_MAX4),
   signed_by: z114.string().trim().max(SIGNED_BY_MAX4).nullable(),
   steps: z114.array(ReachOutStepSchema4).min(1).max(REACH_OUT_STEPS_MAX4)
 });
@@ -22635,6 +22791,36 @@ var REACH_OUT_REFUSALS4 = {
   budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
 };
 var REFUSAL_SET4 = new Set(Object.values(REACH_OUT_REFUSALS4));
+var REACH_OUT_SHEET_PARTS4 = {
+  who: "Who gets it",
+  words: "What you'd say",
+  then: "Then",
+  pace: "Pace",
+  from: "From",
+  before: "Before it goes",
+  subject: "Subject",
+  body: "Your words",
+  signAs: "Sign as",
+  after: "After",
+  afterTail: "with nothing back \xB7 in the same thread",
+  dayOne: "Day one \xB7 the pace below",
+  remove: "Remove this step",
+  everyDomain: "Every verified domain",
+  domainsMax: `Up to ${REACH_OUT_DOMAINS_MAX4} domains, or every verified one.`,
+  close: "Close",
+  recommended: "Recommended",
+  start: "Start it",
+  save: "Save",
+  starting: "Starting\u2026",
+  saving: "Saving\u2026",
+  cancel: "Cancel",
+  name: "The reach-out's name",
+  fromLine: "From",
+  toLine: "To",
+  subjectLine: "Subject",
+  footLine: "At the foot",
+  repliesLine: "Replies"
+};
 var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS4 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS4 = 30 * 60 * 1e3;

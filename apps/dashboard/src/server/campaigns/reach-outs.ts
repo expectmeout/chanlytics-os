@@ -14,6 +14,7 @@ import {
   isReachOutRun,
   localDate,
   parseTenantConfig,
+  reachOutSendsFrom,
   reachOutSlots,
   validateReachOutChain,
   type ReachOutChainDto,
@@ -99,14 +100,19 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
   if (roots.length === 0) return [];
   const templateIds = steps.map((s) => s.template_id).filter((x): x is string => !!x);
   const searchIds = roots.map((r) => r.lead_search_id).filter((x): x is string => !!x);
-  const [words, names, waiting, mode, spend] = await Promise.all([
+  const [words, names, waiting, domains, mode, spend] = await Promise.all([
     emailWordsByTemplate(sb, tenantId, templateIds),
     searchNamesByIds(sb, tenantId, searchIds),
     runsWaitingOf(sb, tenantId),
+    sendingDomainsOf(sb, tenantId),
     // The step's run's own readings (packages/db): its outreach mode, and whether the workspace may spend.
     outreachModeOf(sb, tenantId),
     workspaceMaySpend(sb, tenantId),
   ]);
+  // The domains the chain's run sends from, by the run's own rule (contracts reachOutSendsFrom): its named ones, or every
+  // one when it names none, verified and clean. A held or unverified domain it names is not its pace.
+  const domainsOf = (ids: string[]) =>
+    domains.filter((d) => reachOutSendsFrom(d, ids)).map((d) => ({ host: d.host, sent_days: d.sent_days ?? 0 }));
   const waitingOf = new Map<string, string>();
   for (const w of waiting)
     if (isReachOutRun(w.audience)) waitingOf.set(String((w.audience as { root_id?: unknown }).root_id), w.id);
@@ -135,6 +141,7 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
       domain_ids: root.domain_ids ?? [],
       signed_by: root.signed_by,
       steps: stepDtos,
+      domains: domainsOf(root.domain_ids ?? []),
       next: {
         run_hour: root.run_hour,
         last_run_for: root.last_run_for,
@@ -350,12 +357,13 @@ export async function reachOutRunOf(
     first_at: c.checked[0]?.send_at ?? null,
     checking: c.planned.length - c.checked.length,
     held: rows.filter((s) => s.state === "held" && isReachOutHold(s.reason)).map(heldOf),
-    planned: c.planned.map((s) => ({
-      send_id: s.id,
-      business_name: s.lead?.business_name ?? "",
-      send_at: s.send_at ?? "",
-      checked: !!s.checked_at,
-    })),
+    // A planned send always has its time (00183 reach_out_sends_planned_is_timed); one read without it is not listed
+    // with a time it does not have.
+    planned: c.planned.flatMap((s) =>
+      s.send_at
+        ? [{ send_id: s.id, business_name: s.lead?.business_name ?? "", send_at: s.send_at, checked: !!s.checked_at }]
+        : [],
+    ),
     skipped: c.skipped,
     first,
     domains,

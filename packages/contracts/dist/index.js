@@ -7741,6 +7741,7 @@ function triggerOffered(t, dealsOn) {
   return t.kind !== "deal" || dealsOn;
 }
 function policyClassOffered(cls, dealsOn) {
+  if (cls === "outreach") return true;
   const runs = PLAYBOOK_TRIGGERS.filter((t) => t.cls === cls);
   return runs.length === 0 || runs.some((t) => triggerOffered(t, dealsOn));
 }
@@ -15645,6 +15646,9 @@ function domainDailyCap(sentDays) {
   for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap2 = step2.perDay;
   return cap2;
 }
+function reachOutSendsFrom(d, named) {
+  return d.state === "verified" && !!d.clean_since && (named.length === 0 || named.includes(d.id));
+}
 function normalizeHost(typed) {
   return typed.trim().toLowerCase().replace(/\.$/, "");
 }
@@ -19614,6 +19618,7 @@ var OPENING_WORDS_MAX = 40;
 var OPENING_CHARS_MAX = 400;
 var ANGLE_WORDS_MAX = 3;
 var REACH_OUT_STEPS_MAX = 5;
+var REACH_OUT_DOMAINS_MAX = 5;
 var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
 var REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60];
@@ -19635,6 +19640,18 @@ function slotsNamed(text) {
 }
 function replaceSlots(text, fill2) {
   return text.replace(SLOT, (whole, name) => fill2(slotKey(name)) ?? whole);
+}
+function slotParts(text) {
+  const out = [];
+  let at2 = 0;
+  for (const m of text.matchAll(SLOT)) {
+    const i = m.index ?? 0;
+    if (i > at2) out.push({ text: text.slice(at2, i), slot: false });
+    out.push({ text: slotKey(m[1] ?? ""), slot: true });
+    at2 = i + m[0].length;
+  }
+  if (at2 < text.length) out.push({ text: text.slice(at2), slot: false });
+  return out;
 }
 function slotCount(text, slot) {
   let n = 0;
@@ -19758,7 +19775,7 @@ var ReachOutChainSchema = z11.object({
     message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
   }),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z11.array(z11.string().uuid()).max(5),
+  domain_ids: z11.array(z11.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
   signed_by: z11.string().trim().max(SIGNED_BY_MAX).nullable(),
   steps: z11.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
 });
@@ -20290,7 +20307,8 @@ function nextRunWords(c, tz, now) {
 var clock2 = (iso, tz) => clockTime(Date.parse(iso), tz);
 function approvalWordsOf(r2, p) {
   const earlier = !!r2.run_for && r2.run_for < p.today;
-  const at2 = earlier ? null : r2.first_at ? clock2(r2.first_at, p.timezone) : null;
+  const passed = !earlier && !!r2.first_at && Date.parse(r2.first_at) <= p.now;
+  const at2 = earlier || passed ? null : r2.first_at ? clock2(r2.first_at, p.timezone) : null;
   const total = r2.today + r2.later;
   const why = [];
   if (r2.later > 0)
@@ -20311,7 +20329,7 @@ function approvalWordsOf(r2, p) {
   }
   const hosts = r2.domains.map((d) => d.host);
   const from = r2.domains.length === 1 ? `all from ${r2.domains[0].host}, ${plural(r2.domains[0].sent_days, "clean day", "clean days")}` : r2.domains.length > 1 ? `from ${hosts.slice(0, -1).join(", ")} and ${hosts[hosts.length - 1]}` : null;
-  const goes = earlier ? " \xB7 goes from now, re-timed in their hours, once you approve it" : at2 ? ` \xB7 goes from ${at2} once you approve it` : "";
+  const goes = earlier ? " \xB7 goes from now, re-timed in their hours, once you approve it" : passed ? " \xB7 goes from now, in their hours, once you approve it" : at2 ? ` \xB7 goes from ${at2} once you approve it` : "";
   const step2 = r2.step_n === null ? "a step since removed" : `step ${r2.step_n + 1}, ${stepLabel(r2.step_n).toLowerCase()}`;
   return {
     title: r2.chain_name,
@@ -20327,7 +20345,7 @@ function approvalWordsOf(r2, p) {
     ],
     words: words4,
     reader: r2.first ? `as ${r2.first.business_name} reads it \xB7 every opening is its own; your offer and ask are the same for all ${total}` : null,
-    approve: `Approve \u2014 ${r2.today}${earlier ? " from now" : at2 ? ` from ${at2}` : ""}`,
+    approve: `Approve \u2014 ${r2.today}${earlier || passed ? " from now" : at2 ? ` from ${at2}` : ""}`,
     approveNote: r2.checking > 0 ? `${r2.checking} more are being checked; they go once they pass.` : null,
     note: "Skipping loses this run only \u2014 the reach-out keeps its place and asks again tomorrow.",
     recheck: r2.held.some((h) => h.reason === "check_unavailable" && h.detail === null) ? REACH_OUT_SHEET_WORDS.recheck : null,
@@ -20342,6 +20360,37 @@ function approvalWordsOf(r2, p) {
 var runDayWords = (runFor) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(
   /* @__PURE__ */ new Date(`${runFor}T12:00:00Z`)
 );
+function chainPaceOf(c) {
+  return {
+    host: c.domains.length === 1 ? c.domains[0].host : null,
+    share: c.domains.reduce((t, d) => t + domainDailyCap(d.sent_days), 0)
+  };
+}
+function chainPathWords(c) {
+  return {
+    steps: c.steps.map((s) => ({
+      id: s.id,
+      label: stepLabel(s.n),
+      after: s.n === 0 ? null : `after ${s.after_days ?? "?"} days, nothing back`
+    })),
+    stops: "Stops for anyone who writes back, books or says no."
+  };
+}
+var REACH_OUT_ROW_WORDS = {
+  reading: "Reading how it is doing\u2026",
+  failed: "how this reach-out is doing",
+  pause: "Pause",
+  resume: "Resume",
+  remove: "Remove",
+  removeAsk: (name) => `Remove \u201C${name}\u201D?`,
+  removeYes: "Yes, remove",
+  paused: (name) => `${name} is paused \u2014 nothing more is planned until you resume it`,
+  resumed: (name) => `${name} is running \u2014 its next run is on its row`,
+  removed: (name) => `${name} is removed, and its words with it`,
+  runs: (n) => n === 1 ? "1 run" : `${n} runs`,
+  noRun: "No run yet",
+  edit: "Edit"
+};
 function chainHintOf(c, host) {
   const labels = c.steps.map((s) => stepLabel(s.n).toLowerCase());
   return `${labels.join(", ").replace(/^your email/, "Your email")}${host ? ` \xB7 from ${host}` : ""}`;
@@ -20375,7 +20424,9 @@ function chainReportWordsOf(c, report, reach, p) {
       String(s.said_no),
       String(s.bounced)
     ]),
-    sentence: `${p.share} a day${p.host ? ` from ${p.host}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.` + (held > 0 ? ` ${held} wait for your say.` : ""),
+    sentence: p.share > 0 ? `${p.share} a day${p.host ? ` from ${p.host}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.` : `${REACH_OUT_SHEET_WORDS.noDomain} ${clauses.join("; ")}.`,
+    // The held wait for their owner in their run (R20): the newest run that holds some opens them.
+    waiting: held > 0 ? { text: `${held} wait for your say`, run_id: report.runs.find((r2) => r2.held > 0)?.id ?? null } : null,
     history: report.runs.map((r2) => ({
       id: r2.id,
       text: `${r2.run_for ? runDayWords(r2.run_for) : "A run"} \xB7 ${r2.written} written${r2.held > 0 ? ` \xB7 ${r2.held} held` : ""}`
@@ -20394,6 +20445,308 @@ function emailTemplateWords(p) {
     checkNote: "Checked before each send: every slot filled or the email held; the opening's facts in the finder's record; under 120 words; the footer present; the language theirs.",
     foot: "Email \xB7 made here \xB7 your own words, no review",
     edit: "Edit in its reach-out"
+  };
+}
+function emailTemplateRowsOf(chains) {
+  return chains.flatMap(
+    (c) => c.steps.flatMap(
+      (s) => s.template_id ? [
+        {
+          template_id: s.template_id,
+          step_id: s.id,
+          subject: s.subject,
+          body: s.body,
+          root_id: c.root_id,
+          chain_name: c.name,
+          step_n: s.n,
+          after_days: s.after_days
+        }
+      ] : []
+    )
+  );
+}
+function emailRowWrittenOf(report, stepId) {
+  return report?.steps.find((x) => x.id === stepId)?.written ?? null;
+}
+var EMAIL_TEMPLATE_LIST_WORDS = {
+  /** Said after WhatsApp's hover when the head's count takes email rows too. */
+  headTip: (emails) => emails > 0 ? `The count takes ${plural(emails, "email")} of your reach-outs too: their own words, sent by email, with no review.` : "",
+  failed: "your reach-outs' emails"
+};
+
+// src/reach-out/reach-out-draft.ts
+var REACH_OUT_FIRST_WORDS = {
+  subject: "A quick one for {{business}}",
+  body: "{{opening}}\n\nI run {{your business}}, and we help businesses like yours. Would it be worth a short call?\n\n{{your name}}",
+  nudge: "Just checking this reached you. Happy to send a few details if it's useful.\n\n{{your name}}"
+};
+var REACH_OUT_GAP_FIRST = 12;
+function reachOutDefaultName(searchName) {
+  return `Reach out \xB7 ${searchName}`.slice(0, 80);
+}
+function reachOutDraftOf(p) {
+  const c = p.chain;
+  if (c)
+    return {
+      name: c.name,
+      include_unconfirmed: c.include_unconfirmed,
+      gap_minutes: c.gap_minutes,
+      domain_ids: c.domain_ids,
+      signed_by: c.signed_by ?? p.signedBy ?? "",
+      steps: c.steps.map((s) => ({
+        id: s.id,
+        subject: s.n === 0 ? s.subject : null,
+        body: s.body,
+        after_days: s.n === 0 ? null : s.after_days
+      }))
+    };
+  return {
+    name: reachOutDefaultName(p.searchName),
+    include_unconfirmed: !!p.includeUnconfirmed,
+    gap_minutes: REACH_OUT_GAP_FIRST,
+    domain_ids: [],
+    signed_by: p.signedBy ?? "",
+    steps: [{ id: null, subject: REACH_OUT_FIRST_WORDS.subject, body: REACH_OUT_FIRST_WORDS.body, after_days: null }]
+  };
+}
+function reachOutMayAddStep(d) {
+  return d.steps.length < REACH_OUT_STEPS_MAX;
+}
+function reachOutAddStep(d) {
+  if (!reachOutMayAddStep(d)) return d;
+  const step2 = { id: null, subject: null, body: REACH_OUT_FIRST_WORDS.nudge, after_days: REACH_OUT_AFTER_DAYS.first };
+  return { ...d, steps: [...d.steps, step2] };
+}
+function reachOutDropStep(d) {
+  return d.steps.length > 1 ? { ...d, steps: d.steps.slice(0, -1) } : d;
+}
+function reachOutAfterDayChoices() {
+  const out = [];
+  for (let n = REACH_OUT_AFTER_DAYS.min; n <= REACH_OUT_AFTER_DAYS.max; n += 1) out.push(n);
+  return out;
+}
+function reachOutChainBodyOf(d, searchId) {
+  return {
+    name: d.name.trim() || "Reach out",
+    search_id: searchId,
+    include_unconfirmed: d.include_unconfirmed,
+    gap_minutes: d.gap_minutes,
+    domain_ids: d.domain_ids,
+    signed_by: d.signed_by.trim() || null,
+    steps: d.steps.map((s, i) => ({
+      ...s.id ? { id: s.id } : {},
+      subject: i === 0 ? s.subject ?? "" : null,
+      body: s.body,
+      after_days: i === 0 ? null : s.after_days
+    }))
+  };
+}
+function reachOutDraftIssues(d, has3) {
+  const issues = validateReachOutChain(
+    reachOutChainBodyOf(d, "00000000-0000-4000-8000-000000000000"),
+    has3
+  );
+  const steps = d.steps.map(() => ({ subject: [], body: [], after_days: [] }));
+  const out = { steps, signed_by: [], chain: [], ready: issues.length === 0 };
+  for (const i of issues) {
+    const words4 = chainIssueWords(i);
+    if (i.step === null) (i.field === "signed_by" ? out.signed_by : out.chain).push(words4);
+    else if (i.field === "subject" || i.field === "body" || i.field === "after_days")
+      steps[i.step][i.field].push(words4);
+  }
+  return out;
+}
+function insertSlotAt(text, at2, slot) {
+  const where = at2 === null || at2 < 0 || at2 > text.length ? text.length : at2;
+  const token2 = `{{${slot}}}`;
+  return { text: text.slice(0, where) + token2 + text.slice(where), caret: where + token2.length };
+}
+function reachOutSheetPaceOf(domains, picked) {
+  const from = domains.filter((d) => d.state === "verified" && (picked.length === 0 || picked.includes(d.id)));
+  if (from.length === 0) return { share: 0, sentDays: 0, domains: 0 };
+  const least = from.reduce((a, b) => domainDailyCap(b.sent_days) < domainDailyCap(a.sent_days) ? b : a);
+  return { share: domainDailyCap(least.sent_days), sentDays: least.sent_days, domains: from.length };
+}
+function previewRefusedWords(reason) {
+  switch (reason) {
+    case "no_booking_link":
+      return "Your words name {{booking link}}, and your booking link isn't set.";
+    case "no_signed_by":
+      return "Your words name {{your name}}. Say the name you sign with.";
+    case "no_subject":
+      return "Your email needs a subject.";
+    case "unknown_slot":
+      return "Your words name a slot that isn't one of the six.";
+    case "missing_value":
+      return "This business is missing a value your words name, so its email would wait.";
+    case "no_business_address":
+      return "Add your business's address in Settings \u203A Business: every email carries it at the foot.";
+    default:
+      return "These words can't go as they are.";
+  }
+}
+function previewLinesOf(p) {
+  const v = p.preview;
+  return {
+    reader: v.lead ? `as ${v.lead.business_name} reads it \xB7 ${p.index + 1} of ${p.of}` : null,
+    nobody: v.lead ? null : "Nobody on this search can be written to yet.",
+    hold: v.hold && isReachOutHold(v.hold) ? `The check would hold this one: ${holdWords(v.hold, v.detail)}.` : null,
+    refused: v.refused ? previewRefusedWords(v.refused) : null,
+    unavailable: v.unavailable ? "The opening couldn't be written just now. Rewrite the opening to ask again." : null,
+    first: p.index <= 0,
+    last: p.index + 1 >= p.of
+  };
+}
+function reachOutPreviewOf(reach) {
+  return Math.max(1, Math.min(reach, REACH_OUT_PREVIEW_INDEX_MAX + 1));
+}
+var REACH_OUT_PREVIEW_WORDS = {
+  read: "Read it as they will",
+  prev: "Previous",
+  next: "Next",
+  rewrite: "Rewrite the opening",
+  reading: "Writing this business's opening\u2026",
+  changed: "Your words changed \xB7 Read it again"
+};
+function reachOutDoorOf(r2) {
+  if (!r2) return null;
+  if (r2.chain) return { kind: "open", label: "Open its reach-out", rootId: r2.chain };
+  if (r2.ready > 0) return { kind: "write", label: `Write to the ${r2.ready} ready`, include: false };
+  const unconfirmed = Math.max(0, r2.with_unconfirmed - r2.ready);
+  if (unconfirmed > 0) return { kind: "write", label: `Write to the ${unconfirmed} unconfirmed`, include: true };
+  return null;
+}
+function reachOutWhoWords(includeUnconfirmed) {
+  return includeUnconfirmed ? "Ready, and those whose address is unconfirmed, never written to. Keeps itself current as the search grows." : REACH_OUT_SHEET_WORDS.who;
+}
+function reachOutMayPickDomain(d) {
+  return d.domain_ids.length < REACH_OUT_DOMAINS_MAX;
+}
+function reachOutSheetUnreadOf(r2) {
+  if (r2.domains === "failed" || r2.settings === "failed")
+    return "Your sending domains or your booking link couldn't be read. Start waits until they are; reload to try again.";
+  if (r2.domains === "reading" || r2.settings === "reading") return "Reading your sending domains and your booking link\u2026";
+  return null;
+}
+function reachOutSavedWords(saved) {
+  const said = saved.start ? startWords(saved.start) : {
+    tone: "good",
+    text: saved.rechecked > 0 ? `Saved. ${saved.rechecked === 1 ? "1 email waiting to go is" : `${saved.rechecked} emails waiting to go are`} checked again against these words.` : "Saved. Its next run writes these words."
+  };
+  const run = saved.start ? saved.start.run_id : null;
+  return run ? { ...said, to: `broadcasts/run:${run}`, label: "Open the run" } : { ...said, to: `outbound/${saved.root_id}`, label: "Open its reach-out" };
+}
+var REACH_OUT_SHEET_PARTS = {
+  who: "Who gets it",
+  words: "What you'd say",
+  then: "Then",
+  pace: "Pace",
+  from: "From",
+  before: "Before it goes",
+  subject: "Subject",
+  body: "Your words",
+  signAs: "Sign as",
+  after: "After",
+  afterTail: "with nothing back \xB7 in the same thread",
+  dayOne: "Day one \xB7 the pace below",
+  remove: "Remove this step",
+  everyDomain: "Every verified domain",
+  domainsMax: `Up to ${REACH_OUT_DOMAINS_MAX} domains, or every verified one.`,
+  close: "Close",
+  recommended: "Recommended",
+  start: "Start it",
+  save: "Save",
+  starting: "Starting\u2026",
+  saving: "Saving\u2026",
+  cancel: "Cancel",
+  name: "The reach-out's name",
+  fromLine: "From",
+  toLine: "To",
+  subjectLine: "Subject",
+  footLine: "At the foot",
+  repliesLine: "Replies"
+};
+
+// src/reach-out/reach-out-approval.ts
+function skippedReasonWords(reason) {
+  switch (reason) {
+    case "closed_every_day":
+      return "keep no open hour all week";
+    case "missing_value":
+      return "missing a value your words name";
+    case "owner_skipped":
+      return "skipped by you";
+    case "not_a_fit":
+      return "marked Not a fit";
+    case "kept_waiting":
+      return "waited past fourteen days";
+    case "step_removed":
+      return "their step was removed";
+    case "run_canceled":
+      return "the run was stopped";
+    case "erased":
+      return "their record was erased";
+    default:
+      return "could not be written to";
+  }
+}
+function skippedWordsOf(skipped) {
+  return Object.entries(skipped).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([reason, n]) => `${n} skipped \xB7 ${skippedReasonWords(reason)}`);
+}
+var STATE_WORDS = {
+  pending_approval: "Waiting on you",
+  scheduled: "Scheduled",
+  sending: "Sending"
+};
+function reachOutRunWordsOf(r2, p) {
+  const share2 = chainPaceOf(r2).share;
+  const a = approvalWordsOf(r2, { timezone: p.timezone, share: share2, today: p.today, now: p.now });
+  const waiting = p.state === "pending_approval";
+  const earlier = !!r2.run_for && r2.run_for < p.today;
+  const checked = r2.planned.filter((x) => x.checked);
+  const step2 = r2.step_n === null ? "a step since removed" : `step ${r2.step_n + 1}`;
+  return {
+    ...a,
+    k: STATE_WORDS[p.state] ?? "Reach-out",
+    sub: waiting ? a.sub : `Reach-out \xB7 ${step2} \xB7 ${p.state === "sending" ? "going now" : "goes"}, one every ${r2.gap_minutes} minutes as each business opens`,
+    approve: waiting ? a.approve : null,
+    approveNote: waiting ? a.approveNote : null,
+    note: waiting ? a.note : null,
+    skipped: skippedWordsOf(r2.skipped),
+    // Today's and the coming days' as the reach line counts them: "See the 30 today and 12 later".
+    see: checked.length === 0 ? null : checked.length > r2.today ? `See the ${r2.today} today and ${checked.length - r2.today} later` : `See the ${checked.length}`,
+    // By day and time; a run from an earlier day, or a time already past, is re-timed when it goes, never a past time.
+    list: checked.map((x) => {
+      const ms2 = Date.parse(x.send_at);
+      const retimed = earlier || Number.isNaN(ms2) || ms2 <= p.now;
+      return { id: x.send_id, name: x.business_name, at: retimed ? RETIMED : clockWhen(ms2, p.timezone, p.now) };
+    }),
+    skipAsk: `Skip ${r2.chain_name}'s run?`,
+    // What Approve released, as the flash says it: the checked sends due today, never the run's whole count (R21).
+    approved: `${r2.chain_name} approved \u2014 ${plural(r2.today, "email", "emails")} today, in their hours`,
+    labels: REACH_OUT_RUN_LABELS,
+    listHead: r2.checking > 0 ? `Who gets it \xB7 ${plural(r2.checking, "more is", "more are")} being checked` : "Who gets it"
+  };
+}
+var RETIMED = "re-timed in their hours";
+var REACH_OUT_RUN_LABELS = {
+  back: "Back to Broadcasts",
+  approving: "Approving\u2026",
+  skip: "Skip this run",
+  skipYes: "Yes, skip it",
+  hide: "Hide the list",
+  hideHeld: "Hide them",
+  deciding: "Saying so\u2026",
+  rechecking: "Checking again\u2026",
+  gated: "decide a held email or approve a run"
+};
+var REACH_OUT_RUN_REREAD_MS = 15e3;
+function heldNoticeWords(p) {
+  const doors = [...new Set(p.reasons.flatMap(holdDoors))].map((d) => HOLD_DOOR_WORDS[d].toLowerCase());
+  const say2 = doors.length > 1 ? `${doors.slice(0, -1).join(", ")} or ${doors[doors.length - 1]}` : doors[0] ?? "";
+  return {
+    subject: `The check held ${plural(p.held, "email", "emails")} in ${p.name}`,
+    body: `${p.held === 1 ? "It waits" : "They wait"} for your say on the run in Broadcasts${say2 ? `: ${say2}` : ""}. The rest of the run goes as planned.`
   };
 }
 
@@ -26006,6 +26359,7 @@ export {
   EARLIER_FALLBACK_DEFAULTS,
   EMAIL_ELSEWHERE_SENTENCE,
   EMAIL_NOT_ANSWERED_SENTENCE,
+  EMAIL_TEMPLATE_LIST_WORDS,
   EMPTY_READ_STATE,
   ERROR_CODES,
   ESCALATION_REASONS,
@@ -26346,6 +26700,8 @@ export {
   REACH_OUT_BODY_MAX,
   REACH_OUT_CHECKS_PER_DAY,
   REACH_OUT_DECISIONS,
+  REACH_OUT_FIRST_WORDS,
+  REACH_OUT_GAP_FIRST,
   REACH_OUT_GAP_MINUTES,
   REACH_OUT_HOLDS,
   REACH_OUT_IS_NOT_A_MOMENT,
@@ -26353,8 +26709,12 @@ export {
   REACH_OUT_MONTH_EMAILS,
   REACH_OUT_NAME_MAX,
   REACH_OUT_PREVIEW_INDEX_MAX,
+  REACH_OUT_PREVIEW_WORDS,
   REACH_OUT_REFUSALS,
+  REACH_OUT_ROW_WORDS,
+  REACH_OUT_RUN_REREAD_MS,
   REACH_OUT_SEND_STATES,
+  REACH_OUT_SHEET_PARTS,
   REACH_OUT_SHEET_WORDS,
   REACH_OUT_SLOTS,
   REACH_OUT_SLOT_WORDS,
@@ -26586,6 +26946,8 @@ export {
   chainHintOf,
   chainIssueWords,
   chainOf,
+  chainPaceOf,
+  chainPathWords,
   chainReportWordsOf,
   changedConfigFields,
   channelFor,
@@ -26710,6 +27072,8 @@ export {
   emailDomainOf,
   emailLeftOutOf,
   emailNotConfirmed,
+  emailRowWrittenOf,
+  emailTemplateRowsOf,
   emailTemplateWords,
   emailWires,
   emailWordCount,
@@ -26797,6 +27161,7 @@ export {
   hasProfile,
   heardSinceProposal,
   heardWords,
+  heldNoticeWords,
   holdDoors,
   holdWords,
   hoursFromGoogle,
@@ -26817,6 +27182,7 @@ export {
   industryWords,
   initialsOf,
   injectedTurn,
+  insertSlotAt,
   instructionsDraft,
   instructionsWords,
   inviteState,
@@ -27144,6 +27510,8 @@ export {
   poolWords,
   posesAsReply,
   previewHorizon,
+  previewLinesOf,
+  previewRefusedWords,
   priceNextStep,
   priceWords,
   priorOf,
@@ -27169,7 +27537,24 @@ export {
   ratingWords,
   reachLineOf,
   reachLines,
+  reachOutAddStep,
+  reachOutAfterDayChoices,
+  reachOutChainBodyOf,
+  reachOutDefaultName,
+  reachOutDoorOf,
+  reachOutDraftIssues,
+  reachOutDraftOf,
+  reachOutDropStep,
+  reachOutMayAddStep,
+  reachOutMayPickDomain,
+  reachOutPreviewOf,
+  reachOutRunWordsOf,
+  reachOutSavedWords,
+  reachOutSendsFrom,
+  reachOutSheetPaceOf,
+  reachOutSheetUnreadOf,
   reachOutSlots,
+  reachOutWhoWords,
   reachedCustomer,
   readAgoLabel,
   readingSystemPrompt,
@@ -27277,6 +27662,7 @@ export {
   slotCount,
   slotKey,
   slotLabels,
+  slotParts,
   slotToWrite,
   slotsNamed,
   slugTemplateName,

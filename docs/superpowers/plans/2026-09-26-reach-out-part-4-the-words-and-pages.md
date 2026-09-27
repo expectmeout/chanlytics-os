@@ -4230,6 +4230,64 @@ The canvas's own new classes (`em-*`, `pb-chain*`, `pb-fills`, `pb-rules-line`, 
 
 ## PR 6 — The sheet and the Leads door (`reach-out-4f-the-sheet`)
 
+> **As built (after PR 8, dashboard only, no migration).** On main's layout (#1161). What departs from the tasks below:
+>
+> - **The bridge** is the rows PR's `legacy-bridge/reach-out/reach-outs.ts`, not a new file. `window.__reachOuts` gains
+>   `save`, `update`, `preview`, `reach` and `decide` beside the rows' verbs. A search's reach is held in memory by
+>   `read-cache.ts` (`readCache("reach_out_reach")`), so a door and its sheet read it once, and it is let go of by the
+>   one rule every on-demand read keeps: any write that lands stales it (api.ts `refresh`). A failed read logs
+>   `reach_out_reach_failed` and draws no door.
+> - **The draft is contracts'** (`reach-out/reach-out-draft.ts`): the draft a sheet opens as, the body it saves
+>   (ReachOutChainSchema's shape, each step's id kept on an edit), each field's problems (`validateReachOutChain` in
+>   `chainIssueWords`), a slot put in at the caret, the pace's share, the preview's lines, the Leads door, and the
+>   sheet's labels. The page says nothing of its own.
+> - **The sheet** (`pages/reach-out/reach-out-sheet.jsx`) is mounted by its opener, not by a host of its own: the
+>   Leads door (a new chain), and to change one, Edit on the chain's open Playbooks row and "Edit in its reach-out" on
+>   each of its email rows, both over the chain as the reach_outs surface read it (`__REACH_OUTS`). Edit is a secondary
+>   act, so it is out of sight for a role that may not change the chain; an email row's then opens the chain's
+>   Playbooks row, as does one whose search is gone (a chain is saved against its search). "Read as they read it" is
+>   not a separate act: Edit opens the sheet, whose Before it goes is the preview. It keeps
+>   unsaved words with `useUnsavedWork("reach-out", …)`; a draft kept in the tab comes back as typed, but whether it
+>   includes the unconfirmed is the door's (the door's label said which).
+>   - **Start's outcome stays in the sheet** (R14, `reachOutSavedWords` over `startWords`): the sheet does not
+>     navigate, since the shell has no toast that outlives a page change (each page owns its `usePPToast`) and a toast
+>     flashed before a route change is never seen. It says the outcome where the words were, with Close and the one
+>     door on: "Open the run" (`broadcasts/run:<id>`) when a run waits, else "Open its reach-out" (the chain's
+>     Playbooks row). The door behind it reads its search again, and becomes "Open its reach-out".
+>   - **Unread is not none.** The domains are Setup's read and the booking link Settings'. Until each is in, the sheet
+>     says it is reading them (or that they could not be read) and Start waits; it never says "Add a domain" or "Add
+>     your booking link" for a read still out. `ROUTE_DRAWS.leads` reads Setup and Settings next on Leads
+>     (`routeDrawsFor` now asks about the Leads scope, `clients/leads…`, as `routeSurfaceFor` does).
+>   - The preview pages as far as a preview may go (`reachOutPreviewOf`: the reach, at most
+>     `REACH_OUT_PREVIEW_INDEX_MAX + 1`). From takes up to five domains (`REACH_OUT_DOMAINS_MAX`, the schema's), and
+>     says so at the cap. Who it writes to is said as the unconfirmed are held or included (`reachOutWhoWords`, R22).
+>   - The share a day is the least of the chosen domains' ramps: a run is paced by the domain that may send least.
+>   - R24's line ("To stop writing to one business, …") sits under the words.
+>   - The phone board's "More" fold is not built: the sheet is one column at 390, in the order of the desk.
+> - **The Leads door** (`pages/reach-out/reach-out-door.jsx`) is drawn through one helper in `leads-scope.jsx`
+>   (`LeadsReachOutDoor`). On a desk it stands before Find leads, which steps back to a ghost beside it (a CSS
+>   `:has` rule, so the controls row gains no branch). On a phone it is the full-width `ph-big` button under the page's bar,
+>   sticky at the top of the rows, rather than above the tab bar, which is the shell's. The `W` key is not bound yet.
+>   - Pressed by `approve`, main's one role table: an owner, an operator or a partner (00201). **Departs from the
+>     plan's "hidden" for anyone else:** writing is the Leads page's primary act, and `legacy/CLAUDE.md` (Role gates)
+>     shows a page's primary act gated to a role that may not press it, as Find leads is. So a viewer, or an owner
+>     viewing as one, sees it through `window.gate("approve", "write to these leads")`, told why at the control, and a
+>     press opens nothing. "Open its reach-out" only navigates, so it is not gated.
+> - **Autonomy's outreach row.** #1106 (`policyModeOffered`) has not merged, so this keeps to the plan:
+>   `policyClassOffered("outreach")` is true and the policy store's rows gain "Reach-outs" (veto, ask, never) after
+>   campaigns. Ask's filters key on the same predicate, so they now pass outreach too; Ask still proposes no reach-out.
+> - It was not seen in the real app here: the worktree has no workspace to run against. The page harness
+>   (`tests/reach-out-sheet/reach-out-sheet-page.test.mjs`) drives each case of Task 6.2 and 6.3.
+> - **Ratchets.** Three numbers rise, each banked with its reason (and a row in `docs/debt.md`):
+>   - **`LeadsScope`, +2 lines** (no branch): the door's two mounts, a desk's in the controls row and the search handed
+>     to the phone bar. Both go through one helper, so the page's function takes no branch.
+>   - **window publishers, +2** (the sheet and the door, each file's `Object.assign(window, …)`), the legacy tree's
+>     only way to share a component between files.
+>   - **window globals' readers**, no new name: `__ME`, `__SETTINGS`, `__SETUP` and `__surfaceFailed` +1 each (the
+>     sheet signs with the member's first name, checks the booking link, lists the sending domains, and says when
+>     either read failed), `__REACH_OUTS` +1 (an email row's Edit finds its chain), `__reachOuts` +2 (the sheet and
+>     the door). Each is a row in `docs/debt.md`'s rises table.
+
 ### Task 6.1: The bridge
 
 **Files:** Create `apps/dashboard/src/legacy-bridge/reach-outs.ts`; Modify `LegacyApp.tsx` (install it), `surface-data.ts` (`playbooksOverride` reads `GET reach-outs` into `__PLAYBOOKS.reachOuts`); Test `tooling/scripts/tests/reach-outs-bridge.test.mjs`
@@ -4332,6 +4390,49 @@ A refusal comes back as the route's sentence, with `refusalToast`'s shape.
 
 ## PR 7 — The approval sheet's words (`reach-out-4g-approval`)
 
+> **As built (after PR 6; dashboard and edge, no migration).** On main's layout (#1161). What departs from the task
+> below:
+>
+> - **The block** is its own file, `pages/reach-out/reach-out-approval.jsx` (`ReachOutRun`), not a branch in `BcSheet`:
+>   `broadcasts-run.jsx` is at its function caps. `BroadcastDetail` hands any live reach-out run (pending, scheduled or
+>   sending, R20) to it through one helper (`bcReachOutBlock`); a run that has finished keeps its report. It uses the
+>   `bc-sheet*` classes and the outreach `PolicyChip`, so a keyboard and a screen reader meet the same sheet.
+> - **The words are contracts'** (`reach-out/reach-out-approval.ts`): `reachOutRunWordsOf` wraps `approvalWordsOf` and
+>   adds the state's head, the skipped by reason, who gets it (the checked, ready sends only, by name and time, R21),
+>   Skip's question and the block's labels. A run not waiting has no Approve and keeps the run's own verbs (Cancel,
+>   Stop); its held list is open at once, since the notice and Playbooks' "N wait for your say" land on it. The share
+>   a day is the run's own domains' (`chainPaceOf`), and the domains and their days are the run's sends' (R22).
+> - **The doors** press `__reachOuts.decide` and "Check the held again" presses the new `__reachOuts.recheck`
+>   (`POST broadcasts/[id]/recheck`); each reads the run again when it lands, and a refusal is said at its row. They are
+>   out of sight for a role that may not approve, and the block says why once.
+> - **Live (R21).** While the check still reads some of a live run, `__reachOuts.watchRun` reads its detail again every
+>   `REACH_OUT_RUN_REREAD_MS` (15 s) through the broadcasts courier's own read and read cache: one timer, stopped by
+>   the first answer with nothing being checked and by the run closing (`useBcRunWatch`'s cleanup).
+> - **The notice (R20)** is the check's (`apps/edge/lib/reach-out/held-notice.ts`), each tick, from a read and not a
+>   tick's memory: the live reach-out runs (scheduled or sending) holding sends held in the last fourteen days whose
+>   owner was not told yet (packages/db `heldNoticeDue`). **No migration:** the mark is the run's own,
+>   `audience.held_notice` (`markHeldNotice`). A tick claims a run onto the row as it read it (`updated_at`, which
+>   moddatetime moves on every write), so of two ticks that read one run one claims it and the other finds it moved.
+>   The owner is told through `ops/notify.ts`'s new `notifyOnce`: the bell's row first and no mail without it; a mail
+>   that failed takes its row back (no bell twin) and is not told; a workspace the mail cannot address is told by its
+>   row. Only a told owner marks the run sent; a notice that failed keeps its claim, which goes stale in ten minutes and
+>   is asked again then, and is the tick's `reach_out_check_error`, never the check's. The words are contracts'
+>   `heldNoticeWords`, with the doors the holds offer (`holdDoors`). A run approved with holds its sheet showed is told
+>   once too, when it goes: its held still wait for a say.
+> - **Times (R21).** Approve says "from now" for a run from an earlier day and for one whose first time has passed
+>   (`approvalWordsOf` takes `now`). Who gets it says each business's day and time (`clockWhen`), and "re-timed in
+>   their hours" for a time already past or an earlier day's run; "See the 30 today and 12 later" counts them as the
+>   reach line does. After Approve the flash says the block's today count, never the run's `recipient_count`.
+> - **The watch** stops on a 4xx as it does on nothing being checked. A planned send without a time is not listed.
+> - **Not built:** the ledger's name by the chain (the list's rows carry no `reach_out` block; the row keeps the
+>   run's own name), and the `sheetFor` pool skip (the block never reads the sheet's template).
+> - It was not seen in the real app here: the worktree has no workspace to run against. The page harness
+>   (`tests/reach-out-sheet/reach-out-approval.test.mjs`) draws each state, and `reach-out-check.test.mjs` runs the
+>   notice through the tick.
+> - **Ratchets.** Each rise is a row in `docs/debt.md`: window publishers +1 (the block's file), `__clock` +1 and
+>   `__reachOuts` +2 readers, `BroadcastDetail` +2 lines and +1 branch (the helper and the watch), `checkSends` +3
+>   lines and no branch (the notice's call and its count).
+
 **Files:** Modify `broadcasts-run.jsx:57-154` (`BcSheet`), `broadcasts-real.jsx:485-508` (`sheetFor`), `broadcasts-ledger.jsx:262-264`; Test `tooling/scripts/tests/broadcasts-reach-out.test.mjs` (the harness)
 
 - [ ] **Step 1: Tests first.** Each case gives a reach-out run pending approval, with its `reach_out` block:
@@ -4350,6 +4451,67 @@ A refusal comes back as the route's sentence, with `refusalToast`'s shape.
 - [ ] **The PR:** gate, review, fixes, PR (dashboard only), merge on green.
 
 ## PR 8 — Playbooks' chain and Templates' email rows (`reach-out-4h-rows`)
+
+> **As built (after PRs 4–5, dashboard only, no migration).** The rows ship before the sheet (R19's order), on
+> main's layout (#1161). What departs from the tasks below:
+>
+> - **The reach-outs surface** (`legacy-bridge/reach-out/reach-outs.ts`, `reachOutsOverride`, key `reach_outs`) is its
+>   own surface, so neither Playbooks' moments nor Settings wait on it. It reads `GET reach-outs` (chains without their
+>   reports, R23) into `__REACH_OUTS`, set as soon as it reads: it reads no report, so a surface every page boots scans
+>   no audience. Templates' email rows are contracts' `emailTemplateRowsOf` over the same chains (R19's "own global"
+>   became none: a third name would have been a copy of `__REACH_OUTS`).
+>   - `__REACH_OUTS` is null when its read failed, and each page says so (Playbooks over its rows, Templates under its
+>     list), each Retry reading `reach_outs` again.
+>   - `__TEMPLATES_ALL` stays WhatsApp's for its three readers (R19).
+>   - `surface-registry` draws it beside `outbound` and `messages`.
+>   - The refresh map reads it again only where a chain can change: its save and removal, `PUT playbooks/[id]` (Pause
+>     and Resume are that door on the chain's first step), and a run's approval or skip (the row's waiting run). A
+>     held email's decide moves no chain, so it does not.
+>   - `window.__reachOuts` holds the verbs (report, pause, resume, remove) and `.words`, contracts' sentences.
+> - **The chain row** (`pages/reach-out/reach-out-row.jsx`, before `outbound.jsx`).
+>   - A chain is one row above the moments: its steps and domain (`chainHintOf`, `chainPaceOf`), its state, its
+>     search, and `nextRunWords` (paused, never, billing, a waiting run as a link, then the moments' `nextRunLabel`).
+>   - The head's counts take the chains.
+>   - The open row reads the report as it opens (R23). It draws `chainPathWords`, the step table and the sentence of
+>     `chainReportWordsOf`. "N wait for your say" links the newest run that holds some (R20), the runs are links, and
+>     R24's stop-one line is shown.
+>   - A report that could not be read says so, and its Retry reads that report again (`useReachOutReport`'s nonce).
+>   - Pause and Resume are always shown. Remove shows only while `can_remove`, asks first, and calls
+>     `DELETE reach-outs/<id>` (R16). A refusal is `window.refusalToast`, the one refusal shape.
+>   - Who may press is `window.gate`/`canDo("approve")`, and a viewer is told by `gateTitle`: main's one role table,
+>     under which a partner acts as an operator does (00201). The page harness runs the real gate: a viewer's Pause,
+>     Resume and Remove are inert.
+>   - A link to a chain (`outbound/<root_id>`) says "isn't here any more" only once the chains were read, and is
+>     brought into view again when its row lands after the page.
+>   - Edit and "Read as they read it" came with the sheet: see PR 6's note.
+> - **The email rows** (`pages/reach-out/email-template-row.jsx`, before `messages.jsx`).
+>   - Each row has the Email chip and "What sends it" (the chain, opening its Playbooks row) with `sendsNote`. Sent is
+>     the chain's report, read when the row opens (`useReachOutReport`, `emailRowWrittenOf`): nothing while closed,
+>     reading, or unread, never a 0.
+>   - The open row shows "a reach-out sends email only", the words with their slots as chips (`slotParts`), the check
+>     note and the foot. There are no switches (R19) and no Rename, Hide or Delete.
+>   - **Edit in its reach-out** opens the reach-out sheet over its chain (PR 6), or its Playbooks row for a role that
+>     may not change the chain.
+>   - The page's count counts both kinds of row, and its hover says so (`EMAIL_TEMPLATE_LIST_WORDS.headTip`). "All
+>     approved" is said only without email rows. "Nothing on file yet." is said only once the chains were read and
+>     hold no email either.
+> - **The pace.** `ReachOutChainDto.domains` is read through packages/db `sendingDomainsOf` and kept by contracts
+>   `reachOutSendsFrom`, the rule the run's timetable and re-plan filter by too (edge `run-context.ts`, `replan.ts`):
+>   named or all, verified, with a clean clock. A named held or unverified domain is not the chain's pace.
+> - **Ratchets.** The two pages got shorter:
+>   - `PlaybooksReal` loses its "Always on" rules (`PbAlwaysOn`) and gains `pbStanding` and `PbChains`.
+>   - `MessagesReal` loses its foot (`TplFoot`) and gains the email helpers. Both fell below their baselines.
+>   - New files sit in domain folders (`legacy-bridge/reach-out/`, `pages/reach-out/`, `tests/reach-out-sheet/`), so
+>     no directory cap rises.
+>   - Two numbers rise, each banked with its reason in `docs/debt.md` ("Rises, each with its reason"):
+>     - **window globals, +2** (`__REACH_OUTS`, `__reachOuts`). The shell's pages read the bridge only through window.
+>       The chains need a global of their own so the moments' read (`surface-data.ts`, at its file and function caps)
+>       takes nothing more; Templates' email rows derive from it rather than a third.
+>     - **window publishers, +3** (the bridge's install, and each new page file's `Object.assign(window, …)`), the
+>       legacy tree's only way to share a component between files.
+> - It was not seen in the real app here: the worktree has no workspace to run against. The page harness
+>   (`tests/reach-out-sheet/reach-out-rows.test.mjs`) draws each state, and runs the surface's apply over a stubbed
+>   wire.
 
 ### Task 8.1: Playbooks
 

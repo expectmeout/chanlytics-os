@@ -13,7 +13,14 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { domainCapacityOf, moveSend, type Database, type ReachOutSendRow } from "../packages/db.js";
-import { domainDailyCap, timetable, weekHoursOf, zoneOfRegion, type TimetableDomain } from "../packages/contracts.js";
+import {
+  domainDailyCap,
+  reachOutSendsFrom,
+  timetable,
+  weekHoursOf,
+  zoneOfRegion,
+  type TimetableDomain,
+} from "../packages/contracts.js";
 import type { Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
@@ -82,10 +89,10 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         const { data: t } = await db.from("tenants").select("timezone").eq("id", tenantId).maybeSingle();
         zones.set(tenantId, t?.timezone || "America/New_York");
       }
-      let dq = db.from("sending_domains").select("id").eq("tenant_id", tenantId).eq("state", "verified");
+      let dq = db.from("sending_domains").select("id, state, clean_since").eq("tenant_id", tenantId);
       const named = step?.domain_ids ?? [];
       if (named.length > 0) dq = dq.in("id", named);
-      const { data: doms, error: de } = await dq;
+      const { data: domainRows, error: de } = await dq;
       if (de) throw new Error(`the domains: ${de.message}`);
       // Each domain's times, less these sends' own: a send planned again never waits for the time it held.
       const own = new Map<string, number[]>();
@@ -95,7 +102,7 @@ export async function replanSends(db: Db, items: Replan[], now: Date, log: Logge
         if (s.domain_id && held) own.set(s.domain_id, [...(own.get(s.domain_id) ?? []), Date.parse(held)]);
       }
       const domains: TimetableDomain[] = [];
-      for (const d of doms ?? []) {
+      for (const d of (domainRows ?? []).filter((r) => reachOutSendsFrom(r, named))) {
         const c = await domainCapacityOf(db, d.id, now);
         const recent = [...c.recent];
         for (const t of own.get(d.id) ?? []) {

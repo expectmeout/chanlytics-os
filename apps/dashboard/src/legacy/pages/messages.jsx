@@ -60,7 +60,9 @@ const useMessages = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
     window.addEventListener("surface:settings", bump);
-    return () => window.removeEventListener("surface:settings", bump);
+    // A reach-out's emails are their own surface (Part 4 PR 8): their rows draw when they land.
+    window.addEventListener("surface:reach_outs", bump);
+    return () => { window.removeEventListener("surface:settings", bump); window.removeEventListener("surface:reach_outs", bump); };
   }, []);
   return window.__TEMPLATES_ALL;
 };
@@ -394,6 +396,62 @@ const MessageRow = ({ g, langs, bizName, canAct, canAdd = false, addWhy = null, 
   );
 };
 
+// A reach-out's emails (Reach out Part 4 PR 8, R19): contracts' rows (emailTemplateRowsOf) over the reach_outs surface's
+// chains (__REACH_OUTS), drawn by their own row (reach-out/email-template-row.jsx) and found by their words too. Unread
+// is no row and no claim either way; a read that failed is said. "All approved" is WhatsApp's to say, of its own rows.
+const tplEmailWords = () => (window.__reachOuts && window.__reachOuts.words) || null;
+const tplEmails = () => {
+  const W = tplEmailWords();
+  return window.EmailTemplateRow && W && Array.isArray(window.__REACH_OUTS) ? W.emailTemplateRowsOf(window.__REACH_OUTS) : [];
+};
+// The head's hover: WhatsApp's, and when the count takes email rows, contracts' sentence saying so.
+const TPL_WHATSAPP_TIP = "What the receptionist and your campaigns send on WhatsApp, as the customer sees it. Written here or in WhatsApp Manager, WhatsApp approves either way, usually within minutes. A marketing template can only go to people who said yes to offers.";
+const tplHeadTip = (emails) => {
+  const W = tplEmailWords();
+  return W && emails.length > 0 ? `${TPL_WHATSAPP_TIP} ${W.EMAIL_TEMPLATE_LIST_WORDS.headTip(emails.length)}` : TPL_WHATSAPP_TIP;
+};
+// Under the list: the reach-outs' read that failed, said with its Retry; else "Nothing on file yet." only when every
+// kind was read and holds nothing -- an email-only workspace has its rows, and an unread one is not empty.
+const TplNothing = ({ hasWhatsApp, customN, emails }) => {
+  const W = tplEmailWords();
+  if (window.__REACH_OUTS === null && W) return <FailedRead kind="line" what={W.EMAIL_TEMPLATE_LIST_WORDS.failed} surface="reach_outs" testid="templates-email-failed" />;
+  return !hasWhatsApp && customN === 0 && emails.length === 0 && Array.isArray(window.__REACH_OUTS) ? <EmptyState kind="line" title="Nothing on file yet." testid="templates-nothing" /> : null;
+};
+const tplEmailsMatching = (emails, needle) => emails.filter((t) => !needle || `${t.subject || ""} ${t.body} ${t.chain_name}`.toLowerCase().includes(needle));
+const tplAllApproved = (approved, shown, emails) => approved === shown.length && emails.length === 0;
+const TplEmailRows = ({ emails, openKey, setOpenKey }) => emails.map((t) => {
+  const key = `e:${t.template_id}`;
+  return <window.EmailTemplateRow key={key} t={t} open={openKey === key} onOpen={() => setOpenKey((k) => (k === key ? null : key))} />;
+});
+
+// The foot of the list: the starter set's languages not yet added, as one quiet act, and what the workspace kept out
+// of the composers, folded and still on file. How long WhatsApp takes to read a new one is the head's hover and the
+// composer's line; said here too, it was the page's third time. Moved whole out of MessagesReal.
+const TplFoot = ({ partialSet, busy, onAddRest, leftToAdd, addingAll, hidden, showHidden, setShowHidden }) => (
+  <footer className="msg-foot">
+      {partialSet && (
+        <button
+          className="msg-fold-toggle"
+          disabled={busy}
+          onClick={onAddRest}
+          data-tip={leftToAdd}
+          aria-description={leftToAdd}
+          data-testid="starter-add-all"
+          {...window.gate("approve", "add a starter template")}
+        >
+          <Icon name="plus" size={12} />
+          {addingAll ? "Adding…" : "Add the rest of the starter set"}
+        </button>
+      )}
+      {hidden > 0 && <span className="msg-foot-fold" data-testid="templates-fold">
+        <button className="msg-fold-toggle" onClick={() => setShowHidden((v) => !v)} aria-expanded={showHidden} data-testid="templates-hidden">
+          <Icon name={showHidden ? "chevron-up" : "chevron-down"} size={12} />
+          Not in the composers · <span className="tabular">{hidden}</span> · still on file
+        </button>
+      </span>}
+    </footer>
+);
+
 const MessagesReal = () => {
   const templates = useMessages();
   const S = window.__starters;
@@ -508,6 +566,9 @@ const MessagesReal = () => {
     || !!(g.starter && S && langs.some((l) => String((S.text(g.starter, l.id) || {}).body || "").toLowerCase().includes(needle)));
   const listStarters = hasWhatsApp ? starters.filter(matches) : [];
   const listCustom = customGroups.filter(matches);
+  const emails = tplEmails();
+  const listEmails = tplEmailsMatching(emails, needle);
+  const listed = listStarters.length + listCustom.length + listEmails.length;
   return (
     <div className="reports tpl-page" data-testid="messages-real">
       <div className="rp-body cm-page">
@@ -525,14 +586,14 @@ const MessagesReal = () => {
           testid="messages-standing"
           sub={(
             <>
-              <span className="tabular" data-tip="What the receptionist and your campaigns send on WhatsApp, as the customer sees it. Written here or in WhatsApp Manager, WhatsApp approves either way, usually within minutes. A marketing template can only go to people who said yes to offers.">
-                {shown.length === 0 ? "No template on file yet" : <><b className="cm-head-n">{shown.length}</b> {shown.length === 1 ? "template" : "templates"}</>}
+              <span className="tabular" data-tip={tplHeadTip(emails)} data-testid="messages-count">
+                {shown.length + emails.length === 0 ? "No template on file yet" : <><b className="cm-head-n">{shown.length + emails.length}</b> {shown.length + emails.length === 1 ? "template" : "templates"}</>}
               </span>
               {shown.length > 0 && (
                 <>
                   <window.CmDot />
                   {/* "7 templates · 7 approved" said the number twice: all of them is "all approved". */}
-                  <span className="tabular"><span className="cm-head-ok">{approved === shown.length ? "all approved" : `${approved} approved`}</span>{pending ? <>, <span className="cm-head-info">{pending} in review</span></> : null}</span>
+                  <span className="tabular"><span className="cm-head-ok">{tplAllApproved(approved, shown, emails) ? "all approved" : `${approved} approved`}</span>{pending ? <>, <span className="cm-head-info">{pending} in review</span></> : null}</span>
                 </>
               )}
               {hasWhatsApp && (
@@ -618,7 +679,7 @@ const MessagesReal = () => {
                 and Leads tables name theirs. Inside the list, not above it: the list
                 is the container the row's columns are measured against. The first
                 cell is the mark's, and has no heading. */}
-            {(listStarters.length > 0 || listCustom.length > 0) && (
+            {listed > 0 && (
               <div className="msg-list-head" aria-hidden="true">
                 <span />
                 <span>The message</span>
@@ -628,40 +689,14 @@ const MessagesReal = () => {
             )}
             {listStarters.map(card)}
             {listCustom.map(card)}
+            <TplEmailRows emails={listEmails} openKey={openKey} setOpenKey={setOpenKey} />
           </div>
-          {needle && listStarters.length === 0 && listCustom.length === 0 && (
+          {needle && listed === 0 && (
             <EmptyState kind="line" title={`No template’s words have “${q.trim()}” in them.`} testid="templates-no-match" />
           )}
-          {!hasWhatsApp && customGroups.length === 0 && <EmptyState kind="line" title="Nothing on file yet." />}
+          <TplNothing hasWhatsApp={hasWhatsApp} customN={customGroups.length} emails={emails} />
         </section>
-        {/* The foot of the list: the starter set's languages not yet added, as one
-            quiet act, and what the workspace kept out of the composers, folded and
-            still on file. How long WhatsApp takes to read a new one is the head's
-            hover and the composer's line; said here too, it was the page's third time. */}
-        {(partialSet || hiddenGroups.length > 0) && (
-          <footer className="msg-foot">
-            {partialSet && (
-              <button
-                className="msg-fold-toggle"
-                disabled={busy}
-                onClick={() => addStarters(null, langs.map((l) => l.id))}
-                data-tip={leftToAdd}
-                aria-description={leftToAdd}
-                data-testid="starter-add-all"
-                {...window.gate("approve", "add a starter template")}
-              >
-                <Icon name="plus" size={12} />
-                {addingAll ? "Adding…" : "Add the rest of the starter set"}
-              </button>
-            )}
-            {hiddenGroups.length > 0 && <span className="msg-foot-fold" data-testid="templates-fold">
-              <button className="msg-fold-toggle" onClick={() => setShowHidden((v) => !v)} aria-expanded={showHidden} data-testid="templates-hidden">
-                <Icon name={showHidden ? "chevron-up" : "chevron-down"} size={12} />
-                Not in the composers · <span className="tabular">{hiddenRows.length}</span> · still on file
-              </button>
-            </span>}
-          </footer>
-        )}
+        {(partialSet || hiddenRows.length > 0) && <TplFoot partialSet={partialSet} busy={busy} onAddRest={() => addStarters(null, langs.map((l) => l.id))} leftToAdd={leftToAdd} addingAll={addingAll} hidden={hiddenRows.length} showHidden={showHidden} setShowHidden={setShowHidden} />}
         {showHidden && hiddenGroups.length > 0 && <div className="msg-list msg-list-hidden">{hiddenGroups.map(card)}</div>}
       </div>
       {toastNode}

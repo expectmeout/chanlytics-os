@@ -42,6 +42,8 @@ export const OPENING_WORDS_MAX = 40;
 export const OPENING_CHARS_MAX = 400;
 export const ANGLE_WORDS_MAX = 3;
 export const REACH_OUT_STEPS_MAX = 5;
+/** The most domains a chain names; none named is every verified domain. */
+export const REACH_OUT_DOMAINS_MAX = 5;
 export const REACH_OUT_NAME_MAX = 80;
 export const SIGNED_BY_MAX = 60;
 /** The gap's choices on the sheet, in minutes; the database holds 5–120 (00183). */
@@ -75,6 +77,20 @@ export function slotsNamed(text: string): { names: string[]; stray: boolean } {
 /** The words with each slot replaced by what `fill` gives for its key; a slot it has nothing for stays as written. */
 export function replaceSlots(text: string, fill: (key: string) => string | null): string {
   return text.replace(SLOT, (whole, name: string) => fill(slotKey(name)) ?? whole);
+}
+
+/** The words as runs of text and slots, in order, for a page that draws each slot as a chip (the one slot rule). */
+export function slotParts(text: string): Array<{ text: string; slot: boolean }> {
+  const out: Array<{ text: string; slot: boolean }> = [];
+  let at = 0;
+  for (const m of text.matchAll(SLOT)) {
+    const i = m.index ?? 0;
+    if (i > at) out.push({ text: text.slice(at, i), slot: false });
+    out.push({ text: slotKey(m[1] ?? ""), slot: true });
+    at = i + m[0].length;
+  }
+  if (at < text.length) out.push({ text: text.slice(at), slot: false });
+  return out;
 }
 
 /** How many times the words name one slot. */
@@ -263,7 +279,7 @@ export const ReachOutChainSchema = z.object({
       message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`,
     }),
   /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z.array(z.string().uuid()).max(5),
+  domain_ids: z.array(z.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
   signed_by: z.string().trim().max(SIGNED_BY_MAX).nullable(),
   steps: z.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX),
 });

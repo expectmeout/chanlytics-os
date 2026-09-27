@@ -644,3 +644,46 @@ test("a check_unavailable hold with no rule broken goes back to be checked an ho
   assert.equal(w.row(rule.id).state, "held");
   assert.equal(w.row(young.id).state, "held");
 });
+
+test("a tick tells the owner of a live run it held a send in, once, with the run's link; never one waiting on them (R20)", async () => {
+  const told = [];
+  const notice = async (db, tenantId, msg) => (told.push({ tenantId, ...msg }), true);
+  const first = send({ lead_id: "liar" });
+  const w = world({ sends: [first], records: { liar: record("Liar Movers"), liar2: record("Liar Two Movers") } });
+  w.tables.broadcasts = [
+    {
+      id: "run-1",
+      tenant_id: T,
+      name: "Reach out · Movers",
+      state: "scheduled",
+      audience: { kind: "reach_out" },
+      updated_at: ago(DAY),
+    },
+    {
+      id: "run-2",
+      tenant_id: T,
+      name: "Reach out · Waiting",
+      state: "pending_approval",
+      audience: { kind: "reach_out" },
+      updated_at: ago(DAY),
+    },
+  ];
+  const lie = () => [WROTE("A 4.8 says it."), READ({ backed: false, unbacked: "4.8" })];
+  const m = byBusiness({ "Liar Movers": [...lie(), ...lie()], "Liar Two Movers": [...lie(), ...lie()] });
+  const out = await tick(w, m.ask, { notice });
+  assert.equal(w.row(first.id).state, "held");
+  assert.equal(out.noticed, 1);
+  assert.deepEqual(
+    told.map((t) => [t.tenantId, t.kind, t.route, t.about.id, t.subject]),
+    [[T, "playbook", "broadcasts/run:run-1", "run-1", "The check held 1 email in Reach out · Movers"]],
+  );
+  assert.ok(w.tables.broadcasts[0].audience.held_notice.sent_at, "marked sent on the run");
+  // Another hold in the same run, a tick later: nobody is told twice.
+  w.tables.reach_out_sends.push(send({ lead_id: "liar2" }));
+  const again = await tick(w, m.ask, { notice });
+  assert.deepEqual([again.noticed, told.length], [0, 1]);
+  // A hold in a run waiting on its owner: its sheet lists it, and the waiting notice said so already.
+  w.tables.reach_out_sends.push(send({ lead_id: "liar", broadcast_id: "run-2" }));
+  const third = await tick(w, byBusiness({ "Liar Movers": [...lie(), ...lie()] }).ask, { notice });
+  assert.deepEqual([third.noticed, told.length], [0, 1]);
+});

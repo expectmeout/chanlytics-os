@@ -52,10 +52,10 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   fleet: "demo",
   store: "demo",
   studio: "demo",
-  outbound: "real", // Campaigns › Playbooks: standing rules over the people who said yes, under the two Autonomy rows
+  outbound: "real", // Campaigns › Playbooks: standing rules over the people who said yes, under the two Autonomy rows, and the reach-outs as chains (the reach_outs surface, each report read as its row opens)
   content: "demo",
   broadcasts: "real", // one approved template to the people who said yes; SMS and email stay not available
-  messages: "real", // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it
+  messages: "real", // Campaigns › Messages: what the receptionist and the campaigns send, as the customer sees it, a reach-out's emails included (drawn from the reach_outs surface's chains, each count read as its row opens)
   start: "real", // the first run: Setup's rows a step at a time, read from the workspace (contracts/first-run.ts)
   admin: "demo", // the page itself: every pane below is classified, and a
   // pane nobody has listed inherits this honest default
@@ -172,6 +172,13 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
   // head while that read is out, so People is read next.
   [PERSON_ROUTE]: ["people"],
+  // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
+  // surface, read beside each page's own.
+  outbound: ["reach_outs"],
+  messages: ["reach_outs"],
+  // A search's reach-out sheet (Part 4 PR 6) sends from Setup's sending domains and checks Settings' booking link: both
+  // read next on Leads, so a sheet opened on a cold boot is not left saying it is reading them.
+  leads: ["setup", "settings"],
 };
 
 /**
@@ -188,6 +195,8 @@ export const ROUTE_WAIT_MS = 3000;
 
 /** What a route draws beside its own surface: a person's page is one route of its own, whatever its id. */
 export function routeDrawsFor(page: string, param?: string | null): readonly string[] {
+  // Leads is `clients/leads…`, the scope asked about as routeSurfaceFor asks it, never as People.
+  if (page === "clients" && param && /^leads(:|$)/.test(param)) return ROUTE_DRAWS.leads ?? [];
   return ROUTE_DRAWS[personRouteId(page, param) ? PERSON_ROUTE : page] ?? [];
 }
 

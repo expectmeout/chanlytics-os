@@ -65,6 +65,7 @@ import {
 } from "../packages/db.js";
 import { askJson, type JsonAnswer } from "../model.js";
 import { checkedWordsOf } from "./request.js";
+import { noticeHeldRuns, type HeldNoticeSend } from "./held-notice.js";
 import type { LogEvent, Logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
@@ -370,6 +371,8 @@ export interface CheckCounts {
   gated: number;
   /** check_unavailable holds put back to be checked. */
   released: number;
+  /** Runs not waiting on their owner that got their first hold, their owner told (R20). */
+  noticed: number;
   errors: number;
   calls: number;
   calls_failed: number;
@@ -388,6 +391,7 @@ export async function checkSends(p: {
   tenantId?: string;
   ask?: AskModel;
   budget?: CheckBudget;
+  notice?: HeldNoticeSend;
 }): Promise<CheckCounts> {
   const { db, now, log } = p;
   const ask = p.ask ?? askReachOutModel;
@@ -403,6 +407,7 @@ export async function checkSends(p: {
     late: 0,
     gated: 0,
     released: 0,
+    noticed: 0,
     errors: 0,
     calls: 0,
     calls_failed: 0,
@@ -563,5 +568,6 @@ export async function checkSends(p: {
     }
   };
   for (let i = 0; i < go.length; i += CHECK_AT_ONCE) await Promise.all(go.slice(i, i + CHECK_AT_ONCE).map(one));
+  out.noticed = await noticeHeldRuns({ db, now, error, tenantId: p.tenantId, send: p.notice });
   return out;
 }

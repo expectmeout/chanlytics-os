@@ -405,7 +405,10 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   ])
     assert.deepEqual(
       AFTER[k]().map((o) => o.key),
-      ["playbooks", "broadcasts"],
+      // A reach-out's row moves with its first step's pause and resume, and with its run's approval (Part 4 PR 8).
+      ["PUT playbooks/[id]", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"].includes(k)
+        ? ["playbooks", "broadcasts", "reach_outs"]
+        : ["playbooks", "broadcasts"],
       `${k}: every write re-fetches both surfaces`,
     );
   const pools = readCode("apps/dashboard/src/server/campaigns/playbooks.ts");
@@ -671,13 +674,13 @@ test("offered here (0006): a proposal's moment and its Autonomy class only where
   assert.match(REACH_OUT_IS_NOT_A_MOMENT, /own sheet/);
   assert.deepEqual(
     POLICY_CLASSES.filter((c) => !policyClassOffered(c, false)),
-    ["follow_up", "outreach"],
-    "a salon's Autonomy: seven rows",
+    ["follow_up"],
+    "a salon's Autonomy: eight rows, the reach-outs' among them",
   );
   assert.deepEqual(
     POLICY_CLASSES.filter((c) => !policyClassOffered(c, true)),
-    ["outreach"],
-    "deals on: eight rows; the reach-outs' row waits for the reach-out sheet (Part 4)",
+    [],
+    "deals on: nine rows; the reach-outs' row is offered now that the sheet makes them (Part 4 PR 6)",
   );
   assert.ok(
     FOLLOW_UP_NEEDS_DEALS.includes("Settings › Business") &&
