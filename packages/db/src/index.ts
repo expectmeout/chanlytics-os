@@ -50,7 +50,7 @@ export {
   deleteSendingDomain,
 } from "./repositories/sending-domains";
 export type { SendingDomainRow, ColdReceiptsOwed, SendingDomainHolder } from "./repositories/sending-domains";
-export { outreachFactsOf } from "./repositories/outreach";
+export { outreachFactsOf, addressesSuppressed } from "./repositories/outreach";
 export type { OutreachFactsRow } from "./repositories/outreach";
 export {
   domainCapacityOf,

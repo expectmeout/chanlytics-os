@@ -134,7 +134,7 @@ async function main() {
   console.log(`${plan.length} subscriptions with no card mark.${again ? ` ${judged.length} to judge again.` : ""}`);
   if (!plan.length && !judged.length) return;
 
-  const { stripe } = await import("../../apps/edge/lib/billing.ts");
+  const { stripe } = await import("../../apps/edge/lib/billing/billing.ts");
   const s = stripe();
   if (!s) {
     console.error("Stripe is not configured (STRIPE_SECRET_KEY).");

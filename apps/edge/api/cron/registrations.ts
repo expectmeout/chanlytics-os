@@ -13,7 +13,7 @@ import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
-import { dashboardOrigin } from "../../lib/billing.js";
+import { dashboardOrigin } from "../../lib/dashboard-origin.js";
 import { registerLine, syncRegistration } from "../../lib/lines/a2p.js";
 
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */

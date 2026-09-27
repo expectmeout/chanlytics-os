@@ -387,7 +387,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
     '"invoice.payment_failed"',
   ])
     assert.ok(hook.includes(t), t);
-  const lib = readCode("apps/edge/lib/billing.ts");
+  const lib = readCode("apps/edge/lib/billing/billing.ts");
   assert.ok(
     lib.includes("env.STRIPE_SECRET_KEY") &&
       lib.includes("env.STRIPE_PRICE_ID") &&
