@@ -146,6 +146,12 @@ async function listCall(input, role = "operator") {
 const TALKERS = [{ field: "conversations", op: "at_least", n: 1 }];
 const rule = (all) => ({ v: 2, all });
 const chips = (all) => listRuleParts(asListRule(rule(all))).join(" · ");
+/**
+ * A rule the vocabulary cannot read, refused before anything is read: read strictly as a stored rule is, since Ask's
+ * tools are not strict and a key the fact's field does not take would otherwise be dropped into a broader list.
+ */
+const UNREAD =
+  "all is not a rule the list vocabulary reads: one to twelve conditions, each either one fact with only the keys its field takes (field, op and that op's value) or { any: [two to six facts] }, never both; what the fields cannot say, such as a service, a tag or what was said, goes in cannot and never in a fact";
 /** What the lists read reads: the lists, and every one's people (packages/db savedListsFor). */
 const LISTS_READ = ["segments.select", "segment_members.select"];
 
@@ -188,28 +194,49 @@ const LIST_CALLS = [
   [
     "a fact the vocabulary has no field for (what they asked about)",
     { name: "Balayage", all: [{ field: "service", op: "is", value: "balayage" }], cannot: "" },
-    {
-      error:
-        "all is not a rule the list vocabulary reads: one to twelve conditions, each one fact with the op and value its field takes, or { any: [two to six facts] }; what the fields cannot say goes in cannot",
-    },
+    { error: UNREAD },
     [],
   ],
   [
     "a day fact with an op it does not take",
     { name: "Lapsed", all: [{ field: "last_visit", op: "is", yes: true }], cannot: "" },
-    {
-      error:
-        "all is not a rule the list vocabulary reads: one to twelve conditions, each one fact with the op and value its field takes, or { any: [two to six facts] }; what the fields cannot say goes in cannot",
-    },
+    { error: UNREAD },
     [],
   ],
   [
     "more than N days with no N",
     { name: "Quiet", all: [{ field: "last_heard", op: "more_than" }], cannot: "" },
+    { error: UNREAD },
+    [],
+  ],
+  [
+    "REGRESSION: what was said, written as a key a fact's field does not take, is refused, never dropped into a broader list (it drew 'Last heard from in the last 30 days' and no Left out)",
     {
-      error:
-        "all is not a rule the list vocabulary reads: one to twelve conditions, each one fact with the op and value its field takes, or { any: [two to six facts] }; what the fields cannot say goes in cannot",
+      name: "Balayage",
+      all: [{ field: "last_heard", op: "within", days: 30, service: "balayage" }],
+      cannot: "",
     },
+    { error: UNREAD },
+    [],
+  ],
+  [
+    "REGRESSION: a condition that is both a fact and an any group is refused, never read as the group alone (it dropped 'at least 3 calls')",
+    {
+      name: "Callers who text",
+      all: [
+        {
+          field: "calls",
+          op: "at_least",
+          n: 3,
+          any: [
+            { field: "channel", op: "is", channel: "sms" },
+            { field: "channel", op: "is", channel: "whatsapp" },
+          ],
+        },
+      ],
+      cannot: "",
+    },
+    { error: UNREAD },
     [],
   ],
   [
@@ -253,14 +280,14 @@ const LIST_CALLS = [
     null,
   ],
   [
-    "what the words asked that no field says, kept on the card and said back; a fact cut to the keys its field reads; Rosa, who wrote twice",
+    "what the words asked that no field says, kept on the card and said back; a key the model wrote as null is nothing, in an any group too; Rosa, who wrote twice",
     {
       name: "  Chatty   ones ",
       all: [
-        { field: "conversations", op: "at_least", n: 2, days: 30, yes: null },
+        { field: "conversations", op: "at_least", n: 2, days: null, yes: null },
         {
           any: [
-            { field: "channel", op: "is", channel: "sms" },
+            { field: "channel", op: "is", channel: "sms", days: null },
             { field: "channel", op: "is", channel: "whatsapp" },
           ],
         },
@@ -351,6 +378,7 @@ test("the rule the model is shown is the drafter's own: all as LIST_DRAFT_JSON_S
     assert.deepEqual(t.input_schema.required, ["name", "all", "cannot"]);
     assert.deepEqual(canonical(t.input_schema.properties.all), canonical(LIST_DRAFT_JSON_SCHEMA.properties.all));
     assert.ok(!JSON.stringify(t.input_schema).includes('"in_list"'), "a draft never reads another list");
+    assert.ok(!/another list/.test(t.description), "and nothing warns of a field the model is never shown");
     for (const line of LIST_RULE_LINES) assert.ok(t.description.includes(`\n${line}\n`), line);
     for (const line of listDraftFieldLines()) assert.ok(LIST_RULE_LINES.includes(line), line);
   }

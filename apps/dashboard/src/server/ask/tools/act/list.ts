@@ -4,7 +4,7 @@ import {
   AppError,
   LIST_DRAFT_JSON_SCHEMA,
   ListDraftAnswerSchema,
-  draftListRule,
+  asListRule,
   listMembers,
   listRuleParts,
   listUnknownWords,
@@ -19,6 +19,21 @@ import { defineAct, propose, refuse, type ProposalOutcome, type ToolContext } fr
 
 /** What they asked that the vocabulary cannot say, kept as the drafter keeps it: a few words, trimmed. */
 const LEFT_OUT = ListDraftAnswerSchema.shape.cannot;
+
+/**
+ * A value with every key the model wrote as null left out, all the way down: the flat schema shows each fact every
+ * field's keys, and the model sends the ones a fact does not take as null. Nothing else is dropped.
+ */
+const withoutNulls = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(withoutNulls)
+    : v && typeof v === "object"
+      ? Object.fromEntries(
+          Object.entries(v)
+            .filter(([, x]) => x !== null)
+            .map(([k, x]) => [k, withoutNulls(x)]),
+        )
+      : v;
 
 /** One of the lists routes' guards (server/people/lists.ts), run as the route runs it: its answer, or its words. */
 function guard<T>(check: () => T): { ok: T } | { refused: string } {
@@ -40,13 +55,15 @@ async function proposeList(
   const left = LEFT_OUT.safeParse(input.cannot);
   if (!left.success) return refuse(`cannot is a few words, at most ${LEFT_OUT.maxLength} characters`);
   const cannot = left.data;
-  // The rule this turn's model wrote, read as the drafter's answer is (contracts draftListRule): each fact cut to what its
-  // field reads, then read strictly. No second model call (the Phase 4 plan, D10).
+  // The rule this turn's model wrote, read strictly as a stored rule is (contracts asListRule), its nulls aside. No second
+  // model call (the Phase 4 plan, D10). Not as the drafter's answer is (draftListRule, which cuts each fact to the keys
+  // its field reads): the drafter's structured output holds it to the schema, and Ask's tools are not strict, so a key a
+  // field does not take ("service": "balayage") or a fact beside an any group would be dropped into a broader list.
   if (!input.all.length) return refuse("all needs a condition: a list of everyone is Everyone, which People has");
-  const rule = draftListRule(input.all);
+  const rule = asListRule({ all: withoutNulls(input.all) });
   if (!rule)
     return refuse(
-      "all is not a rule the list vocabulary reads: one to twelve conditions, each one fact with the op and value its field takes, or { any: [two to six facts] }; what the fields cannot say goes in cannot",
+      "all is not a rule the list vocabulary reads: one to twelve conditions, each either one fact with only the keys its field takes (field, op and that op's value) or { any: [two to six facts] }, never both; what the fields cannot say, such as a service, a tag or what was said, goes in cannot and never in a fact",
     );
   // A draft never reads another list: the vocabulary's own rule, which its schema says by leaving the field out.
   if (ruleLists(rule).length)
@@ -95,12 +112,12 @@ export const propose_list = defineAct({
     [
       "Read people with action lists first, since a list by that name, or one that says it already, may exist; campaigns with action audiences counts a list for a send.",
       "Call it when they want a group of people kept together, to look at or to send to later; a list kept by hand, people put on it one by one, is made on People.",
-      "A rule the vocabulary cannot read, or one that reads another list, is refused in words.",
+      "A rule the vocabulary cannot read is refused in words; what the fields cannot say goes in cannot, never in a fact.",
     ].join(" "),
   ].join("\n"),
   input: z.object({
     name: z.string(),
-    // The drafter's own schema for the rule, shown to the model as it is; the builder reads it (draftListRule).
+    // The drafter's own schema for the rule, shown to the model as it is; the builder reads it strictly (asListRule).
     all: z.array(z.unknown()).meta(LIST_DRAFT_JSON_SCHEMA.properties.all),
     cannot: z.string(),
   }),

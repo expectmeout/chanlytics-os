@@ -58,6 +58,11 @@ const PR_4_3 = fixture("ask-tools-4-3.json");
 const CHANGED = ["propose_campaign", "propose_list", "propose_thread_verb"];
 /** The tool PR 4.5 gave an action, search: that action's words, fields and example are all that moved in it. */
 const SEARCHED = "inbox";
+/**
+ * The one place an operator's tool names a role: propose_thread_verb says whose a person's treatment is to set -- an
+ * owner's, as person_mode's spec needs -- so a role not offered propose_person's mode can say who can (PR 4.7).
+ */
+const THREAD_POINTER = "how the receptionist treats one person is an owner's to set (propose_person with action mode)";
 /** The actions added since the rename (the Phase 4 plan, D1): no old tool was any of them. The eval's one list of them. */
 const { ADDED_SINCE: PHASE_4 } = await import(at("tooling/evals/rename-ask-tools.mjs"));
 /** The twenty-six tools as PR 3.1 froze them: each action's own fields are its old tool's. */
@@ -268,12 +273,13 @@ test("the invariant (PR 4.7): every tool but propose_list, propose_campaign and 
   const was = (role, name) => TODAY[role].find((t) => t.name === name);
   const words = ({ description: _, ...rest }) => rest;
   for (const role of ["operator", "partner", "owner"]) {
-    // propose_thread_verb: only the sentence that pointed every role to an owner's action went.
+    // propose_thread_verb: the sentence that sent every role to an owner's action now says whose it is, which is true for
+    // every role, and nothing else moved.
     assert.equal(
       tool(role, "propose_thread_verb").description,
       was(role, "propose_thread_verb").description.replace(
         ", and how the receptionist treats the person is propose_person with action mode.",
-        ".",
+        `, and ${THREAD_POINTER}.`,
       ),
       role,
     );
@@ -405,13 +411,24 @@ test("every description is at least three sentences, says what each of its actio
         if (n !== "operator") assert.ok(t.description.includes(CLAUSE[n]), `${role} ${t.name}: needs ${n}`);
       if (needs.every((n) => n === "owner")) assert.ok(!/partner/i.test(t.description), `${t.name} needs an owner`);
       if (needs.every((n) => n === "operator"))
-        assert.ok(!/\b(owners?|partners?)\b/i.test(t.description), `${t.name} needs an operator: no role named`);
+        assert.ok(
+          !/\b(owners?|partners?)\b/i.test(t.description.replace(THREAD_POINTER, "")),
+          `${t.name} needs an operator: no role named, but whose a person's treatment is`,
+        );
     }
   for (const d of ACT_DEFS)
     for (const a of actionsOf(d.name)) {
       const n = PROPOSAL_SPECS[d.actions[a].kind].needs;
       if (n !== "operator") assert.ok(d.actions[a].words.includes(CLAUSE[n]), `${d.name}.${a}: its own clause`);
     }
+  for (const role of ["operator", "partner", "owner"])
+    assert.ok(
+      toApiTools(role, true)
+        .find((x) => x.name === "propose_thread_verb")
+        .description.includes(`, and ${THREAD_POINTER}.`),
+      `${role}: propose_thread_verb says whose a person's treatment is`,
+    );
+  assert.equal(PROPOSAL_SPECS.person_mode.needs, "owner", "the pointer says an owner's, as the mode's spec needs");
 });
 
 /** The tools with no action whose input has a shape a sentence does not pin (D9): a window, a change, a plan. */
