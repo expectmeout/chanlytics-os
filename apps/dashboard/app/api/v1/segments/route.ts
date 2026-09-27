@@ -2,7 +2,7 @@ import { AppError } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createList, savedListsFor, type Json } from "@chanlytics/db";
-import { cleanListName, cleanListRule, type SavedListDto } from "@/server/people/lists";
+import { LIST_NAME_TAKEN, cleanListName, cleanListRule, type SavedListDto } from "@/server/people/lists";
 import { recordDecision } from "@/server/verbs";
 import { load, readerContext } from "@/server/readers";
 import { lists } from "@/server/readers/lists";
@@ -44,7 +44,7 @@ export const POST = write({
     );
     const { list, error } = await createList(ctx.supabase, member.tenantId, name, ctx.userId, rule);
     if (error || !list) {
-      if (error?.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);
+      if (error?.code === "23505") throw new AppError("conflict", LIST_NAME_TAKEN, 409);
       throw new Error(error?.message ?? "The list was not made.");
     }
     // The ledger's (00169, decision 0009): Activity says who made which list, kept by hand or by a rule.

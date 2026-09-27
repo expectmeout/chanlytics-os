@@ -11,7 +11,8 @@
  * route a spec names is a route the app has, and each is the door of the role the card needs (route-policy.json); and
  * the gate a card checks before Approve lets the roles that role lets (ROLE_PERMS, on the server's own ladder). The two
  * kinds PR 4.6 added (a person's note and details, the Phase 4 plan's D8 and D9) answer the three readings as their
- * family's cards do, and their calls are pinned over the answers their routes really give.
+ * family's cards do, and their calls are pinned over the answers their routes really give; so are PR 4.7's two, a list
+ * kept by its rule (D10) and a playbook's run waiting for a person (D11).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -33,7 +34,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const POLICY = JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/route-policy.json"), "utf8")).routes;
 
-/** The fourteen kinds, in AskProposal's order, and one no card has. */
+/** The sixteen kinds, in AskProposal's order, and one no card has. */
 const KINDS = [
   "reply",
   "steer",
@@ -49,12 +50,14 @@ const KINDS = [
   "deal",
   "note",
   "person_details",
+  "list",
+  "run",
   "teleport",
 ];
 
 /* ------------------------------------------------------------------ the gate */
 
-test("the gate each kind checks before Approve is the one it checked at a993b71d; a person's note and details, an operator's, check approve", () => {
+test("the gate each kind checks before Approve is the one it checked at a993b71d; a person's note and details, a list and a run, each an operator's, check approve", () => {
   assert.deepEqual(PROPOSAL_GATE, {
     reply: "approve",
     steer: "approve",
@@ -70,6 +73,8 @@ test("the gate each kind checks before Approve is the one it checked at a993b71d
     deal: "approve",
     note: "approve",
     person_details: "approve",
+    list: "approve",
+    run: "approve",
   });
 });
 
@@ -95,7 +100,7 @@ const VERSIONS = [null, 4, 5];
 
 /**
  * askUndoOpen at a993b71d, per kind: one group per entry of UNDOS, in order; inside a group, for each of ATS, the
- * three VERSIONS -- 1 where the undo was offered. The two kinds since keep the family's ten minutes.
+ * three VERSIONS -- 1 where the undo was offered. The four kinds since keep the family's ten minutes.
  */
 const UNDO_OPEN = {
   reply: "000000000 000000000 111111111 000000000 000000000 000000000 000000000 000000000",
@@ -112,6 +117,8 @@ const UNDO_OPEN = {
   deal: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   note: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   person_details: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
+  list: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
+  run: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
   teleport: "000000000 111111000 111111000 111111000 111111000 111111000 111111000 111111000",
 };
 
@@ -147,8 +154,9 @@ const CASES = [
   [{}, { state: "failed", receipt: "r", atMs: T, undo: { search_id: "s1" } }],
 ];
 /**
- * cardOpenRoute at a993b71d, per kind: one answer per entry of CASES, or one answer for them all. The two kinds since
- * open the person they name, as the family's do.
+ * cardOpenRoute at a993b71d, per kind: one answer per entry of CASES, or one answer for them all. A person's note and
+ * details open the person they name, as the family's do; a list opens People (at the list, once it is made: below), and
+ * a run the run it names, the Broadcasts page where none of these cards names one.
  */
 const OPEN = {
   reply: null,
@@ -180,6 +188,8 @@ const OPEN = {
   deal: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
   note: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
   person_details: [null, null, null, "clients/p1", null, "clients/p1", null, null, null, null, null, null, null, null],
+  list: "clients",
+  run: "broadcasts",
   teleport: [null, null, "inbox/th-c1", null, null, "inbox/th-c1", null, null, null, null, null, null, null, null],
 };
 
@@ -253,6 +263,11 @@ const SHAPES = {
       previous: { name: null, email: null },
     }),
   ],
+  list: [card("list", { name: "Lapsed", rule: { v: 2, all: [{ field: "last_visit", op: "more_than", days: 60 }] } })],
+  run: [
+    card("run", { broadcast_id: "b1", verb: "approve", name: "Win-back · 2026-09-26", people: 12 }),
+    card("run", { broadcast_id: "b1", verb: "skip", name: "Win-back · 2026-09-26", people: 12 }),
+  ],
 };
 
 /** Every route a kind's spec reaches over its shapes: its commit, a second call, and the undo of what it kept. */
@@ -275,8 +290,8 @@ function routesOf(kind) {
   return seen;
 }
 
-test("the fourteen kinds each have a spec, and every route a spec names is a route the app has", () => {
-  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 14));
+test("the sixteen kinds each have a spec, and every route a spec names is a route the app has", () => {
+  assert.deepEqual(Object.keys(PROPOSAL_SPECS), KINDS.slice(0, 16));
   const named = Object.fromEntries(
     Object.keys(PROPOSAL_SPECS).map((k) => [k, [...new Set(routesOf(k).map((x) => x.route))].sort()]),
   );
@@ -302,6 +317,8 @@ test("the fourteen kinds each have a spec, and every route a spec names is a rou
     deal: ["POST contacts/[id]/deal", "POST contacts/[id]/notes"],
     note: ["POST contacts/[id]/notes", "POST contacts/[id]/notes/remove"],
     person_details: ["PUT contacts/[id]/details"],
+    list: ["DELETE segments/[id]", "POST segments"],
+    run: ["POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"],
   });
   for (const routes of Object.values(named)) for (const r of routes) assert.ok(ROUTE_KEYS.includes(r), r);
 });
@@ -482,4 +499,103 @@ test("a person's details (D9): only the fields the card changes to the details r
     { name: "Rosa" },
   );
   assert.deepEqual(spec.undo.call({ contact_id: P1 }, TAB), { refused: "This one has no undo." });
+});
+
+/* ------------------------------------------------------------- a list and a run (PR 4.7) */
+
+const L1 = "5e5e5e5e-0000-4000-8000-000000000001";
+const RULE = { v: 2, all: [{ field: "last_visit", op: "more_than", days: 60 }] };
+/** What `POST segments` answers: the list it made, SavedListDto, kept by its rule and with nobody put on it by hand. */
+const MADE = { id: L1, name: "Lapsed regulars", ids: [], rule: RULE, archived_at: null };
+
+test("a list (D10): the name and the rule to the lists route, a list that keeps itself current; the receipt is People's; the undo deletes it by the id the route answered, and says so, or that it was archived when something came to depend on it; Open goes to the list once it is made", () => {
+  const spec = PROPOSAL_SPECS.list;
+  const p = card("list", { name: "Lapsed regulars", rule: RULE, cannot: "regulars", count: 4 });
+  assert.deepEqual(spec.commit(p, TAB), { route: "POST segments", body: { name: "Lapsed regulars", rule: RULE } });
+  assert.equal(spec.receipt(p, MADE), "Lapsed regulars made. It keeps itself current.");
+  assert.equal(spec.undo.label(p), "Delete it");
+  const kept = spec.undo.record(p, MADE, TAB);
+  assert.deepEqual(kept, { list_id: L1 }, "the route answers no ledger row: the undo names none");
+  assert.deepEqual(spec.undo.call(kept, TAB_AFTER), { route: "DELETE segments/[id]", params: { id: L1 } });
+  // What `DELETE segments/[id]` answers, both ways (segments/[id]/route.ts): deleted, or archived with what paused and
+  // what reads it.
+  assert.equal(spec.undo.receipt({ deleted: true, id: L1 }), "Deleted. The people stay.");
+  assert.equal(
+    spec.undo.receipt({ archived: true, id: L1, paused: ["Win-back"], on_it: ["Win-back"], read_by: [] }),
+    "Archived, not deleted: Win-back paused. It comes back from Archived under your lists.",
+  );
+  assert.equal(
+    spec.undo.receipt({ archived: true, id: L1, paused: [], on_it: [], read_by: ["Talkers", "Quiet"] }),
+    "Archived, not deleted: Talkers, Quiet reads it. It comes back from Archived under your lists.",
+  );
+  assert.equal(
+    spec.undo.receipt({ archived: true, id: L1, paused: [], on_it: ["Win-back"], read_by: [] }),
+    "Archived, not deleted: a playbook runs on it. It comes back from Archived under your lists.",
+  );
+  // Open: People before it is made, the list itself once it is (the commit kept its id), People again once undone.
+  assert.equal(cardOpenRoute(p), "clients");
+  assert.equal(cardOpenRoute({ ...p, outcome: done(kept) }), `clients/list:${L1}`);
+  assert.equal(cardOpenRoute({ ...p, outcome: { state: "undone", receipt: "r", atMs: T, undo: null } }), "clients");
+  // A route that answered no id keeps no undo; a card with no rule, or no name, is never sent (a list kept by hand is
+  // made on People, where its people are picked).
+  assert.equal(spec.undo.record(p, {}, TAB), null);
+  for (const payload of [
+    { name: "Lapsed", rule: null },
+    { name: "", rule: RULE },
+    { name: "Lapsed", rule: "x" },
+  ])
+    assert.deepEqual(spec.commit(card("list", payload), TAB), { refused: "This card cannot be approved from here." });
+});
+
+const RUN = "88888888-8888-4888-8888-888888888881";
+/** What `POST broadcasts/[id]/approve` answers (core approveRun's ApproveReceipt): now, or moved to the next open hour. */
+const APPROVED = {
+  id: RUN,
+  state: "scheduled",
+  recipient_count: 12,
+  scheduled_for: "2026-09-26T18:00:00.000Z",
+  moved_from: null,
+  decision_id: "d-approve",
+};
+/** What `POST broadcasts/[id]/cancel` answers (core cancelBroadcast's CancelReceipt), from the state it left. */
+const CANCELED = (was) => ({ id: RUN, state: "canceled", was, decision_id: "d-cancel" });
+
+test("a run (D11): approve and skip are the run's own doors, approve's undo is a broadcast's cancel and a skip keeps none; the receipts are the Broadcasts page's, when it goes by the business's clock the card carries; a card that says no verb is never sent", () => {
+  const spec = PROPOSAL_SPECS.run;
+  const run = { broadcast_id: RUN, name: "Win-back · 2026-09-26", people: 12, timezone: "America/New_York" };
+  const approve = card("run", { ...run, verb: "approve" });
+  const skip = card("run", { ...run, verb: "skip" });
+  assert.deepEqual(spec.commit(approve, TAB), { route: "POST broadcasts/[id]/approve", params: { id: RUN } });
+  assert.deepEqual(spec.commit(skip, TAB), { route: "POST broadcasts/[id]/cancel", params: { id: RUN } });
+  assert.equal(spec.receipt(approve, APPROVED), "Win-back · 2026-09-26 approved — 12 people, sending now");
+  // Approved at 23:30 in New York, it goes at nine the next morning, said from the moment it was approved.
+  assert.equal(
+    spec.receipt(approve, {
+      ...APPROVED,
+      recipient_count: 1,
+      scheduled_for: "2026-09-27T13:00:00.000Z",
+      moved_from: "2026-09-27T03:30:00.000Z",
+    }),
+    "Win-back · 2026-09-26 approved — 1 person, scheduled for tomorrow 9:00 AM — messages go out between 9:00 and 20:59 by your clock",
+  );
+  assert.equal(spec.receipt(skip, CANCELED("pending_approval")), "Win-back · 2026-09-26 skipped — nothing will send");
+  // A run that moved on before the skip landed: the cancel says what it did to it, in the page's words.
+  assert.equal(spec.receipt(skip, CANCELED("scheduled")), "Win-back · 2026-09-26 canceled — nothing will send");
+  assert.equal(spec.receipt(skip, CANCELED("sending")), "Win-back · 2026-09-26 stops after this batch");
+  assert.equal(spec.undo.label(approve), "Cancel it, if it has not finished");
+  assert.equal(spec.undo.label(skip), null, "a skip has nothing to undo");
+  const kept = spec.undo.record(approve, APPROVED, TAB);
+  assert.deepEqual(kept, { broadcast_id: RUN, decision_id: "d-approve" }, "the approval's ledger row, for undo_of");
+  assert.equal(spec.undo.record(skip, CANCELED("pending_approval"), TAB), null);
+  assert.deepEqual(spec.undo.call(kept, TAB_AFTER), PROPOSAL_SPECS.broadcast.undo.call(kept, TAB_AFTER));
+  assert.deepEqual(spec.undo.call(kept, TAB_AFTER), { route: "POST broadcasts/[id]/cancel", params: { id: RUN } });
+  assert.equal(spec.undo.receipt(CANCELED("scheduled")), "Canceled — nothing will send");
+  assert.equal(spec.undo.receipt(CANCELED("sending")), "Stopped — it ends after this batch");
+  assert.equal(cardOpenRoute(approve), `broadcasts/run:${RUN}`, "the run's sheet");
+  // No verb, or one it does not know, is no card to send: the verb has no default.
+  for (const verb of [undefined, null, "", "cancel", "Approve"])
+    assert.deepEqual(spec.commit(card("run", { ...run, verb }), TAB), {
+      refused: "This card cannot be approved from here.",
+    });
+  assert.ok("refused" in spec.commit(card("run", { verb: "approve" }), TAB), "nor a card that names no run");
 });

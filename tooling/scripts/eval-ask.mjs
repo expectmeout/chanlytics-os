@@ -324,6 +324,15 @@ export function judge(c, r) {
           fails.push(
             `a ${kind} card with ${k} ${JSON.stringify(p.payload?.[k])}, where the words said ${JSON.stringify(v)}`,
           );
+  // A list card's rule and what it left out (propose_list, PR 4.7; the Phase 4 plan, D10): each field the words decide
+  // the rule names, and whether what the vocabulary cannot say was kept on the card rather than dropped.
+  for (const p of e.list_card ? (m.proposals ?? []).filter((x) => x.kind === "list") : []) {
+    const rule = JSON.stringify(p.payload?.rule ?? null);
+    for (const f of e.list_card.fields ?? [])
+      if (!rule.includes(`"field":"${f}"`)) fails.push(`a list card whose rule names no ${f}: ${rule}`);
+    if (e.list_card.cannot !== undefined && !!p.payload?.cannot !== e.list_card.cannot)
+      fails.push(`a list card that ${e.list_card.cannot ? "dropped" : "invented"} what the fields cannot say`);
+  }
   if (e.navigate_now && !(m.navigate && m.navigate.now && m.navigate.to))
     fails.push(`expected the app to go there; navigate=${JSON.stringify(m.navigate)}`);
   if (

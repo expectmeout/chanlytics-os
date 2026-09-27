@@ -402,7 +402,7 @@ test("a model that thinks: its thinking goes back with the tool results exactly 
   );
 });
 
-test("each role is offered its tools, sorted by name: a viewer the reads alone, an operator the acts an operator may approve, a partner the settings and the lead search too, an owner all nineteen (D11, D12); no tool is strict", async () => {
+test("each role is offered its tools, sorted by name: a viewer the reads alone, an operator the acts an operator may approve, a partner the settings and the lead search too, an owner all twenty (D11, D12; the Phase 4 plan, D1); no tool is strict", async () => {
   const offered = {};
   for (const role of ["viewer", "operator", "partner", "owner"]) {
     const s = scripted([ROUND([answer("Nothing waiting.")])]);
@@ -420,6 +420,7 @@ test("each role is offered its tools, sorted by name: a viewer the reads alone, 
     "propose_autonomy",
     "propose_campaign",
     "propose_deal",
+    "propose_list",
     "propose_person",
     "propose_reply",
     "propose_thread_verb",

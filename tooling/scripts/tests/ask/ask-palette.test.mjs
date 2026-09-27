@@ -1880,6 +1880,55 @@ test("a person's note and a person's details (PR 4.6) are drawn as their own kin
     });
 });
 
+test("a list and a playbook's run waiting for a person (PR 4.7) are drawn as their own kinds: each its word in the Line's English and Spanish and the mark its row carries in an answer, over its title and the summary that says its rule and who it holds, or who the run reaches and when it goes", () => {
+  const { AskCard, askKindGlyph } = globalThis.window.AskAnswerKit;
+  const RUN = "88888888-8888-4888-8888-888888888881";
+  const cards = [
+    {
+      id: "p1",
+      kind: "list",
+      needs: "operator",
+      title: "List: Lapsed regulars",
+      summary:
+        "Last visit more than 60 days ago — 4 people on it today, and it keeps itself current. Left out: regulars",
+      payload: {
+        name: "Lapsed regulars",
+        rule: { v: 2, all: [{ field: "last_visit", op: "more_than", days: 60 }] },
+        cannot: "regulars",
+        count: 4,
+      },
+      undo: "Delete it",
+    },
+    {
+      id: "p2",
+      kind: "run",
+      needs: "operator",
+      title: "Approve the run: Win-back · 2026-09-20",
+      summary: "3 people · goes the moment you approve it",
+      payload: { broadcast_id: RUN, verb: "approve", name: "Win-back · 2026-09-20", people: 3, timezone: "UTC" },
+      undo: "Cancel it, if it has not finished",
+    },
+  ];
+  const words = { en: ["list", "run"], es: ["lista", "envío"] };
+  // The mark a list's or a run's row carries in an answer (a run is the Broadcasts row a citation calls a broadcast).
+  const marks = [askKindGlyph("list"), askKindGlyph("broadcast")];
+  assert.deepEqual(marks, ["filter", "wave"]);
+  for (const lang of ["en", "es"])
+    cards.forEach((p, i) => {
+      const tree = render(AskCard, { p, t: globalThis.window.askText(lang), onNav() {} });
+      assert.equal(byTestId(tree, "ask-card").props["data-kind"], p.kind);
+      const head = byClass(tree, "ask-card-head")[0];
+      assert.equal(textOf(byClass(head, "ask-card-kind")[0]), words[lang][i], `${p.kind} in ${lang}: its word`);
+      assert.equal(
+        find(head, (n) => n.type === "Icon").props.name,
+        marks[i],
+        `${p.kind}: its row's mark, not the inbox's`,
+      );
+      assert.ok(textOf(head).startsWith(p.title), `${p.kind}: its title`);
+      assert.equal(textOf(byClass(tree, "ask-card-summary")[0]), p.summary, `${p.kind}: its summary`);
+    });
+});
+
 test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'calendar' offered only to ask about it", async () => {
   ask();
   render(Palette, OPEN);

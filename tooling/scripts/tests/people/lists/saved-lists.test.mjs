@@ -47,11 +47,8 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
   // workspaces and over a list past PostgREST's max_rows.
   const list = readCode("apps/dashboard/app/api/v1/segments/route.ts");
   assert.ok(list.includes('role: "operator",') && list.includes('rate: "lists",'));
-  assert.ok(
-    list.includes(
-      'if (error?.code === "23505") throw new AppError("conflict", "A list with that name already exists.", 409);',
-    ),
-  );
+  // A taken name is the route's 409 in one sentence, which Ask's list card refuses in too (server/people/lists.ts).
+  assert.ok(list.includes('if (error?.code === "23505") throw new AppError("conflict", LIST_NAME_TAKEN, 409);'));
   const one = readCode("apps/dashboard/app/api/v1/segments/[id]/route.ts");
   assert.ok(
     one.includes('const add = cleanIdList(body?.add, "add");') &&
@@ -72,7 +69,9 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
   );
   const helper = readCode("apps/dashboard/src/server/people/lists.ts");
   assert.ok(
-    helper.includes("export const LIST_NAME_MAX = 60;") && helper.includes("export const LIST_BATCH_MAX = 500;"),
+    helper.includes("export const LIST_NAME_MAX = 60;") &&
+      helper.includes("export const LIST_BATCH_MAX = 500;") &&
+      helper.includes('export const LIST_NAME_TAKEN = "A list with that name already exists.";'),
   );
   assert.ok(
     readCode("apps/dashboard/src/server/rate-limit.ts").includes(
