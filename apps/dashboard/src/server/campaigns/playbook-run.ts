@@ -4,7 +4,7 @@ import { edgeHeaders, edgeUrl } from "../edge";
 
 /* ---- Playbooks: one run now, the same implementation the hourly sweep uses ---- */
 
-type RunPlaybookOutcome =
+export type RunPlaybookOutcome =
   | {
       ok: true;
       outcome: "sent" | "held" | "empty" | "off";
