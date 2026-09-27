@@ -191,7 +191,8 @@ async function getPerson(t: ToolContext, input: { contact_id: string }): Promise
 export const peopleTool = defineActions({
   name: "people",
   // The lists are named from the one table of them (contracts lists.ts), never typed beside it.
-  description: `People, the customers and callers, as the People page and a person's page read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}. Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call action search to find someone, or to see who is on a list; call action get when the profile, the timeline or the notes are needed and the page on screen holds only their row. search returns at most ${ASK_CAPS.people} people, with matches counted before the cap; a list that cannot be counted here says why. get returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.`,
+  description: "People, the customers and callers, as the People page and a person's page read them.",
+  tail: `Call action search to find someone, or to see who is on a list; call action get when the profile, the timeline or the notes are needed and the page on screen holds only their row. search returns at most ${ASK_CAPS.people} people, with matches counted before the cap; a list that cannot be counted here says why. get returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.`,
   actions: {
     search: readAction({
       input: z.object({ query: z.string(), list: z.string().optional() }),
@@ -201,12 +202,15 @@ export const peopleTool = defineActions({
         { query: "", list: "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b" },
       ],
       label: "Looking through People",
+      words: `Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: ${BUILTIN_LISTS.map((l) => `${l.id} (${l.label})`).join(", ")}.`,
       run: searchPeople,
     }),
     get: readAction({
       input: z.object({ contact_id: z.string() }),
       examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d" }],
       label: "Reading the profile",
+      words:
+        "Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's).",
       run: getPerson,
     }),
   },

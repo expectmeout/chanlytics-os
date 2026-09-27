@@ -4,9 +4,11 @@
  *
  * PR 3.1 moved twenty-six tools here (their names, order and schemas frozen in fixtures/ask-tools-0c136563.json); PR
  * 3.4 consolidated them to nineteen (D11), sorted by name, each read family under an `action` and each act by its card
- * family, and offered each role the acts whose card it may approve (D12). What the model is sent is frozen per role in
- * fixtures/ask-tools-3-4.json; the rest is held as structure: the order, the four prefixes, the flattened schema of a
- * tool with actions, each action's fields the old tool's (read against the 3.1 fixture through
+ * family, and offered each role the acts whose card it may approve (D12). PR 4.3 (the Phase 4 plan, D2) offers each role
+ * the ACTIONS it may use, each tool built per role from them. What the model is sent is frozen per role in
+ * fixtures/ask-tools-4-3.json, and a tool PR 4.3 did not change reads to every role offered all of it as
+ * fixtures/ask-tools-3-4.json froze it; the rest is held as structure: the order, the four prefixes, the flattened
+ * schema of a tool with actions, each action's fields the old tool's (read against the 3.1 fixture through
  * tooling/evals/tool-names.json), the words each description owes, the examples, and the parse, proven by running the
  * registry over the database in memory and watching what reached it. That every action answers what its old tool
  * answered is ask-tool-names.test.mjs. No source text is read here.
@@ -39,7 +41,11 @@ const { PROPOSAL_SPECS, roleAtLeast } = await import("@chanlytics/contracts");
 
 const fixture = (name) => JSON.parse(fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures", name), "utf8"));
 /** What the model is sent, per role, frozen from the finished registry. */
-const FROZEN = fixture("ask-tools-3-4.json");
+const FROZEN = fixture("ask-tools-4-3.json");
+/** What PR 3.4 sent, per role: a tool PR 4.3 did not change reads the same (the Phase 4 plan, D2). */
+const TODAY = fixture("ask-tools-3-4.json");
+/** The tools whose actions PR 4.3 changed: their descriptions, schemas and examples moved on purpose. */
+const CHANGED = [];
 /** The twenty-six tools as PR 3.1 froze them: each action's own fields are its old tool's. */
 const OLD = fixture("ask-tools-0c136563.json").operator;
 /** The rename, old name -> `name.action`: the one table (D13). */
@@ -146,7 +152,8 @@ test("each role is offered its tools, sorted by name, the same bytes every build
       `${role}: without examples, the same tools less their examples`,
     );
   }
-  assert.equal(toApiTools("owner", true).length, 19, "nineteen, under the documented twenty");
+  for (const role of ROLES) assert.ok(toApiTools(role, true).length <= 20, `${role}: at most the documented twenty`);
+  assert.equal(toApiTools("owner", true).length, 19, "an owner: nineteen");
   assert.deepEqual(
     [...ACT_TOOL_NAMES].sort(),
     OFFERED.owner.filter((n) => !READS.includes(n)),
@@ -158,24 +165,68 @@ test("each role is offered its tools, sorted by name, the same bytes every build
       assert.ok(OFFERED[ROLES[i]].includes(t.name), `${t.name}: offered to ${ROLES[i - 1]}, so to ${ROLES[i]}`);
 });
 
-test("a role is offered no act above its card's needs, and every action of one tool builds a card of one needs, so the offer is exact", () => {
-  for (const d of ACT_DEFS) {
-    const needs = new Set(Object.values(d.actions).map((a) => PROPOSAL_SPECS[a.kind].needs));
-    assert.equal(needs.size, 1, `${d.name}: one needs across ${[...needs].join(", ")}`);
-    const [need] = needs;
-    for (const role of ROLES)
+/** The least role an action may be used by (D2): a read's own needs, or every member; an act's, its card's. */
+const needsOf = (def) => ("kind" in def ? PROPOSAL_SPECS[def.kind].needs : (def.needs ?? "viewer"));
+/** The actions of a tool a role may use, in the tool's order; a tool with no action, its one, under "". */
+const usable = (name, role) =>
+  Object.entries(DEFS.get(name).actions)
+    .filter(([, def]) => roleAtLeast(role, needsOf(def)))
+    .map(([a]) => a);
+
+test("every role is offered exactly the actions it may use (D2): a tool with none is not offered; one with some is built from them alone -- its action enum, its fields, its examples and its description, which says each of them and names no other", () => {
+  for (const role of ROLES) {
+    const tools = toApiTools(role, true);
+    for (const [name, d] of DEFS) {
+      const own = usable(name, role);
+      const t = tools.find((x) => x.name === name);
+      assert.equal(!!t, own.length > 0, `${name} to ${role}: offered exactly when an action is its`);
+      if (!t || !actionsOf(name).length) continue;
+      assert.deepEqual(t.input_schema.properties.action.enum, own, `${role} ${name}: its actions, in the tool's order`);
+      assert.deepEqual(
+        Object.keys(t.input_schema.properties),
+        ["action", ...new Set(own.flatMap((a) => Object.keys(d.actions[a].input.shape)))],
+        `${role} ${name}: its actions' fields, once each, and no other`,
+      );
+      assert.ok(
+        (t.input_examples ?? []).every((ex) => own.includes(ex.action)),
+        `${role} ${name}: examples of its actions alone`,
+      );
       assert.equal(
-        toApiTools(role, true).some((t) => t.name === d.name),
-        roleAtLeast(role, need),
-        `${d.name} (needs ${need}) to ${role}`,
+        t.description,
+        [d.description, ...own.map((a) => d.actions[a].words), d.tail].filter(Boolean).join(" "),
+        `${role} ${name}: the tool's words, its actions' in order, the tail`,
+      );
+      for (const a of actionsOf(name))
+        assert.equal(
+          new RegExp(`\\baction ${a}\\b`).test(t.description),
+          own.includes(a),
+          `${role} ${name}: the description names action ${a} only when it is offered`,
+        );
+    }
+  }
+  // Every action has its own words, and a role that stands lower is offered no action a higher one is not.
+  for (const [name, d] of DEFS)
+    for (const a of actionsOf(name)) assert.ok(d.actions[a].words, `${name}.${a}: its own words`);
+  for (let i = 1; i < ROLES.length; i++)
+    for (const name of DEFS.keys())
+      for (const a of usable(name, ROLES[i - 1]))
+        assert.ok(usable(name, ROLES[i]).includes(a), `${name}.${a}: ${ROLES[i - 1]}'s, so ${ROLES[i]}'s`);
+});
+
+test("the invariant (D2): a tool whose every action reaches a role, and whose actions PR 4.3 did not change, reads to that role byte for byte as PR 3.4 sent it -- per tool, per role, with its examples and without", () => {
+  for (const role of ROLES) {
+    const was = new Map(TODAY[role].map((t) => [t.name, t]));
+    for (const t of toApiTools(role, true)) {
+      if (CHANGED.includes(t.name)) continue;
+      assert.ok(usable(t.name, role).length === Math.max(1, actionsOf(t.name).length), `${role} ${t.name}: all of it`);
+      assert.equal(JSON.stringify(t), JSON.stringify(was.get(t.name)), `${role} ${t.name}: PR 3.4's bytes`);
+    }
+    for (const name of was.keys())
+      assert.ok(
+        CHANGED.includes(name) || toApiTools(role, true).some((t) => t.name === name),
+        `${role} ${name}: still offered`,
       );
   }
-  for (const role of ROLES)
-    for (const r of READ_DEFS)
-      assert.ok(
-        toApiTools(role, true).some((t) => t.name === r.name),
-        `${r.name}: a read, offered to ${role}`,
-      );
 });
 
 test("the rename is a bijection: every old tool is one tool and action of the registry, every action one old tool, and each action takes exactly the fields its old tool took", () => {
@@ -224,7 +275,7 @@ test("a tool with actions is sent as ONE object schema: action an enum of its ac
   assert.deepEqual(tool("today").input_schema.required, []);
 });
 
-test("every description is at least three sentences, says what each of its actions takes, names no tool that is gone, and no two are the same; an act's names who may approve its card as the card's spec says it", () => {
+test("every description is at least three sentences, says what each of its actions takes, names no tool that is gone, and no two are the same; an act's names, to each role, who may approve each card it is offered, as the card's spec says it and in that action's own words", () => {
   const all = toApiTools("owner", true);
   const gone = Object.keys(NAMES).filter((old) => !DEFS.has(old));
   for (const t of all) {
@@ -233,26 +284,29 @@ test("every description is at least three sentences, says what each of its actio
     for (const old of gone) assert.ok(!new RegExp(`\\b${old}\\b`).test(t.description), `${t.name} names ${old}`);
   }
   assert.equal(new Set(all.map((t) => t.description)).size, all.length, "no two descriptions are equal");
-  for (const d of ACT_DEFS) {
-    const t = all.find((x) => x.name === d.name);
-    const needs = PROPOSAL_SPECS[Object.values(d.actions)[0].kind].needs;
-    assert.ok(!/owner-only/i.test(t.description), `${t.name}: the role is said in the spec's words`);
-    // The whole clause, head and tail, per `needs`: one derivation in the registry (tools/context.ts approvalWords).
-    if (needs === "partner")
-      assert.ok(
-        t.description.includes(
-          "Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
-        ),
-        `${t.name} needs a partner`,
-      );
-    else if (needs === "owner")
-      assert.ok(
-        t.description.includes("Only an owner can approve it: for anyone else, say so and that an owner can ask.") &&
-          !/partner/i.test(t.description),
-        `${t.name} needs an owner`,
-      );
-    else assert.ok(!/\b(owners?|partners?)\b/i.test(t.description), `${t.name} needs an operator: no role named`);
-  }
+  // The whole clause, head and tail, per `needs`: one derivation in the registry (tools/context.ts approvalWords),
+  // said per action in the actions' own words (D2), so an action a role is not offered takes its clause with it.
+  const CLAUSE = {
+    partner: "Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+    owner: "Only an owner can approve it: for anyone else, say so and that an owner can ask.",
+  };
+  for (const role of ROLES)
+    for (const d of ACT_DEFS) {
+      const t = toApiTools(role, true).find((x) => x.name === d.name);
+      if (!t) continue;
+      const needs = usable(d.name, role).map((a) => PROPOSAL_SPECS[d.actions[a].kind].needs);
+      assert.ok(!/owner-only/i.test(t.description), `${t.name}: the role is said in the spec's words`);
+      for (const n of needs)
+        if (n !== "operator") assert.ok(t.description.includes(CLAUSE[n]), `${role} ${t.name}: needs ${n}`);
+      if (needs.every((n) => n === "owner")) assert.ok(!/partner/i.test(t.description), `${t.name} needs an owner`);
+      if (needs.every((n) => n === "operator"))
+        assert.ok(!/\b(owners?|partners?)\b/i.test(t.description), `${t.name} needs an operator: no role named`);
+    }
+  for (const d of ACT_DEFS)
+    for (const a of actionsOf(d.name)) {
+      const n = PROPOSAL_SPECS[d.actions[a].kind].needs;
+      if (n !== "operator") assert.ok(d.actions[a].words.includes(CLAUSE[n]), `${d.name}.${a}: its own clause`);
+    }
 });
 
 /** The tools with no action whose input has a shape a sentence does not pin (D9): a window, a change, a plan. */
@@ -332,12 +386,50 @@ test("an input a schema refuses comes back in the zod's words, under the tool's 
     await words("propose_campaign", { action: "playbook", trigger: "never" }),
     'propose_campaign: trigger Invalid option: expected one of "quiet_30"|"new_week"|"phoned_only"|"everyone_monthly"|"lapsed"|"saved_list"|"proposal_waiting"',
   );
+  // An owner's action, asked by an owner: past the role (D2), to the zod.
+  const invite = await buildProposal(contextFor("owner").t, "propose_team", {
+    action: "invite",
+    email: "ada@example.com",
+    role: "owner",
+  });
   assert.equal(
-    await words("propose_team", { action: "invite", email: "ada@example.com", role: "owner" }),
+    JSON.parse(invite.result).error,
     'propose_team: role Invalid option: expected one of "operator"|"viewer"',
   );
   assert.match(await words("inbox", [C1]), /^inbox: Invalid input: expected object, received array$/);
   assert.deepEqual(supabase.seen, [], "nothing was read: the handler never ran");
+});
+
+test("an action the caller's role may not use is refused in words, under the tool's name and before its zod or its handler (D2): the second guard, beside the builder's own role check, which stays", async () => {
+  const cases = [];
+  for (const role of ROLES)
+    for (const [name, d] of DEFS)
+      for (const a of actionsOf(name))
+        if (!usable(name, role).includes(a)) cases.push([role, name, a, needsOf(d.actions[a])]);
+  assert.ok(cases.length > 0, "some action is above some role");
+  const WHOSE = {
+    owner: "an owner's",
+    partner: "an owner's or a partner's",
+    operator: "an owner's, a partner's or an operator's",
+  };
+  for (const [role, name, a, needs] of cases) {
+    const { supabase, t } = contextFor(role);
+    // Its fields left out: a guard after the zod would answer the zod's words.
+    const out = ACT_TOOL_NAMES.has(name)
+      ? await buildProposal(t, name, { action: a })
+      : await runTool(t, { name, input: { action: a } });
+    assert.deepEqual(
+      [out.isError, JSON.parse(out.result).error],
+      [true, `${name}: action ${a} is ${WHOSE[needs]}`],
+      `${role} ${name}.${a}`,
+    );
+    assert.deepEqual(supabase.seen, [], `${role} ${name}.${a}: nothing read`);
+  }
+  // The builders' own checks stay: an owner's card's builder, called past the registry, refuses an operator in its
+  // route's words.
+  const { t } = contextFor("operator");
+  const mode = await DEFS.get("propose_person").actions.mode.build(t, { contact_id: C1, mode: "never" });
+  assert.match(JSON.parse(mode.result).error, /^only an owner can change how the receptionist treats one person/);
 });
 
 test("a null on an optional key is absent, in an action's fields too; a null on a required key is refused; an unknown key is stripped, not refused; a field only another action takes is refused, so a card never quietly becomes another", async () => {

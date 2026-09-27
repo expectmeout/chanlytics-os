@@ -1,16 +1,19 @@
 import "server-only";
 import { z } from "zod";
-import { PROPOSAL_SPECS, roleAtLeast, type MembershipRole } from "@chanlytics/contracts";
+import { roleAtLeast, type MembershipRole } from "@chanlytics/contracts";
 import {
   NO_ACTION,
+  WHOSE,
   json,
+  needsOf,
   refuse,
+  type ActDef,
   type ActTool,
   type ProposalOutcome,
+  type ReadDef,
   type ReadTool,
   type Tool,
   type ToolContext,
-  type ToolDef,
   type ToolOutcome,
   type ToolRun,
 } from "./context";
@@ -40,7 +43,7 @@ import { propose_lead_search } from "./act/lead-search";
  * twenty-six tools here; PR 3.3 wrote their descriptions (D9); PR 3.4 (D11) consolidated them to nineteen, sorted by
  * name: the reads by family under an `action`, the acts by card family, each action what one of the twenty-six was,
  * its handler moved under it unchanged (tooling/evals/tool-names.json names each old tool's new name and action).
- * A role is offered the reads and the acts whose card it may approve (D12).
+ * A role is offered the actions it may use (D12; per action since the Phase 4 plan, D2: offer.ts).
  */
 
 /**
@@ -106,14 +109,17 @@ function defFor<D>(t: Tool<D>, raw: unknown): D {
 }
 
 /**
- * The zod a tool's input is parsed by (D2): its one definition's, or the union of its actions on `action`, each
- * branch that action's own fields extended by the action literal -- so what each action takes is its own (a field
- * only another action takes is refused by parseInput), and an action's input that could not be extended (one with
- * an object-level refinement) fails when the registry loads, never quietly.
+ * The zod a tool's input is parsed by (D2): its one definition's, or the union of its actions on `action` -- every
+ * action, or the ones a role is offered (offer.ts, the Phase 4 plan's D2), in the tool's order -- each branch that
+ * action's own fields extended by the action literal -- so what each action takes is its own (a field only another
+ * action takes is refused by parseInput), and an action's input that could not be extended (one with an object-level
+ * refinement) fails when the registry loads, never quietly.
  */
-function inputOf(t: Tool<{ input: z.ZodObject }>): z.ZodType {
+export function inputOf(t: Tool<{ input: z.ZodObject }>, only?: readonly string[]): z.ZodType {
   if (!takesAction(t)) return t.actions[NO_ACTION].input;
-  const branches = Object.entries(t.actions).map(([action, d]) => d.input.extend({ action: z.literal(action) }));
+  const branches = Object.entries(t.actions)
+    .filter(([action]) => !only || only.includes(action))
+    .map(([action, d]) => d.input.extend({ action: z.literal(action) }));
   return z.discriminatedUnion("action", branches as [(typeof branches)[number], ...typeof branches]);
 }
 
@@ -190,52 +196,26 @@ export function toolSchema(input: z.ZodType): Record<string, unknown> {
   return normalise(flatten(z.toJSONSchema(input) as Record<string, unknown>)) as Record<string, unknown>;
 }
 
-/** A tool's examples, each action's in the actions' order and with its `action` first (D9, D11). */
-const examplesOf = (t: Tool<{ examples?: unknown[] }>): Array<Record<string, unknown>> =>
-  Object.entries(t.actions).flatMap(([action, d]) =>
-    ((d.examples ?? []) as Array<Record<string, unknown>>).map((ex) => (action === NO_ACTION ? ex : { action, ...ex })),
-  );
+/**
+ * A tool's examples, each action's -- every action's, or the ones a role is offered -- in the actions' order and with
+ * its `action` first (D9, D11).
+ */
+export const examplesOf = (
+  t: Tool<{ examples?: unknown[] }>,
+  only?: readonly string[],
+): Array<Record<string, unknown>> =>
+  Object.entries(t.actions)
+    .filter(([action]) => !only || only.includes(action))
+    .flatMap(([action, d]) =>
+      ((d.examples ?? []) as Array<Record<string, unknown>>).map((ex) =>
+        action === NO_ACTION ? ex : { action, ...ex },
+      ),
+    );
 
-const defOf = (t: ReadTool | ActTool): ToolDef => {
-  const examples = examplesOf(t);
-  return {
-    name: t.name,
-    description: t.description,
-    input_schema: toolSchema(INPUTS.get(t.name)!),
-    // The examples as written, in their order: the same bytes every build, after the schema in the tool's keys.
-    ...(examples.length ? { input_examples: examples } : {}),
-  };
-};
-
-/** Each tool's zod, built once. */
+/** Each tool's zod, every action of it, built once: what a call is parsed by. */
 const INPUTS = new Map<string, z.ZodType>([...READ_DEFS, ...ACT_DEFS].map((t) => [t.name, inputOf(t)]));
 
-/**
- * Who each tool is offered to (D12, amended for the partner, #1151): a read to everyone; an act to a role that may
- * approve its card, its kind's spec's `needs` -- every action of one tool builds a card of one `needs`
- * (ask-registry.test.mjs), so the first action's is the tool's. Sorted by name, once.
- */
-const OFFERED: ReadonlyArray<{ needs: MembershipRole | null; def: ToolDef }> = [
-  ...READ_DEFS.map((t) => ({ needs: null, def: defOf(t) })),
-  ...ACT_DEFS.map((t) => ({ needs: PROPOSAL_SPECS[Object.values(t.actions)[0].kind].needs, def: defOf(t) })),
-].sort((a, b) => (a.def.name < b.def.name ? -1 : a.def.name > b.def.name ? 1 : 0));
-
 export const ACT_TOOL_NAMES = new Set(ACT_DEFS.map((t) => t.name));
-
-/**
- * The tools as the API takes them, for a person of this role (D12): sorted by name, the reads, and the acts whose card
- * the role may approve -- four prefixes, a viewer's, an operator's, a partner's and an owner's -- each with its three
- * fields and, while `examples`, its examples (D9). Everyone of one role gets the same bytes on every round, so the tools
- * block stays the cache's first prefix; a turn the API refused for the examples asks without them.
- */
-export function toApiTools(role: MembershipRole, examples: boolean): ToolDef[] {
-  return OFFERED.filter((o) => o.needs === null || roleAtLeast(role, o.needs)).map(({ def: d }) => ({
-    name: d.name,
-    description: d.description,
-    input_schema: d.input_schema,
-    ...(examples && d.input_examples ? { input_examples: d.input_examples } : {}),
-  }));
-}
 
 const READ_BY_NAME = new Map(READ_DEFS.map((t) => [t.name, t]));
 const ACT_BY_NAME = new Map(ACT_DEFS.map((t) => [t.name, t]));
@@ -319,12 +299,20 @@ function othersFields(tool: Tool<{ input: z.ZodObject }>, action: string, raw: u
  * the handler gets, typed -- for a tool with actions, its action's definition, and the input without `action`, which
  * is what that action's old tool was given; what fails goes back to the model as the zod's own words,
  * `<tool>: <path> <message>; ...`, or, for a field only another action takes, `<tool>: <fields> not taken by action
- * <action>`, and the handler never runs.
+ * <action>`, and the handler never runs. First, an action the caller's role may not use (the Phase 4 plan, D2) is
+ * refused in words, `<tool>: action <action> is an owner's`: the tool that role is offered does not name it, and this
+ * is the second guard, beside each builder's own role check, which stays.
  */
-function parseInput<D extends { input: z.ZodObject }>(
+function parseInput<D extends ReadDef | ActDef>(
   tool: Tool<D>,
   raw: unknown,
+  role: MembershipRole,
 ): { ok: true; def: D; data: Record<string, unknown> } | { ok: false; error: string } {
+  const asked = actionOf(tool, raw);
+  if (asked !== null && Object.prototype.hasOwnProperty.call(tool.actions, asked)) {
+    const needs = needsOf(tool.actions[asked]);
+    if (!roleAtLeast(role, needs)) return { ok: false, error: `${tool.name}: action ${asked} is ${WHOSE[needs]}` };
+  }
   const input = INPUTS.get(tool.name)!;
   const r = input.safeParse(withoutNulls(input, raw));
   if (!r.success) {
@@ -347,7 +335,7 @@ export async function runTool(t: ToolContext, run: ToolRun): Promise<ToolOutcome
   const tool = READ_BY_NAME.get(run.name);
   if (!tool) return { result: json({ error: `unknown tool ${run.name}` }), isError: true, label };
   try {
-    const parsed = parseInput(tool, run.input);
+    const parsed = parseInput(tool, run.input, t.role);
     if (!parsed.ok) return { result: json({ error: parsed.error }), isError: true, label };
     const out = await parsed.def.run(t, parsed.data);
     const isError = !!(
@@ -374,7 +362,7 @@ export async function buildProposal(
   const tool = ACT_BY_NAME.get(name);
   if (!tool) return refuse(`unknown tool ${name}`);
   try {
-    const parsed = parseInput(tool, input);
+    const parsed = parseInput(tool, input, t.role);
     if (!parsed.ok) return refuse(parsed.error);
     return await parsed.def.build(t, parsed.data);
   } catch (e) {

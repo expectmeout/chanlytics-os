@@ -268,5 +268,7 @@ export const playbookAction = actAction({
     },
   ],
   label: "Preparing a playbook",
+  words:
+    "Action playbook takes trigger and proposes a standing rule that sends one approved WhatsApp template to newly eligible people who said yes: trigger is quiet_30 (win-back), new_week (welcome), phoned_only (save our number), lapsed (no visit in 45 days), everyone_monthly (the month's offer), saved_list (on any list: its token from campaigns with action audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link); template_id is an approved template, or omitted for the trigger's starter when the workspace holds it; params are the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10) and cap_per_run defaults to 25.",
   build: proposePlaybook,
 });

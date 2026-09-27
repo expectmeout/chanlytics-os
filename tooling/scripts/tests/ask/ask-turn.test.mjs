@@ -48,7 +48,7 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { runAskTurn, foldHistory, askPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
-const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, READ_DEFS } = await import(
+const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, READ_DEFS, ACT_DEFS } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
 // The tools as the loop offers them, sorted by name (D11), the acts among the reads: told apart by the act names the
@@ -1489,28 +1489,44 @@ test("a card above an operator is refused to a member below it in its route's wo
   };
   // Each ask, and the refusal a member below its card's role hears: an owner's card names the owner; a partner's
   // names the owner and the workspace's partner, as the lead search's words do (#1159, decision 0012). A member below
-  // the card's role is not offered its tool (D12); should a call arrive anyway, its builder still refuses it.
+  // the card's role is not offered its tool (D12) or its action (D2); should a call arrive anyway, an action is refused
+  // by the registry in its words, and the builder, past it, still refuses in its route's.
   const ASKS = [
     [
       "propose_person",
       { action: "mode", contact_id: P1, mode: "never" },
       "only an owner can change how the receptionist treats one person; say so, and that an owner can ask",
+      "propose_person: action mode is an owner's",
     ],
     [
       "propose_settings",
       { change: { op: "add_closure", date: "2026-12-25", note: "Christmas" } },
       "only an owner or the workspace's partner can change the workspace's settings; say so, and that one of them can ask",
+      null,
     ],
     [
       "propose_team",
       { action: "invite", email: "ada@example.com", role: "viewer" },
       "only an owner can invite someone to the team; say so, and that an owner can ask",
+      "propose_team: action invite is an owner's",
     ],
   ];
-  for (const [name, input, refusal] of ASKS) {
+  /** The builder, past the registry: the action's own, or the tool's one. */
+  const builder = (name, input) => {
+    const def = READ_DEFS.concat(ACT_DEFS).find((d) => d.name === name);
+    const { action = "", ...rest } = input;
+    return (tc) => def.actions[action].build(tc, action ? rest : input);
+  };
+  for (const [name, input, refusal, registry] of ASKS) {
     const { ctx, tc } = as("operator");
     const out = await buildProposal(tc, name, input);
-    assert.deepEqual([out.proposal, out.isError, JSON.parse(out.result).error], [null, true, refusal], name);
+    assert.deepEqual(
+      [out.proposal, out.isError, JSON.parse(out.result).error],
+      [null, true, registry ?? refusal],
+      name,
+    );
+    const own = await builder(name, input)(tc);
+    assert.equal(JSON.parse(own.result).error, refusal, `${name}: its builder's own check stays`);
     assert.deepEqual(ctx.supabase.seen, [], `${name}: an operator is refused before anything is read`);
   }
   // REGRESSION (D7): an operator used to be handed these three cards, which the palette gated and the routes refused.
@@ -1518,8 +1534,10 @@ test("a card above an operator is refused to a member below it in its route's wo
   const settings = await buildProposal(partner, "propose_settings", ASKS[1][1]);
   assert.equal(settings.isError, false, settings.result);
   assert.deepEqual([settings.proposal.kind, settings.proposal.needs], ["settings", "partner"]);
-  for (const [name, input, refusal] of [ASKS[0], ASKS[2]])
-    assert.equal(JSON.parse((await buildProposal(partner, name, input)).result).error, refusal, name);
+  for (const [name, input, refusal, registry] of [ASKS[0], ASKS[2]]) {
+    assert.equal(JSON.parse((await buildProposal(partner, name, input)).result).error, registry, name);
+    assert.equal(JSON.parse((await builder(name, input)(partner)).result).error, refusal, name);
+  }
   // An owner gets all three, each needing its route's role and wearing its spec's undo words.
   const owner = as("owner").tc;
   const made = [];

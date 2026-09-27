@@ -59,13 +59,15 @@ async function proposePersonMode(
 /** One person (D11): how the receptionist treats them (mode, once propose_person_mode); Phase 4 adds the rest. */
 export const propose_person = defineActions({
   name: "propose_person",
-  description: `Propose a change to one person, by action; action mode, its one action today, takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them), or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_autonomy changes a whole class instead, and propose_thread_verb acts on one thread. ${approvalWords("person_mode")}.`,
+  description: "Propose a change to one person, by action;",
   actions: {
     mode: actAction({
       kind: "person_mode",
       input: z.object({ contact_id: z.string(), mode: z.enum(["auto", "ask", "never", "inherit"]) }),
       examples: [{ contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", mode: "never" }],
       label: "Preparing a receptionist change",
+      // Its card's role clause, its own (approvalWords, one derivation): an action beside it may need another role.
+      words: `action mode, its one action today, takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them), or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_autonomy changes a whole class instead, and propose_thread_verb acts on one thread. ${approvalWords("person_mode")}.`,
       build: proposePersonMode,
     }),
   },

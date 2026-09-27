@@ -57,9 +57,15 @@ async function getSettings(t: ToolContext): Promise<unknown> {
 /** The workspace (D11): its settings (settings, once get_settings), the one action until Phase 4 adds the rest. */
 export const workspaceTool = defineActions({
   name: "workspace",
-  description:
-    "The workspace, by action; action settings, its one action today, takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications, the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels. Nothing changes because it was read; propose_settings is what changes a setting.",
+  description: "The workspace, by action;",
   actions: {
-    settings: readAction({ input: z.object({}), examples: [{}], label: "Reading Settings", run: getSettings }),
+    settings: readAction({
+      input: z.object({}),
+      examples: [{}],
+      label: "Reading Settings",
+      words:
+        "action settings, its one action today, takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications, the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels. Nothing changes because it was read; propose_settings is what changes a setting.",
+      run: getSettings,
+    }),
   },
 });

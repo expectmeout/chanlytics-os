@@ -69,13 +69,14 @@ async function listLeadSearches(t: ToolContext): Promise<unknown> {
 /** The lead finder (D11): its searches (searches, once list_lead_searches), one action until Phase 4 reads leads. */
 export const leadsTool = defineActions({
   name: "leads",
-  description:
-    "The lead finder, by action; action searches, its one action today, takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here starts or changes because it was read, and every string is cut short.",
+  description: "The lead finder, by action;",
   actions: {
     searches: readAction({
       input: z.object({}),
       examples: [{}],
       label: "Reading your searches",
+      words:
+        "action searches, its one action today, takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here starts or changes because it was read, and every string is cut short.",
       run: listLeadSearches,
     }),
   },
