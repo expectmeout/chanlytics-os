@@ -6072,6 +6072,24 @@ export type Database = {
         Args: { p_contact_id: string; p_tenant_id: string }
         Returns: number
       }
+      search_messages: {
+        Args: {
+          p_limit: number
+          p_since: string
+          p_tenant: string
+          p_words: string
+        }
+        Returns: {
+          at: string
+          channel: string
+          contact_id: string
+          conversation_id: string
+          direction: string
+          id: string
+          kind: string
+          snippet: string
+        }[]
+      }
       sending_domain_capacity: {
         Args: { p_at: string; p_domain_id: string }
         Returns: Json

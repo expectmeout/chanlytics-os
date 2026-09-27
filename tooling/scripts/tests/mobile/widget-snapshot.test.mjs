@@ -42,7 +42,14 @@ const vm = {
     { id: "calls", label: "calls", value: 3, meta: "", receipt: null },
     { id: "new", label: "new people", value: 1, meta: "", receipt: null },
   ],
-  queue: { rows: [], more: 0, parts: [], empty: { headline: "", sub: "" }, waiting: 2 },
+  // The queue's first row is not the needs-you list's first: the page's Today draws the queue's.
+  queue: {
+    rows: [{ who: "Dana", sentence: "wants to move her booking", id: "q1" }],
+    more: 0,
+    parts: [],
+    empty: { headline: "", sub: "" },
+    waiting: 2,
+  },
 };
 
 test("the snapshot is Today's own words and numbers, as of a moment", () => {
@@ -56,10 +63,13 @@ test("the snapshot is Today's own words and numbers, as of a moment", () => {
       { label: "new people", value: 1 },
     ],
     waiting: 2,
-    first: { who: "Maria", reason: "asked for a person" },
+    first: { who: "Dana", reason: "wants to move her booking" },
     at: "2026-09-26T15:00:00.000Z",
   });
-  const quiet = todayWidgetSnapshot({ ...vm, figures: null, needsYou: null, queue: { ...vm.queue, waiting: 0 } }, at);
+  const quiet = todayWidgetSnapshot(
+    { ...vm, figures: null, needsYou: null, queue: { ...vm.queue, rows: [], waiting: 0 } },
+    at,
+  );
   assert.deepEqual(quiet.figures, []);
   assert.equal(quiet.first, null);
   assert.equal(quiet.waiting, 0);

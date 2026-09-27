@@ -16,7 +16,7 @@ import { readCode } from "../../_source.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assembleHistory, describeLead, readLeadContext } from "@chanlytics/db";
+import { assembleHistory, describeLead, readLeadContext, searchMessages } from "@chanlytics/db";
 import { fakeDb } from "../../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -596,4 +596,98 @@ test("a database 00160 has not reached: who they are is read again without the w
   assert.equal(ctx.name, "Lu");
   assert.equal(ctx.deal, null);
   assert.equal(ctx.proposalUrl, null);
+});
+
+/* ------------------------ the words a thread or a call said --------------- */
+
+test("searchMessages hands the database the words, the day bound and the cap, and reads its hits back as messages and calls", async () => {
+  const T = "aaaaaaaa-0000-4000-8000-000000000001";
+  const since = new Date("2026-08-28T00:00:00.000Z");
+  const answered = [
+    {
+      kind: "message",
+      id: "m-1",
+      conversation_id: "cv-1",
+      contact_id: "k-1",
+      channel: "whatsapp",
+      direction: "outbound",
+      at: "2026-09-26T10:00:00+00:00",
+      snippet: "the parking is behind the building",
+    },
+    {
+      kind: "call",
+      id: "call-1",
+      conversation_id: null,
+      contact_id: null,
+      channel: null,
+      direction: "inbound",
+      at: "2026-09-25T09:00:00+00:00",
+      snippet: "Is there parking on the street",
+    },
+  ];
+  const db = fakeDb({}, {}, { search_messages: () => answered });
+  const hits = await searchMessages(db, T, "parking", since, 20);
+  assert.deepEqual(db.seen, [
+    {
+      rpc: "search_messages",
+      args: { p_tenant: T, p_words: "parking", p_since: "2026-08-28T00:00:00.000Z", p_limit: 20 },
+    },
+  ]);
+  assert.deepEqual(hits, [
+    {
+      kind: "message",
+      id: "m-1",
+      conversationId: "cv-1",
+      contactId: "k-1",
+      channel: "whatsapp",
+      direction: "outbound",
+      at: "2026-09-26T10:00:00+00:00",
+      snippet: "the parking is behind the building",
+    },
+    {
+      kind: "call",
+      id: "call-1",
+      conversationId: null,
+      contactId: null,
+      channel: null,
+      direction: "inbound",
+      at: "2026-09-25T09:00:00+00:00",
+      snippet: "Is there parking on the street",
+    },
+  ]);
+  assert.deepEqual(await searchMessages(fakeDb({}, {}, { search_messages: () => [] }), T, "", since, 20), []);
+});
+
+test("a search the database could not answer throws: it is never 'nobody said it'", async () => {
+  const db = fakeDb(
+    {},
+    {},
+    {
+      search_messages: () => {
+        throw Object.assign(new Error("permission denied for function search_messages"), { code: "42501" });
+      },
+    },
+  );
+  await assert.rejects(
+    searchMessages(db, "aaaaaaaa-0000-4000-8000-000000000001", "parking", new Date(), 20),
+    /searchMessages: permission denied for function search_messages/,
+  );
+});
+
+test("a hit of a kind searchMessages does not know throws: it is never labelled a message", async () => {
+  const note = {
+    kind: "note",
+    id: "n-1",
+    conversation_id: "cv-1",
+    contact_id: "k-1",
+    channel: null,
+    direction: "outbound",
+    at: "2026-09-26T10:00:00+00:00",
+    snippet: "parking",
+  };
+  const db = fakeDb({}, {}, { search_messages: () => [note] });
+  await assert.rejects(
+    searchMessages(db, "aaaaaaaa-0000-4000-8000-000000000001", "parking", new Date(), 20),
+    /^Error: searchMessages: unknown kind note$/,
+  );
 });

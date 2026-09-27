@@ -33,16 +33,16 @@ rows (`docs/debt.md`).
 <!-- measured:start -->
 
 ```text
-functions over the limit            269   of which over 200 lines: 65
+functions over the limit            207   of which over 200 lines: 65
 files over 800 lines                 34
 directories over 20 modules           7
-window globals                      195   names
-window publishers                   394   sites in 147 files
-copies                              122   of 33 names
+window globals                      198   names
+window publishers                   442   sites in 151 files
+copies                              155   of 39 names
 as unknown as                       222
 table names outside packages/db     535
 unnamed durations                    78   in 34 files
-dead exports, types and modules     200
+dead exports, types and modules     199
 source-text reads in tests          832
 lint warnings                       130   in 36 files, 129 of them exhaustive-deps
 workspace route JS, KB gzipped     1006   the shell included

@@ -22,10 +22,10 @@ const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironment) =>
   const dark = environment.colorScheme === "dark" || environment.widgetRenderingMode === "vibrant";
   const ink = dark ? "#fbfaf8" : "#161616";
   const muted = dark ? "#a7a8ab" : "#6b6c70";
-  const teal = "#3cb79e";
+  const coral = "#fa695c";
   const small = environment.widgetFamily === "systemSmall";
-  const lockScreen =
-    environment.widgetFamily === "accessoryRectangular" || environment.widgetFamily === "accessoryInline";
+  // The Lock Screen's rectangle, the one accessory family app.config.ts declares.
+  const lockScreen = environment.widgetFamily === "accessoryRectangular";
 
   if (lockScreen) {
     return (
@@ -57,7 +57,7 @@ const TodayWidget = (props: TodayWidgetProps, environment: WidgetEnvironment) =>
       </HStack>
       <Spacer />
       {props.first ? (
-        <Text modifiers={[font({ size: 12, weight: "medium" }), foregroundStyle(teal)]}>
+        <Text modifiers={[font({ size: 12, weight: "medium" }), foregroundStyle(coral)]}>
           {props.first.who}: {props.first.reason}
         </Text>
       ) : (
