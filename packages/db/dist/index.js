@@ -1025,7 +1025,11 @@ var RETENTION_DAYS = {
   leads_untouched: 90,
   leads_untouched_blanked: 180,
   /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
-  leads_excluded_blanked: 30
+  leads_excluded_blanked: 30,
+  /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
+  jobs_finished: 7,
+  /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
+  jobs_failed: 90
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -4226,6 +4230,21 @@ async function readAllRows(what, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) 
   onCapped(what, cap);
   return out;
 }
+async function readAllRowsByKey(what, key, page, cap = DEFAULT_ROW_CAP, onCapped = (w, c) => console.error("paged_read_capped", JSON.stringify({ what: w, cap: c }))) {
+  const out = [];
+  let after = null;
+  while (out.length < cap) {
+    const size = Math.min(MAX_ROWS, cap - out.length);
+    const { data, error } = await page(after, size);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < size) return out;
+    after = key(rows[rows.length - 1]);
+  }
+  onCapped(what, cap);
+  return out;
+}
 
 // src/repositories/lists.ts
 var missingColumn = (message, column) => new RegExp(`\\b${column}\\b`).test(message) && /does not exist|could not find/i.test(message);
@@ -4756,6 +4775,7 @@ export {
   reachOutSendRefOf,
   reachOutStepsOf,
   readAllRows,
+  readAllRowsByKey,
   readDealForPhone,
   readLeadContext,
   readLeadOne,

@@ -1,6 +1,6 @@
 import "server-only";
 import { erasedEmailHash, erasedPhoneHash } from "@chanlytics/contracts";
-import { readAllRows } from "@chanlytics/db";
+import { readAllRowsByKey } from "@chanlytics/db";
 import { serviceDb } from "../service-db";
 
 /**
@@ -65,12 +65,15 @@ export async function removeMediaObjects(
  * remove. Matched by contact id, by the number in any of its forms, or by the
  * address, cased as it may be.
  *
- * Every job of the workspace is read, a page at a time (readAllRows). One select
- * answered at most 1,000 rows, silently (PostgREST's max_rows), and jobs are never
- * purged, so in any workspace past its thousandth job the scrub looked at the
- * first thousand and left the rest holding the person's number and words (the
- * scorecard of 26 September 2026). A read that stops short is a failure, never a
- * scrub believed whole: the route refuses before anything is deleted.
+ * Every job of the workspace is read, a page at a time. One select answered at
+ * most 1,000 rows, silently (PostgREST's max_rows), so in any workspace past its
+ * thousandth job the scrub looked at the first thousand and left the rest holding
+ * the person's number and words (the scorecard of 26 September 2026). Each page
+ * is read after the last id of the one before (readAllRowsByKey), not by offset:
+ * the nightly purge (00215) deletes finished jobs, and a row deleted during an
+ * offset read moves the rest back a place, so one would never be read. A read
+ * that stops short is a failure, never a scrub believed whole: the route refuses
+ * before anything is deleted.
  */
 /** The states a job is finished in: its payload is a copy nothing will read again, so an erasure may scrub it. */
 export const FINISHED_JOB_STATES = ["done", "failed", "canceled"] as const;
@@ -87,12 +90,14 @@ export async function scrubErasedJobs(
   states?: readonly string[],
 ): Promise<number> {
   const db = serviceDb();
-  const rows = await readAllRows<{ id: string; payload: unknown }>(
+  const rows = await readAllRowsByKey<{ id: string; payload: unknown }>(
     "scrub_jobs_read",
-    (from, to) => {
+    (job) => job.id,
+    (after, size) => {
       let q = db.from("jobs").select("id, payload").eq("tenant_id", tenantId);
       if (states) q = q.in("state", [...states]);
-      return q.order("id").range(from, to);
+      if (after) q = q.gt("id", after);
+      return q.order("id").limit(size);
     },
     SCRUB_READ_CAP,
     (what, cap) => {

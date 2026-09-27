@@ -21958,6 +21958,10 @@ declare const RETENTION_DAYS: {
     readonly leads_untouched_blanked: 180;
     /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
     readonly leads_excluded_blanked: 30;
+    /** A background job done or canceled, which carried a message's number and words while it was sent (purge_jobs, 00215). */
+    readonly jobs_finished: 7;
+    /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
+    readonly jobs_failed: 90;
 };
 /** Rate-limit counters (00059): two hours, in hours. */
 declare const RATE_HITS_RETENTION_HOURS = 2;

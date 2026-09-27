@@ -166,3 +166,35 @@ test("a read that fails is a failure the route can refuse on, never a scrub beli
     setServiceClient(null);
   }
 });
+
+test("jobs purged while the scrub reads do not hide the person's job behind them", async () => {
+  // The nightly purge (00215) deletes finished jobs. An offset read that loses ten rows between two pages moves
+  // every later row back ten places, so the first ten of the second page are never read: here, the person's job,
+  // the first past the thousandth. Each page is read after the last id of the one before, so nothing moves.
+  const own = {
+    id: id(1001),
+    tenant_id: TENANT,
+    kind: "outbound_send",
+    state: "done",
+    payload: { to_phone: NUMBER, body: "see you at ten" },
+  };
+  const jobs = [...Array.from({ length: 1000 }, (_, i) => noise(i + 1)), own];
+  let reads = 0;
+  // The fake reads `faults["<table>.select"]` as each select runs: the second page is where the purge lands.
+  const faults = {
+    get "jobs.select"() {
+      reads += 1;
+      if (reads === 2) jobs.splice(0, 10);
+      return undefined;
+    },
+  };
+  setServiceClient(fakeDb({ jobs }, faults, {}, { maxRows: 1000 }));
+  try {
+    const n = await scrubErasedJobs(TENANT, PERSON, [DIGITS], FINISHED_JOB_STATES);
+    assert.equal(reads, 2, "two pages were read, and the purge came between them");
+    assert.equal(n, 1, "the person's job was read");
+    assert.ok(scrubbed(payloadOf(jobs, own.id)), "and its number and words are gone");
+  } finally {
+    setServiceClient(null);
+  }
+});
