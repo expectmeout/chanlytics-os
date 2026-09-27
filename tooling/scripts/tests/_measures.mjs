@@ -14,7 +14,7 @@
  * defaults: 150 lines a function, 30 branches, 5 levels; 800 lines a file; 20
  * modules a directory; a name in three files is a copy. When a tree's baseline
  * is empty, the matching ESLint rule goes on for that tree and the limit stops
- * being a ratchet and becomes a lint error.
+ * being a ratchet and becomes a lint error (eslint.config.mjs, LIMITED_TREES).
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
@@ -36,7 +36,8 @@ import {
 } from "./_ast.mjs";
 import { bank } from "./_ratchet.mjs";
 
-const LIMIT = { lines: 150, branches: 30, depth: 5 };
+/** A function's limits: eslint.config.mjs's FUNCTION_LIMITS, as errors where this holds nothing. */
+export const LIMIT = { lines: 150, branches: 30, depth: 5 };
 const FILE_LIMIT = 800;
 const DIRECTORY_LIMIT = 20;
 const COPY_LIMIT = 3;

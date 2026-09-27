@@ -29,7 +29,7 @@ import { AppError, MIN_MS, HOUR_MS } from "@chanlytics/contracts";
 import { createServiceClient, type Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export interface RateRule {
+interface RateRule {
   limit: number;
   windowMs: number;
   /** What the refusal calls the thing being limited. */
@@ -192,19 +192,19 @@ export const RATE = {
 
 export type RateBucket = keyof typeof RATE;
 
-export type RateVerdict = { allowed: true } | { allowed: false; retryAfterS: number };
+type RateVerdict = { allowed: true } | { allowed: false; retryAfterS: number };
 
 /**
  * Where the count lives. `take` counts the hit or says when to try again.
  * `strict` means the count must be the shared one: a store that cannot give
  * it refuses (503) rather than answering from this instance alone.
  */
-export interface RateStore {
+interface RateStore {
   take(bucket: RateBucket, actor: string, rule: RateRule, now: number, strict?: boolean): Promise<RateVerdict>;
 }
 
 /** The refusal when a strict count cannot be given: the verb is not run on a ceiling nobody can hold. */
-export function uncountable(why: string): AppError {
+function uncountable(why: string): AppError {
   return new AppError("internal", `The shared count could not be read just now (${why}) — try again in a moment.`, 503);
 }
 
