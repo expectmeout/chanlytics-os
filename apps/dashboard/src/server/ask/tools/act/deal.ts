@@ -142,6 +142,7 @@ export const propose_deal = defineAct({
   name: "propose_deal",
   description:
     "Propose recording a deal on a person: stage proposed (a proposal went out, a new engagement), won (they said yes or paid, now a client), lost (they passed), or ended (the engagement ended). Optional: service, amount_cents with per (once, month or year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD), with lost only why they passed (lost_reason: price, timing, elsewhere, no_reply, not_a_fit or other), and the next step on it, next_step (what, for the team) with next_step_due (YYYY-MM-DD, today or later), a note with a day the team sees on the deal. Call it when they say a proposal went out, someone became a client, passed or ended; a next step rides on that stage change, never alone, and a move names the open deal's service when there are two. It records what a person told you and never decides money; a move with no open deal to move is refused in words.",
+  kind: "deal",
   input: z.object({
     contact_id: z.string(),
     stage: z.enum(DEAL_STAGES),

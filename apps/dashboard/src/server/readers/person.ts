@@ -29,7 +29,7 @@ import * as facts from "./facts";
 
 /**
  * One person in full, as GET contacts/:id answers it: the route's body, moved here whole, so the profile and Ask's
- * get_person read the same rows the same way. The row the list shows (people_list narrowed to this contact) and
+ * people.get read the same rows the same way. The row the list shows (people_list narrowed to this contact) and
  * everything the profile renders from, asked for in one round (the route's comment says why, and what it measured);
  * the workspace's config and how its customers buy come through their readers, once in a turn. A person this
  * workspace does not hold is the route's 404, in its words, before anything read is put together. The person is a row

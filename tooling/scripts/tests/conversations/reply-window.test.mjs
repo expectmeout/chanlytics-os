@@ -88,16 +88,16 @@ test("the assistant's reply card shows the window the reply route will enforce",
       conversations: [thread({ last_wa_inbound_at: hoursAgo(72) })],
       messages: [inbound("whatsapp", 72), inbound("sms", 1)],
     }),
-    "draft_reply",
-    DRAFT,
+    "propose_reply",
+    { action: "draft", ...DRAFT },
   );
   assert.equal(texted.isError, false, texted.result);
   assert.equal(texted.proposal.payload.window_open, true, "a texting thread is open");
 
   const stale = await buildProposal(
     toolContext({ conversations: [thread({ last_wa_inbound_at: hoursAgo(30) })], messages: [inbound("whatsapp", 30)] }),
-    "draft_reply",
-    DRAFT,
+    "propose_reply",
+    { action: "draft", ...DRAFT },
   );
   assert.equal(stale.isError, false, stale.result);
   assert.equal(stale.proposal.payload.window_open, false, "a WhatsApp thread past 24 hours is closed");

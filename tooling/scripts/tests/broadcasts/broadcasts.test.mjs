@@ -603,17 +603,19 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
   );
 });
 
-test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast) as a card, never sent; nobody without a yes is ever included", async () => {
+test("Ask: a broadcast is read (campaigns.audiences) and proposed (propose_campaign.broadcast) as a card, never sent; nobody without a yes is ever included", async () => {
   const { PROPOSAL_GATE, buildAskSuggestions } = await import("@chanlytics/contracts");
   assert.equal(PROPOSAL_GATE.broadcast, "approve");
-  // Both tools are the registry's, and run in ask-turn.test.mjs: list_audiences with every size named for what it
-  // counts, and propose_broadcast as a card of kind broadcast that an operator may approve ("the proposal builders
+  // Both tools are the registry's, and run in ask-turn.test.mjs: campaigns.audiences with every size named for what it
+  // counts, and propose_campaign.broadcast as a card of kind broadcast that an operator may approve ("the proposal builders
   // run against the database in memory"), refused with the cause it has when nobody can receive it -- the same yes
   // the route asks for, from the template's own category ("a broadcast to nobody is refused with the cause it has").
-  const { toApiTools, newToolContext, buildProposal } = await importSrc("apps/dashboard/src/server/ask/tools/index.ts");
+  const { toApiTools, newToolContext, buildProposal, ACT_TOOL_NAMES } = await importSrc(
+    "apps/dashboard/src/server/ask/tools/index.ts",
+  );
   const READ_TOOLS = toApiTools("viewer", true);
-  const ACT_TOOLS = toApiTools("owner", true).slice(READ_TOOLS.length);
-  assert.ok(READ_TOOLS.some((t) => t.name === "list_audiences"));
+  const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
+  assert.ok(READ_TOOLS.some((t) => t.name === "campaigns"));
   // Only an approved template: a pending one is refused before anyone is counted.
   const WS = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const PENDING = "dddddddd-dddd-4ddd-8ddd-ddddddddddd9";
@@ -644,7 +646,11 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
     ZONE,
     new Date("2026-09-14T14:00:00Z"),
   );
-  const pending = await buildProposal(t, "propose_broadcast", { template_id: PENDING, audience_kind: "everyone" });
+  const pending = await buildProposal(t, "propose_campaign", {
+    action: "broadcast",
+    template_id: PENDING,
+    audience_kind: "everyone",
+  });
   assert.deepEqual([pending.proposal, pending.isError], [null, true]);
   assert.match(JSON.parse(pending.result).error, /that template is not approved by WhatsApp/);
   // The card commits through the broadcast route, the same door the page uses, and its undo is the cancel route:
@@ -656,7 +662,7 @@ test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast)
   );
   // The rule that described one tool lives in that tool since PR 3.3 (D9): the registry's own description says it.
   assert.ok(
-    ACT_TOOLS.find((t) => t.name === "propose_broadcast").description.includes("never propose a broadcast to nobody"),
+    ACT_TOOLS.find((t) => t.name === "propose_campaign").description.includes("never propose a broadcast to nobody"),
     "a broadcast to nobody is never proposed",
   );
   assert.ok(readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx").includes('broadcast: "wave"'));

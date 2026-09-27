@@ -2,7 +2,16 @@ import "server-only";
 import { z } from "zod";
 import { PROPOSAL_SPECS, SCHEMA_SETS, proposalBelowNeeds } from "@chanlytics/contracts";
 import { roleAtLeast } from "../../../with-route";
-import { approvalWords, defineAct, propose, refuse, str, type ProposalOutcome, type ToolContext } from "../context";
+import {
+  actAction,
+  approvalWords,
+  defineActions,
+  propose,
+  refuse,
+  str,
+  type ProposalOutcome,
+  type ToolContext,
+} from "../context";
 
 async function proposeInvite(t: ToolContext, input: { email: string; role: string }): Promise<ProposalOutcome> {
   if (!roleAtLeast(t.role, PROPOSAL_SPECS.invite.needs)) return refuse(proposalBelowNeeds("invite"));
@@ -18,10 +27,17 @@ async function proposeInvite(t: ToolContext, input: { email: string; role: strin
   });
 }
 
-export const propose_invite = defineAct({
-  name: "propose_invite",
-  description: `Propose an invitation to the workspace by email, as operator (replies and handles threads; no settings or team) or viewer (reads everything, changes nothing). Call it when they want to add someone to the team; a role not offered here, such as owner, is answered in words. It becomes a card the person approves, and nothing is sent before that. ${approvalWords("invite")}.`,
-  input: z.object({ email: z.string(), role: z.enum(SCHEMA_SETS["invitations.role"]) }),
-  label: "Preparing an invitation",
-  build: proposeInvite,
+/** The team (D11): an invitation (invite, once propose_invite), the one action until Phase 4. */
+export const propose_team = defineActions({
+  name: "propose_team",
+  description: `Propose a change to the team, by action; action invite, its one action today, takes email and role and proposes an invitation to the workspace by email, as operator (replies and handles threads; no settings or team) or viewer (reads everything, changes nothing). Call it when they want to add someone to the team; a role not offered here, such as owner, is answered in words. It becomes a card the person approves, and nothing is sent before that. ${approvalWords("invite")}.`,
+  actions: {
+    invite: actAction({
+      kind: "invite",
+      input: z.object({ email: z.string(), role: z.enum(SCHEMA_SETS["invitations.role"]) }),
+      examples: [{ email: "sam@example.com", role: "operator" }],
+      label: "Preparing an invitation",
+      build: proposeInvite,
+    }),
+  },
 });

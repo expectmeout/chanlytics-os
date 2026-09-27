@@ -1,0 +1,2406 @@
+{
+  "viewer": [
+    {
+      "name": "calendar",
+      "description": "The owner's calendar as the receptionist reads it. Action week takes day and an optional days and reads a day or a few: what is taken (in the calendar's own words, with the person in People when the title names one), whether the business is closed that day, and the windows the receptionist would offer; day is today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the page's own week, and days is how many from there, at most 14. Action openings takes day and service and reads the open times from the connected calendar, against the business hours, closures and booking rules, as the receptionist would offer them to a caller: a state, a sentence, and the open windows day by day, sized for a service when one is named; day is a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the next days, and service is the service's name to size the slot, or empty. Call action week for what a day looks like or who is booked when, and action openings for when there is room or what is free on a day, the free slots alone, sized to a service. Openings need a connected calendar feed, said in the workspace's facts above. Taken is the owner's own calendar and open is what the receptionist would offer; nothing is booked from here, since customers book through the booking link, or with the team where there is none.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["week", "openings"]
+          },
+          "day": {
+            "type": "string"
+          },
+          "days": {
+            "type": "number"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "week",
+          "day": "tomorrow"
+        },
+        {
+          "action": "week",
+          "day": "2026-10-03",
+          "days": 3
+        },
+        {
+          "action": "week",
+          "day": "",
+          "days": 7
+        },
+        {
+          "action": "openings",
+          "day": "fri",
+          "service": "consultation"
+        },
+        {
+          "action": "openings",
+          "day": "2026-10-03",
+          "service": ""
+        }
+      ]
+    },
+    {
+      "name": "calls",
+      "description": "Phone calls, as the Calls page and a call's page read them. Action list takes filter and lists calls newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person; filter is missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first). Action get takes call_id, the id a row here, the today tool or people with action get returned, and reads one call: who, when, how long, how it ended, its summary, the state of its recording, the caller's contact id, and the transcript turn by turn. Call action list to find calls by day, outcome or whether they are live, and a live call before proposing a whisper; a count of calls is the today tool's or the page's own, since the rows here are capped. Call action get when the transcript or the full summary is needed and the page on screen holds only the call's row. list returns at most 20 calls from the newest hundred; nothing changes because it was read. get caps the transcript at 40 turns, with transcript_turns saying how many there are; a call the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "get"]
+          },
+          "filter": {
+            "type": "string",
+            "enum": ["missed", "abandoned", "today", "live", "recent"]
+          },
+          "call_id": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "filter": "missed"
+        },
+        {
+          "action": "get",
+          "call_id": "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+        }
+      ]
+    },
+    {
+      "name": "campaigns",
+      "description": "What goes out to the people who said yes, by action; neither action takes anything more. Action audiences, read before any broadcast, lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["audiences", "playbooks"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "audiences"
+        },
+        {
+          "action": "playbooks"
+        }
+      ]
+    },
+    {
+      "name": "inbox",
+      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "thread"]
+          },
+          "filter": {
+            "type": "string",
+            "enum": ["needs_you", "held", "waiting", "snoozed", "recent"]
+          },
+          "conversation_id": {
+            "type": "string"
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "filter": "held"
+        },
+        {
+          "action": "thread",
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f"
+        }
+      ]
+    },
+    {
+      "name": "leads",
+      "description": "The lead finder, by action; action searches, its one action today, takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here starts or changes because it was read, and every string is cut short.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["searches"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "searches"
+        }
+      ]
+    },
+    {
+      "name": "people",
+      "description": "People, the customers and callers, as the People page and a person's page read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call action search to find someone, or to see who is on a list; call action get when the profile, the timeline or the notes are needed and the page on screen holds only their row. search returns at most 12 people, with matches counted before the cap; a list that cannot be counted here says why. get returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["search", "get"]
+          },
+          "query": {
+            "type": "string"
+          },
+          "list": {
+            "type": "string"
+          },
+          "contact_id": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "search",
+          "query": "Rosa"
+        },
+        {
+          "action": "search",
+          "query": "",
+          "list": "quiet"
+        },
+        {
+          "action": "search",
+          "query": "",
+          "list": "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b"
+        },
+        {
+          "action": "get",
+          "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+        }
+      ]
+    },
+    {
+      "name": "report",
+      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time, calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "integer",
+            "enum": [7, 30, 90]
+          }
+        },
+        "required": ["days"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "today",
+      "description": "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. It holds no drafts: inbox with action list and filter held has them, and inbox with action thread has a whole conversation. needs_you and calls are capped, the counts are not; nothing changes because it was read.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workspace",
+      "description": "The workspace, by action; action settings, its one action today, takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications, the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels. Nothing changes because it was read; propose_settings is what changes a setting.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["settings"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "settings"
+        }
+      ]
+    }
+  ],
+  "operator": [
+    {
+      "name": "calendar",
+      "description": "The owner's calendar as the receptionist reads it. Action week takes day and an optional days and reads a day or a few: what is taken (in the calendar's own words, with the person in People when the title names one), whether the business is closed that day, and the windows the receptionist would offer; day is today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the page's own week, and days is how many from there, at most 14. Action openings takes day and service and reads the open times from the connected calendar, against the business hours, closures and booking rules, as the receptionist would offer them to a caller: a state, a sentence, and the open windows day by day, sized for a service when one is named; day is a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the next days, and service is the service's name to size the slot, or empty. Call action week for what a day looks like or who is booked when, and action openings for when there is room or what is free on a day, the free slots alone, sized to a service. Openings need a connected calendar feed, said in the workspace's facts above. Taken is the owner's own calendar and open is what the receptionist would offer; nothing is booked from here, since customers book through the booking link, or with the team where there is none.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["week", "openings"]
+          },
+          "day": {
+            "type": "string"
+          },
+          "days": {
+            "type": "number"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "week",
+          "day": "tomorrow"
+        },
+        {
+          "action": "week",
+          "day": "2026-10-03",
+          "days": 3
+        },
+        {
+          "action": "week",
+          "day": "",
+          "days": 7
+        },
+        {
+          "action": "openings",
+          "day": "fri",
+          "service": "consultation"
+        },
+        {
+          "action": "openings",
+          "day": "2026-10-03",
+          "service": ""
+        }
+      ]
+    },
+    {
+      "name": "calls",
+      "description": "Phone calls, as the Calls page and a call's page read them. Action list takes filter and lists calls newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person; filter is missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first). Action get takes call_id, the id a row here, the today tool or people with action get returned, and reads one call: who, when, how long, how it ended, its summary, the state of its recording, the caller's contact id, and the transcript turn by turn. Call action list to find calls by day, outcome or whether they are live, and a live call before proposing a whisper; a count of calls is the today tool's or the page's own, since the rows here are capped. Call action get when the transcript or the full summary is needed and the page on screen holds only the call's row. list returns at most 20 calls from the newest hundred; nothing changes because it was read. get caps the transcript at 40 turns, with transcript_turns saying how many there are; a call the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "get"]
+          },
+          "filter": {
+            "type": "string",
+            "enum": ["missed", "abandoned", "today", "live", "recent"]
+          },
+          "call_id": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "filter": "missed"
+        },
+        {
+          "action": "get",
+          "call_id": "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+        }
+      ]
+    },
+    {
+      "name": "campaigns",
+      "description": "What goes out to the people who said yes, by action; neither action takes anything more. Action audiences, read before any broadcast, lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["audiences", "playbooks"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "audiences"
+        },
+        {
+          "action": "playbooks"
+        }
+      ]
+    },
+    {
+      "name": "inbox",
+      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "thread"]
+          },
+          "filter": {
+            "type": "string",
+            "enum": ["needs_you", "held", "waiting", "snoozed", "recent"]
+          },
+          "conversation_id": {
+            "type": "string"
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "filter": "held"
+        },
+        {
+          "action": "thread",
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f"
+        }
+      ]
+    },
+    {
+      "name": "leads",
+      "description": "The lead finder, by action; action searches, its one action today, takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here starts or changes because it was read, and every string is cut short.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["searches"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "searches"
+        }
+      ]
+    },
+    {
+      "name": "people",
+      "description": "People, the customers and callers, as the People page and a person's page read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call action search to find someone, or to see who is on a list; call action get when the profile, the timeline or the notes are needed and the page on screen holds only their row. search returns at most 12 people, with matches counted before the cap; a list that cannot be counted here says why. get returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["search", "get"]
+          },
+          "query": {
+            "type": "string"
+          },
+          "list": {
+            "type": "string"
+          },
+          "contact_id": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "search",
+          "query": "Rosa"
+        },
+        {
+          "action": "search",
+          "query": "",
+          "list": "quiet"
+        },
+        {
+          "action": "search",
+          "query": "",
+          "list": "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b"
+        },
+        {
+          "action": "get",
+          "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+        }
+      ]
+    },
+    {
+      "name": "propose_autonomy",
+      "description": "Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. veto is for replies only. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "class": {
+            "type": "string",
+            "enum": ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money", "follow_up"]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["", "auto", "veto", "ask", "never"]
+          },
+          "min_confidence": {
+            "type": "number"
+          }
+        },
+        "required": ["class", "mode"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "class": "reply",
+          "mode": "veto"
+        },
+        {
+          "class": "reply",
+          "mode": "",
+          "min_confidence": 0.8
+        }
+      ]
+    },
+    {
+      "name": "propose_campaign",
+      "description": "Propose a campaign to the people who said yes, as a card the person approves: one message sent once, or a standing rule that sends on its own. Action broadcast takes template_id, one approved WhatsApp template, and proposes sending it to an audience, everyone who said yes or any list campaigns with action audiences names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the template's values in order (typed text, or @first_name, @business_name or @booking_link to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), and an optional name. Action playbook takes trigger and proposes a standing rule that sends one approved WhatsApp template to newly eligible people who said yes: trigger is quiet_30 (win-back), new_week (welcome), phoned_only (save our number), lapsed (no visit in 45 days), everyone_monthly (the month's offer), saved_list (on any list: its token from campaigns with action audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link); template_id is an approved template, or omitted for the trigger's starter when the workspace holds it; params are the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10) and cap_per_run defaults to 25. Call action broadcast for one message sent once, reading campaigns with action audiences first for the template ids, the audiences and their counts; call action playbook for a standing rule, reading campaigns with action playbooks first for what runs and who each moment reaches. When nobody can be sent a broadcast, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to; never propose a broadcast to nobody. A broadcast's card includes nobody without a recorded yes and says how many it reaches; a playbook's card, once approved, runs under its class's autonomy mode, and a starter the workspace does not hold, or a typed value left blank, is refused in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["broadcast", "playbook"]
+          },
+          "template_id": {
+            "type": "string"
+          },
+          "audience_kind": {
+            "type": "string",
+            "enum": ["everyone", "list", "saved"]
+          },
+          "audience_id": {
+            "type": "string"
+          },
+          "params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scheduled_for": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "quiet_30",
+              "new_week",
+              "phoned_only",
+              "everyone_monthly",
+              "lapsed",
+              "saved_list",
+              "proposal_waiting"
+            ]
+          },
+          "list": {
+            "type": "string"
+          },
+          "policy_class": {
+            "type": "string",
+            "enum": ["campaign", "reengage"]
+          },
+          "run_hour": {
+            "type": "number"
+          },
+          "cap_per_run": {
+            "type": "number"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "broadcast",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "audience_kind": "everyone",
+          "params": ["@first_name", "20% off until Friday"]
+        },
+        {
+          "action": "broadcast",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "audience_kind": "list",
+          "audience_id": "quiet",
+          "params": []
+        },
+        {
+          "action": "broadcast",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "audience_kind": "saved",
+          "audience_id": "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b",
+          "params": ["@first_name"],
+          "scheduled_for": "2026-10-03T15:00:00-04:00",
+          "name": "October offer"
+        },
+        {
+          "action": "playbook",
+          "trigger": "quiet_30"
+        },
+        {
+          "action": "playbook",
+          "trigger": "saved_list",
+          "list": "seg:booked_week",
+          "policy_class": "campaign",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "params": ["@first_name", "@booking_link"],
+          "run_hour": 10
+        }
+      ]
+    },
+    {
+      "name": "propose_deal",
+      "description": "Propose recording a deal on a person: stage proposed (a proposal went out, a new engagement), won (they said yes or paid, now a client), lost (they passed), or ended (the engagement ended). Optional: service, amount_cents with per (once, month or year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD), with lost only why they passed (lost_reason: price, timing, elsewhere, no_reply, not_a_fit or other), and the next step on it, next_step (what, for the team) with next_step_due (YYYY-MM-DD, today or later), a note with a day the team sees on the deal. Call it when they say a proposal went out, someone became a client, passed or ended; a next step rides on that stage change, never alone, and a move names the open deal's service when there are two. It records what a person told you and never decides money; a move with no open deal to move is refused in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string",
+            "enum": ["proposed", "won", "lost", "ended"]
+          },
+          "service": {
+            "type": "string"
+          },
+          "amount_cents": {
+            "type": "number"
+          },
+          "per": {
+            "type": "string",
+            "enum": ["once", "month", "year"]
+          },
+          "note": {
+            "type": "string"
+          },
+          "proposal_url": {
+            "type": "string"
+          },
+          "valid_until": {
+            "type": "string"
+          },
+          "lost_reason": {
+            "type": "string",
+            "enum": ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"]
+          },
+          "next_step": {
+            "type": "string"
+          },
+          "next_step_due": {
+            "type": "string"
+          }
+        },
+        "required": ["contact_id", "stage"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+          "stage": "proposed",
+          "service": "Deep clean",
+          "amount_cents": 25000,
+          "per": "once",
+          "proposal_url": "https://example.com/quotes/42",
+          "valid_until": "2026-10-15",
+          "next_step": "Call to walk through the quote",
+          "next_step_due": "2026-10-05"
+        },
+        {
+          "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+          "stage": "lost",
+          "lost_reason": "price"
+        }
+      ]
+    },
+    {
+      "name": "propose_reply",
+      "description": "Propose a reply to a customer, as a card the person approves before anything is sent. Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for the receptionist's voice, and proposes a new reply on a thread, on the wire the thread runs on. Action steer takes message_id, the held draft's id from inbox (with action list or thread), never a conversation id, and instruction, a rewrite in words ('shorter', 'mention Saturday is full', 'in Spanish') of a reply the receptionist is holding; the rewrite waits its turn like the first draft. Call action draft when they ask to reply, answer or write to someone, and action steer when they want a held draft changed. draft refuses a person who opted out and marks a closed reply window on the card; never quote or confirm a price in the text. steer refuses in words a reply that is no longer waiting, so read the thread first when in doubt.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["draft", "steer"]
+          },
+          "conversation_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "voice": {
+            "type": "string",
+            "enum": ["you", "receptionist"]
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "draft",
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f",
+          "text": "Yes, Saturday at ten works.",
+          "voice": "you"
+        },
+        {
+          "action": "steer",
+          "message_id": "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b",
+          "instruction": "shorter, and in Spanish"
+        }
+      ]
+    },
+    {
+      "name": "propose_thread_verb",
+      "description": "Propose an Inbox action on a thread: take_over (a person answers from here), hand_back (the receptionist resumes), snooze (until an ISO time with its offset, or by default tomorrow at 10:00 by the business's clock), wake, archive, or resolve (close the open escalation; the thread stays). conversation_id is the id a read returned. Call it when they ask to take, hand back, snooze, wake, archive or resolve a thread; a reply is propose_reply with action draft, and how the receptionist treats the person is propose_person with action mode. It refuses in words when the action does not fit the thread's state: nothing to resolve, not snoozed, or nobody to hand back from.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string"
+          },
+          "verb": {
+            "type": "string",
+            "enum": ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"]
+          },
+          "until": {
+            "type": "string"
+          }
+        },
+        "required": ["conversation_id", "verb"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f",
+          "verb": "snooze",
+          "until": "2026-10-03T10:00:00-04:00"
+        },
+        {
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f",
+          "verb": "take_over"
+        }
+      ]
+    },
+    {
+      "name": "propose_whisper",
+      "description": "Propose a whisper: a sentence only the phone receptionist hears on a live call, worked into its next answer to the caller. call_id is a live call's id, from calls with action list and filter live, or from the Live page's row. Call it when they want to tell the receptionist something while the call is on; a call that has ended is refused in words, since there is nobody on the line. It shapes what the receptionist says next and never reaches the caller as written.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "call_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": ["call_id", "text"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "report",
+      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time, calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "integer",
+            "enum": [7, 30, 90]
+          }
+        },
+        "required": ["days"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "today",
+      "description": "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. It holds no drafts: inbox with action list and filter held has them, and inbox with action thread has a whole conversation. needs_you and calls are capped, the counts are not; nothing changes because it was read.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workspace",
+      "description": "The workspace, by action; action settings, its one action today, takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications, the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels. Nothing changes because it was read; propose_settings is what changes a setting.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["settings"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "settings"
+        }
+      ]
+    }
+  ],
+  "partner": [
+    {
+      "name": "calendar",
+      "description": "The owner's calendar as the receptionist reads it. Action week takes day and an optional days and reads a day or a few: what is taken (in the calendar's own words, with the person in People when the title names one), whether the business is closed that day, and the windows the receptionist would offer; day is today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the page's own week, and days is how many from there, at most 14. Action openings takes day and service and reads the open times from the connected calendar, against the business hours, closures and booking rules, as the receptionist would offer them to a caller: a state, a sentence, and the open windows day by day, sized for a service when one is named; day is a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the next days, and service is the service's name to size the slot, or empty. Call action week for what a day looks like or who is booked when, and action openings for when there is room or what is free on a day, the free slots alone, sized to a service. Openings need a connected calendar feed, said in the workspace's facts above. Taken is the owner's own calendar and open is what the receptionist would offer; nothing is booked from here, since customers book through the booking link, or with the team where there is none.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["week", "openings"]
+          },
+          "day": {
+            "type": "string"
+          },
+          "days": {
+            "type": "number"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "week",
+          "day": "tomorrow"
+        },
+        {
+          "action": "week",
+          "day": "2026-10-03",
+          "days": 3
+        },
+        {
+          "action": "week",
+          "day": "",
+          "days": 7
+        },
+        {
+          "action": "openings",
+          "day": "fri",
+          "service": "consultation"
+        },
+        {
+          "action": "openings",
+          "day": "2026-10-03",
+          "service": ""
+        }
+      ]
+    },
+    {
+      "name": "calls",
+      "description": "Phone calls, as the Calls page and a call's page read them. Action list takes filter and lists calls newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person; filter is missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first). Action get takes call_id, the id a row here, the today tool or people with action get returned, and reads one call: who, when, how long, how it ended, its summary, the state of its recording, the caller's contact id, and the transcript turn by turn. Call action list to find calls by day, outcome or whether they are live, and a live call before proposing a whisper; a count of calls is the today tool's or the page's own, since the rows here are capped. Call action get when the transcript or the full summary is needed and the page on screen holds only the call's row. list returns at most 20 calls from the newest hundred; nothing changes because it was read. get caps the transcript at 40 turns, with transcript_turns saying how many there are; a call the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "get"]
+          },
+          "filter": {
+            "type": "string",
+            "enum": ["missed", "abandoned", "today", "live", "recent"]
+          },
+          "call_id": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "filter": "missed"
+        },
+        {
+          "action": "get",
+          "call_id": "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+        }
+      ]
+    },
+    {
+      "name": "campaigns",
+      "description": "What goes out to the people who said yes, by action; neither action takes anything more. Action audiences, read before any broadcast, lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["audiences", "playbooks"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "audiences"
+        },
+        {
+          "action": "playbooks"
+        }
+      ]
+    },
+    {
+      "name": "inbox",
+      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "thread"]
+          },
+          "filter": {
+            "type": "string",
+            "enum": ["needs_you", "held", "waiting", "snoozed", "recent"]
+          },
+          "conversation_id": {
+            "type": "string"
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "filter": "held"
+        },
+        {
+          "action": "thread",
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f"
+        }
+      ]
+    },
+    {
+      "name": "leads",
+      "description": "The lead finder, by action; action searches, its one action today, takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here starts or changes because it was read, and every string is cut short.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["searches"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "searches"
+        }
+      ]
+    },
+    {
+      "name": "people",
+      "description": "People, the customers and callers, as the People page and a person's page read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call action search to find someone, or to see who is on a list; call action get when the profile, the timeline or the notes are needed and the page on screen holds only their row. search returns at most 12 people, with matches counted before the cap; a list that cannot be counted here says why. get returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["search", "get"]
+          },
+          "query": {
+            "type": "string"
+          },
+          "list": {
+            "type": "string"
+          },
+          "contact_id": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "search",
+          "query": "Rosa"
+        },
+        {
+          "action": "search",
+          "query": "",
+          "list": "quiet"
+        },
+        {
+          "action": "search",
+          "query": "",
+          "list": "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b"
+        },
+        {
+          "action": "get",
+          "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+        }
+      ]
+    },
+    {
+      "name": "propose_autonomy",
+      "description": "Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. veto is for replies only. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "class": {
+            "type": "string",
+            "enum": ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money", "follow_up"]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["", "auto", "veto", "ask", "never"]
+          },
+          "min_confidence": {
+            "type": "number"
+          }
+        },
+        "required": ["class", "mode"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "class": "reply",
+          "mode": "veto"
+        },
+        {
+          "class": "reply",
+          "mode": "",
+          "min_confidence": 0.8
+        }
+      ]
+    },
+    {
+      "name": "propose_campaign",
+      "description": "Propose a campaign to the people who said yes, as a card the person approves: one message sent once, or a standing rule that sends on its own. Action broadcast takes template_id, one approved WhatsApp template, and proposes sending it to an audience, everyone who said yes or any list campaigns with action audiences names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the template's values in order (typed text, or @first_name, @business_name or @booking_link to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), and an optional name. Action playbook takes trigger and proposes a standing rule that sends one approved WhatsApp template to newly eligible people who said yes: trigger is quiet_30 (win-back), new_week (welcome), phoned_only (save our number), lapsed (no visit in 45 days), everyone_monthly (the month's offer), saved_list (on any list: its token from campaigns with action audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link); template_id is an approved template, or omitted for the trigger's starter when the workspace holds it; params are the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10) and cap_per_run defaults to 25. Call action broadcast for one message sent once, reading campaigns with action audiences first for the template ids, the audiences and their counts; call action playbook for a standing rule, reading campaigns with action playbooks first for what runs and who each moment reaches. When nobody can be sent a broadcast, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to; never propose a broadcast to nobody. A broadcast's card includes nobody without a recorded yes and says how many it reaches; a playbook's card, once approved, runs under its class's autonomy mode, and a starter the workspace does not hold, or a typed value left blank, is refused in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["broadcast", "playbook"]
+          },
+          "template_id": {
+            "type": "string"
+          },
+          "audience_kind": {
+            "type": "string",
+            "enum": ["everyone", "list", "saved"]
+          },
+          "audience_id": {
+            "type": "string"
+          },
+          "params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scheduled_for": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "quiet_30",
+              "new_week",
+              "phoned_only",
+              "everyone_monthly",
+              "lapsed",
+              "saved_list",
+              "proposal_waiting"
+            ]
+          },
+          "list": {
+            "type": "string"
+          },
+          "policy_class": {
+            "type": "string",
+            "enum": ["campaign", "reengage"]
+          },
+          "run_hour": {
+            "type": "number"
+          },
+          "cap_per_run": {
+            "type": "number"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "broadcast",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "audience_kind": "everyone",
+          "params": ["@first_name", "20% off until Friday"]
+        },
+        {
+          "action": "broadcast",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "audience_kind": "list",
+          "audience_id": "quiet",
+          "params": []
+        },
+        {
+          "action": "broadcast",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "audience_kind": "saved",
+          "audience_id": "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b",
+          "params": ["@first_name"],
+          "scheduled_for": "2026-10-03T15:00:00-04:00",
+          "name": "October offer"
+        },
+        {
+          "action": "playbook",
+          "trigger": "quiet_30"
+        },
+        {
+          "action": "playbook",
+          "trigger": "saved_list",
+          "list": "seg:booked_week",
+          "policy_class": "campaign",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "params": ["@first_name", "@booking_link"],
+          "run_hour": 10
+        }
+      ]
+    },
+    {
+      "name": "propose_deal",
+      "description": "Propose recording a deal on a person: stage proposed (a proposal went out, a new engagement), won (they said yes or paid, now a client), lost (they passed), or ended (the engagement ended). Optional: service, amount_cents with per (once, month or year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD), with lost only why they passed (lost_reason: price, timing, elsewhere, no_reply, not_a_fit or other), and the next step on it, next_step (what, for the team) with next_step_due (YYYY-MM-DD, today or later), a note with a day the team sees on the deal. Call it when they say a proposal went out, someone became a client, passed or ended; a next step rides on that stage change, never alone, and a move names the open deal's service when there are two. It records what a person told you and never decides money; a move with no open deal to move is refused in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string",
+            "enum": ["proposed", "won", "lost", "ended"]
+          },
+          "service": {
+            "type": "string"
+          },
+          "amount_cents": {
+            "type": "number"
+          },
+          "per": {
+            "type": "string",
+            "enum": ["once", "month", "year"]
+          },
+          "note": {
+            "type": "string"
+          },
+          "proposal_url": {
+            "type": "string"
+          },
+          "valid_until": {
+            "type": "string"
+          },
+          "lost_reason": {
+            "type": "string",
+            "enum": ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"]
+          },
+          "next_step": {
+            "type": "string"
+          },
+          "next_step_due": {
+            "type": "string"
+          }
+        },
+        "required": ["contact_id", "stage"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+          "stage": "proposed",
+          "service": "Deep clean",
+          "amount_cents": 25000,
+          "per": "once",
+          "proposal_url": "https://example.com/quotes/42",
+          "valid_until": "2026-10-15",
+          "next_step": "Call to walk through the quote",
+          "next_step_due": "2026-10-05"
+        },
+        {
+          "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+          "stage": "lost",
+          "lost_reason": "price"
+        }
+      ]
+    },
+    {
+      "name": "propose_lead_search",
+      "description": "Propose a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "looking_for": {
+            "type": "string",
+            "enum": ["local_businesses", "people", "online_sellers", "other"]
+          },
+          "country": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "who": {
+            "type": "string"
+          },
+          "who_one": {
+            "type": "string"
+          },
+          "category_key": {
+            "type": "string"
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "city": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "zip": {
+            "type": "string"
+          },
+          "contact": {
+            "type": "string",
+            "enum": ["phone", "email"]
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "standard": {
+                  "type": "string",
+                  "enum": ["likely", "seen"]
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["text", "standard", "required"],
+              "additionalProperties": false
+            }
+          },
+          "leave_out": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "words": {
+                  "type": "string"
+                }
+              },
+              "required": ["words"],
+              "additionalProperties": false
+            }
+          },
+          "asked": {
+            "type": "string"
+          },
+          "amends": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "looking_for",
+          "country",
+          "count",
+          "who",
+          "who_one",
+          "category_key",
+          "terms",
+          "region",
+          "contact",
+          "criteria",
+          "asked"
+        ],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "looking_for": "local_businesses",
+          "country": "US",
+          "count": 100,
+          "who": "plumbers",
+          "who_one": "plumber",
+          "category_key": "plumber",
+          "terms": ["plumber", "plumbing company"],
+          "city": "Austin",
+          "region": "TX",
+          "contact": "email",
+          "criteria": [
+            {
+              "text": "has a website",
+              "standard": "seen",
+              "required": true
+            },
+            {
+              "text": "family-owned",
+              "standard": "likely",
+              "required": false
+            }
+          ],
+          "leave_out": [
+            {
+              "words": "chains"
+            }
+          ],
+          "asked": "find me 100 plumbers in Austin"
+        },
+        {
+          "looking_for": "local_businesses",
+          "country": "US",
+          "count": 100,
+          "who": "plumbers",
+          "who_one": "plumber",
+          "category_key": "plumber",
+          "terms": ["plumber", "plumbing company"],
+          "city": "Austin",
+          "region": "TX",
+          "contact": "email",
+          "criteria": [
+            {
+              "text": "has a website",
+              "standard": "seen",
+              "required": true
+            },
+            {
+              "text": "family-owned",
+              "standard": "likely",
+              "required": false
+            }
+          ],
+          "leave_out": [],
+          "asked": "yes, include the franchises",
+          "amends": "9c2e4b6d-1f3a-4e5c-8b7d-0a1c2e3f4b5d"
+        }
+      ]
+    },
+    {
+      "name": "propose_reply",
+      "description": "Propose a reply to a customer, as a card the person approves before anything is sent. Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for the receptionist's voice, and proposes a new reply on a thread, on the wire the thread runs on. Action steer takes message_id, the held draft's id from inbox (with action list or thread), never a conversation id, and instruction, a rewrite in words ('shorter', 'mention Saturday is full', 'in Spanish') of a reply the receptionist is holding; the rewrite waits its turn like the first draft. Call action draft when they ask to reply, answer or write to someone, and action steer when they want a held draft changed. draft refuses a person who opted out and marks a closed reply window on the card; never quote or confirm a price in the text. steer refuses in words a reply that is no longer waiting, so read the thread first when in doubt.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["draft", "steer"]
+          },
+          "conversation_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "voice": {
+            "type": "string",
+            "enum": ["you", "receptionist"]
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "draft",
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f",
+          "text": "Yes, Saturday at ten works.",
+          "voice": "you"
+        },
+        {
+          "action": "steer",
+          "message_id": "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b",
+          "instruction": "shorter, and in Spanish"
+        }
+      ]
+    },
+    {
+      "name": "propose_settings",
+      "description": "Propose a settings change the receptionist will follow, as one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title and the text the receptionist reads), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service; propose_autonomy is for what the receptionist may do alone. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "change": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": ["add_closure", "set_hours", "add_note", "add_service"]
+              },
+              "date": {
+                "type": "string"
+              },
+              "until": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "day": {
+                "type": "string"
+              },
+              "open": {
+                "type": "string"
+              },
+              "close": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "duration_min": {
+                "type": "integer"
+              }
+            },
+            "required": ["op"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["change"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "change": {
+            "op": "add_closure",
+            "date": "2026-12-24",
+            "until": "2026-12-26",
+            "note": "Holidays"
+          }
+        },
+        {
+          "change": {
+            "op": "set_hours",
+            "day": "sat",
+            "open": "10:00",
+            "close": "14:00"
+          }
+        },
+        {
+          "change": {
+            "op": "add_service",
+            "name": "Deep clean",
+            "duration_min": 90
+          }
+        }
+      ]
+    },
+    {
+      "name": "propose_thread_verb",
+      "description": "Propose an Inbox action on a thread: take_over (a person answers from here), hand_back (the receptionist resumes), snooze (until an ISO time with its offset, or by default tomorrow at 10:00 by the business's clock), wake, archive, or resolve (close the open escalation; the thread stays). conversation_id is the id a read returned. Call it when they ask to take, hand back, snooze, wake, archive or resolve a thread; a reply is propose_reply with action draft, and how the receptionist treats the person is propose_person with action mode. It refuses in words when the action does not fit the thread's state: nothing to resolve, not snoozed, or nobody to hand back from.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string"
+          },
+          "verb": {
+            "type": "string",
+            "enum": ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"]
+          },
+          "until": {
+            "type": "string"
+          }
+        },
+        "required": ["conversation_id", "verb"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f",
+          "verb": "snooze",
+          "until": "2026-10-03T10:00:00-04:00"
+        },
+        {
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f",
+          "verb": "take_over"
+        }
+      ]
+    },
+    {
+      "name": "propose_whisper",
+      "description": "Propose a whisper: a sentence only the phone receptionist hears on a live call, worked into its next answer to the caller. call_id is a live call's id, from calls with action list and filter live, or from the Live page's row. Call it when they want to tell the receptionist something while the call is on; a call that has ended is refused in words, since there is nobody on the line. It shapes what the receptionist says next and never reaches the caller as written.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "call_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": ["call_id", "text"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "report",
+      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time, calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "integer",
+            "enum": [7, 30, 90]
+          }
+        },
+        "required": ["days"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "today",
+      "description": "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. It holds no drafts: inbox with action list and filter held has them, and inbox with action thread has a whole conversation. needs_you and calls are capped, the counts are not; nothing changes because it was read.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workspace",
+      "description": "The workspace, by action; action settings, its one action today, takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications, the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels. Nothing changes because it was read; propose_settings is what changes a setting.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["settings"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "settings"
+        }
+      ]
+    }
+  ],
+  "owner": [
+    {
+      "name": "calendar",
+      "description": "The owner's calendar as the receptionist reads it. Action week takes day and an optional days and reads a day or a few: what is taken (in the calendar's own words, with the person in People when the title names one), whether the business is closed that day, and the windows the receptionist would offer; day is today, tomorrow, a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the page's own week, and days is how many from there, at most 14. Action openings takes day and service and reads the open times from the connected calendar, against the business hours, closures and booking rules, as the receptionist would offer them to a caller: a state, a sentence, and the open windows day by day, sized for a service when one is named; day is a weekday (mon..sun), a date (YYYY-MM-DD), or empty for the next days, and service is the service's name to size the slot, or empty. Call action week for what a day looks like or who is booked when, and action openings for when there is room or what is free on a day, the free slots alone, sized to a service. Openings need a connected calendar feed, said in the workspace's facts above. Taken is the owner's own calendar and open is what the receptionist would offer; nothing is booked from here, since customers book through the booking link, or with the team where there is none.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["week", "openings"]
+          },
+          "day": {
+            "type": "string"
+          },
+          "days": {
+            "type": "number"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "week",
+          "day": "tomorrow"
+        },
+        {
+          "action": "week",
+          "day": "2026-10-03",
+          "days": 3
+        },
+        {
+          "action": "week",
+          "day": "",
+          "days": 7
+        },
+        {
+          "action": "openings",
+          "day": "fri",
+          "service": "consultation"
+        },
+        {
+          "action": "openings",
+          "day": "2026-10-03",
+          "service": ""
+        }
+      ]
+    },
+    {
+      "name": "calls",
+      "description": "Phone calls, as the Calls page and a call's page read them. Action list takes filter and lists calls newest first: who, when, how long, how it ended, a one-line summary, and the ids of the call, its conversation and the person; filter is missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), or recent (newest first). Action get takes call_id, the id a row here, the today tool or people with action get returned, and reads one call: who, when, how long, how it ended, its summary, the state of its recording, the caller's contact id, and the transcript turn by turn. Call action list to find calls by day, outcome or whether they are live, and a live call before proposing a whisper; a count of calls is the today tool's or the page's own, since the rows here are capped. Call action get when the transcript or the full summary is needed and the page on screen holds only the call's row. list returns at most 20 calls from the newest hundred; nothing changes because it was read. get caps the transcript at 40 turns, with transcript_turns saying how many there are; a call the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "get"]
+          },
+          "filter": {
+            "type": "string",
+            "enum": ["missed", "abandoned", "today", "live", "recent"]
+          },
+          "call_id": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "filter": "missed"
+        },
+        {
+          "action": "get",
+          "call_id": "7c8d9e0f-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+        }
+      ]
+    },
+    {
+      "name": "campaigns",
+      "description": "What goes out to the people who said yes, by action; neither action takes anything more. Action audiences, read before any broadcast, lists the audiences a broadcast may go to: everyone who said yes, every People list this workspace can count, and every list of the workspace's own (kept by hand, or by a rule), each with its kind and audience_id (the audience propose_campaign with action broadcast takes), its list token (the list people with action search takes), and four counts, because there are two consents and a yes needs a number to send to: can_be_sent_offers and can_be_sent_messages (who a promotional, or a utility or authentication, template reaches) and said_yes_to_offers and said_yes_to_messages (everyone who gave that yes, a number or not). It also lists the approved WhatsApp templates with their category, values and body, why the rest cannot be sent, and whether the number may send and its daily limit, since a broadcast reaches only a recorded yes with a number to send to. Action playbooks reads the playbooks as the Playbooks page shows them, standing rules that each send one approved template to newly eligible people who said yes: each with what starts it, its template, its clock and next run, whether it is running, the autonomy mode its class runs under, its list when it runs on one, what its runs earned, and a run waiting for a person if there is one; then every moment this workspace can use, with who it names right now: said_yes_now (who said the yes its template needs, a number or not) and can_be_sent_now (who of them a run reaches), and each one's starter template. Call action audiences before proposing a broadcast, and to say who a message would reach; call action playbooks to say what is running, and before proposing a playbook. Pick the template first, then quote its can_be_sent count as who the broadcast reaches, never a larger one; when that count is 0 and its said_yes is not, the ones who said yes have no number to send to: say so, and never send the owner to get a yes they already have. When a playbook's can_be_sent_now is 0 and said_yes_now is not, the ones who said yes have no number to send to, or heard from a broadcast this week: say so the same way. A list that cannot be counted here carries cannot_count and no counts; a null count means the page could not count it just now, and nothing has run because it was read.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["audiences", "playbooks"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "audiences"
+        },
+        {
+          "action": "playbooks"
+        }
+      ]
+    },
+    {
+      "name": "inbox",
+      "description": "The Inbox, on every wire (WhatsApp, text or email, whichever the customer last wrote on, named in channel). Action list takes filter and finds threads: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first); each row has its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. Action thread takes conversation_id, the id a row here, the today tool or people returned, and an optional more, and reads one conversation: the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call action list to find threads by their state, and for what the page on screen does not hold; call action thread when the whole conversation is needed, since a row carries only the last three messages and the page on screen may hold only the thread's row. list returns at most 20 threads, with total_matching counted before the cap, so a count is the total and never the rows shown. thread returns the newest 30 messages, or 80 with more true; a conversation the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["list", "thread"]
+          },
+          "filter": {
+            "type": "string",
+            "enum": ["needs_you", "held", "waiting", "snoozed", "recent"]
+          },
+          "conversation_id": {
+            "type": "string"
+          },
+          "more": {
+            "type": "boolean"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "list",
+          "filter": "held"
+        },
+        {
+          "action": "thread",
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f"
+        }
+      ]
+    },
+    {
+      "name": "leads",
+      "description": "The lead finder, by action; action searches, its one action today, takes nothing more and reads the workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here starts or changes because it was read, and every string is cut short.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["searches"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "searches"
+        }
+      ]
+    },
+    {
+      "name": "people",
+      "description": "People, the customers and callers, as the People page and a person's page read them. Action search takes query and an optional list and finds people by name, WhatsApp name, address or three or more digits of a phone number, as the People page searches them; each row says their state in the pages' words, their last contact and last message, their conversation id, channels, consent, receptionist mode, how many calls, their next and last appointment when the calendar is connected, and their next step when they have one. An empty query lists the most recent people; list narrows to one list, given as the token campaigns with action audiences gives (seg:<id> for People's lists, list:<id> for the workspace's own) or as a People list's bare id: needs_you (Needs you), waiting_on_you (Waiting on you), steps_due (Steps due), new_week (New this week), booked_week (Booked this week), booked (Booked), asked_never_booked (Asked, never booked), lapsed (Lapsed), consultation_booked (Consultations), proposal_out (Proposal out), clients (Clients), deal_passed (Passed), deal_ended (Ended), quiet (Quiet 30+ days), phoned_only (Phoned only), opted_in (Said yes to messages), offers_ok (Can receive offers), opted_out (Opted out). Action get takes contact_id, the id a row here, inbox with action thread, calls with action get or calendar with action week returned, and reads one person's profile as their page reads it: right now, the facts on file, what is known about them, their receptionist mode, their last exchange, their open conversation, their conversations and calls with ids, their timeline, and the team's notes (a note the receptionist suggested is marked so, and is not the team's). Call action search to find someone, or to see who is on a list; call action get when the profile, the timeline or the notes are needed and the page on screen holds only their row. search returns at most 12 people, with matches counted before the cap; a list that cannot be counted here says why. get returns their five newest conversations and calls, twenty timeline entries and twenty notes; a person the workspace does not hold is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["search", "get"]
+          },
+          "query": {
+            "type": "string"
+          },
+          "list": {
+            "type": "string"
+          },
+          "contact_id": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "search",
+          "query": "Rosa"
+        },
+        {
+          "action": "search",
+          "query": "",
+          "list": "quiet"
+        },
+        {
+          "action": "search",
+          "query": "",
+          "list": "list:6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b"
+        },
+        {
+          "action": "get",
+          "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+        }
+      ]
+    },
+    {
+      "name": "propose_autonomy",
+      "description": "Propose a change to what the receptionist may do alone: class (reply, booking, faq, reengage, campaign, reviews, or follow_up where deals are on) with mode (auto, veto, ask or never), or the reply confidence dial (min_confidence, 0 to 1, with mode empty). Call it when they want the receptionist to act on its own, wait for them, or hold its replies for a look; propose_person is for one person, and propose_settings for hours, closures, notes and services. veto is for replies only. Never for money: that class is locked by charter, so a request to change it is answered in words, not proposed. The modes as they stand are in this prompt above, so no read is needed first.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "class": {
+            "type": "string",
+            "enum": ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money", "follow_up"]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["", "auto", "veto", "ask", "never"]
+          },
+          "min_confidence": {
+            "type": "number"
+          }
+        },
+        "required": ["class", "mode"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "class": "reply",
+          "mode": "veto"
+        },
+        {
+          "class": "reply",
+          "mode": "",
+          "min_confidence": 0.8
+        }
+      ]
+    },
+    {
+      "name": "propose_campaign",
+      "description": "Propose a campaign to the people who said yes, as a card the person approves: one message sent once, or a standing rule that sends on its own. Action broadcast takes template_id, one approved WhatsApp template, and proposes sending it to an audience, everyone who said yes or any list campaigns with action audiences names (audience_kind everyone; list for a People list, with its id as audience_id; saved for one of the workspace's own, with its audience_id), with params as the template's values in order (typed text, or @first_name, @business_name or @booking_link to fill per person), an optional scheduled_for as an ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date), and an optional name. Action playbook takes trigger and proposes a standing rule that sends one approved WhatsApp template to newly eligible people who said yes: trigger is quiet_30 (win-back), new_week (welcome), phoned_only (save our number), lapsed (no visit in 45 days), everyone_monthly (the month's offer), saved_list (on any list: its token from campaigns with action audiences in list, one of People's or one of the workspace's own, with policy_class campaign for an offer or reengage for a win-back), or, where deals are on, proposal_waiting (the proposal follow-up: one nudge per proposal waiting past the workspace's pace, one such playbook per workspace, its message carrying the proposal's link as @proposal_link); template_id is an approved template, or omitted for the trigger's starter when the workspace holds it; params are the template's values in order (typed text, or @first_name, @business_name, @booking_link, @proposal_link), filled in for a starter except a typed one such as the month's offer; run_hour is 9 to 20 by the business's clock (default 10) and cap_per_run defaults to 25. Call action broadcast for one message sent once, reading campaigns with action audiences first for the template ids, the audiences and their counts; call action playbook for a standing rule, reading campaigns with action playbooks first for what runs and who each moment reaches. When nobody can be sent a broadcast, say why: nobody said yes (point to their profiles) or the ones who did have no number to send to; never propose a broadcast to nobody. A broadcast's card includes nobody without a recorded yes and says how many it reaches; a playbook's card, once approved, runs under its class's autonomy mode, and a starter the workspace does not hold, or a typed value left blank, is refused in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["broadcast", "playbook"]
+          },
+          "template_id": {
+            "type": "string"
+          },
+          "audience_kind": {
+            "type": "string",
+            "enum": ["everyone", "list", "saved"]
+          },
+          "audience_id": {
+            "type": "string"
+          },
+          "params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scheduled_for": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "quiet_30",
+              "new_week",
+              "phoned_only",
+              "everyone_monthly",
+              "lapsed",
+              "saved_list",
+              "proposal_waiting"
+            ]
+          },
+          "list": {
+            "type": "string"
+          },
+          "policy_class": {
+            "type": "string",
+            "enum": ["campaign", "reengage"]
+          },
+          "run_hour": {
+            "type": "number"
+          },
+          "cap_per_run": {
+            "type": "number"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "broadcast",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "audience_kind": "everyone",
+          "params": ["@first_name", "20% off until Friday"]
+        },
+        {
+          "action": "broadcast",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "audience_kind": "list",
+          "audience_id": "quiet",
+          "params": []
+        },
+        {
+          "action": "broadcast",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "audience_kind": "saved",
+          "audience_id": "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b",
+          "params": ["@first_name"],
+          "scheduled_for": "2026-10-03T15:00:00-04:00",
+          "name": "October offer"
+        },
+        {
+          "action": "playbook",
+          "trigger": "quiet_30"
+        },
+        {
+          "action": "playbook",
+          "trigger": "saved_list",
+          "list": "seg:booked_week",
+          "policy_class": "campaign",
+          "template_id": "d4e5f6a7-b8c9-4d0e-9f1a-2b3c4d5e6f70",
+          "params": ["@first_name", "@booking_link"],
+          "run_hour": 10
+        }
+      ]
+    },
+    {
+      "name": "propose_deal",
+      "description": "Propose recording a deal on a person: stage proposed (a proposal went out, a new engagement), won (they said yes or paid, now a client), lost (they passed), or ended (the engagement ended). Optional: service, amount_cents with per (once, month or year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD), with lost only why they passed (lost_reason: price, timing, elsewhere, no_reply, not_a_fit or other), and the next step on it, next_step (what, for the team) with next_step_due (YYYY-MM-DD, today or later), a note with a day the team sees on the deal. Call it when they say a proposal went out, someone became a client, passed or ended; a next step rides on that stage change, never alone, and a move names the open deal's service when there are two. It records what a person told you and never decides money; a move with no open deal to move is refused in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string"
+          },
+          "stage": {
+            "type": "string",
+            "enum": ["proposed", "won", "lost", "ended"]
+          },
+          "service": {
+            "type": "string"
+          },
+          "amount_cents": {
+            "type": "number"
+          },
+          "per": {
+            "type": "string",
+            "enum": ["once", "month", "year"]
+          },
+          "note": {
+            "type": "string"
+          },
+          "proposal_url": {
+            "type": "string"
+          },
+          "valid_until": {
+            "type": "string"
+          },
+          "lost_reason": {
+            "type": "string",
+            "enum": ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"]
+          },
+          "next_step": {
+            "type": "string"
+          },
+          "next_step_due": {
+            "type": "string"
+          }
+        },
+        "required": ["contact_id", "stage"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+          "stage": "proposed",
+          "service": "Deep clean",
+          "amount_cents": 25000,
+          "per": "once",
+          "proposal_url": "https://example.com/quotes/42",
+          "valid_until": "2026-10-15",
+          "next_step": "Call to walk through the quote",
+          "next_step_due": "2026-10-05"
+        },
+        {
+          "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+          "stage": "lost",
+          "lost_reason": "price"
+        }
+      ]
+    },
+    {
+      "name": "propose_lead_search",
+      "description": "Propose a search for businesses in the US the owner could reach, as a plan card they approve; nothing is searched or spent before that. The plan: what kind (who, plural, and who_one, one of them, with category_key as one lowercase word), how many (count: 50, 100, 200 or 500 unless they said a number), where (city with its two-letter region, a zip, or a region alone), the contact standard (contact: phone, or email checked), up to three terms (widest first), the criteria each with whether it is seen or likely and whether it is required, who to leave_out (chains, other kinds; short chips in plain words), looking_for (local_businesses, or people, online_sellers or other when that is what was asked: those are answered in words, not searched), and asked, the owner's words. seen is only for what a listing shows (a rating or review count, a website, an email, a phone that matches the site, open or closed) and is judged from those facts alone; what a business is or does (its kind, who owns it, what it serves or sells, who it treats) is likely, never seen, because a listing's name and category do not count as seeing it, and the kind of business itself is checked on every search without being written as a criterion. Read leads with action searches first, so a plan is not repeated: one plan, never a search. amends is the id of a search that stopped to ask (leads with action searches shows its question) when the plan is that search with the owner's answer applied and everything else kept as it was; the card then answers that search instead of starting a new one. Say the plan in one sentence; never promise how many will be found, and never say a search has started until the card is approved. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "looking_for": {
+            "type": "string",
+            "enum": ["local_businesses", "people", "online_sellers", "other"]
+          },
+          "country": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "who": {
+            "type": "string"
+          },
+          "who_one": {
+            "type": "string"
+          },
+          "category_key": {
+            "type": "string"
+          },
+          "terms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "city": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "zip": {
+            "type": "string"
+          },
+          "contact": {
+            "type": "string",
+            "enum": ["phone", "email"]
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "standard": {
+                  "type": "string",
+                  "enum": ["likely", "seen"]
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["text", "standard", "required"],
+              "additionalProperties": false
+            }
+          },
+          "leave_out": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "words": {
+                  "type": "string"
+                }
+              },
+              "required": ["words"],
+              "additionalProperties": false
+            }
+          },
+          "asked": {
+            "type": "string"
+          },
+          "amends": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "looking_for",
+          "country",
+          "count",
+          "who",
+          "who_one",
+          "category_key",
+          "terms",
+          "region",
+          "contact",
+          "criteria",
+          "asked"
+        ],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "looking_for": "local_businesses",
+          "country": "US",
+          "count": 100,
+          "who": "plumbers",
+          "who_one": "plumber",
+          "category_key": "plumber",
+          "terms": ["plumber", "plumbing company"],
+          "city": "Austin",
+          "region": "TX",
+          "contact": "email",
+          "criteria": [
+            {
+              "text": "has a website",
+              "standard": "seen",
+              "required": true
+            },
+            {
+              "text": "family-owned",
+              "standard": "likely",
+              "required": false
+            }
+          ],
+          "leave_out": [
+            {
+              "words": "chains"
+            }
+          ],
+          "asked": "find me 100 plumbers in Austin"
+        },
+        {
+          "looking_for": "local_businesses",
+          "country": "US",
+          "count": 100,
+          "who": "plumbers",
+          "who_one": "plumber",
+          "category_key": "plumber",
+          "terms": ["plumber", "plumbing company"],
+          "city": "Austin",
+          "region": "TX",
+          "contact": "email",
+          "criteria": [
+            {
+              "text": "has a website",
+              "standard": "seen",
+              "required": true
+            },
+            {
+              "text": "family-owned",
+              "standard": "likely",
+              "required": false
+            }
+          ],
+          "leave_out": [],
+          "asked": "yes, include the franchises",
+          "amends": "9c2e4b6d-1f3a-4e5c-8b7d-0a1c2e3f4b5d"
+        }
+      ]
+    },
+    {
+      "name": "propose_person",
+      "description": "Propose a change to one person, by action; action mode, its one action today, takes contact_id, the id a read returned, and mode, how the receptionist treats them: auto (answers them), ask (asks a person first), never (stays silent with them), or inherit (follows the workspace's rule). Call it when they want the receptionist to stop, resume or check first with one person; propose_autonomy changes a whole class instead, and propose_thread_verb acts on one thread. Only an owner can approve it: for anyone else, say so and that an owner can ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["mode"]
+          },
+          "contact_id": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["auto", "ask", "never", "inherit"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "mode",
+          "contact_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+          "mode": "never"
+        }
+      ]
+    },
+    {
+      "name": "propose_reply",
+      "description": "Propose a reply to a customer, as a card the person approves before anything is sent. Action draft takes conversation_id, the id a read returned, text, the reply itself, and voice, you for the person's own words or receptionist for the receptionist's voice, and proposes a new reply on a thread, on the wire the thread runs on. Action steer takes message_id, the held draft's id from inbox (with action list or thread), never a conversation id, and instruction, a rewrite in words ('shorter', 'mention Saturday is full', 'in Spanish') of a reply the receptionist is holding; the rewrite waits its turn like the first draft. Call action draft when they ask to reply, answer or write to someone, and action steer when they want a held draft changed. draft refuses a person who opted out and marks a closed reply window on the card; never quote or confirm a price in the text. steer refuses in words a reply that is no longer waiting, so read the thread first when in doubt.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["draft", "steer"]
+          },
+          "conversation_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "voice": {
+            "type": "string",
+            "enum": ["you", "receptionist"]
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "draft",
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f",
+          "text": "Yes, Saturday at ten works.",
+          "voice": "you"
+        },
+        {
+          "action": "steer",
+          "message_id": "5e6f7a8b-9c0d-4e1f-8a2b-3c4d5e6f7a8b",
+          "instruction": "shorter, and in Spanish"
+        }
+      ]
+    },
+    {
+      "name": "propose_settings",
+      "description": "Propose a settings change the receptionist will follow, as one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title and the text the receptionist reads), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service; propose_autonomy is for what the receptionist may do alone. Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "change": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": ["add_closure", "set_hours", "add_note", "add_service"]
+              },
+              "date": {
+                "type": "string"
+              },
+              "until": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "day": {
+                "type": "string"
+              },
+              "open": {
+                "type": "string"
+              },
+              "close": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "duration_min": {
+                "type": "integer"
+              }
+            },
+            "required": ["op"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["change"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "change": {
+            "op": "add_closure",
+            "date": "2026-12-24",
+            "until": "2026-12-26",
+            "note": "Holidays"
+          }
+        },
+        {
+          "change": {
+            "op": "set_hours",
+            "day": "sat",
+            "open": "10:00",
+            "close": "14:00"
+          }
+        },
+        {
+          "change": {
+            "op": "add_service",
+            "name": "Deep clean",
+            "duration_min": 90
+          }
+        }
+      ]
+    },
+    {
+      "name": "propose_team",
+      "description": "Propose a change to the team, by action; action invite, its one action today, takes email and role and proposes an invitation to the workspace by email, as operator (replies and handles threads; no settings or team) or viewer (reads everything, changes nothing). Call it when they want to add someone to the team; a role not offered here, such as owner, is answered in words. It becomes a card the person approves, and nothing is sent before that. Only an owner can approve it: for anyone else, say so and that an owner can ask.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["invite"]
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["operator", "viewer"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "invite",
+          "email": "sam@example.com",
+          "role": "operator"
+        }
+      ]
+    },
+    {
+      "name": "propose_thread_verb",
+      "description": "Propose an Inbox action on a thread: take_over (a person answers from here), hand_back (the receptionist resumes), snooze (until an ISO time with its offset, or by default tomorrow at 10:00 by the business's clock), wake, archive, or resolve (close the open escalation; the thread stays). conversation_id is the id a read returned. Call it when they ask to take, hand back, snooze, wake, archive or resolve a thread; a reply is propose_reply with action draft, and how the receptionist treats the person is propose_person with action mode. It refuses in words when the action does not fit the thread's state: nothing to resolve, not snoozed, or nobody to hand back from.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string"
+          },
+          "verb": {
+            "type": "string",
+            "enum": ["take_over", "hand_back", "snooze", "wake", "archive", "resolve"]
+          },
+          "until": {
+            "type": "string"
+          }
+        },
+        "required": ["conversation_id", "verb"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f",
+          "verb": "snooze",
+          "until": "2026-10-03T10:00:00-04:00"
+        },
+        {
+          "conversation_id": "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f",
+          "verb": "take_over"
+        }
+      ]
+    },
+    {
+      "name": "propose_whisper",
+      "description": "Propose a whisper: a sentence only the phone receptionist hears on a live call, worked into its next answer to the caller. call_id is a live call's id, from calls with action list and filter live, or from the Live page's row. Call it when they want to tell the receptionist something while the call is on; a call that has ended is refused in words, since there is nobody on the line. It shapes what the receptionist says next and never reaches the caller as written.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "call_id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": ["call_id", "text"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "report",
+      "description": "The Reports page for the last 7, 30 or 90 days: messages answered by the receptionist, by a person and left unanswered, the median and p90 reply time, calls and their minutes, new people, the escalation reasons, the change against the period before, a by-day series, the booking line (asked, then booked) where the calendar is read, and the Deals section where deals are on. Call it for how a period went or for a trend; the today tool has the day itself and its counts, and the Reports page on screen already holds this. days takes 7, 30 or 90 and nothing else. An empty period says so in empty; a range the report cannot answer is an error, said in words.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "integer",
+            "enum": [7, 30, 90]
+          }
+        },
+        "required": ["days"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "today",
+      "description": "The Today page as it stands: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist, a recap and the day's counts. Start here for 'how are we doing', 'what needs me' or 'brief me', and read it for what Today holds when the person is on another page. It holds no drafts: inbox with action list and filter held has them, and inbox with action thread has a whole conversation. needs_you and calls are capped, the counts are not; nothing changes because it was read.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "workspace",
+      "description": "The workspace, by action; action settings, its one action today, takes nothing more and reads the settings as the receptionist runs on them: the business and its time zone, hours, closures, services, languages, guardrails, notes, booking rules, when it escalates, whether the calendar and vision are on, the notifications, the autonomy rows with their modes and limits (the reply policy's dials among them), and which channels are connected with their numbers. Call it for the reply policy's dials, the channels and the notifications; the hours, closures, services, notes, guardrails, booking notes and the autonomy modes are already in this prompt, so answer those from here without a read. A channels read that failed is said in could_not_read, never as no channels. Nothing changes because it was read; propose_settings is what changes a setting.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["settings"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "input_examples": [
+        {
+          "action": "settings"
+        }
+      ]
+    }
+  ]
+}

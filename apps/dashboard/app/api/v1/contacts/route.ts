@@ -21,7 +21,7 @@ const Query = z.object({
  * of the number; `?offset=` reads the next thousand under the same order.
  * `page` says how many there are in all and whether more follow, so the
  * page can stop at nothing and keep its counts right (00112). The body is
- * its reader's (readers/people.ts), which Ask's search_people reads too.
+ * its reader's (readers/people.ts), which Ask's people.search reads too.
  */
 export const GET = read({
   scope: workspace,

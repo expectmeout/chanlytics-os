@@ -95,7 +95,7 @@ type SettingsRead =
  * the two disagree on, and the prompt the receptionist is told, composed on the turn's clock. The route's body, moved
  * here whole. The configuration row is the turn's one read of it (readers/facts.ts config); a workspace with none is
  * the route's 404. The prompt preview reads the calendar feed and the Autonomy rows itself, and nothing keeps it: a
- * question about the hours reads the facts (Ask's get_settings), never this. Not a row a citation names.
+ * question about the hours reads the facts (Ask's workspace.settings), never this. Not a row a citation names.
  */
 export const settings: Reader<undefined, SettingsRead> = {
   name: "settings",
