@@ -375,6 +375,7 @@ export const LOG_EVENTS = [
   "sweep_health_receipts_unreadable",
   "template_category_write_failed",
   "template_status_write_failed",
+  "tenant_config_keys_ignored",
   "tenant_config_parse_failed",
   "tenant_notifications_channel_unreadable",
   "tenant_notifications_load_failed",

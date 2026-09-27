@@ -13,7 +13,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { FeaturesConfigSchema, TenantConfigSchema, mediaKind, mediaVM, messageText } from "@chanlytics/contracts";
+import {
+  FeaturesConfigSchema,
+  TenantConfigSchema,
+  TenantConfigWriteSchema,
+  mediaKind,
+  mediaVM,
+  messageText,
+} from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -34,13 +41,15 @@ const msg = (over) => ({
   ...over,
 });
 
-test("the config section is opt-in, strict, and rides inside the tenant config", () => {
+test("the config section is opt-in, refuses an unknown ability on the save, and rides inside the tenant config", () => {
   assert.deepEqual(FeaturesConfigSchema.parse({}), {});
   assert.deepEqual(FeaturesConfigSchema.parse({ vision: true }), { vision: true });
   assert.ok(!FeaturesConfigSchema.safeParse({ vision: "yes" }).success);
+  // An ability a newer dashboard wrote is left out by an older read, never kept, and never saved.
+  assert.deepEqual(FeaturesConfigSchema.parse({ telepathy: true }), {}, "an unknown ability is left out, not kept");
   assert.ok(
-    !FeaturesConfigSchema.safeParse({ telepathy: true }).success,
-    "unknown abilities are refused, not silently kept",
+    !TenantConfigWriteSchema.safeParse({ features: { telepathy: true } }).success,
+    "an unknown ability is refused on the save",
   );
   const cfg = TenantConfigSchema.parse({ features: { vision: true } });
   assert.equal(cfg.features?.vision, true);

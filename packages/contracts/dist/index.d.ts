@@ -913,7 +913,7 @@ declare const HoursSchema: z.ZodObject<{
         open: z.ZodString;
         close: z.ZodString;
     }, z.core.$strip>>>;
-}, z.core.$strict>;
+}, z.core.$strip>;
 /**
  * A day the business is shut whatever the weekly grid says.
  *
@@ -935,7 +935,7 @@ declare const ServiceSchema: z.ZodObject<{
     name: z.ZodString;
     duration_min: z.ZodOptional<z.ZodNumber>;
     price_note: z.ZodOptional<z.ZodString>;
-}, z.core.$strict>;
+}, z.core.$strip>;
 /**
  * The rules that must survive editing.
  *
@@ -949,7 +949,7 @@ declare const GuardrailsSchema: z.ZodObject<{
     never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
     disclose_ai: z.ZodOptional<z.ZodBoolean>;
     no_health_advice: z.ZodOptional<z.ZodBoolean>;
-}, z.core.$strict>;
+}, z.core.$strip>;
 /**
  * Which rules are in force, with each rule's default applied.
  *
@@ -970,7 +970,7 @@ declare function guardrailsInForce(g: z.infer<typeof GuardrailsSchema> | null | 
 declare const NoteSchema: z.ZodObject<{
     title: z.ZodString;
     text: z.ZodString;
-}, z.core.$strict>;
+}, z.core.$strip>;
 type Note = z.infer<typeof NoteSchema>;
 /**
  * How bookings may be OFFERED — never made. The receptionist sends the link;
@@ -985,7 +985,7 @@ declare const BookingRulesSchema: z.ZodObject<{
     party_max: z.ZodOptional<z.ZodNumber>;
     ask_email: z.ZodOptional<z.ZodBoolean>;
     notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-}, z.core.$strict>;
+}, z.core.$strip>;
 type BookingRules = z.infer<typeof BookingRulesSchema>;
 /** E.164: a plus, then 7–15 digits, no leading zero. */
 declare const E164: RegExp;
@@ -1015,7 +1015,7 @@ declare const BusinessProfileSchema: z.ZodObject<{
             open: z.ZodString;
             close: z.ZodString;
         }, z.core.$strip>>>;
-    }, z.core.$strict>>>;
+    }, z.core.$strip>>>;
     closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
         date: z.ZodString;
         until: z.ZodOptional<z.ZodString>;
@@ -1025,14 +1025,14 @@ declare const BusinessProfileSchema: z.ZodObject<{
         name: z.ZodString;
         duration_min: z.ZodOptional<z.ZodNumber>;
         price_note: z.ZodOptional<z.ZodString>;
-    }, z.core.$strict>>>;
+    }, z.core.$strip>>>;
     languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
     guardrails: z.ZodOptional<z.ZodObject<{
         never_quote_prices: z.ZodOptional<z.ZodBoolean>;
         never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
         disclose_ai: z.ZodOptional<z.ZodBoolean>;
         no_health_advice: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strict>>;
+    }, z.core.$strip>>;
     escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
     tone: z.ZodOptional<z.ZodString>;
     handoff_number: z.ZodOptional<z.ZodString>;
@@ -1040,7 +1040,7 @@ declare const BusinessProfileSchema: z.ZodObject<{
     notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
         title: z.ZodString;
         text: z.ZodString;
-    }, z.core.$strict>>>;
+    }, z.core.$strip>>>;
     booking_rules: z.ZodOptional<z.ZodObject<{
         lead_hours: z.ZodOptional<z.ZodNumber>;
         buffer_min: z.ZodOptional<z.ZodNumber>;
@@ -1050,9 +1050,9 @@ declare const BusinessProfileSchema: z.ZodObject<{
         party_max: z.ZodOptional<z.ZodNumber>;
         ask_email: z.ZodOptional<z.ZodBoolean>;
         notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-    }, z.core.$strict>>;
+    }, z.core.$strip>>;
     extra_instructions: z.ZodOptional<z.ZodString>;
-}, z.core.$strict>;
+}, z.core.$strip>;
 type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
 type Hours = z.infer<typeof HoursSchema>;
 type Service = z.infer<typeof ServiceSchema>;
@@ -1080,7 +1080,7 @@ declare const BrainConfigSchema: z.ZodObject<{
                 open: z.ZodString;
                 close: z.ZodString;
             }, z.core.$strip>>>;
-        }, z.core.$strict>>>;
+        }, z.core.$strip>>>;
         closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
             date: z.ZodString;
             until: z.ZodOptional<z.ZodString>;
@@ -1090,14 +1090,14 @@ declare const BrainConfigSchema: z.ZodObject<{
             name: z.ZodString;
             duration_min: z.ZodOptional<z.ZodNumber>;
             price_note: z.ZodOptional<z.ZodString>;
-        }, z.core.$strict>>>;
+        }, z.core.$strip>>>;
         languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
         guardrails: z.ZodOptional<z.ZodObject<{
             never_quote_prices: z.ZodOptional<z.ZodBoolean>;
             never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
             disclose_ai: z.ZodOptional<z.ZodBoolean>;
             no_health_advice: z.ZodOptional<z.ZodBoolean>;
-        }, z.core.$strict>>;
+        }, z.core.$strip>>;
         escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
         tone: z.ZodOptional<z.ZodString>;
         handoff_number: z.ZodOptional<z.ZodString>;
@@ -1105,7 +1105,7 @@ declare const BrainConfigSchema: z.ZodObject<{
         notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
             title: z.ZodString;
             text: z.ZodString;
-        }, z.core.$strict>>>;
+        }, z.core.$strip>>>;
         booking_rules: z.ZodOptional<z.ZodObject<{
             lead_hours: z.ZodOptional<z.ZodNumber>;
             buffer_min: z.ZodOptional<z.ZodNumber>;
@@ -1115,15 +1115,15 @@ declare const BrainConfigSchema: z.ZodObject<{
             party_max: z.ZodOptional<z.ZodNumber>;
             ask_email: z.ZodOptional<z.ZodBoolean>;
             notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-        }, z.core.$strict>>;
+        }, z.core.$strip>>;
         extra_instructions: z.ZodOptional<z.ZodString>;
-    }, z.core.$strict>>;
+    }, z.core.$strip>>;
     fallbacks: z.ZodObject<{
         greeting: z.ZodString;
         error: z.ZodString;
         non_text: z.ZodString;
-    }, z.core.$strict>;
-}, z.core.$strict>;
+    }, z.core.$strip>;
+}, z.core.$strip>;
 type BrainConfig = z.infer<typeof BrainConfigSchema>;
 /**
  * The parts of a brand-new receptionist nobody should have to write.
@@ -1185,28 +1185,28 @@ declare function instructionsDraft(brain: {
 declare const NotificationsConfigSchema: z.ZodObject<{
     escalation_emails: z.ZodArray<z.ZodString>;
     from: z.ZodOptional<z.ZodString>;
-}, z.core.$strict>;
+}, z.core.$strip>;
 type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
 /**
  * The whole tenant_config.config column. Sections are optional — a tenant with
  * no brain section is a tenant whose receptionist does not speak (persist +
  * escalate only). Safe-by-default beats a leaked persona.
  *
- * DELIBERATELY NOT `.strict()` AT THE TOP LEVEL, while each SECTION still is.
+ * NOTHING ON THE READ PATH IS `.strict()`, at the top level or in a section.
  *
  * The edge and the dashboard are separate Vercel projects that deploy
- * independently. With a strict top level, the first dashboard deploy to write a
- * new section — `guardrails`, a per-tenant allowlist, anything — would be
+ * independently. With a strict read, the first dashboard deploy to write a new
+ * section or field — `guardrails`, a per-tenant allowlist, anything — would be
  * rejected in its entirety by the older edge still running beside it. The
  * receptionist would go completely silent on a live line, and it would be
  * logged identically to "no brain profile configured": a total mute that reads
- * as a configuration absence.
+ * as a configuration absence. (The sections stayed strict until 27 Sep 2026.)
  *
- * Unknown top-level keys are therefore STRIPPED rather than fatal, so an older
- * edge ignores a section it has never heard of and keeps answering with the
- * persona it does understand. Strictness stays where it catches real mistakes:
- * inside a section, where a typo means a field the runtime silently would not
- * apply.
+ * So an older edge leaves out a key it has never heard of, at any depth, keeps
+ * answering with the persona it does understand, and says what it left out
+ * (parseTenantConfigResult's `ignored`). Strictness stays where it catches real
+ * mistakes: on the way IN (TenantConfigWriteSchema), where a typo inside a
+ * section is refused by name, not saved as a field the runtime never applies.
  */
 /**
  * The calendar the receptionist may READ. An iCal address — what any booking
@@ -1216,7 +1216,7 @@ type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
  */
 declare const CalendarConfigSchema: z.ZodObject<{
     ical_url: z.ZodString;
-}, z.core.$strict>;
+}, z.core.$strip>;
 type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
 /**
  * Opt-in abilities, off unless the workspace turns them on.
@@ -1227,7 +1227,7 @@ type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
  */
 declare const FeaturesConfigSchema: z.ZodObject<{
     vision: z.ZodOptional<z.ZodBoolean>;
-}, z.core.$strict>;
+}, z.core.$strip>;
 type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
 declare const TenantConfigSchema: z.ZodObject<{
     brain: z.ZodOptional<z.ZodObject<{
@@ -1252,7 +1252,7 @@ declare const TenantConfigSchema: z.ZodObject<{
                     open: z.ZodString;
                     close: z.ZodString;
                 }, z.core.$strip>>>;
-            }, z.core.$strict>>>;
+            }, z.core.$strip>>>;
             closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 date: z.ZodString;
                 until: z.ZodOptional<z.ZodString>;
@@ -1262,14 +1262,14 @@ declare const TenantConfigSchema: z.ZodObject<{
                 name: z.ZodString;
                 duration_min: z.ZodOptional<z.ZodNumber>;
                 price_note: z.ZodOptional<z.ZodString>;
-            }, z.core.$strict>>>;
+            }, z.core.$strip>>>;
             languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
             guardrails: z.ZodOptional<z.ZodObject<{
                 never_quote_prices: z.ZodOptional<z.ZodBoolean>;
                 never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
                 disclose_ai: z.ZodOptional<z.ZodBoolean>;
                 no_health_advice: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strict>>;
+            }, z.core.$strip>>;
             escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
             tone: z.ZodOptional<z.ZodString>;
             handoff_number: z.ZodOptional<z.ZodString>;
@@ -1277,7 +1277,7 @@ declare const TenantConfigSchema: z.ZodObject<{
             notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 title: z.ZodString;
                 text: z.ZodString;
-            }, z.core.$strict>>>;
+            }, z.core.$strip>>>;
             booking_rules: z.ZodOptional<z.ZodObject<{
                 lead_hours: z.ZodOptional<z.ZodNumber>;
                 buffer_min: z.ZodOptional<z.ZodNumber>;
@@ -1287,25 +1287,25 @@ declare const TenantConfigSchema: z.ZodObject<{
                 party_max: z.ZodOptional<z.ZodNumber>;
                 ask_email: z.ZodOptional<z.ZodBoolean>;
                 notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            }, z.core.$strict>>;
+            }, z.core.$strip>>;
             extra_instructions: z.ZodOptional<z.ZodString>;
-        }, z.core.$strict>>;
+        }, z.core.$strip>>;
         fallbacks: z.ZodObject<{
             greeting: z.ZodString;
             error: z.ZodString;
             non_text: z.ZodString;
-        }, z.core.$strict>;
-    }, z.core.$strict>>;
+        }, z.core.$strip>;
+    }, z.core.$strip>>;
     notifications: z.ZodOptional<z.ZodObject<{
         escalation_emails: z.ZodArray<z.ZodString>;
         from: z.ZodOptional<z.ZodString>;
-    }, z.core.$strict>>;
+    }, z.core.$strip>>;
     calendar: z.ZodOptional<z.ZodObject<{
         ical_url: z.ZodString;
-    }, z.core.$strict>>;
+    }, z.core.$strip>>;
     features: z.ZodOptional<z.ZodObject<{
         vision: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strict>>;
+    }, z.core.$strip>>;
 }, z.core.$strip>;
 type TenantConfig = z.infer<typeof TenantConfigSchema>;
 /** The most shifts one day may be split into. Must match the editor's cap. */
@@ -1326,13 +1326,14 @@ declare function dayProblems(h: Hours, day: string): Array<{
     message: string;
 }>;
 /**
- * The same config, with the rules that only apply on the way IN.
+ * The same config, with the rules that only apply on the way IN, and none of
+ * the fields inside a section that the read would leave out (unknown-keys.ts).
  *
  * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
  * lenience stay defined in exactly one place and this can only ever be
  * stricter.
  */
-declare const TenantConfigWriteSchema: z.ZodObject<{
+declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
     brain: z.ZodOptional<z.ZodObject<{
         business_name: z.ZodString;
         phone_display: z.ZodOptional<z.ZodString>;
@@ -1355,7 +1356,7 @@ declare const TenantConfigWriteSchema: z.ZodObject<{
                     open: z.ZodString;
                     close: z.ZodString;
                 }, z.core.$strip>>>;
-            }, z.core.$strict>>>;
+            }, z.core.$strip>>>;
             closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 date: z.ZodString;
                 until: z.ZodOptional<z.ZodString>;
@@ -1365,14 +1366,14 @@ declare const TenantConfigWriteSchema: z.ZodObject<{
                 name: z.ZodString;
                 duration_min: z.ZodOptional<z.ZodNumber>;
                 price_note: z.ZodOptional<z.ZodString>;
-            }, z.core.$strict>>>;
+            }, z.core.$strip>>>;
             languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
             guardrails: z.ZodOptional<z.ZodObject<{
                 never_quote_prices: z.ZodOptional<z.ZodBoolean>;
                 never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
                 disclose_ai: z.ZodOptional<z.ZodBoolean>;
                 no_health_advice: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strict>>;
+            }, z.core.$strip>>;
             escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
             tone: z.ZodOptional<z.ZodString>;
             handoff_number: z.ZodOptional<z.ZodString>;
@@ -1380,7 +1381,7 @@ declare const TenantConfigWriteSchema: z.ZodObject<{
             notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 title: z.ZodString;
                 text: z.ZodString;
-            }, z.core.$strict>>>;
+            }, z.core.$strip>>>;
             booking_rules: z.ZodOptional<z.ZodObject<{
                 lead_hours: z.ZodOptional<z.ZodNumber>;
                 buffer_min: z.ZodOptional<z.ZodNumber>;
@@ -1390,29 +1391,31 @@ declare const TenantConfigWriteSchema: z.ZodObject<{
                 party_max: z.ZodOptional<z.ZodNumber>;
                 ask_email: z.ZodOptional<z.ZodBoolean>;
                 notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            }, z.core.$strict>>;
+            }, z.core.$strip>>;
             extra_instructions: z.ZodOptional<z.ZodString>;
-        }, z.core.$strict>>;
+        }, z.core.$strip>>;
         fallbacks: z.ZodObject<{
             greeting: z.ZodString;
             error: z.ZodString;
             non_text: z.ZodString;
-        }, z.core.$strict>;
-    }, z.core.$strict>>;
+        }, z.core.$strip>;
+    }, z.core.$strip>>;
     notifications: z.ZodOptional<z.ZodObject<{
         escalation_emails: z.ZodArray<z.ZodString>;
         from: z.ZodOptional<z.ZodString>;
-    }, z.core.$strict>>;
+    }, z.core.$strip>>;
     calendar: z.ZodOptional<z.ZodObject<{
         ical_url: z.ZodString;
-    }, z.core.$strict>>;
+    }, z.core.$strip>>;
     features: z.ZodOptional<z.ZodObject<{
         vision: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strict>>;
-}, z.core.$strip>;
+    }, z.core.$strip>>;
+}, z.core.$strip>>;
+/** A config as read, with the keys it left out (`ignored`, dotted paths); or why it could not be read at all. */
 type TenantConfigParse = {
     ok: true;
     config: TenantConfig;
+    ignored: string[];
 } | {
     ok: false;
     issues: string[];

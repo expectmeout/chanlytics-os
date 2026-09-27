@@ -440,6 +440,31 @@ var DECISION_VERBS = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
+var isJsonObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function keysLeftOut(raw, kept, at2 = []) {
+  if (Array.isArray(raw) && Array.isArray(kept)) {
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut(v, kept[i], [...at2, i]) : []);
+  }
+  if (!isJsonObject(raw) || !isJsonObject(kept)) return [];
+  return Object.entries(raw).flatMap(([k, v]) => {
+    if (v === void 0) return [];
+    return Object.hasOwn(kept, k) ? keysLeftOut(v, kept[k], [...at2, k]) : [[...at2, k]];
+  });
+}
+function refuseUnknownFields(read, raw, ctx) {
+  const parsed = read.safeParse(raw);
+  if (!parsed.success) return;
+  const byObject = /* @__PURE__ */ new Map();
+  for (const where of keysLeftOut(raw, parsed.data)) {
+    if (where.length < 2) continue;
+    const path = where.slice(0, -1);
+    const id = JSON.stringify(path);
+    const held = byObject.get(id) ?? { path, keys: [] };
+    held.keys.push(String(where[where.length - 1]));
+    byObject.set(id, held);
+  }
+  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
+}
 var POLICY_CLASS_WORDS = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -521,7 +546,7 @@ var HoursSchema = z2.object({
    * saying so with open/close, and no stored config is rewritten.
    */
   intervals: z2.array(IntervalSchema).optional()
-}).strict();
+}).strip();
 var DATE = z2.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 var ClosureSchema = z2.object({
   date: DATE,
@@ -539,7 +564,7 @@ var ServiceSchema = z2.object({
    * must not be forced into a field that looks like it can.
    */
   price_note: z2.string().max(120).optional()
-}).strict();
+}).strip();
 var GuardrailsSchema = z2.object({
   never_quote_prices: z2.boolean().optional(),
   never_confirm_booking: z2.boolean().optional(),
@@ -551,11 +576,11 @@ var GuardrailsSchema = z2.object({
    * production the moment it deployed.
    */
   no_health_advice: z2.boolean().optional()
-}).strict();
+}).strip();
 var NoteSchema = z2.object({
   title: z2.string().min(1).max(80),
   text: z2.string().min(1).max(1200)
-}).strict();
+}).strip();
 var BookingRulesSchema = z2.object({
   /** Least notice for a slot, in hours. Absent = 2. */
   lead_hours: z2.number().int().min(0).max(168).optional(),
@@ -575,7 +600,7 @@ var BookingRulesSchema = z2.object({
   ask_email: z2.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z2.array(z2.string().min(1).max(200)).max(10).optional()
-}).strict();
+}).strip();
 var E164 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX = 2e4;
 var BusinessProfileSchema = z2.object({
@@ -609,7 +634,7 @@ var BusinessProfileSchema = z2.object({
    * the form carries that prompt into it.
    */
   extra_instructions: z2.string().max(INSTRUCTIONS_MAX).optional()
-}).strict();
+}).strip();
 var BrainConfigSchema = z2.object({
   business_name: z2.string().min(1).max(120),
   /**
@@ -654,16 +679,16 @@ var BrainConfigSchema = z2.object({
     error: z2.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
     non_text: z2.string().min(1).max(2e3)
-  }).strict()
-}).strict();
+  }).strip()
+}).strip();
 var NotificationsConfigSchema = z2.object({
   escalation_emails: z2.array(z2.string().email()).min(1).max(10),
   from: z2.string().max(200).optional()
-}).strict();
+}).strip();
 var CalendarConfigSchema = z2.object({
   ical_url: z2.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strict();
-var FeaturesConfigSchema = z2.object({ vision: z2.boolean().optional() }).strict();
+}).strip();
+var FeaturesConfigSchema = z2.object({ vision: z2.boolean().optional() }).strip();
 var TenantConfigSchema = z2.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
@@ -750,7 +775,7 @@ function checkClosure(c2, n2, ctx) {
     });
   }
 }
-var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
+var WriteRules = TenantConfigSchema.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z2.ZodIssueCode.custom,
@@ -770,9 +795,10 @@ var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure(c2, n2, ctx));
 });
+var TenantConfigWriteSchema = z2.unknown().superRefine((raw, ctx) => refuseUnknownFields(TenantConfigSchema, raw, ctx)).pipe(WriteRules);
 function parseTenantConfigResult(raw) {
   const r23 = TenantConfigSchema.safeParse(raw ?? {});
-  if (r23.success) return { ok: true, config: r23.data };
+  if (r23.success) return { ok: true, config: r23.data, ignored: keysLeftOut(raw, r23.data).map((p) => p.join(".")) };
   return {
     ok: false,
     issues: r23.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
@@ -8090,6 +8116,31 @@ var DECISION_VERBS2 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
+var isJsonObject2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function keysLeftOut2(raw, kept, at2 = []) {
+  if (Array.isArray(raw) && Array.isArray(kept)) {
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut2(v, kept[i], [...at2, i]) : []);
+  }
+  if (!isJsonObject2(raw) || !isJsonObject2(kept)) return [];
+  return Object.entries(raw).flatMap(([k, v]) => {
+    if (v === void 0) return [];
+    return Object.hasOwn(kept, k) ? keysLeftOut2(v, kept[k], [...at2, k]) : [[...at2, k]];
+  });
+}
+function refuseUnknownFields2(read, raw, ctx) {
+  const parsed2 = read.safeParse(raw);
+  if (!parsed2.success) return;
+  const byObject = /* @__PURE__ */ new Map();
+  for (const where of keysLeftOut2(raw, parsed2.data)) {
+    if (where.length < 2) continue;
+    const path = where.slice(0, -1);
+    const id = JSON.stringify(path);
+    const held = byObject.get(id) ?? { path, keys: [] };
+    held.keys.push(String(where[where.length - 1]));
+    byObject.set(id, held);
+  }
+  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
+}
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -8171,7 +8222,7 @@ var HoursSchema2 = z22.object({
    * saying so with open/close, and no stored config is rewritten.
    */
   intervals: z22.array(IntervalSchema2).optional()
-}).strict();
+}).strip();
 var DATE2 = z22.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 var ClosureSchema2 = z22.object({
   date: DATE2,
@@ -8189,7 +8240,7 @@ var ServiceSchema2 = z22.object({
    * must not be forced into a field that looks like it can.
    */
   price_note: z22.string().max(120).optional()
-}).strict();
+}).strip();
 var GuardrailsSchema2 = z22.object({
   never_quote_prices: z22.boolean().optional(),
   never_confirm_booking: z22.boolean().optional(),
@@ -8201,11 +8252,11 @@ var GuardrailsSchema2 = z22.object({
    * production the moment it deployed.
    */
   no_health_advice: z22.boolean().optional()
-}).strict();
+}).strip();
 var NoteSchema2 = z22.object({
   title: z22.string().min(1).max(80),
   text: z22.string().min(1).max(1200)
-}).strict();
+}).strip();
 var BookingRulesSchema2 = z22.object({
   /** Least notice for a slot, in hours. Absent = 2. */
   lead_hours: z22.number().int().min(0).max(168).optional(),
@@ -8225,7 +8276,7 @@ var BookingRulesSchema2 = z22.object({
   ask_email: z22.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z22.array(z22.string().min(1).max(200)).max(10).optional()
-}).strict();
+}).strip();
 var E1642 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX2 = 2e4;
 var BusinessProfileSchema2 = z22.object({
@@ -8259,7 +8310,7 @@ var BusinessProfileSchema2 = z22.object({
    * the form carries that prompt into it.
    */
   extra_instructions: z22.string().max(INSTRUCTIONS_MAX2).optional()
-}).strict();
+}).strip();
 var BrainConfigSchema2 = z22.object({
   business_name: z22.string().min(1).max(120),
   /**
@@ -8304,16 +8355,16 @@ var BrainConfigSchema2 = z22.object({
     error: z22.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
     non_text: z22.string().min(1).max(2e3)
-  }).strict()
-}).strict();
+  }).strip()
+}).strip();
 var NotificationsConfigSchema2 = z22.object({
   escalation_emails: z22.array(z22.string().email()).min(1).max(10),
   from: z22.string().max(200).optional()
-}).strict();
+}).strip();
 var CalendarConfigSchema2 = z22.object({
   ical_url: z22.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strict();
-var FeaturesConfigSchema2 = z22.object({ vision: z22.boolean().optional() }).strict();
+}).strip();
+var FeaturesConfigSchema2 = z22.object({ vision: z22.boolean().optional() }).strip();
 var TenantConfigSchema2 = z22.object({
   brain: BrainConfigSchema2.optional(),
   notifications: NotificationsConfigSchema2.optional(),
@@ -8400,7 +8451,7 @@ function checkClosure2(c2, n2, ctx) {
     });
   }
 }
-var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
+var WriteRules2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk2(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z22.ZodIssueCode.custom,
@@ -8420,6 +8471,7 @@ var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure2(c2, n2, ctx));
 });
+var TenantConfigWriteSchema2 = z22.unknown().superRefine((raw, ctx) => refuseUnknownFields2(TenantConfigSchema2, raw, ctx)).pipe(WriteRules2);
 var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES2 = 1e3;
 var LEAD_QUESTION_WAIT_MS2 = 24 * 36e5;
@@ -11806,6 +11858,31 @@ var DECISION_VERBS3 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
+var isJsonObject3 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function keysLeftOut3(raw, kept, at2 = []) {
+  if (Array.isArray(raw) && Array.isArray(kept)) {
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut3(v, kept[i], [...at2, i]) : []);
+  }
+  if (!isJsonObject3(raw) || !isJsonObject3(kept)) return [];
+  return Object.entries(raw).flatMap(([k, v]) => {
+    if (v === void 0) return [];
+    return Object.hasOwn(kept, k) ? keysLeftOut3(v, kept[k], [...at2, k]) : [[...at2, k]];
+  });
+}
+function refuseUnknownFields3(read, raw, ctx) {
+  const parsed2 = read.safeParse(raw);
+  if (!parsed2.success) return;
+  const byObject = /* @__PURE__ */ new Map();
+  for (const where of keysLeftOut3(raw, parsed2.data)) {
+    if (where.length < 2) continue;
+    const path = where.slice(0, -1);
+    const id = JSON.stringify(path);
+    const held = byObject.get(id) ?? { path, keys: [] };
+    held.keys.push(String(where[where.length - 1]));
+    byObject.set(id, held);
+  }
+  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
+}
 var POLICY_CLASS_WORDS3 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -11887,7 +11964,7 @@ var HoursSchema3 = z23.object({
    * saying so with open/close, and no stored config is rewritten.
    */
   intervals: z23.array(IntervalSchema3).optional()
-}).strict();
+}).strip();
 var DATE3 = z23.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 var ClosureSchema3 = z23.object({
   date: DATE3,
@@ -11905,7 +11982,7 @@ var ServiceSchema3 = z23.object({
    * must not be forced into a field that looks like it can.
    */
   price_note: z23.string().max(120).optional()
-}).strict();
+}).strip();
 var GuardrailsSchema3 = z23.object({
   never_quote_prices: z23.boolean().optional(),
   never_confirm_booking: z23.boolean().optional(),
@@ -11917,11 +11994,11 @@ var GuardrailsSchema3 = z23.object({
    * production the moment it deployed.
    */
   no_health_advice: z23.boolean().optional()
-}).strict();
+}).strip();
 var NoteSchema3 = z23.object({
   title: z23.string().min(1).max(80),
   text: z23.string().min(1).max(1200)
-}).strict();
+}).strip();
 var BookingRulesSchema3 = z23.object({
   /** Least notice for a slot, in hours. Absent = 2. */
   lead_hours: z23.number().int().min(0).max(168).optional(),
@@ -11941,7 +12018,7 @@ var BookingRulesSchema3 = z23.object({
   ask_email: z23.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z23.array(z23.string().min(1).max(200)).max(10).optional()
-}).strict();
+}).strip();
 var E1643 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX3 = 2e4;
 var BusinessProfileSchema3 = z23.object({
@@ -11975,7 +12052,7 @@ var BusinessProfileSchema3 = z23.object({
    * the form carries that prompt into it.
    */
   extra_instructions: z23.string().max(INSTRUCTIONS_MAX3).optional()
-}).strict();
+}).strip();
 var BrainConfigSchema3 = z23.object({
   business_name: z23.string().min(1).max(120),
   /**
@@ -12020,16 +12097,16 @@ var BrainConfigSchema3 = z23.object({
     error: z23.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
     non_text: z23.string().min(1).max(2e3)
-  }).strict()
-}).strict();
+  }).strip()
+}).strip();
 var NotificationsConfigSchema3 = z23.object({
   escalation_emails: z23.array(z23.string().email()).min(1).max(10),
   from: z23.string().max(200).optional()
-}).strict();
+}).strip();
 var CalendarConfigSchema3 = z23.object({
   ical_url: z23.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strict();
-var FeaturesConfigSchema3 = z23.object({ vision: z23.boolean().optional() }).strict();
+}).strip();
+var FeaturesConfigSchema3 = z23.object({ vision: z23.boolean().optional() }).strip();
 var TenantConfigSchema3 = z23.object({
   brain: BrainConfigSchema3.optional(),
   notifications: NotificationsConfigSchema3.optional(),
@@ -12116,7 +12193,7 @@ function checkClosure3(c2, n2, ctx) {
     });
   }
 }
-var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
+var WriteRules3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk3(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z23.ZodIssueCode.custom,
@@ -12136,6 +12213,7 @@ var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure3(c2, n2, ctx));
 });
+var TenantConfigWriteSchema3 = z23.unknown().superRefine((raw, ctx) => refuseUnknownFields3(TenantConfigSchema3, raw, ctx)).pipe(WriteRules3);
 var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES3 = 1e3;
 var LEAD_QUESTION_WAIT_MS3 = 24 * 36e5;
@@ -14595,6 +14673,31 @@ var DECISION_VERBS22 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
+var isJsonObject22 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function keysLeftOut22(raw, kept, at2 = []) {
+  if (Array.isArray(raw) && Array.isArray(kept)) {
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut22(v, kept[i], [...at2, i]) : []);
+  }
+  if (!isJsonObject22(raw) || !isJsonObject22(kept)) return [];
+  return Object.entries(raw).flatMap(([k, v]) => {
+    if (v === void 0) return [];
+    return Object.hasOwn(kept, k) ? keysLeftOut22(v, kept[k], [...at2, k]) : [[...at2, k]];
+  });
+}
+function refuseUnknownFields22(read, raw, ctx) {
+  const parsed = read.safeParse(raw);
+  if (!parsed.success) return;
+  const byObject = /* @__PURE__ */ new Map();
+  for (const where of keysLeftOut22(raw, parsed.data)) {
+    if (where.length < 2) continue;
+    const path = where.slice(0, -1);
+    const id = JSON.stringify(path);
+    const held = byObject.get(id) ?? { path, keys: [] };
+    held.keys.push(String(where[where.length - 1]));
+    byObject.set(id, held);
+  }
+  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
+}
 var POLICY_CLASS_WORDS22 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -14676,7 +14779,7 @@ var HoursSchema22 = z222.object({
    * saying so with open/close, and no stored config is rewritten.
    */
   intervals: z222.array(IntervalSchema22).optional()
-}).strict();
+}).strip();
 var DATE22 = z222.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 var ClosureSchema22 = z222.object({
   date: DATE22,
@@ -14694,7 +14797,7 @@ var ServiceSchema22 = z222.object({
    * must not be forced into a field that looks like it can.
    */
   price_note: z222.string().max(120).optional()
-}).strict();
+}).strip();
 var GuardrailsSchema22 = z222.object({
   never_quote_prices: z222.boolean().optional(),
   never_confirm_booking: z222.boolean().optional(),
@@ -14706,11 +14809,11 @@ var GuardrailsSchema22 = z222.object({
    * production the moment it deployed.
    */
   no_health_advice: z222.boolean().optional()
-}).strict();
+}).strip();
 var NoteSchema22 = z222.object({
   title: z222.string().min(1).max(80),
   text: z222.string().min(1).max(1200)
-}).strict();
+}).strip();
 var BookingRulesSchema22 = z222.object({
   /** Least notice for a slot, in hours. Absent = 2. */
   lead_hours: z222.number().int().min(0).max(168).optional(),
@@ -14730,7 +14833,7 @@ var BookingRulesSchema22 = z222.object({
   ask_email: z222.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z222.array(z222.string().min(1).max(200)).max(10).optional()
-}).strict();
+}).strip();
 var E16422 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX22 = 2e4;
 var BusinessProfileSchema22 = z222.object({
@@ -14764,7 +14867,7 @@ var BusinessProfileSchema22 = z222.object({
    * the form carries that prompt into it.
    */
   extra_instructions: z222.string().max(INSTRUCTIONS_MAX22).optional()
-}).strict();
+}).strip();
 var BrainConfigSchema22 = z222.object({
   business_name: z222.string().min(1).max(120),
   /**
@@ -14809,16 +14912,16 @@ var BrainConfigSchema22 = z222.object({
     error: z222.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
     non_text: z222.string().min(1).max(2e3)
-  }).strict()
-}).strict();
+  }).strip()
+}).strip();
 var NotificationsConfigSchema22 = z222.object({
   escalation_emails: z222.array(z222.string().email()).min(1).max(10),
   from: z222.string().max(200).optional()
-}).strict();
+}).strip();
 var CalendarConfigSchema22 = z222.object({
   ical_url: z222.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strict();
-var FeaturesConfigSchema22 = z222.object({ vision: z222.boolean().optional() }).strict();
+}).strip();
+var FeaturesConfigSchema22 = z222.object({ vision: z222.boolean().optional() }).strip();
 var TenantConfigSchema22 = z222.object({
   brain: BrainConfigSchema22.optional(),
   notifications: NotificationsConfigSchema22.optional(),
@@ -14905,7 +15008,7 @@ function checkClosure22(c2, n2, ctx) {
     });
   }
 }
-var TenantConfigWriteSchema22 = TenantConfigSchema22.superRefine((cfg, ctx) => {
+var WriteRules22 = TenantConfigSchema22.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk22(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z222.ZodIssueCode.custom,
@@ -14925,6 +15028,7 @@ var TenantConfigWriteSchema22 = TenantConfigSchema22.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure22(c2, n2, ctx));
 });
+var TenantConfigWriteSchema22 = z222.unknown().superRefine((raw, ctx) => refuseUnknownFields22(TenantConfigSchema22, raw, ctx)).pipe(WriteRules22);
 var LEAD_MEMBER_CLASSES22 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES22 = 1e3;
 var LEAD_QUESTION_WAIT_MS22 = 24 * 36e5;
@@ -17368,6 +17472,31 @@ var DECISION_VERBS32 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
+var isJsonObject32 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function keysLeftOut32(raw, kept, at2 = []) {
+  if (Array.isArray(raw) && Array.isArray(kept)) {
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut32(v, kept[i], [...at2, i]) : []);
+  }
+  if (!isJsonObject32(raw) || !isJsonObject32(kept)) return [];
+  return Object.entries(raw).flatMap(([k, v]) => {
+    if (v === void 0) return [];
+    return Object.hasOwn(kept, k) ? keysLeftOut32(v, kept[k], [...at2, k]) : [[...at2, k]];
+  });
+}
+function refuseUnknownFields32(read, raw, ctx) {
+  const parsed = read.safeParse(raw);
+  if (!parsed.success) return;
+  const byObject = /* @__PURE__ */ new Map();
+  for (const where of keysLeftOut32(raw, parsed.data)) {
+    if (where.length < 2) continue;
+    const path = where.slice(0, -1);
+    const id = JSON.stringify(path);
+    const held = byObject.get(id) ?? { path, keys: [] };
+    held.keys.push(String(where[where.length - 1]));
+    byObject.set(id, held);
+  }
+  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
+}
 var POLICY_CLASS_WORDS32 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -17449,7 +17578,7 @@ var HoursSchema32 = z232.object({
    * saying so with open/close, and no stored config is rewritten.
    */
   intervals: z232.array(IntervalSchema32).optional()
-}).strict();
+}).strip();
 var DATE32 = z232.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 var ClosureSchema32 = z232.object({
   date: DATE32,
@@ -17467,7 +17596,7 @@ var ServiceSchema32 = z232.object({
    * must not be forced into a field that looks like it can.
    */
   price_note: z232.string().max(120).optional()
-}).strict();
+}).strip();
 var GuardrailsSchema32 = z232.object({
   never_quote_prices: z232.boolean().optional(),
   never_confirm_booking: z232.boolean().optional(),
@@ -17479,11 +17608,11 @@ var GuardrailsSchema32 = z232.object({
    * production the moment it deployed.
    */
   no_health_advice: z232.boolean().optional()
-}).strict();
+}).strip();
 var NoteSchema32 = z232.object({
   title: z232.string().min(1).max(80),
   text: z232.string().min(1).max(1200)
-}).strict();
+}).strip();
 var BookingRulesSchema32 = z232.object({
   /** Least notice for a slot, in hours. Absent = 2. */
   lead_hours: z232.number().int().min(0).max(168).optional(),
@@ -17503,7 +17632,7 @@ var BookingRulesSchema32 = z232.object({
   ask_email: z232.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z232.array(z232.string().min(1).max(200)).max(10).optional()
-}).strict();
+}).strip();
 var E16432 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX32 = 2e4;
 var BusinessProfileSchema32 = z232.object({
@@ -17537,7 +17666,7 @@ var BusinessProfileSchema32 = z232.object({
    * the form carries that prompt into it.
    */
   extra_instructions: z232.string().max(INSTRUCTIONS_MAX32).optional()
-}).strict();
+}).strip();
 var BrainConfigSchema32 = z232.object({
   business_name: z232.string().min(1).max(120),
   /**
@@ -17582,16 +17711,16 @@ var BrainConfigSchema32 = z232.object({
     error: z232.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
     non_text: z232.string().min(1).max(2e3)
-  }).strict()
-}).strict();
+  }).strip()
+}).strip();
 var NotificationsConfigSchema32 = z232.object({
   escalation_emails: z232.array(z232.string().email()).min(1).max(10),
   from: z232.string().max(200).optional()
-}).strict();
+}).strip();
 var CalendarConfigSchema32 = z232.object({
   ical_url: z232.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strict();
-var FeaturesConfigSchema32 = z232.object({ vision: z232.boolean().optional() }).strict();
+}).strip();
+var FeaturesConfigSchema32 = z232.object({ vision: z232.boolean().optional() }).strip();
 var TenantConfigSchema32 = z232.object({
   brain: BrainConfigSchema32.optional(),
   notifications: NotificationsConfigSchema32.optional(),
@@ -17678,7 +17807,7 @@ function checkClosure32(c2, n2, ctx) {
     });
   }
 }
-var TenantConfigWriteSchema32 = TenantConfigSchema32.superRefine((cfg, ctx) => {
+var WriteRules32 = TenantConfigSchema32.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk32(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z232.ZodIssueCode.custom,
@@ -17698,6 +17827,7 @@ var TenantConfigWriteSchema32 = TenantConfigSchema32.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure32(c2, n2, ctx));
 });
+var TenantConfigWriteSchema32 = z232.unknown().superRefine((raw, ctx) => refuseUnknownFields32(TenantConfigSchema32, raw, ctx)).pipe(WriteRules32);
 var LEAD_MEMBER_CLASSES32 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES32 = 1e3;
 var LEAD_QUESTION_WAIT_MS32 = 24 * 36e5;
@@ -20780,6 +20910,31 @@ var DECISION_VERBS4 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
+var isJsonObject4 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+function keysLeftOut4(raw, kept, at2 = []) {
+  if (Array.isArray(raw) && Array.isArray(kept)) {
+    return raw.flatMap((v, i) => i < kept.length ? keysLeftOut4(v, kept[i], [...at2, i]) : []);
+  }
+  if (!isJsonObject4(raw) || !isJsonObject4(kept)) return [];
+  return Object.entries(raw).flatMap(([k, v]) => {
+    if (v === void 0) return [];
+    return Object.hasOwn(kept, k) ? keysLeftOut4(v, kept[k], [...at2, k]) : [[...at2, k]];
+  });
+}
+function refuseUnknownFields4(read, raw, ctx) {
+  const parsed = read.safeParse(raw);
+  if (!parsed.success) return;
+  const byObject = /* @__PURE__ */ new Map();
+  for (const where of keysLeftOut4(raw, parsed.data)) {
+    if (where.length < 2) continue;
+    const path = where.slice(0, -1);
+    const id = JSON.stringify(path);
+    const held = byObject.get(id) ?? { path, keys: [] };
+    held.keys.push(String(where[where.length - 1]));
+    byObject.set(id, held);
+  }
+  for (const { path, keys } of byObject.values()) ctx.addIssue({ code: "unrecognized_keys", keys, path });
+}
 var POLICY_CLASS_WORDS4 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
   faq: {
@@ -20861,7 +21016,7 @@ var HoursSchema4 = z24.object({
    * saying so with open/close, and no stored config is rewritten.
    */
   intervals: z24.array(IntervalSchema4).optional()
-}).strict();
+}).strip();
 var DATE4 = z24.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 var ClosureSchema4 = z24.object({
   date: DATE4,
@@ -20879,7 +21034,7 @@ var ServiceSchema4 = z24.object({
    * must not be forced into a field that looks like it can.
    */
   price_note: z24.string().max(120).optional()
-}).strict();
+}).strip();
 var GuardrailsSchema4 = z24.object({
   never_quote_prices: z24.boolean().optional(),
   never_confirm_booking: z24.boolean().optional(),
@@ -20891,11 +21046,11 @@ var GuardrailsSchema4 = z24.object({
    * production the moment it deployed.
    */
   no_health_advice: z24.boolean().optional()
-}).strict();
+}).strip();
 var NoteSchema4 = z24.object({
   title: z24.string().min(1).max(80),
   text: z24.string().min(1).max(1200)
-}).strict();
+}).strip();
 var BookingRulesSchema4 = z24.object({
   /** Least notice for a slot, in hours. Absent = 2. */
   lead_hours: z24.number().int().min(0).max(168).optional(),
@@ -20915,7 +21070,7 @@ var BookingRulesSchema4 = z24.object({
   ask_email: z24.boolean().optional(),
   /** Anything else about booking, one short line each. */
   notes: z24.array(z24.string().min(1).max(200)).max(10).optional()
-}).strict();
+}).strip();
 var E1644 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX4 = 2e4;
 var BusinessProfileSchema4 = z24.object({
@@ -20949,7 +21104,7 @@ var BusinessProfileSchema4 = z24.object({
    * the form carries that prompt into it.
    */
   extra_instructions: z24.string().max(INSTRUCTIONS_MAX4).optional()
-}).strict();
+}).strip();
 var BrainConfigSchema4 = z24.object({
   business_name: z24.string().min(1).max(120),
   /**
@@ -20994,16 +21149,16 @@ var BrainConfigSchema4 = z24.object({
     error: z24.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
     non_text: z24.string().min(1).max(2e3)
-  }).strict()
-}).strict();
+  }).strip()
+}).strip();
 var NotificationsConfigSchema4 = z24.object({
   escalation_emails: z24.array(z24.string().email()).min(1).max(10),
   from: z24.string().max(200).optional()
-}).strict();
+}).strip();
 var CalendarConfigSchema4 = z24.object({
   ical_url: z24.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
-}).strict();
-var FeaturesConfigSchema4 = z24.object({ vision: z24.boolean().optional() }).strict();
+}).strip();
+var FeaturesConfigSchema4 = z24.object({ vision: z24.boolean().optional() }).strip();
 var TenantConfigSchema4 = z24.object({
   brain: BrainConfigSchema4.optional(),
   notifications: NotificationsConfigSchema4.optional(),
@@ -21090,7 +21245,7 @@ function checkClosure4(c2, n2, ctx) {
     });
   }
 }
-var TenantConfigWriteSchema4 = TenantConfigSchema4.superRefine((cfg, ctx) => {
+var WriteRules4 = TenantConfigSchema4.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk4(cfg.calendar.ical_url)) {
     ctx.addIssue({
       code: z24.ZodIssueCode.custom,
@@ -21110,6 +21265,7 @@ var TenantConfigWriteSchema4 = TenantConfigSchema4.superRefine((cfg, ctx) => {
   }
   (p.closures ?? []).forEach((c2, n2) => checkClosure4(c2, n2, ctx));
 });
+var TenantConfigWriteSchema4 = z24.unknown().superRefine((raw, ctx) => refuseUnknownFields4(TenantConfigSchema4, raw, ctx)).pipe(WriteRules4);
 var LEAD_MEMBER_CLASSES4 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES4 = 1e3;
 var LEAD_QUESTION_WAIT_MS4 = 24 * 36e5;

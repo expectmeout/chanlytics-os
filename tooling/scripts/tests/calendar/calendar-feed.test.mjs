@@ -394,11 +394,19 @@ test("the preview refuses in the same words: an address, an answer, a web page, 
 });
 
 test("settings that will not parse are a calendar that could not be read, never a workspace without one", async () => {
-  // The row that actually shipped. TenantConfigSchema is strict, so ONE extra key refuses the whole config and
-  // takes the address down with it — and the board then said "no calendar connected", which is what a workspace
-  // that never had one says. Today's card drew nothing at all, so there was no news and nothing to retry.
+  // The row that actually shipped held ONE extra key, and the strict read refused the whole config and took the
+  // address down with it — the board then said "no calendar connected", which is what a workspace that never had
+  // one says, and Today's card drew nothing at all. The read leaves an unknown key out now, so that row reads its
+  // calendar; a malformed field still refuses the whole config, and is what this reads as settings that failed.
+  forgetFeeds();
+  answers.set("https://cal.example/ok.ics", { body: ONE });
+  const shipped = tables("https://cal.example/ok.ics");
+  shipped.tenant_config[0].config.calendar.ical_url_before_filler = "https://cal.example/old.ics";
+  const read = await calendarWeek(ctxFor(shipped), T, { from: "2026-09-07", days: 7 }, NOW);
+  assert.equal(read.feed.state, "ok", "the row that shipped reads its calendar");
+
   const broken = tables("https://cal.example/ok.ics");
-  broken.tenant_config[0].config.calendar.ical_url_before_filler = "https://cal.example/old.ics";
+  broken.tenant_config[0].config.brain.booking_link = "not a link";
   const lost = await calendarWeek(ctxFor(broken), T, { from: "2026-09-07", days: 7 }, NOW);
   assert.deepEqual(
     [lost.feed.state, lost.feed.present, lost.feed.reason, lost.feed.problem],
