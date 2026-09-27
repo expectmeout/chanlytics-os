@@ -18163,12 +18163,12 @@ function lineReleasedWords(i) {
 
 // src/mobile/widget.ts
 function todayWidgetSnapshot(vm, at2) {
-  const row2 = vm.needsYou?.rows[0] ?? null;
+  const row2 = vm.queue.rows[0] ?? null;
   return {
     headline: vm.standing.headline,
     figures: (vm.figures ?? []).map((f) => ({ label: f.label, value: f.value })),
     waiting: vm.queue.waiting,
-    first: row2 ? { who: row2.who, reason: row2.reason } : null,
+    first: row2 ? { who: row2.who, reason: row2.sentence } : null,
     at: at2.toISOString()
   };
 }

@@ -17945,6 +17945,10 @@ interface TodayWidgetSnapshot {
     /** When this was true, ISO. The widget says "as of" from it. */
     at: string;
 }
+/**
+ * The first person and the count come from one list, the queue, as the page's own Today draws it: the first was the
+ * needs-you list's while the count was the queue's, so the widget could name someone the count did not include.
+ */
 declare function todayWidgetSnapshot(vm: TodayVM, at: Date): TodayWidgetSnapshot;
 /** The snapshot as the shell may trust it after the bridge: the shapes, the sizes, nothing else. */
 declare function parseTodayWidgetSnapshot(v: unknown): TodayWidgetSnapshot | null;
