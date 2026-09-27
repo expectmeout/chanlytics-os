@@ -106,6 +106,12 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "PUT playbooks/[id]": runs,
   "DELETE playbooks/[id]": runs,
   "POST playbooks/[id]/run": runs,
+  // A reach-out is a chain of playbooks over a search's leads (Part 4): its runs are broadcasts, its answers move leads.
+  "POST reach-outs": () => [playbooksOverride, broadcastsOverride, leadsOverride],
+  "PUT reach-outs/[id]": () => [playbooksOverride, broadcastsOverride, leadsOverride],
+  "DELETE reach-outs/[id]": () => [playbooksOverride, broadcastsOverride, leadsOverride],
+  "POST reach-out-sends/[id]/decide": () => [broadcastsOverride, playbooksOverride, leadsOverride],
+  "POST broadcasts/[id]/recheck": runs,
   "POST templates": templates,
   "PUT templates/[id]": templates,
   "DELETE templates/[id]": templates,

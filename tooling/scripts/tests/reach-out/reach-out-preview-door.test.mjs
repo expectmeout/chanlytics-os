@@ -50,6 +50,7 @@ const knock = (body, headers = { "x-edge-token": token() }) =>
 const answer = async (res) => [res.status, await res.json()];
 const BODY = (over = {}) => ({
   tenant_id: A,
+  user_id: USER,
   search_id: SEARCH,
   index: 0,
   include_unconfirmed: false,
@@ -60,7 +61,7 @@ const BODY = (over = {}) => ({
 });
 
 /** The workspace's search: three businesses, strongest first; the audience's and the record's doors as the SQL keys them. */
-function world({ config = CONFIG() } = {}) {
+function world({ config = CONFIG(), events = [] } = {}) {
   const leads = [1, 2, 3].map((i) => ({
     lead_id: `lead-${i}`,
     email: `owner-${i}@fixture-movers.example`,
@@ -75,6 +76,7 @@ function world({ config = CONFIG() } = {}) {
       tenants: [{ id: A, name: "Harbor Moving Co" }],
       tenant_config: [{ tenant_id: A, config }],
       business_records: [{ tenant_id: A, about: "We move homes across Austin." }],
+      events,
     },
     {},
     {
@@ -109,7 +111,7 @@ function world({ config = CONFIG() } = {}) {
     },
   );
   setPg(db);
-  return { asked, db };
+  return { asked, db, events };
 }
 
 /** The writer and the reader, by their prompts. */
@@ -217,4 +219,31 @@ test("the step's language is the reader's measure; a model that cannot answer is
     const none = (await answer(await knock(BODY())))[1];
     assert.equal(none.preview.unavailable, true);
   });
+});
+
+test("a preview spends the model, so it counts in Ask's daily budget as a lead draft does: recorded against who asked, and refused past the day's tokens before anything is read (R12)", async () => {
+  model();
+  const w = world();
+  const [status] = await answer(await knock(BODY()));
+  assert.equal(status, 200);
+  const spent = w.events.filter((e) => e.kind === "usage.ask_tokens");
+  assert.equal(spent.length, 1, "one row of what it cost");
+  assert.deepEqual(
+    [spent[0].tenant_id, spent[0].subject_id, spent[0].data.purpose, spent[0].data.input_tokens > 0],
+    [A, USER, "reach_out_preview", true],
+  );
+  const full = world({
+    events: [
+      {
+        tenant_id: A,
+        kind: "usage.ask_tokens",
+        created_at: new Date().toISOString(),
+        data: { input_tokens: 10_000_000, output_tokens: 0 },
+      },
+    ],
+  });
+  const [s2, b2] = await answer(await knock(BODY()));
+  assert.deepEqual([s2, b2.error], [429, "ask_budget"]);
+  assert.equal(full.asked.length, 0, "no business was read for it");
+  assert.deepEqual(await answer(await knock(BODY({ user_id: "ada" }))), [400, { ok: false, error: "bad_request" }]);
 });

@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { maySpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
+import { emailWordsFrom } from "./reach-out-sheet";
 
 type Db = SupabaseClient<Database>;
 export type ReachOutSendRow = Database["public"]["Tables"]["reach_out_sends"]["Row"];
@@ -398,17 +399,7 @@ export async function emailWordsOf(
     .eq("channel", "email")
     .maybeSingle();
   if (error) throw new Error(`cannot read the step's words: ${error.message}`);
-  if (!data) return null;
-  const part = (type: string): string | null => {
-    for (const c of Array.isArray(data.components) ? data.components : [])
-      if (c && typeof c === "object" && String((c as { type?: unknown }).type ?? "").toUpperCase() === type) {
-        const t = (c as { text?: unknown }).text;
-        return typeof t === "string" && t.trim() ? t : null;
-      }
-    return null;
-  };
-  const body = part("BODY") ?? (data.body_preview?.trim() || null);
-  return body ? { subject: part("HEADER"), body } : null;
+  return data ? emailWordsFrom(data) : null;
 }
 
 /** A workspace's name and its configuration, as stored: the foot's who, and the profile its where is read from. */
@@ -741,26 +732,6 @@ export async function recordCheck(
   return (data ?? []).length === 1;
 }
 
-/**
- * A send back to unchecked (R5): its words changed since its check, or it names an opening it has none of. Its words'
- * version moves on, so a check still under way for the old words writes nothing; what its owner included it past stays.
- */
-export function checkResetPatch(gen: number): Partial<ReachOutSendRow> {
-  return {
-    checked_at: null,
-    check_gen: gen + 1,
-    checked_words: null,
-    check_tries: 0,
-    check_first_at: null,
-    check_after: null,
-    check_started_at: null,
-    opening: null,
-    angle: null,
-    facts_used: [],
-    hold_detail: null,
-  };
-}
-
 /** Holds left past `before`, oldest planned first (00197: fourteen days from when a send was planned, R10). */
 export async function heldStale(db: Db, before: Date, limit: number, tenantId?: string): Promise<ReachOutSendRow[]> {
   const { data, error } = await db.rpc("reach_out_held_stale", {
@@ -802,7 +773,7 @@ export async function takeCheckAttempt(db: Db, p: { tenantId: string; cap: numbe
 
 /**
  * Whether a workspace may spend on reach-out now (contracts maySpend): a paused workspace, or one with no billing row,
- * may not. The one reading of it: the step's run (run-context.ts) and the check both ask it. A read that fails throws:
+ * may not. The one reading of it: the step's run (run-context.ts), the check and the dashboard's chains ask it. A read that fails throws:
  * "we could not check" is not "yes".
  */
 export async function workspaceMaySpend(db: Db, tenantId: string): Promise<boolean> {
