@@ -57,17 +57,6 @@ export { afterProbe } from "./question";
 export type { ProbeYieldMember, AfterProbe } from "./question";
 export { runStateOf, termsShortOf, discoveryEnding, FINAL_RUN_STATES } from "./endings";
 export {
-  startRound,
-  centerOf,
-  nearbyFor,
-  memberOf,
-  takeBatch,
-  collect,
-  rejudgeProbe,
-  markPlaces,
-  checkable,
-  check,
-  reconcileUnknownRuns,
   LEASE_SECONDS,
   FIRST_COLLECT_SECONDS,
   POLL_SECONDS,
@@ -84,20 +73,19 @@ export {
   DUPLICATE_REASON,
   LeadRetry,
   targetOf,
-  isAgainRun,
-  MARK_ALLOWANCE_MS,
-  MARK_AT_ONCE,
-  MARK_TRIES,
-} from "./runner";
-export type {
-  Phase,
-  TermOutcome,
-  StartOutcome,
-  CollectOutcome,
-  RejudgeOutcome,
-  CheckOutcome,
-  CheckAgain,
-  ReconcileOutcome,
-} from "./runner";
+} from "./runner/rules";
+export type { Phase } from "./runner/rules";
+export { startRound } from "./runner/start";
+export type { TermOutcome, StartOutcome } from "./runner/start";
+export { centerOf, nearbyFor, memberOf, takeBatch } from "./runner/places";
+export { collect } from "./runner/collect";
+export type { CollectOutcome } from "./runner/collect";
+export { rejudgeProbe } from "./runner/rejudge";
+export type { RejudgeOutcome } from "./runner/rejudge";
+export { markPlaces, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_TRIES } from "./runner/mark-places";
+export { checkable, check, isAgainRun } from "./runner/check";
+export type { CheckOutcome, CheckAgain } from "./runner/check";
+export { reconcileUnknownRuns } from "./runner/sweep";
+export type { ReconcileOutcome } from "./runner/sweep";
 export { imageHeaderOf, markImageFrom, MARK_MIN_SIDE, MARK_MAX_RATIO, MARK_MAX_BYTES } from "./mark-image";
 export type { MarkKind, MarkImage } from "./mark-image";
