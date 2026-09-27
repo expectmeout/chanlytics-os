@@ -1212,6 +1212,69 @@
       "role": "partner",
       "rate": "settings",
       "spend": false
+    },
+    "POST broadcasts/[id]/recheck": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "POST reach-out-sends/[id]/decide": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "GET reach-outs/[id]": {
+      "kind": "read",
+      "scope": "row",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "PUT reach-outs/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "DELETE reach-outs/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
+    "POST reach-outs/preview": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "reach_out_preview",
+      "spend": true
+    },
+    "GET reach-outs/reach": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "GET reach-outs": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST reach-outs": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
     }
   }
 }

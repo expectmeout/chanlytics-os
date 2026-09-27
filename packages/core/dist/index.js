@@ -145,6 +145,7 @@ import { z as z10 } from "zod";
 import { z as z11 } from "zod";
 import { z as z12 } from "zod";
 import { z as z13 } from "zod";
+import { z as z14 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -3327,6 +3328,7 @@ var OPENING_CHARS_MAX = 400;
 var REACH_OUT_STEPS_MAX = 5;
 var REACH_OUT_NAME_MAX = 80;
 var SIGNED_BY_MAX = 60;
+var REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
 var ReachOutStepSchema = z11.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
@@ -3339,7 +3341,10 @@ var ReachOutChainSchema = z11.object({
   name: z11.string().trim().min(1).max(REACH_OUT_NAME_MAX),
   search_id: z11.string().uuid(),
   include_unconfirmed: z11.boolean(),
-  gap_minutes: z11.number().int().min(5).max(120),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
+  gap_minutes: z11.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
+  }),
   /** Empty: every verified domain of the workspace (00183). */
   domain_ids: z11.array(z11.string().uuid()).max(5),
   signed_by: z11.string().trim().max(SIGNED_BY_MAX).nullable(),
@@ -3366,6 +3371,50 @@ var OPENING_SCHEMA = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var REACH_OUT_PREVIEW_INDEX_MAX = 199;
+var ReachOutPreviewSchema = z12.object({
+  search_id: z12.string().uuid(),
+  index: z12.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z12.boolean(),
+  words: z12.object({
+    subject: z12.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z12.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+  }),
+  signed_by: z12.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z12.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema = z12.object({ decision: z12.enum(REACH_OUT_DECISIONS) });
+var REACH_OUT_REFUSALS = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  workspaceNotFound: "Workspace not found.",
+  oneEmail: "A reach-out has at least one email.",
+  /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
+  leadNotFound: "Lead not found.",
+  leadGone: "This lead is gone.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET = new Set(Object.values(REACH_OUT_REFUSALS));
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
@@ -3375,10 +3424,10 @@ var DAY_MS10 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS = 12 * 36e5;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z12.string().trim().max(80);
-var SignupSchema = z12.object({
-  name: z12.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z12.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z13.string().trim().max(80);
+var SignupSchema = z13.object({
+  name: z13.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z13.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -3392,17 +3441,17 @@ var SignupSchema = z12.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z12.string().max(200).optional(),
+  password: z13.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z12.string().trim().min(1).max(64).optional(),
+  timezone: z13.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z12.object({
-  name: z12.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z13.object({
+  name: z13.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z12.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z13.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -3440,11 +3489,11 @@ var PASSWORD_WORDS = {
 };
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z13.object({
-  code: z13.string().trim().min(1).max(64),
-  terms: z13.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z14.object({
+  code: z14.string().trim().min(1).max(64),
+  terms: z14.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z13.object({ letters: z13.boolean() }).strict();
+var PartnerLettersSchema = z14.object({ letters: z14.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -3483,29 +3532,29 @@ var PARTNER_WORDS = {
   letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
   lettersFailed: "your email setting"
 };
-var letterCents = z13.coerce.number();
-var letterSum = z13.object({ currency: z13.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z13.object({
+var letterCents = z14.coerce.number();
+var letterSum = z14.object({ currency: z14.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z14.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z13.array(z13.object({ kind: z13.string(), currency: z13.string(), count: z13.coerce.number(), cents: letterCents })).default([]),
+  written: z14.array(z14.object({ kind: z14.string(), currency: z14.string(), count: z14.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z13.array(letterSum).default([]),
+  matured: z14.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z13.array(letterSum).default([]),
-  paid: z13.array(z13.object({ currency: z13.string(), cents: letterCents, reference: z13.string(), sent_at: z13.string() })).default([]),
+  voided: z14.array(letterSum).default([]),
+  paid: z14.array(z14.object({ currency: z14.string(), cents: letterCents, reference: z14.string(), sent_at: z14.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z13.array(z13.object({ workspace: z13.string().nullable(), standing: z13.string(), why: z13.string().nullable() })).default([]),
+  standing: z14.array(z14.object({ workspace: z14.string().nullable(), standing: z14.string(), why: z14.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z13.array(z13.string().nullable()).default([]),
+  brought: z14.array(z14.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z13.object({ status: z13.string(), why: z13.string().nullable() }).nullable().default(null),
-  balance: z13.array(
-    z13.object({
-      currency: z13.string(),
+  status: z14.object({ status: z14.string(), why: z14.string().nullable() }).nullable().default(null),
+  balance: z14.array(
+    z14.object({
+      currency: z14.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z13.string().nullable()
+      next_payable_at: z14.string().nullable()
     })
   ).default([])
 });
@@ -3751,7 +3800,7 @@ var APIFY_RUN_END_EVENTS = [
 ];
 
 // ../contracts/dist/index.js
-import { z as z14 } from "zod";
+import { z as z15 } from "zod";
 import { z as z82 } from "zod";
 import { z as z42 } from "zod";
 import { z as z32 } from "zod";
@@ -3764,7 +3813,8 @@ import { z as z102 } from "zod";
 import { z as z112 } from "zod";
 import { z as z122 } from "zod";
 import { z as z132 } from "zod";
-z14.config({ jitless: true });
+import { z as z142 } from "zod";
+z15.config({ jitless: true });
 var NO_LINK_DETAILS = "their name, what they need, and where and when";
 function offersBookingLink(brain) {
   return !brain || !!brain.booking_link;
@@ -8220,6 +8270,7 @@ var OPENING_CHARS_MAX2 = 400;
 var REACH_OUT_STEPS_MAX2 = 5;
 var REACH_OUT_NAME_MAX2 = 80;
 var SIGNED_BY_MAX2 = 60;
+var REACH_OUT_GAP_MINUTES2 = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS2 = { min: 2, max: 30, first: 4 };
 var ReachOutStepSchema2 = z112.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
@@ -8232,7 +8283,10 @@ var ReachOutChainSchema2 = z112.object({
   name: z112.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
   search_id: z112.string().uuid(),
   include_unconfirmed: z112.boolean(),
-  gap_minutes: z112.number().int().min(5).max(120),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
+  gap_minutes: z112.number().int().refine((g) => REACH_OUT_GAP_MINUTES2.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES2.join(", ")} minutes.`
+  }),
   /** Empty: every verified domain of the workspace (00183). */
   domain_ids: z112.array(z112.string().uuid()).max(5),
   signed_by: z112.string().trim().max(SIGNED_BY_MAX2).nullable(),
@@ -8269,6 +8323,50 @@ var OPENING_SCHEMA2 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var REACH_OUT_PREVIEW_INDEX_MAX2 = 199;
+var ReachOutPreviewSchema2 = z122.object({
+  search_id: z122.string().uuid(),
+  index: z122.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX2),
+  include_unconfirmed: z122.boolean(),
+  words: z122.object({
+    subject: z122.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
+    body: z122.string().trim().min(1).max(REACH_OUT_BODY_MAX2 * 2)
+  }),
+  signed_by: z122.string().trim().max(SIGNED_BY_MAX2).nullable(),
+  language: z122.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS2 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema2 = z122.object({ decision: z122.enum(REACH_OUT_DECISIONS2) });
+var REACH_OUT_REFUSALS2 = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  workspaceNotFound: "Workspace not found.",
+  oneEmail: "A reach-out has at least one email.",
+  /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
+  leadNotFound: "Lead not found.",
+  leadGone: "This lead is gone.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET2 = new Set(Object.values(REACH_OUT_REFUSALS2));
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var AppError = class extends Error {
   code;
@@ -8307,10 +8405,10 @@ var DAY_MS102 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS2 = 12 * 36e5;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
-var InviteCodeSchema2 = z122.string().trim().max(80);
-var SignupSchema2 = z122.object({
-  name: z122.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
-  email: z122.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema2 = z132.string().trim().max(80);
+var SignupSchema2 = z132.object({
+  name: z132.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
+  email: z132.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -8324,17 +8422,17 @@ var SignupSchema2 = z122.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z122.string().max(200).optional(),
+  password: z132.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z122.string().trim().min(1).max(64).optional(),
+  timezone: z132.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema2.optional()
 }).strict();
-var PendingWorkspaceSchema2 = z122.object({
-  name: z122.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
+var PendingWorkspaceSchema2 = z132.object({
+  name: z132.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z122.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
+  timezone: z132.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
 });
 function isTimezone2(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -8372,11 +8470,11 @@ var PASSWORD_WORDS2 = {
 };
 var PARTNER_CODE_MIN2 = 3;
 var PARTNER_CODE_MAX2 = 24;
-var PartnerBecomeSchema2 = z132.object({
-  code: z132.string().trim().min(1).max(64),
-  terms: z132.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema2 = z142.object({
+  code: z142.string().trim().min(1).max(64),
+  terms: z142.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema2 = z132.object({ letters: z132.boolean() }).strict();
+var PartnerLettersSchema2 = z142.object({ letters: z142.boolean() }).strict();
 var PARTNER_WORDS2 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -8415,35 +8513,35 @@ var PARTNER_WORDS2 = {
   letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
   lettersFailed: "your email setting"
 };
-var letterCents2 = z132.coerce.number();
-var letterSum2 = z132.object({ currency: z132.string(), cents: letterCents2 });
-var PartnerLetterNewsSchema2 = z132.object({
+var letterCents2 = z142.coerce.number();
+var letterSum2 = z142.object({ currency: z142.string(), cents: letterCents2 });
+var PartnerLetterNewsSchema2 = z142.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z132.array(z132.object({ kind: z132.string(), currency: z132.string(), count: z132.coerce.number(), cents: letterCents2 })).default([]),
+  written: z142.array(z142.object({ kind: z142.string(), currency: z142.string(), count: z142.coerce.number(), cents: letterCents2 })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z132.array(letterSum2).default([]),
+  matured: z142.array(letterSum2).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z132.array(letterSum2).default([]),
-  paid: z132.array(z132.object({ currency: z132.string(), cents: letterCents2, reference: z132.string(), sent_at: z132.string() })).default([]),
+  voided: z142.array(letterSum2).default([]),
+  paid: z142.array(z142.object({ currency: z142.string(), cents: letterCents2, reference: z142.string(), sent_at: z142.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z132.array(z132.object({ workspace: z132.string().nullable(), standing: z132.string(), why: z132.string().nullable() })).default([]),
+  standing: z142.array(z142.object({ workspace: z142.string().nullable(), standing: z142.string(), why: z142.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z132.array(z132.string().nullable()).default([]),
+  brought: z142.array(z142.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z132.object({ status: z132.string(), why: z132.string().nullable() }).nullable().default(null),
-  balance: z132.array(
-    z132.object({
-      currency: z132.string(),
+  status: z142.object({ status: z142.string(), why: z142.string().nullable() }).nullable().default(null),
+  balance: z142.array(
+    z142.object({
+      currency: z142.string(),
       held: letterCents2,
       payable: letterCents2,
       paid: letterCents2,
-      next_payable_at: z132.string().nullable()
+      next_payable_at: z142.string().nullable()
     })
   ).default([])
 });
 
 // ../db/dist/index.js
-import { z as z15 } from "zod";
+import { z as z16 } from "zod";
 import { z as z83 } from "zod";
 import { z as z43 } from "zod";
 import { z as z33 } from "zod";
@@ -8456,7 +8554,8 @@ import { z as z103 } from "zod";
 import { z as z113 } from "zod";
 import { z as z123 } from "zod";
 import { z as z133 } from "zod";
-z15.config({ jitless: true });
+import { z as z143 } from "zod";
+z16.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -10816,6 +10915,7 @@ var OPENING_CHARS_MAX3 = 400;
 var REACH_OUT_STEPS_MAX3 = 5;
 var REACH_OUT_NAME_MAX3 = 80;
 var SIGNED_BY_MAX3 = 60;
+var REACH_OUT_GAP_MINUTES3 = [5, 8, 12, 20, 30, 60];
 var REACH_OUT_AFTER_DAYS3 = { min: 2, max: 30, first: 4 };
 var ReachOutStepSchema3 = z113.object({
   /** An existing step's id, when the sheet edits a chain; none for a new one. */
@@ -10828,7 +10928,10 @@ var ReachOutChainSchema3 = z113.object({
   name: z113.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
   search_id: z113.string().uuid(),
   include_unconfirmed: z113.boolean(),
-  gap_minutes: z113.number().int().min(5).max(120),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
+  gap_minutes: z113.number().int().refine((g) => REACH_OUT_GAP_MINUTES3.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES3.join(", ")} minutes.`
+  }),
   /** Empty: every verified domain of the workspace (00183). */
   domain_ids: z113.array(z113.string().uuid()).max(5),
   signed_by: z113.string().trim().max(SIGNED_BY_MAX3).nullable(),
@@ -10855,6 +10958,50 @@ var OPENING_SCHEMA3 = {
   required: ["opening", "angle", "facts_used"],
   additionalProperties: false
 };
+var REACH_OUT_PREVIEW_INDEX_MAX3 = 199;
+var ReachOutPreviewSchema3 = z123.object({
+  search_id: z123.string().uuid(),
+  index: z123.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX3),
+  include_unconfirmed: z123.boolean(),
+  words: z123.object({
+    subject: z123.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
+    body: z123.string().trim().min(1).max(REACH_OUT_BODY_MAX3 * 2)
+  }),
+  signed_by: z123.string().trim().max(SIGNED_BY_MAX3).nullable(),
+  language: z123.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+});
+var REACH_OUT_DECISIONS3 = ["include", "rewrite", "skip", "not_a_fit"];
+var ReachOutDecideSchema3 = z123.object({ decision: z123.enum(REACH_OUT_DECISIONS3) });
+var REACH_OUT_REFUSALS3 = {
+  exists: "This search has a reach-out already.",
+  wrote: "This reach-out has written already. Pause it instead.",
+  stepWrote: "That step has written already. Pause the reach-out instead.",
+  outOfPlace: "A step is out of its place. Open the reach-out again.",
+  notFound: "Reach-out not found.",
+  workspaceNotFound: "Workspace not found.",
+  oneEmail: "A reach-out has at least one email.",
+  /** lead_set_stage's own, when Not a fit finds its lead missing or erased. */
+  leadNotFound: "Lead not found.",
+  leadGone: "This lead is gone.",
+  searchNotFound: "Search not found.",
+  domainNotFound: "Domain not found.",
+  sendNotFound: "Email not found.",
+  runNotFound: "Run not found.",
+  runOver: "That run is over.",
+  gone: "That email has gone.",
+  includeHeld: "Only an email the check held for a reason is included.",
+  givenUp: "This email waited two weeks for your answer and was given up.",
+  decision: "Include, rewrite, skip or not a fit.",
+  /** A row's CHECK refused what the words' rules let through: never expected, said plainly. */
+  unsaved: "That reach-out could not be saved as it is. Check its steps and try again.",
+  /** DELETE playbooks/[id] on a reach-out (R16): its history is never deleted there. */
+  notHere: "A reach-out is removed from its own row, and only before its first email goes. After that, pause it.",
+  /** The preview on a deployment that runs nothing. */
+  preview: "Previews only work on the production dashboard.",
+  previewDown: "The preview could not be written just now. Try again in a moment.",
+  budget: "Today's assistant budget is spent, so the preview waits until tomorrow."
+};
+var REFUSAL_SET3 = new Set(Object.values(REACH_OUT_REFUSALS3));
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
@@ -10864,10 +11011,10 @@ var DAY_MS103 = 24 * 3600 * 1e3;
 var SEARCH_WARN_MS3 = 12 * 36e5;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
-var InviteCodeSchema3 = z123.string().trim().max(80);
-var SignupSchema3 = z123.object({
-  name: z123.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
-  email: z123.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema3 = z133.string().trim().max(80);
+var SignupSchema3 = z133.object({
+  name: z133.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
+  email: z133.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -10881,17 +11028,17 @@ var SignupSchema3 = z123.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z123.string().max(200).optional(),
+  password: z133.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z123.string().trim().min(1).max(64).optional(),
+  timezone: z133.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema3.optional()
 }).strict();
-var PendingWorkspaceSchema3 = z123.object({
-  name: z123.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
+var PendingWorkspaceSchema3 = z133.object({
+  name: z133.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z123.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
+  timezone: z133.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
 });
 function isTimezone3(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -10929,11 +11076,11 @@ var PASSWORD_WORDS3 = {
 };
 var PARTNER_CODE_MIN3 = 3;
 var PARTNER_CODE_MAX3 = 24;
-var PartnerBecomeSchema3 = z133.object({
-  code: z133.string().trim().min(1).max(64),
-  terms: z133.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema3 = z143.object({
+  code: z143.string().trim().min(1).max(64),
+  terms: z143.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema3 = z133.object({ letters: z133.boolean() }).strict();
+var PartnerLettersSchema3 = z143.object({ letters: z143.boolean() }).strict();
 var PARTNER_WORDS3 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -10972,29 +11119,29 @@ var PARTNER_WORDS3 = {
   letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
   lettersFailed: "your email setting"
 };
-var letterCents3 = z133.coerce.number();
-var letterSum3 = z133.object({ currency: z133.string(), cents: letterCents3 });
-var PartnerLetterNewsSchema3 = z133.object({
+var letterCents3 = z143.coerce.number();
+var letterSum3 = z143.object({ currency: z143.string(), cents: letterCents3 });
+var PartnerLetterNewsSchema3 = z143.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z133.array(z133.object({ kind: z133.string(), currency: z133.string(), count: z133.coerce.number(), cents: letterCents3 })).default([]),
+  written: z143.array(z143.object({ kind: z143.string(), currency: z143.string(), count: z143.coerce.number(), cents: letterCents3 })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z133.array(letterSum3).default([]),
+  matured: z143.array(letterSum3).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z133.array(letterSum3).default([]),
-  paid: z133.array(z133.object({ currency: z133.string(), cents: letterCents3, reference: z133.string(), sent_at: z133.string() })).default([]),
+  voided: z143.array(letterSum3).default([]),
+  paid: z143.array(z143.object({ currency: z143.string(), cents: letterCents3, reference: z143.string(), sent_at: z143.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z133.array(z133.object({ workspace: z133.string().nullable(), standing: z133.string(), why: z133.string().nullable() })).default([]),
+  standing: z143.array(z143.object({ workspace: z143.string().nullable(), standing: z143.string(), why: z143.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z133.array(z133.string().nullable()).default([]),
+  brought: z143.array(z143.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z133.object({ status: z133.string(), why: z133.string().nullable() }).nullable().default(null),
-  balance: z133.array(
-    z133.object({
-      currency: z133.string(),
+  status: z143.object({ status: z143.string(), why: z143.string().nullable() }).nullable().default(null),
+  balance: z143.array(
+    z143.object({
+      currency: z143.string(),
       held: letterCents3,
       payable: letterCents3,
       paid: letterCents3,
-      next_payable_at: z133.string().nullable()
+      next_payable_at: z143.string().nullable()
     })
   ).default([])
 });
@@ -45780,14 +45927,14 @@ function haversineM(a, b) {
   return Math.round(2 * R * Math.asin(Math.sqrt(s)));
 }
 function zctaCenter(zip) {
-  const z16 = zip.trim();
+  const z17 = zip.trim();
   let lo = 0;
   let hi = TABLE.length - 1;
   while (lo <= hi) {
     const mid = lo + hi >> 1;
     const row = TABLE[mid];
-    if (row[0] === z16) return { lat: row[1], lng: row[2] };
-    if (row[0] < z16) lo = mid + 1;
+    if (row[0] === z17) return { lat: row[1], lng: row[2] };
+    if (row[0] < z17) lo = mid + 1;
     else hi = mid - 1;
   }
   return null;

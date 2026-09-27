@@ -19,3 +19,8 @@ export function serviceDb(): SupabaseClient<Database> {
   });
   return svc;
 }
+
+/** For tests: the service-role client the calls here use. */
+export function setServiceClient(db: SupabaseClient<Database> | null): void {
+  svc = db;
+}

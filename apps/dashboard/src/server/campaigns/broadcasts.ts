@@ -16,6 +16,7 @@ import {
   type RecipientState,
 } from "@chanlytics/contracts";
 import { readAllRows } from "@chanlytics/db";
+import { reachOutRunOf } from "@/server/campaigns/reach-outs";
 import type { RouteContext } from "@/server/with-route";
 
 /**
@@ -394,7 +395,11 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
     answered_at: r.messages?.conversation_id ? (answers.get(r.messages.conversation_id)?.at ?? null) : null,
     waiting_on_you: !!(r.messages?.conversation_id && waiting.has(r.messages.conversation_id)),
   }));
-  return { broadcast: toDto(row as BroadcastRow, counts.get(id) ?? emptyCounts()), recipients: people };
+  return {
+    broadcast: toDto(row as BroadcastRow, counts.get(id) ?? emptyCounts()),
+    recipients: people,
+    reach_out: await reachOutRunOf(ctx, tenantId, row as BroadcastRow),
+  };
 }
 
 /** How many of a person's runs their page lists: the newest. */
