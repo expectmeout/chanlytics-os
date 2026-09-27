@@ -363,6 +363,14 @@ safe-integer bounds, and writes literal unions as `anyOf`), deep-equal to a froz
 consolidation to nineteen for Phase 3 (nine reads, ten acts; `propose_list` and the Phase 4 reads bring it to the
 table's count), with the owner-only acts offered to owners only. `detail` waits for Phase 4.
 
+_Amended by the Phase 4 plan (27 Sep 2026):_ the table's `lists` and `pipeline` tools become actions of `people`, and
+the other reads gain actions (`leads` {leads, lead, search}, `campaigns` {broadcasts, broadcast}, `workspace`
+{connections, notifications, activity}, `inbox` {search}), so the set is nine reads and eleven acts — twenty for an
+owner, where the table's would have been twenty-two. The offer goes per action: each role is offered, for each tool,
+the actions it may use, the tool's action enum, examples and description built per role, so `propose_person` {mode,
+note, details} can hold an owner's action beside two operator actions and `workspace.activity` is an owner's. `detail`
+is deferred again.
+
 ### 5.4 One spec per card (fix; cuts the commit.ts switch, cardOpenRoute, PROPOSAL_GATE)
 
 Every card kind is one object in contracts that says what it needs, what gate the client checks, which route commits it
@@ -404,6 +412,13 @@ waits for Ruben to say what a receptionist-voiced reply does; until then the rou
 | list                                                                                                                        | new   | `POST segments` (rule from the drafter, purpose list_draft) | "make a list of everyone who booked in the last month and never said yes"; the rule is shown on the card in the People page's own words   |
 | run                                                                                                                         | new   | `POST broadcasts/[id]/approve` · `/cancel`                  | a playbook run waiting on Today: "approve the win-back run" from anywhere                                                                 |
 | person_details                                                                                                              | new   | `PUT contacts/[id]/details`                                 | a name or an address a customer gave in a message, offered as a card, never written from the words alone                                  |
+
+_Amended by the Phase 4 plan (27 Sep 2026):_ a note card carries a required `for` — the receptionist (it reads the note
+before it answers that person) or the team — with no default, and says it back; a fact about the business stays a
+settings card. A details card takes the name and the email only, the page's two fields, and its undo sets back the
+values the builder read. A list's rule is written by the turn's model in the list vocabulary and checked by
+`cleanListRule`, with no second model call. A run card is a playbook's waiting run, approved (undo: cancel) or skipped;
+a reach-out run is refused in words, since the same route would send cold email.
 
 ### 5.5 The turn (fix)
 
@@ -454,6 +469,10 @@ with citations disabled whose `source` is the row reference the answer's citatio
 the context alike, so customers' words always sit in data blocks. "Not enough information" becomes a first-class answer,
 and a citation outside the read set is a hard failure the eval counts. The answer's normaliser is unchanged in shape; it
 only consults the map.
+
+_Amended by the Phase 4 plan (27 Sep 2026):_ the list is thirteen names — `page` and twelve row kinds. The page already
+sends a Broadcasts row as `run` (its scope word, from `broadcasts/run:<id>`); in the answer it cites as `broadcast`. The
+two contracts files that hold this grammar sit at their file-length baselines, so they are split first, as a pure move.
 
 ### 5.8 The gateway, the budget and the telemetry (fix)
 
@@ -764,11 +783,31 @@ what a receptionist-voiced reply does. PRs 3.3 and 3.4 change what the model rea
 that every spec commits and undoes over the fake client, and that each spec's `needs` is its route's role; the existing
 ask-commit tests rewritten over the specs.
 
-**Phase 4 · Aware of all data.** Readers and tools for leads, pipeline, lists, broadcasts, notifications, connections,
-activity and message search; citation kinds to twelve; four new cards (note, list, run, person_details); the text index
-migration and the search reader. Migration: the text index (additive, RLS unchanged), pushed before the merge, either
-order works. **Proof:** a case per new tool and card in the eval set; a db test that the index answers under RLS as the
-person; the wiring map's Ask column re-read.
+**Phase 3, landed** (26–27 Sep 2026). PR 3.1 (#1157), PR 3.2 (#1160), PR 3.3 (#1167) and PR 3.4 (#1183), each on
+green; PRs 3.3 and 3.4 merged on Ruben's word ("merge right away and continue working", 26 Sep) with his eval re-run
+to follow; PR 3.5, the reply's voice, is deferred by him. What landed beyond the plan: 3.2 made a card's `needs` its
+commit route's role, so a partner (#1151, after the plan) gets settings and lead search cards; 3.3's retry of the
+examples moved, with the other two retries, into `server/ask/refusals.ts` (`dropFor`), and the tools a role is offered
+into the registry (`toApiTools`), to hold #1161's ratchets; 3.4 flattened each action tool's discriminated union into
+one object schema (zod writes a root `oneOf`, which is not an object schema), refuses a field that belongs to another
+action (a broadcast sent a playbook's `list` had gone quietly to everyone), and records each call as `name.action`. The
+set: nine reads and ten acts, offered per role (viewer 9, operator 15, partner 17, owner 19); an operator's tools block
+fell from 31,081 to 24,898 characters.
+
+**Phase 4 · Aware of all data** (eight PRs; plan `2026-09-27-ask-rewired-4-all-data.md`). Six of its eight domains
+already have readers, so Phase 4 is mostly actions over them. PR 4.1: contracts `ask/ask.ts` and `ask/ask-answer.ts`,
+both at their file-length baselines, split as a pure move proven by values. PR 4.2: the citation kinds, thirteen names
+(page and twelve row kinds; a Broadcasts row cites as `broadcast`, `run` staying the route's scope word), the read set
+kind → id → RowRef. PR 4.3: the reads that have readers as actions of the nine tools (leads, one lead, one search,
+lists, the pipeline, broadcasts, one broadcast, connections without billing, notifications, activity for owners), the
+offer per action so one tool may hold an operator's action and an owner's. PR 4.4: the text index — an expression GIN
+index on `messages.body` and `calls.transcript` read through a SECURITY INVOKER function (no stored column: both tables
+ride realtime), held for Ruben, pushed before its merge. PR 4.5: the search reader and `inbox.search`. PR 4.6: a
+person's note (a required `for`, the receptionist or the team) and details (name and email). PR 4.7: a list (its rule
+in the list vocabulary, no second model call) and a playbook's waiting run (a reach-out run refused). PR 4.8: Phase 4
+closed. An owner is offered twenty tools. **Proof:** each new action answers what its page's builder answers over the
+same reader; a case per new action and card in the eval set; a db test that the index answers under RLS as the person;
+the wiring map's Ask column re-read.
 
 **Phase 5 · Memory.** Raw turn blocks stored for a warm verbatim replay; the compact rebuild with cards, outcomes and
 cited ids for a cold reopen; replay bounded to twelve turns; newest-sixty; scope updated per turn; a name as a scrub
