@@ -145,7 +145,7 @@ export async function countAutomaticResume(
   return { ok: true, row: { ...row, facts } };
 }
 
-export interface StuckSweepDeps {
+interface StuckSweepDeps {
   /** Run the saga on a line this sweep has taken. The route wires `provisionLine`. */
   resume: (tenant: { id: string; name: string }, row: LineDbRow) => Promise<{ ok: boolean }>;
   /** The platform mailbox. */
@@ -161,7 +161,7 @@ export interface StuckSweepDeps {
   log: Pick<Logger, "info" | "error">;
 }
 
-export interface StuckSweepResult {
+interface StuckSweepResult {
   /** Rows past the deadline that this tick looked at. */
   stuck: number;
   resumed: number;

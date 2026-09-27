@@ -39,6 +39,9 @@
       ],
       "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "*.{ts,mjs}"]
     },
+    "apps/mobile": {
+      "entry": ["src/**/*.ios.{ts,tsx}"]
+    },
     "packages/*": {
       "entry": ["src/index.ts"],
       "project": ["src/**/*.ts"]

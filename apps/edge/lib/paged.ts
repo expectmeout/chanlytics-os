@@ -7,7 +7,7 @@
 import { DEFAULT_ROW_CAP, MAX_ROWS, readAllRows as readAll, type Page } from "./packages/db.js";
 import { logger } from "./log.js";
 
-export { DEFAULT_ROW_CAP, MAX_ROWS, type Page };
+export { DEFAULT_ROW_CAP, MAX_ROWS };
 
 /** Every row the query matches, a page at a time (packages/db readAllRows); hitting `cap` is logged, never thrown. */
 export function readAllRows<T>(

@@ -55,7 +55,7 @@ import { upsertEscalation } from "../packages/jobs.js";
 
 type Db = SupabaseClient<Database>;
 
-export type ReceiptOutcome = "not_a_workspace_email" | "no_such_row" | "applied";
+type ReceiptOutcome = "not_a_workspace_email" | "no_such_row" | "applied";
 
 /** Why a reply never arrived, for the person who has to do something about it. Names no address. */
 export const EMAIL_FAILED_WORDS: Partial<Record<EmailReceiptType, string>> = {

@@ -28,7 +28,7 @@ export interface SweepHealthRow {
  */
 export const ALERT_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
 
-export interface SweepAlertPlan {
+interface SweepAlertPlan {
   /** Every sweep currently failing, for the response body and the log. */
   broken: string[];
   /** The failing sweeps this tick may actually email about. */

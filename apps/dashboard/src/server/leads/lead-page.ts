@@ -258,7 +258,7 @@ export interface LeadsPageAnswer {
  * month and the day it renews are the BUSINESS's (lead_month), and the whole is contracts'; planFacts reads the same
  * two numbers for the plan card, which is why both go through monthUsed rather than the counters themselves.
  */
-export async function monthStanding(
+async function monthStanding(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
   now: Date = new Date(),

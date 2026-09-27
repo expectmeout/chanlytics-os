@@ -14,7 +14,7 @@ import { tenantFacts } from "@/server/tenant";
 import { teamRoster } from "@/server/workspace/team";
 
 /** Rows per page, over both ledgers merged. */
-export const ACTIVITY_PAGE = 100;
+const ACTIVITY_PAGE = 100;
 
 /**
  * How many rows past the page each ledger reads, so that rows sharing the

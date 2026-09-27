@@ -88,7 +88,7 @@ export function rowToLine(r: Row): LineRow {
 }
 
 /** Both receipts are in: the brand and the campaign are on record with the carriers. */
-export function isRegistered(r: Pick<Row, "brand_sid" | "campaign_sid">): boolean {
+function isRegistered(r: Pick<Row, "brand_sid" | "campaign_sid">): boolean {
   return !!(r.brand_sid && r.campaign_sid);
 }
 

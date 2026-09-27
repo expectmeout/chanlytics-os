@@ -40,7 +40,7 @@ function serviceDb(): SupabaseClient<Database> {
   return svc;
 }
 
-export interface SignupOutcome {
+interface SignupOutcome {
   /** A new person: the user was made this call. Their workspace waits for their first sign-in. */
   created: boolean;
   userId: string | null;

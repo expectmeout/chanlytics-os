@@ -12,7 +12,7 @@ import { serviceDb } from "../service-db";
    every query to it by hand — the service role bypasses RLS, so the scoping
    discipline lives here instead. */
 
-export interface TeamMember {
+interface TeamMember {
   membershipId: string;
   userId: string;
   email: string | null;
@@ -22,7 +22,7 @@ export interface TeamMember {
   isMe?: boolean;
 }
 
-export interface OpenInvite {
+interface OpenInvite {
   id: string;
   email: string;
   role: string;

@@ -7,7 +7,7 @@
 import { Resolver } from "node:dns/promises";
 import { dmarcOf } from "../packages/channels.js";
 
-export type TxtResolver = (name: string) => Promise<string[][]>;
+type TxtResolver = (name: string) => Promise<string[][]>;
 
 const systemResolver: TxtResolver = (name) => {
   const r = new Resolver({ timeout: 3000, tries: 2 });

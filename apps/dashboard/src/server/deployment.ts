@@ -1,8 +1,8 @@
 import "server-only";
 
-export type DeploymentEnv = "production" | "preview" | "development";
+type DeploymentEnv = "production" | "preview" | "development";
 
-export interface Deployment {
+interface Deployment {
   env: DeploymentEnv;
   /**
    * Whether this deployment may reach the real providers through the edge:

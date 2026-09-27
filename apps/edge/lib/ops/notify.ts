@@ -123,7 +123,7 @@ export async function post(from: string, to: string[], subject: string, text: st
  * the sending, because this is the decision that leaks customer data if it is
  * wrong — and a decision buried inside a fetch cannot be tested.
  */
-export type Addressing =
+type Addressing =
   /** A mailbox this tenant configured. Full detail. */
   | { kind: "tenant"; to: string[]; from: string }
   /** The env pair, which IS this tenant's own owner. Full detail. */

@@ -67,7 +67,7 @@ import { emailSetupFor } from "../connections/email";
  * there is no session at all -- so nothing on that path may call a function that
  * asks who is signed in.
  */
-export type SetupViewer = { kind: "member" } | { kind: "back_office" };
+type SetupViewer = { kind: "member" } | { kind: "back_office" };
 
 /** How many people are in the workspace and how many invitations are open -- the only two numbers Setup uses. */
 async function teamCounts(

@@ -41,7 +41,7 @@ export function safeNext(next: string | null | undefined): string {
  *
  * Clipped, because a query string is written by whoever builds the link.
  */
-export interface CallbackRefusal {
+interface CallbackRefusal {
   error: string;
   code: string | null;
   description: string | null;
@@ -52,7 +52,7 @@ const clip = (s: string | null | undefined): string | null => {
   return t ? t.slice(0, 200) : null;
 };
 
-export interface CallbackPlan {
+interface CallbackPlan {
   /** The code to exchange for a session, or null when there is nothing to exchange. */
   exchange: string | null;
   /** Where the browser goes: the asked-for page after a code; sign-in when there was none, saying why when the provider said. */

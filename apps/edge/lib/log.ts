@@ -18,7 +18,7 @@
  * whole transport. No dependency, no shipping, no sampling.
  */
 
-export type LogLevel = "info" | "warn" | "error";
+type LogLevel = "info" | "warn" | "error";
 
 /**
  * Fields carried by every line from one logical unit of work. Anything JSON

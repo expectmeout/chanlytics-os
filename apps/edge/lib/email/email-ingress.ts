@@ -35,7 +35,7 @@ import {
 
 type Db = SupabaseClient<Database>;
 
-export interface ResendIngressInput {
+interface ResendIngressInput {
   rawBody: string;
   headers: SvixHeaders;
   /**
@@ -51,7 +51,7 @@ export interface ResendIngressInput {
   nowMs: number;
 }
 
-export type ResendVerdict =
+type ResendVerdict =
   | { kind: "refuse"; status: 401 | 400; log: string }
   /** An event this door has no work for (a domain event, a contact event), or a received email that names no address of ours. */
   | { kind: "ignore"; log: string; unroutable: number }

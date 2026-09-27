@@ -15,7 +15,7 @@ import crypto from "node:crypto";
 import { APIFY_RUN_END_EVENTS } from "../packages/channels.js";
 
 /** The endings, spelled once: exactly the events every run is started asking for (core runner.ts). Anything else is progress. */
-export const APIFY_FINAL_EVENTS: ReadonlySet<string> = new Set(APIFY_RUN_END_EVENTS);
+const APIFY_FINAL_EVENTS: ReadonlySet<string> = new Set(APIFY_RUN_END_EVENTS);
 export const WEBHOOK_TOKEN = /^[A-Za-z0-9_-]{32,64}$/;
 export const RUN_ROW_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -39,7 +39,7 @@ export function tokenMatches(token: string, hash: string): boolean {
   return a.length === 32 && b.length === 32 && crypto.timingSafeEqual(a, b);
 }
 
-export type IngressVerdict =
+type IngressVerdict =
   | { action: "refuse"; status: 400 | 401; log: string }
   | { action: "ignore"; log: string }
   | { action: "abort_foreign"; apifyRunId: string; log: string }

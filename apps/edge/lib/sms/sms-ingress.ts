@@ -61,12 +61,12 @@ type Db = SupabaseClient<Database>;
  * the only alarm channel this system has sends one email per POST to a public
  * URL. Those name a constant instead, so the whole class is capped like one.
  */
-export type SmsVerdict =
+type SmsVerdict =
   | { kind: "refuse"; status: number; log: string; level: "warn" | "error"; alert: string | null; alertKey?: string }
   | { kind: "accept"; line: SmsLine; acct: ProviderAccount; routed: RoutedChannel; held: boolean };
 
 /** One suppression key for every text to a number no line carries, whatever the caller writes in `To`. */
-export const UNKNOWN_LINE_ALERT_KEY = "unknown-line";
+const UNKNOWN_LINE_ALERT_KEY = "unknown-line";
 
 export async function planSmsIngress(o: {
   inbound: SmsInbound;
