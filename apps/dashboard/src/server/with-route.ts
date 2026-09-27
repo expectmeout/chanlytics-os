@@ -5,6 +5,7 @@ import {
   err,
   ok,
   whyCannotSpend,
+  roleAtLeast,
   type BillingMode,
   type BillingStatus,
   type Role,
@@ -229,22 +230,11 @@ export async function memberContext(
 }
 
 /**
- * The ladder a route's `role` names a rung of. A partner (decision 0012) sits
- * between operator and owner: everything setting a workspace up takes, and
- * nothing that touches its money or its team, which is what `role: "partner"`
- * on a route means (ROLE_PERMS in contracts is the same table, per permission).
+ * The ladder a route's `role` names a rung of, and its one reading, `roleAtLeast`: contracts' (config.ts), so a page
+ * that offers an act only to the role its door takes reads the same ladder the door does (Leads' Erase, PR 9).
+ * Re-exported here for the doors and Ask's act tools, which have always read it from this module.
  */
-const ROLE_RANK: Record<Role, number> = { viewer: 0, operator: 1, partner: 2, owner: 3 };
-
-/**
- * Whether a role stands on the rung named, or above it: the one reading of the ladder, for the doors (requireRole) and
- * for what Ask hands a member (the act tools, which refuse a card its route would refuse). A role the ladder does not
- * know stands on no rung.
- */
-export function roleAtLeast(role: string, atLeast: Role): boolean {
-  const have = Object.prototype.hasOwnProperty.call(ROLE_RANK, role) ? ROLE_RANK[role as Role] : undefined;
-  return have !== undefined && have >= ROLE_RANK[atLeast];
-}
+export { roleAtLeast };
 
 /**
  * The server-side door (PRD E1). RLS is the floor — it stops cross-tenant

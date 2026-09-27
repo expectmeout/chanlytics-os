@@ -44,6 +44,9 @@ export const LeadsQuerySchema = z.object({
 
 export type LeadsQuery = z.infer<typeof LeadsQuerySchema>;
 
+/** GET leads/[id]: one lead as a row of the page, in the search the view is of when it is one search's (PR 9). */
+export const LeadOneQuerySchema = z.object({ search: z.string().uuid().optional() });
+
 /** The view a bulk act names when the owner chose "Select all N that match" (S13): the same keys GET leads takes. */
 export const LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
 

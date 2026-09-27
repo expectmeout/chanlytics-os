@@ -22,6 +22,7 @@ import {
   type LeadFit,
 } from "./lead-search";
 import {
+  LEAD_ERASE_WORDS,
   LEAD_CALL_OUTCOME_TONES,
   LEAD_CALL_OUTCOME_WORDS,
   LEAD_CALL_OUTCOMES,
@@ -158,6 +159,12 @@ export const LEAD_WORDS = {
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
   callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
+  /**
+   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
+   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
+   */
+  more: "More for this lead",
+  erase: LEAD_ERASE_WORDS,
 } as const;
 
 /** How long a workspace's suggestions stand before Claude is asked again (4.4's suggestionsFor). */

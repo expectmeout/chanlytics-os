@@ -32,6 +32,7 @@ import {
   type EmailReceipt,
   type SvixHeaders,
 } from "../packages/channels.js";
+import type { LogEvent } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -52,9 +53,9 @@ interface ResendIngressInput {
 }
 
 type ResendVerdict =
-  | { kind: "refuse"; status: 401 | 400; log: string }
+  | { kind: "refuse"; status: 401 | 400; log: LogEvent }
   /** An event this door has no work for (a domain event, a contact event), or a received email that names no address of ours. */
-  | { kind: "ignore"; log: string; unroutable: number }
+  | { kind: "ignore"; log: LogEvent; unroutable: number }
   /** What became of an email we sent. */
   | { kind: "receipt"; receipt: EmailReceipt }
   | { kind: "intake"; receivedId: string; jobs: Array<{ tenantId: string; mailboxId: string }>; unroutable: number };

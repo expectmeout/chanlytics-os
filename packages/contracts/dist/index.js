@@ -3007,7 +3007,21 @@ var LEAD_CHECK_WORDS = {
     yes: "The business's own address",
     no: "Not the business's own address",
     unknown: "Their own address: couldn't tell"
+  },
+  kind: {
+    yes: "The kind of business you asked for",
+    no: "Not the kind of business you asked for",
+    unknown: "The kind of business: couldn't tell"
   }
+};
+var LEAD_ERASE_WORDS = {
+  act: "Erase this lead",
+  ask: (name) => `Erase ${name}? Its record and every trace of it go for good.`,
+  yes: "Yes, erase",
+  no: "No",
+  busy: "Erasing\u2026",
+  done: (name) => `${name} is erased. It won't be found again.`,
+  refused: "Not erased"
 };
 var LEAD_MAILBOX_WORDS = {
   none: "No email found on their site",
@@ -3166,6 +3180,7 @@ var LeadsQuerySchema = z4.object({
   after_id: z4.string().uuid().optional(),
   limit: z4.coerce.number().int().min(1).max(500).default(500)
 });
+var LeadOneQuerySchema = z4.object({ search: z4.string().uuid().optional() });
 var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
 var LeadStageInputSchema = z4.discriminatedUnion("kind", [
   z4.object({ kind: z4.literal("stage"), stage: z4.enum(["ready", "nurture", "converted"]) }),
@@ -4057,6 +4072,22 @@ function leadExclusionWord(search, key) {
   const cr = plan?.criteria.find((c) => c.key === key);
   return cr ? cr.text : LEAD_LEFT_OUT_WORD;
 }
+var LEAD_CHECK_UNSURE_WORD = "couldn't tell";
+function leadCheckWord(search, key, answer) {
+  const plan = search?.plan;
+  const cap2 = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const low = (s) => s[1] && s[1] === s[1].toLowerCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+  const said = (yes, no) => answer === "yes" ? yes : answer === "no" ? no : `${yes}: ${LEAD_CHECK_UNSURE_WORD}`;
+  if (key === LEAD_KIND_KEY && plan) return said(`One of the ${plan.name}`, leadKindWord(plan.name));
+  const cr = plan?.criteria.find((c) => c.key === key);
+  if (cr) return said(cap2(cr.text), `${cap2(cr.text)}: no`);
+  const ex = plan?.exclusions.find((e) => e.key === key);
+  if (ex) return said(`Not ${low(ex.text)}`, `One of the ${low(ex.text)}`);
+  const fixed = LEAD_CHECK_WORDS[key];
+  if (fixed) return fixed[answer];
+  const plain = cap2(key.replace(/_+/g, " ").trim()) || key;
+  return said(plain, `${plain}: no`);
+}
 var LEAD_SLOT_WORDS = {
   ok: "Checked",
   part: "Unconfirmed",
@@ -4128,6 +4159,13 @@ function leadTileSrc(url, px = LEAD_TILE_PX) {
   if (!url) return null;
   if (!/^https:\/\/lh3\.googleusercontent\.com\//.test(url)) return url;
   return url.replace(/=w\d+-h\d+(?:-[a-z0-9-]+)?$/i, `=s${px}-c`);
+}
+
+// src/config/roles.ts
+var ROLE_RANK = { viewer: 0, operator: 1, partner: 2, owner: 3 };
+function roleAtLeast(role, atLeast) {
+  const have = Object.prototype.hasOwnProperty.call(ROLE_RANK, role) ? ROLE_RANK[role] : void 0;
+  return have !== void 0 && have >= ROLE_RANK[atLeast];
 }
 
 // src/shared/time.ts
@@ -5235,6 +5273,10 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
 }
 
 // src/leads/lead-peek.ts
+var peekCheckLabel = (c, search, mailboxLabel) => c.key === "mailbox" ? mailboxLabel : leadCheckWord(c.how === "read" ? search : null, c.key, c.answer);
+function leadPeekMenu(role) {
+  return roleAtLeast(role ?? "", "owner") ? [{ id: "erase", label: LEAD_ERASE_WORDS.act, danger: true }] : [];
+}
 function leadWeekSummary(week) {
   const open = week.filter((d) => d.hours && !/^closed/i.test(d.hours));
   if (!open.length) return "";
@@ -5300,7 +5342,7 @@ function toLeadPeekVM(r2, search, tz, now) {
   const seen = [];
   const read = [];
   for (const c of m.checks) {
-    const label = c.key === "mailbox" ? mailboxLabel : LEAD_CHECK_WORDS[c.key][c.answer];
+    const label = peekCheckLabel(c, search, mailboxLabel);
     (c.how === "seen" ? seen : read).push({ key: c.key, label, answer: c.answer, source: c.source, reason: c.reason });
   }
   const others = m.other_emails.length ? {
@@ -5473,8 +5515,8 @@ var REVIEW_GROUP_ACTS = {
   mailbox_waiting: [],
   checks_out: ["keep", "exclude"],
   mailbox_silent: ["check_again", "keep", "exclude"],
-  bad_email: ["find_email", "keep", "exclude"],
-  no_email: ["find_email", "keep", "exclude"],
+  bad_email: ["keep", "exclude"],
+  no_email: ["keep", "exclude"],
   no_phone: ["keep", "exclude"],
   catch_all: ["keep", "exclude"],
   unsure: ["keep", "exclude"],
@@ -5496,7 +5538,6 @@ function reviewGroupOf(reason) {
 }
 var LEAD_REVIEW_ACT_WORDS = {
   check_again: "Check again",
-  find_email: "Find an email",
   keep: "Keep",
   exclude: "Exclude"
 };
@@ -5523,8 +5564,6 @@ function leadReviewCosts(acts, n, month) {
         return "They don't count, and nothing is charged.";
       case "check_again":
         return `About ${leadCheckAgainCents(n)}\xA2. Their answer lands here in a few minutes.`;
-      case "find_email":
-        return "Claude reads their pages again for an address.";
     }
   };
   return acts.map((act2) => ({ act: act2, label: LEAD_REVIEW_ACT_WORDS[act2], line: line2(act2) }));
@@ -5837,7 +5876,13 @@ var LEAD_WORDS = {
   deckPrev: "The lead before",
   deckNext: "The next lead",
   callSaveNext: "Save and go to the next",
-  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
+  /**
+   * The peek's ⋯ menu and its one item (Reach out Part 4, PR 9): Erase, the owner's alone (DELETE leads/[id]), asked
+   * first because it cannot be undone. Who is offered it is `leadPeekMenu`'s to say, never the page's.
+   */
+  more: "More for this lead",
+  erase: LEAD_ERASE_WORDS
 };
 var LEAD_SUGGEST_DAYS = 7;
 var LEAD_PRIOR_MIN = 25;
@@ -22533,6 +22578,7 @@ var ROUTE_KEYS = [
   "GET lead-searches/[id]",
   "GET lead-suggestions",
   "GET leads",
+  "GET leads/[id]",
   "GET leads/export",
   "GET messages/[id]/media",
   "GET metrics",
@@ -25950,6 +25996,7 @@ export {
   LEAD_EMAIL_STATES,
   LEAD_EMAIL_WORDS,
   LEAD_ENDING_WORDS,
+  LEAD_ERASE_WORDS,
   LEAD_ESTIMATE_MARGIN,
   LEAD_FACT_MAX,
   LEAD_FIRST_DAY_FOOT,
@@ -26049,6 +26096,7 @@ export {
   LeadDraftAnswerSchema,
   LeadDraftInputSchema,
   LeadExportQuerySchema,
+  LeadOneQuerySchema,
   LeadSearchPlanSchema,
   LeadStageInputSchema,
   LeadSuggestAnswerSchema,
@@ -26735,6 +26783,7 @@ export {
   leadAskedFor,
   leadBand,
   leadCheckAgainCents,
+  leadCheckWord,
   leadDraftFooter,
   leadEndingLine,
   leadExclusionWord,
@@ -26752,6 +26801,7 @@ export {
   leadNoCardLine,
   leadNotBusinessesLine,
   leadNoteLeft,
+  leadPeekMenu,
   leadPhoneState,
   leadPinTone,
   leadPlanAsk,
@@ -27058,6 +27108,7 @@ export {
   reviewsWords,
   rightNowCounts,
   rightNowLine,
+  roleAtLeast,
   roleGate,
   routePrefetchScript,
   ruleFacts,

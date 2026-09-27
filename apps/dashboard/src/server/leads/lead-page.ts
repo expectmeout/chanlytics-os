@@ -3,7 +3,7 @@
  * re-exports it.
  */
 import {
-  LEAD_CHECK_KEYS,
+  AppError,
   LEAD_MONTHLY_ALLOWANCE,
   type LeadCheck,
   type LeadCheckKey,
@@ -17,6 +17,7 @@ import {
   type LeadsQuery,
   type LeadStage,
 } from "@chanlytics/contracts";
+import { readLeadOne } from "@chanlytics/db";
 import { type DoorArgs, monthUsed, renewsOnOf } from "./lead-helpers";
 import { listCounts } from "./lead-searches";
 import { tenantFacts } from "../tenant";
@@ -85,7 +86,6 @@ interface LeadPageRow {
   page_key: string;
 }
 
-/** What the judge answered for each criterion of this place, by the plan's own key. */
 /**
  * The reason tokens contracts' classify wrote on the membership; [] when the judgment carries none. The email token
  * was written while the address was still to be checked (email:checking); the lead's own email_state is what is true
@@ -98,6 +98,7 @@ function reasonsOf(judgment: unknown, emailState: string): string[] {
   return raw.map((x) => (x.startsWith("email:") ? `email:${emailState}` : x));
 }
 
+/** What the judge answered for each criterion of this place, by the plan's own key, in the order it answered. */
 function judgedBy(judgment: unknown): Map<string, { answer: "yes" | "no" | "unknown"; reason: string | null }> {
   const out = new Map<string, { answer: "yes" | "no" | "unknown"; reason: string | null }>();
   const j =
@@ -115,13 +116,18 @@ function judgedBy(judgment: unknown): Map<string, { answer: "yes" | "no" | "unkn
 }
 
 /** The four checks the card SAW: never a word the check did not measure (S12). */
-const SEEN_CHECKS = new Set<LeadCheckKey>(["on_maps", "in_area", "phone_two_sources", "mailbox"]);
+const SEEN_CHECKS = new Set<string>(["on_maps", "in_area", "phone_two_sources", "mailbox"] satisfies LeadCheckKey[]);
 
 /**
  * The checks behind a lead (§0.1): what was seen in the listing and the
  * mailbox, and what Claude read. A check is listed only where there is
- * something to say about it -- a read check appears when the plan asked for it
- * under that name -- so the peek never claims a thing nobody asked was judged.
+ * something to say about it -- a read check is each criterion the judge
+ * answered, under the key it answered it by -- so the peek never claims a thing
+ * nobody asked was judged. The judge keys its answers by the plan's own names
+ * (`kind`, then the plan's criteria and exclusions: contracts judgeQuestions),
+ * so every one of them is reported; only the three of LEAD_CHECK_KEYS were,
+ * which no plan's keys ever matched, and the peek said nothing Claude read
+ * (Reach out Part 4, PR 9). The words are the plan's (contracts leadCheckWord).
  * Nothing here names whoever fetched the listing.
  */
 function checksOf(r: LeadPageRow): LeadCheck[] {
@@ -153,11 +159,10 @@ function checksOf(r: LeadPageRow): LeadCheck[] {
       reason: null,
     });
   }
-  const judged = judgedBy(r.judgment);
-  for (const key of LEAD_CHECK_KEYS) {
+  for (const [key, read] of judgedBy(r.judgment)) {
+    // A seen check is measured, never read: a plan key that shared its name would say it twice.
     if (SEEN_CHECKS.has(key)) continue;
-    const read = judged.get(key);
-    if (read) out.push({ key, how: "read", answer: read.answer, source: "Claude · the listing", reason: read.reason });
+    out.push({ key, how: "read", answer: read.answer, source: "Claude · the listing", reason: read.reason });
   }
   return out;
 }
@@ -307,4 +312,48 @@ export async function leadsPage(
     ...(counts ? { counts } : {}),
     ...(month ? { month } : {}),
   };
+}
+
+/* ------------------------------------------------------------ one lead -- */
+
+const GONE = () => new AppError("not_found", "That lead is not in your workspace.", 404);
+
+/**
+ * One lead, as a row of the page (Reach out Part 4, PR 9): what the peek draws for a lead the address names that is
+ * not on the pages the tab has loaded (a link, a lead far down a view). The same row the list answers -- the lead,
+ * the membership the page would show (00212's lead_member_of, over the one rule leads_page asks: not blanked, and a
+ * qualified one only once counted; the view's search's when `searchId` names one, else the newest), the places it
+ * was found at and its search's name -- put through the list's own builder. A lead of another workspace than the one
+ * the tab named is a 404, however many workspaces the caller belongs to: the peek draws it in that workspace's page.
+ * Read under the caller's own row security.
+ */
+export async function leadOne(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  leadId: string,
+  searchId?: string,
+): Promise<{ row: LeadRowDto }> {
+  const [one, names] = await Promise.all([
+    readLeadOne(ctx.supabase, tenantId, leadId, searchId),
+    searchNamesOf(ctx, tenantId),
+  ]);
+  if (!one) throw GONE();
+  const { lead, member } = one;
+  const row: LeadPageRow = {
+    ...lead,
+    member_id: member.id,
+    lead_id: lead.id,
+    place_id: lead.place_id ?? "",
+    search_id: member.search_id,
+    class: member.class,
+    excluded_by: member.excluded_by,
+    fit: member.fit,
+    reason: member.reason,
+    distance_m: member.distance_m,
+    counted: member.counted,
+    judgment: member.judgment,
+    places: one.places,
+    page_key: "",
+  };
+  return { row: toLeadRowDto(row, names) };
 }

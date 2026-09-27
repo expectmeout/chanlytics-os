@@ -13,10 +13,15 @@
  * make a logger look tidy would break the one thing already working. What
  * changes is that every line carries the same envelope — level, event, tenant,
  * and a correlation id — so lines can be joined into the story of one message.
+ * The names are a closed set, LOG_EVENTS (log-events.ts): a line names its
+ * event with one of them or it does not compile.
  *
  * Vercel captures stdout per invocation, so one JSON object per line is the
  * whole transport. No dependency, no shipping, no sampling.
  */
+import type { LogEvent } from "./log-events.js";
+
+export type { LogEvent };
 
 type LogLevel = "info" | "warn" | "error";
 
@@ -46,9 +51,9 @@ function emit(level: LogLevel, event: string, fields: LogContext): void {
 }
 
 export interface Logger {
-  info(event: string, fields?: LogContext): void;
-  warn(event: string, fields?: LogContext): void;
-  error(event: string, fields?: LogContext): void;
+  info(event: LogEvent, fields?: LogContext): void;
+  warn(event: LogEvent, fields?: LogContext): void;
+  error(event: LogEvent, fields?: LogContext): void;
   /** A logger with more context bound — e.g. per message inside a batch. */
   child(extra: LogContext): Logger;
 }

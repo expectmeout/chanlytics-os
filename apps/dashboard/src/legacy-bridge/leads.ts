@@ -65,6 +65,11 @@ export interface LeadsSurface {
   suggestions: LeadSuggestionsDto | null;
   /** The month's standing (D5): what the workbench says a press costs. Null until a first page has answered. */
   month: LeadMonthDto | null;
+  /**
+   * The leads the peek read on their own because no page loaded holds them (PR 9: a link to a lead, one far down a
+   * view), as rows: what the page's acts look a lead up in when it is not among `rows`. Never drawn as rows.
+   */
+  peeked: LeadRowVM[];
   tz: string;
   readFailed: boolean;
   fetchedAt: number;
@@ -150,6 +155,10 @@ const hold = (l: LeadsLoaded): void => held.hold(l.key, l);
 /** The views this tab holds go: a test on a new wire (a workspace change is a new document). */
 export function forgetLeadsViews(): void {
   held.forget();
+  peeked.clear();
+  peekAsked.clear();
+  erased.clear();
+  peekLast = null;
 }
 
 /** The key a read is made under: the workspace and every part of the view. */
@@ -177,19 +186,25 @@ function publishLeads(failed = false): void {
   // the old view that landed first published the old rows under the new view's route: the page took the new view for
   // landed, its rows stopped dimming, and the last view's rows stood under the new title until the read came back.
   const shown = L?.view ?? view;
+  // Each row is handed its own search (D5): a review row names what it waits on in the queue's words.
+  const vmOf = (r: LeadRowDto) =>
+    toLeadRowVM(r, L?.tz ?? "UTC", now, (L?.searches ?? []).find((s) => s.id === r.search_id) ?? null);
+  // An erased lead is gone from every view this tab holds at once: a view read before the erase still has it.
+  const rows = (L?.rows ?? []).filter((r) => !erased.has(r.id));
+  const drawn = new Set(rows.map((r) => r.id));
   (window as unknown as { __LEADS?: LeadsSurface }).__LEADS = {
     searches: L?.searches ?? [],
     counts: L?.counts ?? NO_COUNTS,
-    // Each row is handed its own search (D5): a review row names what it waits on in the queue's words.
-    rows: (L?.rows ?? []).map((r) =>
-      toLeadRowVM(r, L?.tz ?? "UTC", now, (L?.searches ?? []).find((s) => s.id === r.search_id) ?? null),
-    ),
+    rows: rows.map(vmOf),
     next: L?.next ?? null,
-    offered: L?.offered.length ?? 0,
+    offered: L?.offered.filter((r) => !erased.has(r.id)).length ?? 0,
     view: shown,
     route: leadsRoute(shown),
     suggestions: L?.suggestions ?? null,
     month: L?.month ?? null,
+    peeked: peekedHere()
+      .filter((r) => !drawn.has(r.id))
+      .map(vmOf),
     tz: L?.tz ?? "UTC",
     readFailed: failed,
     fetchedAt: now.getTime(),
@@ -314,6 +329,8 @@ async function refreshView(): Promise<void> {
   L.month = page.month ?? L.month;
   L.rows = rows;
   publishLeads();
+  // A lead the peek read on its own is not in any page this re-read patched: it is read again too, behind.
+  void peekAgain();
 }
 
 export const leadsOverride: SurfaceOverride = {
@@ -414,22 +431,35 @@ async function actAtOnce<R extends { ok: boolean }>(
   const L = leadsLoaded;
   const wanted = new Set(ids);
   const was = L ? L.rows.filter((r) => wanted.has(r.id)) : [];
-  if (!L || !was.length) return send();
+  // A lead the peek read on its own (PR 9) shows the press at once too, and is put back the same way.
+  const heldWas = [...peeked].filter(([, r]) => wanted.has(r.id));
+  if (!L || (!was.length && !heldWas.length)) return send();
   const tell = () => {
     publishLeads();
     window.dispatchEvent(new CustomEvent("surface:leads"));
   };
   const changed = new Map(was.map((r) => [r, change(r)]));
   L.rows = L.rows.map((r) => changed.get(r) ?? r);
+  const heldNow = heldWas.map(([k, r]) => [k, change(r), r] as const);
+  for (const [k, after] of heldNow) peeked.set(k, after);
   tell();
   const r = await send();
   // Refused: back as it was -- unless the view moved on, or a re-read has already said what a row is now.
-  if (!r.ok && leadsLoaded === L) {
-    const back = new Map([...changed].map(([before, after]) => [after, before]));
-    if (L.rows.some((row) => back.has(row))) {
-      L.rows = L.rows.map((row) => back.get(row) ?? row);
-      tell();
+  if (!r.ok) {
+    let moved = false;
+    if (leadsLoaded === L) {
+      const back = new Map([...changed].map(([before, after]) => [after, before]));
+      if (L.rows.some((row) => back.has(row))) {
+        L.rows = L.rows.map((row) => back.get(row) ?? row);
+        moved = true;
+      }
     }
+    for (const [k, after, before] of heldNow)
+      if (peeked.get(k) === after) {
+        peeked.set(k, before);
+        moved = true;
+      }
+    if (moved) tell();
   }
   return r;
 }
@@ -500,8 +530,23 @@ export async function draftForLead(
     refresh: false,
   });
 }
+/**
+ * Erase (the owner's, from the peek's menu): it answers when the door accepts, and the lead leaves every view this
+ * tab holds at once -- a re-read only patches the rows it finds, so a lead it no longer finds would stand there,
+ * erased, until a reload. The counts are the re-read's, behind it.
+ */
 export async function eraseLead(id: string) {
-  return call<{ erased: true }>("DELETE leads/[id]", { params: { id } });
+  const r = await call<{ erased: true; already: boolean }>("DELETE leads/[id]", {
+    params: { id },
+    refresh: "behind",
+  });
+  if (r.ok) {
+    erased.add(id);
+    forgetPeeked(id);
+    publishLeads();
+    window.dispatchEvent(new CustomEvent("surface:leads"));
+  }
+  return r;
 }
 /** The selected ids, or the view for "Select all N that match" (S13). By ids, every row shows it at once; by view nobody knows which rows it reaches, so they wait for the re-read. */
 export async function bulkLeads(body: LeadsBulkInput) {
@@ -542,13 +587,95 @@ export async function setBusinessLine(business_line: string) {
   return call<{ business_line: string }>("PUT lead-suggestions", { body: { business_line } });
 }
 
-/** The peek's view model for one loaded lead: the DTO, its search, the workspace's zone (§9.2). */
+/* ------------------------------------------ a lead on no page loaded (PR 9) */
+
+/**
+ * The leads the peek read on their own, by workspace, lead and the search the view is of, the last eight: a link to
+ * a lead, or a lead far down a view the tab has read one page of, opened the peek on nothing, because the peek drew
+ * only what the pages held. It asks `GET leads/[id]` once per lead and view (in the view's search, when the view is
+ * one search's), holds the answer, and tells the page, which draws the peek when it comes. What it has asked is
+ * forgotten with what it held (evicted) and whenever the door refuses, so a lead that could not be shown in one view
+ * is asked again in another. A held lead the door no longer shows -- erased, or moved out, in another tab -- goes
+ * from the peek and from every view.
+ */
+const PEEK_HELD = 8;
+const peeked = new Map<string, LeadRowDto>();
+const peekAsked = new Set<string>();
+const erased = new Set<string>();
+let peekLast: { id: string; searchId: string | null } | null = null;
+const peekKey = (id: string, searchId: string | null) => `${getActiveWorkspace() ?? ""}|${id}|${searchId ?? ""}`;
+const peekedHere = (): LeadRowDto[] => {
+  const ws = `${getActiveWorkspace() ?? ""}|`;
+  return [...peeked].filter(([k, r]) => k.startsWith(ws) && !erased.has(r.id)).map(([, r]) => r);
+};
+/** An erased lead goes from everything the peek holds, under every view it was read in. */
+function forgetPeeked(id: string): void {
+  for (const k of [...peeked.keys()]) if (peeked.get(k)?.id === id) peeked.delete(k);
+  for (const k of [...peekAsked]) if (k.split("|")[1] === id) peekAsked.delete(k);
+}
+
+async function askPeek(id: string, searchId: string | null, again = false): Promise<void> {
+  const key = peekKey(id, searchId);
+  if (peekAsked.has(key) && !again) return;
+  peekAsked.add(key);
+  const r = await call<{ row: LeadRowDto }>("GET leads/[id]", {
+    params: { id },
+    ...(searchId ? { query: { search: searchId } } : {}),
+  });
+  const tell = () => {
+    publishLeads();
+    window.dispatchEvent(new CustomEvent("surface:leads"));
+  };
+  if (!r.ok) {
+    peekAsked.delete(key);
+    // A lead held and read again that the door no longer shows was erased or moved out elsewhere: it goes.
+    if (r.status === 404 && peeked.has(key)) {
+      erased.add(id);
+      forgetPeeked(id);
+      tell();
+    }
+    return;
+  }
+  // A second guard beside the server's: a row of a search this workspace's surface does not hold is not drawn here.
+  if (erased.has(id) || !leadsLoaded?.searches.some((s) => s.id === r.data.row.search_id)) {
+    peekAsked.delete(key);
+    return;
+  }
+  peeked.delete(key);
+  peeked.set(key, r.data.row);
+  while (peeked.size > PEEK_HELD) {
+    const oldest = peeked.keys().next().value as string;
+    peeked.delete(oldest);
+    peekAsked.delete(oldest);
+  }
+  tell();
+}
+
+/** After a re-read: the lead the peek last held on its own is read again, behind, while no page loaded holds it. */
+async function peekAgain(): Promise<void> {
+  const last = peekLast;
+  if (!last || !peeked.has(peekKey(last.id, last.searchId)) || leadsLoaded?.rows.some((r) => r.id === last.id)) return;
+  await askPeek(last.id, last.searchId, true);
+}
+
+/**
+ * The peek's view model for one lead: the DTO, its search, the workspace's zone (§9.2). A lead on a page loaded is
+ * drawn at once; one on no page is the one the peek read on its own for this view, or null while that read is out --
+ * the read is asked for here, once, and the page is told when it lands.
+ */
 export function peekVMFor(leadId: string): LeadPeekVM | null {
   const L = leadsLoaded;
-  if (!L) return null;
+  if (!L || erased.has(leadId)) return null;
+  const vmOf = (row: LeadRowDto) =>
+    toLeadPeekVM(row, L.searches.find((s) => s.id === row.search_id) ?? null, L.tz, new Date());
   const row = L.rows.find((r) => r.id === leadId);
-  if (!row) return null;
-  return toLeadPeekVM(row, L.searches.find((s) => s.id === row.search_id) ?? null, L.tz, new Date());
+  if (row) return vmOf(row);
+  const searchId = L.view.searchId ?? null;
+  peekLast = { id: leadId, searchId };
+  const held = peeked.get(peekKey(leadId, searchId));
+  if (held) return vmOf(held);
+  void askPeek(leadId, searchId).catch(() => {});
+  return null;
 }
 
 export function installLeadsCourier(): void {

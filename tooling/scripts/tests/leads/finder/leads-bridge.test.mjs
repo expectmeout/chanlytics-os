@@ -239,6 +239,8 @@ function wire(opts = {}) {
     /** The month's standing, which the first page carries (D5). */
     month: opts.month ?? null,
     fail: opts.fail ?? null,
+    /** GET leads/[id]'s answers, by id: a lead on no page loaded (PR 9). */
+    one: opts.one ?? {},
   };
   const reads = [];
   const writes = [];
@@ -277,6 +279,13 @@ function wire(opts = {}) {
         ok: true,
         data: { rows, next: more, counts: state.counts, ...(state.month ? { month: state.month } : {}) },
       });
+    }
+    const lead = /^\/api\/v1\/leads\/([0-9a-f-]{36})$/.exec(path);
+    if (lead && method === "GET") {
+      const got = typeof state.one === "function" ? state.one(lead[1], query) : state.one[lead[1]];
+      return got
+        ? json(200, { ok: true, data: { row: got } })
+        : json(404, { ok: false, error: { code: "not_found", message: "That lead is not in your workspace." } });
     }
     if (method !== "GET") return json(200, { ok: true, data: { done: true } });
     return json(404, { ok: false, error: { code: "not_found", message: "no" } });
@@ -529,6 +538,200 @@ test("a row an act has changed is not put back by a re-read that no longer holds
     "qualified",
     "REGRESSION: the row stayed on the page as Needs review, its Keep still offered, until the view was read again",
   );
+});
+
+/* ------------------------------ a lead on no page loaded (PR 9) ------------------------------ */
+
+const tick = () => new Promise((res) => setTimeout(res, 0));
+const settled = async (n = 6) => {
+  for (let i = 0; i < n; i += 1) await tick();
+};
+
+test("the peek opens past the loaded page: a lead on no page is read once, in the view's search, held, and the page told when it lands", async () => {
+  const FAR = leadRow({ business_name: "Far Down The List Coaching" });
+  const w = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, one: { [FAR.id]: FAR } });
+  await globalThis.window.__leadsView(`clients/leads:s-${SEARCH_ID}`);
+  const told = [];
+  const on = () => told.push(globalThis.window.__leadPeekVM(FAR.id)?.name ?? null);
+  globalThis.window.addEventListener("surface:leads", on);
+  try {
+    const before = w.reads.length;
+    assert.equal(globalThis.window.__leadPeekVM(ROWS[0].id).name, ROWS[0].business_name, "a loaded lead, at once");
+    assert.equal(w.reads.length, before, "and nothing read for it");
+    assert.equal(globalThis.window.__leadPeekVM(FAR.id), null, "a lead on no page: nothing yet, and never another's");
+    assert.equal(globalThis.window.__leadPeekVM(FAR.id), null, "asked again while its read is out");
+    await settled();
+    assert.deepEqual(
+      w.reads.slice(before),
+      [`/api/v1/leads/${FAR.id}?search=${SEARCH_ID}&${WS}`],
+      "one read, in the search the view is of, however often the page draws",
+    );
+    assert.deepEqual(told, ["Far Down The List Coaching"], "the page is told once it lands, and draws it");
+    const vm = globalThis.window.__leadPeekVM(FAR.id);
+    assert.equal(vm.id, FAR.id);
+    assert.equal(vm.sub.length > 0, true, "the peek's own view model, from contracts, as for a loaded lead");
+    assert.deepEqual(
+      L().peeked.map((r) => [r.id, r.name]),
+      [[FAR.id, FAR.business_name]],
+      "held beside the rows, for the page's acts to find it, and never drawn among them",
+    );
+    assert.equal(
+      L().rows.some((r) => r.id === FAR.id),
+      false,
+    );
+    assert.equal(w.reads.length, before + 1, "held: drawing it again reads nothing");
+
+    // A press on it shows at once, as a loaded row's does.
+    const hold = wire({
+      keep: true,
+      searches: [SEARCH_DONE],
+      rows: ROWS,
+      counts: COUNTS,
+      one: { [FAR.id]: FAR },
+      hold: true,
+    });
+    const staged = globalThis.window.__leadStage(FAR.id, { kind: "stage", stage: "nurture" });
+    assert.equal(globalThis.window.__leadPeekVM(FAR.id).stage, "nurture", "the stage it was pressed to, at once");
+    hold.release(() => true);
+    assert.equal((await staged).ok, true);
+  } finally {
+    globalThis.window.removeEventListener("surface:leads", on);
+  }
+});
+
+test("a lead the door will not show draws nothing, and a refusal blocks nothing: it is asked again, in any view", async () => {
+  const GONE = "1a2b3c4d-0000-4000-8000-00000000dead";
+  const w = wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
+  await globalThis.window.__leadsView("clients/leads");
+  const before = w.reads.length;
+  assert.equal(globalThis.window.__leadPeekVM(GONE), null);
+  await settled();
+  assert.equal(globalThis.window.__leadPeekVM(GONE), null, "never a row of the list in its place");
+  await settled();
+  assert.deepEqual(
+    w.reads.slice(before),
+    [`/api/v1/leads/${GONE}?${WS}`, `/api/v1/leads/${GONE}?${WS}`],
+    "REVIEW: a refusal was remembered for the session; it is asked again",
+  );
+});
+
+test("REVIEW: a lead the door refuses in one search's view still opens in the all-leads view", async () => {
+  const ELSEWHERE = leadRow({ business_name: "Found By Another Search" });
+  const w = wire({
+    searches: [SEARCH_DONE],
+    rows: ROWS,
+    counts: COUNTS,
+    one: (id, query) => (id === ELSEWHERE.id && !query.search ? ELSEWHERE : null),
+  });
+  await globalThis.window.__leadsView(`clients/leads:s-${SEARCH_ID}`);
+  assert.equal(globalThis.window.__leadPeekVM(ELSEWHERE.id), null);
+  await settled();
+  assert.equal(globalThis.window.__leadPeekVM(ELSEWHERE.id), null, "not in this search");
+  await globalThis.window.__leadsView("clients/leads");
+  globalThis.window.__leadPeekVM(ELSEWHERE.id);
+  await settled();
+  assert.equal(globalThis.window.__leadPeekVM(ELSEWHERE.id)?.id, ELSEWHERE.id, "the all view asks for itself");
+  assert.ok(w.reads.includes(`/api/v1/leads/${ELSEWHERE.id}?${WS}`));
+});
+
+test("REVIEW: a lead pushed out of the eight held is read again when it is opened again, never stuck", async () => {
+  const many = Array.from({ length: 9 }, (_, i) => leadRow({ business_name: `Held ${i}` }));
+  const w = wire({
+    searches: [SEARCH_DONE],
+    rows: ROWS,
+    counts: COUNTS,
+    one: Object.fromEntries(many.map((r) => [r.id, r])),
+  });
+  await globalThis.window.__leadsView("clients/leads");
+  for (const r of many) {
+    globalThis.window.__leadPeekVM(r.id);
+    await settled();
+  }
+  const reads = () => w.reads.filter((u) => u.startsWith(`/api/v1/leads/${many[0].id}`)).length;
+  assert.equal(reads(), 1);
+  assert.equal(globalThis.window.__leadPeekVM(many[0].id), null, "the first one was let go for the ninth");
+  await settled();
+  assert.equal(reads(), 2, "asked again, not remembered as asked");
+  assert.equal(globalThis.window.__leadPeekVM(many[0].id)?.id, many[0].id);
+});
+
+test("REVIEW: a held lead the re-read finds gone (erased in another tab) leaves the peek, and the page is told", async () => {
+  const LATER = leadRow({ business_name: "Erased Elsewhere" });
+  const one = { [LATER.id]: LATER };
+  wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, one });
+  await globalThis.window.__leadsView("clients/leads");
+  globalThis.window.__leadPeekVM(LATER.id);
+  await settled();
+  assert.equal(globalThis.window.__leadPeekVM(LATER.id)?.id, LATER.id);
+  delete one[LATER.id];
+  let told = 0;
+  const on = () => (told += 1);
+  globalThis.window.addEventListener("surface:leads", on);
+  try {
+    await leadsOverride.apply();
+    await settled();
+  } finally {
+    globalThis.window.removeEventListener("surface:leads", on);
+  }
+  assert.equal(globalThis.window.__leadPeekVM(LATER.id), null, "gone from the peek");
+  assert.equal(
+    L().peeked.some((r) => r.id === LATER.id),
+    false,
+    "and from what the page's acts look up",
+  );
+  assert.ok(told >= 1, "the page was told");
+});
+
+test("REVIEW: a row of a search this surface does not hold is never drawn in the peek (a second guard)", async () => {
+  const STRANGER = leadRow({ search_id: "9f9f9f9f-0000-4000-8000-000000000009" });
+  wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, one: { [STRANGER.id]: STRANGER } });
+  await globalThis.window.__leadsView("clients/leads");
+  globalThis.window.__leadPeekVM(STRANGER.id);
+  await settled();
+  assert.equal(globalThis.window.__leadPeekVM(STRANGER.id), null);
+  assert.equal(L().peeked.length, 0);
+});
+
+test("Erase answers when the door accepts and the lead leaves every view the tab holds at once; a refused one stays", async () => {
+  const GOES = leadRow({ business_name: "Erased Coaching" });
+  const rows = [GOES, ...ROWS];
+  const w = wire({ searches: [SEARCH_DONE], rows, counts: COUNTS });
+  await globalThis.window.__leadsView("clients/leads");
+  await globalThis.window.__leadsView("clients/leads:l-ready");
+  wire({ keep: true, searches: [SEARCH_DONE], rows, counts: COUNTS, fail: `DELETE /api/v1/leads/${GOES.id}` });
+  assert.equal((await globalThis.window.__leadErase(GOES.id)).ok, false);
+  assert.equal(
+    L().rows.some((r) => r.id === GOES.id),
+    true,
+    "refused: it is still there",
+  );
+  const again = wire({ keep: true, searches: [SEARCH_DONE], rows, counts: COUNTS });
+  const r = await globalThis.window.__leadErase(GOES.id);
+  assert.equal(r.ok, true);
+  assert.deepEqual(
+    again.writes.map((x) => x.key),
+    [`DELETE /api/v1/leads/${GOES.id}`],
+  );
+  assert.equal(
+    L().rows.some((r) => r.id === GOES.id),
+    false,
+    "gone from the rows at once",
+  );
+  assert.equal(globalThis.window.__leadPeekVM(GOES.id), null, "and from the peek");
+  // A re-read that still has it (it went out before the erase landed) does not bring it back, nor does a held view.
+  await leadsOverride.apply();
+  assert.equal(
+    L().rows.some((r) => r.id === GOES.id),
+    false,
+    "a re-read patches rows; it never puts one back",
+  );
+  await globalThis.window.__leadsView("clients/leads");
+  assert.equal(
+    L().rows.some((r) => r.id === GOES.id),
+    false,
+    "the view held from before the erase paints without it",
+  );
+  void w;
 });
 
 test("a stage change shows on the row at once, as the door will spell it (stageArgs), and a refused one is taken back; what the door alone decides is left to the re-read", async () => {

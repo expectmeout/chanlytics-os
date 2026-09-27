@@ -14,6 +14,7 @@ import type { Database, Json } from "../packages/db.js";
 import { recordOutbound } from "../packages/db.js";
 import { scheduleJob } from "../packages/jobs.js";
 import type { BrainMeta } from "../packages/contracts.js";
+import type { LogEvent } from "../log.js";
 
 export type DraftSource = "veto_window" | "low_confidence" | "steered";
 
@@ -35,8 +36,8 @@ interface DraftArgs {
 }
 
 interface DraftLog {
-  warn(event: string, fields?: Record<string, unknown>): void;
-  error(event: string, fields?: Record<string, unknown>): void;
+  warn(event: LogEvent, fields?: Record<string, unknown>): void;
+  error(event: LogEvent, fields?: Record<string, unknown>): void;
 }
 
 export async function queueDraft(db: SupabaseClient<Database>, a: DraftArgs, L: DraftLog): Promise<string | null> {
