@@ -2,11 +2,19 @@ import { read, write, account } from "@/server/route";
 import {
   AppError,
   PartnerBecomeSchema,
+  PartnerLettersSchema,
   cleanPartnerCode,
   type PartnerBalanceRow,
   type PartnerDto,
 } from "@chanlytics/contracts";
-import { becomePartner, getOwnPartner, getPartnerBalance, getPartnerBroughtCount } from "@chanlytics/db";
+import {
+  becomePartner,
+  getOwnPartner,
+  getPartnerBalance,
+  getPartnerBroughtCount,
+  getPartnerLetters,
+  setPartnerLetters,
+} from "@chanlytics/db";
 
 /**
  * GET /api/v1/partner — the caller's partner account (decision 0012), or null, and what the ledger holds for them:
@@ -20,11 +28,12 @@ export const GET = read({
     if (!row) return { partner: null, balance: [] };
     // The count of workspaces brought is the ledger's (partner_tenants), not the seats held now: a pause or an owner
     // taking the partner off a team changes the seats, never how many the link brought.
-    const [balance, brought] = await Promise.all([
+    const [balance, brought, letters] = await Promise.all([
       getPartnerBalance(ctx.supabase),
       getPartnerBroughtCount(ctx.supabase, row.id),
+      getPartnerLetters(ctx.supabase),
     ]);
-    return { partner: { ...(row as PartnerDto), brought }, balance };
+    return { partner: { ...(row as PartnerDto), brought, letters }, balance };
   },
 });
 
@@ -54,5 +63,25 @@ export const POST = write({
       throw new Error(r.message);
     }
     return { partner: r.row as PartnerDto };
+  },
+});
+
+/**
+ * PATCH /api/v1/partner — {letters}: the caller's daily letter on or off (decision 0014, 00209 partner_letters_set).
+ * On starts from now, so turning it back on sends no backlog. The caller's own row alone; no workspace, no role.
+ */
+export const PATCH = write({
+  scope: account,
+  role: null,
+  rate: "partner_letters",
+  input: PartnerLettersSchema,
+  handle: async ({ ctx, input }): Promise<{ letters: boolean }> => {
+    const r = await setPartnerLetters(ctx.supabase, input.letters);
+    if (!r.ok) {
+      if (r.code === "P0002") throw new AppError("not_found", r.message, 404);
+      if (r.code === "28000") throw new AppError("forbidden", r.message, 403);
+      throw new Error(r.message);
+    }
+    return { letters: r.letters };
   },
 });

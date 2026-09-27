@@ -2768,6 +2768,7 @@ var PartnerBecomeSchema = z14.object({
   code: z14.string().trim().min(1).max(64),
   terms: z14.literal(true, { message: "The terms have to be accepted." })
 }).strict();
+var PartnerLettersSchema = z14.object({ letters: z14.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -2801,8 +2802,37 @@ var PARTNER_WORDS = {
    */
   joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
-  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting"
 };
+var letterCents = z14.coerce.number();
+var letterSum = z14.object({ currency: z14.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z14.object({
+  /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
+  written: z14.array(z14.object({ kind: z14.string(), currency: z14.string(), count: z14.coerce.number(), cents: letterCents })).default([]),
+  /** Rows written before the last letter that became payable since. */
+  matured: z14.array(letterSum).default([]),
+  /** Shares written before that will not be paid: their workspace was disqualified. */
+  voided: z14.array(letterSum).default([]),
+  paid: z14.array(z14.object({ currency: z14.string(), cents: letterCents, reference: z14.string(), sent_at: z14.string() })).default([]),
+  /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
+  standing: z14.array(z14.object({ workspace: z14.string().nullable(), standing: z14.string(), why: z14.string().nullable() })).default([]),
+  /** Workspaces that came through the link since. */
+  brought: z14.array(z14.string().nullable()).default([]),
+  /** The partner's own status, when it changed since. */
+  status: z14.object({ status: z14.string(), why: z14.string().nullable() }).nullable().default(null),
+  balance: z14.array(
+    z14.object({
+      currency: z14.string(),
+      held: letterCents,
+      payable: letterCents,
+      paid: letterCents,
+      next_payable_at: z14.string().nullable()
+    })
+  ).default([])
+});
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";

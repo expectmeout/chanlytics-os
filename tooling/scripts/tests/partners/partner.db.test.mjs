@@ -786,3 +786,54 @@ test("closing a partner takes them off every team, and a partner may still erase
   const kept = ok(await db.from("partners").select("user_id, status").eq("id", p3Id).single());
   assert.deepEqual(kept, { user_id: null, status: "closed" });
 });
+
+/* ------------------------------------------------------------------------------------------ the letter (0014) */
+
+test(
+  "a partner's letter: what changed since their mark, for the edge alone; written moves the mark; off is off, and on starts from now",
+  { skip },
+  async () => {
+    const p4 = await person("partner4");
+    const code = `lt-${Math.random().toString(36).slice(2, 8)}`;
+    ok(await p4.client.rpc("partner_become", { p_code: code }));
+    const [{ id: p4Id, letters }] = ok(await p4.client.from("partners").select("id, letters"));
+    assert.equal(letters, true, "on unless the partner turns it off");
+    const shop = await person("shop4");
+    const made = ok(
+      await shop.client.rpc("create_workspace", { p_name: "Letter Shop", p_partner_code: code }).single(),
+    );
+    tenants.push(made.id);
+    ok(await earn({ p_tenant_id: made.id, p_invoice_id: "in_letter_1", p_event_id: "evt_letter_1" }));
+
+    const dueFor = async (at = new Date()) =>
+      ok(await db.rpc("partner_letters_due", { p_now: at.toISOString() })).filter((r) => r.partner_id === p4Id);
+    const [mine] = await dueFor();
+    assert.ok(mine, "a share and a workspace brought since the mark");
+    assert.equal(mine.email.endsWith("@example.com"), true);
+    assert.deepEqual(mine.news.written, [{ kind: "share", currency: "usd", count: 1, cents: 10000 }]);
+    assert.deepEqual(mine.news.brought, ["Letter Shop"]);
+    assert.equal(mine.news.balance[0].held, 10000);
+
+    const refused = await p4.client.rpc("partner_letters_due", {});
+    assert.notEqual(refused.error, null, "a partner cannot read everyone's letters");
+
+    assert.equal(ok(await db.rpc("partner_letter_written", { p_partner: p4Id, p_through: mine.through })), true);
+    assert.equal(
+      ok(await db.rpc("partner_letter_written", { p_partner: p4Id, p_through: "2020-01-01T00:00:00Z" })),
+      false,
+      "never back",
+    );
+    assert.deepEqual(await dueFor(new Date(Date.parse(mine.through) + 1)), [], "nothing new since");
+
+    // The next share is news; off, it is nobody's; on again, it is behind the mark, not a backlog.
+    ok(await earn({ p_tenant_id: made.id, p_invoice_id: "in_letter_2", p_event_id: "evt_letter_2" }));
+    const later = new Date(Date.now() + 3_600_000);
+    assert.deepEqual((await dueFor(later))[0]?.news.written, [
+      { kind: "share", currency: "usd", count: 1, cents: 10000 },
+    ]);
+    assert.equal(ok(await p4.client.rpc("partner_letters_set", { p_on: false })), false);
+    assert.deepEqual(await dueFor(later), [], "off: nothing is due");
+    assert.equal(ok(await p4.client.rpc("partner_letters_set", { p_on: true })), true);
+    assert.deepEqual(await dueFor(later), [], "on again starts from now");
+  },
+);

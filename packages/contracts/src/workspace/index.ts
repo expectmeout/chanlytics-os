@@ -174,3 +174,5 @@ export type {
   PlatformPartnerRowVM,
   PlatformPartnerStandingVM,
 } from "./partner";
+export { PartnerLettersSchema, PartnerLetterNewsSchema, partnerPaneUrl, partnerLetter } from "./partner";
+export type { PartnerLetterNews } from "./partner";
