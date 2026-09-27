@@ -45,9 +45,9 @@ import {
 import { takeRate, type RateBucket } from "./rate-limit";
 import { backOffice, type BackOffice } from "./platform/platform";
 
-export type Role = MemberContext["role"];
+type Role = MemberContext["role"];
 export type Params = Record<string, string | string[] | undefined>;
-export type RouteCtx = RouteContext & { params: Params };
+type RouteCtx = RouteContext & { params: Params };
 
 declare const memberBrand: unique symbol;
 /**
@@ -57,7 +57,7 @@ declare const memberBrand: unique symbol;
  */
 export type Member = Readonly<Pick<MemberContext, "tenantId" | "role">> & { readonly [memberBrand]: true };
 
-export type Scope =
+type Scope =
   | { readonly kind: "workspace" }
   | { readonly kind: "row"; readonly load: (ctx: RouteContext, params: Params) => Promise<{ tenant_id: string }> }
   | { readonly kind: "account" }
@@ -79,16 +79,16 @@ export function row<R extends { tenant_id: string }>(load: (ctx: RouteContext, p
 }
 
 type RowOf<S> = S extends { readonly load: (ctx: RouteContext, params: Params) => Promise<infer R> } ? R : never;
-export type Given<S extends Scope> = S extends { kind: "workspace" }
+type Given<S extends Scope> = S extends { kind: "workspace" }
   ? { member: Member }
   : S extends { kind: "row" }
     ? { member: Member; row: RowOf<S> }
     : S extends { kind: "platform" }
       ? { office: BackOffice }
       : Record<never, never>;
-export type Call<S extends Scope, I> = { ctx: RouteCtx; req: Request; input: I } & Given<S>;
+type Call<S extends Scope, I> = { ctx: RouteCtx; req: Request; input: I } & Given<S>;
 
-export interface Policy {
+interface Policy {
   readonly kind: "read" | "write";
   readonly scope: Scope["kind"];
   /** On a read, null means every member may read. */
@@ -109,7 +109,7 @@ export type Shape<I, O> = { readonly [shape]?: { input: I; output: O } };
 export type InputOf<R> = R extends Shape<infer I, unknown> ? I : never;
 export type OutputOf<R> = R extends Shape<unknown, infer O> ? O : never;
 
-export interface ReadSpec<S extends Scope, Q, O> {
+interface ReadSpec<S extends Scope, Q, O> {
   scope: S;
   /** Every member may read unless this says otherwise. */
   role?: Role;
@@ -118,7 +118,7 @@ export interface ReadSpec<S extends Scope, Q, O> {
   handle: (call: Call<S, Q>) => Promise<O>;
 }
 
-export interface WriteSpec<S extends Scope, I, O> {
+interface WriteSpec<S extends Scope, I, O> {
   scope: S;
   /** Who may change this. null only on the account and platform scopes; route-policy.test holds that. */
   role: Role | null;

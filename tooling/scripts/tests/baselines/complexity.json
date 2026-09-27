@@ -194,16 +194,6 @@
     "branches": 19,
     "depth": 2
   },
-  "apps/dashboard/src/legacy-bridge/app-bridge.ts::installAppBridge#1": {
-    "lines": 94,
-    "branches": 27,
-    "depth": 6
-  },
-  "apps/dashboard/src/legacy-bridge/app-bridge.ts::receive#1": {
-    "lines": 36,
-    "branches": 15,
-    "depth": 6
-  },
   "apps/dashboard/src/legacy-bridge/mascot/driver.ts::mountCharacter#1": {
     "lines": 218,
     "branches": 66,
@@ -1070,14 +1060,9 @@
     "depth": 3
   },
   "apps/mobile/src/shell/Surface.tsx::Surface#1": {
-    "lines": 161,
-    "branches": 42,
+    "lines": 151,
+    "branches": 35,
     "depth": 2
-  },
-  "apps/mobile/src/shell/Today.tsx::Today#1": {
-    "lines": 173,
-    "branches": 34,
-    "depth": 3
   },
   "packages/channels/src/a2p-saga.ts::runA2PSaga#1": {
     "lines": 181,
@@ -1188,11 +1173,6 @@
     "lines": 146,
     "branches": 55,
     "depth": 5
-  },
-  "packages/contracts/src/mobile/app-bridge.ts::parsePageMessage#1": {
-    "lines": 42,
-    "branches": 36,
-    "depth": 2
   },
   "packages/contracts/src/people/list-rules.ts::listFactWords#1": {
     "lines": 60,

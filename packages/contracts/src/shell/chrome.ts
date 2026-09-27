@@ -55,6 +55,11 @@ export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
  * paper reads as a strip of somebody else's app above this one.
  */
 export const THEME_COLORS: Readonly<Record<Theme, string>> = { light: "#fbfaf8", dark: "#0c0d0f" };
+/**
+ * The ink on that paper, per theme (tokens.css --ink, as sRGB): what the native shell draws its own words and tab
+ * labels with, beside the page. The two pairs are the shell's whole palette; the page's other tones stay the page's.
+ */
+export const THEME_INK: Readonly<Record<Theme, string>> = { light: "#161616", dark: "#fbfaf8" };
 
 /** The bars' colour for a resolved theme; anything else is the app's own, as the document's markup says. */
 export function themeColorOf(theme: unknown): string {

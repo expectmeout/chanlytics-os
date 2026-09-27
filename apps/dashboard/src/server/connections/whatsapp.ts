@@ -4,7 +4,7 @@ import { edgeHeaders, edgeUrl } from "../edge";
 
 /* ---- Connect your WhatsApp: the edge holds the app secret and does the exchange ---- */
 
-export interface SignupConfig {
+interface SignupConfig {
   app_id: string | null;
   config_id: string | null;
   graph_version: string;
@@ -42,7 +42,7 @@ export async function whatsappSignupConfig(): Promise<SignupConfig> {
   }
 }
 
-export type ConnectOutcome =
+type ConnectOutcome =
   | {
       ok: true;
       channelId: string;

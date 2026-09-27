@@ -22,18 +22,18 @@ import type { EdgeAnswer } from "./lines";
 
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 
-export const LISTING_COLUMNS =
+const LISTING_COLUMNS =
   "place_id, name, address, maps_uri, business_status, rating, review_count, linked_at, checked_at, check_error";
-export const REVIEW_COLUMNS =
+const REVIEW_COLUMNS =
   "id, review_id, origin, rating, author, author_uri, author_photo_uri, body, language_code, published_at, reply_text, replied_at, maps_uri, first_seen_at";
 /** Never the credentials name: the row says who and when, not where the token is. */
 export const CONNECTION_COLUMNS =
   "google_email, account_title, location_name, location_title, connected_at, last_synced_at, sync_error";
 
 /** The reviews a screen shows; the rest are on Google. */
-export const REVIEWS_SHOWN = 20;
+const REVIEWS_SHOWN = 20;
 /** Days of snapshots the longest report period reads, with one to spare. */
-export const DAYS_KEPT = 92;
+const DAYS_KEPT = 92;
 
 export async function listingFor(db: SupabaseClient<Database>, tenantId: string): Promise<GoogleListingDto | null> {
   const { data, error } = await db
@@ -135,7 +135,7 @@ export async function edgeGoogle(body: Record<string, unknown>, timeoutMs = 20_0
   }
 }
 
-export interface GoogleReadiness {
+interface GoogleReadiness {
   places: boolean;
   profile: boolean;
   /** Google's consent-screen audience for our app, as the edge states it; null = nothing to say. */
@@ -186,11 +186,6 @@ export async function googleReadiness(now = Date.now()): Promise<GoogleReadiness
   return value;
 }
 
-/** For tests and for a route that must not read a stale answer. */
-export function forgetGoogleReadiness(): void {
-  readyCache = null;
-}
-
 /** The secret that signs the OAuth state: the key the dashboard already shares with the edge. */
 export function stateSecret(): string | null {
   // Its own secret once set; the shared key until then, so nothing moves before it is.
@@ -205,7 +200,7 @@ export function afterGoogle(origin: string, outcome: string, why?: string): stri
 }
 
 /** The edge's word on the listing read that follows a link or a choice: what it found, or why it could not look. */
-export type ReadOutcome = { ok: true; fresh: number; counted: number } | { ok: false; error: string };
+type ReadOutcome = { ok: true; fresh: number; counted: number } | { ok: false; error: string };
 
 export function readOutcome(v: unknown): ReadOutcome | null {
   return v && typeof v === "object" ? (v as ReadOutcome) : null;

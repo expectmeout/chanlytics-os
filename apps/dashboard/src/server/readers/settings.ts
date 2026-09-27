@@ -75,7 +75,7 @@ export async function knownFacts(ctx: RouteContext, tenantId: string): Promise<K
 }
 
 /** GET settings' answer: the two shapes, told apart by `configBroken`, which the client narrows on. */
-export type SettingsRead =
+type SettingsRead =
   | {
       config: TenantConfig;
       version: number;

@@ -9,7 +9,7 @@ import { everyone } from "./everyone";
 type Pools = Awaited<ReturnType<typeof triggerPools>>;
 
 /** GET playbooks' answer: the eight keys the Playbooks page reads, in the route's order. */
-export interface PlaybooksPage {
+interface PlaybooksPage {
   playbooks: PlaybookListRow[];
   timezone: string;
   touched: Record<string, string>;

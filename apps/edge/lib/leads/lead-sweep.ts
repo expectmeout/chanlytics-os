@@ -53,7 +53,7 @@ export interface SweepRoundRow {
   created_at: string;
 }
 
-export type SweepAction =
+type SweepAction =
   | { kind: "collect"; runId: string; tenantId: string; seq: string }
   | { kind: "abort"; runId: string; tenantId: string; apifyRunId: string; seq: string }
   | { kind: "reconcile"; runId: string }

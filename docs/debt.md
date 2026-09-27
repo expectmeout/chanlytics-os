@@ -60,15 +60,15 @@ fails when this block and the baselines disagree.
 <!-- measured:start -->
 
 ```text
-functions over the limit            274   of which over 200 lines: 65
+functions over the limit            270   of which over 200 lines: 65
 files over 800 lines                 36
 directories over 20 modules           8
 window globals                      195   names
 window publishers                   391   sites in 144 files
-copies                              197   of 45 names
+copies                              191   of 44 names
 as unknown as                       223
 table names outside packages/db     535
-dead exports, types and modules     403
+dead exports, types and modules     214
 source-text reads in tests          833
 lint warnings allowed                46
 ```

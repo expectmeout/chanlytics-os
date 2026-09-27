@@ -23,7 +23,7 @@
  */
 import { mayMessageFor, type PurposeBearing, type AskedPurpose } from "../packages/contracts.js";
 
-export interface OutboundFacts {
+interface OutboundFacts {
   /**
    * The person's consent row: both answers plus the do-not-contact override.
    * Passed whole rather than pre-decided, so this gate asks the question instead
@@ -85,7 +85,7 @@ export type OutboundRefusal =
   // appointment messages only, so a promotion by text never goes (core deliver).
   | "sms_carries_no_promotions";
 
-export interface OutboundDecision {
+interface OutboundDecision {
   allowed: boolean;
   refusal: OutboundRefusal | null;
 }

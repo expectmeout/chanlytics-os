@@ -27,7 +27,7 @@ import type { RouteContext } from "../with-route";
 import { domainsReadiness, sendingDomainsFor } from "./sending-domains";
 
 /** The deployment's mail domain, lower-cased; null when email is off here (contracts emailDomainOf, as the edge reads it). */
-export function emailDomain(): string | null {
+function emailDomain(): string | null {
   return emailDomainOf(process.env.EMAIL_DOMAIN);
 }
 

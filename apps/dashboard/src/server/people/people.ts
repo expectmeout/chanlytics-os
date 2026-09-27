@@ -15,7 +15,7 @@ import type { RouteContext } from "../with-route";
 /** Rows per page: what people_list answers at most, and what the page loads at a time (packages/db people.ts). */
 export { PEOPLE_PAGE };
 
-export interface PeoplePage {
+interface PeoplePage {
   /** A name, their WhatsApp name, their email address, or three digits of the number. */
   q?: string | null;
   offset?: number;
@@ -32,7 +32,7 @@ export interface PeoplePage {
  * the count, so `total` described a different set than the rows beside it and
  * `has_more` stopped paging early or never stopped at all.
  */
-export function searchNeedle(q: string | null | undefined): string {
+function searchNeedle(q: string | null | undefined): string {
   return (q ?? "").trim().replace(/[,()"'\\%*_]/g, "");
 }
 

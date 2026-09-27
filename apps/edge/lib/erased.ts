@@ -13,7 +13,7 @@ import { erasedEmailHash, erasedPhoneHash } from "./packages/contracts.js";
 
 type Db = SupabaseClient<Database>;
 
-export interface Tombstone {
+interface Tombstone {
   erased_at: string | null;
   erasing_since: string | null;
 }

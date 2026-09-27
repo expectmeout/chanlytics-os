@@ -19,7 +19,7 @@ export const APNS_PRODUCTION = "https://api.push.apple.com";
 export const APNS_SANDBOX = "https://api.sandbox.push.apple.com";
 const JWT_LIFE_MS = 50 * 60_000;
 
-export interface ApnsKeys {
+interface ApnsKeys {
   teamId: string;
   keyId: string;
   /** The .p8 file's contents, PEM; a base64 of the PEM is accepted too, since a one-line variable is what Vercel takes. */
@@ -52,7 +52,7 @@ export function apnsJwt(keys: Pick<ApnsKeys, "teamId" | "keyId" | "p8">, nowMs: 
   return `${data}.${b64url(sig)}`;
 }
 
-export interface Http2Like {
+interface Http2Like {
   request(headers: Record<string, string>): {
     on(event: "response", cb: (h: Record<string, unknown>) => void): void;
     on(event: "data", cb: (chunk: Buffer) => void): void;
@@ -62,7 +62,7 @@ export interface Http2Like {
   };
   close(): void;
 }
-export type Connect = (origin: string) => Http2Like;
+type Connect = (origin: string) => Http2Like;
 
 const realConnect: Connect = (origin) => http2.connect(origin) as unknown as Http2Like;
 

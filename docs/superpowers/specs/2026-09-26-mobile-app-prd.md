@@ -38,8 +38,10 @@ the Lock Screen: a push-to-start token on the device's row (00191), the edge spe
 (`lib/ops/apns.ts`), one activity per phone as a call starts, ended by the app when the Live page says none is on. PR 8
 is the first native screen, the Inbox thread, and the bearer token beside the cookie it needed (decision 0011): the
 page hands the shell its access token, the wrapper verifies a bearer as it verifies the cookie, RLS decides the rest.
-PR 9 is Today, native: `GET /api/v1/today` composes the day once on the server over the reader Ask uses, and the app
-draws it over the tab's page, which stays mounted for the bridge.
+PR 9 was Today, native (#1154), withdrawn on 27 Sep in the review that followed the app's first run: it drew fewer
+sentences than the page and in a second theme, over a page it did not replace. The Today tab is the page's own Today.
+The same review put the app's theme where the page says it is (the page posts its resolved theme; the shell's chrome
+and screens follow it) and reserved the strip under the status bar on both platforms.
 
 Two facts about the web that shape the app: every page is a hash route under the workspace,
 `/w/<slug>#/today|inbox|calendar|clients|...`, and the page already raises the events a shell needs
@@ -95,7 +97,7 @@ Each PR ships something a tester can hold; each is planned against a named commi
 | --- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 7   | The call in progress | A Live Activity on the Lock Screen and in the Dynamic Island from the voice events the edge already has. Updates go straight to APNs (`apns-push-type: liveactivity`, HTTP/2, a signing key on the edge): a second push port beside Expo's, its own PR. iOS 17.2+ for remote start. |
 | 8   | The native thread    | The first surface that is not a WebView: the Inbox thread. With it, the API takes a bearer token beside the cookie: a decision note in `docs/decisions/` before a line of code, because it is a new door.                                                                           |
-| 9   | Today, native        | The page opened most, as the second native surface, over the same read layer Ask now uses.                                                                                                                                                                                          |
+| 9   | Today, native        | Built as #1154 and withdrawn on 27 Sep (its plan says why): it drew fewer sentences than the page, in a second theme, over the page it did not replace. The tab is the page. The page opened most, as the second native surface, over the same read layer Ask now uses.                                                                                                                                                                                          |
 
 ### Tier 3: growth
 

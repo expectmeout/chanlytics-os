@@ -5,7 +5,7 @@ import { load, stamp, type Reader, type ReaderContext } from "./index";
 import * as facts from "./facts";
 
 /** GET policies' answer: the matrix, the member's role, and whether deals are on. */
-export interface AutonomyMatrix {
+interface AutonomyMatrix {
   policies: PolicyRecord[];
   role: ReaderContext["role"];
   deals_on: boolean;

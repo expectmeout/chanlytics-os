@@ -49,7 +49,7 @@ export interface PromptPreviewDto {
   inputs: { policy: Record<string, { mode: string }>; known: KnownFacts };
 }
 
-export interface PromptFacts {
+interface PromptFacts {
   tz: string | null;
   /** The workspace's Autonomy rows, class to mode. */
   policy: Record<string, { mode: string }>;
