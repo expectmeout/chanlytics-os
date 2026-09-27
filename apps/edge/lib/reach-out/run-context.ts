@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   domainCapacityOf,
   emitEvent,
-  listPolicies,
+  outreachModeOf,
   reachOutAudience,
   reachOutFollowers,
   workspaceMaySpend,
@@ -86,9 +86,10 @@ export async function reachOutRunContext(
       (spend) => ({ spend, error: null as string | null }),
       (e: unknown) => ({ spend: false, error: e instanceof Error ? e.message : String(e) }),
     ),
-    listPolicies(db, row.tenant_id).then(
-      (rows) => ({ rows, error: null as string | null }),
-      (e: unknown) => ({ rows: [], error: e instanceof Error ? e.message : String(e) }),
+    // The one reading of the outreach row (the dashboard's chains ask it too).
+    outreachModeOf(db, row.tenant_id).then(
+      (mode) => ({ mode, error: null as string | null }),
+      (e: unknown) => ({ mode: "ask" as const, error: e instanceof Error ? e.message : String(e) }),
     ),
     stepOf(db, row).then(
       (s) => ({ s, error: null as string | null }),
@@ -103,9 +104,7 @@ export async function reachOutRunContext(
   // A paused workspace runs nothing, as the moments do not.
   if (tenant.data?.status === "paused") return { error: "paused" };
   const tz = tenant.data?.timezone || "America/New_York";
-  // The outreach row every workspace has (00183); none read as "ask", so a missing row can only wait for its owner.
-  const said = policies.rows.find((p) => p.class === "outreach")?.mode;
-  const mode = said === "veto" || said === "never" ? said : "ask";
+  const mode = policies.mode;
   // No billing row is not permission (every workspace is given one at creation): it may not spend.
   const spend = billing.spend;
   const tenantId = row.tenant_id;

@@ -5258,6 +5258,10 @@ export type Database = {
         }
         Returns: Json
       }
+      outreach_wrote_back: {
+        Args: { p_contact_ids: string[]; p_tenant_id: string }
+        Returns: string[]
+      }
       partner_balance: {
         Args: never
         Returns: {
@@ -5655,6 +5659,10 @@ export type Database = {
               region: string
             }[]
           }
+      reach_out_chain_report: {
+        Args: { p_root_id: string; p_tenant_id: string }
+        Returns: Json
+      }
       reach_out_check_take: {
         Args: { p_at?: string; p_cap: number; p_tenant_id: string }
         Returns: boolean
@@ -5747,6 +5755,7 @@ export type Database = {
           region: string
         }[]
       }
+      reach_out_given_up: { Args: { p_created_at: string }; Returns: boolean }
       reach_out_held_stale: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {
@@ -5809,6 +5818,18 @@ export type Database = {
           written_at: string
         }[]
       }
+      reach_out_reach: {
+        Args: { p_search_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      reach_out_recheck: {
+        Args: {
+          p_from_state?: string
+          p_send_ids: string[]
+          p_tenant_id?: string
+        }
+        Returns: number
+      }
       reach_out_record: {
         Args: { p_lead_id: string; p_search_id: string; p_tenant_id: string }
         Returns: {
@@ -5832,6 +5853,19 @@ export type Database = {
       reach_out_release_unavailable: {
         Args: { p_before: string; p_tenant_id?: string }
         Returns: number
+      }
+      reach_out_remove: {
+        Args: { p_root_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      reach_out_run_recheck: { Args: { p_broadcast_id: string }; Returns: Json }
+      reach_out_save: {
+        Args: { p_chain: Json; p_tenant_id: string; p_user_id: string }
+        Returns: Json
+      }
+      reach_out_send_decide: {
+        Args: { p_decision: string; p_send_id: string }
+        Returns: Json
       }
       reach_out_stale_sends: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }

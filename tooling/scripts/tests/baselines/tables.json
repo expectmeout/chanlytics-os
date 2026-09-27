@@ -94,7 +94,7 @@
   "apps/edge/api/cron/calls.ts": 4,
   "apps/edge/api/cron/google.ts": 1,
   "apps/edge/api/cron/leads.ts": 4,
-  "apps/edge/api/cron/playbooks.ts": 4,
+  "apps/edge/api/cron/playbooks.ts": 1,
   "apps/edge/api/cron/registrations.ts": 4,
   "apps/edge/api/diag.ts": 4,
   "apps/edge/api/retell-webhook.ts": 1,

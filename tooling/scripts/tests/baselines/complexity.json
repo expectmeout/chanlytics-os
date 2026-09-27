@@ -934,11 +934,6 @@
     "branches": 37,
     "depth": 3
   },
-  "apps/edge/api/admin/reach-out-preview.ts::POST#1": {
-    "lines": 58,
-    "branches": 33,
-    "depth": 2
-  },
   "apps/edge/api/admin/sending-domains.ts::POST#1": {
     "lines": 84,
     "branches": 33,
@@ -1040,8 +1035,8 @@
     "depth": 5
   },
   "apps/edge/lib/reach-out/run-context.ts::reachOutRunContext#1": {
-    "lines": 151,
-    "branches": 33,
+    "lines": 150,
+    "branches": 31,
     "depth": 2
   },
   "apps/edge/lib/reach-out/sender.ts::claimAndWrite#1": {
@@ -1051,7 +1046,7 @@
   },
   "apps/edge/lib/reach-out/sender.ts::writeOne#1": {
     "lines": 176,
-    "branches": 46,
+    "branches": 45,
     "depth": 3
   },
   "apps/edge/lib/receptionist/unfinished.ts::sweepUnfinished#1": {
