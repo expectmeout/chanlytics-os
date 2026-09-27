@@ -33,15 +33,15 @@ Everything the pages say comes from contracts view models, over two new routes a
 | PR  | Branch                        | What                                                                                                                                                                                         | Migration |
 | --- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
 | 1   | `reach-out-5a-the-reading`    | The reading, pure: intents, the prompt and its answer, what each intent does, the days, the words of the notice; the seventeen fixtures and the live eval; decision 0017; this plan             | —         |
-| 2   | `reach-out-5b-never-again`    | The doors a reading will use, inert until PR 3: a no's reach (N6) and its one predicate for the door, the audience and the finder; the consent door's reply sources; D18; `resume_at`; the dated-step door; one converter | 00217     |
-| 3   | `reach-out-5c-read`           | A reply is read: the store, the reading's doors and the undo's, the job kind (once per message) with its handler and its caller, the notice in two phases, an unread reply read again        | 00218     |
-| 4   | `reach-out-5d-the-door`       | The door learns two things: an automatic out-of-office pauses a chain (`away`), and a person's reply may leave by the own domain it answers, with the mailbox's request beside it (C15's wire) | 00219     |
+| 2   | `reach-out-5b-never-again`    | The doors a reading will use, inert until PR 3: a no's reach (N6) and its one predicate for the door, the audience and the finder; the consent door's reply sources; D18; `resume_at`; the dated-step door; one converter | 00220     |
+| 3   | `reach-out-5c-read`           | A reply is read: the store, the reading's doors and the undo's, the job kind (once per message) with its handler and its caller, the notice in two phases, an unread reply read again        | 00221     |
+| 4   | `reach-out-5d-the-door`       | The door learns two things: an automatic out-of-office pauses a chain (`away`), and a person's reply may leave by the own domain it answers, with the mailbox's request beside it (C15's wire) | 00222     |
 | 5   | `reach-out-5e-the-draft`      | The receptionist drafts on a lead thread (decision 0017): interested, a question, not now                                                                                                     | —         |
 | 6   | `reach-out-5f-doors`          | The dashboard's doors: the readings route, the undo route, and a reply frozen from the thread's own domain with the mailbox's twin (C15's freeze)                                              | —         |
 | 7   | `reach-out-5g-inbox`          | The readings' surface; the Inbox: the reading's strip, the draft in the composer, the list's chip                                                                                             | —         |
 | 8   | `reach-out-5h-today`          | Today's reply row and a reach-out run's words; the bell's and a phone's look; Settings › Notifications' Reach-outs group                                                                      | —         |
-| 9   | `reach-out-5i-booked`         | Booked and a deal stop a chain: the calendar sweep's door (N3), and a deal opened for a lead's person                                                                                         | 00220     |
-| 10  | `reach-out-5j-hand-engine`    | A call or a note for you, the engine: the step's column, its own send state, its run, the dated steps it makes, the chain's report                                                            | 00221     |
+| 9   | `reach-out-5i-booked`         | Booked and a deal stop a chain: the calendar sweep's door (N3), and a deal opened for a lead's person                                                                                         | 00223     |
+| 10  | `reach-out-5j-hand-engine`    | A call or a note for you, the engine: the step's column, its own send state, its run, the dated steps it makes, the chain's report                                                            | 00224     |
 | 11  | `reach-out-5k-hand-sheet`     | A call or a note for you, in the sheet                                                                                                                                                        | —         |
 | 12  | `reach-out-5l-proof`          | The proof on a stack, and the docs                                                                                                                                                            | —         |
 
@@ -54,13 +54,13 @@ Everything the pages say comes from contracts view models, over two new routes a
 
 **Where one depends on another, honestly:**
 - PR 8 needs PR 7: Today's row and the bell's "Read the draft" read `window.__REPLIES`, the surface PR 7 installs. Neither is shippable before its predecessor merges.
-- PR 7 needs PR 6's routes, and PR 6 needs PR 3's table (00218 on production).
+- PR 7 needs PR 6's routes, and PR 6 needs PR 3's table (00221 on production).
 - PR 4 needs PR 3: the `away` fact reads `reach_out_replies`.
 - PRs 9 and 10 need PR 2: the booking and the deal convert through `lead_convert_by`, and the hand step writes through `person_step_from_playbook`.
 
 **Order:** 1, 2, 3, 4, 5, 6, 7, 8; then 9 and 10 in any order after 2; 11 after 10; 12 last.
 
-**Migrations:** 00217–00221 are this plan's numbers. Other sessions add migrations often, so each PR renumbers at merge if its number is taken, and its "As built" note says so.
+**Migrations:** 00220–00224 are this plan's numbers. Other sessions add migrations often, so each PR renumbers at merge if its number is taken, and its "As built" note says so.
 
 **As built.** Each PR's own note, under its heading, says what departed from its tasks and why. This table is filled as they merge.
 
@@ -148,7 +148,7 @@ Each PR runs this sequence:
   | other, or unread (a person) | stops | unchanged | — | none | yes |
 
 - **G7. The stop itself.** It is `outreach_wrote_back` (00211:52-86), from the moment the intake keeps a person's message. That is before any reading, so a reading that fails leaves the stop exactly as today.
-  - **B1's widening, in that function alone.** An automatic reply is not writing back (00181), so an automatic "remove us" or "I've left, write to Dana" would otherwise leave the chain going. 00218 re-creates `outreach_wrote_back` whole with a fourth reading: a reading of this tenant, `claim = 'auto_reply'`, `intent in ('no', 'wrong_person')`, `undone_at is null`, for the person who wrote it or the lead's person. The chain's report counts such a lead as having written back; that is what the reading says it did.
+  - **B1's widening, in that function alone.** An automatic reply is not writing back (00181), so an automatic "remove us" or "I've left, write to Dana" would otherwise leave the chain going. 00221 re-creates `outreach_wrote_back` whole with a fourth reading: a reading of this tenant, `claim = 'auto_reply'`, `intent in ('no', 'wrong_person')`, `undone_at is null`, for the person who wrote it or the lead's person. The chain's report counts such a lead as having written back; that is what the reading says it did.
   - The reading adds one more thing. The door skips the lead's planned and held sends in live runs (reason `outreach_wrote_back`, the refusal the door would give), so a held email never waits for its owner's say about a business that already answered.
   - **C16 does not narrow (N1).** No human reply lets a chain go on, not "away" in their own words and not "not now" (§4.7: "Not now: the chain stops"). The spec's own §4.7 settles §6.5's C16 note, which named `away` and `not_now` only as the case where a narrowing would go.
 - **G8. An automatic out-of-office pauses the chain through a fact of its own, `away`.** This is not a second `wrote_back`.
@@ -165,7 +165,7 @@ Each PR runs this sequence:
   - `customerDomainOf` (F6) is a different rule, "a person in People writes from this domain", and keeps its own reading and its free-mail list. It is not rewritten here.
   - **One predicate for "suppressed".** A new set-based SQL function `lead_addresses_suppressed(tenant, addresses text[]) returns setof text` asks each address and its domain; `lead_address_suppressed(tenant, address)` is its one-row form. `outreach_lead_facts`, `reach_out_audience` and the finder's `suppressed` port (`apps/edge/lib/leads/lead-db.ts:286-317`, which today reads email and place hashes itself and never the domain) all ask it. The finder's place check stays its own: a place is not an address.
   - **D18's second leg.** `sending_domain_counts` counts a `reply` no beside an `unsubscribe`, by the email it names, unless a later `reply_undone` names the same email.
-- **G10. The undo is one member door, `reach_out_reply_undo(message_id)`** (00218; a session door, since it records who).
+- **G10. The undo is one member door, `reach_out_reply_undo(message_id)`** (00221; a session door, since it records who).
   - **When it may run (N4):** for a `no`, not undone, within seven days of the reading, by a member who may act (`is_acting_member`: an owner, an operator, or a partner, who ranks above an operator in `ROLE_RANK`, `contracts/src/config/roles.ts:13`). One SQL function says whether it may (`reach_out_reply_undoable`): the door asks it, and the read the page shows selects it. It answers `not_found` for a caller who is no member of the reading's workspace, so a session learns nothing of another tenant. It is refused, in words, when the person's email consent moved since (`email_marketing_source` is no longer `reply`), since an unsubscribe or a complaint after the reply is theirs and stays.
   - **What it reverses is exactly what the no wrote, as the reading recorded it:**
     - the consent back to what it was, through `set_email_marketing` with source `reply_undone`, the only way back that door has;
@@ -419,17 +419,17 @@ An independent review read the plan against `99a28ab0`. Each finding was checked
 | `tooling/scripts/fixtures/replies/replies.json` (new) | The seventeen real-shaped replies, each with its expected claim, reading and plan | 1 |
 | `tooling/scripts/evals/reply-intents.mjs` (new) | The live run of the fixtures against the model, dry by default | 1 |
 | `docs/decisions/0017-a-lead-reply-is-drafted-on-its-reading.md` (new), `docs/decisions/README.md` | The draft's path beside 0001's step 6 | 1 |
-| `supabase/migrations/00216_a_no_reaches_the_business_s_own_domain.sql` (new) | The domain suppression and its one predicate; `set_email_marketing`'s reply sources; D18's count; `leads.resume_at`; `person_step_from_playbook`; `lead_convert_by`, and `lead_set_stage` over it | 2 |
+| `supabase/migrations/00220_a_no_reaches_the_business_s_own_domain.sql` (new) | The domain suppression and its one predicate; `set_email_marketing`'s reply sources; D18's count; `leads.resume_at`; `person_step_from_playbook`; `lead_convert_by`, and `lead_set_stage` over it | 2 |
 | `apps/edge/lib/leads/lead-db.ts` | The finder's `suppressed` asks the one predicate | 2 |
 | `packages/contracts/src/people/person-timeline.ts` | The words of a reply's no and its undo | 2 |
-| `supabase/migrations/00217_a_reply_is_read_for_what_it_means.sql` (new) | `reach_out_replies`; the reads' spend; the job's unique index; the job and notification kinds; `outreach_wrote_back`'s fourth reading; `reach_out_reply_of`, `_apply`, `_draft`, `_tell_claim`, `_told`, `_undoable`, `_undo` | 3 |
+| `supabase/migrations/00221_a_reply_is_read_for_what_it_means.sql` (new) | `reach_out_replies`; the reads' spend; the job's unique index; the job and notification kinds; `outreach_wrote_back`'s fourth reading; `reach_out_reply_of`, `_apply`, `_draft`, `_tell_claim`, `_told`, `_undoable`, `_undo` | 3 |
 | `packages/core/src/messages/reply-read.ts` (new) | `readReply` and (PR 5) `draftReply`, verbs over `ReplyReadPorts` | 3, 5 |
 | `packages/core/src/messages/email-ingest.ts` | A reach-out's reply is handed to the reading, and not told twice | 3 |
 | `packages/jobs/src/handlers.ts`, `context.ts`, `ledger.ts` | `reply_read`: its handler, `ctx.replies`, `ctx.scheduleOnce`, its retries | 3 |
 | `packages/db/src/repositories/outreach.ts` | `replyOf`, `applyReading`, `recordDraft`, `claimTell`, `markTold`, `readTake`, the readings for the routes | 3, 6 |
 | `apps/edge/lib/reach-out/reply-read.ts` (new) | The edge's ports: the reader through `askJson`, the notice through `notifyOnce`, and (PR 5) the draft through `generateReply` | 3, 5 |
 | `packages/contracts/src/shared/enums.ts`, `workspace/activity.ts` | `reply_read`; `reach_out.replied`, `reach_out.reply_undone` and their words | 3 |
-| `supabase/migrations/00218_an_out_of_office_pauses_a_chain.sql` (new) | `outreach_lead_facts` gains `away`; `reach_out_followers` leaves the away out and takes them back after | 4 |
+| `supabase/migrations/00222_an_out_of_office_pauses_a_chain.sql` (new) | `outreach_lead_facts` gains `away`; `reach_out_followers` leaves the away out and takes them back after | 4 |
 | `packages/contracts/src/reach-out/reach-out-rules.ts`, `consent/consent.ts` | `outreach_away`, its words | 4 |
 | `packages/core/src/deliver.ts`, `packages/channels/src/email.ts` types | `emailSender`: a person's reply may take its own route by its twin, else the mailbox's; `left_as` | 4 |
 | `apps/edge/lib/receptionist/budget.ts` | The one usage writer and the day's cap for the draft | 5 |
@@ -444,9 +444,9 @@ An independent review read the plan against `99a28ab0`. Each finding was checked
 | `packages/contracts/src/today/notification-kinds.ts` (new) | The Settings page's "What you'll get" rows, moved from `settings.jsx`, with the Reach-outs group | 8 |
 | `apps/dashboard/src/legacy/pages/dashboard-a-command.jsx`, `settings.jsx` | Today's reply row and a reach-out run's words; the group | 8 |
 | `docs/debt.md` | The rises of PRs 7 and 8, each with its reason | 7, 8 |
-| `supabase/migrations/00219_a_booking_or_a_deal_stops_a_chain.sql` (new) | `reach_out_booked`; the deal trigger | 9 |
+| `supabase/migrations/00223_a_booking_or_a_deal_stops_a_chain.sql` (new) | `reach_out_booked`; the deal trigger | 9 |
 | `apps/edge/api/cron/calendar.ts` | The sweep hands its appointments' addresses to the door | 9 |
-| `supabase/migrations/00220_a_chain_may_end_with_a_call.sql` (new) | `playbooks.hand`; the `handed` state; `reach_out_save` takes it; `reach_out_hand_run`; `reach_out_chain_report` with `handed` | 10 |
+| `supabase/migrations/00224_a_chain_may_end_with_a_call.sql` (new) | `playbooks.hand`; the `handed` state; `reach_out_save` takes it; `reach_out_hand_run`; `reach_out_chain_report` with `handed` | 10 |
 | `packages/core/src/campaigns/run-hand-step.ts` (new), `apps/edge/lib/reach-out/run-step.ts` | A hand step's run | 10 |
 | `packages/contracts/src/reach-out/reach-out-words.ts`, `reach-out-draft.ts`; `pages/reach-out/reach-out-sheet.jsx` | "A call for you · a note for you" in the sheet | 11 |
 | `tooling/scripts/tests/reach-out-replies/*` (new directory) | The reading, the list, the draft, the doors and the pages | 1–8, 12 |
@@ -626,17 +626,17 @@ export const REPLY_REREAD_DAYS = 7;
 
 ---
 
-## PR 2 — A no reaches the business's own domain (`reach-out-5b-never-again`, 00217)
+## PR 2 — A no reaches the business's own domain (`reach-out-5b-never-again`, 00220)
 
 The doors a reading will call, shipped inert: nothing writes a `reply` no, a `domain` row, a `resume_at` or a reach-out step until PR 3. What changes now is who asks the never-again list, and how a lead converts.
 
 **What changes for a customer:** nothing they can see. The finder, the audience and the door ask one predicate for "suppressed", which answers as before until a domain row exists. A lead an owner marks interested converts exactly as before, through `lead_convert_by`.
 
-**Deploy order:** either. 00217 is pushed as every migration is (dry run, push, read back), and the edge may deploy before or after it: the finder asks `lead_addresses_suppressed`, and on a database without it reads each address's own row as it did before, which is the whole rule there, since such a database has no domain row. An older edge on the new database reads the hashes itself, and there is no domain row to miss until PR 3. The dashboard takes only the timeline's words, through contracts. **Reverting** the edge is safe until PR 3 writes a domain row (see the As built note); the migration is forward-only and its functions answer as before while no reading has run.
+**Deploy order:** either. 00220 is pushed as every migration is (dry run, push, read back), and the edge may deploy before or after it: the finder asks `lead_addresses_suppressed`, and on a database without it reads each address's own row as it did before, which is the whole rule there, since such a database has no domain row. An older edge on the new database reads the hashes itself, and there is no domain row to miss until PR 3. The dashboard takes only the timeline's words, through contracts. **Reverting** the edge is safe until PR 3 writes a domain row (see the As built note); the migration is forward-only and its functions answer as before while no reading has run.
 
 > **As built** (27 Sep 2026, on PR 1's head `517475e9`, then `main` at `febf9ed1` merged in, after an independent review whose findings are folded in below). What departed from the tasks, and why:
 >
-> - **Numbered 00217.** #1195 took 00216 (`00216_a_partner_s_seat_needs_a_second_factor.sql`, which re-creates `is_acting_member` and partner functions only). This PR is 00217, and the later ones shift by one: PR 3 00218, PR 4 00219, PR 9 00220, PR 10 00221.
+> - **Numbered 00217.** #1195 took 00216 (`00216_a_partner_s_seat_needs_a_second_factor.sql`, which re-creates `is_acting_member` and partner functions only). This PR is 00217, and the later ones shift by one: PR 3 00218, PR 4 00219, PR 9 00220, PR 10 00221. Then `main` took 00215–00219 (#1175's two, the partners' two renumbered to 00217 and 00218, and #1203's 00219), so this PR is **00220** and the later ones follow: PR 3 00221, PR 4 00222, PR 9 00223, PR 10 00224.
 > - **"One converter" is not yet true.** `lead_convert_by` is the writer for the reading, the booking, the deal and the member's Interested. But 00184's `lead_link_contact`, the trigger that links a lead to a person arriving in People by its number or address, still converts the lead with its own update and writes no `lead.converted`. Moving it onto `lead_convert_by` is owed (it runs on every contacts insert, so it wants its own change and test). Until then the plan's "one writer" means these four.
 > - **The converter's own departures.**
 >   - `p_any_stage` converts any lead, a converted one included, not "any lead not already converted". 00142's Interested on a lead a click had already marked Talking made its person and wrote `lead.converted`, and it still does. The reading, the booking and the deal pass false, so none of them converts a lead twice.
@@ -656,7 +656,7 @@ The doors a reading will call, shipped inert: nothing writes a `reply` no, a `do
 > - **The predicate.** An address's domain is exactly the part after its last "@": `sam@mail.owndomain.example` is not held by `owndomain.example`'s row, a string with no "@" is no address, an address with nothing after its "@" is never held by a domain row, and a blank is not asked.
 > - **The finder.**
 >   - Its port hands each key back as it was asked (the SQL answers the stored, lower-cased form), asks nothing when it has no address, and runs its address and place reads together.
->   - `addressesSuppressed` (`repositories/outreach.ts`) falls back, on a database without `lead_addresses_suppressed` (`PGRST202`, `42883`), to the read the finder made before: each address's own `email` row by its keyed digest. Such a database has no domain row, so that is its whole rule, and the edge may deploy in either order. The fallback goes when every database has 00217.
+>   - `addressesSuppressed` (`repositories/outreach.ts`) falls back, on a database without `lead_addresses_suppressed` (`PGRST202`, `42883`), to the read the finder made before: each address's own `email` row by its keyed digest. Such a database has no domain row, so that is its whole rule, and the edge may deploy in either order. The fallback goes when every database has 00220.
 > - **The dated-step door** answers `{error: empty | too_long | no_day | no_source | not_found | not_a_member | already}`. A source is required (`no_source`), so a step is once per source, always. It rings `for_user` through `note_for_you_notify`, whose words read "A teammate left you a note…" when there is no writer. Every caller in Part 5 passes null, so nothing rings; a caller that names a member needs a product's own words first.
 > - **Left for PR 3, which writes the first step:** `reach_out` joins contracts' `PersonNoteDto.source` and `NOTE_FROM`, and the dashboard's source list (`server/people/person-notes.ts`, which reads an unknown source as `page`). They stay out here so the dashboard's reads do not change in a PR that writes nothing.
 > - **The timeline's words.** A `reply_undone` back to `opted_in` reads "Marketing email: back to yes". The dashboard takes the words through contracts; either deploy order is safe, since no event carries a reply source until PR 3.
@@ -664,24 +664,24 @@ The doors a reading will call, shipped inert: nothing writes a `reply` no, a `do
 > - **The regenerated files, without `supabase start`.**
 >   - `database.types.ts` was generated by the `@supabase/postgrest-typegen` the CLI runs, over every migration replayed onto a local Postgres 16 with a stub of Supabase's own schemas. Only its public-schema hunks were kept, because the replay has no `graphql_public.graphql` and the generator's version prints the helper types' parentheses differently. The same generation over `main`'s migrations reproduces the committed file but for those two.
 >   - `schema-sets.generated.ts` was written by `gen-schema-sets.mjs` itself, through a stand-in for `supabase db query` over the replay. Its `--check` passed on `main`'s replay first.
->   - After the review's changes (no signature or CHECK moved), both still equal the generation over the replay with `main`'s 00214–00216 and 00217.
+>   - After the review's changes (no signature or CHECK moved), both still equal the generation over the replay with `main`'s 00214–00216 and 00220.
 >   - CI's "Migrations replay" regenerates both from a real stack.
 > - **Proved on a real Postgres.**
->   - 00217 was applied twice onto a replay of every migration, `main`'s 00214–00216 included, and the catalog equals the one after a single application (`pg_dump --schema-only`).
+>   - 00220 was applied twice onto a replay of every migration, `main`'s 00214–00216 included, and the catalog equals the one after a single application (`pg_dump --schema-only`).
 >   - The new suite and every `*.db.test.mjs` passed on it, except those that fail the same way on `main`'s replay: storage and `pg_net`, which the stand-in stack lacks.
->   - `main`'s own suites pass on the new schema too, which is an older edge and dashboard on 00217.
+>   - `main`'s own suites pass on the new schema too, which is an older edge and dashboard on 00220.
 >   - The re-run is proved by the replay, not by the suite (Task 2.5's eighth).
 >   - The audience asks the predicate once per lead, through a definer function the planner cannot inline. Over 5,000 leads and 3,000 rows on the list, with statistics, it took 1.2 s before and after.
 > - **Tests.**
 >   - `reach-out-replies/finder-suppressed.test.mjs` runs the port over the lead world, whose `lead_addresses_suppressed` models the SQL, and over a database without it.
->   - `never-again.db.test.mjs` holds each re-created body to its source's text with the listed changes, both as 00217 writes it and as `pg_proc` runs it, and each one's volatility, rights, search path and grantees to `main`'s. It also proves the audience's place and number arms, the undo's `previous`, a complaint then a reply, and an undo naming another email.
+>   - `never-again.db.test.mjs` holds each re-created body to its source's text with the listed changes, both as 00220 writes it and as `pg_proc` runs it, and each one's volatility, rights, search path and grantees to `main`'s. It also proves the audience's place and number arms, the undo's `previous`, a complaint then a reply, and an undo naming another email.
 >   - The words are in `consent/consent-history.test.mjs`, beside the other consent words. `reach-out-replies/` holds four modules.
 > - **Baselines.** `leadDb` fell from 282 lines and 37 branches to 273 and 35, banked. `lead-search.ts` stays at its pinned 1,035 lines. Nothing rose.
 > - **Reverting.** Reverting the edge after PR 3 has written a domain row would leave the finder blind to it, since the old finder reads email hashes only. Revert past this PR only together with PR 3.
 
 ### Task 2.1: The migration
 
-**Files:** Create `supabase/migrations/00216_a_no_reaches_the_business_s_own_domain.sql`; regenerate `database.types.ts` (`corepack pnpm gen:db-types`) and the closed sets (`corepack pnpm gen:schema-sets`).
+**Files:** Create `supabase/migrations/00220_a_no_reaches_the_business_s_own_domain.sql`; regenerate `database.types.ts` (`corepack pnpm gen:db-types`) and the closed sets (`corepack pnpm gen:schema-sets`).
 
 - [ ] **The header.** It follows 00125's shape: what it adds, one line each; that every statement re-runs; and the lock guard (`set local lock_timeout = '3s'`), since it adds a column to `leads`.
 - [ ] **The domain on the never-again list, and one predicate.**
@@ -755,7 +755,7 @@ grant execute on function public.person_step_from_playbook(uuid, uuid, date, tex
 
 ---
 
-## PR 3 — A reply is read (`reach-out-5c-read`, 00218)
+## PR 3 — A reply is read (`reach-out-5c-read`, 00221)
 
 A reach-out's reply is read once, what it means is applied in one transaction, the workspace is told once, and a reply that could not be read is read again. The draft is PR 5's; the pages are PRs 7 and 8.
 
@@ -766,13 +766,13 @@ A reach-out's reply is read once, what it means is applied in one transaction, t
 - An automatic reply that asks to be taken off the list is a no; one that names someone else stops the chain with a step.
 - An automatic out-of-office is read and recorded, and does nothing yet (PR 4).
 
-**Deploy order:** 00218 first (dry run, push, read back). The rest is the edge and the packages; the dashboard reads nothing new, so either app may deploy first. An older dashboard shows a `reach_out_replied` bell row with the `alert` look. **Reverting** leaves `reply_read` jobs an older edge fails as work it does not know; cancel them in the ledger. The readings already applied stay applied.
+**Deploy order:** 00221 first (dry run, push, read back). The rest is the edge and the packages; the dashboard reads nothing new, so either app may deploy first. An older dashboard shows a `reach_out_replied` bell row with the `alert` look. **Reverting** leaves `reply_read` jobs an older edge fails as work it does not know; cancel them in the ledger. The readings already applied stay applied.
 
 > **As built:** _(filled in when the PR merges)_
 
 ### Task 3.1: The migration
 
-**Files:** Create `supabase/migrations/00217_a_reply_is_read_for_what_it_means.sql`; regenerate `database.types.ts` and the closed sets.
+**Files:** Create `supabase/migrations/00221_a_reply_is_read_for_what_it_means.sql`; regenerate `database.types.ts` and the closed sets.
 
 - [ ] **The header**, in 00125's shape.
 - [ ] **The readings.** No insert or update policy: the doors below write.
@@ -910,7 +910,7 @@ create index if not exists reach_out_replies_thread on public.reach_out_replies 
 
 - [ ] **The kinds.**
   - `JOB_KINDS` gains `reply_read`.
-  - `EVENT_KINDS` gains `reach_out.replied` and `reach_out.reply_undone`, each with its one-line comment; `repo/event-kinds.test.mjs` scans 00218's inserts and holds them.
+  - `EVENT_KINDS` gains `reach_out.replied` and `reach_out.reply_undone`, each with its one-line comment; `repo/event-kinds.test.mjs` scans 00221's inserts and holds them.
   - `workspace/activity.ts` gains their words ("{business} wrote back · interested", "A reply read as no was undone"), and `lead.converted`'s `how` gains `reply`, `booking` and `deal`.
   - `JOB_WORK` gains `{ stopped: "A reply could not be read", to: "inbox" }`.
   - `RETRY_WAITS_MS` gains `reply_read: [2 * 60_000, 10 * 60_000]`. It is internal, every stage is written to be run again, and each wait outlasts the lease.
@@ -965,16 +965,16 @@ create index if not exists reach_out_replies_thread on public.reach_out_replies 
 
 ---
 
-## PR 4 — The door learns two things (`reach-out-5d-the-door`, 00219)
+## PR 4 — The door learns two things (`reach-out-5d-the-door`, 00222)
 
 An automatic out-of-office pauses a chain until the day it names (G8). A person's reply may leave by the own domain it was frozen with, and leaves as the mailbox's request whenever it cannot (G15's wire). Nothing freezes an own twin yet.
 
 **What changes for a customer:** a business whose automatic reply says it is away until a day is not nudged before that day, and is nudged after it. Nothing else changes.
 
-**Deploy order:** 00219 first. The edge and the dashboard may then go in either order:
+**Deploy order:** 00222 first. The edge and the dashboard may then go in either order:
 - the dashboard freezes no own twin before PR 6;
 - an older edge reads `away` as absent, which is "not away", as before this part;
-- a newer edge on a database without 00219 reads the same.
+- a newer edge on a database without 00222 reads the same.
 
 **Reverting** the edge after PR 6: every reply leaves as the mailbox's request, which is N5's rule.
 
@@ -982,9 +982,9 @@ An automatic out-of-office pauses a chain until the day it names (G8). A person'
 
 ### Task 4.1: The migration
 
-**Files:** Create `supabase/migrations/00218_an_out_of_office_pauses_a_chain.sql`; regenerate the types.
+**Files:** Create `supabase/migrations/00222_an_out_of_office_pauses_a_chain.sql`; regenerate the types.
 
-- [ ] Re-create `outreach_lead_facts` from 00217's body whole, with `'away'`: `exists` a `reach_out_replies` row of this tenant where (`contact_id = p_contact_id` or `lead_id = p_lead_id`), `intent = 'away'`, `claim = 'auto_reply'`, `until_at > now()` and `undone_at is null`.
+- [ ] Re-create `outreach_lead_facts` from 00220's body whole, with `'away'`: `exists` a `reach_out_replies` row of this tenant where (`contact_id = p_contact_id` or `lead_id = p_lead_id`), `intent = 'away'`, `claim = 'auto_reply'`, `until_at > now()` and `undone_at is null`.
 - [ ] Re-create `reach_out_followers` from `00185:73-107` whole, with two changes:
   - `and not coalesce((f.facts->>'away')::boolean, false)` beside the other facts;
   - the "not already on this step" test (`:96`) passes over a send `skipped` with reason `outreach_away`.
@@ -1022,7 +1022,7 @@ An automatic out-of-office pauses a chain until the day it names (G8). A person'
   2. A send the reading skipped `outreach_away` does not keep the lead out after the day: the followers take them.
   3. A person's email (not automatic) read away is not `away`: `wrote_back` is true, as it always was.
   4. An undone reading is never `away`.
-  5. The re-created bodies equal 00217's and 00185's text but for their changes.
+  5. The re-created bodies equal 00220's and 00185's text but for their changes.
 - [ ] `reach-out-stops/stop-skips.test.mjs` (the sender over `_fake-db.mjs`, §7's "a send skipped for each stop"): a claimed send whose lead's facts say `away` is skipped `outreach_away`, and one whose lead is `converted` (a booking or a deal, PR 9) is skipped `outreach_lead_closed`.
 
 ---
@@ -1134,7 +1134,7 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Files:** Create `apps/dashboard/src/legacy-bridge/reach-out/replies.ts`; modify `surface-registry.ts`, `refresh-map.ts`, `manifest.ts`, `docs/debt.md`.
 
-- [ ] `window.__REPLIES` is the readings of the last 30 days, through the surface seam. It refreshes on `reach_out_replies`' changes: 00218 published the table, `packages/db/src/realtime.ts` names it (the one list a surface's `refreshOnTables` may name), and `database/realtime-publication.db.test.mjs` holds the two together.
+- [ ] `window.__REPLIES` is the readings of the last 30 days, through the surface seam. It refreshes on `reach_out_replies`' changes: 00221 published the table, `packages/db/src/realtime.ts` names it (the one list a surface's `refreshOnTables` may name), and `database/realtime-publication.db.test.mjs` holds the two together.
 - [ ] `window.__replies` holds the undo and the words the pages draw: `undo(messageId)` answers `{ ok } | refusal`, as the other bridges' verbs do; `stripOf`, `chipOf`, `fromLineOf`, `leftAsOf` and `draftOf(threadId)` are contracts' functions, handed over as Part 4's `__reachOuts` hands its words. No other name is published.
 - [ ] The registry classifies `reach_out_replies` as real for `inbox` and `today`.
 - [ ] **The ratchets.** `window-globals.json` rises by 2 (`__REPLIES`, `__replies`) and `window-publishers.json` by 1 (the bridge's `installReplies`), banked with `UPDATE_BASELINES=1 corepack pnpm test`. `docs/debt.md`'s "Rises" table gains their row, in Part 4's words: "The shell's pages read the bridge only through window. The readings are a surface of their own so the moments' read (`surface-data.ts`, at its file and function caps) takes nothing more", falling when the Inbox leaves the shell.
@@ -1227,13 +1227,13 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 ---
 
-## PR 9 — Booked and a deal stop a chain (`reach-out-5i-booked`, 00220)
+## PR 9 — Booked and a deal stop a chain (`reach-out-5i-booked`, 00223)
 
 **What changes for a customer:**
 - A business the reach-out wrote to that books through the link, or for whose person the owner opens a deal, moves to Talking.
 - Its next nudge is never written.
 
-**Deploy order:** 00220 first. Then the edge's calendar sweep; the dashboard is untouched. Either order.
+**Deploy order:** 00223 first. Then the edge's calendar sweep; the dashboard is untouched. Either order.
 
 > **As built:** _(filled in when the PR merges)_
 
@@ -1244,7 +1244,7 @@ The readings a page reads, the undo, and C15's freeze with its twin.
   - whose person's `email` or `phone_e164` is one seen;
   - on an appointment whose `start` is after the lead's first `sent_at`.
 
-  Each is converted through 00217's `lead_convert_by` (`how: 'booking'`). It answers how many.
+  Each is converted through 00220's `lead_convert_by` (`how: 'booking'`). It answers how many.
 - [ ] **`leads_convert_on_deal`**, after insert on `deals`: each `ready` or `nurture` lead whose `contact_id` is the deal's `contact_id` goes through `lead_convert_by` with `how: 'deal'` and the deal's id. It does not key on `deals.lead_id` (G19). The trigger is definer, and its function revoked from public.
 
 ### Task 9.2: The sweep
@@ -1260,11 +1260,11 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 ---
 
-## PR 10 — A call or a note for you, the engine (`reach-out-5j-hand-engine`, 00221)
+## PR 10 — A call or a note for you, the engine (`reach-out-5j-hand-engine`, 00224)
 
 **What changes for a customer:** nothing yet. No route makes a hand step until PR 11.
 
-**Deploy order:** 00221 first. The edge's run of a hand step ships here, and the door that makes one ships in PR 11.
+**Deploy order:** 00224 first. The edge's run of a hand step ships here, and the door that makes one ships in PR 11.
 
 > **As built:** _(filled in when the PR merges)_
 
@@ -1412,7 +1412,7 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 - **Either deploy order.** Each PR says its own. The wire before the freeze (PRs 4 and 6) no longer needs its order, since the mailbox's request is the one every edge can send; the hand step's engine before its door (PRs 10 and 11) does. PRs 7 and 8 depend on the PRs before them, and say so.
 - **Migrations.**
   - Every statement re-runs.
-  - Each function re-created whole names its source body: `outreach_lead_facts` (00217, 00219), `reach_out_audience`, `set_email_marketing`, `sending_domain_counts`, `lead_set_stage` (00217), `outreach_wrote_back` (00218), `reach_out_followers` (00219), `reach_out_save`, `reach_out_sends_guard` and `reach_out_chain_report` (00221). Each PR's database test reads the new body from `pg_proc` and asserts it equals its source's text but for the lines it meant to change.
+  - Each function re-created whole names its source body: `outreach_lead_facts` (00220, 00222), `reach_out_audience`, `set_email_marketing`, `sending_domain_counts`, `lead_set_stage` (00220), `outreach_wrote_back` (00221), `reach_out_followers` (00222), `reach_out_save`, `reach_out_sends_guard` and `reach_out_chain_report` (00224). Each PR's database test reads the new body from `pg_proc` and asserts it equals its source's text but for the lines it meant to change.
   - CHECKs are re-issued by name with `drop constraint if exists` first, as 00189 and 00158 do: `lead_suppressions_kind_check`, `lead_suppressions_what_check`, `person_notes_source_check`, `jobs_kind_check`, `notifications_kind_check`, `reach_out_sends_state_check`.
   - The `leads` column takes the lock guard.
   - No migration edits another.

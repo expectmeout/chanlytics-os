@@ -232,7 +232,7 @@ export async function memberContext(
   const m = wanted ? rows.find((r) => r.tenant_id === wanted || r.tenants?.slug === wanted) : rows[0];
   if (!m) throw new AppError("not_found", "No workspace found for this account.", 404);
   // A partner's seat asks for the second factor (0013, M3), on a read as on a write: the one door every workspace
-  // request passes. The database refuses the same session on its own (00216).
+  // request passes. The database refuses the same session on its own (00218).
   if (seatNeedsSecondFactor(m.role)) requireSecondFactor(ctx);
 
   return {

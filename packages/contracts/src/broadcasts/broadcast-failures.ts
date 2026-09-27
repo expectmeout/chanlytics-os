@@ -12,6 +12,7 @@ export const BROADCAST_FAILURE_WORDS: Record<string, string> = {
   template_not_approved: "WhatsApp no longer approves its template",
   wire_unavailable: "WhatsApp could not be reached",
   run_interrupted: "its send stopped partway and did not start again",
+  throttled: "WhatsApp kept limiting how fast this number may send",
 };
 
 /**
@@ -24,6 +25,7 @@ export const BROADCAST_FAILURE_FIX: Record<string, string> = {
   template_not_approved: "Open it in Templates — it can be resubmitted.",
   wire_unavailable: "Nothing was charged and nobody was written to. Try again.",
   run_interrupted: "Nobody got it, so sending it again reaches nobody twice.",
+  throttled: "Nobody got it. WhatsApp lifts these limits on its own; send it again later.",
 };
 
 /**
@@ -39,6 +41,8 @@ const BROADCAST_FAILURE_FIX_AFTER: Record<string, (n: number) => string> = {
     `The first ${n === 1 ? "one" : n} got it, then WhatsApp stopped answering. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
   run_interrupted: (n) =>
     `${n === 1 ? "One" : n} got it and the rest did not. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
+  throttled: (n) =>
+    `The first ${n === 1 ? "one" : n} got it, then WhatsApp limited the number. Sending it again reaches the whole list, ${n === 1 ? "that one" : `those ${n}`} included.`,
 };
 
 /** The next step past a failed run's reason, by how many it reached first; null for a code nobody has written words for. */

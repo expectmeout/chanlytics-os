@@ -6093,6 +6093,13 @@ type Database = {
                 };
                 Returns: number;
             };
+            purge_jobs: {
+                Args: {
+                    p_failed?: string;
+                    p_finished?: string;
+                };
+                Returns: number;
+            };
             purge_leads: {
                 Args: never;
                 Returns: number;
@@ -6571,6 +6578,24 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: number;
+            };
+            search_messages: {
+                Args: {
+                    p_limit: number;
+                    p_since: string;
+                    p_tenant: string;
+                    p_words: string;
+                };
+                Returns: {
+                    at: string;
+                    channel: string;
+                    contact_id: string;
+                    conversation_id: string;
+                    direction: string;
+                    id: string;
+                    kind: string;
+                    snippet: string;
+                }[];
             };
             sending_domain_capacity: {
                 Args: {
@@ -7315,12 +7340,12 @@ declare function outreachFactsOf(db: Db$f, p: {
     leadId?: string | null;
 }): Promise<OutreachFactsRow>;
 /**
- * Which of these addresses the workspace's never-again list holds (00217 lead_addresses_suppressed): an address's own
+ * Which of these addresses the workspace's never-again list holds (00220 lead_addresses_suppressed): an address's own
  * row, or its business's own domain after a no (N6). The one predicate the finder asks, as the send door's facts and
  * the audience ask it in SQL. Each answer is the address as it is stored, lower-cased and trimmed. A read that fails
  * throws: "we could not check" is not "no".
  *
- * A database before 00217 has no such door, and no domain row either: there the address's own row is the whole rule,
+ * A database before 00220 has no such door, and no domain row either: there the address's own row is the whole rule,
  * read as the finder read it before (the keyed digest 00140's lead_suppression_hash writes), so the edge may deploy
  * first.
  */
@@ -8069,6 +8094,33 @@ declare function readDealForPhone(db: Db$a, tenantId: string, phoneE164: string)
  */
 declare function notesForReceptionist(lead: LeadContext, now?: Date, tz?: string): string | null;
 declare function describeLead(lead: LeadContext, now?: Date, tz?: string): string;
+/** A message that holds the words, or a call whose transcript does, as search_messages answers it. */
+interface MessageHit {
+    /** A message (a call_summary among them), or a call found by its transcript. */
+    kind: "message" | "call";
+    /** The message's id, or the call's. */
+    id: string;
+    /** The thread it is on: a message always has one; a call may not. */
+    conversationId: string | null;
+    contactId: string | null;
+    /** A message's channel; null for a call. */
+    channel: string | null;
+    direction: string;
+    /** When it was sent, or when the call started (when it was recorded, where the call never said). */
+    at: string;
+    /** The words around the match, as written, with no markup. */
+    snippet: string;
+}
+/**
+ * The workspace's messages and call transcripts that hold these words, newest first: none older than `since`, at most
+ * `limit` (the database clamps it to 1–50). The words are websearch_to_tsquery's, so a quoted phrase, `or` and `-word`
+ * mean what a search box means. Blank words, and words whose query could match a message holding none of them (only
+ * exclusions, or an `or` with one: `valet or -parking`), answer nothing; so does a limit that is no number (NaN reaches
+ * the database as null, and the function is strict). Under the caller's row security on a session client. A read that
+ * fails THROWS, and so does a row of a kind this does not know: a search the database could not answer is never "nobody
+ * said it", and a hit is never labelled what it is not.
+ */
+declare function searchMessages(db: Db$a, tenantId: string, words: string, since: Date, limit: number): Promise<MessageHit[]>;
 
 /**
  * A reply's idempotency key (0004): the receipt kept under the caller's key,
@@ -8635,7 +8687,7 @@ declare function setPartnerStatus(db: Db$1, partnerId: string, status: string, w
     seats: number;
 }>>;
 /**
- * A platform admin records the reset of a partner's second factor (00215 partner_second_factor_reset, decision 0013)
+ * A platform admin records the reset of a partner's second factor (00217 partner_second_factor_reset, decision 0013)
  * and learns whose account to act on; the factor itself is removed in Supabase Auth by the caller.
  */
 declare function recordPartnerSecondFactorReset(db: Db$1, partnerId: string, why: string): Promise<PartnerVerbResult<string>>;
@@ -8826,5 +8878,18 @@ interface Page<T> {
  * silent one and an outage.
  */
 declare function readAllRows<T>(what: string, page: (from: number, to: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
+/**
+ * Every row the query matches, each page read after the last row of the one before.
+ *
+ * `readAllRows` pages by offset, which is exact only while nothing is deleted:
+ * a row removed during the read moves every later row back one place, and the
+ * row that crosses the page boundary is never read. A read that must see every
+ * row of a table something deletes from pages by key instead. `page(after, size)`
+ * must order by the column `key` reads, which must be unique, and return at most
+ * `size` rows past `after` (from the first row when `after` is null). Rows added
+ * or removed during the read then cost nothing but themselves. Errors and the cap
+ * behave as in `readAllRows`.
+ */
+declare function readAllRowsByKey<T>(what: string, key: (row: T) => string, page: (after: string | null, size: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageInsert, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WriteError, type WrittenEmail, type YesRow, acceptHandover, addToList, addressesSuppressed, applyDomainCheck, archiveList, assembleHistory, becomePartner, claimCallNotification, claimControl, claimIdempotencyKey, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, monthSent, moveSend, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stampReachOutStep, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, watchedTables, withdrawEmail, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };
+export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WriteError, type WrittenEmail, type YesRow, acceptHandover, addToList, addressesSuppressed, applyDomainCheck, archiveList, assembleHistory, becomePartner, claimCallNotification, claimControl, claimIdempotencyKey, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, monthSent, moveSend, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stampReachOutStep, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, watchedTables, withdrawEmail, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

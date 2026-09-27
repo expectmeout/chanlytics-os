@@ -92,6 +92,8 @@ const EVERY_CLOCK = {
   reach_out_check: "reach-out-check-sweep",
   // A partner's earnings (00203): a daily clock that makes a held share payable once its thirty days are up.
   partners: "partners-sweep",
+  // The ledger's finished rows (00215): nightly, done and canceled after a week, failed after ninety days.
+  purge_jobs: "purge-jobs",
 };
 const RUN_JUDGED = [
   "partitions",
@@ -99,6 +101,7 @@ const RUN_JUDGED = [
   "purge_ask",
   "purge_cron_history",
   "purge_events",
+  "purge_jobs",
   "purge_leads",
   "purge_notifications",
   "purge_rate_hits",

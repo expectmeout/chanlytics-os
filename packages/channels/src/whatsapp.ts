@@ -256,16 +256,41 @@ async function postGraph(cfg: WaConfig, payload: unknown): Promise<SendResult> {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
-    const out = (await r.json().catch(() => ({}))) as { messages?: Array<{ id?: string }> };
+    const out = (await r.json().catch(() => ({}))) as { messages?: Array<{ id?: string }>; error?: { code?: unknown } };
     return {
       ok: r.ok,
       wamid: out.messages?.[0]?.id ?? null,
       status: r.status,
       errorBody: r.ok ? undefined : JSON.stringify(out).slice(0, 200),
+      // Read before the body is cut: Graph writes its message first, and a long one pushes the code past 200 characters.
+      code: !r.ok && typeof out.error?.code === "number" ? out.error.code : null,
     };
   } catch (e) {
     return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * Meta's "not now": the codes Graph answers when this number, this app or this
+ * business account has sent faster than it may. The message was not taken, so
+ * it may be tried again later, and nobody after it will get through sooner.
+ *
+ *   4        the app's calls ran over its rate limit
+ *   80007    the business account's rate limit
+ *   130429   the number's message throughput
+ *   131048   too many of the number's messages were blocked or reported, so
+ *            Meta is limiting how many it may send
+ *   131056   too many messages to the same person in a short while
+ *
+ * Distinct from a failure whose outcome is unknown: a timeout (status 0) or a
+ * 5xx may have been taken all the same, and is never read as a throttle.
+ */
+const GRAPH_THROTTLE_CODES: readonly number[] = [4, 80007, 130429, 131048, 131056];
+
+/** Whether Graph refused a send as too many, too fast: HTTP 429, or one of GRAPH_THROTTLE_CODES. */
+export function graphThrottled(r: { ok: boolean; status: number; code?: number | null }): boolean {
+  if (r.ok) return false;
+  return r.status === 429 || (typeof r.code === "number" && GRAPH_THROTTLE_CODES.includes(r.code));
 }
 
 export async function sendText(cfg: WaConfig, to: string, body: string): Promise<SendResult> {

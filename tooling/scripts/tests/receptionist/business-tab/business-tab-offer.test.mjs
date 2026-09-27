@@ -24,7 +24,6 @@ import { unmount, settle, all, find, byTestId, textOf, classes, press } from "..
 import {
   W,
   cancelFoldOf,
-  composePromptPreview,
   drawTab,
   escape,
   foldOf,

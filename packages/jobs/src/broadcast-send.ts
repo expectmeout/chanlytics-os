@@ -35,7 +35,7 @@ async function countRecipients(
 
 /** broadcast_send: core's sendBroadcastBatch, over this runtime's ports. payload: { broadcast_id } */
 export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
-  const p = job.payload as { broadcast_id: string };
+  const p = job.payload as { broadcast_id: string; waits?: unknown };
   const db = ctx.db;
   await sendBroadcastBatch(
     {
@@ -99,19 +99,7 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
             .maybeSingle(),
         );
       },
-      // An empty business name is not a fallback: it resolves to an empty slot,
-      // and the verb marks everyone in the batch permanently "missing_value".
-      facts: async () => {
-        const [tenantRes, cfgRes] = await Promise.all([
-          db.from("tenants").select("name").eq("id", job.tenant_id).maybeSingle(),
-          db.from("tenant_config").select("config").eq("tenant_id", job.tenant_id).maybeSingle(),
-        ]);
-        const tenantRow = must("broadcast_send: cannot read the workspace", tenantRes);
-        const cfgRow = must("broadcast_send: cannot read the workspace's settings", cfgRes);
-        const parsedCfg = parseTenantConfig(cfgRow?.config ?? null);
-        const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";
-        return { businessName, bookingLink: parsedCfg?.brain?.booking_link ?? null };
-      },
+      facts: () => workspaceFacts(db, job.tenant_id),
       batch: async (id, limit) => {
         const { data, error } = await db
           .from("broadcast_recipients")
@@ -188,8 +176,9 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
         );
         return row?.state ?? null;
       },
-      scheduleNext: async (id, dueAt) => {
-        await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id });
+      // The count of WhatsApp's "not now" rides in the payload to the next batch, and only while it is running.
+      scheduleNext: async (id, dueAt, waits) => {
+        await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id, ...(waits ? { waits } : {}) });
       },
       // This tally is written to the permanent record and read out to the owner,
       // so it is counted rather than tallied from a page of rows.
@@ -226,6 +215,35 @@ export async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<v
       now: Date.now,
       sleep: (ms) => new Promise((res) => setTimeout(res, ms)),
     },
-    { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline },
+    { tenantId: job.tenant_id, broadcastId: p.broadcast_id, deadline: ctx.deadline, waits: waitsOf(p) },
   );
+}
+
+/**
+ * The workspace's own words for the slots that name it, and the zone its sending hours are kept by. An empty business
+ * name is not a fallback: it resolves to an empty slot, and the verb marks everyone in the batch permanently
+ * "missing_value". An unreadable zone reads as UTC where the hours are judged (contracts playbook-schedule).
+ */
+async function workspaceFacts(
+  db: JobContext["db"],
+  tenantId: string,
+): Promise<{ businessName: string; bookingLink: string | null; timezone: string }> {
+  const [tenantRes, cfgRes] = await Promise.all([
+    db.from("tenants").select("name, timezone").eq("id", tenantId).maybeSingle(),
+    db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
+  const tenantRow = must("broadcast_send: cannot read the workspace", tenantRes);
+  const cfgRow = must("broadcast_send: cannot read the workspace's settings", cfgRes);
+  const parsedCfg = parseTenantConfig(cfgRow?.config ?? null);
+  const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";
+  return {
+    businessName,
+    bookingLink: parsedCfg?.brain?.booking_link ?? null,
+    timezone: tenantRow?.timezone || "UTC",
+  };
+}
+
+/** How many times running WhatsApp has said "not now", as the job carries it; anything but a count is none. */
+function waitsOf(payload: { waits?: unknown }): number {
+  return typeof payload.waits === "number" && Number.isInteger(payload.waits) && payload.waits > 0 ? payload.waits : 0;
 }

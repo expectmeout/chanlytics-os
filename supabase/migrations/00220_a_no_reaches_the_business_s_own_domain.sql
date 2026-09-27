@@ -1,8 +1,8 @@
--- 00217 · A no reaches the business's own domain.
+-- 00220 · A no reaches the business's own domain.
 --
 -- Reach out, Part 5 (docs/superpowers/plans/2026-09-27-reach-out-part-5-replies.md, PR 2, with Ruben's N6). The doors a
 -- reply's reading will call, shipped inert: nothing writes a reply's no, a domain row, a resume_at or a reach-out step
--- until the reading arrives (00218). What changes now is who asks the never-again list, and how a lead converts.
+-- until the reading arrives (00221). What changes now is who asks the never-again list, and how a lead converts.
 --
 --   lead_suppressions          a `domain` row (N6: the business's own domain, when a no came from it) and the what
 --                              `said_no` (a reply read as no), both CHECKs re-issued with their full lists.
@@ -176,8 +176,8 @@ grant execute on function public.reach_out_audience(uuid, uuid, int, boolean) to
 -- 00177's door, with a reply's no and its one way back. Who calls each source:
 --   unsubscribe   the public unsubscribe page (dashboard server/public/unsubscribe.ts), a press of the link;
 --   complaint     the email receipt's spam report (db recordEmailNo, on the edge);
---   reply         a reply read as no (the reading's door, reach_out_reply_apply, 00218);
---   reply_undone  a member's "read as no · undo" (reach_out_reply_undo, 00218), back to exactly the answer the no found,
+--   reply         a reply read as no (the reading's door, reach_out_reply_apply, 00221);
+--   reply_undone  a member's "read as no · undo" (reach_out_reply_undo, 00221), back to exactly the answer the no found,
 --                 which its event keeps as `previous`: an undo never gives a yes the person did not.
 -- A reply's no is the only one that can be taken back, and only while it is what holds the no: an unsubscribe or a
 -- complaint after it makes the no theirs (the source moves on), and then the undo is refused.
@@ -203,7 +203,7 @@ declare
   v_previous text;
 begin
   -- The noes a door can be trusted with: an unsubscribe link pressed, a complaint the mail provider reported (00177),
-  -- and a reply read as no (00217). And one way back, a reply's no undone, to the answer it found.
+  -- and a reply read as no (00220). And one way back, a reply's no undone, to the answer it found.
   if p_source = 'reply_undone' then
     if p_state is null or p_state not in ('unknown', 'opted_in') then
       raise exception 'set_email_marketing takes a reply''s no back to unknown or opted_in' using errcode = '22023';
@@ -224,7 +224,7 @@ begin
   end if;
 
   -- A reply's no taken back: the answer only, and only while a reply's no is what holds it. Whether another reply's
-  -- no of theirs still stands, the suppressions and the leads are the undo door's, which holds the readings (00218).
+  -- no of theirs still stands, the suppressions and the leads are the undo door's, which holds the readings (00221).
   if p_source = 'reply_undone' then
     if v_contact.email_marketing is distinct from 'opted_out' or v_contact.email_marketing_source is distinct from 'reply' then
       return jsonb_build_object('changed', false, 'found', true, 'business', v_business, 'refused', 'moved');
@@ -310,7 +310,7 @@ end $$;
 revoke execute on function public.set_email_marketing(uuid, uuid, text, text, uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.set_email_marketing(uuid, uuid, text, text, uuid, jsonb) to service_role;
 comment on function public.set_email_marketing(uuid, uuid, text, text, uuid, jsonb) is
-  'The door a no from email goes through: an unsubscribe pressed, a complaint the provider reported (00177), or a reply read as no (00217). Records opted_out once (an unsubscribe or a complaint after a reply''s no makes it theirs), puts the address and the one the email went to on the never-again list, closes the leads still being written to as said no. A reply''s no records the answer it found (previous). With source reply_undone it takes a reply''s no back to exactly that answer, the answer only: refused moved once anything but a reply''s no holds it, refused not_previous for any other answer. Service role only.';
+  'The door a no from email goes through: an unsubscribe pressed, a complaint the provider reported (00177), or a reply read as no (00220). Records opted_out once (an unsubscribe or a complaint after a reply''s no makes it theirs), puts the address and the one the email went to on the never-again list, closes the leads still being written to as said no. A reply''s no records the answer it found (previous). With source reply_undone it takes a reply''s no back to exactly that answer, the answer only: refused moved once anything but a reply''s no holds it, refused not_previous for any other answer. Service role only.';
 
 /* ------------------------------------------------------------ 3. D18: a reply's no counts -- */
 

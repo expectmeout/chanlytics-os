@@ -170,7 +170,7 @@ test("an unsubscribe is email's own answer: read as one, and never said as a sto
   );
 });
 
-test("a reply to a reach-out read as no, and that no undone, are said as what they were (00217)", () => {
+test("a reply to a reach-out read as no, and that no undone, are said as what they were (00220)", () => {
   const of = (data) =>
     consentChangeWords(
       consentChangeOf({

@@ -34,11 +34,12 @@ of the public will experience.
 corepack pnpm install
 corepack pnpm --filter "./packages/*" build   # apps typecheck against built dist; dist is committed
 corepack pnpm -r typecheck
-corepack pnpm lint
+corepack pnpm lint                            # ESLint, warnings held per file and rule; -- --update banks a fall
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite; database suites skip without credentials
 UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet's reduction (docs/debt.md)
 corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks it
+corepack pnpm check:bundle                    # after a dashboard build: the workspace route's JS and CSS against its budget
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 corepack pnpm e2e                             # Playwright, against production by default
 node tooling/scripts/gen-route-types.mjs      # the typed client, after a route changes (--check to verify)

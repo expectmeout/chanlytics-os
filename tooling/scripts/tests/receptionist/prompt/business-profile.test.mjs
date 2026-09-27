@@ -158,11 +158,15 @@ test("a malformed time is refused rather than silently kept", () => {
   assert.equal(bad.ok, false);
 });
 
-test("an unknown profile field is refused, not ignored", () => {
-  // .strict() everywhere: a typo must not become a setting the runtime never
-  // applies while the UI shows it saved.
-  const bad = parseTenantConfigResult({ brain: { ...brain, profile: { adress: "typo" } } });
-  assert.equal(bad.ok, false);
+test("an unknown profile field is refused on the save, and left out and named on the read", () => {
+  // The save refuses a typo, so it never becomes a setting the runtime never
+  // applies while the UI shows it saved. The read leaves one out and says so,
+  // so a field a newer dashboard wrote never mutes an older edge.
+  const typo = { brain: { ...brain, profile: { adress: "typo" } } };
+  assert.equal(TenantConfigWriteSchema.safeParse(typo).success, false);
+  const read = parseTenantConfigResult(typo);
+  assert.equal(read.ok, true);
+  assert.deepEqual(read.ignored, ["brain.profile.adress"]);
 });
 
 /* ------------------------- the editor's write contract -------------------- */

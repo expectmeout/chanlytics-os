@@ -391,7 +391,7 @@ export async function platformPartnerStatus(
 
 /**
  * A partner's second factor removed, so they can set up a new one at their next sign-in (decision 0013, M2). The
- * function checks the caller is a platform admin and records who, when and why (00215) before anything is removed;
+ * function checks the caller is a platform admin and records who, when and why (00217) before anything is removed;
  * the factor itself lives in Supabase Auth, so the platform's own client removes it. A record with nothing removed is
  * a partner who had no authenticator, and says so.
  */

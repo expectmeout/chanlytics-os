@@ -5732,6 +5732,10 @@ export type Database = {
         Returns: number
       }
       purge_events: { Args: { p_keep?: string }; Returns: number }
+      purge_jobs: {
+        Args: { p_failed?: string; p_finished?: string }
+        Returns: number
+      }
       purge_leads: { Args: never; Returns: number }
       purge_notifications: { Args: { p_keep?: string }; Returns: number }
       push_device_forget: { Args: { p_token: string }; Returns: Json }
@@ -6099,6 +6103,24 @@ export type Database = {
       scrub_contact_events: {
         Args: { p_contact_id: string; p_tenant_id: string }
         Returns: number
+      }
+      search_messages: {
+        Args: {
+          p_limit: number
+          p_since: string
+          p_tenant: string
+          p_words: string
+        }
+        Returns: {
+          at: string
+          channel: string
+          contact_id: string
+          conversation_id: string
+          direction: string
+          id: string
+          kind: string
+          snippet: string
+        }[]
       }
       sending_domain_capacity: {
         Args: { p_at: string; p_domain_id: string }

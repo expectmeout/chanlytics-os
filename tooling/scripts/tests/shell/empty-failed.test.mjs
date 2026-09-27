@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, toTodayVM, toLiveVM, toReportVM, reportFacts } from "@chanlytics/contracts";
+import { stateOf, toTodayVM, toLiveVM, reportFacts } from "@chanlytics/contracts";
 import { hookFrames } from "../_hook-frames.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).

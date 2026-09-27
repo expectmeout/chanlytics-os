@@ -112,7 +112,7 @@ export function leadWorld({
 
   const rpcs = {
     get_cron_sweep_key: () => "sweep-key-for-this-file",
-    // 00217's one predicate for an address: its own email row, or a domain row for the part after its last "@", each
+    // 00220's one predicate for an address: its own email row, or a domain row for the part after its last "@", each
     // asked lower-cased and trimmed, by the keyed digest (lead_suppression_hash is sha256 of "<tenant>:<value>").
     lead_addresses_suppressed: ({ p_tenant_id, p_addresses }) => {
       const held = (kind, v) =>

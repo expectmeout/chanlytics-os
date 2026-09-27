@@ -42,7 +42,7 @@ export function secondFactorShown(aal: unknown): boolean {
 /**
  * Whether a seat of this role needs a session that showed its second factor (0013, M3): a partner's, which can change
  * the receptionist of every business they brought. An owner, an operator and a viewer are unchanged. The database says
- * the same in is_acting_member and caller_has_permission (00216); second-factor.db.test.mjs holds the two together.
+ * the same in is_acting_member and caller_has_permission (00218); second-factor.db.test.mjs holds the two together.
  */
 export function seatNeedsSecondFactor(role: string | null | undefined): boolean {
   return role === "partner";

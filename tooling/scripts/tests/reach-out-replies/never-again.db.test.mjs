@@ -1,5 +1,5 @@
 /**
- * A no reaches the business's own domain (00217, Reach out Part 5 PR 2), on a real database. The doors a reply's
+ * A no reaches the business's own domain (00220, Reach out Part 5 PR 2), on a real database. The doors a reply's
  * reading will call, before anything calls them:
  *   - one predicate for "suppressed" (lead_addresses_suppressed and its one-row form): a domain row holds every address
  *     at it, an email row that address alone, and the send door's facts, the audience and the set form agree;
@@ -227,7 +227,7 @@ test(
       ok(await db.rpc("lead_addresses_suppressed", { p_tenant_id: tenant, p_addresses: addresses })).sort();
     const asked = [`sam@${own}`, ` Office@${own.toUpperCase()} `, `hello@${other}`, own, "", `sam@mail.${own}`, "sam@"];
 
-    // No row yet: every door answers as it did before 00217.
+    // No row yet: every door answers as it did before 00220.
     assert.deepEqual(await audience(), [ours, theirs, placed, phoned].sort());
     // The place and the number keep their own arms of the never-again test.
     ok(
@@ -606,7 +606,7 @@ const CHANGES = {
       ],
       [
         "  -- The noes a door can be trusted with: an unsubscribe link pressed, a complaint the mail provider reported (00177),",
-        "  -- and a reply read as no (00217). And one way back, a reply's no undone, to the answer it found.",
+        "  -- and a reply read as no (00220). And one way back, a reply's no undone, to the answer it found.",
         "  if p_source = 'reply_undone' then",
         "    if p_state is null or p_state not in ('unknown', 'opted_in') then",
         "      raise exception 'set_email_marketing takes a reply''s no back to unknown or opted_in' using errcode = '22023';",
@@ -619,7 +619,7 @@ const CHANGES = {
       ["  if v_contact.email_marketing is distinct from 'opted_out' then"],
       [
         "  -- A reply's no taken back: the answer only, and only while a reply's no is what holds it. Whether another reply's",
-        "  -- no of theirs still stands, the suppressions and the leads are the undo door's, which holds the readings (00218).",
+        "  -- no of theirs still stands, the suppressions and the leads are the undo door's, which holds the readings (00221).",
         "  if p_source = 'reply_undone' then",
         "    if v_contact.email_marketing is distinct from 'opted_out' or v_contact.email_marketing_source is distinct from 'reply' then",
         "      return jsonb_build_object('changed', false, 'found', true, 'business', v_business, 'refused', 'moved');",
@@ -768,7 +768,7 @@ const SOURCES = {
 };
 
 test("every function re-created whole is its source's body but for the lines it meant to change", { skip }, () => {
-  const now = migration("00217");
+  const now = migration("00220");
   for (const [name, [from, header, signature]] of Object.entries(SOURCES)) {
     const source = bodyIn(migration(from), header);
     // Each change is found in the source as it was (once), and the changes are made in the order they stand.
@@ -784,7 +784,7 @@ test("every function re-created whole is its source's body but for the lines it 
       cut = c.to;
     }
     want += source.slice(cut);
-    assert.equal(bodyIn(now, header), want, `${name}: 00217 writes its source's body with these changes only`);
+    assert.equal(bodyIn(now, header), want, `${name}: 00220 writes its source's body with these changes only`);
     const [live] = query(
       signature
         ? `select prosrc from pg_proc where oid = '${signature}'::regprocedure`
@@ -795,7 +795,7 @@ test("every function re-created whole is its source's body but for the lines it 
 });
 
 test("every function re-created whole keeps its source's volatility, rights, search path and grants", { skip }, () => {
-  // As main's replay has them before 00217: grantees beside the owner.
+  // As main's replay has them before 00220: grantees beside the owner.
   const want = {
     "lead_set_stage(uuid,text,text,text,text,text)": [
       "v",

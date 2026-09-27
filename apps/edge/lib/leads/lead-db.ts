@@ -288,7 +288,7 @@ export function leadDb(db: Db): LeadDb {
       return out;
     },
     async suppressed(tenantId, keys) {
-      // An address asks the one predicate (00217: its own row, or its business's domain after a no), which answers the
+      // An address asks the one predicate (00220: its own row, or its business's domain after a no), which answers the
       // stored form; each key is handed back as it was asked. A place is not an address: its own row, by the keyed
       // digest 00140's lead_suppression_hash writes (contracts erasure.ts). The two reads run together.
       const byHash = new Map(

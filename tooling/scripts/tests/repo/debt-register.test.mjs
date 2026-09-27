@@ -48,7 +48,10 @@ function blockFrom(by, scanCounts) {
   const over200 = Object.values(complexity).filter((v) => v.lines > 200).length;
   const publishers = by["window-publishers.json"] ?? {};
   const copies = by["copies.json"] ?? {};
-  const lint = JSON.parse(readText("package.json")).scripts.lint.match(/--max-warnings (\d+)/);
+  // knip's, ESLint's and the bundle's baselines are written by their own scripts, never by the suite, so the file is the truth in both modes.
+  const lint = readBaseline("lint-warnings.json") ?? {};
+  const budget = readBaseline("bundle-budget.json") ?? {};
+  const effects = Object.values(lint).reduce((a, rules) => a + (rules["react-hooks/exhaustive-deps"] ?? 0), 0);
   const rows = [
     ["functions over the limit", keys(complexity), `of which over 200 lines: ${over200}`],
     ["files over 800 lines", keys(by["file-length.json"]), ""],
@@ -59,10 +62,15 @@ function blockFrom(by, scanCounts) {
     ["as unknown as", total(by["casts.json"]), ""],
     ["table names outside packages/db", total(by["tables.json"]), ""],
     ["unnamed durations", total(by["durations.json"]), `in ${keys(by["durations.json"])} files`],
-    // knip's baseline is written by its own script, never by the suite, so the file is the truth in both modes.
     ["dead exports, types and modules", total(readBaseline("dead-exports.json")), ""],
     ["source-text reads in tests", total(scanCounts), ""],
-    ["lint warnings allowed", lint ? Number(lint[1]) : NaN, ""],
+    [
+      "lint warnings",
+      Object.values(lint).reduce((a, rules) => a + total(rules), 0),
+      `in ${keys(lint)} files, ${effects} of them exhaustive-deps`,
+    ],
+    ["workspace route JS, KB gzipped", Math.round(budget.js / 1024), "the shell included"],
+    ["workspace route CSS, KB gzipped", Math.round(budget.css / 1024), ""],
   ];
   const lines = rows.map(
     ([label, n, note]) => `${label.padEnd(34)}${String(n).padStart(5)}${note ? "   " + note : ""}`,
@@ -106,7 +114,6 @@ test("every baseline the build holds is a row of the register", () => {
   const unnamed = baselineFiles.filter((f) => !text.includes(`baselines/${f}`));
   assert.deepEqual(unnamed, [], "add a row to docs/debt.md: what it measures, what retires it, the next step");
   assert.ok(text.includes("source-scan-baseline.json"), "the source-scan ratchet is owed a row too");
-  assert.ok(text.includes("--max-warnings"), "the lint warnings ceiling is owed a row too");
 });
 
 for (const rel of PAGES) {

@@ -215,6 +215,13 @@ export async function loadTenantRuntime(db: SupabaseClient<Database>, routed: Ro
         tenant: routed.tenantId,
         issues: parseResult.issues.slice(0, 5),
       });
+    } else if (parseResult.ignored.length > 0) {
+      // Settings this edge has never heard of, written by a newer dashboard: left out, and the receptionist answers
+      // with the rest. Said, so a split deploy that does not end is seen before the setting is missed.
+      logger().warn("tenant_config_keys_ignored", {
+        tenant: routed.tenantId,
+        keys: parseResult.ignored.slice(0, 8),
+      });
     }
     const parsed = parseResult.ok ? parseResult.config : null;
     const policy: TenantRuntime["policy"] = {};

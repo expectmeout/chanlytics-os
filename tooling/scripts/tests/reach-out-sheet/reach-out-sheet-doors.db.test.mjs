@@ -76,7 +76,7 @@ async function person(role) {
   ok(await db.from("memberships").insert({ tenant_id: A, user_id: made.data.user.id, role }));
   const c = createClient(URL_, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
   ok(await c.auth.signInWithPassword({ email, password }));
-  // A partner's seat acts only on a session that showed its second factor (0013, 00216).
+  // A partner's seat acts only on a session that showed its second factor (0013, 00218).
   if (role === "partner") await showSecondFactor(c);
   return { id: made.data.user.id, c };
 }
