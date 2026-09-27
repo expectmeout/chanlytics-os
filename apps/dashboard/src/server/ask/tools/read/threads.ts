@@ -29,6 +29,13 @@ function inboxEscalations<E extends { conversation_id: string }>(open: E[]): Map
   return new Map(open.map((e) => [e.conversation_id, e]));
 }
 
+/**
+ * Who wrote a message, as the inbox tool says it: the customer, the receptionist, or you (the team). One spelling for
+ * the tool's two actions that answer messages, thread and search.
+ */
+const writerOf = (m: { direction: string; sender: string | null }): "customer" | "receptionist" | "you" =>
+  m.direction === "inbound" ? "customer" : m.sender === "ai" ? "receptionist" : "you";
+
 async function listThreads(t: ToolContext, input: { filter: string }): Promise<unknown> {
   const filter = str(input.filter) || "recent";
   // The Inbox as the page composes it (readers/inbox.ts): the newest hundred, and every escalated thread outside it.
@@ -139,7 +146,7 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
       return {
         // By the business's clock, as the pages say it: the time today, the date and the time before.
         at: clockStamp(Date.parse(m.created_at), t.timezone, t.now.getTime()),
-        from: m.direction === "inbound" ? "customer" : m.sender === "ai" ? "receptionist" : "you",
+        from: writerOf(m),
         text: messageText(m).slice(0, 600),
         status: m.status ?? null,
         ...(why ? { why: why.summary } : {}),
@@ -160,44 +167,70 @@ const wireOf = (channel: string | null): string | null =>
     : null;
 
 /**
- * Who wrote a message the search found: the customer, or the business -- the receptionist or the team, whom the search
- * does not tell apart (it answers the direction, not the sender). A call's note in its thread is the Phone wire's only
- * message, recorded as inbound whichever way the call went: it is the call's note, never the customer's words.
+ * Whether the words hold something to look for, as websearch_to_tsquery reads them (00219): in every group between
+ * `or`s, a word or a "phrase" that is not left out (-word). Words that only leave things out, or hold no word at all,
+ * find nothing whatever the workspace holds, so an empty answer to them never suggests another form of a word.
  */
-const writtenBy = (h: { channel: string | null; direction: string }): string =>
-  h.channel === "voice" ? "call note" : h.direction === "inbound" ? "customer" : "business";
+function wordsToFind(words: string): boolean {
+  const groups: boolean[][] = [[]];
+  for (const m of words.matchAll(/(-?)"([^"]*)"?|(\S+)/g)) {
+    if (m[3]?.toLowerCase() === "or") {
+      groups.push([]);
+      continue;
+    }
+    if (/[\p{L}\p{N}]/u.test(m[3] ?? m[2]))
+      groups[groups.length - 1].push(m[3] !== undefined ? !m[3].startsWith("-") : m[1] !== "-");
+  }
+  const kept = groups.filter((g) => g.length > 0);
+  return kept.length > 0 && kept.every((g) => g.some(Boolean));
+}
 
 async function searchSaid(t: ToolContext, input: { words: string; days?: number }): Promise<unknown> {
   if (!input.words.trim()) return { error: "words must say what to look for" };
-  // The reader trims and cuts the words, bounds the window from the turn's clock and holds the cap (readers/messages.ts).
+  // The reader trims and cuts the words, bounds the window from the turn's clock and holds the cap (readers/messages.ts);
+  // one hit more than is shown says exactly whether there are more.
   const { words, days, hits } = (
-    await load(t.rc, messageSearch, { words: input.words, days: input.days ?? null, limit: SEARCH_HITS })
+    await load(t.rc, messageSearch, { words: input.words, days: input.days ?? null, limit: SEARCH_HITS + 1 })
   ).data;
-  // Each hit's row as the reader gave it: a message's thread, or the call.
+  const shown = hits.slice(0, SEARCH_HITS);
+  // Each shown hit's row as the reader gave it: a message's thread, or the call. The one past the cap is not shown, so
+  // it is no row an answer may cite.
   noteRows(
     t.read,
-    hits.flatMap((h) => (h.ref ? [h.ref] : [])),
+    shown.flatMap((h) => (h.ref ? [h.ref] : [])),
   );
   return {
     words,
     days,
-    shown: hits.length,
-    more_available: hits.length >= SEARCH_HITS,
-    hits: hits.map((h) => ({
+    shown: shown.length,
+    more_available: hits.length > SEARCH_HITS,
+    hits: shown.map((h) => ({
       kind: h.kind,
       who: h.who,
       // By the business's clock, as inbox.thread says a message's time.
       at: clockStamp(Date.parse(h.at), t.timezone, t.now.getTime()),
       ...(h.kind === "message"
-        ? { channel: wireOf(h.channel), from: writtenBy(h), conversation_id: h.conversationId }
+        ? {
+            channel: wireOf(h.channel),
+            // Who wrote it and what became of it, as inbox.thread says them; a call's note in its thread is recorded as
+            // inbound whichever way the call went, so it is the call's note, never the customer's words.
+            from:
+              h.sent?.type === "call_summary"
+                ? "call note"
+                : writerOf({ direction: h.direction, sender: h.sent?.sender ?? null }),
+            status: h.sent?.status ?? null,
+            conversation_id: h.conversationId,
+          }
         : { called_by: h.direction === "inbound" ? "customer" : "business", call_id: h.id }),
       snippet: h.snippet,
       route: h.ref?.route ?? null,
     })),
-    ...(hits.length
+    ...(shown.length
       ? {}
       : {
-          note: `Nothing in the last ${days === 1 ? "day" : `${days} days`} holds these words. A word is found only as it was written: park does not find parking, so try the other form, or another word.`,
+          note: wordsToFind(words)
+            ? `Nothing in the last ${days === 1 ? "day" : `${days} days`} holds these words. A word is found only as it was written: park does not find parking, so try the other form, or another word.`
+            : "These words hold nothing to look for: words that only leave things out (-word), or no word at all, find nothing. Say a word to look for.",
         }),
   };
 }
@@ -232,7 +265,7 @@ export const inboxTool = defineActions({
       input: z.object({ words: z.string(), days: z.number().optional() }),
       examples: [{ words: "parking", days: 30 }],
       label: "Searching what was said",
-      words: `Action search takes words, what to look for, and an optional days, and finds them in what was said: every message of the workspace (what customers wrote, what the business wrote to them, and a call's note in its thread) and every call's transcript, newest first, none older than days back from now (30 unless asked, at most 90). Call it for a word, the name of a thing or a phrase, such as did anyone mention parking this month; call action list for threads by their state, and action thread for one whole conversation, which a message hit's conversation_id opens (calls with action get opens a call hit's call_id). words are the customer's own words as they wrote or said them, in English or Spanish, never stemmed, so park does not find parking: when nothing is found, try the other form; "a phrase in quotes" finds the words together, -word leaves out what holds it, or finds either side, and words that only leave things out find nothing. It returns at most ${SEARCH_HITS} hits, with shown and more_available (true when the ${SEARCH_HITS} were reached), each a message or a call with who it is with, when, the words around the match and the id that opens it; a message says its wire and who wrote it (customer, business, or call note), a call who placed it (called_by). A person's notes are not searched: people with action get reads them.`,
+      words: `Action search takes words, what to look for, and an optional days, and finds them in what was said: every message of the workspace (what customers wrote; what the receptionist or the team wrote to them, sent or not; and a call's note in its thread) and every call's transcript, newest first, none older than days back from now (30 unless asked, at most 90). Call it for a word, the name of a thing or a phrase, such as did anyone mention parking this month; call action list for threads by their state, and action thread for one whole conversation, which a message hit's conversation_id opens (calls with action get opens a call hit's call_id). words are looked for as they were written or said, in English or Spanish, never stemmed, so park does not find parking: when nothing is found, try the other form; "a phrase in quotes" finds the words together, -word leaves out what holds it, or finds either side, and words that only leave things out find nothing. It returns at most ${SEARCH_HITS} hits, with shown and more_available (whether there are more), each a message or a call with who it is with, when, the words around the match and the id that opens it; a message says its wire, who wrote it (customer, receptionist or you, as action thread says it, or call note for a call's note in its thread) and its status as action thread says it, and a message of the receptionist's or the team's whose status is queued (held, or not sent yet), canceled (before sending) or failed never reached the customer: say so, never that they were told it; a call says who placed it (called_by). A person's notes are not searched: people with action get reads them.`,
       run: searchSaid,
     }),
   },

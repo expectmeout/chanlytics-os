@@ -14,8 +14,11 @@ type Db = SupabaseClient<Database>;
 /** Rows per page: what people_list answers at most (the database clamps p_limit to it). */
 export const PEOPLE_PAGE = 1000;
 
-/** The most ids one read names: `.in()` puts every id in the URL, and a request fails at about two hundred. */
-const NAMES_AT_ONCE = 100;
+/**
+ * The most ids one read names: `.in()` puts every id in the URL, and a request fails at about two hundred. The one
+ * bound for every read by ids here (namesOfPeople, messageSenders, callersOf).
+ */
+export const IDS_PER_READ = 100;
 
 /**
  * What these people are called, as contracts' personName makes a name: their name, WhatsApp name, number and address,
@@ -30,12 +33,12 @@ export async function namesOfPeople(
   ids: readonly string[],
 ): Promise<Array<{ id: string } & NameableContact>> {
   const out: Array<{ id: string } & NameableContact> = [];
-  for (let i = 0; i < ids.length; i += NAMES_AT_ONCE) {
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
     const { data, error } = await db
       .from("contacts")
       .select("id, display_name, wa_profile_name, phone_e164, email")
       .eq("tenant_id", tenantId)
-      .in("id", ids.slice(i, i + NAMES_AT_ONCE));
+      .in("id", ids.slice(i, i + IDS_PER_READ));
     if (error) throw new Error(`namesOfPeople: ${error.message}`);
     out.push(...(data ?? []));
   }

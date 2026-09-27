@@ -1277,6 +1277,7 @@ test("inbox.search in a turn (PR 4.5): the model searches for a word, reads a me
         at: clockStamp(Date.parse(said), TZ, NOW.getTime()),
         channel: "WhatsApp",
         from: "customer",
+        status: "delivered",
         conversation_id: C1,
         snippet: "Is there parking behind the shop?",
         route: `inbox/th-${C1}`,
