@@ -12,8 +12,8 @@ import { ASK_SCOPE_KINDS, ASK_SURFACES, type AskScope, type AskSurface } from ".
 export const ASK_CONTEXT_MAX_ROWS = 40;
 
 /**
- * The kinds of row a page shows. Wider than a citation may name until Phase 4 (ASK_CITATION_KINDS): a lead, a search,
- * a run, a playbook and a template ride in the context as data and are cited by their page.
+ * The kinds of row a page shows, each a kind a citation names (ASK_CITATION_KINDS) but the run, a Broadcasts row, which
+ * its address spells so and a citation names a broadcast (the server's context gives each row its RowRef).
  */
 export const ASK_CONTEXT_ROW_KINDS = [
   "thread",

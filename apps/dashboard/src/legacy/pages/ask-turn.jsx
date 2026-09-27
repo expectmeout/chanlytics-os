@@ -8,6 +8,27 @@
 
 const useAtState = React.useState;
 
+// Each kind a source names (contracts ASK_CITATION_KINDS) as the mark before its row, the page's own glyph where its
+// page has one: a thread or a conversation is a chat. A scope's run is the Broadcasts row a citation calls a broadcast.
+const AT_KIND_GLYPHS = {
+  thread: "chat",
+  conversation: "chat",
+  call: "phone",
+  person: "users",
+  page: "arrow-right",
+  lead: "star",
+  search: "search",
+  deal: "deal",
+  list: "filter",
+  broadcast: "wave",
+  run: "wave",
+  playbook: "bolt",
+  template: "content",
+  domain: "globe",
+};
+/** A kind's mark, for a row in an answer and for the scope the Line carries; a kind it does not know is a chat. */
+const askKindGlyph = (kind) => AT_KIND_GLYPHS[kind] || "chat";
+
 /** An answer no client can shape (the mockup, a test): its words, as prose. */
 const atProse = (m, lang) => ({
   v: 2,
@@ -212,12 +233,10 @@ const AskAnswer = ({ answer, cardOpen, cards, messageId, retry, walk = false, se
   const itemMove = a.show.items.map((it) => (it.source.door !== false ? doors++ : -1));
   const openAt = doors;
   const nextAt = openAt + (a.do.open ? 1 : 0);
-  // A row's kind as the mark before it (a call, a person, a page, else a conversation); a row that is a door ends in a
-  // chevron.
-  const kindGlyph = (k) => (k === "call" ? "phone" : k === "person" ? "users" : k === "page" ? "arrow-right" : "chat");
+  // A row's kind as the mark before it (askKindGlyph); a row that is a door ends in a chevron.
   const itemBody = (it) => (
     <>
-      <span className="ask-item-mark" data-testid="ask-item-mark"><Icon name={kindGlyph(it.source.kind)} size={12} /></span>
+      <span className="ask-item-mark" data-testid="ask-item-mark"><Icon name={askKindGlyph(it.source.kind)} size={12} /></span>
       <span className="ask-item-body">
         <span className="ask-item-top">
           <span className="ask-item-title">{it.title}</span>
@@ -350,5 +369,5 @@ const AskTurn = ({ m, q, quick, say, latest = false, streaming = false, walk = f
   );
 };
 
-window.AskAnswerKit = { AskTurn, AskAnswer, AskCard, answerMoves };
+window.AskAnswerKit = { AskTurn, AskAnswer, AskCard, answerMoves, askKindGlyph };
 Object.assign(window, { AskTurn, AskCard });

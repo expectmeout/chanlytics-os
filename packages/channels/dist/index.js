@@ -1966,7 +1966,22 @@ var AskSettingsChangeSchema = z8.discriminatedUnion("op", [
     duration_min: z8.number().int().min(1).max(1440).optional()
   })
 ]);
-var ASK_CITATION_KINDS = ["thread", "conversation", "call", "person", "page"];
+var ASK_CITATION_KINDS = [
+  "thread",
+  "conversation",
+  "call",
+  "person",
+  "page",
+  "lead",
+  "search",
+  "deal",
+  "list",
+  "broadcast",
+  "playbook",
+  "template",
+  "domain"
+];
+var ASK_ROW_WORDS = "people, threads, calls, leads, searches, deals, lists, broadcasts, playbooks, templates, domains";
 var ASK_ANSWER_CAPS = {
   headline: 160,
   detail: 700,
@@ -1982,9 +1997,10 @@ var ASK_ANSWER_CAPS = {
   line: 160,
   question: 90
 };
+var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -2037,7 +2053,7 @@ var ASK_ANSWER_FORMAT = {
         },
         items: {
           type: "array",
-          description: `The rows the answer names (people, threads, calls), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
+          description: `The rows the answer names (${ASK_ROW_WORDS}), at most ${ASK_ANSWER_CAPS.items}; empty when it names none. Each opens its row.`,
           items: {
             type: "object",
             properties: {

@@ -1,6 +1,6 @@
 // The page context's contract (the Phase 2 plan, PR 2.1): what a page sends with a question is identities and words,
-// read by one schema; the surfaces are thirteen; a scope has kinds of its own, wider than a citation's; and a scope is
-// read from every address a page opens a row at, by that page's own parser.
+// read by one schema; the surfaces are thirteen; a scope has kinds of its own, each a citation's but the run; and a
+// scope is read from every address a page opens a row at, by that page's own parser.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -126,16 +126,15 @@ test("thirteen surfaces, each said once, Conversations and Live among them; each
     );
 });
 
-test("a scope has kinds of its own, wider than a citation's; the context's rows wider still", () => {
+test("a scope has kinds of its own, and so do the context's rows; each is a kind a citation names, but the run, which a citation names a broadcast", () => {
   assert.notDeepEqual([...ASK_SCOPE_KINDS], [...ASK_CITATION_KINDS], "no longer an alias");
-  for (const k of ASK_CITATION_KINDS) assert.ok(ASK_SCOPE_KINDS.includes(k), `a scope may be a ${k}`);
   for (const k of ["lead", "search", "run"]) assert.ok(ASK_SCOPE_KINDS.includes(k), `a page opens a ${k}`);
-  assert.deepEqual(
-    [...ASK_CITATION_KINDS],
-    ["thread", "conversation", "call", "person", "page"],
-    "citations stay five until Phase 4",
-  );
   for (const k of ["playbook", "template", "lead", "search", "run"]) assert.ok(ASK_CONTEXT_ROW_KINDS.includes(k));
+  assert.equal(ASK_CITATION_KINDS.length, 13, "thirteen names: a page and twelve kinds of row");
+  const cited = (k) => (k === "run" ? "broadcast" : k);
+  for (const k of [...ASK_SCOPE_KINDS, ...ASK_CONTEXT_ROW_KINDS])
+    assert.ok(ASK_CITATION_KINDS.includes(cited(k)), `a ${k} is cited as a ${cited(k)}`);
+  assert.ok(!ASK_CITATION_KINDS.includes("run"), "run is the address's word, never a citation's");
 });
 
 test("a scope from every address a page can open, by the page's own parser", () => {

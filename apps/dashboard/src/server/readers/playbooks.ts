@@ -28,8 +28,8 @@ interface PlaybooksPage {
  * follow-up (0006). The route's body, moved here whole, so the Playbooks page and campaigns.playbooks say the same
  * numbers. The workspace's name and zone, how its customers buy and its settings come through their readers, once in a
  * turn: the pools' calendar lookup reads neither the zone nor the settings again. Everyone the pools count is the
- * turn's own read too (readers/everyone.ts), which the audience pool shares. A playbook is not a row a citation names
- * until Phase 4 gives it a kind.
+ * turn's own read too (readers/everyone.ts), which the audience pool shares. Each playbook is a row a citation names,
+ * opened on Playbooks at its card.
  */
 export const playbooks: Reader<undefined, PlaybooksPage> = {
   name: "playbooks",
@@ -71,7 +71,7 @@ export const playbooks: Reader<undefined, PlaybooksPage> = {
         people_lists: people,
         deals_on: dealsOn,
       },
-      rows: [],
+      rows: playbooks.map((p) => ({ kind: "playbook" as const, id: p.id, route: `outbound/${p.id}`, label: p.name })),
       stamp: stamp(),
     };
   },
