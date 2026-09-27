@@ -22,8 +22,8 @@ import { parsePipelineRoute } from "../deals/pipeline";
 
 /** One question, in characters. Longer than this is a document, not a question. */
 export const ASK_MAX_CHARS = 1000;
-/** Tool rounds per turn: reads, then the answer. The last round is forced to finish. */
-export const ASK_MAX_ROUNDS = 4;
+/** Tool rounds per turn: reads, then the answer, the last forced to finish. Three since the page rides in (D10). */
+export const ASK_MAX_ROUNDS = 3;
 /** End to end, under the route's sixty-second ceiling. */
 export const ASK_TURN_BUDGET_MS = 45_000;
 /**
@@ -31,9 +31,9 @@ export const ASK_TURN_BUDGET_MS = 45_000;
  * together. One number, read by the loop's request and by the edge's clamp on
  * Ask, so the two cannot drift again: the loop asked for 2400 while the edge
  * clamped every request to 2000, so 2000 was the ceiling a round really had.
- * Raised only when an eval case stops at it (the Line's spec, 7.8).
+ * 4000 since the lead plan's card was cut mid-argument at 2000 (D10); an older edge clamps to its own copy.
  */
-export const ASK_MAX_TOKENS = 2000;
+export const ASK_MAX_TOKENS = 4000;
 /**
  * Ask's own daily token budget per workspace, apart from the receptionist's.
  * Counted on uncached input plus output. With the page's context riding into

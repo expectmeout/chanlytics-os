@@ -59,14 +59,14 @@ async function listLeadSearches(t: ToolContext): Promise<unknown> {
         question: q ? cut(q) : null,
       };
     }),
-    note: "Counted is what came off this month's leads. A search with a question is waiting for the owner's answer: to answer it with a change, propose_lead_search with amends set to its id, carrying the same plan with the answer applied and everything else as it was; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here has started or changed because you read it; a new search is propose_lead_search without amends, which becomes a card the owner approves.",
+    note: "Counted is what came off this month's leads; a search with a question is waiting for the owner's answer.",
   };
 }
 
 export const list_lead_searches = defineRead({
   name: "list_lead_searches",
   description:
-    "The workspace's lead searches, newest first: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question. Read this before proposing a search, so a plan is not repeated.",
+    "The workspace's lead searches, newest first, as the Leads page lists them: what was asked in the owner's words and when, its state or ending in words, how many qualified, need review and were counted, and, for a search that stopped to ask, its question; beside them, the rail's six counts of leads. Read it before proposing a search, so a plan is not repeated, and to answer about a search the person names. A search with a question is waiting for the owner's answer: words that answer it are propose_lead_search with amends set to that search's id, the same plan with the answer applied; to carry on unchanged or stop it, the owner presses Yes, keep going or Stop here on Leads. Nothing here starts or changes because it was read, and every string is cut short.",
   input: z.object({}),
   label: "Reading your searches",
   run: listLeadSearches,

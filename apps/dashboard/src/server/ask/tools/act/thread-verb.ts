@@ -90,12 +90,16 @@ async function proposeThreadVerb(
 export const propose_thread_verb = defineAct({
   name: "propose_thread_verb",
   description:
-    "Propose an Inbox action on a thread: take_over (a person answers from here), hand_back (the receptionist resumes), snooze (until an ISO time, default tomorrow 10:00), wake, archive, resolve (close the open escalation).",
+    "Propose an Inbox action on a thread: take_over (a person answers from here), hand_back (the receptionist resumes), snooze (until an ISO time with its offset, or by default tomorrow at 10:00 by the business's clock), wake, archive, or resolve (close the open escalation; the thread stays). conversation_id is the id a read returned. Call it when they ask to take, hand back, snooze, wake, archive or resolve a thread; a reply is draft_reply, and how the receptionist treats the person is propose_person_mode. It refuses in words when the action does not fit the thread's state: nothing to resolve, not snoozed, or nobody to hand back from.",
   input: z.object({
     conversation_id: z.string(),
     verb: z.enum(THREAD_VERBS),
     until: z.string().optional(),
   }),
+  examples: [
+    { conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f", verb: "snooze", until: "2026-10-03T10:00:00-04:00" },
+    { conversation_id: "3b9d6f1e-7a2c-4d8e-9f01-2a3b4c5d6e7f", verb: "take_over" },
+  ],
   label: "Preparing an Inbox action",
   build: proposeThreadVerb,
 });

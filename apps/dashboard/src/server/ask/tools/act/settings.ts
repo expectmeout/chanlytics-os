@@ -7,7 +7,7 @@ import {
   proposalBelowNeeds,
 } from "@chanlytics/contracts";
 import { roleAtLeast } from "../../../with-route";
-import { defineAct, propose, refuse, type ProposalOutcome, type ToolContext } from "../context";
+import { approvalWords, defineAct, propose, refuse, type ProposalOutcome, type ToolContext } from "../context";
 
 async function proposeSettings(t: ToolContext, input: { change: Record<string, unknown> }): Promise<ProposalOutcome> {
   if (!roleAtLeast(t.role, PROPOSAL_SPECS.settings.needs)) return refuse(proposalBelowNeeds("settings"));
@@ -42,8 +42,7 @@ async function proposeSettings(t: ToolContext, input: { change: Record<string, u
 
 export const propose_settings = defineAct({
   name: "propose_settings",
-  description:
-    "Propose a settings change the receptionist will follow: add_closure (a day or range closed), set_hours (one weekday's open/close, or closed), add_note (a note the receptionist reads), add_service. Owner-only. Dates YYYY-MM-DD, times HH:MM.",
+  description: `Propose a settings change the receptionist will follow, as one change object: add_closure (date, an optional until for a range, and an optional note), set_hours (one weekday's day with open and close, or both empty for closed), add_note (a title and the text the receptionist reads), or add_service (name, and an optional duration_min in minutes). Dates are YYYY-MM-DD, days mon..sun, times HH:MM. Call it when they say they are closed, their hours change, the receptionist should know something, or they offer a new service; propose_policy is for what the receptionist may do alone. ${approvalWords("settings")}.`,
   // The flat shape the model is shown, as before: every field of every op, the op required. The change itself is
   // judged by AskSettingsChangeSchema (contracts) in the handler, op by op, whose words the refusal carries.
   input: z.object({
@@ -61,6 +60,11 @@ export const propose_settings = defineAct({
       duration_min: z.number().int().optional(),
     }),
   }),
+  examples: [
+    { change: { op: "add_closure", date: "2026-12-24", until: "2026-12-26", note: "Holidays" } },
+    { change: { op: "set_hours", day: "sat", open: "10:00", close: "14:00" } },
+    { change: { op: "add_service", name: "Deep clean", duration_min: 90 } },
+  ],
   label: "Preparing a settings change",
   build: proposeSettings,
 });

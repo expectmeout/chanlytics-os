@@ -87,7 +87,7 @@ async function proposeSteer(
 export const draft_reply = defineAct({
   name: "draft_reply",
   description:
-    "Propose words for a customer on a WhatsApp thread, as a card the person approves before anything is sent. voice: 'you' for the person's own words, 'receptionist' for the receptionist's voice. Use the conversation id a read returned. Never quote or confirm a price.",
+    "Propose a reply to a customer on a thread, as a card the person approves before anything is sent, on the wire the thread runs on. conversation_id is the id a read returned; text is the reply itself; voice is you for the person's own words, or receptionist for the receptionist's voice. Call it when they ask to reply, answer or write to someone; propose_steer is the sibling for rewriting a reply the receptionist is already holding. It refuses a person who opted out and marks a closed reply window on the card; never quote or confirm a price in the text.",
   input: z.object({
     conversation_id: z.string(),
     text: z.string(),
@@ -100,7 +100,7 @@ export const draft_reply = defineAct({
 export const propose_steer = defineAct({
   name: "propose_steer",
   description:
-    "Propose rewriting a reply the receptionist is holding, with an instruction ('shorter', 'mention Saturday is full', 'in Spanish'). Use the held draft's message id from a read. The rewrite waits its turn like the first draft.",
+    "Propose a rewrite of a reply the receptionist is holding, with an instruction in words ('shorter', 'mention Saturday is full', 'in Spanish'); the rewrite waits its turn like the first draft. message_id is the held draft's id from list_threads or get_thread, never a conversation id. Call it when they want a held draft changed; draft_reply is the sibling for writing a new reply on a thread. A reply that is no longer waiting is refused in words, so read the thread first when in doubt.",
   input: z.object({ message_id: z.string(), instruction: z.string() }),
   label: "Preparing a rewrite",
   build: proposeSteer,

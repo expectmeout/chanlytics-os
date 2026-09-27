@@ -43,11 +43,15 @@ delete process.env.ASK_MODEL;
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
-const { runAskTurn, foldHistory, askPorts, blocksRefused } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { runAskTurn, foldHistory, askPorts } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
+const { dropFor } = await import(at("apps/dashboard/src/server/ask/refusals.ts"));
 const { runRound, replayBlocks } = await import(at("apps/dashboard/src/server/ask/round.ts"));
-const { runTool, newToolContext, READ_TOOLS, buildProposal, ACT_TOOLS } = await import(
+const { runTool, newToolContext, buildProposal, toApiTools } = await import(
   at("apps/dashboard/src/server/ask/tools/index.ts")
 );
+// The tools as the loop offers them: a viewer the reads; an owner the reads, then the acts.
+const READ_TOOLS = toApiTools("viewer", true);
+const ACT_TOOLS = toApiTools("owner", true).slice(READ_TOOLS.length);
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/loop.ts"));
 const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
@@ -1958,11 +1962,14 @@ test("get_calendar reads the people it names: a person on the calendar enters th
     const tc = newToolContext(ctxFor(t, { ...RPCS, people_list: () => threeAnswers() }), A, "owner", TZ, NOW);
     const out = await runTool(tc, { name: "get_calendar", input: { day: "tomorrow" } });
     assert.equal(out.isError, false, out.result);
+    assert.equal(
+      JSON.parse(out.result).note,
+      "Taken is the owner's own calendar; open is what the receptionist would offer a caller.",
+      "the note keeps the rows' facts; that nothing is booked from here is the tool's description now (PR 3.3)",
+    );
     assert.ok(
-      JSON.parse(out.result).note.includes(
-        "Nothing is booked from here: customers book through the booking link, or with the team where there is none.",
-      ),
-      "the read says nothing is booked from here (pinned as text in calendar.test.mjs until PR 3.1)",
+      READ_TOOLS.find((d) => d.name === "get_calendar").description.includes("nothing is booked from here"),
+      "the description says nothing is booked from here",
     );
     assert.deepEqual(
       JSON.parse(out.result).days[0].taken.map((b) => b.person && b.person.contact_id),
@@ -2279,8 +2286,12 @@ test("REGRESSION: list_playbooks tells who said yes from who a run can reach -- 
   assert.equal(out.isError, false, out.result);
   const read = JSON.parse(out.result);
   assert.ok(
-    read.note.endsWith("Nothing here has run because you read it."),
-    "nothing ran because it was read (pinned as text in playbooks.test.mjs until PR 3.1)",
+    read.note.startsWith("A run is a broadcast, and ") && !read.note.includes("say so"),
+    "the note keeps the rows' facts; what to say of a zero, and that nothing ran, are the description's now (PR 3.3)",
+  );
+  assert.ok(
+    READ_TOOLS.find((d) => d.name === "list_playbooks").description.includes("nothing has run because it was read"),
+    "the description says nothing ran because it was read",
   );
   /** One trigger's two counts: who its moment names that said the yes it needs, and who of them a run can reach. */
   const counts = (id) => {
@@ -2345,11 +2356,15 @@ test("REGRESSION: a proposed playbook's card says who said yes apart from who a 
   assert.ok(reaches.includes(" · 1 person on the list said yes to offers · "), reaches);
 });
 
-test("the rule the model reads before any broadcast tells nobody's yes from a yes with no number to send to", () => {
-  const rule = ASK_RULES.find((r) => r.includes("never propose a broadcast to nobody"));
-  assert.ok(rule.includes(NO_NUMBER_REACH), rule);
-  assert.ok(rule.includes("how many said yes and how many can be sent it"), rule);
-  assert.ok(rule.includes("or the ones who did have no number to send to"), rule);
+test("what the model reads before any broadcast tells nobody's yes from a yes with no number to send to: since PR 3.3 the rule is list_audiences' and propose_broadcast's descriptions, and no rule of the prompt's", () => {
+  assert.ok(!ASK_RULES.some((r) => r.includes("never propose a broadcast to nobody")), "out of the rules");
+  const audiences = READ_TOOLS.find((d) => d.name === "list_audiences").description;
+  assert.ok(audiences.includes(NO_NUMBER_REACH), audiences);
+  assert.ok(audiences.includes("read before any broadcast"), audiences);
+  const broadcast = ACT_TOOLS.find((d) => d.name === "propose_broadcast").description;
+  assert.ok(broadcast.includes("Read list_audiences first"), broadcast);
+  assert.ok(broadcast.includes("or the ones who did have no number to send to"), broadcast);
+  assert.ok(broadcast.includes("never propose a broadcast to nobody"), broadcast);
 });
 
 test("the answers the model is shown fit the format key for key, ride in the cached block, and the count's breakdown adds up", () => {
@@ -4304,6 +4319,190 @@ test("the bytes before the messages are the same on two pages and for two people
   assert.equal(prefix(requests[2]), prefix(requests[0]), "another person of the same role");
 });
 
+test("the request's tools are the registry's: the three fields, and input_examples on the tools that carry them and no other; the same bytes on every round of a turn", async () => {
+  const s = scripted([
+    ROUND([tool("list_threads", { filter: "recent" })]),
+    ROUND([answer("Nobody is waiting on you.")]),
+  ]);
+  const r = await runAskTurn(turn(ctxFor()).input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  const registry = [...READ_TOOLS, ...ACT_TOOLS];
+  assert.equal(s.requests[0].tools.length, registry.length);
+  for (const [i, sent] of s.requests[0].tools.entries()) {
+    const own = registry[i];
+    assert.equal(sent.name, own.name);
+    assert.deepEqual(
+      Object.keys(sent),
+      ["name", "description", "input_schema", ...(own.input_examples ? ["input_examples"] : [])],
+      `${own.name}: the fields the API takes, the examples last`,
+    );
+    assert.deepEqual(sent.input_examples, own.input_examples, own.name);
+  }
+  const withExamples = s.requests[0].tools.filter((t) => t.input_examples).map((t) => t.name);
+  assert.ok(withExamples.includes("get_calendar") && withExamples.includes("propose_lead_search"), withExamples);
+  assert.ok(!withExamples.includes("get_today") && !withExamples.includes("draft_reply"), "a plain input has none");
+  assert.equal(JSON.stringify(s.requests[1].tools), JSON.stringify(s.requests[0].tools), "the second round, the same");
+});
+
+test("a request refused for its input_examples is asked once more without them: the same round, the schemas, the page's data and the answer's format kept; a second such refusal is the turn's, and only a 400 that names them is one", async () => {
+  const refusing = async (refusals, over = { context: PAGE }) => {
+    const requests = [];
+    const round = async (c) => {
+      requests.push(structuredClone(c.request));
+      const message = refusals.shift();
+      if (message) throw new GatewayRefused({ kind: "bad_request", message });
+      return ROUND([answer("2 people need you.")]);
+    };
+    const { result, lines } = await logged(
+      "ask_examples_rejected",
+      async () => await runAskTurn(turn(ctxFor(), over).input, ports(round)),
+    );
+    return { r: result, requests, said: lines.length };
+  };
+  const once = await refusing(["400 tools.3.input_examples.0: does not match the tool's input_schema"]);
+  assert.equal(once.r.failed, false, once.r.failure ?? "");
+  assert.deepEqual([once.requests.length, once.said], [2, 1], "asked again, once; said once");
+  const [first, retry] = once.requests;
+  assert.ok(
+    first.tools.some((t) => t.input_examples) && !retry.tools.some((t) => "input_examples" in t),
+    "the examples were sent, then dropped from every tool",
+  );
+  assert.deepEqual(
+    retry.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.input_schema })),
+    first.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.input_schema })),
+    "nothing else about the tools moved",
+  );
+  assert.ok(retry.output_config.format, "the answer's format kept");
+  assert.ok(JSON.stringify(retry.messages).includes("search_result"), "the page's data kept");
+  assert.equal(JSON.stringify(retry.messages), JSON.stringify(first.messages), "the same round");
+  assert.equal(once.r.shape.context_dropped, false);
+  // The real refusal names input_schema, which the format's predicate also matches: a second one, with the examples
+  // already gone, is the turn's and never the format's.
+  const twice = await refusing([
+    "400 tools.3.input_examples.0: does not match the tool's input_schema",
+    "400 tools.3.input_examples.0: does not match the tool's input_schema",
+  ]);
+  assert.deepEqual(
+    [twice.r.failure, twice.requests.length, twice.said],
+    ["bad_request", 2, 1],
+    "with the examples already gone, the refusal is the turn's",
+  );
+  assert.ok(twice.requests[1].output_config.format, "the format was never given up for it");
+  const other = await refusing(["500 input_examples upstream"]);
+  assert.deepEqual([other.r.failure, other.requests.length, other.said], ["bad_request", 1, 0], "a 400 only");
+  // The one decision the loop asks (refusals.ts): what to give up for this refusal, given what the turn still carries.
+  const all = { context: true, examples: true, format: true };
+  assert.equal(dropFor("400 tools.3.input_examples: Extra inputs are not permitted", all), "examples");
+  assert.equal(dropFor("400 tools: too many", all), null, "a refusal of the tools for something else");
+  assert.equal(dropFor("500 input_examples", all), null, "a 400 only");
+  const real = "400 tools.3.input_examples.0: does not match the tool's input_schema";
+  assert.equal(dropFor(real, all), "examples");
+  assert.equal(dropFor(real, { ...all, examples: false }), null, "a second is the turn's, never the format's");
+  assert.equal(dropFor("400 messages.0.content.0: search_result is not supported", all), "context");
+  assert.equal(dropFor("400 output_config.format: not supported", all), "format");
+  assert.equal(dropFor("400 output_config.format: not supported", { ...all, format: false }), null);
+  assert.equal(dropFor("", all), null, "no message, nothing to drop");
+});
+
+test("the three retries run in their order, each once: the page's data, then the examples, then the answer's format; the fourth request carries none of them and the turn answers", async () => {
+  const requests = [];
+  const refusals = [
+    "400 messages.0.content.0: search_result is not supported here",
+    "400 tools.3.input_examples.0: does not match the tool's input_schema",
+    "400 output_config.format.schema: too many properties",
+  ];
+  const round = async (c) => {
+    requests.push(structuredClone(c.request));
+    const message = refusals.shift();
+    if (message) throw new GatewayRefused({ kind: "bad_request", message });
+    return ROUND([answer("2 people need you.")]);
+  };
+  // Every refusal the turn logged, in the order it logged them.
+  const said = [];
+  const was = console.error;
+  console.error = (name) => {
+    if (typeof name === "string" && /^ask_.*_rejected$/.test(name)) said.push(name);
+  };
+  let r;
+  try {
+    r = await runAskTurn(turn(ctxFor(), { context: PAGE }).input, ports(round));
+  } finally {
+    console.error = was;
+  }
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.equal(requests.length, 4, "three retries, then the answer");
+  const has = (q) => ({
+    data: JSON.stringify(q.messages).includes("search_result"),
+    examples: q.tools.some((t) => t.input_examples),
+    format: !!q.output_config.format,
+  });
+  assert.deepEqual(requests.map(has), [
+    { data: true, examples: true, format: true },
+    { data: false, examples: true, format: true },
+    { data: false, examples: false, format: true },
+    { data: false, examples: false, format: false },
+  ]);
+  assert.deepEqual(
+    said,
+    ["ask_context_rejected", "ask_examples_rejected", "ask_format_rejected"],
+    "each said once, in that order",
+  );
+  assert.deepEqual([r.shape.context_dropped, r.shape.format], [true, false]);
+});
+
+test("a rule that described one tool is that tool's description now, and out of the rules block (PR 3.3, D9); a rule about answering in general stays", async () => {
+  const s = scripted([ROUND([answer("Fine.")])]);
+  await runAskTurn(turn(ctxFor()).input, ports(s.round));
+  const rules = s.requests[0].system[0].text;
+  const said = (name) => s.requests[0].tools.find((t) => t.name === name).description;
+  // [what left the rules, the tool it landed in, how that tool says it]
+  const moved = [
+    [
+      "get_settings is for the reply policy's dials, the channels and the notifications",
+      "get_settings",
+      "Call it for the reply policy's dials, the channels and the notifications",
+    ],
+    ["(get_thread, get_call)", "get_thread", "when the whole conversation is needed and the page on screen holds only"],
+    ["(get_today, list_threads, list_calls)", "list_threads", "for what the page on screen does not hold"],
+    [
+      "(a reply, a rewrite, an Inbox action, a setting, an invitation, a whisper, a broadcast, a lead search)",
+      "propose_steer",
+      "Propose a rewrite",
+    ],
+    ["Read list_audiences before any broadcast", "list_audiences", "read before any broadcast"],
+    ["never propose a broadcast to nobody", "propose_broadcast", "never propose a broadcast to nobody"],
+    [
+      "read list_lead_searches, then propose_lead_search: one plan, never a search",
+      "propose_lead_search",
+      "Read list_lead_searches first, so a plan is not repeated: one plan, never a search",
+    ],
+    [
+      "words that answer it are propose_lead_search with amends",
+      "list_lead_searches",
+      "words that answer it are propose_lead_search with amends set to that search's id",
+    ],
+    [
+      "never say a search has started until the card is approved",
+      "propose_lead_search",
+      "never say a search has started until the card is approved",
+    ],
+    ["(read list_audiences)", "propose_broadcast", "Read list_audiences first"],
+  ];
+  for (const [gone, name, landed] of moved) {
+    assert.ok(!rules.includes(gone), `out of the rules: ${gone}`);
+    assert.ok(said(name).includes(landed), `${name} says: ${landed}`);
+  }
+  for (const kept of [
+    "You never act.",
+    "Answer from it when it is enough, in one round.",
+    "Read only for what it does not hold: a whole conversation or transcript, a person's profile",
+    "name the door: a broadcast reaches only the people who said yes, and anyone else",
+    "Leads are businesses Claude found for the owner to reach",
+    "Only in the US.",
+  ])
+    assert.ok(rules.includes(kept), `kept, about answering in general: ${kept}`);
+});
+
 test("a row the page carried can be cited; one it did not, and one another workspace holds, cannot; a figure answered from the page is grounded, and with no page it is not", async () => {
   const rosa = { kind: "thread", id: C1, label: "Rosa" };
   const foreign = { kind: "thread", id: "99999999-9999-4999-8999-999999999999", label: "Someone" };
@@ -4404,8 +4603,9 @@ test("only a refusal that names the data blocks drops them: the format's refusal
     assert.deepEqual([other.r.failure, other.requests.length], ["bad_request", 1], m);
     assert.equal(other.r.shape.context_dropped, false, m);
   }
-  assert.equal(blocksRefused("400 messages.0.content.1.cache_control: too many breakpoints"), true);
-  assert.equal(blocksRefused("500 search_result upstream"), false, "a 400 only");
+  const all = { context: true, examples: true, format: true };
+  assert.equal(dropFor("400 messages.0.content.1.cache_control: too many breakpoints", all), "context");
+  assert.equal(dropFor("500 search_result upstream", all), null, "a 400 only");
 });
 
 test("a page counts as a read only when something on it was read: not one whose read failed, nor the address alone of a page Ask does not draw", async () => {

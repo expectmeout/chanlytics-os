@@ -141,7 +141,7 @@ async function proposeDeal(
 export const propose_deal = defineAct({
   name: "propose_deal",
   description:
-    "Propose recording a deal on a person (0004, 0008): stage proposed (a proposal went out: a new engagement), won (they said yes or paid: a client), lost (they passed), ended (the engagement ended). Optional service, amount_cents with per (once, month, year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD) and, with lost only, why they passed (lost_reason). Optionally the next step on it: what (next_step, for the team) with its day (next_step_due, YYYY-MM-DD, today or later), a note with a day the team sees on the deal, written after it. This records what a person told you; it never decides money.",
+    "Propose recording a deal on a person: stage proposed (a proposal went out, a new engagement), won (they said yes or paid, now a client), lost (they passed), or ended (the engagement ended). Optional: service, amount_cents with per (once, month or year: a proposal's value, or a client's agreed amount), a note, the proposal's web address (proposal_url), the last day it stands (valid_until, YYYY-MM-DD), with lost only why they passed (lost_reason: price, timing, elsewhere, no_reply, not_a_fit or other), and the next step on it, next_step (what, for the team) with next_step_due (YYYY-MM-DD, today or later), a note with a day the team sees on the deal. Call it when they say a proposal went out, someone became a client, passed or ended; a next step rides on that stage change, never alone, and a move names the open deal's service when there are two. It records what a person told you and never decides money; a move with no open deal to move is refused in words.",
   input: z.object({
     contact_id: z.string(),
     stage: z.enum(DEAL_STAGES),
@@ -155,6 +155,20 @@ export const propose_deal = defineAct({
     next_step: z.string().optional(),
     next_step_due: z.string().optional(),
   }),
+  examples: [
+    {
+      contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      stage: "proposed",
+      service: "Deep clean",
+      amount_cents: 25000,
+      per: "once",
+      proposal_url: "https://example.com/quotes/42",
+      valid_until: "2026-10-15",
+      next_step: "Call to walk through the quote",
+      next_step_due: "2026-10-05",
+    },
+    { contact_id: "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d", stage: "lost", lost_reason: "price" },
+  ],
   label: "Preparing a deal",
   build: proposeDeal,
 });
