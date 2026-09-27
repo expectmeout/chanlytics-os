@@ -2338,6 +2338,7 @@ var PartnerBecomeSchema = z11.object({
   code: z11.string().trim().min(1).max(64),
   terms: z11.literal(true, { message: "The terms have to be accepted." })
 }).strict();
+var PartnerLettersSchema = z11.object({ letters: z11.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -2371,7 +2372,10 @@ var PARTNER_WORDS = {
    */
   joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
-  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting"
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;

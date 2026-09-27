@@ -22,6 +22,8 @@ export interface PartnerDto {
   created_at: string;
   /** How many workspaces came through the link, on a team or not (GET partner); absent from an older server. */
   brought?: number | null;
+  /** Whether the daily letter is on (0014); null on a database without it, absent from an older server. */
+  letters?: boolean | null;
 }
 
 export const PARTNER_STATUSES = ["active", "paused", "closed"] as const;
@@ -69,6 +71,9 @@ export const PartnerBecomeSchema = z
     terms: z.literal(true, { message: "The terms have to be accepted." }),
   })
   .strict();
+
+/** `PATCH partner`: the daily letter on or off (0014). */
+export const PartnerLettersSchema = z.object({ letters: z.boolean() }).strict();
 
 /* ------------------------------------------------------------------ the link */
 
@@ -141,6 +146,9 @@ export const PARTNER_WORDS = {
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
   spend:
     "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting",
 } as const;
 
 /** The share, as a sentence: "25% of what it pays for its plan". */
@@ -584,4 +592,135 @@ export function partnerStandingOutcomeWords(r: { standing: string; voided: numbe
       ? `Qualified. ${r.matured} ${r.matured === 1 ? "share" : "shares"} past the hold ${r.matured === 1 ? "is" : "are"} payable now.`
       : "Qualified. Its shares become payable as each one's hold ends.";
   return `Now ${label}. What it holds waits until a person decides.`;
+}
+
+/* --------------------------------------------------------------- the letter (0014) */
+
+/** What partner_letters_due (00208) says changed for one partner since their last letter, and where they stand. */
+export interface PartnerLetterNews {
+  /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
+  written: { kind: string; currency: string; count: number; cents: number }[];
+  /** Rows written before the last letter that became payable since. */
+  matured: { currency: string; cents: number }[];
+  /** Shares written before that will not be paid: their workspace was disqualified. */
+  voided: { currency: string; cents: number }[];
+  paid: { currency: string; cents: number; reference: string; sent_at: string }[];
+  /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
+  standing: { workspace: string | null; standing: string; why: string | null }[];
+  /** Workspaces that came through the link since. */
+  brought: (string | null)[];
+  /** The partner's own status, when it changed since. */
+  status: { status: string; why: string | null } | null;
+  balance: { currency: string; held: number; payable: number; paid: number; next_payable_at: string | null }[];
+}
+
+/** Where the letter sends the partner: their pane, on whichever workspace the dashboard opens. */
+export const partnerPaneUrl = (origin: string): string => `${origin.replace(/\/+$/, "")}/#/admin/partner`;
+
+const money = (rows: readonly { currency: string; cents: number }[]): string =>
+  rows.map((r) => moneyWords(Math.abs(r.cents), r.currency)).join(" and ");
+const workspaceWords = (name: string | null): string => (name && name.trim() ? name.trim() : "A workspace you brought");
+const whyWords = (why: string | null): string => (why && why.trim() ? ` Why: ${why.trim()}` : "");
+
+/** Each reversal kind's line: what came off, or what came back. */
+const REVERSAL_LINES: Record<string, (n: number, amount: string) => string> = {
+  refund: (n, a) => `${n === 1 ? "A refund" : `${n} refunds`} took back ${a}.`,
+  dispute: (n, a) =>
+    `${n === 1 ? "A dispute" : `${n} disputes`} took back ${a} while ${n === 1 ? "it is" : "they are"} settled.`,
+  dispute_won: (n, a) => `${n === 1 ? "A dispute" : `${n} disputes`} settled in the business's favor gave back ${a}.`,
+};
+
+/** The line for a workspace's standing, as the partner reads it. */
+function standingLine(s: PartnerLetterNews["standing"][number]): string {
+  const name = workspaceWords(s.workspace);
+  if (s.standing === "review")
+    return `${name} is under review: a person at Chanlytics looks at it before its share is paid.${whyWords(s.why)}`;
+  if (s.standing === "disqualified") return `${name} is not eligible for a share.${whyWords(s.why)}`;
+  return `${name} qualified: its shares are paid as each one's hold ends.${whyWords(s.why)}`;
+}
+
+function statusLine(s: NonNullable<PartnerLetterNews["status"]>): string {
+  if (s.status === "paused")
+    return `Your partner account is paused.${whyWords(s.why)} On the teams you joined you can read, not change, until it is restored.`;
+  if (s.status === "closed") return `Your partner account is closed.${whyWords(s.why)}`;
+  return "Your partner account is active again.";
+}
+
+/** One currency's sums as the pane's rows, so the letter's standing says what the pane says. */
+function balanceRows(balance: PartnerLetterNews["balance"]): PartnerBalanceRow[] {
+  return balance.flatMap((b) => [
+    { currency: b.currency, state: "held", earned_cents: b.held, next_payable_at: b.next_payable_at },
+    { currency: b.currency, state: "payable", earned_cents: b.payable, next_payable_at: null },
+    { currency: b.currency, state: "paid", earned_cents: b.paid, next_payable_at: null },
+  ]);
+}
+
+/**
+ * The daily letter (0014): what changed, one line each, then where the partner stands, in the pane's own sentences.
+ * The subject names the change that matters most. Every figure is a sum partner_letters_due read; nothing is promised.
+ */
+export function partnerLetter(
+  news: PartnerLetterNews,
+  opts: { origin: string; since: string; nowMs?: number },
+): { subject: string; body: string } {
+  const lines: string[] = [];
+  if (news.status) lines.push(statusLine(news.status));
+  for (const p of news.paid)
+    lines.push(`Paid: ${moneyWords(p.cents, p.currency)} on ${dayWords(p.sent_at)}, reference ${p.reference}.`);
+  const shares = news.written.filter((w) => w.kind === "share");
+  if (shares.length) {
+    const n = shares.reduce((k, w) => k + w.count, 0);
+    lines.push(
+      `You earned ${money(shares)} from ${n === 1 ? "1 payment" : `${n} payments`}, held ${PARTNER_HOLD_DAYS} days.`,
+    );
+  }
+  for (const kind of PARTNER_REVERSAL_KINDS) {
+    const of = news.written.filter((w) => w.kind === kind);
+    if (of.length)
+      lines.push(
+        REVERSAL_LINES[kind](
+          of.reduce((k, w) => k + w.count, 0),
+          money(of),
+        ),
+      );
+  }
+  if (news.matured.some((m) => m.cents !== 0))
+    lines.push(`${money(news.matured.filter((m) => m.cents !== 0))} became payable.`);
+  if (news.voided.some((v) => v.cents !== 0))
+    lines.push(
+      `${money(news.voided.filter((v) => v.cents !== 0))} held will not be paid: its workspace is not eligible.`,
+    );
+  for (const s of news.standing) lines.push(standingLine(s));
+  for (const b of news.brought)
+    lines.push(`${b && b.trim() ? b.trim() : "A new workspace"} signed up through your link.`);
+
+  const subject =
+    news.status?.status === "closed"
+      ? "Your Chanlytics partner account is closed"
+      : news.status?.status === "paused"
+        ? "Your Chanlytics partner account is paused"
+        : news.paid.length
+          ? `Chanlytics paid you ${money(news.paid)}`
+          : news.standing.some((s) => s.standing === "disqualified")
+            ? "A workspace you brought is not eligible for a share"
+            : news.standing.some((s) => s.standing === "review")
+              ? "A workspace you brought is under review"
+              : shares.length
+                ? `You earned ${money(shares)}`
+                : "What changed in your partner account";
+
+  const stand = partnerEarningsWords(balanceRows(news.balance), opts.nowMs);
+  const body = [
+    `Since ${dayWords(opts.since)}:`,
+    "",
+    ...lines.map((l) => `- ${l}`),
+    "",
+    "Where you stand:",
+    ...(stand.none ? [`- ${PARTNER_WORDS.noneYet}`] : [stand.held, stand.payable, stand.paid].map((l) => `- ${l}`)),
+    "",
+    `See it all: ${partnerPaneUrl(opts.origin)}`,
+    "",
+    "You get this email when something changes, at most once a day. To stop it, turn it off in Settings › Partner.",
+  ].join("\n");
+  return { subject, body };
 }

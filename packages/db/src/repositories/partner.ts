@@ -75,6 +75,26 @@ export async function getPartnerBalance(db: Db): Promise<PartnerBalanceLine[]> {
   }));
 }
 
+/**
+ * Whether the caller's daily letter is on (00208 partners.letters): read apart from the row, so a database 00208 has
+ * not reached still answers the row, and the letter reads as null (the pane shows no switch).
+ */
+export async function getPartnerLetters(db: Db): Promise<boolean | null> {
+  const { data, error } = await db.from("partners").select("letters").maybeSingle();
+  if (error || !data) return null;
+  return typeof data.letters === "boolean" ? data.letters : null;
+}
+
+/** The caller turns their daily letter on or off (00208 partner_letters_set); the function's own words on a refusal. */
+export async function setPartnerLetters(
+  db: Db,
+  on: boolean,
+): Promise<{ ok: true; letters: boolean } | { ok: false; code: string; message: string }> {
+  const { data, error } = await db.rpc("partner_letters_set", { p_on: on });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, letters: data === true };
+}
+
 /** The caller becomes a partner with this code: the function's own words come back as the error's message. */
 export async function becomePartner(
   db: Db,

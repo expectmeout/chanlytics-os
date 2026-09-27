@@ -6737,14 +6737,14 @@ function proposalLinkOf(current, personLink) {
 function amountWords(cents, per, currency = "USD") {
   if (cents === null || cents === void 0 || !Number.isFinite(cents)) return null;
   const whole = cents % 100 === 0;
-  const money = new Intl.NumberFormat("en-US", {
+  const money2 = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: currency.toUpperCase(),
     minimumFractionDigits: whole ? 0 : 2,
     maximumFractionDigits: whole ? 0 : 2
   }).format(cents / 100);
   const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
-  return p && per !== "once" ? `${money} ${p}` : money;
+  return p && per !== "once" ? `${money2} ${p}` : money2;
 }
 function parseAmount(words4) {
   const digits2 = String(words4 || "").replace(/[^0-9.-]/g, "");
@@ -20203,6 +20203,7 @@ var PartnerBecomeSchema = z11.object({
   code: z11.string().trim().min(1).max(64),
   terms: z11.literal(true, { message: "The terms have to be accepted." })
 }).strict();
+var PartnerLettersSchema = z11.object({ letters: z11.boolean() }).strict();
 var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
 var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
 var PARTNER_COOKIE = "chanlytics_partner";
@@ -20257,7 +20258,10 @@ var PARTNER_WORDS = {
    */
   joinAsk: (code2) => `Add ${code2}, who sent you here, to your team as your partner? They set your receptionist up for you, and Chanlytics pays them a share of your plan: your price is the same. You can remove them in Team at any time.`,
   /** What a partner may not do for a business until it pays: the spend doors wait on its plan (maySpend). */
-  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan."
+  spend: "Anything that spends a business's money, a phone number or a lead search, waits until its owner pays for a plan.",
+  /** The pane's switch for the daily letter (0014). */
+  letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
+  lettersFailed: "your email setting"
 };
 function shareWords(shareBp) {
   const pct2 = shareBp / 100;
@@ -20320,9 +20324,9 @@ function moneyLine(lines) {
   if (toDate === 0 && month === 0) return "Nothing earned from it yet.";
   return `${say((l) => l.month_cents)} from this month's payments \xB7 ${say((l) => l.held_cents + l.payable_cents + l.paid_cents)} to date`;
 }
-function partnerWorkspacesVM(overview, money, nowMs = Date.now(), status = "active") {
+function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "active") {
   const judged = platformRows(overview, nowMs);
-  const moneyOf = (id) => money.filter((m) => m.tenant_id === id);
+  const moneyOf = (id) => money2.filter((m) => m.tenant_id === id);
   const standingOf2 = (id) => {
     const s = moneyOf(id)[0]?.standing ?? "pending";
     return PARTNER_STANDING_WORDS[s] ?? null;
@@ -20344,7 +20348,7 @@ function partnerWorkspacesVM(overview, money, nowMs = Date.now(), status = "acti
     };
   });
   const seen = new Set(rows.map((r2) => r2.tenantId));
-  const off = [...new Map(money.filter((m) => !seen.has(m.tenant_id)).map((m) => [m.tenant_id, m])).values()];
+  const off = [...new Map(money2.filter((m) => !seen.has(m.tenant_id)).map((m) => [m.tenant_id, m])).values()];
   for (const m of off.sort((a, b) => a.name.localeCompare(b.name))) {
     rows.push({
       tenantId: m.tenant_id,
@@ -20405,7 +20409,7 @@ function platformPartnerRows(rows) {
       r2.status === "active" ? null : r2.status
     ].filter(Boolean);
     const payable = r2.payable_cents;
-    const money = r2.currency === null ? "Nothing earned yet." : [
+    const money2 = r2.currency === null ? "Nothing earned yet." : [
       payable < 0 ? `${moneyWords(payable, cur)} to come off the next payout` : `${moneyWords(payable, cur)} payable`,
       `${moneyWords(r2.held_cents, cur)} held`,
       `${moneyWords(r2.paid_cents, cur)} paid to date`
@@ -20414,7 +20418,7 @@ function platformPartnerRows(rows) {
       partnerId: r2.partner_id,
       code: r2.code,
       who: who.join(" \xB7 "),
-      money,
+      money: money2,
       currency: r2.currency,
       payableCents: payable,
       canPay: r2.currency !== null && payable > 0,
@@ -20470,6 +20474,82 @@ function partnerStandingOutcomeWords(r2) {
   if (r2.standing === "qualified")
     return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
   return `Now ${label}. What it holds waits until a person decides.`;
+}
+var partnerPaneUrl = (origin) => `${origin.replace(/\/+$/, "")}/#/admin/partner`;
+var money = (rows) => rows.map((r2) => moneyWords(Math.abs(r2.cents), r2.currency)).join(" and ");
+var workspaceWords = (name) => name && name.trim() ? name.trim() : "A workspace you brought";
+var whyWords = (why) => why && why.trim() ? ` Why: ${why.trim()}` : "";
+var REVERSAL_LINES = {
+  refund: (n, a) => `${n === 1 ? "A refund" : `${n} refunds`} took back ${a}.`,
+  dispute: (n, a) => `${n === 1 ? "A dispute" : `${n} disputes`} took back ${a} while ${n === 1 ? "it is" : "they are"} settled.`,
+  dispute_won: (n, a) => `${n === 1 ? "A dispute" : `${n} disputes`} settled in the business's favor gave back ${a}.`
+};
+function standingLine(s) {
+  const name = workspaceWords(s.workspace);
+  if (s.standing === "review")
+    return `${name} is under review: a person at Chanlytics looks at it before its share is paid.${whyWords(s.why)}`;
+  if (s.standing === "disqualified") return `${name} is not eligible for a share.${whyWords(s.why)}`;
+  return `${name} qualified: its shares are paid as each one's hold ends.${whyWords(s.why)}`;
+}
+function statusLine(s) {
+  if (s.status === "paused")
+    return `Your partner account is paused.${whyWords(s.why)} On the teams you joined you can read, not change, until it is restored.`;
+  if (s.status === "closed") return `Your partner account is closed.${whyWords(s.why)}`;
+  return "Your partner account is active again.";
+}
+function balanceRows(balance) {
+  return balance.flatMap((b) => [
+    { currency: b.currency, state: "held", earned_cents: b.held, next_payable_at: b.next_payable_at },
+    { currency: b.currency, state: "payable", earned_cents: b.payable, next_payable_at: null },
+    { currency: b.currency, state: "paid", earned_cents: b.paid, next_payable_at: null }
+  ]);
+}
+function partnerLetter(news, opts) {
+  const lines = [];
+  if (news.status) lines.push(statusLine(news.status));
+  for (const p of news.paid)
+    lines.push(`Paid: ${moneyWords(p.cents, p.currency)} on ${dayWords2(p.sent_at)}, reference ${p.reference}.`);
+  const shares = news.written.filter((w) => w.kind === "share");
+  if (shares.length) {
+    const n = shares.reduce((k, w) => k + w.count, 0);
+    lines.push(
+      `You earned ${money(shares)} from ${n === 1 ? "1 payment" : `${n} payments`}, held ${PARTNER_HOLD_DAYS} days.`
+    );
+  }
+  for (const kind of PARTNER_REVERSAL_KINDS) {
+    const of = news.written.filter((w) => w.kind === kind);
+    if (of.length)
+      lines.push(
+        REVERSAL_LINES[kind](
+          of.reduce((k, w) => k + w.count, 0),
+          money(of)
+        )
+      );
+  }
+  if (news.matured.some((m) => m.cents !== 0))
+    lines.push(`${money(news.matured.filter((m) => m.cents !== 0))} became payable.`);
+  if (news.voided.some((v) => v.cents !== 0))
+    lines.push(
+      `${money(news.voided.filter((v) => v.cents !== 0))} held will not be paid: its workspace is not eligible.`
+    );
+  for (const s of news.standing) lines.push(standingLine(s));
+  for (const b of news.brought)
+    lines.push(`${b && b.trim() ? b.trim() : "A new workspace"} signed up through your link.`);
+  const subject = news.status?.status === "closed" ? "Your Chanlytics partner account is closed" : news.status?.status === "paused" ? "Your Chanlytics partner account is paused" : news.paid.length ? `Chanlytics paid you ${money(news.paid)}` : news.standing.some((s) => s.standing === "disqualified") ? "A workspace you brought is not eligible for a share" : news.standing.some((s) => s.standing === "review") ? "A workspace you brought is under review" : shares.length ? `You earned ${money(shares)}` : "What changed in your partner account";
+  const stand = partnerEarningsWords(balanceRows(news.balance), opts.nowMs);
+  const body = [
+    `Since ${dayWords2(opts.since)}:`,
+    "",
+    ...lines.map((l) => `- ${l}`),
+    "",
+    "Where you stand:",
+    ...stand.none ? [`- ${PARTNER_WORDS.noneYet}`] : [stand.held, stand.payable, stand.paid].map((l) => `- ${l}`),
+    "",
+    `See it all: ${partnerPaneUrl(opts.origin)}`,
+    "",
+    "You get this email when something changes, at most once a day. To stop it, turn it off in Settings \u203A Partner."
+  ].join("\n");
+  return { subject, body };
 }
 
 // src/chrome.ts
@@ -25034,6 +25114,7 @@ export {
   PUSH_TOKEN_MAX,
   PageContextSchema,
   PartnerBecomeSchema,
+  PartnerLettersSchema,
   PendingWorkspaceSchema,
   PeopleExportQuerySchema,
   PolicyLimitsSchema,
@@ -25732,7 +25813,9 @@ export {
   partialSay,
   partnerCodeFromCookie,
   partnerEarningsWords,
+  partnerLetter,
   partnerLinkFor,
+  partnerPaneUrl,
   partnerPathFor,
   partnerPayoutOutcomeWords,
   partnerStandingChoices,

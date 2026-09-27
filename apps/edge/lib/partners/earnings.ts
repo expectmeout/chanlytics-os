@@ -10,8 +10,8 @@
  */
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./packages/db.js";
-import { logger } from "./log.js";
+import type { Database } from "../packages/db.js";
+import { logger } from "../log.js";
 
 type Db = SupabaseClient<Database>;
 type Log = ReturnType<typeof logger>;

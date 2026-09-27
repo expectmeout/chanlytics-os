@@ -42,6 +42,8 @@ export interface PartnerApi {
   workspaces(): Promise<{ ok: true; vm: PartnerWorkspacesVM } | { ok: false; message: string }>;
   /** Go into one of them: the switcher's own way. */
   open(tenantId: string): void;
+  /** The daily letter on or off (0014). The surface is written from the answer, so the switch shows what is kept. */
+  setLetters(on: boolean): Promise<{ ok: boolean; message: string }>;
 }
 
 declare global {
@@ -93,6 +95,14 @@ export function installPartner(win: Window = window): void {
     open(tenantId) {
       const shell = (win as unknown as { __shell?: { switchWorkspace(id: string): void } }).__shell;
       if (shell) shell.switchWorkspace(tenantId);
+    },
+    async setLetters(on) {
+      const r = await api()("PATCH partner", { body: { letters: on } });
+      if (!r.ok) return { ok: false, message: r.message };
+      const now = win.__PARTNER;
+      if (now?.dto) win.__PARTNER = { ...now, dto: { ...now.dto, letters: r.data.letters } };
+      win.dispatchEvent(new Event("surface:partner"));
+      return { ok: true, message: "" };
     },
   };
 }

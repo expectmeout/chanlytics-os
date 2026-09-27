@@ -3549,6 +3549,7 @@ export type Database = {
           code: string
           created_at: string
           id: string
+          letters: boolean
           payout_facts: Json
           share_bp: number
           status: string
@@ -3558,11 +3559,13 @@ export type Database = {
           terms_accepted_at: string | null
           updated_at: string
           user_id: string | null
+          written_through: string
         }
         Insert: {
           code: string
           created_at?: string
           id?: string
+          letters?: boolean
           payout_facts?: Json
           share_bp?: number
           status?: string
@@ -3572,11 +3575,13 @@ export type Database = {
           terms_accepted_at?: string | null
           updated_at?: string
           user_id?: string | null
+          written_through?: string
         }
         Update: {
           code?: string
           created_at?: string
           id?: string
+          letters?: boolean
           payout_facts?: Json
           share_bp?: number
           status?: string
@@ -3586,6 +3591,7 @@ export type Database = {
           terms_accepted_at?: string | null
           updated_at?: string
           user_id?: string | null
+          written_through?: string
         }
         Relationships: []
       }
@@ -5280,6 +5286,23 @@ export type Database = {
         Returns: Json
       }
       partner_earnings_sweep: { Args: { p_now?: string }; Returns: Json }
+      partner_letter_written: {
+        Args: { p_partner: string; p_through: string }
+        Returns: boolean
+      }
+      partner_letters_due: {
+        Args: { p_now?: string }
+        Returns: {
+          code: string
+          email: string
+          news: Json
+          partner_id: string
+          since: string
+          status: string
+          through: string
+        }[]
+      }
+      partner_letters_set: { Args: { p_on: boolean }; Returns: boolean }
       partner_overview: {
         Args: never
         Returns: {

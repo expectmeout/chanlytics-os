@@ -69,6 +69,7 @@ export const ROUTES = {
   "GET views": { method: "GET", path: "/api/v1/views" },
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
   "PATCH lead-searches/[id]": { method: "PATCH", path: "/api/v1/lead-searches/[id]" },
+  "PATCH partner": { method: "PATCH", path: "/api/v1/partner" },
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
@@ -245,6 +246,7 @@ export type Routes = {
   "GET views": typeof import("../../app/api/v1/views/route").GET;
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
   "PATCH lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").PATCH;
+  "PATCH partner": typeof import("../../app/api/v1/partner/route").PATCH;
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
