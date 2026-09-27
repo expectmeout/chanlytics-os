@@ -42,6 +42,10 @@
     "apps/mobile": {
       "entry": ["src/**/*.ios.{ts,tsx}"]
     },
+    "packages/channels": {
+      "entry": ["src/index.ts", "src/schema-agreement.ts"],
+      "project": ["src/**/*.ts"]
+    },
     "packages/*": {
       "entry": ["src/index.ts"],
       "project": ["src/**/*.ts"]
