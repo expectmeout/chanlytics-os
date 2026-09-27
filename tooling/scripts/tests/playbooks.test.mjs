@@ -520,12 +520,9 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
   // asking for a typed slot's words rather than inventing them ("the proposal builders run against the database in
   // memory"), and checked the way the route checks it ("Ask reaches any list by its reference": a list about
   // whoever is looking is refused by the same check).
-  const c = readCode("apps/dashboard/src/legacy-bridge/ask/commit.ts");
-  assert.ok(
-    c.includes('case "playbook": {') &&
-      c.includes('viaAsk(client, "POST playbooks", {') &&
-      c.includes('viaAsk(client, "DELETE playbooks/[id]", { params: { id: s(u.playbook_id) } }, undoOf)'),
-  );
+  // The card commits through POST playbooks and is undone by DELETE playbooks/[id]: executed in ask-commit.test.mjs
+  // ("a broadcast and a playbook", "an undo names the decision it reverses"), from the playbook's spec (contracts
+  // ask-proposals/campaigns.ts).
   const turn = readCode("apps/dashboard/src/legacy/pages/ask-turn.jsx");
   assert.ok(turn.includes("playbook: t.kPlaybook") && turn.includes('playbook: "bolt"'));
   assert.equal(cardOpenRoute({ kind: "playbook", payload: {} }), "outbound", "a playbook card opens Playbooks");

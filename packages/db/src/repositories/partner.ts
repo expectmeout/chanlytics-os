@@ -76,7 +76,7 @@ export async function getPartnerBalance(db: Db): Promise<PartnerBalanceLine[]> {
 }
 
 /**
- * Whether the caller's daily letter is on (00208 partners.letters): read apart from the row, so a database 00208 has
+ * Whether the caller's daily letter is on (00209 partners.letters): read apart from the row, so a database 00209 has
  * not reached still answers the row, and the letter reads as null (the pane shows no switch).
  */
 export async function getPartnerLetters(db: Db): Promise<boolean | null> {
@@ -85,7 +85,7 @@ export async function getPartnerLetters(db: Db): Promise<boolean | null> {
   return typeof data.letters === "boolean" ? data.letters : null;
 }
 
-/** The caller turns their daily letter on or off (00208 partner_letters_set); the function's own words on a refusal. */
+/** The caller turns their daily letter on or off (00209 partner_letters_set); the function's own words on a refusal. */
 export async function setPartnerLetters(
   db: Db,
   on: boolean,

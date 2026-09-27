@@ -1,7 +1,7 @@
 /**
  * A partner hears what changed, once a day (decision 0014): the letter's words (contracts partnerLetter), and the
  * sender the partner clock runs after its sweep (edge lib/partners/letters.ts) over a database in memory, the mail
- * faked. Which partners have news, and what it is, is the database's (00208 partner_letters_due, proved against the
+ * faked. Which partners have news, and what it is, is the database's (00209 partner_letters_due, proved against the
  * stack in partner.db.test.mjs); this proves what is said, and that only a letter that went moves the mark.
  */
 import { test } from "node:test";

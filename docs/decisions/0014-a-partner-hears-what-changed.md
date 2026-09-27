@@ -1,6 +1,6 @@
 # 0014 · A partner hears what changed, once a day
 
-**Status:** built on the branch this note ships with (00208). Written against commit `4a6ceee0` (main, 27 September
+**Status:** built on the branch this note ships with (00209). Written against commit `4a6ceee0` (main, 27 September
 2026, after #1159 merged 0012's P5). Where this note and the code disagree, the code wins.
 
 ## Context
@@ -34,7 +34,7 @@ What exists to build on:
    (`partner_letter_written`, forward only); a failed send is tomorrow's letter with tomorrow's news added.
 3. **The partner's switch.** `partners.letters`, on by default, turned off on the pane (`PATCH partner`,
    `partner_letters_set`). Turning it back on starts from now: what changed while it was off is on the pane, not in a
-   first long letter. A partner that exists when 00208 is applied starts from then too.
+   first long letter. A partner that exists when 00209 is applied starts from then too.
 4. **The clock asks when a letter is due.** `trigger_partners_sweep` also calls the edge when
    `partner_letters_due(now())` has a row, so a payout or a share on a day nothing matures is still written that night.
 5. **What is not said.** The sweep's own reasons for a review (`checks`, its `standing_why`) are the platform's; the
@@ -44,7 +44,7 @@ What exists to build on:
 
 ## Shape
 
-- **00208**: `partners.letters boolean not null default true`, `partners.written_through timestamptz not null default
+- **00209**: `partners.letters boolean not null default true`, `partners.written_through timestamptz not null default
 now()` (existing rows set to the migration's now); `partner_letters_due(timestamptz)`, `partner_letter_written(uuid,
 timestamptz)` for the service role only; `partner_letters_set(boolean)` for the signed-in caller;
   `trigger_partners_sweep` re-created with the third condition.

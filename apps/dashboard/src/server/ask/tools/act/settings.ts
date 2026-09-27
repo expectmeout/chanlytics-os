@@ -1,9 +1,16 @@
 import "server-only";
 import { z } from "zod";
-import { AskSettingsChangeSchema, describeSettingsChange } from "@chanlytics/contracts";
+import {
+  AskSettingsChangeSchema,
+  PROPOSAL_SPECS,
+  describeSettingsChange,
+  proposalBelowNeeds,
+} from "@chanlytics/contracts";
+import { roleAtLeast } from "../../../with-route";
 import { defineAct, propose, refuse, type ProposalOutcome, type ToolContext } from "../context";
 
 async function proposeSettings(t: ToolContext, input: { change: Record<string, unknown> }): Promise<ProposalOutcome> {
+  if (!roleAtLeast(t.role, PROPOSAL_SPECS.settings.needs)) return refuse(proposalBelowNeeds("settings"));
   const raw = input.change && typeof input.change === "object" ? (input.change as Record<string, unknown>) : null;
   if (!raw) return refuse("change is required");
   const clean: Record<string, unknown> = { op: raw.op };
@@ -20,7 +27,6 @@ async function proposeSettings(t: ToolContext, input: { change: Record<string, u
   const change = parsed.data;
   return propose({
     kind: "settings",
-    needs: "owner",
     title:
       change.op === "add_closure"
         ? "Close for a day"
@@ -31,7 +37,6 @@ async function proposeSettings(t: ToolContext, input: { change: Record<string, u
             : "Add a service",
     summary: describeSettingsChange(change),
     payload: { change },
-    undo: "Put the previous settings back",
   });
 }
 

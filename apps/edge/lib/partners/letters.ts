@@ -2,7 +2,7 @@
  * A partner hears what changed, once a day (decision 0014).
  *
  * The partner clock (api/cron/partners.ts) calls this after the sweep, so a share that became payable tonight is in
- * tonight's letter. partner_letters_due (00208) answers, for each partner with the letter on and an address, what
+ * tonight's letter. partner_letters_due (00209) answers, for each partner with the letter on and an address, what
  * changed in their ledger since their mark; partnerLetter (contracts) says it; the mail goes from the platform's own
  * address through notify's post, the one way the edge reaches a person. Only a letter that went moves the partner's
  * mark (partner_letter_written), so a failed send is tomorrow's letter, with tomorrow's news added to it.

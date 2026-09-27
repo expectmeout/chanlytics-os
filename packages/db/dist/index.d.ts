@@ -1907,7 +1907,7 @@ type Database = {
                     email: string;
                     expires_at: string;
                     id: string;
-                    invited_by: string;
+                    invited_by: string | null;
                     revoked_at: string | null;
                     role: string;
                     tenant_id: string;
@@ -1918,7 +1918,7 @@ type Database = {
                     email: string;
                     expires_at?: string;
                     id?: string;
-                    invited_by: string;
+                    invited_by?: string | null;
                     revoked_at?: string | null;
                     role: string;
                     tenant_id: string;
@@ -1929,7 +1929,7 @@ type Database = {
                     email?: string;
                     expires_at?: string;
                     id?: string;
-                    invited_by?: string;
+                    invited_by?: string | null;
                     revoked_at?: string | null;
                     role?: string;
                     tenant_id?: string;
@@ -8175,11 +8175,11 @@ interface PartnerBalanceLine {
  */
 declare function getPartnerBalance(db: Db): Promise<PartnerBalanceLine[]>;
 /**
- * Whether the caller's daily letter is on (00208 partners.letters): read apart from the row, so a database 00208 has
+ * Whether the caller's daily letter is on (00209 partners.letters): read apart from the row, so a database 00209 has
  * not reached still answers the row, and the letter reads as null (the pane shows no switch).
  */
 declare function getPartnerLetters(db: Db): Promise<boolean | null>;
-/** The caller turns their daily letter on or off (00208 partner_letters_set); the function's own words on a refusal. */
+/** The caller turns their daily letter on or off (00209 partner_letters_set); the function's own words on a refusal. */
 declare function setPartnerLetters(db: Db, on: boolean): Promise<{
     ok: true;
     letters: boolean;

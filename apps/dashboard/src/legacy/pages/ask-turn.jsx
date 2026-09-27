@@ -56,8 +56,9 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, onEdit }
   // different things. The edited plan and the open picker are this turn's.
   const [edited, setEdited] = useAtState(null);
   const [pick, setPick] = useAtState(null);
+  // The role gate the card's spec names (contracts PROPOSAL_GATE), drawn by the shell's rule (window.gate): a role that
+  // may not approve the card still sees Approve, hears why at the control, and a press does nothing. The route re-checks.
   const gateKey = (window.PROPOSAL_GATE || {})[p.kind] || "approve";
-  const gated = window.canDo ? !window.canDo(gateKey) : false;
   const pl = p.payload || {};
   const record = (o) => {
     if (onOutcome && messageId) onOutcome(messageId, p.id, o);
@@ -123,13 +124,12 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, onEdit }
       {p.kind === "reply" && pl.window_open === false && state === "idle" && <div className="ask-card-note">{t.windowNote}</div>}
       {state === "idle" && (
         <div className="ask-card-actions">
-          <button className="btn btn-primary btn-sm" onClick={approve} disabled={busy || gated} title={gated ? window.gateTitle(gateKey) : undefined} data-testid="ask-card-approve">
+          <button className="btn btn-primary btn-sm" onClick={approve} disabled={busy} data-testid="ask-card-approve" {...window.gate(gateKey, "approve this card")}>
             {busy ? t.working : p.kind === "reply" ? t.send : t.approve}
           </button>
           {p.kind === "reply" && pl.conversation_id && <button className="btn btn-ghost btn-sm" onClick={() => { onNav(`inbox/th-${pl.conversation_id}`); if (A) A.editReply(p); }}>{t.editComposer}</button>}
           {openRoute && !hideOpen && <button className="btn btn-ghost btn-sm" onClick={() => onNav(openRoute)}>{t.openIt}</button>}
           <button className="btn btn-ghost btn-sm" onClick={dismiss} disabled={busy}>{t.notNow}</button>
-          {gated && <span className="ask-card-note">{window.gateTitle(gateKey)}</span>}
         </div>
       )}
       {state !== "idle" && (

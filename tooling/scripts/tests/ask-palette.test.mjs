@@ -13,6 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  PROPOSAL_GATE,
   ROLE_PERMS,
   roleGate,
   ASK_PAGES,
@@ -751,6 +752,71 @@ test("REGRESSION: a card sent once says Sent wherever it is drawn again -- a fol
   const fold = byClass(tree, "ask-fold")[0];
   assert.equal(byTestId(fold, "ask-card-approve"), null, "REGRESSION: the fold offered Send again");
   assert.ok(textOf(fold).includes("Sent to Nora"), "the fold's card says what happened");
+  await closes();
+});
+
+test("a card's Approve is gated by the shell's rule: a role its gate refuses sees Approve, reads why at the control, and a press commits nothing; a role it lets commits (D8)", async () => {
+  const calls = ask([]);
+  const committed = [];
+  const MSG = "cccccccc-cccc-4ccc-8ccc-000000000002";
+  const was = { store: globalThis.window.ST_STORE, gate: globalThis.window.PROPOSAL_GATE };
+  let role = "operator";
+  // As the shell's are: the gate each kind checks (the bridge publishes contracts' PROPOSAL_GATE) and the member's role.
+  globalThis.window.PROPOSAL_GATE = PROPOSAL_GATE;
+  globalThis.window.ST_STORE = { can: (a) => !!(ROLE_PERMS[role] || {})[a], myRole: () => role };
+  // An invitation made before an operator was refused one (a thread read back): its gate is `team`, an owner's.
+  const card = {
+    id: "p1",
+    kind: "invite",
+    needs: "owner",
+    title: "Invite ada@example.com",
+    summary: "As viewer",
+    payload: { email: "ada@example.com", role: "viewer" },
+    undo: null,
+  };
+  Object.assign(globalThis.window.__ask, {
+    commit: async (p) => {
+      committed.push(p.id);
+      return { ok: true, receipt: "Invited ada@example.com as viewer", undo: null };
+    },
+    outcome: async () => true,
+    undoOpen: () => false,
+    editReply() {},
+    send: async (input, on) => {
+      calls.sent.push(input.text);
+      on({ t: "thread", id: TH(9).id, title: input.text });
+      on({ t: "final", message: { ...said(MSG, "Here is the invitation."), proposals: [card] } });
+    },
+  });
+  try {
+    render(Palette, OPEN);
+    let tree = await later(Palette, OPEN);
+    typed(tree, "invite ada as a viewer");
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
+    tree = await later(Palette, OPEN);
+    let approve = byTestId(tree, "ask-card-approve");
+    assert.deepEqual(
+      [approve.props["aria-disabled"], approve.props["data-tip"], approve.props.disabled, approve.props.title],
+      [true, "Only an owner can approve this card.", false, undefined],
+      "REGRESSION: it was disabled with a title, which no keyboard or finger reaches",
+    );
+    const e = press(approve);
+    tree = await later(Palette, OPEN);
+    assert.deepEqual([committed, e.prevented], [[], true], "the press is refused at the control");
+    assert.equal(byClass(tree, "ask-card-note").length, 0, "the reason is the control's, not a note beside it");
+    role = "owner";
+    tree = draw(Palette, OPEN);
+    approve = byTestId(tree, "ask-card-approve");
+    assert.equal(approve.props["aria-disabled"], undefined, "an owner's Approve is a plain button");
+    press(approve);
+    tree = await later(Palette, OPEN);
+    assert.deepEqual(committed, ["p1"]);
+    assert.ok(textOf(byClass(tree, "ask-card-receipt")[0]).includes("Invited ada@example.com as viewer"));
+  } finally {
+    globalThis.window.ST_STORE = was.store;
+    globalThis.window.PROPOSAL_GATE = was.gate;
+  }
   await closes();
 });
 

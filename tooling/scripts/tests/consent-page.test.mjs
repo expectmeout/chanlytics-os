@@ -352,6 +352,13 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     /\.yes a\.yes-btn \{\s*color: #06231d;/.test(css),
     "REGRESSION: .yes a outranks .yes-btn and painted the button's label teal on teal",
   );
+  // Folded in here because this test already reads the sheet: inside the native app the web's Google door and its
+  // "or" are not drawn (Google refuses OAuth in an embedded WebView). The rule was in mobile.css, which /login never
+  // loads, so the app's email door showed a Google button that could only fail.
+  assert.ok(
+    /html\.in-app \.auth-google,\s*html\.in-app \.auth-or \{\s*display: none;/.test(css),
+    "in-app, the sign-in page hides the web's Google door",
+  );
 });
 
 test("the pages a carrier reviewer lands on say who the business is", () => {

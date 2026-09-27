@@ -596,7 +596,7 @@ export function partnerStandingOutcomeWords(r: { standing: string; voided: numbe
 
 /* --------------------------------------------------------------- the letter (0014) */
 
-/** What partner_letters_due (00208) says changed for one partner since their last letter, and where they stand. */
+/** What partner_letters_due (00209) says changed for one partner since their last letter, and where they stand. */
 export interface PartnerLetterNews {
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
   written: { kind: string; currency: string; count: number; cents: number }[];

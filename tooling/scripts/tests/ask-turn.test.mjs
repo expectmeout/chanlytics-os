@@ -465,13 +465,16 @@ test("an act tool beside the answer stands: the proposal is built for real, the 
   assert.equal(bare.ungrounded, true, "a figure with nothing read behind it");
 });
 
+/** An invitation is an owner's card (its route's role): an operator is refused it before any card is made (D7). */
+const AN_OWNER = { role: "owner", personLabel: "ada@example.com (owner)" };
+
 test("words beside a card are the model thinking aloud, never the answer; an answer beside a card refused goes back with the round, its Say taken back", async () => {
   const refusedInvite = tool("propose_invite", { email: "not-an-address", role: "viewer" });
   const aloud = scripted([
     ROUND([prose("I'll invite them now."), refusedInvite]),
     ROUND([answer("That is not an email address; give me one and I will propose the invitation.")]),
   ]);
-  const r1 = await runAskTurn(turn(ctxFor()).input, ports(aloud.round));
+  const r1 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(aloud.round));
   assert.deepEqual(
     [r1.text, r1.rounds, r1.proposals.length],
     ["That is not an email address; give me one and I will propose the invitation.", 2, 0],
@@ -480,7 +483,7 @@ test("words beside a card are the model thinking aloud, never the answer; an ans
   const made = scripted([
     ROUND([prose("Inviting Ada."), tool("propose_invite", { email: "ada@example.com", role: "viewer" })]),
   ]);
-  const r2 = await runAskTurn(turn(ctxFor()).input, ports(made.round));
+  const r2 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(made.round));
   assert.equal(r2.answer.say.headline, "One card to review: Invite ada@example.com.", "the card made is the answer");
 
   const claimed = answerJson("I proposed the invitation.");
@@ -491,7 +494,7 @@ test("words beside a card are the model thinking aloud, never the answer; an ans
     },
     ROUND([answer("That is not an email address.")]),
   ]);
-  const t3 = turn(ctxFor());
+  const t3 = turn(ctxFor(), AN_OWNER);
   const { result: r3, lines } = await logged("ask_answer_beside_refused_card", () =>
     runAskTurn(t3.input, ports(back.round)),
   );
@@ -510,7 +513,7 @@ test("words beside a card are the model thinking aloud, never the answer; an ans
 
 test("cards alone are the answer: every card made, no second round, the cards said in a sentence; a refused proposal keeps the round and the model must say why", async () => {
   const alone = scripted([ROUND([tool("propose_invite", { email: "ada@example.com", role: "viewer" })])]);
-  const { input, events } = turn(ctxFor());
+  const { input, events } = turn(ctxFor(), AN_OWNER);
   const r = await runAskTurn(input, ports(alone.round));
   assert.equal(r.rounds, 1);
   assert.equal(r.proposals.length, 1);
@@ -529,7 +532,7 @@ test("cards alone are the answer: every card made, no second round, the cards sa
     ROUND([tool("propose_invite", { email: "not-an-address", role: "viewer" })]),
     ROUND([answer("That is not an email address; give me one and I will propose the invitation.")]),
   ]);
-  const r2 = await runAskTurn(turn(ctxFor()).input, ports(refused.round));
+  const r2 = await runAskTurn(turn(ctxFor(), AN_OWNER).input, ports(refused.round));
   assert.deepEqual([r2.rounds, r2.proposals.length, r2.failed], [2, 0, false]);
   const back = refused.requests[1].messages.at(-1).content[0];
   assert.deepEqual([back.type, back.is_error], ["tool_result", true]);
@@ -1294,7 +1297,8 @@ test("the proposal builders run against the database in memory: each kind is a c
   const closure = await p("propose_settings", { change: { op: "add_closure", date: "2026-12-25", note: "Christmas" } });
   assert.deepEqual(
     [closure.proposal.title, closure.proposal.summary, closure.proposal.needs],
-    ["Close for a day", "Closed on 2026-12-25 (Christmas)", "owner"],
+    ["Close for a day", "Closed on 2026-12-25 (Christmas)", "partner"],
+    "a settings card needs a partner: its route, PUT settings, is a partner's door",
   );
   assert.match(
     (await p("propose_settings", { change: { op: "add_closure", date: "tomorrow" } })).result,
@@ -1397,6 +1401,86 @@ test("the proposal builders run against the database in memory: each kind is a c
     result: JSON.stringify({ error: "that could not be checked; say so and suggest the page" }),
     isError: true,
   });
+});
+
+test("a card above an operator is refused to a member below it in its route's words, before anything is read: a partner gets a settings card and is refused a person's mode and an invitation, an owner gets all three (D7)", async () => {
+  const as = (role) => {
+    const ctx = ctxFor();
+    return { ctx, tc: newToolContext(ctx, A, role, TZ, NOW) };
+  };
+  // Each ask, and the refusal a member below its card's role hears: an owner's card names the owner; a partner's
+  // names the owner and the workspace's partner, as the lead search's words do (#1159, decision 0012).
+  const ASKS = [
+    [
+      "propose_person_mode",
+      { contact_id: P1, mode: "never" },
+      "only an owner can change how the receptionist treats one person; say so, and that an owner can ask",
+    ],
+    [
+      "propose_settings",
+      { change: { op: "add_closure", date: "2026-12-25", note: "Christmas" } },
+      "only an owner or the workspace's partner can change the workspace's settings; say so, and that one of them can ask",
+    ],
+    [
+      "propose_invite",
+      { email: "ada@example.com", role: "viewer" },
+      "only an owner can invite someone to the team; say so, and that an owner can ask",
+    ],
+  ];
+  for (const [name, input, refusal] of ASKS) {
+    const { ctx, tc } = as("operator");
+    const out = await buildProposal(tc, name, input);
+    assert.deepEqual([out.proposal, out.isError, JSON.parse(out.result).error], [null, true, refusal], name);
+    assert.deepEqual(ctx.supabase.seen, [], `${name}: an operator is refused before anything is read`);
+  }
+  // REGRESSION (D7): an operator used to be handed these three cards, which the palette gated and the routes refused.
+  const partner = as("partner").tc;
+  const settings = await buildProposal(partner, "propose_settings", ASKS[1][1]);
+  assert.equal(settings.isError, false, settings.result);
+  assert.deepEqual([settings.proposal.kind, settings.proposal.needs], ["settings", "partner"]);
+  for (const [name, input, refusal] of [ASKS[0], ASKS[2]])
+    assert.equal(JSON.parse((await buildProposal(partner, name, input)).result).error, refusal, name);
+  // An owner gets all three, each needing its route's role and wearing its spec's undo words.
+  const owner = as("owner").tc;
+  const made = [];
+  for (const [name, input] of ASKS) {
+    const out = await buildProposal(owner, name, input);
+    assert.equal(out.isError, false, `${name}: ${out.result}`);
+    made.push([out.proposal.kind, out.proposal.needs, out.proposal.undo]);
+  }
+  assert.deepEqual(made, [
+    ["person_mode", "owner", "Set it back"],
+    ["settings", "partner", "Put the previous settings back"],
+    ["invite", "owner", null],
+  ]);
+});
+
+test("every card's role and undo words are its spec's: a wake's card offers no undo, a snooze's offers Wake (D8)", async () => {
+  const t = tables({
+    conversations: [
+      conversation(C1),
+      conversation(C2, { state: "snoozed", snooze_until: iso(NOW.getTime() + 86_400_000), assignee_user_id: USER }),
+    ],
+  });
+  const tc = newToolContext(ctxFor(t), A, "operator", TZ, NOW);
+  const card = async (verb, id) =>
+    (await buildProposal(tc, "propose_thread_verb", { conversation_id: id, verb })).proposal;
+  const cards = [
+    await card("take_over", C1),
+    await card("hand_back", C2),
+    await card("snooze", C1),
+    await card("wake", C2),
+  ];
+  assert.deepEqual(
+    cards.map((p) => [p.payload.verb, p.needs, p.undo]),
+    [
+      ["take_over", "operator", "Hand back"],
+      ["hand_back", "operator", "Take over again"],
+      ["snooze", "operator", "Wake"],
+      ["wake", "operator", null],
+    ],
+    "REGRESSION: a woken thread's card offered 'Snooze again', a snooze with no until that core always refused",
+  );
 });
 
 test("REGRESSION: a broadcast to nobody is refused with the cause it has -- Ask called a yes with no number to send to 'nobody has said yes', and pointed at a QR 'on this page'", async () => {
@@ -2336,6 +2420,31 @@ const METRICS = {
     new_contacts: 0,
   },
 };
+
+test("REGRESSION: a call on Today opens where the Today page opens it -- get_today said conversations/<id> where the call is conversations/cv-<id>", async () => {
+  // A caller gone in six seconds with nothing: the simplest call worth an ear (contracts today.ts, abandonedCall).
+  const quick = call(K2, {
+    retell_call_id: "r2",
+    started_at: iso(NOW.getTime() - 3600_000),
+    ended_at: iso(NOW.getTime() - 3594_000),
+    duration_ms: 6_000,
+    summary: null,
+  });
+  const ctx = ctxFor(tables({ calls: [quick] }), { ...RPCS, metrics_summary: () => METRICS });
+  const out = await runTool(newToolContext(ctx, A, "operator", TZ, NOW), { name: "get_today", input: {} });
+  assert.equal(out.isError, false, out.result);
+  const [row] = JSON.parse(out.result).calls.rows;
+  assert.deepEqual(
+    [row.call_id, row.route],
+    [K2, `conversations/cv-${K2}`],
+    "the call's own id, and the route list_calls and get_call give it",
+  );
+  const listed = JSON.parse(
+    (await runTool(newToolContext(ctx, A, "operator", TZ, NOW), { name: "list_calls", input: { filter: "today" } }))
+      .result,
+  );
+  assert.equal(listed.calls.find((c) => c.call_id === K2)?.route, row.route, "one route for one call, whichever tool");
+});
 
 test("REGRESSION: Today's reply-window rows are the opposite of drafts -- the customer spoke last and nobody has written back", async () => {
   // The field was `drafts_about_to_send`. The prompt's glossary tells the model

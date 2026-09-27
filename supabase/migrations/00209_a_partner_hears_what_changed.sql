@@ -1,4 +1,4 @@
--- 00208 · A partner hears what changed, once a day.
+-- 00209 · A partner hears what changed, once a day.
 --
 -- Decision 0014 (the first of 0012's later steps). Until now a partner learned that a share was earned, became
 -- payable, was taken back by a refund, was paid, or that a workspace was held for review, only by opening their pane.

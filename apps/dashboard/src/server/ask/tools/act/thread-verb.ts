@@ -66,18 +66,10 @@ async function proposeThreadVerb(
     archive: `Archive ${who}'s thread`,
     resolve: `Resolve ${who}'s escalation`,
   };
-  const UNDO: Record<string, string | null> = {
-    take_over: "Hand back",
-    hand_back: "Take over again",
-    snooze: "Wake",
-    wake: "Snooze again",
-    archive: null,
-    resolve: null,
-  };
+  // The undo's words are the spec's (contracts ask-proposals/): a wake's card offers none (D8).
   t.read.thread.add(id);
   return propose({
     kind: "thread_verb",
-    needs: "operator",
     title: TITLES[verb],
     summary:
       verb === "snooze" && until
@@ -92,7 +84,6 @@ async function proposeThreadVerb(
                 ? "Out of the Inbox; it comes back if they write"
                 : "Back in the Inbox now",
     payload: { conversation_id: id, verb, until, escalation_id: escalationId, who },
-    undo: UNDO[verb],
   });
 }
 

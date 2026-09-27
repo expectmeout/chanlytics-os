@@ -67,7 +67,7 @@ export const POST = write({
 });
 
 /**
- * PATCH /api/v1/partner — {letters}: the caller's daily letter on or off (decision 0014, 00208 partner_letters_set).
+ * PATCH /api/v1/partner — {letters}: the caller's daily letter on or off (decision 0014, 00209 partner_letters_set).
  * On starts from now, so turning it back on sends no backlog. The caller's own row alone; no workspace, no role.
  */
 export const PATCH = write({

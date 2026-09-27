@@ -253,7 +253,7 @@ test("GET partner: the caller's row and their balance, or null and nothing; a da
     (await partner.GET.run(get(), ctxFor(tables({ partners: [{ ...row, letters: false }] }), noLedger))).partner
       .letters,
     false,
-    "the daily letter's switch, as kept (00208)",
+    "the daily letter's switch, as kept (00209)",
   );
   const older = ctxFor(tables());
   older.supabase = fakeDb(tables(), { "partners.select": { message: 'relation "public.partners" does not exist' } });

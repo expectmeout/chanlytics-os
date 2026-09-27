@@ -118,7 +118,6 @@ async function proposeBroadcast(
   const whenWords = when ? clockWhen(Date.parse(when), t.timezone, t.now.getTime()) : "now";
   return propose({
     kind: "broadcast",
-    needs: "operator",
     title: `Broadcast to ${label}`,
     summary: `${count} ${count === 1 ? "person" : "people"} who said yes · “${tpl.name}” · ${whenWords}: ${words.slice(0, 160)}${words.length > 160 ? "…" : ""}`,
     payload: {
@@ -132,7 +131,6 @@ async function proposeBroadcast(
       name,
       count,
     },
-    undo: "Cancel it, if it has not finished",
   });
 }
 
