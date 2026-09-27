@@ -1,11 +1,13 @@
 /**
- * The root: the page's own dark and light as the app's theme (no white frame on a tab switch), the sign-in page
- * whenever the site says a person is out, the tabs otherwise, an offline screen over everything while the phone has
- * no network, on every return to the foreground a look at the site's build and at EAS Update, the phone's push
- * token and taps (the PR 2 design), and the lock in front of everything (the PR 3 design).
+ * The root: the page's own theme as the app's (the page says which; Appearance is set from it, so every
+ * useColorScheme() in the shell follows the member's choice rather than the device's, and no white frame shows on a
+ * tab switch), the sign-in page whenever the site says a person is out, the tabs otherwise, an offline screen over
+ * everything while the phone has no network, on every return to the foreground a look at the site's build and at
+ * EAS Update, the phone's push token and taps (the PR 2 design), and the lock in front of everything (the PR 3
+ * design).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Platform, useColorScheme, View } from "react-native";
+import { Appearance, AppState, Platform, useColorScheme, View } from "react-native";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from "expo-router";
 import { askForToken, coldStartRoute, installForegroundHandler, listen, tabOf } from "@/shell/notifications";
 import { StatusBar } from "expo-status-bar";
@@ -22,9 +24,11 @@ import { getState, reloadEveryPage, setState, useShell } from "@/shell/state";
 import { decideReload, isOlderThan, minAppOf, shaOf } from "@/shell/deploy";
 import { Update } from "@/shell/Update";
 import * as Application from "expo-application";
+import { THEME_COLORS } from "@chanlytics/contracts";
 import { SITE_ORIGIN } from "@/site";
 
-const PAPER = { light: "#fbfaf8", dark: "#0c0d0f" };
+// The theme before any page has said: the web's own default for a device that has chosen nothing.
+Appearance.setColorScheme(getState().theme);
 
 async function lookAtTheSite(): Promise<void> {
   try {
@@ -142,7 +146,7 @@ export default function RootLayout() {
 
   const retry = useCallback(() => reloadEveryPage(), []);
   const theme = scheme === "dark" ? DarkTheme : DefaultTheme;
-  const paper = scheme === "dark" ? PAPER.dark : PAPER.light;
+  const paper = THEME_COLORS[scheme === "dark" ? "dark" : "light"];
 
   return (
     <ThemeProvider value={{ ...theme, colors: { ...theme.colors, background: paper, card: paper } }}>

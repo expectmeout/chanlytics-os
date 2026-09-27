@@ -6,15 +6,15 @@
  * phone's push token to register, opens the route of a tapped notification, and has the page forget the phone before
  * a sign-out (the PR 2 design).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BackHandler, Linking, Platform, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Appearance, BackHandler, Linking, Platform, StyleSheet, View } from "react-native";
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from "react-native-webview";
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes";
 import * as Application from "expo-application";
 import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused, useRouter } from "expo-router";
-import { parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
+import { parsePageMessage, THEME_COLORS, type PageMessage, type ShellMessage } from "@chanlytics/contracts";
 import { askPage, bottomInset, insetScript, onPageMessage, registrationKey, shouldRegister } from "./bridge";
 import { getState, registerReloader, setState, useShell, type Tab } from "./state";
 import { setBadge, tabOf } from "./notifications";
@@ -25,7 +25,6 @@ import { Offline } from "./Offline";
 import { hrefFor, isOurs, isSignedOutUrl, LOGIN_HREF, NATIVE_DOOR, userAgentToken } from "@/site";
 
 const PLATFORM: "ios" | "android" = Platform.OS === "ios" ? "ios" : "android";
-const PAGE_DARK = "#0c0d0f";
 
 export interface SurfaceHandle {
   ask(m: ShellMessage): void;
@@ -55,6 +54,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
   if (focused && !mounted) setMounted(true);
   const [failed, setFailed] = useState(false);
   const slug = useShell((s) => s.slug);
+  const theme = useShell((s) => s.theme);
   const token = useShell((s) => s.token);
   const activityToken = useShell((s) => s.activityToken);
   const registered = useShell((s) => s.registered);
@@ -85,14 +85,8 @@ export function Surface({ route, tab, onReady, post }: Props) {
 
   const onMessage = useCallback(
     (e: WebViewMessageEvent) => {
-      const { state, effect } = onPageMessage(getState(), e.nativeEvent.data);
-      setState(state);
-      if (effect === "badge") void setBadge(state.badge);
-      if (effect === "calls-over") void endCallActivities();
-      const m = parsePageMessage(e.nativeEvent.data);
-      if (m?.t === "today") updateTodayWidget(m.snapshot);
+      const m = actOnPageMessage(e.nativeEvent.data);
       if (m?.t === "device" && m.state === "forgotten") forgetting.current?.resolve();
-      if (m?.t === "token") tokenArrived(m.access ? { token: m.access, expires: m.expires } : null);
       if (m?.t === "route") {
         setReady(true);
         if (focused) onReady?.(handle);
@@ -164,23 +158,18 @@ export function Surface({ route, tab, onReady, post }: Props) {
     [handle],
   );
 
-  // Android's hardware back walks the page's own history first.
-  useEffect(() => {
-    if (Platform.OS !== "android" || !focused) return;
-    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      ref.current?.goBack();
-      return true;
-    });
-    return () => sub.remove();
-  }, [focused]);
+  useAndroidBack(ref, focused);
 
-  if (!mounted) return <View style={styles.fill} />;
+  // The page's paper, behind the WebView (the library's own is white) and in the strip under the status bar: the
+  // shell pads the top itself, on both platforms, since the page's header draws to the top of its viewport.
+  const paper = { backgroundColor: THEME_COLORS[theme] };
+  if (!mounted) return <View style={[styles.fill, paper]} />;
   return (
-    <View style={styles.fill}>
+    <View style={[styles.fill, paper, { paddingTop: insets.top }]}>
       <WebView
         ref={ref}
         source={source}
-        style={styles.fill}
+        style={[styles.fill, paper]}
         applicationNameForUserAgent={userAgent}
         sharedCookiesEnabled
         injectedJavaScriptBeforeContentLoaded={insetScript(inset)}
@@ -191,7 +180,7 @@ export function Surface({ route, tab, onReady, post }: Props) {
         onError={() => setFailed(true)}
         onLoadEnd={() => setFailed(false)}
         startInLoadingState
-        renderLoading={() => <View style={[styles.fill, styles.paper]} />}
+        renderLoading={() => <View style={[StyleSheet.absoluteFill, paper]} />}
         allowsBackForwardNavigationGestures
         pullToRefreshEnabled
         contentInsetAdjustmentBehavior="never"
@@ -208,7 +197,36 @@ export function Surface({ route, tab, onReady, post }: Props) {
   );
 }
 
+/**
+ * What a page's message does beyond the one page that heard it: the shell's state moves (bridge.ts), and the icon,
+ * the call activity, the theme, the widget and a waiting token call follow. Returns the message, parsed, for what
+ * is the page's own (its route).
+ */
+function actOnPageMessage(raw: string): PageMessage | null {
+  const { state, effect } = onPageMessage(getState(), raw);
+  setState(state);
+  if (effect === "badge") void setBadge(state.badge);
+  if (effect === "calls-over") void endCallActivities();
+  // The page's theme is the app's: every useColorScheme() in the shell follows it from here on.
+  if (effect === "theme") Appearance.setColorScheme(state.theme);
+  const m = parsePageMessage(raw);
+  if (m?.t === "today") updateTodayWidget(m.snapshot);
+  if (m?.t === "token") tokenArrived(m.access ? { token: m.access, expires: m.expires } : null);
+  return m;
+}
+
+/** Android's hardware back walks the page's own history first, while its tab is in front. */
+function useAndroidBack(ref: RefObject<WebView | null>, focused: boolean): void {
+  useEffect(() => {
+    if (Platform.OS !== "android" || !focused) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      ref.current?.goBack();
+      return true;
+    });
+    return () => sub.remove();
+  }, [focused, ref]);
+}
+
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  paper: { backgroundColor: PAGE_DARK },
 });

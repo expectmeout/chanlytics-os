@@ -15,6 +15,8 @@ test("a page message is one of four shapes; anything else is null", () => {
   });
   assert.deepEqual(parsePageMessage('{"t":"needs","inbox":3}'), { t: "needs", inbox: 3 });
   assert.deepEqual(parsePageMessage('{"t":"session","state":"out"}'), { t: "session", state: "out" });
+  assert.deepEqual(parsePageMessage('{"t":"theme","theme":"light"}'), { t: "theme", theme: "light" });
+  assert.equal(parsePageMessage('{"t":"theme","theme":"system"}'), null, "a resolved theme, never a preference");
   assert.deepEqual(parsePageMessage('{"t":"workspace","slug":"acme-plumbing"}'), {
     t: "workspace",
     slug: "acme-plumbing",
