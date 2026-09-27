@@ -10,6 +10,7 @@ const useAtState = React.useState;
 
 // Each kind a source names (contracts ASK_CITATION_KINDS) as the mark before its row, the page's own glyph where its
 // page has one: a thread or a conversation is a chat. A scope's run is the Broadcasts row a citation calls a broadcast.
+// A list's card and a run's card (AskCard's ICON) are marked as their rows are.
 const AT_KIND_GLYPHS = {
   thread: "chat",
   conversation: "chat",
@@ -120,8 +121,8 @@ const AskCard = ({ p, messageId, t, onNav, hideOpen = false, onOutcome, onEdit }
   // settings while nobody has saved since, anything else for ten minutes.
   const settingsVersion = window.__SETTINGS && typeof window.__SETTINGS.version === "number" ? window.__SETTINGS.version : null;
   const undoOpen = state === "done" && !!undoData && !!p.undo && !!(A && A.undoOpen && A.undoOpen(p.kind, undoData, doneAt, Date.now(), settingsVersion));
-  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, lead_search: t.kLeads, deal: t.kDeal, note: t.kNote, person_details: t.kDetails };
-  const ICON = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", lead_search: "search", deal: "users", note: "edit", person_details: "user" };
+  const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook, lead_search: t.kLeads, deal: t.kDeal, note: t.kNote, person_details: t.kDetails, list: t.kList, run: t.kRun };
+  const ICON = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt", lead_search: "search", deal: "users", note: "edit", person_details: "user", list: askKindGlyph("list"), run: askKindGlyph("run") };
   const openRoute = A && A.cardOpenRoute ? A.cardOpenRoute(p) : null;
   return (
     <div className={`ask-card ${state}`} data-testid="ask-card" data-kind={p.kind}>

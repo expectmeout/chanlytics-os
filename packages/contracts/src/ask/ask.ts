@@ -124,7 +124,9 @@ export interface AskProposal {
     | "lead_search"
     | "deal"
     | "note"
-    | "person_details";
+    | "person_details"
+    | "list"
+    | "run";
   /** The lowest role that may commit it, its spec's (ask-proposals/); the route re-checks on Approve. */
   needs: ProposalNeeds;
   title: string;
@@ -327,9 +329,8 @@ export const ASK_PAGES: JumpEntry[] = [
 ];
 
 /**
- * Two words jump to a page, a person, a thread or a call from what the
- * browser already holds. A question mark or a long sentence is a question,
- * not a jump.
+ * Two words jump to a page, a person, a thread or a call from what the browser already holds. A question mark or a
+ * long sentence is a question, not a jump.
  */
 export function askJump(query: string, index: JumpEntry[], limit = 6): JumpEntry[] {
   const s = query.trim().toLowerCase();
@@ -487,17 +488,16 @@ const T = {
   },
 } as const;
 
-/**
- * Questions the workspace can answer today, for where the person is. Built
- * from the data, in the person's language, never from a seed; a workspace
- * with no missed call is not offered a question about missed calls.
- */
 /** Words cut to fit a chip: whole up to the cap, else the first letters and an ellipsis. */
 function clipWords(s: string, cap: number): string {
   const w = s.replace(/\s+/g, " ").trim();
   return w.length > cap ? `${w.slice(0, cap - 1).trimEnd()}…` : w;
 }
 
+/**
+ * Questions the workspace can answer today, for where the person is. Built from the data, in the person's language,
+ * never from a seed; a workspace with no missed call is not offered a question about missed calls.
+ */
 export function buildAskSuggestions(input: SuggestionInput): AskSuggestion[] {
   const t = T[input.language === "es" ? "es" : "en"];
   // A page with no chips of its own yet is offered those it was offered before it had a name.

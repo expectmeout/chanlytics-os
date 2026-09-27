@@ -35,6 +35,7 @@ import { propose_settings } from "./act/settings";
 import { propose_whisper } from "./act/whisper";
 import { propose_team } from "./act/invite";
 import { propose_campaign } from "./act/campaign";
+import { propose_list } from "./act/list";
 import { propose_lead_search } from "./act/lead-search";
 
 /**
@@ -87,6 +88,7 @@ export const ACT_DEFS: readonly ActTool[] = [
   propose_settings,
   propose_whisper,
   propose_campaign,
+  propose_list,
   propose_team,
   propose_lead_search,
 ];
