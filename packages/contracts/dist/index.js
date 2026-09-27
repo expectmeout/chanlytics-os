@@ -18161,6 +18161,20 @@ function lineReleasedWords(i) {
 ` };
 }
 
+// src/shared/identity.ts
+var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(value) {
+  return UUID3.test(String(value ?? ""));
+}
+function asTenantId(value) {
+  if (!isUuid(value)) throw new TypeError("A tenant id is a uuid.");
+  return value;
+}
+function asContactId(value) {
+  if (!isUuid(value)) throw new TypeError("A contact id is a uuid.");
+  return value;
+}
+
 // src/mobile/widget.ts
 function todayWidgetSnapshot(vm, at2) {
   const row2 = vm.needsYou?.rows[0] ?? null;
@@ -18236,7 +18250,8 @@ function parseShellMessage(v) {
   if (!isRecord(v)) return null;
   switch (v.t) {
     case "navigate":
-      return typeof v.route === "string" && APP_ROUTE_RE.test(v.route) ? { t: "navigate", route: v.route } : null;
+      if (typeof v.route !== "string" || !APP_ROUTE_RE.test(v.route)) return null;
+      return isUuid(v.workspace) ? { t: "navigate", route: v.route, workspace: String(v.workspace) } : { t: "navigate", route: v.route };
     case "menu":
       return { t: "menu" };
     case "top":
@@ -22446,20 +22461,6 @@ var DEFAULT_STATUS = {
   upstream_auth: 503,
   internal: 500
 };
-
-// src/shared/identity.ts
-var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function isUuid(value) {
-  return UUID3.test(String(value ?? ""));
-}
-function asTenantId(value) {
-  if (!isUuid(value)) throw new TypeError("A tenant id is a uuid.");
-  return value;
-}
-function asContactId(value) {
-  if (!isUuid(value)) throw new TypeError("A contact id is a uuid.");
-  return value;
-}
 
 // src/shared/csv.ts
 function csvCell(v) {

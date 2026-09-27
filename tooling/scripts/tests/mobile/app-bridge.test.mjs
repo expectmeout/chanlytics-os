@@ -52,6 +52,17 @@ test("a page message is one of four shapes; anything else is null", () => {
 
 test("a shell message is navigate, menu or top; a route is a hash route's name, never a URL", () => {
   assert.deepEqual(parseShellMessage({ t: "navigate", route: "clients" }), { t: "navigate", route: "clients" });
+  const W = "22222222-2222-4222-8222-222222222222";
+  assert.deepEqual(parseShellMessage({ t: "navigate", route: "inbox", workspace: W }), {
+    t: "navigate",
+    route: "inbox",
+    workspace: W,
+  });
+  assert.deepEqual(
+    parseShellMessage({ t: "navigate", route: "inbox", workspace: "../evil" }),
+    { t: "navigate", route: "inbox" },
+    "a workspace that is not an id is dropped, never put in a path",
+  );
   assert.deepEqual(parseShellMessage({ t: "menu" }), { t: "menu" });
   assert.deepEqual(parseShellMessage({ t: "top" }), { t: "top" });
   // The native thread's asks went with it: an old app's are nothing the page answers.

@@ -18004,9 +18004,15 @@ type PageMessage = {
 };
 /** A phone's push token, as expo-notifications hands it out. */
 declare const PUSH_TOKEN_MAX = 200;
-type ShellMessage = {
+type ShellMessage = 
+/**
+ * Open a route; with `workspace`, a tapped push's workspace (its id), whose page is opened when it is not the one
+ * on screen: a push for one workspace used to open its route in whichever workspace the phone was showing.
+ */
+{
     t: "navigate";
     route: string;
+    workspace?: string;
 } | {
     t: "menu";
 } | {

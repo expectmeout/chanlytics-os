@@ -8,6 +8,7 @@
  */
 
 import type { Theme } from "../shell/chrome";
+import { isUuid } from "../shared/identity";
 import { parseTodayWidgetSnapshot, type TodayWidgetSnapshot } from "./widget";
 
 /** A hash route's name as the shell writes it: `today`, `inbox`, `clients/abc-123`. Never a URL, never a scheme. */
@@ -37,7 +38,11 @@ export type PageMessage =
 export const PUSH_TOKEN_MAX = 200;
 
 export type ShellMessage =
-  | { t: "navigate"; route: string }
+  /**
+   * Open a route; with `workspace`, a tapped push's workspace (its id), whose page is opened when it is not the one
+   * on screen: a push for one workspace used to open its route in whichever workspace the phone was showing.
+   */
+  | { t: "navigate"; route: string; workspace?: string }
   | { t: "menu" }
   | { t: "top" }
   /**
@@ -92,7 +97,10 @@ export function parseShellMessage(v: unknown): ShellMessage | null {
   if (!isRecord(v)) return null;
   switch (v.t) {
     case "navigate":
-      return typeof v.route === "string" && APP_ROUTE_RE.test(v.route) ? { t: "navigate", route: v.route } : null;
+      if (typeof v.route !== "string" || !APP_ROUTE_RE.test(v.route)) return null;
+      return isUuid(v.workspace)
+        ? { t: "navigate", route: v.route, workspace: String(v.workspace) }
+        : { t: "navigate", route: v.route };
     case "menu":
       return { t: "menu" };
     case "top":
