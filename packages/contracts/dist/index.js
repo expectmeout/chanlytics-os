@@ -22066,6 +22066,14 @@ var UUID3 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function isUuid(value) {
   return UUID3.test(String(value ?? ""));
 }
+function asTenantId(value) {
+  if (!isUuid(value)) throw new TypeError("A tenant id is a uuid.");
+  return value;
+}
+function asContactId(value) {
+  if (!isUuid(value)) throw new TypeError("A contact id is a uuid.");
+  return value;
+}
 
 // src/shared/csv.ts
 function csvCell(v) {
@@ -26511,8 +26519,10 @@ export {
   applySettingsChange,
   approvalWordsOf,
   areaCodeOf,
+  asContactId,
   asListRule,
   asPersonMode,
+  asTenantId,
   askIntent,
   askJump,
   askModelProfile,

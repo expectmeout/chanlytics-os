@@ -106,7 +106,8 @@ export {
   fromZonedInput,
 } from "./clock";
 export type { SchemaSetKey, SchemaSet, Exactly, Within, Holds, SchemaAgreement } from "./schema-sets";
-export { UUID, isUuid } from "./identity";
+export { UUID, isUuid, asTenantId, asContactId } from "./identity";
+export type { TenantId, ContactId } from "./identity";
 export { plural } from "./words";
 export { escapeHtml } from "./html";
 export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts } from "./csv";

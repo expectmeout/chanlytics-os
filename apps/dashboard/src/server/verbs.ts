@@ -7,12 +7,14 @@
  */
 import {
   AppError,
+  asTenantId,
   isOptedOutContact,
   OPT_OUT_REFUSAL,
   REACH_OUT_REFUSALS,
   writtenChannelOf,
   type DecisionVerb,
   type DecisionSubject,
+  type TenantId,
 } from "@chanlytics/contracts";
 import { listRow, reachOutRootOf, reachOutSendRefOf, type Json } from "@chanlytics/db";
 import { memberContext, requireRole, type RouteContext } from "./with-route";
@@ -39,7 +41,8 @@ export async function requireOperator(ctx: RouteContext, tenantId: string): Prom
 
 export interface VerbConversation {
   id: string;
-  tenant_id: string;
+  /** Checked here, where the row is read, and carried as what it is to the verbs (core's TenantId). */
+  tenant_id: TenantId;
   state: string;
   paused_until: string | null;
   /** Carried for the thread's own page, which had to re-read the row for them. */
@@ -77,9 +80,10 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Conversation not found.");
+  // tenant_id is a uuid column, so the check cannot refuse a row this read returns: it names what the id is.
   return {
     id: data.id,
-    tenant_id: data.tenant_id,
+    tenant_id: asTenantId(data.tenant_id),
     state: data.state,
     paused_until: data.paused_until,
     snooze_until: data.snooze_until,
@@ -403,7 +407,7 @@ export async function loadBroadcast(ctx: RouteContext, id: string) {
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new AppError("not_found", "Broadcast not found.", 404);
-  return data;
+  return { ...data, tenant_id: asTenantId(data.tenant_id) };
 }
 export const broadcastScope = row((ctx, params) => loadBroadcast(ctx, String(params.id ?? "")));
 
