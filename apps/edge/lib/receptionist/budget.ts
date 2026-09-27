@@ -9,10 +9,10 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../packages/db.js";
+import { DAY_MS } from "../packages/contracts.js";
 import { MAX_ROWS } from "../paged.js";
 import { logger, errField } from "../log.js";
 
-const DAY_MS = 24 * 3600 * 1000;
 /** More rows than any workspace writes in a day; a bound, not a target. */
 const ROW_CAP = 20_000;
 /**

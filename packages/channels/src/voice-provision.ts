@@ -25,6 +25,7 @@ import {
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
 } from "./voice-shell";
+import { E164 } from "@chanlytics/contracts";
 
 /** The model behind the shell. Temperature 0: the facts are read, not improvised. */
 export const VOICE_LLM_DEFAULTS = {
@@ -194,8 +195,6 @@ export interface VoiceProvisionPlan {
   steps: ProvisionStep[];
   names: { agent: string; nickname: string };
 }
-
-const E164 = /^\+[1-9]\d{6,14}$/;
 
 /** What the endpoint will do, in order. Pure: the dry run prints this; the apply follows it. */
 export function planVoiceProvision(st: VoiceProvisionState): VoiceProvisionPlan {

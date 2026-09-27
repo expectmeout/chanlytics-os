@@ -1,6 +1,5 @@
 import { write, workspace } from "@/server/route";
-import { AppError } from "@chanlytics/contracts";
-import { isUuid } from "@/server/request-guards";
+import { AppError, isUuid } from "@chanlytics/contracts";
 
 /**
  * POST /api/v1/lines/forwarding/test — {line_id}: open the 30-minute test

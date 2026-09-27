@@ -325,7 +325,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
     "for the people given the link, not for a search result: contracts' rule, run in public-page-titles.test.mjs",
   );
   const server = readCode("apps/dashboard/src/server/public/consent-page.ts");
-  assert.ok(server.includes('import "server-only";') && server.includes("createServiceClient({"));
+  assert.ok(server.includes('import "server-only";') && server.includes('import { serviceDb } from "../service-db";'));
   assert.ok(
     server.includes('if (!tenant || tenant.status === "test") return null;'),
     "a fixture workspace has no page",

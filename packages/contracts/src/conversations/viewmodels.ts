@@ -1,5 +1,5 @@
 import { waitedLabel } from "../shared/time";
-import { clockShort, clockStamp } from "../shared/clock";
+import { clockShort, clockStamp, mmss } from "../shared/clock";
 import { standingOf } from "./standing";
 /**
  * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
@@ -1280,11 +1280,8 @@ export interface CallVM {
   facts: string[];
 }
 
-function mmss(ms: number | null | undefined): string | undefined {
-  if (!ms || ms < 0) return undefined;
-  const total = Math.round(ms / 1000);
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-}
+/** A call's length on its card, "2:05"; nothing for a call with no length on record (none, zero or below). */
+const callLength = (ms: number | null | undefined): string | undefined => (ms && ms > 0 ? mmss(ms) : undefined);
 
 /** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
 export function spokenDuration(ms: number | null): string {
@@ -1311,7 +1308,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
   const who = callerName(dto);
   const whoShort = name ? (isIdentifierName(name) ? name : name.split(" ")[0]) : "Caller";
-  const dur = mmss(dto.duration_ms);
+  const dur = callLength(dto.duration_ms);
   // Not `status === "ongoing"`. A lost call_ended leaves that flag set forever,
   // and this viewmodel is what the Live surface would render from.
   const live = isLiveCall(dto, now);

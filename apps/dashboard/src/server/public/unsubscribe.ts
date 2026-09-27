@@ -17,7 +17,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient, type Database } from "@chanlytics/db";
 import { addressOf, verifyUnsubscribeToken } from "@chanlytics/channels";
-import { UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, type UnsubscribeView } from "@chanlytics/contracts";
+import { escapeHtml, UNSUBSCRIBE_PAGE_HEADER, unsubscribePageWords, type UnsubscribeView } from "@chanlytics/contracts";
 
 /** The largest body a one click or the page's button sends. Anything larger is not one. */
 const MAX_BODY_BYTES = 4096;
@@ -106,9 +106,6 @@ const HEADERS = {
   // The token is in the path: nothing on the page links out, and nothing should carry it anywhere if it did.
   "referrer-policy": "no-referrer",
 };
-
-const escapeHtml = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 /** The product's paper and ink (legacy tokens.css), light and dark, so the page reads as the app's. */
 const STYLE = `

@@ -25,7 +25,6 @@ import "server-only";
  * an object literal either. Nothing is exported that hands out authority.
  */
 import {
-  createServiceClient,
   getPlatformPartners,
   markPartnerPaid,
   setPartnerStanding,
@@ -46,15 +45,7 @@ import {
   type SweepHealthRow,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
-
-let svc: SupabaseClient<Database> | null = null;
-function serviceDb(): SupabaseClient<Database> {
-  svc ??= createServiceClient({
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  });
-  return svc;
-}
+import { serviceDb } from "../service-db";
 
 declare const backOfficeBrand: unique symbol;
 

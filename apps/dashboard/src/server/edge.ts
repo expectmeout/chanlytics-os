@@ -18,6 +18,12 @@ import { signEdgeToken } from "@chanlytics/channels";
 
 const DEFAULT_EDGE_URL = "https://chanlytics-messaging.vercel.app";
 
+/**
+ * How long a lambda keeps what the edge said this deployment can do (Google's, billing's, own domains'): five
+ * minutes, since the answer changes when an operator sets a key, not between two page loads.
+ */
+export const READY_TTL_MS = 5 * 60_000;
+
 /** The edge's origin, no trailing slash. */
 export function edgeUrl(): string {
   return (process.env.EDGE_URL || DEFAULT_EDGE_URL).replace(/\/+$/, "");

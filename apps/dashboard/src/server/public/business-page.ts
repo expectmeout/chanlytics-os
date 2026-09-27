@@ -18,19 +18,8 @@ import { cache } from "react";
  * The fourth place the dashboard holds the service role, and the second of two
  * that serve a page with no session (consent-page.ts is the other).
  */
-import { createServiceClient } from "@chanlytics/db";
-import type { Database } from "@chanlytics/db";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseTenantConfig, type BusinessPageFacts } from "@chanlytics/contracts";
-
-let svc: SupabaseClient<Database> | null = null;
-function serviceDb(): SupabaseClient<Database> {
-  svc ??= createServiceClient({
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  });
-  return svc;
-}
+import { serviceDb } from "../service-db";
 
 /** A slug as `create_workspace` mints them: lowercase letters, digits and dashes. */
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;

@@ -1,4 +1,4 @@
-import { agoWords } from "../shared/time";
+import { agoWords, WEEK_MS } from "../shared/time";
 import { clockDate, inLocalWeek, localDaysBetween } from "../shared/clock";
 import { replyWaitsOnYou, standingOf, type StandingVerdict } from "../conversations/standing";
 /**
@@ -45,7 +45,7 @@ import {
 } from "../deals/deals";
 import type { RecipientState } from "../broadcasts/broadcasts";
 import { consentSourceLabel, mayReceive, type PersonConsent, saidYesTo } from "./person-consent";
-import { fmtDate, MONTH_MS, ts, WEEK_MS } from "./person-helpers";
+import { fmtDate, MONTH_MS, ts } from "./person-helpers";
 import type { PersonNoteDto, PersonNoteTeamDto } from "../notes/person-notes";
 export * from "./person-consent";
 export * from "../notes/person-notes";

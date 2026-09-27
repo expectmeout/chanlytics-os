@@ -11,6 +11,7 @@
  */
 import { CALENDAR_FEED_WORDS } from "../calendar/calendar";
 import { agoWords } from "../shared/time";
+import { plural } from "../shared/words";
 import { bookingPageOffered, listingLine } from "../google/google";
 import { dayWords, trialWords, TRIAL_COVERS, billingDoorOpen, BILLING_TEST_MODE_CLAUSE } from "../workspace/billing";
 import { capabilityStatus } from "./capabilities";
@@ -19,7 +20,6 @@ import { GET_YES_ROUTE, NO_NUMBER_REACH } from "../people/people";
 import { FIRST_RUN_FIND_ROUTE } from "./first-run-route";
 import {
   activationWords,
-  plural,
   rowContextOf,
   BROKEN_CONFIG_WORDS,
   SETUP_STATE_WORDS,

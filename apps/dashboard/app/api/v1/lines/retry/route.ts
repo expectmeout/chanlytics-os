@@ -1,6 +1,5 @@
 import { write, workspace } from "@/server/route";
-import { AppError } from "@chanlytics/contracts";
-import { isUuid } from "@/server/request-guards";
+import { AppError, isUuid } from "@chanlytics/contracts";
 import { edgeLines } from "@/server/connections/lines";
 
 /**
