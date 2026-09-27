@@ -1243,13 +1243,10 @@ test("on a phone the Line is the screen: focus on the dialog, not the field, the
   };
   try {
     ask([]);
-    render(Palette, props);
-    let tree = await later(Palette, props);
-    assert.ok(byTestId(tree, "ask-hero"), "the hero stands on a phone");
-    assert.ok(byTestId(byTestId(tree, "ask-hero"), "ask-line-face"), "the three are in the hero, not the band");
-    assert.equal(byTestId(byTestId(tree, "ask-line"), "ask-line-face"), null, "and not in the band");
-    assert.equal(byTestId(tree, "ask-real").props["aria-modal"], "true");
-    // The field and the dialog are given something to focus; the Line's focus effects reach them within 30ms.
+    // The field and the dialog are given something to focus on the first draw, before anything awaits, as the
+    // desktop test below does: the focus effect fires on a 30ms timer (useAskFocus), and under load the draws that
+    // follow can take longer than that. The refs are the same across draws.
+    let tree = render(Palette, props);
     let focused = 0;
     let dialogFocused = 0;
     inputOf(tree).props.ref.current = {
@@ -1262,7 +1259,14 @@ test("on a phone the Line is the screen: focus on the dialog, not the field, the
         dialogFocused++;
       },
     };
-    await new Promise((r) => setTimeout(r, 60));
+    tree = await later(Palette, props);
+    assert.ok(byTestId(tree, "ask-hero"), "the hero stands on a phone");
+    assert.ok(byTestId(byTestId(tree, "ask-hero"), "ask-line-face"), "the three are in the hero, not the band");
+    assert.equal(byTestId(byTestId(tree, "ask-line"), "ask-line-face"), null, "and not in the band");
+    assert.equal(byTestId(tree, "ask-real").props["aria-modal"], "true");
+    await until(() => dialogFocused > 0, "the dialog takes focus on a phone");
+    // A focus of the field would be on the same 30ms timer, set on the first draw: one more 30ms cannot end before it.
+    await new Promise((r) => setTimeout(r, 30));
     assert.equal(focused, 0, "no keyboard of its own: the field is not focused as the takeover opens (S10)");
     assert.equal(dialogFocused, 1, "the dialog is (S10)");
     assert.deepEqual(
