@@ -4364,6 +4364,16 @@ async function setPersonReplyMode(db, tenantId, contactId, mode) {
 
 // src/repositories/people.ts
 var PEOPLE_PAGE = 1e3;
+var NAMES_AT_ONCE = 100;
+async function namesOfPeople(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += NAMES_AT_ONCE) {
+    const { data, error } = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", ids.slice(i, i + NAMES_AT_ONCE));
+    if (error) throw new Error(`namesOfPeople: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
+}
 async function peoplePage(db, tenantId, page = {}) {
   const offset = page.offset ?? 0;
   const limit = page.limit ?? PEOPLE_PAGE;
@@ -5024,6 +5034,7 @@ export {
   markProcessed,
   monthSent,
   moveSend,
+  namesOfPeople,
   notesForReceptionist,
   outreachFactsOf,
   outreachModeOf,
