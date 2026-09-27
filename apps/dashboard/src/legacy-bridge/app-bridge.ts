@@ -118,54 +118,7 @@ export function installAppBridge(
     if (Array.isArray(live)) post({ t: "calls", live: live.length });
   };
   win.addEventListener("surface:live", calls);
-  // The theme the page is drawn in, for the shell's own chrome: at install, and whenever LegacyApp repaints
-  // data-theme (the member changed their choice, or System followed the device). Watched the way the map and the
-  // mascot watch it; a window with no MutationObserver, a test's, says it once.
-  const root = win.document.documentElement;
-  const theme = () => {
-    const t = root.getAttribute?.("data-theme");
-    if (t === "light" || t === "dark") post({ t: "theme", theme: t });
-  };
-  const watcher = typeof MutationObserver === "function" ? new MutationObserver(theme) : null;
-  if (watcher && root instanceof Node) watcher.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
-  win.__appBridge = {
-    receive(raw: string) {
-      let v: unknown;
-      try {
-        v = JSON.parse(raw);
-      } catch {
-        return;
-      }
-      const m = parseShellMessage(v);
-      if (!m) return;
-      if (m.t === "navigate") win.location.hash = "/" + m.route;
-      else if (m.t === "menu") win.dispatchEvent(new CustomEvent("shell:menu"));
-      else if (m.t === "top") win.dispatchEvent(new CustomEvent("shell:top"));
-      else if (m.t === "device") {
-        // The phone registers through the page: the cookie, the same-origin rule and the rate bucket are the page's.
-        void doors
-          .register({
-            token: m.token,
-            platform: m.platform,
-            ...(m.version ? { app_version: m.version } : {}),
-            ...(m.activity ? { activity_token: m.activity } : {}),
-          })
-          .then((ok) => post({ t: "device", state: ok ? "registered" : "refused" }))
-          .catch(() => post({ t: "device", state: "refused" }));
-      } else if (m.t === "forget") {
-        void doors
-          .forget(m.token)
-          .then((ok) => post({ t: "device", state: ok ? "forgotten" : "refused" }))
-          .catch(() => post({ t: "device", state: "refused" }));
-      } else if (m.t === "token") {
-        // The shell's own calls carry the session's access token (decision 0011); the page is where it lives.
-        void doors
-          .token()
-          .then((t) => post({ t: "token", access: t?.access ?? null, expires: t?.expires ?? 0 }))
-          .catch(() => post({ t: "token", access: null, expires: 0 }));
-      }
-    },
-  };
+  win.__appBridge = { receive: (raw: string) => answerShell(win, doors, post, raw) };
   // The bell's number is the icon's: said at install and on every change of the feed or the marks.
   const badge = () => {
     const n = win.__notifs?.unread();
@@ -173,7 +126,7 @@ export function installAppBridge(
   };
   const offBell = win.__notifs?.onChange(badge) ?? (() => {});
   post({ t: "session", state: "in" });
-  theme();
+  const stopTheme = watchTheme(win, post);
   workspace();
   route();
   badge();
@@ -184,8 +137,75 @@ export function installAppBridge(
     win.removeEventListener("workspace:changed", workspace);
     win.removeEventListener("surface:today", today);
     win.removeEventListener("surface:live", calls);
-    watcher?.disconnect();
+    stopTheme();
     offBell();
     delete win.__appBridge;
   };
+}
+
+type Post = (m: PageMessage) => void;
+
+/**
+ * The theme the page is drawn in, for the shell's own chrome: said now, and whenever LegacyApp repaints data-theme
+ * (the member changed their choice, or System followed the device). Watched the way the map and the mascot watch
+ * it; a window with no MutationObserver, a test's, says it once. Returns the stop.
+ */
+function watchTheme(win: BridgeWindow, post: Post): () => void {
+  const root = win.document.documentElement;
+  const say = () => {
+    const t = root.getAttribute?.("data-theme");
+    if (t === "light" || t === "dark") post({ t: "theme", theme: t });
+  };
+  say();
+  if (typeof MutationObserver !== "function" || !(root instanceof Node)) return () => {};
+  const watcher = new MutationObserver(say);
+  watcher.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  return () => watcher.disconnect();
+}
+
+/** One ask from the shell, parsed and answered; a message that does not parse does nothing. */
+function answerShell(win: BridgeWindow, doors: DeviceDoors, post: Post, raw: string): void {
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  const m = parseShellMessage(v);
+  if (!m) return;
+  if (m.t === "navigate") {
+    win.location.hash = "/" + m.route;
+    return;
+  }
+  if (m.t === "menu" || m.t === "top") {
+    win.dispatchEvent(new CustomEvent(`shell:${m.t}`));
+    return;
+  }
+  if (m.t === "device") {
+    // The phone registers through the page: the cookie, the same-origin rule and the rate bucket are the page's.
+    const device = {
+      token: m.token,
+      platform: m.platform,
+      ...(m.version ? { app_version: m.version } : {}),
+      ...(m.activity ? { activity_token: m.activity } : {}),
+    };
+    sayDevice(doors.register(device), "registered", post);
+    return;
+  }
+  if (m.t === "forget") {
+    sayDevice(doors.forget(m.token), "forgotten", post);
+    return;
+  }
+  // The shell's own calls carry the session's access token (decision 0011); the page is where it lives.
+  void doors
+    .token()
+    .then((t) => post({ t: "token", access: t?.access ?? null, expires: t?.expires ?? 0 }))
+    .catch(() => post({ t: "token", access: null, expires: 0 }));
+}
+
+/** What became of a device door, said to the shell: done, or refused, and a door that throws is a refusal. */
+function sayDevice(door: Promise<boolean>, done: "registered" | "forgotten", post: Post): void {
+  void door
+    .then((ok) => post({ t: "device", state: ok ? done : "refused" }))
+    .catch(() => post({ t: "device", state: "refused" }));
 }
