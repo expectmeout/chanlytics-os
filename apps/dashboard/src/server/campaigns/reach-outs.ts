@@ -1,7 +1,7 @@
 import "server-only";
 /**
  * The reads and writes behind the reach-out routes (Reach out, Part 4). Reads run on the session client, so RLS
- * decides; the definer doors (00198) check the member again. Saving is the service role's (R15): the route has
+ * decides; the definer doors (00211) check the member again. Saving is the service role's (R15): the route has
  * checked the role, and this validates every word first (contracts validateReachOutChain), so the database keeps
  * only its CHECKs. Every sentence said is contracts' (REACH_OUT_REFUSALS, chainIssueWords).
  */
@@ -147,7 +147,7 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
   });
 }
 
-/** A chain's report (00198 reach_out_chain_report): its steps counted once, its last runs, whether it may go. */
+/** A chain's report (00211 reach_out_chain_report): its steps counted once, its last runs, whether it may go. */
 export async function chainReportOf(
   ctx: RouteContext,
   tenantId: string,
@@ -168,7 +168,7 @@ export async function reachOf(ctx: RouteContext, tenantId: string, searchId: str
   return dtoOf<ReachOutReachDto>(data);
 }
 
-/** A door's jsonb answer, as the DTO its function builds (00198): the SQL is its shape, and its tests hold it. */
+/** A door's jsonb answer, as the DTO its function builds (00211): the SQL is its shape, and its tests hold it. */
 const dtoOf = <T>(data: unknown): T => data as T;
 
 /** The workspace's booking link, which {{booking link}} needs. */
@@ -378,7 +378,7 @@ const heldOf = (s: SendRow): ReachOutRunDto["held"][number] => ({
 /* ---- Reach out (Part 4): a chain saved by the service role, and one business's preview ---- */
 
 /**
- * A chain, made or edited whole (00198 reach_out_save). The service role's alone (R15): the route has checked the
+ * A chain, made or edited whole (00211 reach_out_save). The service role's alone (R15): the route has checked the
  * member's role and validated every word, and passes who they are; the door checks the membership again.
  */
 async function saveReachOut(

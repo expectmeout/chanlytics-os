@@ -1,7 +1,7 @@
 /**
  * The reach-out sheet's reads and writes (Reach out, Part 4 PRs 4–5): a workspace's chains as their rows, a chain's
  * root and a send by their ids, the emails' words, a run's sends, a step stamped for its day, the one reset of a
- * send's check (00198 reach_out_recheck) and the outreach mode. The one place these tables are typed for them. The
+ * send's check (00211 reach_out_recheck) and the outreach mode. The one place these tables are typed for them. The
  * dashboard asks on the session client (RLS decides what a member reads); the edge on the service role. A read that
  * fails throws: "we could not read" is never "none".
  */
@@ -170,7 +170,7 @@ export async function stampReachOutStep(db: Db, id: string, p: { at: Date; runFo
 }
 
 /**
- * Sends back to unchecked (R5), in one statement (00198 reach_out_recheck, the one reset): planned, not checked, at
+ * Sends back to unchecked (R5), in one statement (00211 reach_out_recheck, the one reset): planned, not checked, at
  * their words' next version, so a check still under way for the old words writes nothing; what their owner included
  * them past stays (R7). Only from planned, held or claimed, and only from `fromState` when it is named: the sender
  * names "claimed", so a send another tick has claimed since is never reset. One past its fortnight is given up,

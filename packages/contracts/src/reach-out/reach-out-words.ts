@@ -255,7 +255,7 @@ export const ReachOutChainSchema = z.object({
   name: z.string().trim().min(1).max(REACH_OUT_NAME_MAX),
   search_id: z.string().uuid(),
   include_unconfirmed: z.boolean(),
-  /** One of the sheet's paces: the database's CHECK holds the same set (00198). */
+  /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
   gap_minutes: z
     .number()
     .int()

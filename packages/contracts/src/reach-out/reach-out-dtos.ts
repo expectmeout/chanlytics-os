@@ -65,7 +65,7 @@ export interface ReachOutRunLine {
   held: number;
 }
 
-/** A chain's report (00198 reach_out_chain_report): each step counted once, its last runs, whether it may go. */
+/** A chain's report (00211 reach_out_chain_report): each step counted once, its last runs, whether it may go. */
 export interface ReachOutChainReportDto {
   steps: Array<{ id: string; n: number } & ReachOutStepCounts>;
   runs: ReachOutRunLine[];

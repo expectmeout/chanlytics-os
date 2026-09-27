@@ -99,7 +99,7 @@ function clockReads(t) {
   const running = (id) => t.playbooks.some((p) => p.id === id && p.state === "running");
   const emailOf = (s) => (s.message_id ? t.messages.find((m) => m.id === s.message_id) : null);
   return {
-    // 00198's one reset, as the SQL makes it (proved on a stack, reach-out-sheet-doors.db.test.mjs).
+    // 00211's one reset, as the SQL makes it (proved on a stack, reach-out-sheet-doors.db.test.mjs).
     reach_out_recheck: (a) => {
       (t.rechecks ??= []).push(a);
       let n = 0;
@@ -110,7 +110,7 @@ function clockReads(t) {
           (!a.p_from_state || s.state === a.p_from_state) &&
           (!a.p_tenant_id || s.tenant_id === a.p_tenant_id)
         ) {
-          // Past its fortnight (00198 reach_out_given_up): given up, never planned again.
+          // Past its fortnight (00211 reach_out_given_up): given up, never planned again.
           if (Date.parse(s.created_at) < Date.now() - 14 * DAY) {
             Object.assign(s, { state: "skipped", reason: "kept_waiting" });
             continue;
