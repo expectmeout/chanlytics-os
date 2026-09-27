@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { replyWindow, WA_WINDOW_MS } from "@chanlytics/contracts";
+import { emptyReadSet, replyWindow, WA_WINDOW_MS } from "@chanlytics/contracts";
 import { fakeDb } from "../_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -49,7 +49,7 @@ function toolContext(tables) {
     ctx: { supabase: fakeDb(tables), userId: "u1", email: "ada@example.com", params: {} },
     tenantId: TENANT,
     role: "operator",
-    read: new Proxy({}, { get: (sets, kind) => (sets[kind] ??= new Set()) }),
+    read: emptyReadSet(),
     now: NOW,
   };
 }

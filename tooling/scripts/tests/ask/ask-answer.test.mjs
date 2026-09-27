@@ -10,6 +10,7 @@ import {
   ASK_ANSWER_CAPS,
   ASK_ANSWER_FORMAT,
   ASK_CAPS,
+  ASK_CITATION_KINDS,
   answerForCards,
   answerFromV1,
   answerText,
@@ -18,10 +19,12 @@ import {
   callsAnswer,
   callsToday,
   cardOpenRoute,
+  emptyReadSet,
   failedAnswer,
   leadQuestionRoute,
   needsAnswer,
   normalizeAnswer,
+  noteRows,
   oneDoor,
   openingsAnswer,
   partialSay,
@@ -398,13 +401,22 @@ const C = ASK_ANSWER_CAPS;
 const CALL = ID2;
 const PERSON = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 const UNREAD = "44444444-4444-4444-8444-444444444444";
-const reads = (over = {}) => ({
-  thread: new Set([ID]),
-  conversation: new Set([ID]),
-  call: new Set([CALL]),
-  person: new Set([PERSON]),
-  ...over,
-});
+/** A row as a reader returns it (contracts AskRowRef): where it opens is the reader's to say. */
+const ref = (kind, id, route, label = "") => ({ kind, id, route, label });
+/** A thread's RowRef, as the Inbox's read gives it. */
+const threadRef = (id) => ref("thread", id, `inbox/th-${id}`);
+/** The read set holding these rows, each as its reader gave it: a thread, its conversation, a call, a person, and more. */
+const reads = (...more) => {
+  const read = emptyReadSet();
+  noteRows(read, [
+    threadRef(ID),
+    ref("conversation", ID, `conversations/${ID}`),
+    ref("call", CALL, `conversations/cv-${CALL}`),
+    ref("person", PERSON, `clients/${PERSON}`),
+    ...more,
+  ]);
+  return read;
+};
 const NONE = { kind: "none", id: "", label: "" };
 const BREAKDOWN = {
   label: "customer messages",
@@ -553,7 +565,7 @@ test("every string is one line of words without tags, and every string and list 
       do: { open: { source: NONE, label: "", now: false }, next: ["One?", "Two?", "Three?"] },
     }),
     "en",
-    reads({ thread: new Set(threads) }),
+    reads(...threads.map(threadRef)),
   ).answer;
   assert.equal(a.say.headline, "Nora is waiting.");
   assert.ok(a.say.detail.length <= C.detail && a.say.detail.endsWith("word…"), "cut on a whole word, and says so");
@@ -608,6 +620,135 @@ test("a source is a row read this turn however the model spelled it, or a page o
     }),
   ).answer.show.items[0];
   assert.equal(item.source.to, `inbox/th-${ID}`, "a route the model writes is never taken");
+});
+
+/* ------------------------------------------------------------ thirteen names (Ask Rewired, PR 4.2) */
+
+const LEAD = "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1";
+const SEARCH_ID = "b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2";
+const DEAL = "c3c3c3c3-c3c3-4c3c-8c3c-c3c3c3c3c3c3";
+const SAVED = "d4d4d4d4-d4d4-4d4d-8d4d-d4d4d4d4d4d4";
+const RUN = "e5e5e5e5-e5e5-4e5e-8e5e-e5e5e5e5e5e5";
+const PLAYBOOK = "f6f6f6f6-f6f6-4f6f-8f6f-f6f6f6f6f6f6";
+const TEMPLATE = "a7a7a7a7-a7a7-4a7a-8a7a-a7a7a7a7a7a7";
+const DOMAIN = "b8b8b8b8-b8b8-4b8b-8b8b-b8b8b8b8b8b8";
+/** One row of each new kind, as its reader returns it: the route is the reader's, never one the grammar derives. */
+const NEW_ROWS = [
+  ref("lead", LEAD, `clients/leads:s-${SEARCH_ID}:p-${LEAD}`, "Bright Movers"),
+  ref("search", SEARCH_ID, `clients/leads:s-${SEARCH_ID}`, "Movers in Queens"),
+  ref("deal", DEAL, `clients/${PERSON}`, "Dana's move"),
+  ref("list", "quiet", "clients/seg:quiet", "Gone quiet"),
+  ref("list", SAVED, `clients/list:${SAVED}`, "Regulars"),
+  ref("broadcast", RUN, `broadcasts/run:${RUN}`, "Monday offer"),
+  ref("playbook", PLAYBOOK, `outbound/${PLAYBOOK}`, "Win-back"),
+  ref("template", TEMPLATE, "messages", "spring_offer"),
+  ref("domain", DOMAIN, "admin/integrations", "mail.example.com"),
+];
+
+test("thirteen names: the format's kinds are a page and twelve rows, and a run is none of them; the format is measured under the edge's 8,000", () => {
+  const kinds = at("show", "items", "[]", "source").properties.kind.enum;
+  assert.deepEqual(kinds, [...ASK_CITATION_KINDS, "none"], "the format writes the grammar's kinds, and none");
+  assert.deepEqual(
+    [...ASK_CITATION_KINDS],
+    [
+      "thread",
+      "conversation",
+      "call",
+      "person",
+      "page",
+      "lead",
+      "search",
+      "deal",
+      "list",
+      "broadcast",
+      "playbook",
+      "template",
+      "domain",
+    ],
+  );
+  assert.ok(!kinds.includes("run"), "a Broadcasts row is cited as a broadcast; run is its address's word");
+  assert.match(at("show", "items", "[]", "source").description, /a run is kind broadcast/);
+  for (const part of [
+    ["show", "figures", "[]"],
+    ["show", "breakdown"],
+    ["do", "open"],
+  ])
+    assert.deepEqual(at(...part, "source"), at("show", "items", "[]", "source"), `${part.join(".")}: the same source`);
+  const size = JSON.stringify(ASK_ANSWER_FORMAT).length;
+  assert.ok(size > 5_385 && size < 8_000, `the format is ${size} characters: more than main's 5,385, under 8,000`);
+});
+
+test("a row of each new kind a reader returned is kept and opens where the reader said; one not read goes and is counted; a deal opens its person, a People list grounds by its name, a run is cited as a broadcast", () => {
+  const set = reads(...NEW_ROWS);
+  const item = (source, read = set) => {
+    const r = read1(withShow({ items: [{ title: "x", meta: "", line: "", source }] }), "en", read);
+    return { source: r.answer.show.items[0]?.source ?? null, dropped: r.dropped };
+  };
+  for (const row of NEW_ROWS) {
+    const kept = item({ kind: row.kind, id: row.id, label: row.label });
+    assert.deepEqual(
+      kept,
+      { source: { kind: row.kind, id: row.id, label: row.label, to: row.route, door: true }, dropped: 0 },
+      `a ${row.kind} read opens at its reader's route`,
+    );
+    assert.deepEqual(
+      item({ kind: row.kind, id: row.id, label: row.label }, reads()),
+      { source: null, dropped: 1 },
+      `a ${row.kind} not read goes, counted`,
+    );
+  }
+  assert.equal(
+    item({ kind: "deal", id: DEAL, label: "Dana's move" }).source.to,
+    `clients/${PERSON}`,
+    "its person's page",
+  );
+  assert.equal(item({ kind: "list", id: "quiet", label: "Quiet" }).source.to, "clients/seg:quiet", "a name, no uuid");
+  assert.deepEqual(item({ kind: "list", id: "nobody_list", label: "x" }), { source: null, dropped: 1 });
+  assert.equal(
+    item({ kind: "search", id: "quiet", label: "Quiet" }).source.kind,
+    "list",
+    "a People list's name under another kind is the list that read it",
+  );
+  assert.deepEqual(
+    item({ kind: "broadcast", id: `broadcasts/run:${RUN}`, label: "Monday offer" }).source,
+    { kind: "broadcast", id: RUN, label: "Monday offer", to: `broadcasts/run:${RUN}`, door: true },
+    "a run spelled by its address is the broadcast",
+  );
+  assert.deepEqual(
+    item({ kind: "run", id: RUN, label: "Monday offer" }),
+    { source: null, dropped: 1 },
+    "run is no citation's kind: one written goes, counted",
+  );
+  assert.equal(
+    item({ kind: "page", id: `clients/list:${SAVED}`, label: "Regulars" }).source.kind,
+    "list",
+    "a list's address is its row",
+  );
+  assert.deepEqual(
+    item({ kind: "page", id: `clients/list:${UNREAD}`, label: "x" }),
+    { source: null, dropped: 1 },
+    "never a page",
+  );
+  assert.equal(
+    item({ kind: "page", id: "clients/seg:new_week", label: "New" }).source.to,
+    "clients/seg:new_week",
+    "a People list's view is a page",
+  );
+  for (const cut of ["outbound/12ab", "broadcasts/run:12ab", "clients/leads:s-12ab", "clients/list:12ab"])
+    assert.equal(
+      item({ kind: "page", id: cut, label: "x" }).source,
+      null,
+      `${cut}: a row's route cut short is no page`,
+    );
+  assert.equal(
+    item({ kind: "page", id: "clients/leads:l-ready", label: "Ready" }).source.to,
+    "clients/leads:l-ready",
+    "a Leads view is a page",
+  );
+  assert.equal(
+    item({ kind: "page", id: "broadcasts/get-yes", label: "Get their yes" }).source.to,
+    "broadcasts/get-yes",
+  );
 });
 
 test("an item is its row, so one not read goes; a figure keeps its words and loses its receipt; the rows not read are counted", () => {
@@ -786,7 +927,7 @@ test("the v1 fields a v2 answer is stored beside: its words, each place it rests
       })),
     }),
     "en",
-    reads({ thread: new Set(threads) }),
+    reads(...threads.map(threadRef)),
   ).answer;
   assert.equal(v1FromAnswer(many).citations.length, ASK_CAPS.citations);
 });
