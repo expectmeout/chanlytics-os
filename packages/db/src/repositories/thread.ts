@@ -473,3 +473,59 @@ export function describeLead(lead: LeadContext, now = new Date(), tz = "UTC"): s
     );
   return bits.join(" ");
 }
+
+/* -------------------------------------------------------------------------
+ * The words a thread or a call said, found (00218).
+ * ---------------------------------------------------------------------- */
+
+/** A message that holds the words, or a call whose transcript does, as search_messages answers it. */
+export interface MessageHit {
+  /** A message (a call_summary among them), or a call found by its transcript. */
+  kind: "message" | "call";
+  /** The message's id, or the call's. */
+  id: string;
+  /** The thread it is on: a message always has one; a call may not. */
+  conversationId: string | null;
+  contactId: string | null;
+  /** A message's channel; null for a call. */
+  channel: string | null;
+  direction: string;
+  /** When it was sent, or when the call started (when it was recorded, where the call never said). */
+  at: string;
+  /** The words around the match, as written, with no markup. */
+  snippet: string;
+}
+
+/**
+ * The workspace's messages and call transcripts that hold these words, newest first: none older than `since`, at most
+ * `limit` (the database clamps it to 1–50). The words are websearch_to_tsquery's, so a quoted phrase, `or` and `-word`
+ * mean what a search box means; blank words, or words that only exclude, answer nothing. Under the caller's row
+ * security on a session client. A read that fails THROWS: a search the database could not answer is never "nobody said
+ * it".
+ */
+export async function searchMessages(
+  db: Db,
+  tenantId: string,
+  words: string,
+  since: Date,
+  limit: number,
+): Promise<MessageHit[]> {
+  const { data, error } = await db.rpc("search_messages", {
+    p_tenant: tenantId,
+    p_words: words,
+    p_since: since.toISOString(),
+    p_limit: limit,
+  });
+  if (error) throw new Error(`searchMessages: ${error.message}`);
+  // The generated row types every column as present; a call's channel, and a call's thread and person, may be null.
+  return (data ?? []).map((r): MessageHit => ({
+    kind: r.kind === "call" ? "call" : "message",
+    id: r.id,
+    conversationId: r.conversation_id ?? null,
+    contactId: r.contact_id ?? null,
+    channel: r.channel ?? null,
+    direction: r.direction,
+    at: r.at,
+    snippet: r.snippet ?? "",
+  }));
+}
