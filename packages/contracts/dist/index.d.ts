@@ -3504,6 +3504,8 @@ interface SetupDto {
         members: number;
         invitesOpen: number;
         alertEmails: number;
+        /** The partner who brought the workspace and sits on its team (0012), by name; the member's read alone carries it. */
+        partner?: string | null;
     };
     /**
      * The two answers, counted separately.

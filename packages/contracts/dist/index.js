@@ -12270,7 +12270,7 @@ function setupSteps(i, nowMs = Date.now()) {
       title: "Team and alerts",
       state: people && t.alertEmails ? "ready" : !people && !t.alertEmails ? "not_started" : "waiting_you",
       required: false,
-      sentence: people ? `${who} \xB7 ${alerts}.` : `Only you so far \xB7 ${alerts}.`,
+      sentence: people ? `${who}${t.partner ? ` \xB7 ${t.partner} is your partner` : ""} \xB7 ${alerts}.` : `Only you so far \xB7 ${alerts}.`,
       details: people ? [] : ["Invite someone who answers when you can't"],
       verb: !t.alertEmails ? { label: "Set alerts", to: "admin/notifications" } : !people ? { label: "Invite", to: "admin/team" } : { label: "Open Team", to: "admin/team" }
     });

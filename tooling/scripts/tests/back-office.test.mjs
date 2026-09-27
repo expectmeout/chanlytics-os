@@ -701,6 +701,33 @@ test("a workspace reading its own Setup still gets the roster, on its own client
   assert.equal(setup.team.invitesOpen, 1);
 });
 
+test("a workspace a partner brought names them on its own Setup, and nobody else's read carries the name", async () => {
+  const roster = [
+    {
+      membership_id: "m1",
+      member_user_id: "u1",
+      email: "owner@example.com",
+      role: "owner",
+      joined_at: ago(90),
+      display_name: "Bea",
+    },
+    {
+      membership_id: "m2",
+      member_user_id: "u2",
+      email: "ada@example.com",
+      role: "partner",
+      joined_at: ago(80),
+      display_name: null,
+    },
+  ];
+  const mine = await setupDtoFor(fakeDb(workspaceTables(), {}, { team_roster: () => roster }), TENANT, {
+    kind: "member",
+  });
+  assert.equal(mine.team.partner, "ada@example.com", "the address when they have not given a name");
+  const theirs = await setupDtoFor(fakeDb(workspaceTables()), TENANT, { kind: "back_office" });
+  assert.equal("partner" in theirs.team, false);
+});
+
 test("REGRESSION (S14): Setup reads what was asked for per thing, from the events -- a port read as a line, and the edge's line-is-ready bell read as a request", async () => {
   const db = fakeDb({
     ...workspaceTables(),
