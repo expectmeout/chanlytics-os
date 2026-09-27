@@ -13,7 +13,7 @@
  *
  * docs/plans/2026-09-17-email-channel.md, §7.
  */
-import { posesAsReply } from "@chanlytics/contracts";
+import { escapeHtml, posesAsReply, UUID } from "@chanlytics/contracts";
 
 /** What an email is a reply to, read off the stored parent row. */
 export interface EmailParent {
@@ -134,9 +134,6 @@ export function replySubject(parentSubject: string | null | undefined): string {
   while (REPLY_PREFIX.test(s)) s = s.replace(REPLY_PREFIX, "");
   return `Re: ${s || "your message"}`.slice(0, SUBJECT_MAX);
 }
-
-const escapeHtml = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
 /** A web address in the words, read AFTER escaping, so `"` and `<` are already entities and cannot end it early. */
 const LINK_IN_TEXT = /https?:\/\/[^\s<>]+/g;
@@ -597,8 +594,6 @@ export interface EmailReceipt {
   /** The provider's own account of a bounce, a failure or a suppression. Kept on the row as the provider's words, never shown as ours. */
   detail: { kind: string | null; subKind: string | null; message: string | null };
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Tags as the webhook carries them (a map) or as the request sent them (a list of pairs): one reader for both. */
 function tagOf(tags: unknown, name: string): string | null {

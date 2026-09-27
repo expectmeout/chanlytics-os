@@ -22,6 +22,8 @@
  * wallClockAt, tomorrowAtIn (a snooze target), and a datetime-local box read and
  * written in the zone (fromZonedInput, zonedInputValue).
  *
+ * And a length on a clock face, which has no zone: mmss, "2:05", a call's length or a line's minute within it.
+ *
  * The formatters are built once per zone, and an instant's calendar parts are
  * remembered for a while: view models format every message on every refresh, and
  * every one of them asks for "now" again. A zone that is not a zone is read as
@@ -249,4 +251,14 @@ export function fromZonedInput(value: string | null | undefined, tz: string): nu
   if (!m) return null;
   const ms = localToUtcMs(formatsFor(tz).zone, Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5]));
   return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * "2:05": a length in minutes and seconds, rounded to the second, never below "0:00". The call views that print
+ * nothing for a call with no length say so where they call this, each its own way, because they do not agree on
+ * what "no length" is.
+ */
+export function mmss(ms: number): string {
+  const total = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }

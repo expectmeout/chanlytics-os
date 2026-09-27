@@ -9,7 +9,7 @@ import type { Database } from "@chanlytics/db";
 import { billingAccountDto, type BillingAccountDto, type BillingPriceDto } from "@chanlytics/contracts";
 import type { EdgeAnswer } from "../connections/lines";
 import { deployment } from "../deployment";
-import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
+import { edgeConfigured, edgeHeaders, edgeUrl, READY_TTL_MS } from "../edge";
 
 export const BILLING_COLUMNS =
   "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";
@@ -59,7 +59,6 @@ interface BillingReadiness {
 
 const NOT_READY: BillingReadiness = { ready: false, livemode: null, price: null, trial_days: 14 };
 let readyCache: { at: number; value: BillingReadiness } | null = null;
-const READY_TTL_MS = 5 * 60_000;
 
 /**
  * What this deployment can charge, and the plan as Stripe states it. Cached

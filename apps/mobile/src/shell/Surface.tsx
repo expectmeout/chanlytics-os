@@ -2,9 +2,11 @@
  * One page of the live site in the shell (the PRD, M2): a WebView at the workspace's hash route, created the first
  * time its tab is in front and kept afterwards. It names the shell in the User-Agent, sets the page's bottom inset
  * before paint, hears the page over the bridge, keeps foreign links out of the app, recovers when iOS kills the
- * content process, reads "signed out" from the address so the shell can show the sign-in screen, hands the page the
- * phone's push token to register, opens the route of a tapped notification, and has the page forget the phone before
- * a sign-out (the PR 2 design).
+ * content process, reads "signed out" from the address so the shell can show the sign-in screen and keep nothing of
+ * the person who left, hands the page the phone's push token to register, and opens the route of a tapped
+ * notification. The page forgets the phone on its own before a sign-out (legacy-bridge/app-bridge.ts forgetPhone):
+ * the shell used to intercept the sign-out for that and replay it as a GET, which the route does not answer, so on
+ * iOS nobody was ever signed out.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Appearance, BackHandler, Linking, Platform, StyleSheet, View } from "react-native";
@@ -15,7 +17,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused, useRouter } from "expo-router";
 import { parsePageMessage, THEME_COLORS, type PageMessage, type ShellMessage } from "@chanlytics/contracts";
-import { askPage, bottomInset, insetScript, onPageMessage, registrationKey, shouldRegister } from "./bridge";
+import { askPage, bottomInset, insetScript, onPageMessage, registrationKey, shouldRegister, signedOut } from "./bridge";
 import { getState, registerReloader, setState, useShell, type Tab } from "./state";
 import { setBadge, tabOf } from "./notifications";
 import { updateTodayWidget } from "./widget";
@@ -42,9 +44,6 @@ interface Props {
   post?: string;
 }
 
-/** How long the page has to forget the phone before a sign-out goes ahead without it. */
-const FORGET_WAIT_MS = 2000;
-
 export function Surface({ route, tab, onReady, post }: Props) {
   const ref = useRef<WebView>(null);
   const focused = useIsFocused();
@@ -61,7 +60,6 @@ export function Surface({ route, tab, onReady, post }: Props) {
   const session = useShell((s) => s.session);
   const pendingRoute = useShell((s) => s.pendingRoute);
   const [ready, setReady] = useState(false);
-  const forgetting = useRef<{ resolve: () => void } | null>(null);
   const insets = useSafeAreaInsets();
   const userAgent = useMemo(() => userAgentToken(Application.nativeApplicationVersion ?? "0.0.0", PLATFORM), []);
   const inset = bottomInset(PLATFORM, insets.bottom);
@@ -86,7 +84,6 @@ export function Surface({ route, tab, onReady, post }: Props) {
   const onMessage = useCallback(
     (e: WebViewMessageEvent) => {
       const m = actOnPageMessage(e.nativeEvent.data);
-      if (m?.t === "device" && m.state === "forgotten") forgetting.current?.resolve();
       if (m?.t === "route") {
         setReady(true);
         if (focused) onReady?.(handle);
@@ -123,40 +120,21 @@ export function Surface({ route, tab, onReady, post }: Props) {
     handle.ask({ t: "navigate", route: pendingRoute });
   }, [ready, focused, pendingRoute, tab, handle]);
 
+  // A signed-out address is the person gone: nothing of theirs stays in the shell, the icon wears no number, and a
+  // call activity of theirs ends. The page itself has already forgotten the phone (shell.ts signOut).
   const onNavigation = useCallback((nav: WebViewNavigation) => {
-    if (!nav.loading && isSignedOutUrl(nav.url)) setState({ session: "out", slug: null, needs: 0, registered: null });
+    if (nav.loading || !isSignedOutUrl(nav.url) || getState().session === "out") return;
+    setState(signedOut(getState()));
+    void setBadge(0);
+    void endCallActivities();
   }, []);
 
-  const onShouldStart = useCallback(
-    (req: ShouldStartLoadRequest) => {
-      if (req.url.startsWith("about:")) return true;
-      if (isOurs(req.url)) {
-        // Before the person signs out, the page forgets the phone; two seconds at most, then the sign-out goes on.
-        const { token: tok, registered: reg } = getState();
-        if (/\/auth\/signout(\/|\?|$)/.test(req.url) && tok && reg && !forgetting.current) {
-          const go = () => {
-            forgetting.current = null;
-            setState({ registered: null });
-            ref.current?.injectJavaScript(`window.location.assign(${JSON.stringify(req.url)});true;`);
-          };
-          const timer = setTimeout(go, FORGET_WAIT_MS);
-          forgetting.current = {
-            resolve: () => {
-              clearTimeout(timer);
-              go();
-            },
-          };
-          handle.ask({ t: "forget", token: tok });
-          return false;
-        }
-        return true;
-      }
-      if (/^(https?:)/.test(req.url)) void WebBrowser.openBrowserAsync(req.url);
-      else if (/^(tel|mailto|sms):/.test(req.url)) void Linking.openURL(req.url);
-      return false;
-    },
-    [handle],
-  );
+  const onShouldStart = useCallback((req: ShouldStartLoadRequest) => {
+    if (req.url.startsWith("about:") || isOurs(req.url)) return true;
+    if (/^(https?:)/.test(req.url)) void WebBrowser.openBrowserAsync(req.url);
+    else if (/^(tel|mailto|sms):/.test(req.url)) void Linking.openURL(req.url);
+    return false;
+  }, []);
 
   useAndroidBack(ref, focused);
 

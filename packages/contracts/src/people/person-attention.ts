@@ -5,7 +5,8 @@
 import { tidyCallSummary } from "../voice/call-words";
 import { clockTime } from "../shared/clock";
 import { ago, type PersonRowVM, type ReceptionistTone } from "./people";
-import { DAY_MS, fmtDate } from "./person-helpers";
+import { fmtDate } from "./person-helpers";
+import { DAY_MS } from "../shared/time";
 
 /* ------------------------- the attention strip --------------------------- */
 

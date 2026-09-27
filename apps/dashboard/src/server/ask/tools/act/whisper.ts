@@ -29,7 +29,7 @@ async function proposeWhisper(t: ToolContext, input: { call_id: string; text: st
 export const propose_whisper = defineAct({
   name: "propose_whisper",
   description:
-    "Propose a sentence only the phone receptionist hears on a live call, worked into its next answer. Use a call id from list_calls with filter live.",
+    "Propose a whisper: a sentence only the phone receptionist hears on a live call, worked into its next answer to the caller. call_id is a live call's id, from list_calls with filter live or from the Live page's row. Call it when they want to tell the receptionist something while the call is on; a call that has ended is refused in words, since there is nobody on the line. It shapes what the receptionist says next and never reaches the caller as written.",
   input: z.object({ call_id: z.string(), text: z.string() }),
   label: "Preparing a whisper",
   build: proposeWhisper,

@@ -13,12 +13,19 @@
  * Units carry: a gap that rounds to sixty minutes is "1h", one that rounds to
  * twenty-four hours is "1d". Beyond a week a sentence gives a date instead of
  * a count, because "31d ago" is not how anyone says it.
+ *
+ * The lengths of time are named here once, and every module that counts in
+ * minutes, hours, days or weeks imports them: fifteen files each spelled a day
+ * for themselves, as 86_400_000 or as 24 * 3600 * 1000.
  */
 
-const MIN_MS = 60_000;
-const HOUR_MS = 3_600_000;
-const DAY_MS = 86_400_000;
-const WEEK_MS = 7 * DAY_MS;
+export const MIN_MS = 60_000;
+export const HOUR_MS = 3_600_000;
+export const DAY_MS = 86_400_000;
+export const WEEK_MS = 7 * DAY_MS;
+
+/** "Sep 6", in the runtime's own locale and zone: the date a sentence gives once a count would read oddly. */
+export const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 
 export interface SpanUnits {
   n: number;

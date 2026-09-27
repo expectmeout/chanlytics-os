@@ -2,11 +2,14 @@
  * The assistant's tool registry (the Phase 3 plan, PR 3.1): one definition per tool, the schema the model is shown
  * generated from its zod, the input parsed by that zod before the handler runs, dispatch a map.
  *
- * The move is proven as data: the tools the loop sends a viewer and an operator deep-equal the fixture frozen from
- * the two files the registry replaced, name by name. The parse is proven by running the registry over the database
- * in memory and watching what reached it: an input a schema refuses comes back in the zod's words and the handler
- * never runs, a `null` on an optional key is absent, an unknown key is stripped, an unknown tool is refused as it
- * always was. No source text is read here.
+ * The move was proven as data against the fixture frozen from the two files the registry replaced. PR 3.3 (D9)
+ * changed the descriptions on purpose, so the fixture now holds what must NOT move: the names, their order, and every
+ * schema's types, required keys, enums and additionalProperties. The words are held by what the docs ask of them:
+ * three sentences at least, the sibling named where the plan's table has one, no two alike, and the role an act
+ * description names taken from its card's spec. The parse is proven by running the registry over the database in
+ * memory and watching what reached it: an input a schema refuses comes back in the zod's words and the handler never
+ * runs, a `null` on an optional key is absent, an unknown key is stripped, an unknown tool is refused as it always
+ * was. No source text is read here.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -21,8 +24,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const {
-  READ_TOOLS,
-  ACT_TOOLS,
+  toApiTools,
   ACT_TOOL_NAMES,
   READ_DEFS,
   ACT_DEFS,
@@ -32,12 +34,65 @@ const {
   toolLabel,
   newToolContext,
 } = await import(at("apps/dashboard/src/server/ask/tools/index.ts"));
+// The tools as the loop offers them: a viewer the reads; an owner the reads, then the acts.
+const READ_TOOLS = toApiTools("viewer", true);
+const ACT_TOOLS = toApiTools("owner", true).slice(READ_TOOLS.length);
 
 const FIXTURE = JSON.parse(
   fs.readFileSync(path.join(ROOT, "tooling/scripts/tests/fixtures/ask-tools-0c136563.json"), "utf8"),
 );
-/** What the loop sends per tool (loop.ts): the three fields, nothing else. */
-const sent = (d) => ({ name: d.name, description: d.description, input_schema: d.input_schema });
+/** What the loop sends per tool (loop.ts): the three fields, and the examples where a tool carries them. */
+const sent = (d) => ({
+  name: d.name,
+  description: d.description,
+  input_schema: d.input_schema,
+  ...(d.input_examples ? { input_examples: d.input_examples } : {}),
+});
+/** A schema without its per-property descriptions: the shape the fixture froze, whatever words a property gains. */
+const shapeOf = (node) => {
+  if (Array.isArray(node)) return node.map(shapeOf);
+  if (!node || typeof node !== "object") return node;
+  const out = {};
+  for (const [k, v] of Object.entries(node)) {
+    if (k === "description") continue;
+    out[k] = k === "properties" ? Object.fromEntries(Object.entries(v).map(([p, s]) => [p, shapeOf(s)])) : shapeOf(v);
+  }
+  return out;
+};
+/** The pairs the Phase 3 plan's table joins (D11): each description names the other, so the model knows when to prefer it. */
+const SIBLINGS = {
+  list_threads: "get_thread",
+  get_thread: "list_threads",
+  search_people: "get_person",
+  get_person: "search_people",
+  list_calls: "get_call",
+  get_call: "list_calls",
+  get_calendar: "get_openings",
+  get_openings: "get_calendar",
+  list_audiences: "list_playbooks",
+  list_playbooks: "list_audiences",
+  draft_reply: "propose_steer",
+  propose_steer: "draft_reply",
+  propose_broadcast: "propose_playbook",
+  propose_playbook: "propose_broadcast",
+};
+/** Sentence ends: a full stop, a question mark or an exclamation mark followed by a space or the end. */
+const sentences = (s) => (s.match(/[.!?](\s|$)/g) ?? []).length;
+/** Each act tool's card kind, so its description's role words are held to the kind's spec (the brief's 3b). */
+const KIND_OF = {
+  draft_reply: "reply",
+  propose_steer: "steer",
+  propose_thread_verb: "thread_verb",
+  propose_person_mode: "person_mode",
+  propose_deal: "deal",
+  propose_policy: "policy",
+  propose_settings: "settings",
+  propose_whisper: "whisper",
+  propose_broadcast: "broadcast",
+  propose_playbook: "playbook",
+  propose_invite: "invite",
+  propose_lead_search: "lead_search",
+};
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const C1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
@@ -57,18 +112,23 @@ const contextFor = (role = "operator") => {
   };
 };
 
-test("the registry sends a viewer and an operator the tools the two files sent: the same twenty-six, names, order, descriptions and schemas, deep-equal to the fixture", () => {
+test("the registry sends a viewer and an operator the tools the fixture froze: the same twenty-six names in the same order, and every schema's types, required keys, enums and additionalProperties unmoved", () => {
   const viewer = READ_TOOLS.map(sent);
   const operator = [...READ_TOOLS, ...ACT_TOOLS].map(sent);
-  assert.equal(viewer.length, FIXTURE.viewer.length, "a viewer's count");
-  assert.equal(operator.length, FIXTURE.operator.length, "an operator's count");
+  assert.deepEqual(
+    viewer.map((t) => t.name),
+    FIXTURE.viewer.map((t) => t.name),
+    "a viewer: the fourteen reads, in order",
+  );
+  assert.deepEqual(
+    operator.map((t) => t.name),
+    FIXTURE.operator.map((t) => t.name),
+    "an operator: the reads, then the twelve acts, in order",
+  );
   for (let i = 0; i < FIXTURE.operator.length; i++) {
     const want = FIXTURE.operator[i];
-    assert.equal(operator[i].name, want.name, `tool ${i} is ${want.name}`);
-    assert.deepEqual(operator[i], want, want.name);
+    assert.deepEqual(shapeOf(operator[i].input_schema), shapeOf(want.input_schema), `${want.name}'s schema`);
   }
-  assert.deepEqual(viewer, FIXTURE.viewer, "a viewer: the fourteen reads");
-  assert.deepEqual(operator, FIXTURE.operator, "an operator: the reads, then the twelve acts");
   assert.deepEqual(
     [...ACT_TOOL_NAMES],
     ACT_TOOLS.map((d) => d.name),
@@ -76,9 +136,100 @@ test("the registry sends a viewer and an operator the tools the two files sent: 
   );
 });
 
+test("every description is at least three sentences, names its sibling where the plan's table has one, and no two are the same (D9)", () => {
+  const all = [...READ_TOOLS, ...ACT_TOOLS];
+  for (const t of all) {
+    assert.ok(sentences(t.description) >= 3, `${t.name}: ${sentences(t.description)} sentence(s)`);
+    const sibling = SIBLINGS[t.name];
+    if (sibling) assert.ok(t.description.includes(sibling), `${t.name} names ${sibling}`);
+  }
+  assert.equal(new Set(all.map((t) => t.description)).size, all.length, "no two descriptions are equal");
+  const names = new Set(all.map((t) => t.name));
+  for (const [a, b] of Object.entries(SIBLINGS)) assert.ok(names.has(a) && names.has(b), `${a} and ${b} are tools`);
+});
+
+test("an act description names who may approve its card as the card's spec says it: an owner or a partner where a partner's route commits, an owner where an owner's does, and no role where an operator's does", async () => {
+  const { PROPOSAL_SPECS } = await import("@chanlytics/contracts");
+  assert.deepEqual(Object.keys(KIND_OF).sort(), [...ACT_TOOL_NAMES].sort(), "every act tool has its kind here");
+  for (const t of ACT_TOOLS) {
+    const needs = PROPOSAL_SPECS[KIND_OF[t.name]].needs;
+    assert.ok(!/owner-only/i.test(t.description), `${t.name}: the role is said in the spec's words`);
+    // The whole clause, head and tail, per `needs`: one derivation in the registry (tools/context.ts approvalWords).
+    if (needs === "partner")
+      assert.ok(
+        t.description.includes(
+          "Only an owner or a partner can approve it: for anyone else, say so and that one of them can ask.",
+        ),
+        `${t.name} needs a partner`,
+      );
+    else if (needs === "owner")
+      assert.ok(
+        t.description.includes("Only an owner can approve it: for anyone else, say so and that an owner can ask.") &&
+          !/partner/i.test(t.description),
+        `${t.name} needs an owner`,
+      );
+    else assert.ok(!/\b(owners?|partners?)\b/i.test(t.description), `${t.name} needs an operator: no role named`);
+  }
+});
+
+/** The tools whose inputs have a shape a sentence does not pin (D9), in the registry's order: a list token, a day, a window, a change, a plan. */
+const SHAPED = [
+  "search_people",
+  "get_openings",
+  "get_calendar",
+  "propose_thread_verb",
+  "propose_deal",
+  "propose_policy",
+  "propose_settings",
+  "propose_broadcast",
+  "propose_playbook",
+  "propose_lead_search",
+];
+
+test("input_examples ride on the shaped tools, two or three each, and every one parses with its tool's own zod unchanged, as the registry parses an input; a settings example makes its card, and a lead plan plans", async () => {
+  const { ProposeLeadSearchSchema, planLeadSearch } = await import("@chanlytics/contracts");
+  const defs = [...READ_DEFS, ...ACT_DEFS];
+  const tools = [...READ_TOOLS, ...ACT_TOOLS];
+  assert.deepEqual(
+    tools.filter((t) => t.input_examples).map((t) => t.name),
+    SHAPED,
+    "the shaped tools carry examples, and no other",
+  );
+  for (const name of SHAPED) {
+    const def = defs.find((d) => d.name === name);
+    const tool = tools.find((t) => t.name === name);
+    assert.deepEqual(tool.input_examples, def.examples, `${name}: the examples the definition holds, in its order`);
+    assert.ok(def.examples.length >= 2 && def.examples.length <= 3, `${name}: ${def.examples.length} examples`);
+    for (const ex of def.examples) {
+      // An example the schema refuses would be a 400 on every turn until the retry drops them (D9).
+      const r = def.input.safeParse(ex);
+      assert.ok(r.success, `${name}: ${JSON.stringify(ex)} ${r.success ? "" : r.error.message}`);
+      assert.deepEqual(r.data, ex, `${name}: nothing stripped or defaulted, so the API's own check sees the same`);
+    }
+  }
+  // The settings changes pass the change's own schema too: each makes its card, with nothing read.
+  const { supabase, t } = contextFor("owner");
+  for (const ex of defs.find((d) => d.name === "propose_settings").examples) {
+    const out = await buildProposal(t, "propose_settings", ex);
+    assert.equal(out.isError, false, out.result);
+    assert.deepEqual(out.proposal.payload.change, ex.change);
+  }
+  assert.deepEqual(supabase.seen, [], "a settings card reads nothing");
+  // The lead plans pass the plan's own schema and the planner: a US search of businesses, with a card to make.
+  for (const ex of defs.find((d) => d.name === "propose_lead_search").examples) {
+    const planned = planLeadSearch(ProposeLeadSearchSchema.parse(ex));
+    assert.ok(planned.ok, `${ex.asked}: ${planned.ok ? "" : planned.refusal.text}`);
+  }
+});
+
 test("the schemas are deterministic: built twice they are the same bytes, and every tool's is toolSchema of its own zod", () => {
   const build = (defs) =>
-    defs.map((d) => ({ name: d.name, description: d.description, input_schema: toolSchema(d.input) }));
+    defs.map((d) => ({
+      name: d.name,
+      description: d.description,
+      input_schema: toolSchema(d.input),
+      ...(d.examples?.length ? { input_examples: d.examples } : {}),
+    }));
   assert.equal(JSON.stringify(build(READ_DEFS)), JSON.stringify(build(READ_DEFS)), "the reads, twice");
   assert.equal(JSON.stringify(build(ACT_DEFS)), JSON.stringify(build(ACT_DEFS)), "the acts, twice");
   assert.equal(JSON.stringify(build(READ_DEFS)), JSON.stringify(READ_TOOLS), "and the array the loop holds");

@@ -12,6 +12,7 @@ import {
   ruleNeeds,
   triggerOf,
   triggerOffered,
+  UUID,
   type ParamSpec,
   type PlaybookPolicyClass,
   type PlaybookTrigger,
@@ -46,14 +47,6 @@ function int(v: unknown, fallback: number, min: number, max: number, what: strin
   return n;
 }
 
-/**
- * Everything a playbook names, checked the way a broadcast is: the trigger,
- * then the template and its values through the one judgement, then the
- * whole numbers. A playbook can never name a template a broadcast could not
- * send or a slot the workspace cannot fill.
- */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** What a playbook's check reads beyond its template: the name of a list it runs on, or null when there is none. */
 export interface CheckPlaybookPorts extends TemplateValuesPorts {
   listName(id: string): Promise<string | null>;
@@ -61,6 +54,12 @@ export interface CheckPlaybookPorts extends TemplateValuesPorts {
   dealsOn(): Promise<boolean>;
 }
 
+/**
+ * Everything a playbook names, checked the way a broadcast is: the trigger,
+ * then the template and its values through the one judgement, then the
+ * whole numbers. A playbook can never name a template a broadcast could not
+ * send or a slot the workspace cannot fill.
+ */
 export async function checkPlaybook(
   ports: CheckPlaybookPorts,
   body: Record<string, unknown> | null,

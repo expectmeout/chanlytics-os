@@ -1,7 +1,8 @@
 /**
  * What the shell knows, in one small store read with useSyncExternalStore: which workspace the pages are about,
- * whether a person is signed in, the needs-you count for the Inbox badge, which tab is in front, and the build the
- * site last reported. Every page's messages land here (bridge.ts); every tab and the root layout read from here.
+ * whether a person is signed in, the needs-you count for the Inbox badge, the phone's tokens and what became of
+ * them, the page's theme, and the build the site last reported. Every page's messages land here (bridge.ts); every
+ * tab and the root layout read from here. Which tab is in front is front.ts's, outside React.
  */
 import { useSyncExternalStore } from "react";
 import type { Theme } from "@chanlytics/contracts";
@@ -13,7 +14,6 @@ export interface ShellState {
   slug: string | null;
   session: Session;
   needs: number;
-  activeTab: Tab;
   siteSha: string | null;
   lastReloadAt: number;
   /** The phone's push token, once the service gave one; null on a simulator or after a refusal. */
@@ -22,6 +22,8 @@ export interface ShellState {
   activityToken: string | null;
   /** The token the page has registered for the person signed in; a new token or a new person registers again. */
   registered: string | null;
+  /** The token pair the site refused, until the next foreground: asked again then, not at once and for ever. */
+  refused: string | null;
   /** A tapped notification's route, until the owning tab's page has been asked to open it. */
   pendingRoute: string | null;
   /** The icon's number, as the bell last said it. */
@@ -42,12 +44,12 @@ export const INITIAL: ShellState = {
   slug: null,
   session: "unknown",
   needs: 0,
-  activeTab: "today",
   siteSha: null,
   lastReloadAt: 0,
   token: null,
   activityToken: null,
   registered: null,
+  refused: null,
   pendingRoute: null,
   badge: 0,
   tooOld: false,
@@ -69,10 +71,6 @@ export function setState(patch: Partial<ShellState>): void {
   if (Object.keys(patch).every((k) => next[k as keyof ShellState] === state[k as keyof ShellState])) return;
   state = next;
   listeners.forEach((l) => l());
-}
-
-export function resetState(): void {
-  setState(INITIAL);
 }
 
 export function subscribe(l: () => void): () => void {

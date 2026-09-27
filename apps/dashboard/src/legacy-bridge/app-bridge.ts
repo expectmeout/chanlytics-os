@@ -30,7 +30,7 @@ interface BridgeWindow {
   };
   location: { hash: string; pathname: string };
   ReactNativeWebView?: { postMessage(s: string): void };
-  __appBridge?: { receive(raw: string): void };
+  __appBridge?: { receive(raw: string): void; forgetPhone(): Promise<void> };
   /** The bell (notifications.ts), when it is installed: its number is the icon's. */
   __notifs?: { unread(): number; onChange(cb: () => void): () => void };
   /** Today's view model, as the surface seam publishes it (surface-data.ts): what the widget shows. */
@@ -118,7 +118,12 @@ export function installAppBridge(
     if (Array.isArray(live)) post({ t: "calls", live: live.length });
   };
   win.addEventListener("surface:live", calls);
-  win.__appBridge = { receive: (raw: string) => answerShell(win, doors, post, raw) };
+  // The phone this page registered for the person signed in, so a sign-out can forget it (shell.ts signOut).
+  const phone: Phone = { token: null };
+  win.__appBridge = {
+    receive: (raw: string) => answerShell(win, doors, post, raw, phone),
+    forgetPhone: () => forgetPhone(doors, post, phone),
+  };
   // The bell's number is the icon's: said at install and on every change of the feed or the marks.
   const badge = () => {
     const n = win.__notifs?.unread();
@@ -144,6 +149,12 @@ export function installAppBridge(
 }
 
 type Post = (m: PageMessage) => void;
+/** The push token this page registered, until it is forgotten. */
+interface Phone {
+  token: string | null;
+}
+/** How long a sign-out waits for the phone to be forgotten before it goes on without it. */
+const FORGET_WAIT_MS = 2000;
 
 /**
  * The theme the page is drawn in, for the shell's own chrome: said now, and whenever LegacyApp repaints data-theme
@@ -164,7 +175,7 @@ function watchTheme(win: BridgeWindow, post: Post): () => void {
 }
 
 /** One ask from the shell, parsed and answered; a message that does not parse does nothing. */
-function answerShell(win: BridgeWindow, doors: DeviceDoors, post: Post, raw: string): void {
+function answerShell(win: BridgeWindow, doors: DeviceDoors, post: Post, raw: string, phone: Phone): void {
   let v: unknown;
   try {
     v = JSON.parse(raw);
@@ -189,11 +200,11 @@ function answerShell(win: BridgeWindow, doors: DeviceDoors, post: Post, raw: str
       ...(m.version ? { app_version: m.version } : {}),
       ...(m.activity ? { activity_token: m.activity } : {}),
     };
-    sayDevice(doors.register(device), "registered", post);
-    return;
-  }
-  if (m.t === "forget") {
-    sayDevice(doors.forget(m.token), "forgotten", post);
+    const registered = doors.register(device).then((ok) => {
+      if (ok) phone.token = m.token;
+      return ok;
+    });
+    sayDevice(registered, "registered", post);
     return;
   }
   // The shell's own calls carry the session's access token (decision 0011); the page is where it lives.
@@ -204,8 +215,21 @@ function answerShell(win: BridgeWindow, doors: DeviceDoors, post: Post, raw: str
 }
 
 /** What became of a device door, said to the shell: done, or refused, and a door that throws is a refusal. */
-function sayDevice(door: Promise<boolean>, done: "registered" | "forgotten", post: Post): void {
-  void door
+function sayDevice(door: Promise<boolean>, done: "registered" | "forgotten", post: Post): Promise<void> {
+  return door
     .then((ok) => post({ t: "device", state: ok ? done : "refused" }))
     .catch(() => post({ t: "device", state: "refused" }));
+}
+
+/**
+ * Before a sign-out (shell.ts): the phone this page registered is forgotten, through the page's own door while the
+ * session still stands, and the shell hears which way it went. Nothing registered is nothing to do; a door that is
+ * slow does not hold the sign-out past FORGET_WAIT_MS.
+ */
+function forgetPhone(doors: DeviceDoors, post: Post, phone: Phone): Promise<void> {
+  const tok = phone.token;
+  if (!tok) return Promise.resolve();
+  phone.token = null;
+  const forgotten = sayDevice(doors.forget(tok), "forgotten", post);
+  return Promise.race([forgotten, new Promise<void>((r) => setTimeout(r, FORGET_WAIT_MS))]);
 }

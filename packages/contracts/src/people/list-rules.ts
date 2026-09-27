@@ -14,6 +14,7 @@
 import { z } from "zod";
 import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonCameFrom, type PersonChannel } from "./person-words";
 import type { PersonRowVM } from "./people";
+import { plural } from "../shared/words";
 
 /**
  * What a list may need that a workspace, a reader or a moment may not have: a calendar read, a consult-first service
@@ -411,7 +412,6 @@ export function listRuleMatches(rule: ListRule, v: PersonRowVM, inList: InList =
   return rule.all.every((c) => ("any" in c ? c.any.some((f) => holds(f, v, inList)) : holds(c, v, inList)));
 }
 
-const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 const lower = (s: string) => `${s.charAt(0).toLowerCase()}${s.slice(1)}`;
 
 const STANDING_WORDS: Record<(typeof LIST_STANDINGS)[number], string> = {

@@ -148,8 +148,7 @@ async function getThread(t: ToolContext, input: { conversation_id: string; more?
 
 export const list_threads = defineRead({
   name: "list_threads",
-  description:
-    "Threads from the Inbox on every wire — WhatsApp, text or email, whichever the customer last wrote on, named per row in `channel` — each with its last three messages (who wrote, what). filter: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, recent (all, newest first). Call get_thread only when more of one conversation is needed.",
+  description: `Threads from the Inbox on every wire (WhatsApp, text or email, whichever the customer last wrote on, named per row in channel), each with its state, its held draft when one waits, how long the customer has waited, whether the reply window is open, and its last three messages with who wrote them. filter: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, or recent (all, newest first). Call it to find threads by their state, and for what the page on screen does not hold; call get_thread instead when the whole conversation is needed, since a row here carries only the last three messages. It returns at most ${ASK_CAPS.threads} threads, with total_matching counted before the cap, so a count is the total and never the rows shown.`,
   input: z.object({ filter: z.enum(["needs_you", "held", "waiting", "snoozed", "recent"]) }),
   label: "Reading the Inbox",
   run: listThreads,
@@ -157,8 +156,7 @@ export const list_threads = defineRead({
 
 export const get_thread = defineRead({
   name: "get_thread",
-  description:
-    "One conversation, on whichever wire it runs — WhatsApp, text or email, named in `channel`: the person, its state, the last messages with who wrote them, and why the receptionist answered or held as it did. Use the conversation id from list_threads, get_today or search_people. more=true returns the longer history.",
+  description: `One conversation, on whichever wire it runs (WhatsApp, text or email, named in channel): the person, its state, the open escalation, whether the reply window is open, the held draft with why it was held, and the messages with who wrote each and why the receptionist answered or held as it did. Call it when the whole conversation is needed and the page on screen holds only the thread's row; list_threads is the sibling that finds threads by state, with their last three messages. conversation_id is the id list_threads, get_today, search_people or get_person returned. It returns the newest ${ASK_CAPS.messages} messages, or ${ASK_CAPS.messagesMore} with more true; a conversation the workspace does not hold is an error, said in words.`,
   input: z.object({ conversation_id: z.string(), more: z.boolean().optional() }),
   label: "Reading the conversation",
   run: getThread,

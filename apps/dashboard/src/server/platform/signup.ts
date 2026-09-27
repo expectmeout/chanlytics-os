@@ -2,8 +2,6 @@ import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import { deployment } from "../deployment";
 import { createClient } from "@supabase/supabase-js";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createServiceClient, type Database } from "@chanlytics/db";
 import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type SignupInput } from "@chanlytics/contracts";
 
 /**
@@ -30,15 +28,7 @@ import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type Sig
  */
 
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
-
-let svc: SupabaseClient<Database> | null = null;
-function serviceDb(): SupabaseClient<Database> {
-  svc ??= createServiceClient({
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  });
-  return svc;
-}
+import { serviceDb } from "../service-db";
 
 interface SignupOutcome {
   /** A new person: the user was made this call. Their workspace waits for their first sign-in. */
