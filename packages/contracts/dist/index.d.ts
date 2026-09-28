@@ -3971,7 +3971,7 @@ interface TemplateDraftInput {
      * booking link. STATIC on purpose: a button whose URL takes a value needs a
      * parameter at send time, and `sendTemplate` puts the body on the wire and
      * nothing else, so such a template is refused by Meta for every recipient
-     * (template-library.ts templateBlocked). A fixed link needs no parameter, so
+     * (template-parts.ts templateBlocked). A fixed link needs no parameter, so
      * this one sends exactly as it is written.
      */
     button?: {
@@ -12944,7 +12944,7 @@ interface AbilityInputs {
      * bookingLinkOptional), and with none its receptionist takes their details instead (the first run's decision 2).
      */
     linkOptional: boolean;
-    /** An approved booking-link template: the call sends the link as one (template-library bookingTemplate). */
+    /** An approved booking-link template: the call sends the link as one (template-order bookingTemplate). */
     hasBookingTemplate: boolean;
     hasHandoffNumber: boolean;
     hasEscalateWhen: boolean;
@@ -21124,65 +21124,21 @@ declare function inviteState(expiresAt: string | null | undefined, nowMs: number
 };
 
 /**
- * The languages WhatsApp takes a template in.
+ * The starter set: five WhatsApp templates written for the moments
+ * Chanlytics acts on — a win-back, a welcome, save our number, the month's
+ * offer, a quick note — in English and Spanish, with the slots the wire
+ * fills per person. Meta approves the words; a workspace adds the set with
+ * one click, the playbooks pick from it, and a broadcast starts from it.
  *
- * Meta files a template under a name AND a language, so one message in three
- * languages is three templates at Meta and three rows here. That is the wire's
- * shape, not the owner's: to the owner it is one message, in whichever
- * languages it has, and a language is picked from a list -- by its name, in
- * English or in its own words -- never typed as a code or read as a row of
- * two-letter duplicates down a page.
+ * Every entry passes the same check a template written by hand passes, with
+ * no warnings (a test holds it to that), so what a new workspace gets is a
+ * set WhatsApp is expected to approve, not a set that needs fixing first.
+ * Titles are for people; names are what Meta and the wire use.
  *
- * The set is Meta's own: WhatsApp Business Management API › Message templates ›
- * Supported languages, read 21 Sep 2026 -- 111 codes, a language alone ("es")
- * or a language where Meta files a place ("es_MX"). The composer offered six of
- * them. The places are spelled out ("UAE", not "ARE"), and each language carries
- * its own name for itself, so a search typed in it finds it: "português",
- * "deutsch", "中文".
+ * This module is the set and the shape of an entry. A starter is found by its name, key or moment in
+ * starter-lookup.ts, and the rest of the library sits beside it: template-preview.ts, template-parts.ts,
+ * template-slots.ts, template-titles.ts, message-languages.ts, inbox-templates.ts and template-order.ts.
  */
-interface TemplateLanguage {
-    /** Meta's code, exactly as it files it: "en_US", "pt_BR", "fil", "prs_AF". */
-    id: string;
-    /** How a person reads it: "English (US)", "Portuguese (Brazil)", "Spanish". */
-    label: string;
-    /** The language alone, in English: "Portuguese". */
-    name: string;
-    /** The place, when Meta files one: "Brazil"; null for the language alone. */
-    region: string | null;
-    /** The language in its own words: "Português". */
-    native: string;
-}
-/** Every language WhatsApp takes a template in, in the order a person looks for one: by its English name. */
-declare const WHATSAPP_LANGUAGES: readonly TemplateLanguage[];
-/** The language WhatsApp files under this code, or null when WhatsApp takes no template in it. */
-declare function templateLanguage(code: string | null | undefined): TemplateLanguage | null;
-/**
- * The language alone, in English, for any code: "en_US" and "en" are both
- * "English". The list's word where WhatsApp files the code, else what the
- * runtime calls its base ("pt-BR" is "Portuguese"), else the code itself.
- */
-declare function languageName(code: string): string;
-/**
- * The language alone, as a code: "en_US", "en-us" and "EN" are all "en". Null for anything that is not a two- or
- * three-letter code ("english", "und", ""): a reader's guess is never a language until it names one.
- */
-declare function languageBase(code: string | null | undefined): string | null;
-/** A language as a person reads it, with its place when it has one: "English (US)", "Spanish". */
-declare function languageLabel(code: string): string;
-/**
- * The language as a chip says it: "EN", "PT". Its place joins it only when
- * another code among the message's own shares the letters, so "EN-US" stands
- * beside "EN-GB" and a lone "EN" never carries a place nobody asked about.
- */
-declare function languageTag(code: string, among?: readonly string[]): string;
-/**
- * The languages a search finds, best first: a code ("pt", "pt_BR"), then a
- * name that starts with what was typed ("port"), then its own name
- * ("portu", "deutsch"), then a word that starts with it -- a place ("brazil",
- * "mex") -- then anything that contains it. Nothing typed is the whole list, in
- * its order. A query only ever narrows: it never invents a language.
- */
-declare function findLanguages<T extends TemplateLanguage>(query: string, list?: readonly T[]): T[];
 
 type StarterSlotKind = "first_name" | "business_name" | "booking_link" | "visit_when" | "visit_service" | "proposal_link" | "text";
 interface StarterSlot {
@@ -21217,6 +21173,7 @@ declare const STARTER_LANGUAGES: readonly [{
     readonly label: "Spanish";
 }];
 declare const STARTER_TEMPLATES: readonly StarterTemplate[];
+
 declare function starterByName(name: string | null | undefined): StarterTemplate | null;
 declare function starterByKey(key: string): StarterTemplate | null;
 /**
@@ -21236,6 +21193,7 @@ declare function starterDraft(s: StarterTemplate, language: string): {
     footer: string | null;
     examples: string[];
 };
+
 /** What a business says about itself, for the slots that name it. */
 interface OwnFacts {
     business_name?: string | null;
@@ -21270,6 +21228,7 @@ declare function templatePreview(t: {
     body_preview: string | null;
     variables: unknown;
 }, own?: OwnFacts): string;
+
 /**
  * The line under a message's words, from the components Meta holds.
  *
@@ -21347,98 +21306,18 @@ declare function sendableTemplates<T extends {
     blocked: T[];
     why: string | null;
 };
+/** The one button that opens a link, from the components Meta holds: its words and its address. Null when there is none. */
+declare function templateLinkButton(components: unknown): {
+    text: string;
+    url: string;
+} | null;
+
 declare const TEMPLATE_TITLE_MAX = 60;
 /**
  * Words for people: the title the workspace gave it, else the starter's,
  * else the name made words — a trailing version (_v1) is not a word.
  */
 declare function templateTitle(name: string | null | undefined, title?: string | null): string;
-/**
- * A language code as people read it: "en_US" is "English", "es" is "Spanish";
- * the code itself where nothing can say. WhatsApp's own list first
- * (template-languages.ts), so the word a send names is the word the picker
- * offered.
- */
-declare function languageWords(code: string): string;
-/** An approved template as the Inbox composer is given it (GET templates). */
-interface InboxTemplateLike {
-    id: string;
-    name: string;
-    language: string;
-    category?: string | null;
-    variables?: unknown;
-    title?: string | null;
-}
-/**
- * The approved templates the Inbox can send to one person, in the owner's words, and why the rest are not offered.
- * The reply route fills a template's own slots and turns away one with words to write (slotToWrite, I6), and sends
- * a promotion only to someone who said yes to offers (core reply.ts), so the composer offered templates it would
- * refuse: a button whose only outcome was a refusal (I4). The same two judgements, asked before anything is pressed.
- */
-declare function inboxTemplates<T extends InboxTemplateLike>(templates: readonly T[], to: {
-    who: string;
-    offersOk: boolean;
-}): {
-    sendable: Array<{
-        template: T;
-        title: string;
-        label: string;
-    }>;
-    hidden: string | null;
-};
-/**
- * What a slot most likely takes, from the label Meta or a person gave it and
- * the example beside it. Only a guess for templates written elsewhere; a
- * starter's slots are known.
- */
-declare function guessSlotKind(label: string | null | undefined, example?: string | null): StarterSlotKind;
-/** The source of each slot for a template row: the starter's own, or a guess per variable. */
-declare function defaultSlotKinds(t: {
-    name: string;
-    variables: unknown;
-}): StarterSlotKind[];
-/** The specs a run or a broadcast would send with, from the default kinds — typed text stays empty for the person to fill. */
-declare function defaultParamSpecs(t: {
-    name: string;
-    variables: unknown;
-}): ParamSpec[];
-/**
- * What may fill a slot, what it is filled with by default first -- the
- * question the composers' free choice of all six sources never asked, so a
- * first-name slot could be set to the booking link and a run greeted everyone
- * "Hi your booking link".
- *
- * A slot whose kind is KNOWN (a starter's own) takes only what keeps its
- * message true. A first name is each person's own: typed, it would greet
- * everyone by one name. A visit's time or service is each visit's, and there
- * is a visit only on a visit moment -- anywhere else nothing fills it, and
- * the list is empty. The business name and the booking link are the ones on
- * file, or words typed once for everyone; a booking link with none on file
- * can only be typed. Typed words are typed.
- *
- * A slot whose kind is only GUESSED, on a template written elsewhere, may be
- * any of them, the guess first: the guess is ours, the template is theirs.
- */
-declare function slotChoices(kind: StarterSlotKind, o: {
-    known: boolean;
-    visits: boolean;
-    bookingLink: boolean;
-    proposal: boolean;
-}): ParamSourceKind[];
-/**
- * What each slot of a template may take on a moment (slotChoices), or null
- * when one of them can take nothing there: the visit reminder, whose time and
- * service no list has, is not a message a win-back can send. Nor is a message
- * with no slot for the proposal's link one the follow-up can send (0006).
- */
-declare function templateSlots(t: {
-    name: string;
-    variables: unknown;
-}, o: {
-    visits: boolean;
-    bookingLink: boolean;
-    proposal: boolean;
-}): ParamSourceKind[][] | null;
 /**
  * A playbook's name when it was given none: its moment's own ("Win-back")
  * when it sends the moment's own starter, else with the message's title
@@ -21452,39 +21331,80 @@ declare function playbookName(trigger: {
     name: string;
     title?: string | null;
 }): string;
-/** A starter's place in the library's order; everything else after. */
-declare function starterIndex(name: string | null | undefined): number;
+
 /**
- * Starters in the library's order, then templates written here, then the
- * rest — marketing before utility, then by name. What a composer most
- * often needs is nearest.
- */
-declare function compareTemplates(a: {
-    name: string;
-    category?: string | null;
-    source?: string | null;
-    language?: string | null;
-}, b: {
-    name: string;
-    category?: string | null;
-    source?: string | null;
-    language?: string | null;
-}): number;
-/**
- * The template a composer opens on: the trigger's starter, the quick note for a
- * broadcast, else the first.
+ * The languages WhatsApp takes a template in.
  *
- * It used to `find` on the list AS GIVEN, so a workspace holding a starter in
- * two languages opened on whichever row the query happened to return first --
- * a different language on a different load, from a picker that drew the two
- * rows identically. The sort decides it now, and it is a total order.
+ * Meta files a template under a name AND a language, so one message in three
+ * languages is three templates at Meta and three rows here. That is the wire's
+ * shape, not the owner's: to the owner it is one message, in whichever
+ * languages it has, and a language is picked from a list -- by its name, in
+ * English or in its own words -- never typed as a code or read as a row of
+ * two-letter duplicates down a page.
+ *
+ * The set is Meta's own: WhatsApp Business Management API › Message templates ›
+ * Supported languages, read 21 Sep 2026 -- 111 codes, a language alone ("es")
+ * or a language where Meta files a place ("es_MX"). The composer offered six of
+ * them. The places are spelled out ("UAE", not "ARE"), and each language carries
+ * its own name for itself, so a search typed in it finds it: "português",
+ * "deutsch", "中文".
  */
-declare function defaultTemplate<T extends {
+interface TemplateLanguage {
+    /** Meta's code, exactly as it files it: "en_US", "pt_BR", "fil", "prs_AF". */
+    id: string;
+    /** How a person reads it: "English (US)", "Portuguese (Brazil)", "Spanish". */
+    label: string;
+    /** The language alone, in English: "Portuguese". */
     name: string;
-    category?: string | null;
-    source?: string | null;
-    language?: string | null;
-}>(list: readonly T[], trigger: string | null): T | null;
+    /** The place, when Meta files one: "Brazil"; null for the language alone. */
+    region: string | null;
+    /** The language in its own words: "Português". */
+    native: string;
+}
+/** Every language WhatsApp takes a template in, in the order a person looks for one: by its English name. */
+declare const WHATSAPP_LANGUAGES: readonly TemplateLanguage[];
+/** The language WhatsApp files under this code, or null when WhatsApp takes no template in it. */
+declare function templateLanguage(code: string | null | undefined): TemplateLanguage | null;
+/**
+ * The language alone, in English, for any code: "en_US" and "en" are both
+ * "English". The list's word where WhatsApp files the code, else what the
+ * runtime calls its base ("pt-BR" is "Portuguese"), else the code itself.
+ */
+declare function languageName(code: string): string;
+/**
+ * The language alone, as a code: "en_US", "en-us" and "EN" are all "en". Null for anything that is not a two- or
+ * three-letter code ("english", "und", ""): a reader's guess is never a language until it names one.
+ */
+declare function languageBase(code: string | null | undefined): string | null;
+/** A language as a person reads it, with its place when it has one: "English (US)", "Spanish". */
+declare function languageLabel(code: string): string;
+/**
+ * The language as a chip says it: "EN", "PT". Its place joins it only when
+ * another code among the message's own shares the letters, so "EN-US" stands
+ * beside "EN-GB" and a lone "EN" never carries a place nobody asked about.
+ */
+declare function languageTag(code: string, among?: readonly string[]): string;
+/**
+ * The languages a search finds, best first: a code ("pt", "pt_BR"), then a
+ * name that starts with what was typed ("port"), then its own name
+ * ("portu", "deutsch"), then a word that starts with it -- a place ("brazil",
+ * "mex") -- then anything that contains it. Nothing typed is the whole list, in
+ * its order. A query only ever narrows: it never invents a language.
+ */
+declare function findLanguages<T extends TemplateLanguage>(query: string, list?: readonly T[]): T[];
+
+/**
+ * A message's languages as people read them: a code's words, the labels of a set of rows, the choices its one
+ * picker offers, and whether Chanlytics can write it in another. WhatsApp's own list is template-languages.ts.
+ */
+
+/**
+ * A language code as people read it: "en_US" is "English", "es" is "Spanish";
+ * the code itself where nothing can say. WhatsApp's own list first
+ * (template-languages.ts), so the word a send names is the word the picker
+ * offered.
+ */
+declare function languageWords(code: string): string;
 /**
  * The languages of a set of rows, each with the words a person reads.
  *
@@ -21548,11 +21468,145 @@ declare function templateUntranslatable(t: {
     blocked?: string | null;
     category?: string | null;
 }): string | null;
-/** The one button that opens a link, from the components Meta holds: its words and its address. Null when there is none. */
-declare function templateLinkButton(components: unknown): {
-    text: string;
-    url: string;
-} | null;
+
+/** An approved template as the Inbox composer is given it (GET templates). */
+interface InboxTemplateLike {
+    id: string;
+    name: string;
+    language: string;
+    category?: string | null;
+    variables?: unknown;
+    title?: string | null;
+}
+/**
+ * The approved templates the Inbox can send to one person, in the owner's words, and why the rest are not offered.
+ * The reply route fills a template's own slots and turns away one with words to write (slotToWrite, I6), and sends
+ * a promotion only to someone who said yes to offers (core reply.ts), so the composer offered templates it would
+ * refuse: a button whose only outcome was a refusal (I4). The same two judgements, asked before anything is pressed.
+ */
+declare function inboxTemplates<T extends InboxTemplateLike>(templates: readonly T[], to: {
+    who: string;
+    offersOk: boolean;
+}): {
+    sendable: Array<{
+        template: T;
+        title: string;
+        label: string;
+    }>;
+    hidden: string | null;
+};
+/**
+ * The slots the Inbox fills for a template, the way broadcasts and the assistant fill them (defaultParamSpecs): a
+ * starter's own, else a guess per recorded slot. A template whose slots the sync never recorded keeps the two the
+ * Inbox always sent, the business name and the booking link (I6).
+ */
+declare function inboxSlots(t: {
+    name: string;
+    variables?: unknown;
+}): ParamSpec[];
+/**
+ * The first slot of a template the Inbox cannot fill by itself -- words to write, a visit's time or its service --
+ * by its label; null when every slot is a fact the Inbox has: the first name, the business name, the booking link.
+ * The reply route refuses such a template in these words, and the composer does not offer it (I6).
+ */
+declare function slotToWrite(t: {
+    name: string;
+    language?: string | null;
+    variables?: unknown;
+}): string | null;
+
+/**
+ * What a slot most likely takes, from the label Meta or a person gave it and
+ * the example beside it. Only a guess for templates written elsewhere; a
+ * starter's slots are known.
+ */
+declare function guessSlotKind(label: string | null | undefined, example?: string | null): StarterSlotKind;
+/** The source of each slot for a template row: the starter's own, or a guess per variable. */
+declare function defaultSlotKinds(t: {
+    name: string;
+    variables: unknown;
+}): StarterSlotKind[];
+/** The specs a run or a broadcast would send with, from the default kinds — typed text stays empty for the person to fill. */
+declare function defaultParamSpecs(t: {
+    name: string;
+    variables: unknown;
+}): ParamSpec[];
+/**
+ * What may fill a slot, what it is filled with by default first -- the
+ * question the composers' free choice of all six sources never asked, so a
+ * first-name slot could be set to the booking link and a run greeted everyone
+ * "Hi your booking link".
+ *
+ * A slot whose kind is KNOWN (a starter's own) takes only what keeps its
+ * message true. A first name is each person's own: typed, it would greet
+ * everyone by one name. A visit's time or service is each visit's, and there
+ * is a visit only on a visit moment -- anywhere else nothing fills it, and
+ * the list is empty. The business name and the booking link are the ones on
+ * file, or words typed once for everyone; a booking link with none on file
+ * can only be typed. Typed words are typed.
+ *
+ * A slot whose kind is only GUESSED, on a template written elsewhere, may be
+ * any of them, the guess first: the guess is ours, the template is theirs.
+ */
+declare function slotChoices(kind: StarterSlotKind, o: {
+    known: boolean;
+    visits: boolean;
+    bookingLink: boolean;
+    proposal: boolean;
+}): ParamSourceKind[];
+/**
+ * What each slot of a template may take on a moment (slotChoices), or null
+ * when one of them can take nothing there: the visit reminder, whose time and
+ * service no list has, is not a message a win-back can send. Nor is a message
+ * with no slot for the proposal's link one the follow-up can send (0006).
+ */
+declare function templateSlots(t: {
+    name: string;
+    variables: unknown;
+}, o: {
+    visits: boolean;
+    bookingLink: boolean;
+    proposal: boolean;
+}): ParamSourceKind[][] | null;
+declare function slotLabels(t: {
+    name: string;
+    language?: string | null;
+    variables: unknown;
+}): string[];
+
+/** A starter's place in the library's order; everything else after. */
+declare function starterIndex(name: string | null | undefined): number;
+/**
+ * Starters in the library's order, then templates written here, then the
+ * rest — marketing before utility, then by name. What a composer most
+ * often needs is nearest.
+ */
+declare function compareTemplates(a: {
+    name: string;
+    category?: string | null;
+    source?: string | null;
+    language?: string | null;
+}, b: {
+    name: string;
+    category?: string | null;
+    source?: string | null;
+    language?: string | null;
+}): number;
+/**
+ * The template a composer opens on: the trigger's starter, the quick note for a
+ * broadcast, else the first.
+ *
+ * It used to `find` on the list AS GIVEN, so a workspace holding a starter in
+ * two languages opened on whichever row the query happened to return first --
+ * a different language on a different load, from a picker that drew the two
+ * rows identically. The sort decides it now, and it is a total order.
+ */
+declare function defaultTemplate<T extends {
+    name: string;
+    category?: string | null;
+    source?: string | null;
+    language?: string | null;
+}>(list: readonly T[], trigger: string | null): T | null;
 /** One entry per template NAME, in the library's order, with its rows by language. */
 interface TemplateGroup<T> {
     name: string;
@@ -21596,30 +21650,6 @@ declare function bookingTemplate<T extends {
     meta_status?: string | null;
     variables: unknown;
 }>(templates: readonly T[]): T | null;
-declare function slotLabels(t: {
-    name: string;
-    language?: string | null;
-    variables: unknown;
-}): string[];
-/**
- * The slots the Inbox fills for a template, the way broadcasts and the assistant fill them (defaultParamSpecs): a
- * starter's own, else a guess per recorded slot. A template whose slots the sync never recorded keeps the two the
- * Inbox always sent, the business name and the booking link (I6).
- */
-declare function inboxSlots(t: {
-    name: string;
-    variables?: unknown;
-}): ParamSpec[];
-/**
- * The first slot of a template the Inbox cannot fill by itself -- words to write, a visit's time or its service --
- * by its label; null when every slot is a fact the Inbox has: the first name, the business name, the booking link.
- * The reply route refuses such a template in these words, and the composer does not offer it (I6).
- */
-declare function slotToWrite(t: {
-    name: string;
-    language?: string | null;
-    variables?: unknown;
-}): string | null;
 
 /**
  * What Today's brief reads from the metrics summary (server/metrics.ts): the workspace, its wires and the day's

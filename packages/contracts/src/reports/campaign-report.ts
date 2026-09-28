@@ -10,7 +10,7 @@
  */
 import { REPLY_WINDOW_WORDS } from "../broadcasts/broadcasts";
 import { REPORT_RANGES, dayDate, deltaOf, fmtDay, pointsDelta, priorOf, type ReportTileVM } from "./reports";
-import { templateTitle } from "../templates/template-library";
+import { templateTitle } from "../templates/template-titles";
 
 export interface CampaignDayDto {
   day: string;

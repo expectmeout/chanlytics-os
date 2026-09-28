@@ -1716,127 +1716,6 @@ var PERSON_MODE_WORDS = {
   ...PERSON_MODE_LABELS,
   inherit: "Follow the workspace"
 };
-var L = (id, name, region, native) => ({
-  id,
-  label: region ? `${name} (${region})` : name,
-  name,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES = [
-  L("af", "Afrikaans", null, "Afrikaans"),
-  L("sq", "Albanian", null, "Shqip"),
-  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L("ca", "Catalan", null, "Catal\xE0"),
-  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L("hr", "Croatian", null, "Hrvatski"),
-  L("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L("da", "Danish", null, "Dansk"),
-  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L("nl", "Dutch", null, "Nederlands"),
-  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L("en", "English", null, "English"),
-  L("en_AU", "English", "Australia", "English"),
-  L("en_CA", "English", "Canada", "English"),
-  L("en_GH", "English", "Ghana", "English"),
-  L("en_IN", "English", "India", "English"),
-  L("en_IE", "English", "Ireland", "English"),
-  L("en_JM", "English", "Jamaica", "English"),
-  L("en_MY", "English", "Malaysia", "English"),
-  L("en_NZ", "English", "New Zealand", "English"),
-  L("en_QA", "English", "Qatar", "English"),
-  L("en_SG", "English", "Singapore", "English"),
-  L("en_ZA", "English", "South Africa", "English"),
-  L("en_AE", "English", "UAE", "English"),
-  L("en_UG", "English", "Uganda", "English"),
-  L("en_GB", "English", "UK", "English"),
-  L("en_US", "English", "US", "English"),
-  L("et", "Estonian", null, "Eesti"),
-  L("fil", "Filipino", null, "Filipino"),
-  L("fi", "Finnish", null, "Suomi"),
-  L("fr", "French", null, "Fran\xE7ais"),
-  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L("de", "German", null, "Deutsch"),
-  L("de_AT", "German", "Austria", "Deutsch"),
-  L("de_CH", "German", "Switzerland", "Deutsch"),
-  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L("ha", "Hausa", null, "Hausa"),
-  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L("hu", "Hungarian", null, "Magyar"),
-  L("id", "Indonesian", null, "Bahasa Indonesia"),
-  L("ga", "Irish", null, "Gaeilge"),
-  L("it", "Italian", null, "Italiano"),
-  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L("lv", "Latvian", null, "Latvie\u0161u"),
-  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L("ms", "Malay", null, "Bahasa Melayu"),
-  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L("pl", "Polish", null, "Polski"),
-  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L("sk", "Slovak", null, "Sloven\u010Dina"),
-  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L("es", "Spanish", null, "Espa\xF1ol"),
-  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L("sw", "Swahili", null, "Kiswahili"),
-  L("sv", "Swedish", null, "Svenska"),
-  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L("uz", "Uzbek", null, "O\u02BBzbek"),
-  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
 var SWEEP_TICK_MS = 5 * MIN_MS;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -2432,6 +2311,127 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
 var PeopleExportQuerySchema = z8.object({
   list: z8.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
+var L = (id, name, region, native) => ({
+  id,
+  label: region ? `${name} (${region})` : name,
+  name,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES = [
+  L("af", "Afrikaans", null, "Afrikaans"),
+  L("sq", "Albanian", null, "Shqip"),
+  L("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L("ca", "Catalan", null, "Catal\xE0"),
+  L("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L("hr", "Croatian", null, "Hrvatski"),
+  L("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L("da", "Danish", null, "Dansk"),
+  L("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L("nl", "Dutch", null, "Nederlands"),
+  L("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L("en", "English", null, "English"),
+  L("en_AU", "English", "Australia", "English"),
+  L("en_CA", "English", "Canada", "English"),
+  L("en_GH", "English", "Ghana", "English"),
+  L("en_IN", "English", "India", "English"),
+  L("en_IE", "English", "Ireland", "English"),
+  L("en_JM", "English", "Jamaica", "English"),
+  L("en_MY", "English", "Malaysia", "English"),
+  L("en_NZ", "English", "New Zealand", "English"),
+  L("en_QA", "English", "Qatar", "English"),
+  L("en_SG", "English", "Singapore", "English"),
+  L("en_ZA", "English", "South Africa", "English"),
+  L("en_AE", "English", "UAE", "English"),
+  L("en_UG", "English", "Uganda", "English"),
+  L("en_GB", "English", "UK", "English"),
+  L("en_US", "English", "US", "English"),
+  L("et", "Estonian", null, "Eesti"),
+  L("fil", "Filipino", null, "Filipino"),
+  L("fi", "Finnish", null, "Suomi"),
+  L("fr", "French", null, "Fran\xE7ais"),
+  L("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L("de", "German", null, "Deutsch"),
+  L("de_AT", "German", "Austria", "Deutsch"),
+  L("de_CH", "German", "Switzerland", "Deutsch"),
+  L("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L("ha", "Hausa", null, "Hausa"),
+  L("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L("hu", "Hungarian", null, "Magyar"),
+  L("id", "Indonesian", null, "Bahasa Indonesia"),
+  L("ga", "Irish", null, "Gaeilge"),
+  L("it", "Italian", null, "Italiano"),
+  L("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L("lv", "Latvian", null, "Latvie\u0161u"),
+  L("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L("ms", "Malay", null, "Bahasa Melayu"),
+  L("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L("pl", "Polish", null, "Polski"),
+  L("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L("sk", "Slovak", null, "Sloven\u010Dina"),
+  L("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L("es", "Spanish", null, "Espa\xF1ol"),
+  L("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L("sw", "Swahili", null, "Kiswahili"),
+  L("sv", "Swedish", null, "Svenska"),
+  L("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L("uz", "Uzbek", null, "O\u02BBzbek"),
+  L("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID = new Map(WHATSAPP_LANGUAGES.map((l) => [l.id.toLowerCase(), l]));
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -5561,182 +5561,6 @@ var PERSON_MODE_WORDS2 = {
   ...PERSON_MODE_LABELS2,
   inherit: "Follow the workspace"
 };
-var L2 = (id, name, region, native) => ({
-  id,
-  label: region ? `${name} (${region})` : name,
-  name,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES2 = [
-  L2("af", "Afrikaans", null, "Afrikaans"),
-  L2("sq", "Albanian", null, "Shqip"),
-  L2("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L2("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L2("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L2("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L2("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L2("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L2("ca", "Catalan", null, "Catal\xE0"),
-  L2("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L2("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L2("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L2("hr", "Croatian", null, "Hrvatski"),
-  L2("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L2("da", "Danish", null, "Dansk"),
-  L2("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L2("nl", "Dutch", null, "Nederlands"),
-  L2("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L2("en", "English", null, "English"),
-  L2("en_AU", "English", "Australia", "English"),
-  L2("en_CA", "English", "Canada", "English"),
-  L2("en_GH", "English", "Ghana", "English"),
-  L2("en_IN", "English", "India", "English"),
-  L2("en_IE", "English", "Ireland", "English"),
-  L2("en_JM", "English", "Jamaica", "English"),
-  L2("en_MY", "English", "Malaysia", "English"),
-  L2("en_NZ", "English", "New Zealand", "English"),
-  L2("en_QA", "English", "Qatar", "English"),
-  L2("en_SG", "English", "Singapore", "English"),
-  L2("en_ZA", "English", "South Africa", "English"),
-  L2("en_AE", "English", "UAE", "English"),
-  L2("en_UG", "English", "Uganda", "English"),
-  L2("en_GB", "English", "UK", "English"),
-  L2("en_US", "English", "US", "English"),
-  L2("et", "Estonian", null, "Eesti"),
-  L2("fil", "Filipino", null, "Filipino"),
-  L2("fi", "Finnish", null, "Suomi"),
-  L2("fr", "French", null, "Fran\xE7ais"),
-  L2("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L2("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L2("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L2("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L2("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L2("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L2("de", "German", null, "Deutsch"),
-  L2("de_AT", "German", "Austria", "Deutsch"),
-  L2("de_CH", "German", "Switzerland", "Deutsch"),
-  L2("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L2("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L2("ha", "Hausa", null, "Hausa"),
-  L2("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L2("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L2("hu", "Hungarian", null, "Magyar"),
-  L2("id", "Indonesian", null, "Bahasa Indonesia"),
-  L2("ga", "Irish", null, "Gaeilge"),
-  L2("it", "Italian", null, "Italiano"),
-  L2("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L2("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L2("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L2("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L2("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L2("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L2("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L2("lv", "Latvian", null, "Latvie\u0161u"),
-  L2("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L2("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L2("ms", "Malay", null, "Bahasa Melayu"),
-  L2("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L2("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L2("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L2("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L2("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L2("pl", "Polish", null, "Polski"),
-  L2("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L2("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L2("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L2("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L2("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L2("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L2("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L2("sk", "Slovak", null, "Sloven\u010Dina"),
-  L2("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L2("es", "Spanish", null, "Espa\xF1ol"),
-  L2("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L2("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L2("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L2("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L2("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L2("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L2("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L2("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L2("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L2("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L2("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L2("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L2("sw", "Swahili", null, "Kiswahili"),
-  L2("sv", "Swedish", null, "Svenska"),
-  L2("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L2("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L2("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L2("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L2("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L2("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L2("uz", "Uzbek", null, "O\u02BBzbek"),
-  L2("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L2("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l) => [l.id.toLowerCase(), l]));
-var PARAM_SOURCE_LABELS = {
-  text: "Type it",
-  first_name: "Their first name",
-  business_name: "The business name",
-  booking_link: "The booking link",
-  visit_when: "Their visit's time",
-  visit_service: "Their visit's service",
-  proposal_link: "Their proposal's link"
-};
-function parseParamSpec(raw) {
-  if (typeof raw === "string") {
-    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
-    if (m) return { kind: m[1] };
-    return { kind: "text", value: raw };
-  }
-  if (raw && typeof raw === "object") {
-    const o = raw;
-    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
-    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service" || o.kind === "proposal_link")
-      return { kind: o.kind };
-  }
-  return null;
-}
-function parseParamSpecs(raw) {
-  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
-}
-function paramLabel(spec) {
-  return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
-}
-function firstNameOf(displayName, waProfileName) {
-  const raw = (displayName || waProfileName || "").trim();
-  if (!raw || /^[+\d(]/.test(raw)) return null;
-  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
-  return first ? first.slice(0, 30) : null;
-}
-function resolveParams(specs, f) {
-  return specs.map((s) => {
-    switch (s.kind) {
-      case "text":
-        return s.value;
-      case "first_name":
-        return f.firstName || "there";
-      case "business_name":
-        return f.businessName;
-      case "booking_link":
-        return f.bookingLink ?? "";
-      case "visit_when":
-        return f.visitWhen ?? "";
-      case "visit_service":
-        return f.visitService ?? "";
-      case "proposal_link":
-        return f.proposalLink ?? "";
-    }
-  });
-}
 var SWEEP_TICK_MS2 = 5 * MIN_MS2;
 var PLAYBOOK_TRIGGERS2 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -6111,55 +5935,8 @@ function templateTitle(name, title) {
   const words4 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
   return words4 ? words4[0].toUpperCase() + words4.slice(1) : String(name ?? "");
 }
-function guessSlotKind(label, example) {
-  const l = String(label ?? "").toLowerCase();
-  const e = String(example ?? "").toLowerCase();
-  if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
-  if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
-    return "booking_link";
-  if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
-  if (/first name|^name$|nombre|customer|client/.test(l)) return "first_name";
-  return "text";
-}
-function defaultSlotKinds(t) {
-  const vars = Array.isArray(t.variables) ? t.variables : [];
-  const s = starterByName(t.name);
-  if (s) {
-    const kinds = starterText(s, "en_US").slots.map((x) => x.kind);
-    return vars.length === kinds.length || vars.length === 0 ? kinds : vars.map((_, i) => kinds[i] ?? "text");
-  }
-  return vars.map(
-    (v) => guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null)
-  );
-}
-function defaultParamSpecs(t) {
-  return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
-}
 function playbookName(trigger, tpl) {
   return starterForTrigger(trigger.id)?.name === tpl.name ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
-}
-function slotLabels(t) {
-  const vars = Array.isArray(t.variables) ? t.variables : [];
-  const s = starterByName(t.name);
-  if (s) {
-    const labels = starterText(s, t.language ?? "en_US").slots.map((x) => x.label);
-    if (vars.length === 0 || vars.length === labels.length) return labels;
-  }
-  return vars.map((v, i) => {
-    const label = typeof v?.label === "string" ? v.label.trim() : "";
-    const n = typeof v?.position === "number" ? v.position : i + 1;
-    return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
-  });
-}
-function inboxSlots(t) {
-  return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
-}
-function slotToWrite(t) {
-  const at2 = inboxSlots(t).findIndex(
-    (s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service" || s.kind === "proposal_link"
-  );
-  if (at2 < 0) return null;
-  return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
 }
 var LIST_NEEDS2 = ["calendar", "consult", "deals", "viewer"];
 var LIST_RULE_FIELDS2 = [
@@ -6638,6 +6415,182 @@ var PEOPLE_LISTS2 = BUILTIN_LISTS2.map((l) => {
 var PeopleExportQuerySchema2 = z82.object({
   list: z82.string().max(80).refine((t) => parseListToken2(t) !== null, "Name a list by its token.").optional()
 });
+var L2 = (id, name, region, native) => ({
+  id,
+  label: region ? `${name} (${region})` : name,
+  name,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES2 = [
+  L2("af", "Afrikaans", null, "Afrikaans"),
+  L2("sq", "Albanian", null, "Shqip"),
+  L2("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L2("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L2("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L2("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L2("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L2("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L2("ca", "Catalan", null, "Catal\xE0"),
+  L2("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L2("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L2("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L2("hr", "Croatian", null, "Hrvatski"),
+  L2("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L2("da", "Danish", null, "Dansk"),
+  L2("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L2("nl", "Dutch", null, "Nederlands"),
+  L2("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L2("en", "English", null, "English"),
+  L2("en_AU", "English", "Australia", "English"),
+  L2("en_CA", "English", "Canada", "English"),
+  L2("en_GH", "English", "Ghana", "English"),
+  L2("en_IN", "English", "India", "English"),
+  L2("en_IE", "English", "Ireland", "English"),
+  L2("en_JM", "English", "Jamaica", "English"),
+  L2("en_MY", "English", "Malaysia", "English"),
+  L2("en_NZ", "English", "New Zealand", "English"),
+  L2("en_QA", "English", "Qatar", "English"),
+  L2("en_SG", "English", "Singapore", "English"),
+  L2("en_ZA", "English", "South Africa", "English"),
+  L2("en_AE", "English", "UAE", "English"),
+  L2("en_UG", "English", "Uganda", "English"),
+  L2("en_GB", "English", "UK", "English"),
+  L2("en_US", "English", "US", "English"),
+  L2("et", "Estonian", null, "Eesti"),
+  L2("fil", "Filipino", null, "Filipino"),
+  L2("fi", "Finnish", null, "Suomi"),
+  L2("fr", "French", null, "Fran\xE7ais"),
+  L2("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L2("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L2("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L2("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L2("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L2("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L2("de", "German", null, "Deutsch"),
+  L2("de_AT", "German", "Austria", "Deutsch"),
+  L2("de_CH", "German", "Switzerland", "Deutsch"),
+  L2("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L2("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L2("ha", "Hausa", null, "Hausa"),
+  L2("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L2("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L2("hu", "Hungarian", null, "Magyar"),
+  L2("id", "Indonesian", null, "Bahasa Indonesia"),
+  L2("ga", "Irish", null, "Gaeilge"),
+  L2("it", "Italian", null, "Italiano"),
+  L2("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L2("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L2("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L2("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L2("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L2("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L2("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L2("lv", "Latvian", null, "Latvie\u0161u"),
+  L2("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L2("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L2("ms", "Malay", null, "Bahasa Melayu"),
+  L2("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L2("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L2("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L2("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L2("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L2("pl", "Polish", null, "Polski"),
+  L2("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L2("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L2("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L2("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L2("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L2("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L2("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L2("sk", "Slovak", null, "Sloven\u010Dina"),
+  L2("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L2("es", "Spanish", null, "Espa\xF1ol"),
+  L2("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L2("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L2("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L2("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L2("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L2("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L2("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L2("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L2("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L2("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L2("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L2("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L2("sw", "Swahili", null, "Kiswahili"),
+  L2("sv", "Swedish", null, "Svenska"),
+  L2("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L2("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L2("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L2("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L2("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L2("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L2("uz", "Uzbek", null, "O\u02BBzbek"),
+  L2("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L2("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID2 = new Map(WHATSAPP_LANGUAGES2.map((l) => [l.id.toLowerCase(), l]));
+var PARAM_SOURCE_LABELS = {
+  text: "Type it",
+  first_name: "Their first name",
+  business_name: "The business name",
+  booking_link: "The booking link",
+  visit_when: "Their visit's time",
+  visit_service: "Their visit's service",
+  proposal_link: "Their proposal's link"
+};
+function parseParamSpec(raw) {
+  if (typeof raw === "string") {
+    const m = /^@(first_name|business_name|booking_link|visit_when|visit_service|proposal_link)$/.exec(raw.trim());
+    if (m) return { kind: m[1] };
+    return { kind: "text", value: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const o = raw;
+    if (o.kind === "text") return typeof o.value === "string" ? { kind: "text", value: o.value } : null;
+    if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service" || o.kind === "proposal_link")
+      return { kind: o.kind };
+  }
+  return null;
+}
+function parseParamSpecs(raw) {
+  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+}
+function paramLabel(spec) {
+  return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
+}
+function firstNameOf(displayName, waProfileName) {
+  const raw = (displayName || waProfileName || "").trim();
+  if (!raw || /^[+\d(]/.test(raw)) return null;
+  const first = raw.split(/\s+/)[0].replace(/[^\p{L}\p{M}'’-]/gu, "");
+  return first ? first.slice(0, 30) : null;
+}
+function resolveParams(specs, f) {
+  return specs.map((s) => {
+    switch (s.kind) {
+      case "text":
+        return s.value;
+      case "first_name":
+        return f.firstName || "there";
+      case "business_name":
+        return f.businessName;
+      case "booking_link":
+        return f.bookingLink ?? "";
+      case "visit_when":
+        return f.visitWhen ?? "";
+      case "visit_service":
+        return f.visitService ?? "";
+      case "proposal_link":
+        return f.proposalLink ?? "";
+    }
+  });
+}
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
@@ -9046,6 +8999,53 @@ var DEFAULT_STATUS = {
   upstream_auth: 503,
   internal: 500
 };
+function guessSlotKind(label, example) {
+  const l = String(label ?? "").toLowerCase();
+  const e = String(example ?? "").toLowerCase();
+  if (/proposal|propuesta|quote/.test(l)) return "proposal_link";
+  if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e))
+    return "booking_link";
+  if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
+  if (/first name|^name$|nombre|customer|client/.test(l)) return "first_name";
+  return "text";
+}
+function defaultSlotKinds(t) {
+  const vars = Array.isArray(t.variables) ? t.variables : [];
+  const s = starterByName(t.name);
+  if (s) {
+    const kinds = starterText(s, "en_US").slots.map((x) => x.kind);
+    return vars.length === kinds.length || vars.length === 0 ? kinds : vars.map((_, i) => kinds[i] ?? "text");
+  }
+  return vars.map(
+    (v) => guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null)
+  );
+}
+function defaultParamSpecs(t) {
+  return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
+}
+function slotLabels(t) {
+  const vars = Array.isArray(t.variables) ? t.variables : [];
+  const s = starterByName(t.name);
+  if (s) {
+    const labels = starterText(s, t.language ?? "en_US").slots.map((x) => x.label);
+    if (vars.length === 0 || vars.length === labels.length) return labels;
+  }
+  return vars.map((v, i) => {
+    const label = typeof v?.label === "string" ? v.label.trim() : "";
+    const n = typeof v?.position === "number" ? v.position : i + 1;
+    return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
+  });
+}
+function inboxSlots(t) {
+  return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
+}
+function slotToWrite(t) {
+  const at2 = inboxSlots(t).findIndex(
+    (s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service" || s.kind === "proposal_link"
+  );
+  if (at2 < 0) return null;
+  return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
+}
 var LIVE_STALE_MS2 = 5 * MIN_MS2;
 var LIVE_OVERLONG_MS2 = 30 * MIN_MS2;
 var ANALYSIS_GRACE_MS2 = 10 * MIN_MS2;
@@ -10002,127 +10002,6 @@ var PERSON_MODE_WORDS3 = {
   ...PERSON_MODE_LABELS3,
   inherit: "Follow the workspace"
 };
-var L3 = (id, name, region, native) => ({
-  id,
-  label: region ? `${name} (${region})` : name,
-  name,
-  region,
-  native
-});
-var WHATSAPP_LANGUAGES3 = [
-  L3("af", "Afrikaans", null, "Afrikaans"),
-  L3("sq", "Albanian", null, "Shqip"),
-  L3("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
-  L3("az", "Azerbaijani", null, "Az\u0259rbaycan"),
-  L3("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
-  L3("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L3("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
-  L3("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
-  L3("ca", "Catalan", null, "Catal\xE0"),
-  L3("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
-  L3("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
-  L3("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
-  L3("hr", "Croatian", null, "Hrvatski"),
-  L3("cs", "Czech", null, "\u010Ce\u0161tina"),
-  L3("da", "Danish", null, "Dansk"),
-  L3("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
-  L3("nl", "Dutch", null, "Nederlands"),
-  L3("nl_BE", "Dutch", "Belgium", "Nederlands"),
-  L3("en", "English", null, "English"),
-  L3("en_AU", "English", "Australia", "English"),
-  L3("en_CA", "English", "Canada", "English"),
-  L3("en_GH", "English", "Ghana", "English"),
-  L3("en_IN", "English", "India", "English"),
-  L3("en_IE", "English", "Ireland", "English"),
-  L3("en_JM", "English", "Jamaica", "English"),
-  L3("en_MY", "English", "Malaysia", "English"),
-  L3("en_NZ", "English", "New Zealand", "English"),
-  L3("en_QA", "English", "Qatar", "English"),
-  L3("en_SG", "English", "Singapore", "English"),
-  L3("en_ZA", "English", "South Africa", "English"),
-  L3("en_AE", "English", "UAE", "English"),
-  L3("en_UG", "English", "Uganda", "English"),
-  L3("en_GB", "English", "UK", "English"),
-  L3("en_US", "English", "US", "English"),
-  L3("et", "Estonian", null, "Eesti"),
-  L3("fil", "Filipino", null, "Filipino"),
-  L3("fi", "Finnish", null, "Suomi"),
-  L3("fr", "French", null, "Fran\xE7ais"),
-  L3("fr_BE", "French", "Belgium", "Fran\xE7ais"),
-  L3("fr_CA", "French", "Canada", "Fran\xE7ais"),
-  L3("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
-  L3("fr_MA", "French", "Morocco", "Fran\xE7ais"),
-  L3("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
-  L3("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
-  L3("de", "German", null, "Deutsch"),
-  L3("de_AT", "German", "Austria", "Deutsch"),
-  L3("de_CH", "German", "Switzerland", "Deutsch"),
-  L3("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
-  L3("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
-  L3("ha", "Hausa", null, "Hausa"),
-  L3("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
-  L3("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
-  L3("hu", "Hungarian", null, "Magyar"),
-  L3("id", "Indonesian", null, "Bahasa Indonesia"),
-  L3("ga", "Irish", null, "Gaeilge"),
-  L3("it", "Italian", null, "Italiano"),
-  L3("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
-  L3("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
-  L3("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
-  L3("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
-  L3("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
-  L3("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
-  L3("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
-  L3("lv", "Latvian", null, "Latvie\u0161u"),
-  L3("lt", "Lithuanian", null, "Lietuvi\u0173"),
-  L3("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
-  L3("ms", "Malay", null, "Bahasa Melayu"),
-  L3("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
-  L3("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
-  L3("nb", "Norwegian", null, "Norsk bokm\xE5l"),
-  L3("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
-  L3("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
-  L3("pl", "Polish", null, "Polski"),
-  L3("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
-  L3("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
-  L3("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
-  L3("ro", "Romanian", null, "Rom\xE2n\u0103"),
-  L3("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
-  L3("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
-  L3("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
-  L3("sk", "Slovak", null, "Sloven\u010Dina"),
-  L3("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
-  L3("es", "Spanish", null, "Espa\xF1ol"),
-  L3("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
-  L3("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
-  L3("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
-  L3("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
-  L3("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
-  L3("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
-  L3("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
-  L3("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
-  L3("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
-  L3("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
-  L3("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
-  L3("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
-  L3("sw", "Swahili", null, "Kiswahili"),
-  L3("sv", "Swedish", null, "Svenska"),
-  L3("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
-  L3("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
-  L3("th", "Thai", null, "\u0E44\u0E17\u0E22"),
-  L3("tr", "Turkish", null, "T\xFCrk\xE7e"),
-  L3("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
-  L3("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
-  L3("uz", "Uzbek", null, "O\u02BBzbek"),
-  L3("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
-  L3("zu", "Zulu", null, "isiZulu")
-];
-var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l) => [l.id.toLowerCase(), l]));
 var SWEEP_TICK_MS3 = 5 * MIN_MS3;
 var PLAYBOOK_TRIGGERS3 = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
@@ -10718,6 +10597,127 @@ var PEOPLE_LISTS3 = BUILTIN_LISTS3.map((l) => {
 var PeopleExportQuerySchema3 = z83.object({
   list: z83.string().max(80).refine((t) => parseListToken3(t) !== null, "Name a list by its token.").optional()
 });
+var L3 = (id, name, region, native) => ({
+  id,
+  label: region ? `${name} (${region})` : name,
+  name,
+  region,
+  native
+});
+var WHATSAPP_LANGUAGES3 = [
+  L3("af", "Afrikaans", null, "Afrikaans"),
+  L3("sq", "Albanian", null, "Shqip"),
+  L3("ar", "Arabic", null, "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_EG", "Arabic", "Egypt", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_LB", "Arabic", "Lebanon", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_MA", "Arabic", "Morocco", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_QA", "Arabic", "Qatar", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("ar_AE", "Arabic", "UAE", "\u0627\u0644\u0639\u0631\u0628\u064A\u0629"),
+  L3("az", "Azerbaijani", null, "Az\u0259rbaycan"),
+  L3("be_BY", "Belarusian", null, "\u0411\u0435\u043B\u0430\u0440\u0443\u0441\u043A\u0430\u044F"),
+  L3("bn", "Bengali", null, "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L3("bn_IN", "Bengali", "India", "\u09AC\u09BE\u0982\u09B2\u09BE"),
+  L3("bg", "Bulgarian", null, "\u0411\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438"),
+  L3("ca", "Catalan", null, "Catal\xE0"),
+  L3("zh_CN", "Chinese", "China", "\u7B80\u4F53\u4E2D\u6587"),
+  L3("zh_HK", "Chinese", "Hong Kong", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u9999\u6E2F\uFF09"),
+  L3("zh_TW", "Chinese", "Taiwan", "\u7E41\u9AD4\u4E2D\u6587\uFF08\u53F0\u7063\uFF09"),
+  L3("hr", "Croatian", null, "Hrvatski"),
+  L3("cs", "Czech", null, "\u010Ce\u0161tina"),
+  L3("da", "Danish", null, "Dansk"),
+  L3("prs_AF", "Dari", null, "\u062F\u0631\u06CC"),
+  L3("nl", "Dutch", null, "Nederlands"),
+  L3("nl_BE", "Dutch", "Belgium", "Nederlands"),
+  L3("en", "English", null, "English"),
+  L3("en_AU", "English", "Australia", "English"),
+  L3("en_CA", "English", "Canada", "English"),
+  L3("en_GH", "English", "Ghana", "English"),
+  L3("en_IN", "English", "India", "English"),
+  L3("en_IE", "English", "Ireland", "English"),
+  L3("en_JM", "English", "Jamaica", "English"),
+  L3("en_MY", "English", "Malaysia", "English"),
+  L3("en_NZ", "English", "New Zealand", "English"),
+  L3("en_QA", "English", "Qatar", "English"),
+  L3("en_SG", "English", "Singapore", "English"),
+  L3("en_ZA", "English", "South Africa", "English"),
+  L3("en_AE", "English", "UAE", "English"),
+  L3("en_UG", "English", "Uganda", "English"),
+  L3("en_GB", "English", "UK", "English"),
+  L3("en_US", "English", "US", "English"),
+  L3("et", "Estonian", null, "Eesti"),
+  L3("fil", "Filipino", null, "Filipino"),
+  L3("fi", "Finnish", null, "Suomi"),
+  L3("fr", "French", null, "Fran\xE7ais"),
+  L3("fr_BE", "French", "Belgium", "Fran\xE7ais"),
+  L3("fr_CA", "French", "Canada", "Fran\xE7ais"),
+  L3("fr_CI", "French", "C\xF4te d\u2019Ivoire", "Fran\xE7ais"),
+  L3("fr_MA", "French", "Morocco", "Fran\xE7ais"),
+  L3("fr_CH", "French", "Switzerland", "Fran\xE7ais"),
+  L3("ka", "Georgian", null, "\u10E5\u10D0\u10E0\u10D7\u10E3\u10DA\u10D8"),
+  L3("de", "German", null, "Deutsch"),
+  L3("de_AT", "German", "Austria", "Deutsch"),
+  L3("de_CH", "German", "Switzerland", "Deutsch"),
+  L3("el", "Greek", null, "\u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AC"),
+  L3("gu", "Gujarati", null, "\u0A97\u0AC1\u0A9C\u0AB0\u0ABE\u0AA4\u0AC0"),
+  L3("ha", "Hausa", null, "Hausa"),
+  L3("he", "Hebrew", null, "\u05E2\u05D1\u05E8\u05D9\u05EA"),
+  L3("hi", "Hindi", null, "\u0939\u093F\u0928\u094D\u0926\u0940"),
+  L3("hu", "Hungarian", null, "Magyar"),
+  L3("id", "Indonesian", null, "Bahasa Indonesia"),
+  L3("ga", "Irish", null, "Gaeilge"),
+  L3("it", "Italian", null, "Italiano"),
+  L3("ja", "Japanese", null, "\u65E5\u672C\u8A9E"),
+  L3("kn", "Kannada", null, "\u0C95\u0CA8\u0CCD\u0CA8\u0CA1"),
+  L3("kk", "Kazakh", null, "\u049A\u0430\u0437\u0430\u049B \u0442\u0456\u043B\u0456"),
+  L3("rw_RW", "Kinyarwanda", null, "Ikinyarwanda"),
+  L3("ko", "Korean", null, "\uD55C\uAD6D\uC5B4"),
+  L3("ky_KG", "Kyrgyz", "Kyrgyzstan", "\u041A\u044B\u0440\u0433\u044B\u0437\u0447\u0430"),
+  L3("lo", "Lao", null, "\u0EA5\u0EB2\u0EA7"),
+  L3("lv", "Latvian", null, "Latvie\u0161u"),
+  L3("lt", "Lithuanian", null, "Lietuvi\u0173"),
+  L3("mk", "Macedonian", null, "\u041C\u0430\u043A\u0435\u0434\u043E\u043D\u0441\u043A\u0438"),
+  L3("ms", "Malay", null, "Bahasa Melayu"),
+  L3("ml", "Malayalam", null, "\u0D2E\u0D32\u0D2F\u0D3E\u0D33\u0D02"),
+  L3("mr", "Marathi", null, "\u092E\u0930\u093E\u0920\u0940"),
+  L3("nb", "Norwegian", null, "Norsk bokm\xE5l"),
+  L3("ps_AF", "Pashto", null, "\u067E\u069A\u062A\u0648"),
+  L3("fa", "Persian", null, "\u0641\u0627\u0631\u0633\u06CC"),
+  L3("pl", "Polish", null, "Polski"),
+  L3("pt_BR", "Portuguese", "Brazil", "Portugu\xEAs"),
+  L3("pt_PT", "Portuguese", "Portugal", "Portugu\xEAs"),
+  L3("pa", "Punjabi", null, "\u0A2A\u0A70\u0A1C\u0A3E\u0A2C\u0A40"),
+  L3("ro", "Romanian", null, "Rom\xE2n\u0103"),
+  L3("ru", "Russian", null, "\u0420\u0443\u0441\u0441\u043A\u0438\u0439"),
+  L3("sr", "Serbian", null, "\u0421\u0440\u043F\u0441\u043A\u0438"),
+  L3("si_LK", "Sinhala", null, "\u0DC3\u0DD2\u0D82\u0DC4\u0DBD"),
+  L3("sk", "Slovak", null, "Sloven\u010Dina"),
+  L3("sl", "Slovenian", null, "Sloven\u0161\u010Dina"),
+  L3("es", "Spanish", null, "Espa\xF1ol"),
+  L3("es_AR", "Spanish", "Argentina", "Espa\xF1ol"),
+  L3("es_CL", "Spanish", "Chile", "Espa\xF1ol"),
+  L3("es_CO", "Spanish", "Colombia", "Espa\xF1ol"),
+  L3("es_CR", "Spanish", "Costa Rica", "Espa\xF1ol"),
+  L3("es_DO", "Spanish", "Dominican Republic", "Espa\xF1ol"),
+  L3("es_EC", "Spanish", "Ecuador", "Espa\xF1ol"),
+  L3("es_HN", "Spanish", "Honduras", "Espa\xF1ol"),
+  L3("es_MX", "Spanish", "Mexico", "Espa\xF1ol"),
+  L3("es_PA", "Spanish", "Panama", "Espa\xF1ol"),
+  L3("es_PE", "Spanish", "Peru", "Espa\xF1ol"),
+  L3("es_ES", "Spanish", "Spain", "Espa\xF1ol"),
+  L3("es_UY", "Spanish", "Uruguay", "Espa\xF1ol"),
+  L3("sw", "Swahili", null, "Kiswahili"),
+  L3("sv", "Swedish", null, "Svenska"),
+  L3("ta", "Tamil", null, "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"),
+  L3("te", "Telugu", null, "\u0C24\u0C46\u0C32\u0C41\u0C17\u0C41"),
+  L3("th", "Thai", null, "\u0E44\u0E17\u0E22"),
+  L3("tr", "Turkish", null, "T\xFCrk\xE7e"),
+  L3("uk", "Ukrainian", null, "\u0423\u043A\u0440\u0430\u0457\u043D\u0441\u044C\u043A\u0430"),
+  L3("ur", "Urdu", null, "\u0627\u0631\u062F\u0648"),
+  L3("uz", "Uzbek", null, "O\u02BBzbek"),
+  L3("vi", "Vietnamese", null, "Ti\u1EBFng Vi\u1EC7t"),
+  L3("zu", "Zulu", null, "isiZulu")
+];
+var BY_ID3 = new Map(WHATSAPP_LANGUAGES3.map((l) => [l.id.toLowerCase(), l]));
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,
