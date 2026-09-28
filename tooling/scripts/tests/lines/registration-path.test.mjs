@@ -263,7 +263,7 @@ test("brandTypeFor and the fork cannot disagree about the same tax id", () => {
     const want = registrationPathOf({ ein }) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
     assert.equal(brandTypeFor({ ein }), want, `ein=${JSON.stringify(ein)}`);
   }
-  const src = readCode("packages/channels/src/a2p/business-record.ts");
+  const src = readCode("packages/channels/src/lines/a2p/business-record.ts");
   assert.ok(src.includes('registrationPathOf(r) === "sole_proprietor"'), "it delegates rather than deciding again");
   assert.ok(
     !/return r\.ein && r\.ein\.trim\(\) \? "STANDARD"/.test(src),
@@ -668,7 +668,7 @@ test("one validator, three writers", () => {
     "checked before a single call is made",
   );
   assert.ok(
-    !readRaw("packages/channels/src/a2p/business-record.ts").includes("whatSoleProprietorNeeds"),
+    !readRaw("packages/channels/src/lines/a2p/business-record.ts").includes("whatSoleProprietorNeeds"),
     "and the second list it used to keep is gone, not deprecated",
   );
 });
