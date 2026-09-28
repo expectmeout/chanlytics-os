@@ -10,7 +10,7 @@
  * never rendered as markup anywhere.
  */
 import { convert } from "html-to-text";
-import type { ReceivedEmail } from "./email";
+import type { ReceivedEmail } from "./email/intake";
 
 export function emailPlainText(e: Pick<ReceivedEmail, "text" | "html">): string | null {
   const text = (e.text ?? "").replace(/\r\n/g, "\n").trim();

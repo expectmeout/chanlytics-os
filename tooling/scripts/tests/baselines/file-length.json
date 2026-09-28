@@ -15,8 +15,6 @@
   "apps/dashboard/src/legacy/pages/settings.jsx": 1919,
   "apps/dashboard/src/server/calendar/calendar.ts": 847,
   "apps/edge/lib/google/google.ts": 959,
-  "packages/channels/src/a2p.ts": 846,
-  "packages/channels/src/email.ts": 818,
   "packages/contracts/src/ask/ask.ts": 806,
   "packages/contracts/src/calendar/availability.ts": 917,
   "packages/contracts/src/calendar/calendar.ts": 839,

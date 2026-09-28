@@ -4657,21 +4657,28 @@ async function verifyTwilioSignature(authToken, url, form2, header) {
   return sameSignature(await twilioSignature(authToken, url, form2), header);
 }
 
-// src/email.ts
-function hostedAddress(localPart, domain) {
-  return `${localPart}@${domain}`;
-}
-function replyRouteAddress(replyToken, domain) {
-  return `r+${replyToken}@${domain}`;
-}
-function hostedIdentity(mailbox, domain) {
-  return {
-    fromName: mailbox.from_name,
-    fromAddress: hostedAddress(mailbox.local_part, domain),
-    replyTo: replyRouteAddress(mailbox.reply_token, domain)
-  };
-}
+// src/email/header-values.ts
 var oneLine = (s) => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
+function messageIdHeader(id) {
+  const s = oneLine(id ?? "");
+  const bare = s.replace(/^<|>$/g, "");
+  return /^[^\s<>@]+@[^\s<>@]+$/.test(bare) ? `<${bare}>` : null;
+}
+function addressOf(header) {
+  const s = oneLine(header ?? "");
+  if (!s) return null;
+  const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(s);
+  const address = (angle ? angle[2] : s).trim().toLowerCase();
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
+  const name = angle ? angle[1].trim().replace(/^"(.*)"$/, "$1").trim() : "";
+  return { address, name: name || null };
+}
+var stringsOf = (v) => (Array.isArray(v) ? v : typeof v === "string" ? [v] : []).filter(
+  (x) => typeof x === "string" && x.length > 0
+);
+var addressesOf = (v) => stringsOf(v).map((r2) => addressOf(r2)?.address).filter((a) => !!a);
+
+// src/email/request.ts
 function mailboxHeader(name, address) {
   const clean = oneLine(name).replace(/["\\]/g, "");
   return clean ? `"${clean}" <${address}>` : address;
@@ -4691,11 +4698,6 @@ var linkify = (escaped) => escaped.replace(LINK_IN_TEXT, (m) => {
 });
 function emailHtml(text) {
   return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${linkify(escapeHtml(p)).replace(/\n/g, "<br>")}</p>`).join("\n");
-}
-function messageIdHeader(id) {
-  const s = oneLine(id ?? "");
-  const bare = s.replace(/^<|>$/g, "");
-  return /^[^\s<>@]+@[^\s<>@]+$/.test(bare) ? `<${bare}>` : null;
 }
 function referencesFor(parent) {
   const ids = [...parent.references, parent.rfcMessageId].map(messageIdHeader).filter((x) => x !== null);
@@ -4759,6 +4761,49 @@ function isEmailRequest(v) {
   const strings = (x) => Array.isArray(x) && x.length > 0 && x.every((s) => typeof s === "string" && s.length > 0);
   return typeof r2.from === "string" && strings(r2.to) && strings(r2.reply_to) && typeof r2.subject === "string" && typeof r2.text === "string" && typeof r2.html === "string" && !!r2.headers && typeof r2.headers === "object" && Array.isArray(r2.tags) && typeof r2.idempotency_key === "string" && r2.idempotency_key.length > 0;
 }
+
+// src/email/identity.ts
+function hostedAddress(localPart, domain) {
+  return `${localPart}@${domain}`;
+}
+function replyRouteAddress(replyToken, domain) {
+  return `r+${replyToken}@${domain}`;
+}
+function hostedIdentity(mailbox, domain) {
+  return {
+    fromName: mailbox.from_name,
+    fromAddress: hostedAddress(mailbox.local_part, domain),
+    replyTo: replyRouteAddress(mailbox.reply_token, domain)
+  };
+}
+function sendsAs(mailbox, domain) {
+  return {
+    address: hostedAddress(mailbox.local_part, domain),
+    replyRoutes: [mailbox.reply_token, mailbox.reply_token_prev].filter((t) => !!t).map((t) => replyRouteAddress(t, domain))
+  };
+}
+function sendsAsOwnDomain(domain, mailbox, mailDomain, coldReplyDomains = null) {
+  const cold = typeof coldReplyDomains === "string" ? [coldReplyDomains] : coldReplyDomains ?? [];
+  return {
+    address: `${domain.from_local}@${domain.host}`.toLowerCase(),
+    replyRoutes: [
+      ...sendsAs(mailbox, mailDomain).replyRoutes,
+      ...cold.filter((d) => d !== mailDomain).flatMap((d) => sendsAs(mailbox, d).replyRoutes)
+    ]
+  };
+}
+function ownDomainIdentity(domain, mailbox, replyDomain) {
+  return {
+    fromName: domain.from_name,
+    fromAddress: `${domain.from_local}@${domain.host}`.toLowerCase(),
+    replyTo: replyRouteAddress(mailbox.reply_token, replyDomain)
+  };
+}
+function requestLeavesAs(request, as) {
+  return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
+}
+
+// src/email/webhook-signature.ts
 var bytesOfBase64 = (s) => {
   const raw = atob(s);
   const out = new Uint8Array(new ArrayBuffer(raw.length));
@@ -4798,6 +4843,8 @@ async function verifyResendWebhook(secret, h, rawBody, nowMs) {
     return version === "v1" && !!sig && sameBytes(sig, expected);
   });
 }
+
+// src/email/intake.ts
 function platformRecipient(address, domain, coldReplyDomains = null) {
   const a = address.trim().toLowerCase();
   const at = a.lastIndexOf("@");
@@ -4813,19 +4860,6 @@ function platformRecipient(address, domain, coldReplyDomains = null) {
   if (reply) return { kind: "reply", token: reply[1] };
   return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(local) && local !== "r" ? { kind: "mailbox", localPart: local } : null;
 }
-function addressOf(header) {
-  const s = oneLine(header ?? "");
-  if (!s) return null;
-  const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(s);
-  const address = (angle ? angle[2] : s).trim().toLowerCase();
-  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
-  const name = angle ? angle[1].trim().replace(/^"(.*)"$/, "$1").trim() : "";
-  return { address, name: name || null };
-}
-var stringsOf = (v) => (Array.isArray(v) ? v : typeof v === "string" ? [v] : []).filter(
-  (x) => typeof x === "string" && x.length > 0
-);
-var addressesOf = (v) => stringsOf(v).map((r2) => addressOf(r2)?.address).filter((a) => !!a);
 function emailReceivedEventFrom(payload) {
   const p = payload;
   if (!p || p.type !== "email.received" || !p.data || typeof p.data !== "object") return null;
@@ -4885,6 +4919,8 @@ function classifyReceived(e) {
     return "automated";
   return "person";
 }
+
+// src/email/receipts.ts
 var RECEIPT_TYPES = /* @__PURE__ */ new Set([
   "sent",
   "delivered",
@@ -4935,32 +4971,8 @@ function emailReceiptEffect(r2) {
       return { status: null, error: null, suppress: null };
   }
 }
-function sendsAs(mailbox, domain) {
-  return {
-    address: hostedAddress(mailbox.local_part, domain),
-    replyRoutes: [mailbox.reply_token, mailbox.reply_token_prev].filter((t) => !!t).map((t) => replyRouteAddress(t, domain))
-  };
-}
-function sendsAsOwnDomain(domain, mailbox, mailDomain, coldReplyDomains = null) {
-  const cold = typeof coldReplyDomains === "string" ? [coldReplyDomains] : coldReplyDomains ?? [];
-  return {
-    address: `${domain.from_local}@${domain.host}`.toLowerCase(),
-    replyRoutes: [
-      ...sendsAs(mailbox, mailDomain).replyRoutes,
-      ...cold.filter((d) => d !== mailDomain).flatMap((d) => sendsAs(mailbox, d).replyRoutes)
-    ]
-  };
-}
-function ownDomainIdentity(domain, mailbox, replyDomain) {
-  return {
-    fromName: domain.from_name,
-    fromAddress: `${domain.from_local}@${domain.host}`.toLowerCase(),
-    replyTo: replyRouteAddress(mailbox.reply_token, replyDomain)
-  };
-}
-function requestLeavesAs(request, as) {
-  return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
-}
+
+// src/email/provider-answers.ts
 function resendLimitOf(r2) {
   if (r2.ok || r2.status !== 429 && r2.status !== 409) return null;
   let name;
@@ -5258,7 +5270,7 @@ function dmarcOf(txt) {
   return txt.some((chunks) => /^v=DMARC1\s*(;|$)/i.test(chunks.join("").trim())) ? "found" : "missing";
 }
 
-// src/a2p.ts
+// src/a2p/wire.ts
 var A2P_POLICIES = {
   /** The bundle one customer of an ISV gets. */
   secondaryCustomerProfile: "RNdfbf3fae0e1107f8aded0e7cead80bf5",
@@ -5281,9 +5293,6 @@ var A2P_POLICIES = {
 };
 var TRUSTHUB = "https://trusthub.twilio.com/v1";
 var MESSAGING2 = "https://messaging.twilio.com/v1";
-function brandTypeFor(r2) {
-  return registrationPathOf(r2) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
-}
 function encodeForm(form2) {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(form2)) {
@@ -5292,6 +5301,13 @@ function encodeForm(form2) {
   }
   return q.toString();
 }
+
+// src/a2p/business-record.ts
+function brandTypeFor(r2) {
+  return registrationPathOf(r2) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
+}
+
+// src/a2p/trust-hub.ts
 var attrs = (o) => JSON.stringify(o);
 function customerProfileRequest(o) {
   return {
@@ -5499,6 +5515,8 @@ function evaluateTrustProductRequest(bundleSid) {
 function submitTrustProductRequest(bundleSid) {
   return { url: `${TRUSTHUB}/TrustProducts/${bundleSid}`, method: "POST", form: { Status: "pending-review" } };
 }
+
+// src/a2p/brand-campaign.ts
 function brandRequest(o) {
   return {
     url: `${MESSAGING2}/a2p/BrandRegistrations`,
@@ -5554,6 +5572,8 @@ function updateCampaignRequest(messagingServiceSid, campaignSid, f) {
 function deleteCampaignRequest(messagingServiceSid, campaignSid) {
   return { url: `${MESSAGING2}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "DELETE" };
 }
+
+// src/a2p/steps.ts
 var A2P_STEPS = [
   "profile",
   "business",
@@ -5603,6 +5623,8 @@ function nextA2PStep(s, brandType = "STANDARD") {
   if (!s.campaignSid) return "campaign";
   return null;
 }
+
+// src/a2p/verdict.ts
 function isBrandNotReady(error) {
   return /until Brand is registered|Brand.*Current status:\s*(IN_PROGRESS|PENDING)/i.test(error);
 }
