@@ -54,11 +54,6 @@
     "branches": 13,
     "depth": 1
   },
-  "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx::CreateWorkspace#1": {
-    "lines": 320,
-    "branches": 32,
-    "depth": 1
-  },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx::LegacyApp#1": {
     "lines": 181,
     "branches": 11,
