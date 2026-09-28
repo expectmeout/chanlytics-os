@@ -300,15 +300,21 @@ a surface's own stylesheet   layout only
     `--surface-control` (the control layer: sidebar, top bar, tab bar, capsules), `--surface-inset` (a row, a field,
     a card inside a pane), `--surface-pop` (menus, popovers, toasts; always opaque), `--surface-scrim`.
   - Each surface's `-fill`, `-blur`, `-edge` (hairline or rim), `-depth` (shadow) and `-radius`.
-  - Controls: `--control-h-sm/md/lg`, `--control-radius`, `--chip-h`, `--chip-radius`, `--selected-fill` (the picked
-    segment).
+  - Controls: `--control-h-sm/md/lg`, `--control-radius`, `--control-radius-sm` (a small control's, step 1.4),
+    `--chip-h`, `--chip-radius`, `--selected-fill` (the picked segment).
   - Actions: `--primary-fill`, `--primary-ink`, `--primary-hover`, `--secondary-fill`, `--quiet-ink`.
   - The existing roles stay (`--bg-*`, `--ink*`, `--line*`, the statuses, the accent). In Classic the new roles are
     defined from them, so today's rules keep reading what they read.
+  - A role arrives with its first reader (step 1.4). Classic has no blur, no pane depth and no control-layer fill,
+    so those roles, and `--control-h-lg`, arrive with the look or the rule that first reads them.
 - **Tier 3, component.** Private to `kit.css` (for example `--btn-h: var(--control-h-md)`); never set by a look.
-- **The looks.** `:root` and `[data-look="classic"]` set tier 2 to today's values, so Classic is today, pixel for
-  pixel. `[data-look="glass"]` sets tier 2 to the canvases' values (Appendix B), with
-  `[data-look="glass"][data-theme="dark"]` for its dark side. A third look later is one more block.
+- **The looks.** `:root, [data-theme]` sets tier 2 to today's values, so Classic is today, pixel for pixel (step
+  1.4). Every element that stamps a theme is listed, not `:root` alone: a custom property is made where it is set,
+  and `.app-root`, `.shared-root` and `.fr-shell` each stamp their own theme, so a role made on the root alone
+  would keep the root's colours inside a root of the other theme. Those roots stamp `data-look` too (step 1.6).
+  `[data-look="glass"]` sets tier 2 to the canvases' values (Appendix B), with
+  `[data-look="glass"][data-theme="dark"]` for its dark side, written after Classic's block so it wins at every
+  root that carries both. A third look later is one more block.
 - **Material rules.** The glass rim is a masked gradient on a pseudo-element, never an extra element in the markup.
   `@supports not (backdrop-filter: blur(1px))` and `prefers-reduced-transparency: reduce` fall back to opaque fills.
   Reduced motion keeps its rule.
