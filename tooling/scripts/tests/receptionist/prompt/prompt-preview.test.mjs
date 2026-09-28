@@ -193,7 +193,7 @@ test("the openings block is the edge's: the feed's busy blocks against the hours
 test("the record's own rules in settings.css paint no gradient and set no second typeface", () => {
   // The owner named these two before he read a word of the page (the plan's Task 4.0), and both live only in CSS,
   // which the suite cannot execute: a mutant that put the fold's gradient back passed 265 tests. The journey proves it
-  // the better way, by computed style in a browser over the whole record (e2e/settings-business.spec.ts, the 390px
+  // the better way, by computed style in a browser over the whole record (e2e/settings/settings-business.spec.ts, the 390px
   // test), and this stands beside it for the family settings.css owns, on the stylesheet this file already reads.
   // record.css's own rec-* rules are the journey's: reading a second stylesheet here would raise the source-scan
   // baseline, which may only fall.
@@ -234,5 +234,5 @@ test("six thousand characters cannot break the sheet's layout", () => {
   assert.ok(body.includes("font-family: inherit"), "the prompt is set in the page's own face");
   assert.ok(!/font-mono|--mono/.test(body));
   // Where the <pre> scrolled inside the page (max-height 420px, overflow-y auto), the sheet's own body scrolls now:
-  // the kit's (record.css .rec-sheet-body), which the 390px journey measures (e2e/settings-business.spec.ts).
+  // the kit's (record.css .rec-sheet-body), which the 390px journey measures (e2e/settings/settings-business.spec.ts).
 });

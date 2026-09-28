@@ -317,7 +317,7 @@ const recFocusIn = (el, inner, fallback = null) => {
 // it was in is hidden and the sentence that says why stands where it was -- and the browser blurs a hidden box to the
 // document, which is the one place focus must never be left. Reading only document.contains, the hold below saw the
 // box still there and left the keyboard at the top of the page (measured in the Playwright journey,
-// e2e/settings-business.spec.ts, on the eighth language).
+// e2e/settings/settings-business.spec.ts, on the eighth language).
 const recGone = (el) => !el || !document.contains || !document.contains(el) || !!(el.closest && el.closest("[hidden]"));
 // Focus is on nothing a person put it on: nothing at all, the page itself, or something that has left the document (an
 // ask's own button, gone with the ask).
