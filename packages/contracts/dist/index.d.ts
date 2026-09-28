@@ -10144,6 +10144,19 @@ interface AskTurnShape {
     tokens: AskTurnTokens;
     /** Cache reads over everything the model was fed; null when nothing was counted (cacheHitOf). */
     cache_hit: number | null;
+    /**
+     * Each round that returned, in order (the Phase 6 plan, D2): the API's id for its message (null when the stream never
+     * said it), and why it missed the cache the message it named had written -- the API's type (`system_changed`,
+     * `tools_changed`, `messages_changed`, `model_changed`, `previous_message_not_found`, `unavailable`), "pending", or
+     * null when nothing diverged or nothing was named. A turn stored before Phase 6 has neither key.
+     */
+    message_ids: Array<string | null>;
+    cache_miss: Array<string | null>;
+    /**
+     * The first round's hop through the edge, both ways (D3): its wait for the headers less the edge's own time and the
+     * model's, as the edge's server-timing said them; null when it said nothing, or no round came back.
+     */
+    hop_ms: number | null;
     /** Rounds that stopped at ASK_MAX_TOKENS. */
     cap_hits: number;
     /** Whether the answer's format held for the turn (false once the API refused it, D15). */

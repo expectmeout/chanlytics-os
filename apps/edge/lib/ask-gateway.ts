@@ -147,6 +147,8 @@ export interface GatewayRequest {
     effort?: "low" | "medium" | "high";
     format?: { type: "json_schema"; schema: Record<string, unknown> };
   };
+  /** The cache diagnostics (the Phase 6 plan, D2): the message this request follows on, or null to start comparing. */
+  diagnostics?: { previous_message_id: string | null };
 }
 
 const EFFORTS = new Set(["low", "medium", "high"]);
@@ -157,6 +159,18 @@ export type GatewayPurpose = (typeof GATEWAY_PURPOSES)[number];
 /** What Ask's daily budget counts: the gateway's purposes, and the reach-out sheet's preview (its own door, R12). */
 type AskUsagePurpose = GatewayPurpose | "reach_out_preview";
 const FORMAT_MAX = 8_000;
+
+/**
+ * The cache diagnostics a request may carry (the Phase 6 plan, D2): the id of a message the API wrote, or null to start
+ * a comparison. Anything else is dropped, never refused: diagnostics change nothing the model answers.
+ */
+const MESSAGE_ID = /^msg_[A-Za-z0-9_-]{1,120}$/;
+function diagnosticsOf(raw: unknown): { diagnostics?: { previous_message_id: string | null } } {
+  if (!raw || typeof raw !== "object" || !("previous_message_id" in raw)) return {};
+  const id = (raw as { previous_message_id: unknown }).previous_message_id;
+  if (id === null) return { diagnostics: { previous_message_id: null } };
+  return typeof id === "string" && MESSAGE_ID.test(id) ? { diagnostics: { previous_message_id: id } } : {};
+}
 
 function formatOf(raw: unknown): { type: "json_schema"; schema: Record<string, unknown> } | null | "bad" {
   if (raw === undefined) return null;
@@ -227,6 +241,7 @@ export function validateGatewayRequest(
       ...(r.tool_choice ? { tool_choice: r.tool_choice } : {}),
       ...(typeof r.temperature === "number" ? { temperature: Math.min(1, Math.max(0, r.temperature)) } : {}),
       ...(effort || format ? { output_config: { ...(effort ? { effort } : {}), ...(format ? { format } : {}) } } : {}),
+      ...diagnosticsOf(r.diagnostics),
     },
   };
 }

@@ -25,6 +25,8 @@ export interface RoundBlock {
 /** What the round cost, as the API said it on the stream (sse.ts GatewayUsage plus the stop's output side). */
 export interface RoundUsage {
   messageId: string | null;
+  /** Why the round missed the cache the message it named had written (sse.ts GatewayUsage.cacheMiss). */
+  cacheMiss: string | null;
   inputTokens: number;
   cacheReadTokens: number;
   cacheCreationTokens: number;
@@ -37,6 +39,11 @@ export interface RoundTiming {
   firstEventMs: number | null;
   firstTextMs: number | null;
   totalMs: number;
+  /**
+   * The hop through the edge, both ways (the Phase 6 plan, D3): the wait for the response's headers less the edge's own
+   * time and the model's, as the edge's server-timing said them; null when it said nothing.
+   */
+  hopMs: number | null;
 }
 
 export interface RoundResult {
@@ -63,9 +70,11 @@ export async function runRound(
   let usage: RoundUsage | null = null;
   let firstEventMs: number | null = null;
   let firstTextMs: number | null = null;
+  let hopMs: number | null = null;
   let textSoFar = "";
   for await (const ev of stream(call)) {
-    if (firstEventMs === null) firstEventMs = Date.now() - t0;
+    // The edge's timing is said before the stream begins: it is no byte of the model's.
+    if (firstEventMs === null && ev.type !== "timing") firstEventMs = Date.now() - t0;
     switch (ev.type) {
       case "block_start":
         blocks.set(ev.index, {
@@ -105,6 +114,7 @@ export async function runRound(
       case "usage":
         usage = {
           messageId: ev.messageId,
+          cacheMiss: ev.cacheMiss,
           inputTokens: ev.inputTokens,
           cacheReadTokens: ev.cacheReadTokens,
           cacheCreationTokens: ev.cacheCreationTokens,
@@ -118,6 +128,10 @@ export async function runRound(
       case "error":
         streamError = ev.message;
         break;
+      case "timing":
+        hopMs =
+          ev.gatewayMs === null || ev.modelMs === null ? null : Math.max(0, ev.headersMs - ev.gatewayMs - ev.modelMs);
+        break;
       default:
         break;
     }
@@ -127,7 +141,7 @@ export async function runRound(
     stopReason,
     streamError,
     usage,
-    timing: { firstEventMs, firstTextMs, totalMs: Date.now() - t0 },
+    timing: { firstEventMs, firstTextMs, totalMs: Date.now() - t0, hopMs },
   };
 }
 
