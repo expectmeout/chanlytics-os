@@ -313,6 +313,7 @@ test("the route: the shape is stored on the turn's row with the palette's opened
     await again.text();
     const second = tables.ask_messages[3].content;
     assert.equal(second.shape.follow_up, true);
+    assert.equal(second.shape.replay, "live", "asked at once: the first turn replayed as it was sent (PR 5.4)");
     assert.ok(
       typeof second.shape.since_last_ms === "number" && second.shape.since_last_ms >= 0,
       "since the previous turn",
