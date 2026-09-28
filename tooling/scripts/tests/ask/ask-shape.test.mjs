@@ -24,7 +24,14 @@ test("the parser: message_start is the usage (the input side, the cache counts, 
     sse.parseFrame(
       'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_01","usage":{"input_tokens":1200,"cache_read_input_tokens":900,"cache_creation_input_tokens":300,"output_tokens":1}}}',
     ),
-    { type: "usage", messageId: "msg_01", inputTokens: 1200, cacheReadTokens: 900, cacheCreationTokens: 300 },
+    {
+      type: "usage",
+      messageId: "msg_01",
+      cacheMiss: null,
+      inputTokens: 1200,
+      cacheReadTokens: 900,
+      cacheCreationTokens: 300,
+    },
   );
   assert.deepEqual(
     sse.parseFrame('data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":42}}'),
@@ -38,6 +45,22 @@ test("the parser: message_start is the usage (the input side, the cache counts, 
   assert.equal(sse.parseFrame('data: {"type":"message_start","message":{"id":"msg_02"}}'), null);
 });
 
+test("the cache diagnostics on message_start (the Phase 6 plan, D2): none is null, a comparison still running is pending, a miss is its type, a reason with no type is unavailable", () => {
+  const start = (diagnostics) =>
+    sse.parseFrame(
+      `data: ${JSON.stringify({ type: "message_start", message: { id: "msg_09", usage: { input_tokens: 1 }, diagnostics } })}`,
+    ).cacheMiss;
+  assert.equal(start(undefined), null, "a request that named no message: nothing compared");
+  assert.equal(start(null), null, "compared, and nothing diverged");
+  assert.equal(start({ cache_miss_reason: null }), "pending", "still comparing when the response began");
+  assert.equal(
+    start({ cache_miss_reason: { type: "tools_changed", cache_missed_input_tokens: 41850 } }),
+    "tools_changed",
+  );
+  assert.equal(start({ cache_miss_reason: { type: "previous_message_not_found" } }), "previous_message_not_found");
+  assert.equal(start({ cache_miss_reason: {} }), "unavailable");
+});
+
 const { runRound } = await import(at("apps/dashboard/src/server/ask/round.ts"));
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const USER = "u1";
@@ -46,7 +69,16 @@ const tick = () => new Promise((r) => setTimeout(r, 5));
 test("a round keeps its timing (first event, first text, the whole) and its usage (start plus stop), and a scripted or broken stream leaves them honest", async () => {
   async function* stream() {
     await tick();
-    yield { type: "usage", messageId: "msg_01", inputTokens: 100, cacheReadTokens: 900, cacheCreationTokens: 0 };
+    yield { type: "timing", gatewayMs: 40, modelMs: 900, headersMs: 1_000 };
+    await tick();
+    yield {
+      type: "usage",
+      messageId: "msg_01",
+      cacheMiss: "system_changed",
+      inputTokens: 100,
+      cacheReadTokens: 900,
+      cacheCreationTokens: 0,
+    };
     yield { type: "block_start", index: 0, block: { type: "text" } };
     await tick();
     yield { type: "text", index: 0, text: '{"say": {"headline": "Two' };
@@ -57,6 +89,7 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
   const r = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, stream);
   assert.deepEqual(r.usage, {
     messageId: "msg_01",
+    cacheMiss: "system_changed",
     inputTokens: 100,
     cacheReadTokens: 900,
     cacheCreationTokens: 0,
@@ -65,6 +98,8 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
   assert.ok(r.timing.firstEventMs >= 0, "the first byte's time");
   assert.ok(r.timing.firstTextMs >= r.timing.firstEventMs, "the first text after the first byte");
   assert.ok(r.timing.totalMs >= r.timing.firstTextMs, "the whole after both");
+  assert.equal(r.timing.hopMs, 60, "the hop (D3): the wait for the headers less the edge's time and the model's");
+  assert.ok(r.timing.firstEventMs >= 5, "the edge's timing is said before the stream: it is no byte of the model's");
 
   async function* silent() {
     yield { type: "block_start", index: 0, block: { type: "tool_use", id: "t1", name: "inbox" } };
@@ -74,6 +109,7 @@ test("a round keeps its timing (first event, first text, the whole) and its usag
   }
   const s = await runRound({ tenantId: A, userId: USER, request: {} }, () => {}, silent);
   assert.equal(s.usage, null, "no usage frame, no usage: never a row of zeros");
+  assert.equal(s.timing.hopMs, null, "no server-timing, no hop: never a guess");
   assert.equal(s.timing.firstTextMs, null, "a round that wrote no text has no first text");
   assert.ok(typeof s.timing.firstEventMs === "number");
 

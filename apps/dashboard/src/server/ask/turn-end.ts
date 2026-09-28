@@ -33,9 +33,15 @@ export function turnMeter(t0: number) {
     toolsMs: [] as Array<{ name: string; ms: number }>,
     tokens: { input: 0, cache_read: 0, cache_creation: 0, output: 0 },
     capHits: 0,
+    messageIds: [] as Array<string | null>,
+    cacheMiss: [] as Array<string | null>,
+    hopMs: null as number | null,
     /** A round that came back, begun at `roundAt`: its time, and its stream's first byte and text from the turn's start. */
     round(r: RoundResult, roundAt: number): void {
       meter.roundsMs.push(r.timing?.totalMs ?? Date.now() - roundAt);
+      if (meter.messageIds.length === 0) meter.hopMs = r.timing?.hopMs ?? null;
+      meter.messageIds.push(r.usage?.messageId ?? null);
+      meter.cacheMiss.push(r.usage?.cacheMiss ?? null);
       if (r.timing) {
         if (meter.firstByteMs === null && r.timing.firstEventMs !== null)
           meter.firstByteMs = roundAt - t0 + r.timing.firstEventMs;
@@ -48,6 +54,19 @@ export function turnMeter(t0: number) {
         meter.tokens.cache_creation += r.usage.cacheCreationTokens;
         meter.tokens.output += r.usage.outputTokens ?? 0;
       }
+    },
+    /** The API's id for the last round that came back; null before one did, or when its stream never said it. */
+    lastId(): string | null {
+      return meter.messageIds.at(-1) ?? null;
+    },
+    /**
+     * The message a round follows on, for the cache diagnostics (the Phase 6 plan, D2): the round before it, else, on
+     * a live turn's first round, the previous turn's last (Chain.lastId), else null, which starts a comparison. Never
+     * part of the prefix a replay is matched on (memory.ts prefixOf).
+     */
+    follows(live: boolean, chain: TurnInput["chain"]): { previous_message_id: string | null } {
+      const previous = meter.messageIds.length ? meter.lastId() : live ? (chain?.lastId ?? null) : null;
+      return { previous_message_id: previous };
     },
     /** A Say the person saw: the first one's time, from the turn's start. */
     said(): void {
@@ -86,6 +105,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
   const { lastRound, ...end } = r;
   const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan, format, toolsUsed } = soFar;
   const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits } = soFar.meter;
+  const { messageIds, cacheMiss, hopMs } = soFar.meter;
   const { proposals, live } = soFar;
   // What the turn keeps beside it (RawTurn): a live turn, its link and what it told; a rebuilt one, what its lines told.
   const kept = live && input.chain ? chainEnd(input.chain) : input.told ? { told: input.told } : {};
@@ -114,6 +134,9 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     final_ms: Date.now() - t0,
     tokens,
     cache_hit: cacheHitOf(tokens),
+    message_ids: messageIds,
+    cache_miss: cacheMiss,
+    hop_ms: hopMs,
     cap_hits: capHits,
     format,
     failed: r.failed,
@@ -137,6 +160,9 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     text: answerText(r.answer),
     model: model.id,
     shape,
-    raw: lastRound && !lastRound.streamError ? rawTurn(lastRound, soFar.questionAt, kept) : null,
+    raw:
+      lastRound && !lastRound.streamError
+        ? rawTurn({ ...lastRound, messageId: soFar.meter.lastId() }, soFar.questionAt, kept)
+        : null,
   };
 }
