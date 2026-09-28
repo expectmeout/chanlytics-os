@@ -21,7 +21,7 @@ once it is built: it is the record of why the code has that shape.
 | [0014](0014-a-partner-hears-what-changed.md)                    | A partner hears what changed, once a day                   | Built with the note (00209, #1165)                                                                                                                                |
 | [0015](0015-the-shell-leaves-surface-by-surface.md)             | The shell leaves, one surface at a time                    | Proposed, not built; Ruben's to accept                                                                                                                            |
 | [0016](0016-a-partner-sets-up-a-workspace-and-hands-it-over.md) | A partner sets up a workspace and hands it to its owner    | Built with the note (00214, #1177)                                                                                                                                |
-| [0017](0017-a-lead-reply-is-drafted-on-its-reading.md)          | A lead's reply is drafted on its reading                   | Decided, not built (Reach out Part 5's PR 5 builds it)                                                                                                            |
+| [0017](0017-a-lead-reply-is-drafted-on-its-reading.md)          | A lead's reply is drafted on its reading                   | Decided with Reach out Part 5; step 2 built (its PR 5), step 3 waits on 0001's step 6                                                                             |
 | [0020](0020-an-existing-workspace-brings-in-a-partner.md)       | An existing workspace brings in a partner                  | Built with the note (00225)                                                                                                                                       |
 | [0022](0022-the-wire-says-snake-case.md)                        | The wire says snake_case                                   | Decided, and held from the change that wrote it by `routes/wire-casing.test.mjs`, whose bank may only fall                                                        |
 
@@ -32,4 +32,6 @@ A superseded note is edited in place. Each opens with a **Status and commit** li
 today, with the file and line that proves it), Decision, Shape, Steps, Tests, Risks, Open questions. Every note is
 written against a **named commit** and verified against the code at it, not against the plans. When a note's status
 changes, its status line and this table change in the same pull request, and say the commit the status was read at.
-The code moves; where a note and the code disagree, the code wins.
+`tooling/scripts/tests/history/decisions.test.mjs` holds the table: every note is named for a number of its own and
+has one row, and each row says the state its note's status line says (proposed; decided, not built; built, in part or
+whole; or decided). The code moves; where a note and the code disagree, the code wins.

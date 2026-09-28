@@ -69,7 +69,7 @@ every name under 63 bytes, where Postgres truncates. An applied name is never re
   (`tooling/scripts/checks/pr-title.mjs`, in `.github/workflows/ci.yml`).
 - **Migrations** are `NNNNN_what_changed.sql` and **decisions** `NNNN-what-is-decided.md`, one number each, every
   decision listed in `docs/decisions/README.md` with the status its note says. `database/migrations.test.mjs`,
-  `repo/decisions.test.mjs` (owed).
+  `history/decisions.test.mjs`.
 - **Branches** are `<kind>/<topic>` (`fix/`, `docs/`, `design/`, `perf/`, `scale/`) or a program's name
   (`ask-rewired/…`). Nothing checks them: a branch is deleted on merge.
 - **Environment variables** are SCREAMING_SNAKE_CASE, the provider first (`RETELL_API_KEY`), `_PREVIOUS` for the one
