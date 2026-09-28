@@ -44,6 +44,7 @@ function replyFactsOf(r: ReachOutReplyOf): ReplyFacts {
     business: r.business,
     leadAddress: r.lead_email,
     leadWebsite: r.lead_website,
+    leadWebsiteRoot: r.lead_website_root,
     signedBy: r.signed_by,
     tz: r.tz ?? DEFAULT_TIMEZONE,
   };

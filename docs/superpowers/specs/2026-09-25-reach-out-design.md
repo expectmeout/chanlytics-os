@@ -402,8 +402,10 @@ undoable for seven days on the lead ("read as no · undo").
   lead it waits for Part 6.
 - **Owed.** Microsoft 365's out-of-office is claimed `automated`, not `auto_reply` (its documented headers; no live
   capture yet), so it stops the chain with a step for the day they are back rather than pausing it: the safe direction.
-  And `ownedDomainOf` reads the lead's website host, which the finder already cut from the listing's path, so a no from
-  an ISP's user page closes that ISP's domain for the workspace.
+- **A page under a host is not the host (00237).** A lead keeps only its website's host, so the finder also records
+  whether the listing's website was that host's root (`leads.website_root`), and `reach_out_reply_of` answers it. A no
+  from a business whose website is a page under someone else's host (an ISP's `/~dana/`) closes its addresses and not
+  the host's domain. A lead found before 00237 reads by its host alone until the finder meets it again.
 
 ### 4.8 Protection
 

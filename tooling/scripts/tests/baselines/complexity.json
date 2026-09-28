@@ -585,7 +585,7 @@
     "depth": 1
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 525,
+    "lines": 521,
     "branches": 87,
     "depth": 6
   },
@@ -683,11 +683,6 @@
     "lines": 159,
     "branches": 35,
     "depth": 4
-  },
-  "apps/edge/api/diag.ts::GET#1": {
-    "lines": 234,
-    "branches": 49,
-    "depth": 3
   },
   "apps/edge/api/retell-fn.ts::POST#1": {
     "lines": 279,
