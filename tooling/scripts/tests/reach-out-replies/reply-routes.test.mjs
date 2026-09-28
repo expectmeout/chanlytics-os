@@ -63,7 +63,11 @@ const tables = (role = "operator", over = {}) => ({
       draft: "Thank you for writing.",
       draft_state: "written",
     }),
-    reading(NO, { intent: "no", summary: "Asks to be taken off the list" }),
+    reading(NO, {
+      intent: "no",
+      summary: "Asks to be taken off the list",
+      plan: { saidNo: true, suppressFrom: "office@example.com", suppressDomain: "example.com", step: null },
+    }),
     reading(THEIRS, { tenant_id: B }),
   ],
   leads: [{ id: LEAD, tenant_id: A, business_name: "Brightwater & Co." }],
@@ -74,6 +78,7 @@ const tables = (role = "operator", over = {}) => ({
   ],
   messages: [],
   sending_domains: [],
+  mailboxes: [{ id: "mb1", tenant_id: A, local_part: "harbor", from_name: "Harbor", reply_token: "tok1" }],
   ...over,
 });
 /** The two doors, answered as the SQL answers: the undoable test from a table the case sets, and the undo it guards. */
@@ -122,7 +127,8 @@ test("each route declares its policy: every member reads, an owner or operator u
 
 test("GET reach-out-replies: newest first, what each was read as, its draft, its chain and step, and whether it may be undone", async () => {
   const d = doors({ [NO]: null });
-  const { replies } = await list.GET.run(get(), ctxFor(tables("viewer"), {}, d.rpcs));
+  const { replies, mailbox } = await list.GET.run(get(), ctxFor(tables("viewer"), {}, d.rpcs));
+  assert.equal(mailbox, "harbor@mail.example.com", "the composer's lines name the mailbox");
   assert.deepEqual(
     replies.map((r) => r.message_id),
     [NO, YES],
@@ -135,6 +141,8 @@ test("GET reach-out-replies: newest first, what each was read as, its draft, its
   );
   assert.deepEqual([yes.can_undo, yes.draft, yes.draft_state], [false, "Thank you for writing.", "written"]);
   assert.deepEqual(no.reply_from, { from: "mailbox", because: null }, "no reach-out email on the thread yet");
+  assert.deepEqual(no.said_no, { address: "office@example.com", domain: "example.com" }, "what the no stopped");
+  assert.equal(yes.said_no, null);
 
   const tooLate = await list.GET.run(get(), ctxFor(tables("viewer"), {}, doors({ [NO]: "too_late" }).rpcs));
   assert.equal(tooLate.replies[0].can_undo, false, "the door's own test decides");

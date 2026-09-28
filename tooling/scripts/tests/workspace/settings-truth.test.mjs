@@ -13,7 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ROLE_PERMS, parseTenantConfigResult } from "@chanlytics/contracts";
+import { ROLE_PERMS, parseTenantConfigResult, NOTIFICATION_KIND_GROUPS } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "../_source.mjs";
 
 const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
@@ -105,8 +105,11 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
 });
 
 test("F36/F37: alerts that go to Chanlytics say so; switching a number off is described as it is", () => {
-  assert.ok(pane.includes("Goes to Chanlytics, not to the addresses above"));
-  assert.equal((pane.match(/platform: true/g) ?? []).length, 2, "exactly the two platform alerts");
+  // The kinds are contracts' (notification-kinds.ts, Reach out Part 5 PR 8), drawn by the pane in their groups.
+  const rows = NOTIFICATION_KIND_GROUPS.flatMap((g) => g.rows);
+  const platform = rows.filter((r) => r.platform);
+  assert.equal(platform.length, 2, "exactly the two platform alerts");
+  for (const r of platform) assert.ok(r.what.includes("Goes to Chanlytics, not to the addresses above"), r.title);
   assert.ok(pane.includes("except the two marked for Chanlytics"));
   assert.ok(!pane.includes("emails you every message instead"), "REGRESSION: promised an email nothing sends");
   // The channels sentence moved with the pane it belongs to; the alerts
