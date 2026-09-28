@@ -348,15 +348,17 @@ begin
 end $$;
 
 -- A changed call recomputes its people when what the moments read changed: whether it counts, when it started, when
--- it was written, or whose it is. Its lifecycle's other writes (a summary, a recording, a cost) pass.
+-- it was written, or whose it is. Its lifecycle's other writes (a summary, a recording, a cost) pass without a call.
 create or replace function public.person_moments_calls_changed()
 returns trigger
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_back uuid[];
 begin
-  perform public.person_moments_recompute(array(
+  v_back := array(
     select distinct x.contact_id
       from (
         select o.contact_id as a, n.contact_id as b
@@ -370,7 +372,10 @@ begin
       cross join lateral (values (p.a), (p.b)) x (contact_id)
      where x.contact_id is not null
      order by 1
-  ));
+  );
+  if cardinality(v_back) > 0 then
+    perform public.person_moments_recompute(v_back);
+  end if;
   return null;
 end $$;
 
