@@ -264,142 +264,135 @@ and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 
 ## What is where
 
-Each code tree, then the modules at its root (`./`) and under each of its
-folders. A module is a TypeScript or JavaScript file the repository tracks,
-less the built, generated and public ones, counted as `docs/debt.md` counts
-"directories over 20 modules"; `supabase/migrations/` counts its migrations.
-The block is drawn by `UPDATE_BASELINES=1 corepack pnpm test`, and
+Each code tree and the folders its modules are grouped in, by name, and last
+the schema's migrations. A folder is drawn when it holds a TypeScript or
+JavaScript file the repository tracks, less the built, generated and public
+ones. The block is drawn by `UPDATE_BASELINES=1 corepack pnpm test`, and
 `tooling/scripts/tests/docs/docs-tree.test.mjs` fails when it and the tree
-disagree: a change that adds, moves or removes a module redraws it.
+disagree: it is redrawn when a folder appears or disappears.
 
 <!-- tree:start -->
 
 ```text
 apps/edge/api/
-  ./                         12
-  admin/                     24
-  cron/                      14
-  jobs/                       1
+  admin/
+  cron/
+  jobs/
 apps/edge/lib/
-  ./                         16
-  billing/                    2
-  calendar/                   3
-  email/                      8
-  google/                    11
-  leads/                      7
-  lines/                     10
-  notes/                      1
-  ops/                        7
-  packages/                   5
-  partners/                   2
-  reach-out/                 11
-  receptionist/               5
-  sms/                        2
-  voice/                      7
-  whatsapp/                   8
+  billing/
+  calendar/
+  email/
+  google/
+  leads/
+  lines/
+  notes/
+  ops/
+  packages/
+  partners/
+  reach-out/
+  receptionist/
+  sms/
+  voice/
+  whatsapp/
 apps/dashboard/app/
-  ./                          4
-  (os)/                       4
-  api/                      166
-  auth/                       3
-  b/                          2
-  data-deletion/              1
-  login/                      2
-  p/                          1
-  privacy/                    1
-  reset-password/             2
-  signup/                     2
-  terms/                      1
-  u/                          1
-  verify/                     2
-  yes/                        3
+  (os)/
+  api/
+  auth/
+  b/
+  data-deletion/
+  login/
+  p/
+  privacy/
+  reset-password/
+  signup/
+  terms/
+  u/
+  verify/
+  yes/
+apps/dashboard/src/
+  auth/
+  client/
+  legacy/
+  legacy-bridge/
+  lib/
+  server/
+  yes/
 apps/dashboard/src/server/
-  ./                         19
-  ask/                       44
-  auth/                       2
-  calendar/                   8
-  campaigns/                  7
-  connections/                5
-  conversations/              3
-  export/                     2
-  leads/                     10
-  metrics/                    2
-  people/                     8
-  platform/                   2
-  ports/                      2
-  public/                     4
-  readers/                   32
-  receptionist/               2
-  workspace/                  8
+  ask/
+  auth/
+  calendar/
+  campaigns/
+  connections/
+  conversations/
+  export/
+  leads/
+  metrics/
+  people/
+  platform/
+  ports/
+  public/
+  readers/
+  receptionist/
+  workspace/
 apps/dashboard/src/legacy-bridge/
-  ./                         55
-  ask/                        5
-  mascot/                    13
-  reach-out/                  2
-  today-sample/              10
+  ask/
+  mascot/
+  reach-out/
+  today-sample/
 apps/dashboard/src/legacy/
-  components/                24
-  data/                      13
-  demo/                      12
-  pages/                     81
+  components/
+  data/
+  demo/
+  pages/
 apps/mobile/src/
-  ./                          1
-  app/                        9
-  shell/                     20
-  widgets/                    2
+  app/
+  shell/
+  widgets/
 packages/channels/src/
-  ./                         23
-  a2p/                        6
-  email/                      7
+  a2p/
+  email/
 packages/contracts/src/
-  ./                          2
-  ask/                       14
-  ask-proposals/              9
-  broadcasts/                 7
-  calendar/                  14
-  config/                    30
-  consent/                    3
-  conversations/             16
-  deals/                     19
-  email/                      5
-  google/                     4
-  leads/                     21
-  lines/                      8
-  mobile/                     4
-  notes/                      5
-  people/                    20
-  playbooks/                  8
-  reach-out/                 17
-  reports/                    4
-  setup/                     12
-  shared/                    14
-  shell/                      5
-  templates/                 12
-  today/                     19
-  voice/                      6
-  workspace/                 12
+  ask/
+  ask-proposals/
+  broadcasts/
+  calendar/
+  config/
+  consent/
+  conversations/
+  deals/
+  email/
+  google/
+  leads/
+  lines/
+  mobile/
+  notes/
+  people/
+  playbooks/
+  reach-out/
+  reports/
+  setup/
+  shared/
+  shell/
+  templates/
+  today/
+  voice/
+  workspace/
 packages/core/src/
-  ./                          6
-  campaigns/                 12
-  conversations/             10
-  inbound/                    8
-  leads/                     23
-  messages/                   7
+  campaigns/
+  conversations/
+  inbound/
+  leads/
+  messages/
 packages/db/src/
-  ./                          4
-  repositories/              20
+  repositories/
 packages/jobs/src/
-  ./                         10
 tooling/scripts/
-  ./                         27
-  checks/                     2
-  e2e-harness/                5
-  evals/                      1
-  tests/                    635
+  checks/
+  e2e-harness/
+  evals/
+  tests/
 e2e/
-  ./                         48
 supabase/migrations/
-  ./                        216
 ```
 
 <!-- tree:end -->
@@ -419,7 +412,7 @@ Every path is from the repository's root, and
 | A new job kind                         | `JOB_KINDS` in contracts, a handler in `packages/jobs`, its caller, and the `jobs.kind` CHECK, in one change                                                                                                                       |
 | A new sweep                            | A cron door, a `sweep_status` registration, the pg_cron schedule                                                                                                                                                                   |
 | Billing                                | `apps/edge/lib/billing/`, `apps/edge/api/stripe-webhook.ts`                                                                                                                                                                        |
-| The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/leads.ts`, migration `00140`                                                                                                                   |
+| The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/leads.ts`, `supabase/migrations/00140_the_lead_finder_engine.sql`                                                                              |
 | Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/{ask,ask-answer}.ts`                                                                                                                                                |
 | The calendar                           | `apps/dashboard/src/server/calendar/`, `packages/contracts/src/calendar/{feed,availability}.ts`, `apps/edge/api/cron/calendar.ts`                                                                                                  |
 | Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `packages/channels/src/a2p*.ts`, `packages/channels/src/a2p/`, `apps/edge/lib/lines/`                                                                                                           |

@@ -54,21 +54,27 @@ export function readBaseline(file) {
 }
 
 /**
- * Write a baseline whole or not at all: the register reads the baselines while the
- * ratchets bank them (the runner starts test files in parallel), and a rename is
- * the one write a reader never sees half done.
+ * Write a file whole or not at all: the register reads the baselines while the
+ * ratchets bank them, and the docs' tests read the pages a bank rewrites (the
+ * runner starts test files in parallel), and a rename is the one write a reader
+ * never sees half done.
  */
-export function writeBaseline(p, value) {
-  fs.mkdirSync(path.dirname(p), { recursive: true });
+function writeWhole(p, text) {
   const tmp = `${p}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(value, null, 2) + "\n");
+  fs.writeFileSync(tmp, text);
   fs.renameSync(tmp, p);
 }
 
+/** A baseline, written whole: the ratchets', the source-scan ratchet's and knip's (check-dead-exports.mjs). */
+export function writeBaseline(p, value) {
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  writeWhole(p, JSON.stringify(value, null, 2) + "\n");
+}
+
 /*
- * The pages a bank writes. A number a page prints is a block between two markers, written by the command that banks
- * (docs/debt.md's and docs/takeover.md's measured block, docs/architecture.md's tree), and a plain run fails when the
- * block and what it measures disagree: a count on a page is never typed by hand.
+ * The pages a bank writes. What a page holds between two markers (docs/debt.md's and docs/takeover.md's measured
+ * block, docs/architecture.md's tree) is written by the command that banks, never typed by hand, and a plain run fails
+ * when the block and what it is written from disagree.
  */
 
 /** A page as text, normalised to LF: a page is prose, not code, and a Windows checkout must read the same. */
@@ -83,15 +89,15 @@ export function blockIn(rel, [start, end]) {
 }
 
 /**
- * Write `block` between a page's markers, a blank line either side. A page without them is left alone, and the plain
- * run that reads it says so.
+ * Write `block` between a page's markers, a blank line either side, and the page whole (`writeWhole`). A page without
+ * its markers is left alone, and the plain run that reads it says so.
  */
 export function writeBlock(rel, [start, end], block) {
   const now = readPage(rel);
   const a = now.indexOf(start);
   const b = now.indexOf(end);
   if (a < 0 || b < a) return;
-  fs.writeFileSync(path.join(ROOT, rel), now.slice(0, a + start.length) + "\n\n" + block + "\n\n" + now.slice(b));
+  writeWhole(path.join(ROOT, rel), now.slice(0, a + start.length) + "\n\n" + block + "\n\n" + now.slice(b));
 }
 
 /** A number, or each field of a record, taken as the lower of now and was; a field was lacks is new, so 0. */

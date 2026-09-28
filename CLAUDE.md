@@ -145,7 +145,8 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 - What such a route calls: `apps/dashboard/src/server/<domain>/`, and `apps/dashboard/src/server` itself for the
   plumbing every domain uses (`apps/dashboard/src/server/{route,with-route,edge,tenant}.ts` and their kind).
 - What a GET route answers: a reader in `apps/dashboard/src/server/readers/`, which Ask's tools read too, so the
-  number Ask says is the number the page shows (`apps/dashboard/src/server/readers/people.ts`, GET contacts').
+  number Ask says is the number the page shows. `apps/dashboard/app/api/v1/contacts/route.ts` answers from
+  `apps/dashboard/src/server/readers/people.ts`.
 - Something a page draws: `apps/dashboard/src/legacy/pages`, fed through `apps/dashboard/src/legacy-bridge`.
 - Something the phone app does natively, around the site it shows in each tab: `apps/mobile/src/`
   (`apps/mobile/src/shell/Surface.tsx` holds one page); the words both sides of its bridge share are
