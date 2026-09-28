@@ -44,7 +44,7 @@ const REC_EXT: Record<string, string> = {
  * recording in the bucket was stored, served and recorded as octet-stream, and
  * a browser that goes by the type (Safari above all) will not play audio that
  * is not typed as audio. The provider's word counts only when it names audio;
- * anything else is what Retell records in. tooling/scripts/recordings-retype.mjs
+ * anything else is what Retell records in. tooling/scripts/ops/recordings-retype.mjs
  * carries a copy of this rule for the recordings stored before it.
  */
 export function sniffAudioType(bytes: ArrayBuffer, given: string | null): string {

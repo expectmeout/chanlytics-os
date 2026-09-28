@@ -6,8 +6,8 @@
  * off for everyone), watched until it ends, and scored against a labelled set
  * for gate G2.
  *
- *   node tooling/scripts/lead-search.mjs --plan docs/plans/lead-plan.json [--workspace chanlytics-e2e] [--wait]
- *   node tooling/scripts/lead-search.mjs --search <id> --label labels.json
+ *   node tooling/scripts/ops/lead-search.mjs --plan docs/plans/lead-plan.json [--workspace chanlytics-e2e] [--wait]
+ *   node tooling/scripts/ops/lead-search.mjs --search <id> --label labels.json
  *
  * Env: SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL), SUPABASE_SERVICE_ROLE_KEY,
  * SUPABASE_ANON_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY), E2E_USER_EMAIL, and

@@ -5,7 +5,7 @@
  * tab's globals from the SAME scenario object (the server injects it into the bundle), so the spec and the page
  * cannot disagree the way two hand-built copies would.
  *
- *   nightly -- the seeded `chanlytics-e2e` workspace, DERIVED from tooling/scripts/e2e-workspace.mjs rather than
+ *   nightly -- the seeded `chanlytics-e2e` workspace, DERIVED from tooling/scripts/ops/e2e-workspace.mjs rather than
  *              copied: the WHOLE config that converge writes (its notifications included, so what the read hands
  *              over is what the nightly's row holds), the line it provisions and the clock it sets. When the seed
  *              changes, this changes with it, which is the whole reason it imports rather than restates. No profile
@@ -30,7 +30,7 @@ import {
   newReceptionistDefaults,
   proposalMessage,
 } from "@chanlytics/contracts";
-import { NAME, SLUG, TIMEZONE, workspaceChannel, workspaceConfig } from "../e2e-workspace.mjs";
+import { NAME, SLUG, TIMEZONE, workspaceChannel, workspaceConfig } from "../ops/e2e-workspace.mjs";
 
 /** The workspace the harness signs into. The id is the harness's own: nothing here reaches a database. */
 export const WORKSPACE = { id: "t-e2e", slug: SLUG, name: NAME };

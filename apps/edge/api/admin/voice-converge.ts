@@ -2,7 +2,7 @@
  * POST /api/admin/voice-converge — the phone agent's settings, planned and
  * applied from the edge.
  *
- * The converger script (tooling/scripts/voice-converge.mjs) needs the
+ * The converger script (tooling/scripts/ops/voice-converge.mjs) needs the
  * provider key on a laptop, and the key lives here and nowhere else. This
  * endpoint plans the same agent-level settings the script does — the webhook
  * events, the webhook budget, signed recording links, the post-call analysis

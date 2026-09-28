@@ -30,8 +30,8 @@
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  * Usage:
- *   node tooling/scripts/delete-tenant.mjs --tenant <uuid> --expect-name "<name>"
- *   node tooling/scripts/delete-tenant.mjs --tenant <uuid> --expect-name "<name>" --apply
+ *   node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>"
+ *   node tooling/scripts/ops/delete-tenant.mjs --tenant <uuid> --expect-name "<name>" --apply
  */
 import { createClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -161,7 +161,7 @@ console.log(
 );
 
 // -------------------------------------------------------- 2. read and back up
-const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "backups");
+const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "backups");
 mkdirSync(backupsDir, { recursive: true });
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
 const backupPath = join(backupsDir, `tenant-${tenantId}-${stamp}.jsonl`);
