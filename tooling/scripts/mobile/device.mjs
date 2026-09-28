@@ -148,8 +148,9 @@ export function tap({ x, y }) {
 /* ---- What the app says as it starts ---- */
 
 /**
- * The bundle the app last started with, from the device's log: its `app_launch` line (src/app/_layout.tsx), the
- * update's id or the build's own bundle, and its channel. Null when no launch was logged.
+ * The bundle the app last started with, from the device's log: the line it writes as it starts
+ * (apps/mobile/src/shell/deploy.ts, launchLine), the update's id or the build's own bundle, and its channel. Null when
+ * no launch was logged.
  */
 export function launchOf(logcat) {
   const lines = logcat.split(/\r?\n/).filter((l) => l.includes("app_launch "));
