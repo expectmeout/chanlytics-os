@@ -386,7 +386,7 @@ test("since_last_ms is known however long the thread: the read keeps the newest 
   }
 });
 
-test("the client sends opened_ms with the question when the palette measured one, and nothing when it did not", async () => {
+test("the client sends opened_ms with the question when the palette measured one, and nothing when it did not; and a scope when it has one, null for none, nothing for no opinion", async () => {
   const { createApi } = await import(at("apps/dashboard/src/client/api.ts"));
   const { askApi } = await import(at("apps/dashboard/src/legacy-bridge/ask/api.ts"));
   const bodies = [];
@@ -406,6 +406,14 @@ test("the client sends opened_ms with the question when the palette measured one
   await api.send({ text: "q", threadId: null, scope: null, surface: "today" }, () => {});
   assert.equal(bodies[0].opened_ms, 4200);
   assert.ok(!("opened_ms" in bodies[1]));
+  // The scope three ways (D9): the Line's, sent; none, said as null, which clears the thread's; and from a caller with
+  // no opinion (the Leads answer row), not sent at all, so the thread keeps its own.
+  const scope = { kind: "person", id: "p1", label: "Rosa" };
+  await api.send({ text: "q", threadId: "t1", scope, surface: "people" }, () => {});
+  await api.send({ text: "q", threadId: "t1", surface: "leads" }, () => {});
+  assert.deepEqual([bodies[0].scope, bodies[2].scope], [null, scope]);
+  assert.ok("scope" in bodies[0], "none is said");
+  assert.ok(!("scope" in bodies[3]), "no opinion is not");
 });
 
 test("one turn reads the workspace's facts once, on one clock: the route's own read and the tools' reads share the turn cache and its now (tenants, tenant_config, policies each once)", async () => {

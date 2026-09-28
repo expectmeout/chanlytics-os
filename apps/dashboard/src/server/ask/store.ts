@@ -137,6 +137,9 @@ export async function readThread(
   };
 }
 
+/** A scope as the thread's column holds it: its three fields, or none. */
+const scopeColumn = (s: AskScope | null): Json => (s ? { kind: s.kind, id: s.id, label: s.label } : null);
+
 export async function createThread(
   ctx: RouteContext,
   tenantId: string,
@@ -145,7 +148,7 @@ export async function createThread(
 ): Promise<AskThreadVM> {
   const { data, error } = await ctx.supabase
     .from("ask_threads")
-    .insert({ tenant_id: tenantId, user_id: ctx.userId, title, scope: (scope as unknown as Json) ?? null })
+    .insert({ tenant_id: tenantId, user_id: ctx.userId, title, scope: scopeColumn(scope) })
     .select("id, title, scope, last_at, created_at")
     .single();
   if (error) throw new Error(`ask thread: ${error.message}`);
@@ -168,10 +171,14 @@ export async function appendMessage(
   return data;
 }
 
-export async function touchThread(ctx: RouteContext, threadId: string): Promise<void> {
+/**
+ * A turn saved: its thread moves up the list and keeps the scope the turn ran with (the Phase 5 plan, D9), none
+ * included, so the next question sent without one is asked with it. The column grant allows both (00121).
+ */
+export async function touchThread(ctx: RouteContext, threadId: string, scope: AskScope | null): Promise<void> {
   const { error } = await ctx.supabase
     .from("ask_threads")
-    .update({ last_at: new Date().toISOString() })
+    .update({ last_at: new Date().toISOString(), scope: scopeColumn(scope) })
     .eq("id", threadId);
   if (error) console.error("ask_thread_touch_failed", error.message);
 }

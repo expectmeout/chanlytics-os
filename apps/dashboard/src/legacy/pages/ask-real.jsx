@@ -536,7 +536,7 @@ const arSubmitter = (ln) => {
       if (twin) base = await openThread(twin);
     }
     const userMsg = { id: "u-" + Date.now(), role: "user", text: q, atMs: Date.now(), citations: [], followups: [], proposals: [] };
-    const thread = base ? { ...base, messages: [...base.messages, userMsg] } : { id: null, title: q, messages: [userMsg], scope };
+    const thread = base ? { ...base, messages: [...base.messages, userMsg], scope: scope || base.scope || null } : { id: null, title: q, messages: [userMsg], scope: scope || null }; // asked with the chip's scope, else the thread's own, which it then holds (D9)
     setActive(thread);
     const mine = ++turnSeq.current;
     setLive({ q, text: "", say: null, traces: [] });
@@ -545,7 +545,7 @@ const arSubmitter = (ln) => {
     // A page that cannot say what it holds sends none: the question still goes.
     let context = null;
     try { context = A.context ? A.context(arRoute(), q) : null; } catch (e) { context = null; }
-    await A.send({ text: q, threadId: turn.threadId, scope: thread.scope || scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context }, (ev) => arTurnHeard(ln, turn, ev));
+    await A.send({ text: q, threadId: turn.threadId, scope: thread.scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context }, (ev) => arTurnHeard(ln, turn, ev));
     arTurnLanded(ln, turn);
   };
   return submit;
@@ -903,8 +903,8 @@ const arFoot = ({ phone, talk, typing, t, liftMic }) =>
 // The band (spec 4.1, 4.2): the three at 84px beside the field, the largest face in the app; under the field,
 // while Ask reads, one line in coral ink saying what it reads. On a phone the face and the line are the hero's,
 // and the band is the field at the foot (ask.css orders it last), hidden under the pill to let go of while it
-// listens.
-const arStage = ({ talk, live, stageRef, phone, faceRef, AskFace, scope, setScope, t, inputRef, quick, active, surface, query, setQuery, composing, M, onKey, hold, slideFrom, heroRef, setComposing, rowsDrawn, rows, showRows, sel, move, right }) => {
+// listens. The scope's × clears the open thread's scope too, so its next question is asked with none (D9).
+const arStage = ({ talk, live, stageRef, phone, faceRef, AskFace, scope, setScope, setActive, t, inputRef, quick, active, surface, query, setQuery, composing, M, onKey, hold, slideFrom, heroRef, setComposing, rowsDrawn, rows, showRows, sel, move, right }) => {
   const activeId = showRows ? (rows.length ? `ask-row-${sel}` : undefined) : move >= 0 ? `ask-move-${move}` : undefined;
   return (
     <div className={`ask-stage${talk.listening ? " listening" : ""}${live ? " live" : ""}`} ref={stageRef} data-testid="ask-line">
@@ -918,7 +918,7 @@ const arStage = ({ talk, live, stageRef, phone, faceRef, AskFace, scope, setScop
           <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
             <Icon name={arScopeIcon(scope)} size={10} />
             <span>{scope.label}</span>
-            <button type="button" onClick={() => setScope(null)} aria-label={t.clearScope}><Icon name="x" size={9} /></button>
+            <button type="button" onClick={() => { setScope(null); setActive((a) => (a && a.scope ? { ...a, scope: null } : a)); }} aria-label={t.clearScope}><Icon name="x" size={9} /></button>
           </span>
         ) : null}
         <input
