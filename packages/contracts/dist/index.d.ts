@@ -9541,7 +9541,7 @@ declare const BELL_WINDOW_DAYS = 30;
  * The bundle's budget says what the workspace route ships; this says what people then see. The shell hears five
  * numbers for each page load from Next's web-vitals hook, sends them when the page is hidden (legacy-bridge
  * LegacyHost, src/client/field-data.ts), and POST /api/v1/vitals keeps each under the id the browser gave it
- * (00225). The back office reads the 75th percentile of each, over every page and over each page a load landed on.
+ * (00229). The back office reads the 75th percentile of each, over every page and over each page a load landed on.
  * A report names a page, a metric and a number: nobody's person, nobody's workspace.
  */
 
@@ -9593,7 +9593,7 @@ declare const PageVitalsInput: z.ZodObject<{
 type PageVitalsInputDto = z.infer<typeof PageVitalsInput>;
 /**
  * How much of the table the back office reads: the latest `most` reports of the last `days`, so the read costs the
- * same however busy the platform is (page_vitals_p75, 00225). About five reports make a load.
+ * same however busy the platform is (page_vitals_p75, 00229). About five reports make a load.
  */
 declare const PAGE_VITALS_READ: {
     readonly days: 7;
@@ -22581,7 +22581,7 @@ declare const RETENTION_DAYS: {
     readonly jobs_finished: 7;
     /** A failed one lives as long as the alert that cites it (purge_jobs, 00215; notifications). */
     readonly jobs_failed: 90;
-    /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00225). */
+    /** How fast a page load was, with no person or workspace on it (purge-page-vitals, 00229). */
     readonly page_vitals: 30;
 };
 /** Rate-limit counters (00059): two hours, in hours. */

@@ -73,7 +73,7 @@ type OverviewAnswer = {
   /** Every partner and who brought each workspace (0012, P5); null when it could not be read. */
   partners: { balances: PlatformPartnerBalanceDto[]; workspaces: PlatformPartnerWorkspaceDto[] } | null;
   /**
-   * How fast the pages are (00225): the 75th percentile of each metric, over every page and each; null when unread,
+   * How fast the pages are (00229): the 75th percentile of each metric, over every page and each; null when unread,
    * and absent from an overview that predates it, which draws no card.
    */
   vitals?: PageVitalsRowDto[] | null;

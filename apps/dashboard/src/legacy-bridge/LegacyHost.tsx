@@ -64,7 +64,7 @@ const LegacyApp = dynamic(() => import("./LegacyApp"), { ssr: false, loading: ()
 if (typeof window !== "undefined") void import("./LegacyApp");
 
 /**
- * Field data (00225): what this page load came to, sent when the page is put away (src/client/field-data.ts). The
+ * Field data (00229): what this page load came to, sent when the page is put away (src/client/field-data.ts). The
  * reporter loads once the page has, as a chunk of its own, so nobody waits for it and the route's budget does not
  * carry it; its observers read what the browser buffered, so the numbers are the whole load's. The address is read
  * as the page begins, because the shell may move it before the reporter arrives.

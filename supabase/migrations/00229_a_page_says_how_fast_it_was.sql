@@ -1,4 +1,4 @@
--- 00225 · A page says how fast it was.
+-- 00229 · A page says how fast it was.
 --
 -- Field data (plan 2026-09-27, Performance): how fast the pages people use are,
 -- from their own browsers, so the bundle's budget is judged against what people
@@ -26,7 +26,7 @@ create index if not exists page_vitals_at on public.page_vitals (at);
 alter table public.page_vitals enable row level security;
 revoke all on public.page_vitals from anon, authenticated;
 comment on table public.page_vitals is
-  'Field data (00225): one row per metric per page load, under the browser''s own id; the landing page, the metric (LCP, INP, CLS, FCP, TTFB) and its value, in ms but for CLS. No person, no workspace. Kept thirty days.';
+  'Field data (00229): one row per metric per page load, under the browser''s own id; the landing page, the metric (LCP, INP, CLS, FCP, TTFB) and its value, in ms but for CLS. No person, no workspace. Kept thirty days.';
 
 -- The route's door. A report of an id already kept replaces its value: the
 -- later report of a growing INP or CLS is the truer one. An id twice in one

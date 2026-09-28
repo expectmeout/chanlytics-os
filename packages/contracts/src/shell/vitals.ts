@@ -4,7 +4,7 @@
  * The bundle's budget says what the workspace route ships; this says what people then see. The shell hears five
  * numbers for each page load from Next's web-vitals hook, sends them when the page is hidden (legacy-bridge
  * LegacyHost, src/client/field-data.ts), and POST /api/v1/vitals keeps each under the id the browser gave it
- * (00225). The back office reads the 75th percentile of each, over every page and over each page a load landed on.
+ * (00229). The back office reads the 75th percentile of each, over every page and over each page a load landed on.
  * A report names a page, a metric and a number: nobody's person, nobody's workspace.
  */
 import { z } from "zod";
@@ -71,7 +71,7 @@ export type PageVitalsInputDto = z.infer<typeof PageVitalsInput>;
 
 /**
  * How much of the table the back office reads: the latest `most` reports of the last `days`, so the read costs the
- * same however busy the platform is (page_vitals_p75, 00225). About five reports make a load.
+ * same however busy the platform is (page_vitals_p75, 00229). About five reports make a load.
  */
 export const PAGE_VITALS_READ = { days: 7, most: 25_000 } as const;
 /** A page is named on its own once this many loads landed on it; fewer is an anecdote. */

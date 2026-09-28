@@ -5,7 +5,7 @@ import { serviceDb } from "../service-db";
 import type { BackOffice } from "./platform";
 
 /**
- * Field data's two doors (00225): the route keeps what a page load reported, and the back office reads the 75th
+ * Field data's two doors (00229): the route keeps what a page load reported, and the back office reads the 75th
  * percentile of it.
  *
  * Both run on the service role, the only role granted page_vitals and its two functions. A row names a page, a
@@ -32,7 +32,7 @@ export async function keepPageVitals(input: PageVitalsInputDto): Promise<number>
 /**
  * The 75th percentile of each metric, over every page (page null) and over each page, from the latest reports of the
  * last days (PAGE_VITALS_READ). Null when it could not be read; none when the database has no page_vitals_p75 yet,
- * which is a database 00225 has not reached, with no timings to show.
+ * which is a database 00229 has not reached, with no timings to show.
  */
 export async function platformVitals(office: BackOffice): Promise<PageVitalsRowDto[] | null> {
   const r = await office.db

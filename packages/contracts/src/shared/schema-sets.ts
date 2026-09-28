@@ -192,6 +192,6 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof DMARC_STATES>, SchemaSet<"sending_domains.dmarc">>>,
   // Who lifts a reputation hold (00188, D16).
   Holds<Exactly<Of<typeof DOMAIN_RESUMERS>, SchemaSet<"sending_domains.resume_by">>>,
-  // Field data (00225): the five numbers a page load reports.
+  // Field data (00229): the five numbers a page load reports.
   Holds<Exactly<Of<typeof PAGE_VITALS>, SchemaSet<"page_vitals.metric">>>,
 ];
