@@ -4538,6 +4538,7 @@ var DELIVERY_REFUSALS = [
   "outreach_lead_closed",
   "outreach_suppressed",
   "outreach_wrote_back",
+  "outreach_away",
   "outreach_without_unsubscribe",
   "outreach_needs_own_domain",
   "sending_domain_not_ready",
@@ -4569,6 +4570,7 @@ var PURPOSE_REFUSALS = {
   outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",
   outreach_suppressed: "This address is on the never-again list: it unsubscribed, complained, or was erased.",
   outreach_wrote_back: "This business wrote back or called, so it is a conversation now: answer it from the Inbox. No cold email goes to it again.",
+  outreach_away: "Away: their automatic reply says they're out. This email waits, and goes to them after the day they're back.",
   outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
   outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
   sending_domain_not_ready: "The domain this email was to leave from isn't sending right now. Connections, under Email, says why.",
@@ -7679,6 +7681,7 @@ var HELD_REASONS = {
   outreach_lead_closed: "no longer being written to",
   outreach_suppressed: "on the never-again list",
   outreach_wrote_back: "wrote back or called",
+  outreach_away: "away until the day they're back",
   outreach_without_unsubscribe: "no unsubscribe link",
   outreach_needs_own_domain: "not from your own domain",
   sending_domain_not_ready: "the domain isn't sending",
@@ -20306,6 +20309,7 @@ function outreachRefusalOf(f) {
   if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
   if (f.suppressed) return "outreach_suppressed";
   if (f.wroteBack) return "outreach_wrote_back";
+  if (f.away) return "outreach_away";
   return null;
 }
 var OUTREACH_WAIT_REFUSALS = [

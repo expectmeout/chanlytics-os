@@ -990,8 +990,8 @@
     "depth": 2
   },
   "packages/core/src/deliver.ts::deliver#1": {
-    "lines": 175,
-    "branches": 38,
+    "lines": 160,
+    "branches": 31,
     "depth": 2
   },
   "packages/core/src/inbound/answer.ts::answerInbound#1": {

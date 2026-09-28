@@ -197,6 +197,25 @@ export async function stampEmailSent(
 }
 
 /**
+ * How a person's email reply left (00226 stamp_email_left_as): by the own domain it was frozen with, or as the
+ * mailbox's request and why not by its own. Merged into meta.email in one statement, as stampEmailSent merges the
+ * Message-ID. False when there is no such outbound email. A write that fails throws.
+ */
+export async function stampEmailLeftAs(
+  db: Db,
+  p: { tenantId: string; messageId: string; leftAs: "own" | "mailbox"; why: string | null },
+): Promise<boolean> {
+  const { data, error } = await db.rpc("stamp_email_left_as", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_left_as: p.leftAs,
+    p_why: p.why,
+  } as never);
+  if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
+  return data === true;
+}
+
+/**
  * The request an outbound email was frozen with (its row's meta.email.request), or null when there is no such row or
  * it froze none: what a receipt reads to know whether the email was a reply or a campaign's (channels
  * isCampaignEmail). A read that fails throws; the receipt comes again.

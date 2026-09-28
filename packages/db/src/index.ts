@@ -23,6 +23,7 @@ export {
   mailboxOfTenant,
   lastInboundEmail,
   stampEmailSent,
+  stampEmailLeftAs,
   sentEmailRequestOf,
   sentEmailOf,
   stampEmailComplaint,

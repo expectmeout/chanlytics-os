@@ -231,7 +231,17 @@ export interface SendResult {
   errorBody?: string;
   /** The provider's own error code when it gives one: a text's carrier says 21610 for a person who opted out (sms.ts smsRefusalOf). */
   code?: number | null;
+  /**
+   * A person's email reply only (core emailSender): whether it left by the own domain it was frozen with, or as the
+   * mailbox's request, and why not by its own when it could not.
+   */
+  leftAs?: "own" | "mailbox";
+  leftAsWhy?: EmailLeftAsWhy;
 }
+
+/** Why a person's reply frozen with an own domain left as the mailbox's request instead (N5, G15). */
+export type EmailLeftAsWhy =
+  "no_own_route" | "domain_has_no_route" | "twin_names_another_recipient" | "route_refuses_twin";
 
 /**
  * Every Graph send goes through here. Two reasons:

@@ -594,7 +594,7 @@ test(
     const { plan: awayPlan } = await readAs(away, { intent: "away", summary: "Out", day: null, refer_to: null });
     assert.equal(awayPlan.skipSends, "outreach_away");
     const awayRow = await reading(away);
-    assert.equal(awayRow.until_at !== null, true, "recorded: 00223's pause reads it");
+    assert.equal(awayRow.until_at !== null, true, "recorded: 00226's pause reads it");
     const sends = ok(await db.from("reach_out_sends").select("state").in("id", ro.waiting));
     assert.deepEqual(
       sends.map((s) => s.state).sort(),

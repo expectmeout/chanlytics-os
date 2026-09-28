@@ -64,6 +64,13 @@ interface WirePayload {
     email?: EmailRequest;
     /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
     purpose?: SendPurpose;
+    /** A person's reply (the door's kindOf), the one other send that may leave by an own domain: by its twin below. */
+    reply?: boolean;
+    /**
+     * A person's reply to a reach-out, frozen a second time on the own domain the chain wrote from (G15): it leaves by
+     * that domain's route when the route still holds it, and as `email` on the mailbox otherwise (N5).
+     */
+    ownEmail?: EmailRequest;
 }
 /** How to put words on one channel's wire. Owns its own address format. */
 type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
@@ -74,37 +81,6 @@ type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
  * environment, which is how one business's message left on another's line.
  */
 type Wire = Partial<Record<Channel, Sender | null>>;
-/**
- * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
- * so the "+" is stripped here rather than by a caller who should not know.
- */
-declare function whatsappSender(cfg: WaConfig | null): Sender | null;
-/**
- * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
- * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
- * the cold account, for outreach and nothing else.
- */
-interface EmailRoute {
-    lane: "hosted" | "own";
-    cfg: ResendConfig;
-    as: EmailSendsAs;
-}
-/**
- * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
- * and nothing it assembled itself: a delivery without one, one addressed to
- * somebody other than `to`, or one that would leave as another workspace, is a
- * failure the caller hears about, never a send. The provider keys are the
- * deployment's; the routes are what make the wire this workspace's: the hosted
- * mailbox on the platform's account, and each of its own verified domains on
- * the cold account (Reach out), so a cold email never spends the reputation
- * every workspace's replies share. The route is chosen by the request's From,
- * within the send's lane: an own domain carries outreach only, so a reply
- * frozen with an own domain's From never leaves around outreach's rules, and a
- * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
- * still applies. No routes, no email line (null, like a number with no
- * credentials).
- */
-declare function emailSender(routes: EmailRoute[]): Sender | null;
 interface Delivery {
     tenantId: string;
     conversationId: string;
@@ -120,6 +96,11 @@ interface Delivery {
     template?: TemplateSend;
     /** The frozen request, on the email wire (WirePayload.email). */
     email?: EmailRequest;
+    /**
+     * A person's reply to a reach-out, frozen again on the own domain the chain wrote from (WirePayload.ownEmail): it
+     * may leave by that domain only as a reply (kindOf), and under the same row's id as `email`.
+     */
+    ownEmail?: EmailRequest;
     /**
      * The lead a cold email was written for (a reach-out's always names one): outreach's facts are that lead's, so a
      * business closed or archived is refused even when its person has another lead still being written to.
@@ -184,6 +165,44 @@ declare function templatePurpose(db: Db, tenantId: string, template: {
  * name, and the caller alerts a person the way it does for a provider's no.
  */
 declare function deliverSafely(ports: DeliverPorts, d: Delivery): Promise<Delivered>;
+
+/**
+ * The wires a workspace's words leave on: WhatsApp's from its credentials, and email's bound to its own addresses.
+ * deliver() decides whether a send may leave; these only put it on the provider's wire, and refuse a request that
+ * would leave as somebody else.
+ */
+
+/**
+ * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
+ * so the "+" is stripped here rather than by a caller who should not know.
+ */
+declare function whatsappSender(cfg: WaConfig | null): Sender | null;
+/**
+ * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
+ * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
+ * the cold account, for outreach and nothing else.
+ */
+interface EmailRoute {
+    lane: "hosted" | "own";
+    cfg: ResendConfig;
+    as: EmailSendsAs;
+}
+/**
+ * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
+ * and nothing it assembled itself: a delivery without one, one addressed to
+ * somebody other than `to`, or one that would leave as another workspace, is a
+ * failure the caller hears about, never a send. The provider keys are the
+ * deployment's; the routes are what make the wire this workspace's: the hosted
+ * mailbox on the platform's account, and each of its own verified domains on
+ * the cold account (Reach out), so a cold email never spends the reputation
+ * every workspace's replies share. The route is chosen by the request's From,
+ * within the send's lane: an own domain carries outreach only, so a reply
+ * frozen with an own domain's From never leaves around outreach's rules, and a
+ * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
+ * still applies. No routes, no email line (null, like a number with no
+ * credentials).
+ */
+declare function emailSender(routes: EmailRoute[]): Sender | null;
 
 /**
  * The conversation verbs' view of the world.
@@ -587,6 +606,8 @@ interface SendQueuedPorts {
         channel: string | null;
         sender: string | null;
         /** The frozen request, on an email's row. */ email?: Delivery["email"] | null;
+        /** A person's reply to a reach-out, frozen again on the chain's own domain (meta.email.own_request, G15). */
+        ownEmail?: Delivery["ownEmail"];
         /** The lead a reach-out's email was written for (its row's meta.reach_out.lead_id): the door asks about that lead. */
         leadId?: string | null;
     } | null>;
@@ -1448,6 +1469,7 @@ interface ReachOutFollower extends ReachOutLead {
         lead_stage: string | null;
         suppressed: boolean;
         wrote_back: boolean;
+        away?: boolean;
     };
     /** Any email of the chain to them bounced or failed for good (C4). */
     bounced: boolean;
