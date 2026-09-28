@@ -107,44 +107,58 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 
 ## The canonical example of each thing
 
-Copy the shape of these; do not invent a second one.
+Copy the shape of these; do not invent a second one. A path here and under "Where new code goes" is written from
+the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fails one that opens nothing.
 
-| To add                                        | Copy                                                                                   | Notes                                                                                                   |
-| --------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| A webhook door on the edge                    | `apps/edge/api/inbound-sms.ts` with `apps/edge/lib/sms/sms-ingress.ts`                 | The door verifies the wire and does the transport; the plan function decides, over a database in memory |
-| A cron sweep                                  | `apps/edge/api/cron/deadman.ts`                                                        | Register its clock in `sweep_status`; watch every sweep that changes something; limit in `vercel.json`  |
-| A core verb                                   | `packages/core/src/conversations/snooze.ts` over `ports.ts`                            | A decision row plus a change to its subject; errors as `AppError`                                       |
-| An app-plane route                            | `apps/dashboard/app/api/v1/conversations/[id]/snooze/route.ts`                         | `write()` or `read()` from `server/route.ts`; add the row to `route-policy.json`; regenerate the client |
-| A repository                                  | `packages/db/src/repositories/thread.ts`                                               | The one place a table is typed; RLS decides reads on the session client                                 |
-| A provider adapter                            | `packages/channels/src/sms.ts`                                                         | Owns the wire format; knows nothing about threads                                                       |
-| A job handler                                 | `packages/jobs/src/handlers.ts`                                                        | Builds ports from the job's context and calls core                                                      |
-| A migration                                   | `supabase/migrations/00125_a_person_may_have_an_email.sql`                             | Header of a few lines, re-runnable statements, RLS and grants like the other tenant tables              |
-| A view model                                  | `packages/contracts/src/calendar/calendar.ts` with `calendar-vm.ts`                    | Pure; every sentence the page says comes from here                                                      |
-| A real surface                                | `apps/dashboard/src/legacy/pages/calendar.jsx` with `legacy-bridge/calendar.ts`        | Classify it in `surface-registry.ts`; feed it through the surface seam; never a raw fetch in a page     |
-| An environment variable on the edge           | A getter in `apps/edge/lib/env.ts` and a line in `apps/edge/.env.example`              | `env-manifest.test.mjs` holds the two to the same list; blank is unset                                  |
-| A log line on the edge                        | `logger({ tenant_id }).info("event_name", { fields })` from `apps/edge/lib/log.ts`     | One JSON object per line; the event name is the contract, listed in `LOG_EVENTS`                        |
-| A test of a door                              | `tooling/scripts/tests/sms/sms-door.test.mjs`                                          | A world over `_fake-db.mjs`; the real handler runs                                                      |
-| A test of a verb                              | `tooling/scripts/tests/conversations/core-thread-verbs.test.mjs`                       | Fakes for the ports                                                                                     |
-| A ratchet                                     | `tooling/scripts/tests/repo/code-health-ratchets.test.mjs`, `_ratchet.mjs`, `_ast.mjs` | Measure the syntax tree, never the text; the baseline may only fall; a row in `docs/debt.md`            |
-| A database test                               | `tooling/scripts/tests/<domain>/*.db.test.mjs`                                         | Runs against the replayed stack in CI when database paths change; skips without credentials             |
-| A design that changes the shape of the system | `docs/decisions/0002-appointments-record.md`                                           | Written against a named commit, steps shippable in either deploy order                                  |
+| To add                                        | Copy                                                                                                                               | Notes                                                                                                                                            |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A webhook door on the edge                    | `apps/edge/api/inbound-sms.ts` with `apps/edge/lib/sms/sms-ingress.ts`                                                             | The door verifies the wire and does the transport; the plan function decides, over a database in memory                                          |
+| A cron sweep                                  | `apps/edge/api/cron/deadman.ts`                                                                                                    | Register its clock in `sweep_status`; watch every sweep that changes something; limit in `apps/edge/vercel.json`                                 |
+| A core verb                                   | `packages/core/src/conversations/snooze.ts` over `packages/core/src/conversations/ports.ts`                                        | A decision row plus a change to its subject; errors as `AppError`                                                                                |
+| An app-plane route                            | `apps/dashboard/app/api/v1/conversations/[id]/snooze/route.ts`                                                                     | `write()` or `read()` from `apps/dashboard/src/server/route.ts`; add the row to `tooling/scripts/tests/route-policy.json`; regenerate the client |
+| A repository                                  | `packages/db/src/repositories/thread.ts`                                                                                           | The one place a table is typed; RLS decides reads on the session client                                                                          |
+| A provider adapter                            | `packages/channels/src/sms.ts`                                                                                                     | Owns the wire format; knows nothing about threads                                                                                                |
+| A job handler                                 | `packages/jobs/src/handlers.ts`                                                                                                    | Builds ports from the job's context and calls core                                                                                               |
+| A migration                                   | `supabase/migrations/00125_a_person_may_have_an_email.sql`                                                                         | Header of a few lines, re-runnable statements, RLS and grants like the other tenant tables                                                       |
+| A view model                                  | `packages/contracts/src/calendar/calendar.ts` with `packages/contracts/src/calendar/calendar-vm.ts`                                | Pure; every sentence the page says comes from here                                                                                               |
+| A real surface                                | `apps/dashboard/src/legacy/pages/calendar.jsx` with `apps/dashboard/src/legacy-bridge/calendar.ts`                                 | Classify it in `apps/dashboard/src/legacy-bridge/surface-registry.ts`; feed it through the surface seam; never a raw fetch in a page             |
+| An environment variable on the edge           | A getter in `apps/edge/lib/env.ts` and a line in `apps/edge/.env.example`                                                          | `tooling/scripts/tests/repo/env-manifest.test.mjs` holds the two to the same list; blank is unset                                                |
+| A log line on the edge                        | `logger({ tenant_id }).info("event_name", { fields })` from `apps/edge/lib/log.ts`                                                 | One JSON object per line; the event name is the contract, listed in `LOG_EVENTS`                                                                 |
+| A test of a door                              | `tooling/scripts/tests/sms/sms-door.test.mjs`                                                                                      | A world over `tooling/scripts/tests/_fake-db.mjs`; the real handler runs                                                                         |
+| A test of a verb                              | `tooling/scripts/tests/conversations/core-thread-verbs.test.mjs`                                                                   | Fakes for the ports                                                                                                                              |
+| A ratchet                                     | `tooling/scripts/tests/repo/code-health-ratchets.test.mjs`, `tooling/scripts/tests/_ratchet.mjs`, `tooling/scripts/tests/_ast.mjs` | Measure the syntax tree, never the text; the baseline may only fall; a row in `docs/debt.md`                                                     |
+| A database test                               | `tooling/scripts/tests/<domain>/*.db.test.mjs`                                                                                     | Runs against the replayed stack in CI when database paths change; skips without credentials                                                      |
+| A design that changes the shape of the system | `docs/decisions/0002-appointments-record.md`                                                                                       | Written against a named commit, steps shippable in either deploy order                                                                           |
 
 ## Where new code goes
 
 - A rule the product enforces: `packages/core`, or a SQL door when it needs the service role.
 - A provider's wire: `packages/channels`.
-- A type, a schema, an enum, a view model: `packages/contracts`, in its domain's folder, named in that
-  folder's `index.ts` (never `export *`; a module imports another by its path, never through a barrel).
+- A type, a schema, an enum, a view model: `packages/contracts`, in its domain's folder, named in the folder's
+  barrel, `packages/contracts/src/<domain>/index.ts` (never `export *`; a module imports another by its path, never
+  through a barrel).
 - A read or write of a table: `packages/db`.
 - An HTTP door for a provider, a sweep, or the job runner: `apps/edge/api`.
 - What such a door calls: `apps/edge/lib/<domain>/`, and `apps/edge/lib` itself for the
   plumbing every domain uses. A new domain earns a directory at its second module.
 - A member-facing route: `apps/dashboard/app/api/v1`.
-- What such a route calls: `apps/dashboard/src/server/<domain>/`, and `src/server` itself for the
-  plumbing every domain uses (`route.ts`, `with-route.ts`, `edge.ts`, `tenant.ts` and their kind).
-- Something a page draws: `apps/dashboard/src/legacy/pages`, fed through `src/legacy-bridge`.
+- What such a route calls: `apps/dashboard/src/server/<domain>/`, and `apps/dashboard/src/server` itself for the
+  plumbing every domain uses (`apps/dashboard/src/server/{route,with-route,edge,tenant}.ts` and their kind).
+- What a GET route answers: a reader in `apps/dashboard/src/server/readers/`, which Ask's tools read too, so the
+  number Ask says is the number the page shows (`apps/dashboard/src/server/readers/people.ts`, GET contacts').
+- Something a page draws: `apps/dashboard/src/legacy/pages`, fed through `apps/dashboard/src/legacy-bridge`.
+- Something the phone app does natively, around the site it shows in each tab: `apps/mobile/src/`
+  (`apps/mobile/src/shell/Surface.tsx` holds one page); the words both sides of its bridge share are
+  `packages/contracts/src/mobile/app-bridge.ts`.
 - A test: `tooling/scripts/tests/<domain>/`, named for what it proves; a world or helper it
-  shares stays at the root as `_name.mjs`.
+  shares stays at the root as `tooling/scripts/tests/_<name>.mjs`.
+- A journey through the running app in a browser: a Playwright spec in `e2e/` (`e2e/people.spec.ts`), signed in
+  by `e2e/session.ts`, run nightly against production in the suite's own workspace.
+- A script a person runs: `tooling/scripts/`. One that writes production is dry-run by default, writes a backup
+  first and takes `--apply` (`tooling/scripts/lead-marks-backfill.mjs`).
+- A file a script writes: regenerated by its command under Commands, never edited.
+  `apps/dashboard/src/client/routes.generated.ts` and `packages/contracts/src/route-keys.generated.ts` follow the
+  routes; `packages/contracts/src/schema-sets.generated.ts` and `packages/db/src/database.types.ts` the migrations.
 
 ## What not to introduce
 

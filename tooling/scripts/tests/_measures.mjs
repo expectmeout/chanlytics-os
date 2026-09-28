@@ -1,10 +1,10 @@
 /**
- * The measures behind docs/debt.md, in one module.
+ * The measures behind docs/debt.md, and the tree docs/architecture.md draws, in one module.
  *
  * The ratchets (repo/code-health-ratchets.test.mjs), the source-scan ratchet
- * (repo/source-scan-ratchet.test.mjs) and the register (repo/debt-register.test.mjs)
- * all read the definitions here, so a number means one thing wherever it is
- * printed. It also keeps banking honest: the node runner starts test files in
+ * (repo/source-scan-ratchet.test.mjs), the register (repo/debt-register.test.mjs)
+ * and the drawn tree (docs/docs-tree.test.mjs) all read the definitions here, so a
+ * number means one thing wherever it is printed. It also keeps banking honest: the node runner starts test files in
  * parallel, and a register that read the baselines while the ratchets were still
  * writing them banked a stale number, twice, on the day the suite was grouped by
  * domain. In bank mode the register measures for itself, from here, and reads no
@@ -226,4 +226,52 @@ export function bankedSourceScan(counts, baseline, raise) {
       .sort()
       .map((f) => [f, out[f]]),
   );
+}
+
+/* ---- The tree docs/architecture.md draws (docs/docs-tree.test.mjs) ---- */
+
+/**
+ * The code trees the page draws, in its order, where PACKAGES stands for every package's src. A module is what
+ * "directories over 20 modules" counts (TREES: tracked, hand-written, TypeScript or JavaScript), so a folder's number
+ * is one number on both pages; `supabase/migrations/` counts its migrations.
+ */
+const PACKAGES = "packages/<name>/src";
+const DRAWN = [
+  "apps/edge/api",
+  "apps/edge/lib",
+  "apps/dashboard/app",
+  "apps/dashboard/src/server",
+  "apps/dashboard/src/legacy-bridge",
+  "apps/dashboard/src/legacy",
+  "apps/mobile/src",
+  PACKAGES,
+  "tooling/scripts",
+  "e2e",
+];
+const MIGRATIONS = "supabase/migrations";
+
+/**
+ * One tree as the page draws it: its path, then `./` with the modules at its root and each folder with the modules
+ * under it. No total: two changes that each add a module to different folders touch different lines, and merge.
+ */
+function drawn(tree, files) {
+  const per = new Map();
+  for (const f of files) {
+    const rest = f.slice(tree.length + 1);
+    const at = rest.includes("/") ? rest.slice(0, rest.indexOf("/")) : ".";
+    per.set(at, (per.get(at) ?? 0) + 1);
+  }
+  const folders = [...per.keys()].filter((at) => at !== ".").sort();
+  const rows = per.has(".") ? [".", ...folders] : folders;
+  return [`${tree}/`, ...rows.map((at) => `  ${`${at}/`.padEnd(24)}${String(per.get(at)).padStart(5)}`)];
+}
+
+/** The block docs/architecture.md prints between its tree markers: each code tree, its folders and their modules. */
+export function drawnTree() {
+  const packages = [...new Set(TREES.map((f) => /^packages\/[^/]+\/src(?=\/)/.exec(f)?.[0]).filter(Boolean))].sort();
+  const trees = DRAWN.flatMap((tree) => (tree === PACKAGES ? packages : [tree]));
+  const modulesUnder = (tree) => TREES.filter((f) => f.startsWith(`${tree}/`));
+  const lines = trees.flatMap((tree) => drawn(tree, modulesUnder(tree)));
+  lines.push(...drawn(MIGRATIONS, repoFiles([MIGRATIONS], { keep: /\.sql$/ })));
+  return "```text\n" + lines.join("\n") + "\n```";
 }

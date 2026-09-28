@@ -262,24 +262,169 @@ them: `src/legacy-bridge/manifest-demo.ts` lists them, and `manifest.ts` asks
 for it, after its own files, only in a declared demo session. The shell's route names
 and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 
+## What is where
+
+Each code tree, then the modules at its root (`./`) and under each of its
+folders. A module is a TypeScript or JavaScript file the repository tracks,
+less the built, generated and public ones, counted as `docs/debt.md` counts
+"directories over 20 modules"; `supabase/migrations/` counts its migrations.
+The block is drawn by `UPDATE_BASELINES=1 corepack pnpm test`, and
+`tooling/scripts/tests/docs/docs-tree.test.mjs` fails when it and the tree
+disagree: a change that adds, moves or removes a module redraws it.
+
+<!-- tree:start -->
+
+```text
+apps/edge/api/
+  ./                         12
+  admin/                     24
+  cron/                      14
+  jobs/                       1
+apps/edge/lib/
+  ./                         16
+  billing/                    2
+  calendar/                   3
+  email/                      8
+  google/                    11
+  leads/                      7
+  lines/                     10
+  notes/                      1
+  ops/                        7
+  packages/                   5
+  partners/                   2
+  reach-out/                 11
+  receptionist/               5
+  sms/                        2
+  voice/                      7
+  whatsapp/                   8
+apps/dashboard/app/
+  ./                          4
+  (os)/                       4
+  api/                      166
+  auth/                       3
+  b/                          2
+  data-deletion/              1
+  login/                      2
+  p/                          1
+  privacy/                    1
+  reset-password/             2
+  signup/                     2
+  terms/                      1
+  u/                          1
+  verify/                     2
+  yes/                        3
+apps/dashboard/src/server/
+  ./                         19
+  ask/                       44
+  auth/                       2
+  calendar/                   8
+  campaigns/                  7
+  connections/                5
+  conversations/              3
+  export/                     2
+  leads/                     10
+  metrics/                    2
+  people/                     8
+  platform/                   2
+  ports/                      2
+  public/                     4
+  readers/                   32
+  receptionist/               2
+  workspace/                  8
+apps/dashboard/src/legacy-bridge/
+  ./                         55
+  ask/                        5
+  mascot/                    13
+  reach-out/                  2
+  today-sample/              10
+apps/dashboard/src/legacy/
+  components/                24
+  data/                      13
+  demo/                      12
+  pages/                     81
+apps/mobile/src/
+  ./                          1
+  app/                        9
+  shell/                     20
+  widgets/                    2
+packages/channels/src/
+  ./                         23
+  a2p/                        6
+  email/                      7
+packages/contracts/src/
+  ./                          2
+  ask/                       14
+  ask-proposals/              9
+  broadcasts/                 7
+  calendar/                  14
+  config/                    30
+  consent/                    3
+  conversations/             16
+  deals/                     19
+  email/                      5
+  google/                     4
+  leads/                     21
+  lines/                      8
+  mobile/                     4
+  notes/                      5
+  people/                    20
+  playbooks/                  8
+  reach-out/                 17
+  reports/                    4
+  setup/                     12
+  shared/                    14
+  shell/                      5
+  templates/                 12
+  today/                     19
+  voice/                      6
+  workspace/                 12
+packages/core/src/
+  ./                          6
+  campaigns/                 12
+  conversations/             10
+  inbound/                    8
+  leads/                     23
+  messages/                   7
+packages/db/src/
+  ./                          4
+  repositories/              20
+packages/jobs/src/
+  ./                         10
+tooling/scripts/
+  ./                         27
+  checks/                     2
+  e2e-harness/                5
+  evals/                      1
+  tests/                    635
+e2e/
+  ./                         48
+supabase/migrations/
+  ./                        216
+```
+
+<!-- tree:end -->
+
 ## Where to look
 
-| To change                              | Look in                                                                                                                                                  |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| What the receptionist says             | `packages/contracts/src/config/workspace-config/compose.ts` (the composer), `apps/edge/lib/receptionist/brain.ts`, the Business tab in Settings          |
-| Whether it speaks at all               | `packages/core/src/inbound/reply-posture.ts`, `policies` and `packages/contracts/src/config/policy.ts`                                                   |
-| Who may be messaged                    | `packages/contracts/src/consent/consent.ts` (`mayMessageFor`), `packages/core/src/deliver.ts`                                                            |
-| A new channel                          | An adapter in `packages/channels`, a door under `apps/edge/api`, a `tenant_channels.kind`, a wire in `deliver.ts`                                        |
-| A new operator verb                    | A core verb in `packages/core/src/conversations`, a route under `/api/v1/conversations/[id]`, a row in `route-policy.json`, the shell's `inbox-verbs.ts` |
-| A new job kind                         | `JOB_KINDS` in contracts, a handler in `packages/jobs`, its caller, and the `jobs.kind` CHECK, in one change                                             |
-| A new sweep                            | A cron door, a `sweep_status` registration, the pg_cron schedule                                                                                         |
-| Billing                                | `apps/edge/lib/billing/`, `apps/edge/api/stripe-webhook.ts`                                                                                              |
-| The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/leads.ts`, migration `00140`                                         |
-| Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/` (`ask.ts`, `ask-answer.ts`)                                                             |
-| The calendar                           | `apps/dashboard/src/server/calendar/`, `packages/contracts/src/calendar/` (`feed.ts`, `availability.ts`), `apps/edge/api/cron/calendar.ts`               |
-| Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `a2p*.ts`, `a2p/`, `apps/edge/lib/lines/`                                                                             |
-| Email                                  | `packages/channels/src/email*.ts`, `email/`, `apps/edge/lib/email/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                        |
-| Voice                                  | `packages/channels/src/voice-*.ts`, the four `retell-*` doors                                                                                            |
+Every path is from the repository's root, and
+`tooling/scripts/tests/docs/docs-paths.test.mjs` fails one that opens nothing.
+
+| To change                              | Look in                                                                                                                                                                                                                            |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| What the receptionist says             | `packages/contracts/src/config/workspace-config/compose.ts` (the composer), `apps/edge/lib/receptionist/brain.ts`, the Business tab in Settings                                                                                    |
+| Whether it speaks at all               | `packages/core/src/inbound/reply-posture.ts`, `policies` and `packages/contracts/src/config/policy.ts`                                                                                                                             |
+| Who may be messaged                    | `packages/contracts/src/consent/consent.ts` (`mayMessageFor`), `packages/core/src/deliver.ts`                                                                                                                                      |
+| A new channel                          | An adapter in `packages/channels`, a door under `apps/edge/api`, a `tenant_channels.kind`, a wire in `packages/core/src/deliver.ts`                                                                                                |
+| A new operator verb                    | A core verb in `packages/core/src/conversations`, a route under `apps/dashboard/app/api/v1/conversations/[id]/`, a row in `tooling/scripts/tests/route-policy.json`, the shell's `apps/dashboard/src/legacy-bridge/inbox-verbs.ts` |
+| A new job kind                         | `JOB_KINDS` in contracts, a handler in `packages/jobs`, its caller, and the `jobs.kind` CHECK, in one change                                                                                                                       |
+| A new sweep                            | A cron door, a `sweep_status` registration, the pg_cron schedule                                                                                                                                                                   |
+| Billing                                | `apps/edge/lib/billing/`, `apps/edge/api/stripe-webhook.ts`                                                                                                                                                                        |
+| The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/leads.ts`, migration `00140`                                                                                                                   |
+| Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/{ask,ask-answer}.ts`                                                                                                                                                |
+| The calendar                           | `apps/dashboard/src/server/calendar/`, `packages/contracts/src/calendar/{feed,availability}.ts`, `apps/edge/api/cron/calendar.ts`                                                                                                  |
+| Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `packages/channels/src/a2p*.ts`, `packages/channels/src/a2p/`, `apps/edge/lib/lines/`                                                                                                           |
+| Email                                  | `packages/channels/src/email*.ts`, `packages/channels/src/email/`, `apps/edge/lib/email/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                                                            |
+| Voice                                  | `packages/channels/src/voice-*.ts`, the four doors `apps/edge/api/retell-*.ts`                                                                                                                                                     |
 
 ## Tests
 

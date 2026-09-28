@@ -65,6 +65,35 @@ export function writeBaseline(p, value) {
   fs.renameSync(tmp, p);
 }
 
+/*
+ * The pages a bank writes. A number a page prints is a block between two markers, written by the command that banks
+ * (docs/debt.md's and docs/takeover.md's measured block, docs/architecture.md's tree), and a plain run fails when the
+ * block and what it measures disagree: a count on a page is never typed by hand.
+ */
+
+/** A page as text, normalised to LF: a page is prose, not code, and a Windows checkout must read the same. */
+export const readPage = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8").split("\r\n").join("\n");
+
+/** What a page holds between its two markers, trimmed; null when it has not both, in that order. */
+export function blockIn(rel, [start, end]) {
+  const text = readPage(rel);
+  const a = text.indexOf(start);
+  const b = text.indexOf(end);
+  return a >= 0 && b > a ? text.slice(a + start.length, b).trim() : null;
+}
+
+/**
+ * Write `block` between a page's markers, a blank line either side. A page without them is left alone, and the plain
+ * run that reads it says so.
+ */
+export function writeBlock(rel, [start, end], block) {
+  const now = readPage(rel);
+  const a = now.indexOf(start);
+  const b = now.indexOf(end);
+  if (a < 0 || b < a) return;
+  fs.writeFileSync(path.join(ROOT, rel), now.slice(0, a + start.length) + "\n\n" + block + "\n\n" + now.slice(b));
+}
+
 /** A number, or each field of a record, taken as the lower of now and was; a field was lacks is new, so 0. */
 function lower(now, was) {
   if (typeof now === "number") return Math.min(now, typeof was === "number" ? was : 0);
