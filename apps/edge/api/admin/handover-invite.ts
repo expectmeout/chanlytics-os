@@ -37,13 +37,14 @@ export async function POST(request: Request): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId)) return json(400, { ok: false, error: "tenant_id is required" });
+  if (!/^[0-9a-f-]{36}$/i.test(tenantId))
+    return json(400, { ok: false, error: "bad_tenant", detail: "tenant_id is required" });
 
   let invite;
   try {
     invite = await getHandoverInvite(db, tenantId);
   } catch (e) {
-    return json(503, { ok: false, error: errField(e) });
+    return json(503, { ok: false, error: "read_failed", detail: errField(e) });
   }
   // Accepted, declined, expired or never handed over: there is nobody waiting to be told.
   if (!invite) return json(404, { ok: false, error: "no_open_handover" });

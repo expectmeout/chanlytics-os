@@ -11,7 +11,7 @@ import type { LineSecrets, ProviderAccount, SendResult } from "../packages/chann
 import { smsStatusUrl, smsRefusalOf } from "../packages/channels.js";
 import { lineProviderFromEnv, edgeFnUrl } from "../lines/lines.js";
 import { logger, errField } from "../log.js";
-import { phoneTail } from "../packages/contracts.js";
+import { phoneTail, type EdgeRefusal } from "../packages/contracts.js";
 
 type Db = SupabaseClient<Database>;
 const SUBACCOUNT_READ_TIMEOUT_MS = 15000;
@@ -74,12 +74,12 @@ export async function lineAccount(db: Db, line: SmsLine): Promise<ProviderAccoun
  * rather than wait for somebody to notice and paste a secret.
  *
  * Returns the new account on success. Never throws: a failure is a verdict the
- * caller reports.
+ * caller reports, its code in `error` and what happened in `detail`.
  */
 export async function refreshLineToken(
   db: Db,
   line: SmsLine,
-): Promise<{ ok: boolean; account?: ProviderAccount; error?: string }> {
+): Promise<{ ok: true; account: ProviderAccount } | EdgeRefusal> {
   if (!line.subaccount_sid) return { ok: false, error: "no_subaccount" };
   const choice = lineProviderFromEnv();
   if (!choice || choice.name !== "twilio") return { ok: false, error: "no_provider" };
@@ -97,16 +97,21 @@ export async function refreshLineToken(
       status: r?.status ?? 0,
       note: "the platform's own Twilio credentials were refused",
     });
-    return { ok: false, error: `the provider refused the platform's credentials (HTTP ${r?.status ?? 0})` };
+    return {
+      ok: false,
+      error: "provider_unauthorized",
+      detail: `the provider refused the platform's credentials (HTTP ${r?.status ?? 0})`,
+    };
   }
   const body = (await r.json().catch(() => null)) as { auth_token?: unknown } | null;
   const token = typeof body?.auth_token === "string" && body.auth_token ? body.auth_token : null;
-  if (!token) return { ok: false, error: "the provider did not return a token for this subaccount" };
+  if (!token)
+    return { ok: false, error: "no_token", detail: "the provider did not return a token for this subaccount" };
   const { error } = await db.rpc("put_line_credentials", {
     p_line_id: line.id,
     p_secret: { auth_token: token } as unknown as Json,
   });
-  if (error) return { ok: false, error: `storing the refreshed token: ${error.message}` };
+  if (error) return { ok: false, error: "write_failed", detail: `storing the refreshed token: ${error.message}` };
   L.info("line_token_refreshed", { subaccount: line.subaccount_sid });
   return { ok: true, account: { sid: line.subaccount_sid, token } };
 }

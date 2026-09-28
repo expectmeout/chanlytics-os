@@ -1,6 +1,7 @@
 import { read, write, workspace } from "@/server/route";
 import { AppError, type GoogleLocationDto } from "@chanlytics/contracts";
 import { edgeGoogle, readOutcome } from "@/server/connections/google";
+import { edgeRefusalWords } from "@/server/edge";
 
 /**
  * GET /api/v1/google/locations — the locations the connected Google account
@@ -50,7 +51,7 @@ export const GET = read({
       throw new AppError(
         "internal",
         typeof b.error === "string"
-          ? (SAID[b.error] ?? `Google could not be read: ${b.error}`)
+          ? (SAID[b.error] ?? `Google could not be read: ${edgeRefusalWords(b)}`)
           : "Google could not be read. Try again in a moment.",
         502,
       );
@@ -83,7 +84,7 @@ export const POST = write({
       const reason = typeof b.error === "string" ? b.error : "failed";
       throw new AppError(
         a.status === 404 ? "not_found" : "internal",
-        SAID[reason] ?? `The location could not be chosen (${reason}).`,
+        SAID[reason] ?? `The location could not be chosen (${edgeRefusalWords(b) ?? reason}).`,
         a.status === 404 ? 404 : 502,
       );
     }

@@ -16,3 +16,4 @@ export type { TodayWidgetSnapshot } from "./widget";
 export { APP_KEYS_RESIZE_CLASS, THEME_COLORS, THEME_INK } from "../shell/chrome";
 export type { Theme } from "../shell/chrome";
 export { UUID } from "../shared/identity";
+export { MIN_MS } from "../shared/time";

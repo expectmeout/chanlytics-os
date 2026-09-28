@@ -198,24 +198,27 @@ export const GATEWAY_MAX_MESSAGES = 60;
 export const GATEWAY_MAX_TOOLS = 40;
 export const GATEWAY_MAX_BODY = 700_000;
 
+/** A request the gateway will not send: `bad_request`, with the rule it broke in `detail`. */
+const badRequest = (detail: string) => ({ ok: false as const, error: "bad_request" as const, detail });
+
 export function validateGatewayRequest(
   raw: unknown,
   purpose: GatewayPurpose = "ask",
-): { ok: true; request: GatewayRequest } | { ok: false; error: string } {
+): { ok: true; request: GatewayRequest } | { ok: false; error: "bad_request"; detail: string } {
   const r = raw as Partial<GatewayRequest> | null;
-  if (!r || typeof r !== "object") return { ok: false, error: "request required" };
+  if (!r || typeof r !== "object") return badRequest("request required");
   const model = typeof r.model === "string" ? r.model : GATEWAY_FALLBACK_MODEL;
-  if (!(GATEWAY_MODELS as readonly string[]).includes(model)) return { ok: false, error: "unknown model" };
+  if (!(GATEWAY_MODELS as readonly string[]).includes(model)) return badRequest("unknown model");
   const cap = purpose === "ask" ? ASK_MAX_TOKENS : GATEWAY_MAX_TOKENS;
   const maxTokens = Math.min(cap, Math.max(64, Math.round(num(r.max_tokens) || 800)));
   if (!Array.isArray(r.messages) || !r.messages.length || r.messages.length > GATEWAY_MAX_MESSAGES) {
-    return { ok: false, error: `messages: 1-${GATEWAY_MAX_MESSAGES} turns` };
+    return badRequest(`messages: 1-${GATEWAY_MAX_MESSAGES} turns`);
   }
   if (r.tools !== undefined && (!Array.isArray(r.tools) || r.tools.length > GATEWAY_MAX_TOOLS)) {
-    return { ok: false, error: `tools: up to ${GATEWAY_MAX_TOOLS}` };
+    return badRequest(`tools: up to ${GATEWAY_MAX_TOOLS}`);
   }
   if (r.system !== undefined && typeof r.system !== "string" && !Array.isArray(r.system)) {
-    return { ok: false, error: "system: a string or blocks" };
+    return badRequest("system: a string or blocks");
   }
   const oc =
     r.output_config && typeof r.output_config === "object"
@@ -225,7 +228,7 @@ export function validateGatewayRequest(
   // A format rides through for every purpose: the lead purposes answer as
   // records, and Ask's turn answers in its answer schema (the Line, D3).
   const format = formatOf(oc ? oc.format : undefined);
-  if (format === "bad") return { ok: false, error: "output_config.format: a JSON schema under 8,000 characters" };
+  if (format === "bad") return badRequest("output_config.format: a JSON schema under 8,000 characters");
   return {
     ok: true,
     request: {

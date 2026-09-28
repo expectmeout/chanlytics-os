@@ -17,6 +17,7 @@ export type { GatewayEvent } from "./sse";
 /** The edge deployment, as service.ts names it for steer and whisper. */
 import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 import { deployment } from "../deployment";
+import type { EdgeErrorCode } from "@chanlytics/contracts";
 
 export interface GatewayCall {
   tenantId: string;
@@ -82,8 +83,11 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
     throw new GatewayRefused({ kind: "unreachable", message: e instanceof Error ? e.message : String(e) });
   }
   if (!res.ok || !res.body) {
+    // The edge's refusal (a code, its words in `detail`), or the model's own body forwarded as it came, whose `error`
+    // is an object with a message.
     const j = (await res.json().catch(() => ({}))) as {
-      error?: unknown;
+      error?: EdgeErrorCode | { message?: string };
+      detail?: string;
       used?: number;
       cap?: number;
       message?: string;
@@ -92,11 +96,13 @@ export async function* streamModel(call: GatewayCall): AsyncGenerator<GatewayEve
       throw new GatewayRefused({ kind: "budget", used: j.used ?? 0, cap: j.cap ?? 0 });
     if (res.status === 503 && j.error === "no_model_key") throw new GatewayRefused({ kind: "no_key" });
     const err =
-      j.error && typeof j.error === "object"
-        ? (j.error as { message?: string }).message
-        : typeof j.error === "string"
-          ? j.error
-          : j.message;
+      typeof j.detail === "string"
+        ? j.detail
+        : j.error && typeof j.error === "object"
+          ? j.error.message
+          : typeof j.error === "string"
+            ? j.error
+            : j.message;
     throw new GatewayRefused({ kind: "bad_request", message: `${res.status} ${err ?? "model refused"}` });
   }
   const reader = res.body.getReader();

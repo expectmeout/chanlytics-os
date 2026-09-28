@@ -256,7 +256,7 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
   const db = use(tables);
   const net = wire();
   try {
-    const bad = [400, { ok: false, error: "tenant_id and a known `what` are required" }];
+    const bad = [400, { ok: false, error: "bad_request", detail: "tenant_id and a known `what` are required" }];
     assert.deepEqual(await answer(await knock(SETUP, {})), bad, "no `what`");
     assert.deepEqual(await answer(await knock(SETUP, { what: "fax machine" })), bad, "a `what` nobody offers");
     assert.deepEqual(await answer(await knock(SETUP, { what: ["line"] })), bad, "not a string");
@@ -276,7 +276,7 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
     assert.equal(db.seen.length, 0, "refused before the workspace is read");
     assert.deepEqual(
       await answer(await knock(SETUP, { what: "line" }, { "x-edge-token": token(SETUP, { workspace: GHOST }) })),
-      [404, { ok: false, error: "no such workspace" }],
+      [404, { ok: false, error: "not_found", detail: "no such workspace" }],
     );
     assert.equal(net.seen.length, 0, "nothing sent for any refusal");
 
@@ -419,7 +419,7 @@ test("signup-notify: a workspace on record and its owner's address, or nothing; 
   const db = use(tables);
   const net = wire();
   try {
-    const bad = [400, { ok: false, error: "tenant_id and email are required" }];
+    const bad = [400, { ok: false, error: "bad_request", detail: "tenant_id and email are required" }];
     assert.deepEqual(await answer(await knock(SIGNUP, {})), bad, "no address");
     assert.deepEqual(await answer(await knock(SIGNUP, { email: "   " })), bad, "a blank one");
     assert.deepEqual(await answer(await knock(SIGNUP, "not json")), bad);
@@ -435,7 +435,7 @@ test("signup-notify: a workspace on record and its owner's address, or nothing; 
       await answer(
         await knock(SIGNUP, { email: "owner@example.com" }, { "x-edge-token": token(SIGNUP, { workspace: GHOST }) }),
       ),
-      [404, { ok: false, error: "no such workspace" }],
+      [404, { ok: false, error: "not_found", detail: "no such workspace" }],
     );
     assert.equal(net.seen.length, 0, "nothing sent for any refusal");
 
