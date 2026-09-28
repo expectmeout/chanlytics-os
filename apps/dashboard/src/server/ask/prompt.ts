@@ -306,7 +306,9 @@ export interface TurnFacts {
  * This turn's words, in the user's message after the page's data and before
  * the question: the clock, on a live turn what happened since, who is asking,
  * where they are, the language, and that the data before them needs no second
- * read. Never cached; they sit after the context's breakpoint so its cache holds.
+ * read. They sit after the page's breakpoint (bp3), so words that change every
+ * turn never cost the page its cache; a request's last block carries the fourth
+ * (bp4), so the turn's later rounds read them from the cache with the rest.
  */
 export function turnWords(t: TurnFacts): string {
   const lines: string[] = [];

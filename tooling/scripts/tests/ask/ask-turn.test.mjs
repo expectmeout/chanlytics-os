@@ -5910,10 +5910,10 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
       runAskTurn(turn(ctx, { context: PAGE, ...first }).input, ports(round)),
     );
     assert.equal(r1.failed, false, r1.failure ?? "");
-    await keep(ctx, "Who needs me?", r1, keeping);
+    const answered = await keep(ctx, "Who needs me?", r1, keeping);
     if (then) await then(ctx);
     const { r } = await nextTurn(ctx, [ROUND([answer("Fine.")])], { context: PAGE, ...asking });
-    return { r, reads: rawReads(ctx), r1 };
+    return { r, reads: rawReads(ctx), r1, answered };
   };
   const live = await twoTurns();
   assert.equal(live.r.shape.replay, "live", "the same thread, at once");
@@ -5960,13 +5960,22 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
         .insert({ thread_id: T9, tenant_id: A, user_id: USER, role: "user", content: { text: "Hello?" } }),
   });
   assert.deepEqual([asked.r.shape.replay, asked.reads], ["rebuilt", 0], "a question row last");
-  for (const [why, keeping] of [
-    ["a raw that does not read", { raw: { blocks: "{not json" } }],
-    ["a raw with a key missing", { raw: { at: undefined } }],
-    ["a raw whose told is no list", { raw: { told: "p-1:done" } }],
-    ["no raw: a stream that broke", { over: { raw: null } }],
-  ])
-    assert.equal((await twoTurns({ keeping })).r.shape.replay, "rebuilt", why);
+  // A raw the replay cannot read is a data fault: cold, and said once with the tenant and its row. None at all is a turn
+  // whose stream broke, which keeps none on purpose: cold, and nothing to say.
+  for (const [why, keeping, fault] of [
+    ["a raw that does not read", { raw: { blocks: "{not json" } }, true],
+    ["a raw with a key missing", { raw: { at: undefined } }, true],
+    ["a raw whose told is no list", { raw: { told: "p-1:done" } }, true],
+    ["no raw: a stream that broke", { over: { raw: null } }, false],
+  ]) {
+    const { result, lines } = await logged("ask_replay_malformed", () => twoTurns({ keeping }));
+    assert.equal(result.r.shape.replay, "rebuilt", why);
+    assert.deepEqual(
+      lines.map((l) => JSON.parse(l)),
+      fault ? [{ tenant: A, row: result.answered }] : [],
+      why,
+    );
+  }
 
   // The raw read itself refused: the turn is asked cold, and says so once, never failed for it.
   const { ctx } = threadWorld();
@@ -6000,7 +6009,11 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
       [null, 2, 1],
       "cold, its history kept, said once",
     );
-    assert.ok(said[0].includes("canceling statement"), said[0]);
+    assert.deepEqual(
+      JSON.parse(said[0]),
+      { error: "canceling statement due to timeout", tenant: A },
+      "with the tenant",
+    );
   } finally {
     console.error = was;
   }

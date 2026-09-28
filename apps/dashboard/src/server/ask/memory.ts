@@ -152,7 +152,7 @@ export async function threadForTurn(
       const lastAt = found.messages.at(-1)?.atMs;
       sinceLastMs = lastAt ? Math.max(0, Date.now() - lastAt) : null;
       if (scope === undefined) scope = found.thread.scope;
-      chain = await chainFor(ctx, found.messages, found.replays);
+      chain = await chainFor(ctx, tenantId, found.messages, found.replays);
     } else if (!answering) throw new AppError("not_found", "That thread is not yours.", 404);
   }
   if (!thread) {
@@ -169,9 +169,12 @@ export async function threadForTurn(
  * The thread's chain when it is warm (the Phase 5 plan, D1–D3), read cheaply: which answers it follows is decided from
  * the thread's rows first (chainIds) -- no raw is read for a thread gone cold, a previous turn that failed, or a
  * question left last -- and only then their raw turns, by id; then every raw's own word (chainFrom). Any doubt is cold.
+ * A read that fails, and a raw that is there but does not read (a data fault, where a turn that kept none is not one),
+ * are said once each, with the tenant.
  */
 async function chainFor(
   ctx: RouteContext,
+  tenant: string,
   rows: AskMessageVM[],
   replays: Array<AskTurnShape["replay"] | null>,
 ): Promise<Chain | null> {
@@ -179,11 +182,16 @@ async function chainFor(
   const ids = chainIds(rows, replays, now);
   if (!ids) return null;
   const raws = await readRaws(ctx, ids).catch((e: unknown) => {
-    console.error("ask_replay_unread", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
+    console.error("ask_replay_unread", JSON.stringify({ error: e instanceof Error ? e.message : String(e), tenant }));
     return null;
   });
   if (!raws) return null;
-  const kept = ids.map((id) => keptOf(raws.get(id)));
+  const kept = ids.map((id) => {
+    const raw = raws.get(id);
+    const turn = keptOf(raw);
+    if (raw != null && !turn) console.error("ask_replay_malformed", JSON.stringify({ tenant, row: id }));
+    return turn;
+  });
   return chainFrom(kept, ids, now, rows);
 }
 
