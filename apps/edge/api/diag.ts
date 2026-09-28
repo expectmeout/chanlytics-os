@@ -29,6 +29,9 @@ const META_APP_ID = metaAppId();
 /** A part of the report: the keys it answers, in the order the report shows them. */
 type Section = Record<string, unknown>;
 
+/** The report: a key per part, and no `error` of its own (a part that cannot read says so under its own key). */
+type Report = { [part: string]: unknown; error?: never };
+
 export async function GET(request: Request): Promise<Response> {
   // Header only. The WhatsApp verify token used to open this door from the
   // query string — a value Meta also carries in its own verification URL,
@@ -38,7 +41,7 @@ export async function GET(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/diag", { platformKey: true });
   if (!auth.ok) return auth.response;
 
-  const out: Section = {};
+  const out: Report = {};
   for (const part of REPORT) Object.assign(out, await part());
   return json(200, out);
 }

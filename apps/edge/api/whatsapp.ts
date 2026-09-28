@@ -34,7 +34,7 @@
 import crypto from "node:crypto";
 import { phoneTail } from "../lib/packages/contracts.js";
 import { WABA_FIELDS, handleWabaChange, notificationsFor } from "../lib/whatsapp/waba-events.js";
-import { json, text } from "../lib/http.js";
+import { json, refuse, text } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import type { WaChangeValue } from "../lib/packages/channels.js";
 import { resolveChannelDetailed, recordStatusByExternalId, recordEchoAndPause, emitEvent } from "../lib/packages/db.js";
@@ -64,14 +64,14 @@ export async function POST(request: Request): Promise<Response> {
   const secret = env.META_APP_SECRET;
   if (!secret) {
     L.error("wa_missing_app_secret");
-    return json(401, { ok: false, error: "bad_signature" });
+    return refuse(401, "bad_signature");
   }
   const sig = String(request.headers.get("x-hub-signature-256") || "");
   const expected = "sha256=" + crypto.createHmac("sha256", secret).update(raw).digest("hex");
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    return json(401, { ok: false, error: "bad_signature" });
+    return refuse(401, "bad_signature");
   }
 
   interface WebhookBody {

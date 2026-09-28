@@ -376,7 +376,7 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   );
   assert.ok(
     hook.includes("return json(200, { ok: true, duplicate: true })") &&
-      hook.includes('return json(500, { ok: false, error: "write_failed" })'),
+      hook.includes('return refuse(500, "write_failed")'),
     "a duplicate is 200 without a write; a failed write is 500 so Stripe retries",
   );
   for (const t of [
