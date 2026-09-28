@@ -145,6 +145,8 @@ Copy the shape of these; do not invent a second one.
 - Something a page draws: `apps/dashboard/src/legacy/pages`, fed through `src/legacy-bridge`.
 - A test: `tooling/scripts/tests/<domain>/`, named for what it proves; a world or helper it
   shares stays at the root as `_name.mjs`.
+- A browser spec: `e2e/<domain>/`, as `e2e/people/people.spec.ts` is; the helpers stay at the root,
+  and so does a domain's only spec until its second.
 
 ## What not to introduce
 
