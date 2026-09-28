@@ -50,7 +50,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-send .icon { animation: ask-bloom 160ms var(--ease-out) both; }
 @keyframes ask-bloom { from { transform: scale(.55); opacity: 0; } }
 /* The reading line: the latest trace, lined up with the field (84px face + 12px gap), a coral dot pulsing (S5). */
-.ask-reading { display: flex; align-items: center; gap: 8px; min-height: 0; overflow: hidden; margin: 0; padding: 0 0 0 96px; font-size: 12.5px; color: var(--accent-ink); animation: wash-in 160ms var(--ease-out) both; }
+.ask-reading { display: flex; align-items: center; gap: 8px; min-height: 0; overflow: hidden; margin: 0; padding: 0 0 0 96px; font-size: var(--text-sm); color: var(--accent-ink); animation: wash-in 160ms var(--ease-out) both; }
 .ask-stage.live .ask-reading { padding-top: 6px; }
 .ask-reading-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: ask-pulse 1.2s ease-in-out infinite; }
 @keyframes ask-pulse { 0%, 100% { transform: scale(.7); opacity: .4; } 50% { transform: scale(1); opacity: 1; } }
@@ -81,7 +81,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-row.sel { background: var(--bg-hover); }
 .ask-row-glyph { flex: none; color: var(--ink-dim); }
 .ask-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.ask-row-label { font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.ask-row-label { font-size: var(--text-base); line-height: 1.4; overflow-wrap: anywhere; }
 .ask-row.thread .ask-row-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ask-row-sub, .ask-row-meta { flex: none; font-size: 12px; color: var(--ink-dim); }
 .ask-row.now { align-items: center; gap: 8px; min-height: 44px; padding: 6px 6px 6px 8px; }
@@ -89,22 +89,22 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 /* Three pills at most (people, runs, searches); the Spanish ones outgrow a phone's width, so they wrap. */
 .ask-now-pills { display: inline-flex; flex: none; flex-wrap: wrap; gap: 6px; }
 .ask-now-brief { flex: none; }
-.ask-row-del { display: none; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--ink-faint); cursor: pointer; }
+.ask-row-del { display: none; flex: none; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-faint); cursor: pointer; }
 .ask-row.thread:hover .ask-row-del, .ask-row.thread.sel .ask-row-del { display: inline-flex; }
 .ask-row-del:hover { color: var(--danger); background: var(--danger-soft); }
 .ask-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 6px; }
 /* Earlier's chip for the rest sits under its rows, a breath below the last. */
 .ask-row + .ask-chips { padding-top: 6px; }
-.ask-chip { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; height: 28px; padding: 0 11px; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--bg-raised); font: inherit; font-size: 12.5px; color: var(--ink); white-space: nowrap; cursor: pointer; text-align: left; }
+.ask-chip { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; height: 28px; padding: 0 11px; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--bg-raised); font: inherit; font-size: var(--text-sm); color: var(--ink); white-space: nowrap; cursor: pointer; text-align: left; }
 /* An act's words run to sixty letters: a chip never grows past its wrap, a phone's included. */
 .ask-chip > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ask-chip.door { padding-right: 9px; }
 .ask-chip .icon, .ask-chip-meta { color: var(--ink-dim); }
-.ask-chip-meta { font-size: 11px; }
+.ask-chip-meta { font-size: var(--text-xs); }
 .ask-chip:hover, .ask-chip.sel { border-color: var(--line-strong); background: var(--bg-hover); }
 .ask-chip.next::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 2px; background: color-mix(in oklab, var(--ink) 34%, var(--bg-raised)); }
 .ask-rows-empty { padding: 18px 20px; font-size: 13px; color: var(--ink-dim); }
-.ask-trace { display: flex; flex-direction: column; gap: 10px; padding: 18px 24px 20px 22px; font-size: 13.5px; color: var(--ink); }
+.ask-trace { display: flex; flex-direction: column; gap: 10px; padding: 18px 24px 20px 22px; font-size: var(--text-base); color: var(--ink); }
 .ask-trace .ask-turn-q { margin-bottom: 2px; }
 
 /* ---- A conversation, folded above the line: a row per answer, one opened at a time ---- */
@@ -137,12 +137,12 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-part.do .ask-mark { margin-top: 10px; }
 .ask-say { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .ask-headline { margin: 0; font-size: 19px; font-weight: 500; line-height: 1.35; letter-spacing: -0.012em; color: var(--ink); text-wrap: pretty; }
-.ask-detail { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-muted); white-space: pre-wrap; }
-.ask-prose { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
-.ask-turn.failed .ask-prose, .ask-turn.failed .ask-headline { font-size: 14.5px; font-weight: 400; line-height: 1.55; letter-spacing: 0; color: var(--ink-dim); }
+.ask-detail { margin: 0; font-size: var(--text-base); line-height: 1.5; color: var(--ink-muted); white-space: pre-wrap; }
+.ask-prose { margin: 0; font-size: var(--text-md); line-height: 1.55; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ask-turn.failed .ask-prose, .ask-turn.failed .ask-headline { font-size: var(--text-md); font-weight: 400; line-height: 1.55; letter-spacing: 0; color: var(--ink-dim); }
 .ask-cursor { display: inline-block; width: 2px; height: 18px; margin-left: 2px; vertical-align: -3px; background: var(--accent); border-radius: 1px; animation: ask-blink 1s steps(2, start) infinite; }
 @keyframes ask-blink { to { visibility: hidden; } }
-.ask-unverified { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; margin-left: 30px; font-size: 11px; color: var(--warn-ink); background: var(--warn-soft); border-radius: var(--radius-full); padding: 3px 9px; }
+.ask-unverified { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; margin-left: 30px; font-size: var(--text-xs); color: var(--warn-ink); background: var(--warn-soft); border-radius: var(--radius-full); padding: 3px 9px; }
 .ask-show { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .ask-figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .ask-tile { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 10px 12px 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-raised); transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out); }
@@ -174,10 +174,10 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 /* A later row to a place an earlier one already opens: said, not a second door. */
 .ask-item.plain { grid-template-columns: 24px minmax(0, 1fr); cursor: default; }
 .ask-item.plain:hover { background: transparent; }
-.ask-item-mark { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--bg-sunken); color: var(--ink-muted); }
+.ask-item-mark { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-sm); background: var(--bg-sunken); color: var(--ink-muted); }
 .ask-item-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ask-item-top { display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 8px; }
-.ask-item-title { font-size: 13.5px; font-weight: 500; color: var(--ink); }
+.ask-item-title { font-size: var(--text-base); font-weight: 500; color: var(--ink); }
 .ask-item-meta { font-size: 12px; color: var(--ink-dim); }
 .ask-item-line { font-size: 13px; line-height: 1.45; color: var(--ink-muted); overflow-wrap: anywhere; }
 .ask-item-chev { color: var(--ink-faint); }
@@ -196,15 +196,15 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
 .ask-card-title { font-size: 14px; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; color: var(--ink); overflow-wrap: anywhere; }
 .ask-card-kind { font-size: 12px; line-height: 1.35; color: var(--ink-dim); }
 .ask-card-change { padding: 10px 12px; border-radius: 10px; background: var(--bg-sunken); }
-.ask-card-summary { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ask-card-summary { margin: 0; font-size: var(--text-base); line-height: 1.5; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* A reply as the sent bubble it will be: the Inbox's, as a question in a phone's thread is. */
-.ask-card-change.bubble { display: flex; justify-content: flex-end; padding: 10px; border-radius: 12px; }
-.ask-card-change.bubble .ask-card-summary { max-width: 90%; padding: 8px 12px; border: 1px solid var(--bubble-us-line); border-radius: 16px 16px 4px 16px; background: var(--bubble-us-bg); }
-.ask-card-note { font-size: 11px; color: var(--warn); }
-.ask-card-foot { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-dim); }
+.ask-card-change.bubble { display: flex; justify-content: flex-end; padding: 10px; border-radius: var(--radius-lg); }
+.ask-card-change.bubble .ask-card-summary { max-width: 90%; padding: 8px 12px; border: 1px solid var(--bubble-us-line); border-radius: var(--radius-xl) var(--radius-xl) var(--radius-xs) var(--radius-xl); background: var(--bubble-us-bg); }
+.ask-card-note { font-size: var(--text-xs); color: var(--warn); }
+.ask-card-foot { margin: 0; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-dim); }
 .ask-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ask-card-not-now { margin-left: auto; }
-.ask-card-receipt { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; min-height: 40px; padding: 4px 4px 4px 12px; border-radius: 12px; background: var(--bg-sunken); font-size: 13px; line-height: 1.4; color: var(--ink); }
+.ask-card-receipt { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; min-height: 40px; padding: 4px 4px 4px 12px; border-radius: var(--radius-lg); background: var(--bg-sunken); font-size: 13px; line-height: 1.4; color: var(--ink); }
 .ask-card-said { flex: 1; min-width: 0; }
 /* A playbook's undo asks first: its question takes a line of its own under what happened. */
 .ask-card-receipt > .confirm { flex: 1 1 100%; }
@@ -332,12 +332,12 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
      they have shrunk over the answer (spec 5.5). */
   .ask-hero .ask-turn-q { margin: 0; text-align: center; font-size: 14px; color: var(--ink); }
   .ask-hero .ask-turn-q::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 8px; vertical-align: 1px; border-radius: 2px; background: color-mix(in oklab, var(--ink) 34%, var(--bg-raised)); }
-  .ask-hero.small .ask-turn-q { font-size: 12.5px; color: var(--ink-dim); }
+  .ask-hero.small .ask-turn-q { font-size: var(--text-sm); color: var(--ink-dim); }
   .ask-hero.small .ask-turn-q::before { content: none; }
   /* What Ask has read (AskReads; the spec 2026-09-27-ask-chat-on-a-phone, D12): one list under the three, its lines on
      one left edge in the middle, the newest live after the reading dot in coral ink, the earlier dim after a small
      square; each comes in with a wash. */
-  .ask-hero .ask-reading { flex-direction: column; align-items: flex-start; gap: 7px; padding: 0; font-size: 13.5px; color: var(--ink-dim); }
+  .ask-hero .ask-reading { flex-direction: column; align-items: flex-start; gap: 7px; padding: 0; font-size: var(--text-base); color: var(--ink-dim); }
   .ask-read { display: flex; align-items: center; gap: 10px; margin: 0; line-height: 1.35; animation: wash-in 160ms var(--ease-out) both; }
   .ask-read.now { color: var(--accent-ink); }
   .ask-read-tile { flex: none; width: 6px; height: 6px; margin: 0 1px; border-radius: 1.5px; background: var(--ink-faint); }
@@ -354,7 +354,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-rows-sec > .ask-row { align-self: stretch; }
   .ask-row { min-height: 48px; }
   .ask-row.now { flex-direction: column; align-items: center; gap: 10px; text-align: center; min-height: 0; padding: 0; }
-  .ask-row.now .ask-row-label { font-size: 14.5px; line-height: 1.45; max-width: 32ch; }
+  .ask-row.now .ask-row-label { font-size: var(--text-md); line-height: 1.45; max-width: 32ch; }
   /* Stacked and centred, the wrapped pills centre too and never run past the 375px the row has. */
   .ask-now-pills { justify-content: center; max-width: 100%; }
   .ask-row.now.sel { background: transparent; }
@@ -367,11 +367,11 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   /* While it listens the band stays drawn under the pill, hidden: the button in it holds the finger until the lift. */
   .ask-line .ask-stage.listening { display: none; }
   .ask-stage-row { min-height: 56px; gap: 8px; }
-  .ask-line-input { font-size: 16px; height: 44px; }
+  .ask-line-input { font-size: var(--field-text-touch); height: 44px; }
   .ask-send { width: 36px; height: 36px; }
   /* While it listens: "Let go to ask" where the field was, where the finger that held the mic lifts (spec 5.3). */
   .ask-letgo-wrap { order: 9; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 16px 12px; }
-  .ask-letgo { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 60px; border: 0; border-radius: 18px; background: var(--accent); color: var(--accent-fg); font: inherit; font-size: 16px; font-weight: 600; touch-action: none; user-select: none; }
+  .ask-letgo { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 60px; border: 0; border-radius: 18px; background: var(--accent); color: var(--accent-fg); font: inherit; font-size: var(--text-lg); font-weight: 600; touch-action: none; user-select: none; }
   /* The answer: two tiles across, 48px items. */
   .ask-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ask-item { min-height: 48px; }
@@ -387,7 +387,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-line-body.thread .ask-now { display: flex; flex-direction: column; min-height: 100%; padding-top: 14px; }
   .ask-thread-turn { display: flex; flex-direction: column; padding-top: 14px; }
   /* Your words (D2): at the right, in the Inbox's own sent bubble; the answers are open. */
-  .ask-q { align-self: flex-end; max-width: 80%; margin: 0 16px 0 56px; padding: 10px 14px; border-radius: 20px 20px 6px 20px; border: 1px solid var(--bubble-us-line); background: var(--bubble-us-bg); font-size: 15px; line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; }
+  .ask-q { align-self: flex-end; max-width: 80%; margin: 0 16px 0 56px; padding: 10px 14px; border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-sm) var(--radius-2xl); border: 1px solid var(--bubble-us-line); background: var(--bubble-us-bg); font-size: 15px; line-height: 1.45; color: var(--ink); overflow-wrap: anywhere; }
   /* The three leading the newest answer (D3, D11): large while Ask reads; the moment its words arrive they stand at the
      answer's start, speaking (`sig speaking`), and stay there, still, once it is whole. One move: the stage narrows from
      the full width to the mark at its left edge as it shrinks, and the canvas fits its box every frame, so the three
@@ -421,10 +421,10 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-now > .ask-acts { gap: 2px; margin-top: -10px; padding: 0 16px 8px 5px; }
   .ask-now > .ask-acts .ask-line-btn { width: 36px; height: 36px; border-radius: 10px; }
   /* A card a thumb can act on (D16): 40px acts, the words and the line a size up. */
-  .ask-card-title, .ask-card-summary { font-size: 14.5px; }
+  .ask-card-title, .ask-card-summary { font-size: var(--text-md); }
   .ask-card-actions .btn { height: 40px; padding: 0 16px; font-size: 14px; border-radius: var(--radius-md); }
   .ask-card-actions .ask-card-not-now { padding: 0 10px; }
-  .ask-card-receipt { min-height: 44px; padding: 6px 6px 6px 12px; font-size: 13.5px; }
+  .ask-card-receipt { min-height: 44px; padding: 6px 6px 6px 12px; font-size: var(--text-base); }
   .ask-card-receipt .btn { height: 32px; padding: 0 10px; font-size: 13px; }
   /* The newest answer's next questions over the field (D6): one row that scrolls sideways, never cut. It fades at its
      right edge, so it reads as a row that scrolls (D15), and keeps room at its end so the last question clears the
@@ -443,7 +443,7 @@ body.ask-open .tb-ask .tb-ask-face { visibility: hidden; }
   .ask-line-body.dim > * { opacity: 0.36; }
   .ask-line-body.dim .ask-hero { visibility: hidden; }
   /* Latest (D7): over the field, and over the next questions when they stand. */
-  .ask-latest { position: absolute; z-index: 2; left: 50%; bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys, 0px) + 84px); translate: -50% 0; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--bg-raised); box-shadow: var(--shadow-md); font: inherit; font-size: 12.5px; font-weight: 500; color: var(--ink); cursor: pointer; animation: wash-in 160ms var(--ease-out) both; }
+  .ask-latest { position: absolute; z-index: 2; left: 50%; bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys, 0px) + 84px); translate: -50% 0; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--radius-full); background: var(--bg-raised); box-shadow: var(--shadow-md); font: inherit; font-size: var(--text-sm); font-weight: 500; color: var(--ink); cursor: pointer; animation: wash-in 160ms var(--ease-out) both; }
   .ask-latest[data-over-next="1"] { bottom: calc(env(safe-area-inset-bottom) + var(--ask-keys, 0px) + 126px); }
 }
 
