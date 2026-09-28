@@ -329,7 +329,6 @@ apps/edge/lib/
   google/
   leads/
   lines/
-  notes/
   ops/
   packages/
   partners/
