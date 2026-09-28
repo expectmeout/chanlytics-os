@@ -17,17 +17,19 @@ import {
   type AskTurnShape,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
-import { titleFromQuestion, titleFromSearch, type CardOutcome, type SearchAnswering } from "./prompt";
+import { answerLine, titleFromQuestion, titleFromSearch, type CardOutcome, type SearchAnswering } from "./prompt";
 import { createThread, readRaws, readThread } from "./store";
 import { replayBlocks, resultBlocks, type CallOutcome, type RoundBlock } from "./round";
 import type { Msg, TurnInput } from "./loop";
 
 /**
- * The earlier turns a question is asked with, as words: counted as turns -- a person's message and what follows it
- * until the next -- never as messages (the Phase 5 plan, D3's fallback until the replay). Twelve messages were six.
+ * The earlier turns a cold question is asked with: counted as turns -- a person's message and what follows it until the
+ * next -- never as messages (the Phase 5 plan, D3), each cut at HISTORY_CHARS, and at most HISTORY_BASE_CHARS in all as
+ * sent (D4: some four thousand tokens), the oldest turns going whole past it (rebuiltHistory).
  */
 const HISTORY_TURNS = 12;
 const HISTORY_CHARS = 1200;
+const HISTORY_BASE_CHARS = 16_000;
 
 /** A warm thread (the Phase 5 plan, D1): the previous turn's last round began under 4½ minutes ago, in the cache's five. */
 const LIVE_WINDOW_MS = 4.5 * MIN_MS;
@@ -83,7 +85,7 @@ export const chainEnd = (chain: Chain) => ({ after: chain.after, told: chain.sin
  * words first. A cold turn's history (a live one replays its chain instead: replayFor).
  */
 export function foldHistory(history: TurnInput["history"], last: string | unknown[]): Msg[] {
-  const questions = history.flatMap((h, i) => (h.role === "user" ? [i] : []));
+  const questions = questionsOf(history);
   const from = questions[Math.max(0, questions.length - HISTORY_TURNS)] ?? history.length;
   const messages: Msg[] = [
     ...history.slice(from).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
@@ -101,6 +103,29 @@ export function foldHistory(history: TurnInput["history"], last: string | unknow
     }
   }
   return messages;
+}
+
+/** Where each turn of a history starts: a person's message, and what follows it until the next. */
+const questionsOf = (history: TurnInput["history"]): number[] =>
+  history.flatMap((h, i) => (h.role === "user" ? [i] : []));
+
+/**
+ * The thread's earlier turns as a cold turn is asked with them (the Phase 5 plan, D4): each question in the person's
+ * words as the model has always read them (readThread's `turns`, askTurnText), each answer one line (answerLine: its
+ * headline, its cards and what became of them, the rows it named) -- the last HISTORY_TURNS turns from a question, as
+ * foldHistory keeps them, at most HISTORY_BASE_CHARS as it sends them: the oldest turns go whole, the newest stays. The
+ * turn keeps what it sent as its base (rawTurn), and a live turn after it replays that base as it was sent, so a line
+ * is frozen on the turn that made it.
+ */
+function rebuiltHistory(messages: AskMessageVM[], turns: TurnInput["history"]): TurnInput["history"] {
+  const history = messages.map((m, i) =>
+    m.role === "assistant" ? { role: "assistant" as const, text: answerLine(m, HISTORY_CHARS) } : turns[i],
+  );
+  const questions = questionsOf(history);
+  const sent = (from: number) => history.slice(from).reduce((n, h) => n + Math.min(h.text.length, HISTORY_CHARS), 0);
+  let k = Math.max(0, questions.length - HISTORY_TURNS);
+  while (k < questions.length - 1 && sent(questions[k]) > HISTORY_BASE_CHARS) k++;
+  return history.slice(questions[k] ?? history.length);
 }
 
 /** The question as the route read it, and the search it answers, if any. */
@@ -123,7 +148,7 @@ export async function threadForTurn(
   asked: Asked,
 ): Promise<{
   thread: { id: string; title: string; scope: AskScope | null };
-  /** The thread's turns as the model reads them, oldest first. */
+  /** The thread's earlier turns as a cold turn is asked with them (rebuiltHistory), oldest first. */
   history: Array<{ role: "user" | "assistant"; text: string }>;
   sinceLastMs: number | null;
   scope: AskScope | null;
@@ -140,7 +165,7 @@ export async function threadForTurn(
     const found = await readThread(ctx, threadId);
     if (found && found.tenantId === tenantId) {
       thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
-      history = found.turns;
+      history = rebuiltHistory(found.messages, found.turns);
       // The thread's previous turn, before this question is appended: how long the person waited to ask again. The
       // read holds the newest rows (readThread), so its last is the previous turn however long the thread is.
       const lastAt = found.messages.at(-1)?.atMs;

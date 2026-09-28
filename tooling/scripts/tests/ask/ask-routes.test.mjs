@@ -1407,6 +1407,7 @@ function readByPath(ctx) {
 
 test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET ask/threads/[id] and the history a follow-up is asked with read each key of a turn they read by its JSON path, never the whole content, and answer what the whole rows give, byte for byte; a card's outcome recorded later writes the row back whole, the raw turn beside it", async () => {
   const { toMessageVM, modelTurnOf } = await import(at("apps/dashboard/src/server/ask/store.ts"));
+  const { answerLine } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
   const raw = {
     at: Date.parse("2026-09-10T00:00:01Z"),
     model: ASK_MODEL,
@@ -1476,10 +1477,19 @@ test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET as
   try {
     const asker = asJsonb(tables);
     await linesOf(await ask.POST.run(send("POST", { text: "And tomorrow?", thread_id: T1 }, inA), asker));
+    // The question in the person's words (modelTurnOf), the answer one line (answerLine, the Phase 5 plan, D4).
     assert.deepEqual(
       requests[0].messages.slice(0, -1).map((m) => [m.role, m.content]),
-      whole.map(modelTurnOf).map((t) => [t.role, t.text.slice(0, 1200)]),
+      whole.map((r) =>
+        r.role === "assistant"
+          ? ["assistant", answerLine(toMessageVM(r), 1200)]
+          : [r.role, modelTurnOf(r).text.slice(0, 1200)],
+      ),
       "the history a follow-up is asked with: what the whole rows give",
+    );
+    assert.equal(
+      requests[0].messages[1].content,
+      "(This turn failed.) Dos borradores esperan. Cards: p-1 · policy · Autonomy: reply · not pressed yet.",
     );
     assert.ok(requests[0].messages[0].content.includes("Pilates studios · Denver"), "the search an answer answered");
     readByPath(asker);

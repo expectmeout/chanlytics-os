@@ -26,9 +26,13 @@ import {
   ASK_MODEL,
   ASK_MODEL_PROFILES,
   answerForCards,
+  answerText,
   clockStamp,
   emptyReadSet,
+  failedAnswer,
   normalizeAnswer,
+  proseAnswer,
+  v1FromAnswer,
   EVERYONE_LABEL,
   NO_NUMBER_REACH,
   noNumberWords,
@@ -61,7 +65,7 @@ const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, READ
 const READ_TOOLS = toApiTools("owner", true).filter((t) => !ACT_TOOL_NAMES.has(t.name));
 const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
-const { workspaceFacts, stableSystem, turnWords, ASK_RULES, ASK_EXAMPLES } = await import(
+const { workspaceFacts, stableSystem, turnWords, answerLine, askTurnText, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
@@ -6492,4 +6496,261 @@ test("a replay the API refuses goes cold once (the Phase 5 plan, D12): round one
   assert.equal(dropFor("413 too_large", all), null);
   assert.equal(dropFor("500 bound to a different conversation", all), null, "a 400 only");
   assert.equal(dropFor("400 messages.0.content.0: search_result is not supported here", all), "context");
+});
+
+/* ------------------------------------------------------------ the cold rebuild (the Phase 5 plan, PR 5.5) -- */
+
+/** A stored answer as the Line reads it back (store.ts toMessageVM): the answer, or the v1 fields alone before it. */
+const answered = (over = {}) => ({
+  id: "m-1",
+  role: "assistant",
+  text: "",
+  at: "",
+  atMs: 0,
+  citations: [],
+  followups: [],
+  navigate: null,
+  proposals: [],
+  language: "en",
+  ungrounded: false,
+  tools: [],
+  latencyMs: null,
+  rounds: null,
+  failed: false,
+  ...over,
+});
+/** A structured answer as normalizeAnswer leaves it: its headline, its detail and its items, each grounded. */
+const shaped = (headline, { detail = "", items = [] } = {}) => ({
+  v: 2,
+  form: "structured",
+  say: { headline, detail },
+  show: { figures: [], items, breakdown: null },
+  do: { open: null, next: [] },
+  language: "en",
+});
+const itemOf = (kind, id, label, to) => ({
+  title: label,
+  meta: "",
+  line: "",
+  source: { kind, id, label, to, door: true },
+});
+const cardOf = (id, title, outcome = null, kind = "reply") => ({ ...replyCard(id, "Rosa"), kind, title, outcome });
+/** The history's cut for one turn (memory.ts HISTORY_CHARS): a line is never longer. */
+const TURN_CHARS = 1200;
+
+test("an earlier answer, as a cold turn's history says it (the Phase 5 plan, D4): one line -- the headline, each card with what the person did with it, the rows it named in the answer's order -- each part only when there is one, never a new line, never longer than the history's cut, an id never cut; a turn that failed says so and keeps its cards; words alone are the words as they were", () => {
+  const rosa = itemOf("thread", C1, "Rosa", `inbox/th-${C1}`);
+  const call = itemOf("call", K1, "Rosa's call", `conversations/cv-${K1}`);
+  const two = shaped("Two people need you.", { detail: "Rosa asked first.", items: [rosa, call] });
+  assert.equal(
+    answerLine(
+      answered({ answer: two, ...v1FromAnswer(two), proposals: [cardOf("p-1", "Reply to Rosa")] }),
+      TURN_CHARS,
+    ),
+    `Two people need you. Cards: p-1 · reply · Reply to Rosa · not pressed yet. Rows, in order: 1. thread ${C1} Rosa; 2. call ${K1} Rosa's call.`,
+    "the headline, the card, the rows: never the detail",
+  );
+  // What the person did with each card, in their words: never "done".
+  const cards = [
+    cardOf("p-1", "Reply to Rosa", { state: "done", receipt: "Sent to Rosa", atMs: 1 }),
+    cardOf("p-2", "Autonomy: reply", { state: "dismissed", receipt: "Not now", atMs: 2 }, "policy"),
+    cardOf("p-3", "Invite Sam", { state: "failed", receipt: "Sam is already a member", atMs: 3 }, "invite"),
+    cardOf("p-4", "Snooze Rosa", { state: "undone", receipt: "Woken again", atMs: 4 }, "thread_verb"),
+    cardOf("p-5", "Reply to Sam", { state: "done", receipt: "", atMs: 5 }),
+  ];
+  assert.equal(
+    answerLine(answered({ answer: shaped("Five cards."), proposals: cards }), TURN_CHARS),
+    "Five cards. Cards: p-1 · reply · Reply to Rosa · approved: Sent to Rosa; p-2 · policy · Autonomy: reply · dismissed; p-3 · invite · Invite Sam · failed: Sam is already a member; and 2 more.",
+    "three cards at most, then how many more",
+  );
+  assert.equal(
+    answerLine(answered({ answer: shaped("Two."), proposals: cards.slice(3) }), TURN_CHARS),
+    "Two. Cards: p-4 · thread_verb · Snooze Rosa · undone; p-5 · reply · Reply to Sam · approved.",
+    "undone, and approved with no receipt",
+  );
+  // A v1 answer: its words, and the rows it cited (answerFromV1's items), a page never among them.
+  const v1 = answered({
+    text: "Rosa called twice.",
+    citations: [
+      { kind: "page", id: "reports", label: "Reports", to: "reports" },
+      { kind: "thread", id: C1, label: "Rosa", to: `inbox/th-${C1}` },
+    ],
+  });
+  assert.equal(answerLine(v1, TURN_CHARS), `Rosa called twice. Rows, in order: 1. thread ${C1} Rosa.`);
+  // Words alone, as every answer before the Line was stored: the same bytes the history sent them as.
+  for (const text of ["Here is the plan.", "x".repeat(160)]) {
+    const plain = answered({ text });
+    assert.equal(answerLine(plain, TURN_CHARS), askTurnText(text, null), "words alone, 160 at most: as they were");
+  }
+  assert.equal(
+    answerLine(answered({ text: `${"y".repeat(200)} tail` }), TURN_CHARS),
+    `${"y".repeat(159)}…`,
+    "longer: the headline's 160, the cut said",
+  );
+  // Never a new line: the words of a prose answer, or an old one, run on one line.
+  const prosy = answered({ answer: proseAnswer("First, the calls.\n\nThen the threads.", "en") });
+  assert.equal(answerLine(prosy, TURN_CHARS), "First, the calls. Then the threads.");
+  assert.equal(answerLine(answered({ text: "One.\nTwo." }), TURN_CHARS), "One. Two.");
+  // A turn that failed says so first, and keeps the cards it made before it failed.
+  const failed = answered({
+    failed: true,
+    answer: failedAnswer("The model refused the question. Try it another way.", "en"),
+    proposals: [cardOf("p-1", "Reply to Rosa")],
+  });
+  assert.equal(
+    answerLine(failed, TURN_CHARS),
+    "(This turn failed.) The model refused the question. Try it another way. Cards: p-1 · reply · Reply to Rosa · not pressed yet.",
+  );
+  // At the caps: four long cards and five long rows would pass the history's cut; the rows the line has no room for go
+  // whole into "and N more", so the cut never lands inside an id.
+  const long = (n) => "L".repeat(n);
+  const ids = [1, 2, 3, 4, 5].map((i) => `cccccccc-cccc-4ccc-8ccc-00000000000${i}`);
+  const full = answered({
+    answer: shaped(long(160), { items: ids.map((id) => itemOf("conversation", id, long(60), `conversations/${id}`)) }),
+    proposals: [1, 2, 3, 4].map((i) =>
+      cardOf(`p-${i}`, long(80), { state: "done", receipt: long(80), atMs: i }, "person_details"),
+    ),
+  });
+  const line = answerLine(full, TURN_CHARS);
+  assert.ok(line.length <= TURN_CHARS, `${line.length} characters`);
+  assert.ok(!line.includes("\n"));
+  const shown = ids.filter((id) => line.includes(id));
+  assert.ok(shown.length >= 1 && shown.length < 5, `some rows, whole: ${shown.length}`);
+  assert.ok(line.endsWith(`; and ${5 - shown.length} more.`), line.slice(-40));
+  assert.ok(line.includes("; and 1 more. Rows, in order: 1. conversation"), "the fourth card counted, the rows after");
+});
+
+/** A thread's rows as the ask route keeps them, oldest first: each turn its question's content, then its answer's. */
+async function seeded(turns) {
+  const { world, ctx } = threadWorld();
+  const row = (role, content) => ({ thread_id: T9, tenant_id: A, user_id: USER, role, content });
+  for (const [question, reply] of turns) {
+    await ctx.supabase.from("ask_messages").insert(row("user", question));
+    if (reply) await ctx.supabase.from("ask_messages").insert(row("assistant", reply));
+  }
+  return { world, ctx };
+}
+const threadNow = (ctx, text = "And now?") =>
+  threadForTurn(ctx, { tenantId: A, threadId: T9, text, scope: undefined, answering: null });
+/** An answer as the ask route stores one: the answer, the v1 fields it gives, its cards. */
+const storedAnswer = (a, proposals = []) => ({ v: 2, answer: a, ...v1FromAnswer(a), proposals, failed: false });
+
+test("the history a cold turn is asked with, from the thread's rows (the Phase 5 plan, D4): each question in the person's words as the model has always read them -- a search's answer inside what it answers -- and each answer one line; a question left unanswered joins the next as it did; the last twelve turns, from a question; at most 16,000 characters as sent, the oldest turns dropped whole and the newest kept", async () => {
+  const SEARCH = "55555555-5555-4555-8555-555555555551";
+  const answering = {
+    search_id: SEARCH,
+    name: "Pilates studios · Denver",
+    question: "Most are franchises. Leave them out?",
+    asked: "Pilates studios in Denver",
+    leaving_out: ["Franchises"],
+  };
+  const rosa = itemOf("thread", C1, "Rosa", `inbox/th-${C1}`);
+  const { ctx } = await seeded([
+    [{ text: "Who called?" }, null],
+    [{ text: "And Rosa?" }, storedAnswer(shaped("Rosa called twice.", { items: [rosa] }))],
+    [{ text: "Include them", answering }, storedAnswer(shaped("Here is the search with them in."))],
+  ]);
+  const found = await threadNow(ctx);
+  assert.deepEqual(found.history, [
+    { role: "user", text: "Who called?" },
+    { role: "user", text: "And Rosa?" },
+    { role: "assistant", text: `Rosa called twice. Rows, in order: 1. thread ${C1} Rosa.` },
+    { role: "user", text: askTurnText("Include them", answering) },
+    { role: "assistant", text: "Here is the search with them in." },
+  ]);
+  const s = sentAs([ROUND([answer("Fine.")])]);
+  const r = await runAskTurn(turn(ctx, { text: "And now?", history: found.history }).input, ports(s.round));
+  assert.equal(r.shape.replay, "rebuilt");
+  assert.deepEqual(
+    s.requests[0].messages.slice(0, -1).map((m) => [m.role, m.content]),
+    [
+      ["user", "Who called?\nAnd Rosa?"],
+      ["assistant", `Rosa called twice. Rows, in order: 1. thread ${C1} Rosa.`],
+      ["user", askTurnText("Include them", answering)],
+      ["assistant", "Here is the search with them in."],
+    ],
+    "the unanswered question joined into the next, as the words fold always did",
+  );
+
+  // Thirteen turns: the newest twelve, from a question.
+  const many = await seeded(
+    Array.from({ length: 13 }, (_, i) => [{ text: `Question ${i + 1}?` }, storedAnswer(shaped(`Answer ${i + 1}.`))]),
+  );
+  const twelve = (await threadNow(many.ctx)).history;
+  assert.equal(twelve.length, 24);
+  assert.deepEqual(
+    [twelve[0], twelve.at(-1)],
+    [
+      { role: "user", text: "Question 2?" },
+      { role: "assistant", text: "Answer 13." },
+    ],
+  );
+
+  // 16,000 characters as sent: a question counts the history's cut for a turn, 1,200 of its 1,500; twelve turns of
+  // 1,200 and 160 are 16,320, so the oldest goes, whole -- its question and its answer -- and eleven are 14,960.
+  const heavy = await seeded(
+    Array.from({ length: 12 }, (_, i) => [
+      { text: `${String(i + 1).padStart(2, "0")} ${"q".repeat(1_497)}` },
+      { v: 2, text: `${String(i + 1).padStart(2, "0")} ${"a".repeat(157)}` },
+    ]),
+  );
+  const budgeted = (await threadNow(heavy.ctx)).history;
+  assert.equal(budgeted.length, 22, "eleven turns");
+  assert.ok(budgeted[0].role === "user" && budgeted[0].text.startsWith("02 "), "from the second turn's question");
+  assert.ok(budgeted.at(-1).text.startsWith("12 "), "the newest kept");
+  const size = budgeted.reduce((n, h) => n + Math.min(h.text.length, TURN_CHARS), 0);
+  assert.deepEqual([size, size + 1_360 > 16_000], [14_960, true], "under the bound, and the oldest would pass it");
+});
+
+test("a cold follow-up's request (the Phase 5 plan, PR 5.5): turn 1 -- two reads, a card, an answer of two items -- saved ten minutes back is rebuilt as the words fold's pairs, the question in the person's words and the answer one line; the turn says rebuilt, keeps those messages as its base, as sent, and carries the cache's markers where a cold turn does: system's two, the page's last block and the request's last", async () => {
+  const { ctx } = threadWorld();
+  const rosa = { kind: "thread", id: C1, label: "Rosa" };
+  const called = { kind: "call", id: K1, label: "Rosa's call" };
+  const t1 = sentAs([
+    ROUND([tool("inbox", { action: "list", filter: "recent" }), tool("calls", { action: "list", filter: "recent" })]),
+    ROUND([
+      draft,
+      answer("Two people need you.", {
+        say: { detail: "Rosa asked first." },
+        show: {
+          items: [
+            { title: "Rosa", meta: "WhatsApp", line: "Asked about Saturday.", source: rosa },
+            { title: "Rosa's call", meta: "Call", line: "Called at noon.", source: called },
+          ],
+        },
+      }),
+    ]),
+  ]);
+  const r1 = await runAskTurn(
+    turn(ctx, { context: PAGE }).input,
+    ports(t1.round, { propose: proposing(replyCard("p-1", "Rosa")) }),
+  );
+  assert.equal(r1.failed, false, r1.failure ?? "");
+  assert.deepEqual(
+    r1.answer.show.items.map((i) => [i.source.kind, i.source.id]),
+    [
+      ["thread", C1],
+      ["call", K1],
+    ],
+    "both rows read, both items kept",
+  );
+  await keep(ctx, "Who needs me?", r1, {
+    over: { answer: r1.answer, ...v1FromAnswer(r1.answer) },
+    created_at: iso(Date.now() - 10 * 60_000),
+  });
+  const { r, s } = await nextTurn(ctx, [ROUND([answer("Rosa called at noon.")])], {
+    context: PAGE,
+    text: "And the call?",
+  });
+  assert.equal(r.failed, false, r.failure ?? "");
+  const line = `Two people need you. Cards: p-1 · reply · Reply to Rosa · not pressed yet. Rows, in order: 1. thread ${C1} Rosa; 2. call ${K1} Rosa's call.`;
+  const pairs = [
+    { role: "user", content: "Who needs me?" },
+    { role: "assistant", content: line },
+  ];
+  sameBytes(unmark(s.requests[0].messages.slice(0, -1)), pairs, "the question as it was asked, the answer one line");
+  assert.notEqual(answerText(r1.answer), line, "not the answer's words: its detail is not the line's");
+  assert.equal(r.shape.replay, "rebuilt");
+  sameBytes(r.raw.base, pairs, "its base: the lines as sent");
+  assert.deepEqual(markersOf(s.requests[0]), ["system.0", "system.1", "messages.2.0", "messages.2.2"]);
 });

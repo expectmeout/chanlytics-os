@@ -1,9 +1,11 @@
 import "server-only";
 import {
+  ASK_ANSWER_CAPS,
   ASK_ROW_WORDS,
   DAYS,
   POLICY_CLASSES,
   POLICY_CLASS_WORDS,
+  answerFromV1,
   describeNow,
   guardrailsInForce,
   hoursRuns,
@@ -11,7 +13,8 @@ import {
   type TenantConfig,
 } from "@chanlytics/contracts";
 import type { MembershipRole } from "@chanlytics/contracts";
-import type { AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
+import type { AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
+import { clip as clipTo, oneLine } from "./context/rows";
 
 /**
  * What the assistant is told, and in what order.
@@ -411,6 +414,64 @@ export function askTurnText(words: string, answering: SearchAnswering | null): s
     `I had asked for: “${a.asked}”${leaving}. My answer: ${words}. ` +
     "Propose the same search with my answer applied (propose_lead_search with amends set to that id), and keep everything I did not change."
   );
+}
+
+/** The most a rebuilt line says of an answer (the Phase 5 plan, D4): its cards and rows past these are "and N more". */
+const LINE_CAPS = {
+  cards: 3,
+  title: ASK_ANSWER_CAPS.title,
+  receipt: 80,
+  rows: ASK_ANSWER_CAPS.items,
+  label: ASK_ANSWER_CAPS.label,
+} as const;
+/** A part of a rebuilt line: one line of words (never a new line), cut to `n` with an ellipsis. */
+const linePart = (s: string | null | undefined, n: number): string => clipTo(oneLine(s ?? ""), n);
+/** What the person did with a card, as a rebuilt line says it: theirs, and never "done". */
+const DID_WORD: Record<AskProposalOutcome["state"], string> = {
+  done: "approved",
+  dismissed: "dismissed",
+  failed: "failed",
+  undone: "undone",
+};
+function outcomeWords(o: AskProposalOutcome | null | undefined): string {
+  if (!o) return "not pressed yet";
+  const receipt = o.state === "done" || o.state === "failed" ? linePart(o.receipt, LINE_CAPS.receipt) : "";
+  return receipt ? `${DID_WORD[o.state]}: ${receipt}` : DID_WORD[o.state];
+}
+/** A list in a rebuilt line: `<name>: a; b; and N more.`, or nothing for none. */
+const listed = (name: string, parts: string[], more: number): string =>
+  parts.length || more > 0 ? `${name}: ${[...parts, ...(more > 0 ? [`and ${more} more`] : [])].join("; ")}.` : "";
+
+/**
+ * An earlier answer as a cold turn's history says it (the Phase 5 plan, D4): one line, never a new line -- its headline
+ * (a prose answer's first words), then each card it made as `<id> · <kind> · <title> · <what the person did>`, then the
+ * rows it named in the answer's order as `<n>. <kind> <id> <label>`, each part only when there is one; a turn that
+ * failed says so first, and keeps its cards. At most `max` characters, the history's cut for a turn: a row the line has
+ * no room for goes whole into "and N more", so an id is never cut. An answer of words alone, one line of 160 characters
+ * at most, is the words as they were.
+ */
+export function answerLine(m: AskMessageVM, max: number): string {
+  const a = m.answer ?? answerFromV1(m);
+  const cards = m.proposals
+    .slice(0, LINE_CAPS.cards)
+    .map((p) => [oneLine(p.id), p.kind, linePart(p.title, LINE_CAPS.title), outcomeWords(p.outcome)].join(" · "));
+  const head = [
+    m.failed ? "(This turn failed.)" : "",
+    linePart(a.say.headline || a.say.detail, ASK_ANSWER_CAPS.headline),
+    listed("Cards", cards, m.proposals.length - cards.length),
+  ];
+  const rows = a.show.items
+    .slice(0, LINE_CAPS.rows)
+    .map((it, i) =>
+      [`${i + 1}.`, it.source.kind, oneLine(it.source.id), linePart(it.source.label, LINE_CAPS.label)]
+        .filter(Boolean)
+        .join(" "),
+    );
+  const lineWith = (n: number) =>
+    [...head, listed("Rows, in order", rows.slice(0, n), rows.length - n)].filter(Boolean).join(" ");
+  let n = rows.length;
+  while (n > 0 && lineWith(n).length > max) n--;
+  return lineWith(n);
 }
 
 /**
