@@ -3,6 +3,8 @@
  * toast when a waiting run is approved. The page decides which runs wait; it composes none of their words.
  */
 
+import { isReachOutRun } from "../reach-out/reach-out-rules";
+
 /* ------------------------------ the runs' words ------------------------------ */
 
 /** A broadcast or a playbook's run as the broadcasts surface publishes it (toBroadcastVM), as far as the words read it. */
@@ -12,13 +14,15 @@ export interface RunLike {
   /** "today 9:00 AM" / "Sep 12 · 10:00 AM", by the business's clock (toBroadcastVM). */
   when: string;
   counts: { sent: number; replied: number };
+  /** Whom it goes to: a reach-out's run (kind `reach_out`) writes to businesses, and says so. */
+  audience?: unknown;
 }
 
 export interface TodayRunWordsVM {
   /** "3 people" */
   people: string;
-  /** A run waiting for a word. */
-  waiting: { sentence: string; status: string[] };
+  /** A run waiting for a word: what kind of run it is ("Playbook · ready"), then its sentence. */
+  waiting: { meta: string; sentence: string; status: string[] };
   /** A run under the veto window: scheduled, not yet sending. */
   soon: { meta: string; sentence: string; status: string[] };
   /** A run that went out today: what it earned so far, and whether it is still sending. */
@@ -33,13 +37,23 @@ export interface TodayRunWordsVM {
  * sends until you say so."), where the page had a middle dot and no capital.
  */
 export function todayRunWords(r: RunLike): TodayRunWordsVM {
-  const people = `${r.recipient_count} ${r.recipient_count === 1 ? "person" : "people"}`;
+  // A reach-out's run writes to businesses a search found, not to people the workspace knows (Reach out Part 5, PR 8).
+  const reach = isReachOutRun(r.audience);
+  const one = r.recipient_count === 1;
+  const people = reach
+    ? `${r.recipient_count} ${one ? "business" : "businesses"}`
+    : `${r.recipient_count} ${one ? "person" : "people"}`;
+  const kind = reach ? "Reach-out" : "Playbook";
   const sent = `${r.counts.sent} sent`;
   return {
     people,
-    waiting: { sentence: `${people}. Nothing sends until you say so.`, status: ["Waiting for your approval"] },
+    waiting: {
+      meta: `${kind} · ready`,
+      sentence: `${people}. Nothing sends until you say so.`,
+      status: ["Waiting for your approval"],
+    },
     soon: {
-      meta: `Playbook · sends ${r.when}`,
+      meta: `${kind} · sends ${r.when}`,
       sentence: `${people}. Stop it if you'd rather not.`,
       status: ["Scheduled", `sends ${r.when}`],
     },
