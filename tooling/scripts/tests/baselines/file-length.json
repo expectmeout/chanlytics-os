@@ -20,6 +20,5 @@
   "packages/contracts/src/calendar/calendar.ts": 839,
   "packages/contracts/src/leads/lead-search.ts": 1036,
   "packages/contracts/src/people/people.ts": 1019,
-  "packages/contracts/src/templates/template-library.ts": 1097,
   "packages/core/src/inbound/answer.ts": 1007
 }
