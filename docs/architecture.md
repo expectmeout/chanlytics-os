@@ -430,6 +430,7 @@ tooling/scripts/
   checks/
   e2e-harness/
   evals/
+  mobile/
   tests/
 e2e/
 supabase/migrations/
