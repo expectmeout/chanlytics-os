@@ -402,7 +402,12 @@ test("the door: the wrong key is a 401, a key Vault cannot produce is a 503, no 
   await refusedAtTheDoor(POST, "reach-out", setPg);
 });
 
-test("reconcile: each queued send reads what became of its email, once", async () => {
+test("reconcile: each queued send reads what became of its email, once", async (t) => {
+  // At three in the morning where the leads are (Texas, on Chicago's time), outside their default hours, nine to five
+  // on weekdays: a send planned again waits for their morning, so none is due and the door answers the clock's counts.
+  // Inside those hours one planned again is due at once, and with the lane unset the door rightly answers 503. Read off
+  // the wall clock, this failed every weekday from nine to five in Chicago.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-30T08:00:00Z") });
   const sentAt = ago(5 * MIN);
   const s = {
     sent: send({ state: "queued", message_id: "m-sent" }),
