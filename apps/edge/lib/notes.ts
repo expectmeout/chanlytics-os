@@ -18,9 +18,9 @@ import {
   noteSuggestUserContent,
   whyNotLook,
   type NoteTurn,
-} from "../packages/contracts.js";
-import { askJson } from "../model.js";
-import type { Logger } from "../log.js";
+} from "./packages/contracts.js";
+import { askJson } from "./model.js";
+import type { Logger } from "./log.js";
 
 /** How long the model may take to suggest a note. */
 const SUGGEST_TIMEOUT_MS = 20_000;

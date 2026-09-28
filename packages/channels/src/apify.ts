@@ -1,3 +1,4 @@
+import { finiteOrNull, trimmedOrNull, recordOrNull } from "@chanlytics/contracts";
 /**
  * The lead finder's provider, over its HTTP API (https://docs.apify.com/api/v2).
  *
@@ -82,26 +83,21 @@ export interface ApifyClient {
   eventPrices(actor: string): Promise<Record<string, number>>;
 }
 
-type Obj = Record<string, unknown>;
-const obj = (v: unknown): Obj | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : null);
-const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
-
 /** `username/name` as the API spells it in a path. */
 const actorPath = (actor: string): string => encodeURIComponent(actor.replace("/", "~"));
 
 function runOf(data: unknown): ApifyRun {
-  const d = obj(data);
-  const id = str(d?.id);
-  const status = str(d?.status);
+  const d = recordOrNull(data);
+  const id = trimmedOrNull(d?.id);
+  const status = trimmedOrNull(d?.status);
   if (!d || !id || !status) throw new ApifyRefused(200, "the provider answered without a run");
   return {
     id,
     status,
-    datasetId: str(d.defaultDatasetId),
-    usageTotalUsd: num(d.usageTotalUsd),
-    startedAt: str(d.startedAt),
-    finishedAt: str(d.finishedAt),
+    datasetId: trimmedOrNull(d.defaultDatasetId),
+    usageTotalUsd: finiteOrNull(d.usageTotalUsd),
+    startedAt: trimmedOrNull(d.startedAt),
+    finishedAt: trimmedOrNull(d.finishedAt),
   };
 }
 
@@ -134,7 +130,7 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
     if (allow(res.status)) return { body: null, headers: res.headers };
     let type = `http ${res.status}`;
     try {
-      type = str(obj(obj(JSON.parse(text))?.error)?.type) ?? type;
+      type = trimmedOrNull(recordOrNull(recordOrNull(JSON.parse(text))?.error)?.type) ?? type;
     } catch {
       /* the status is the message */
     }
@@ -157,7 +153,7 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
         headers: headers(true),
         body: JSON.stringify(input),
       });
-      const run = runOf(obj(body)?.data);
+      const run = runOf(recordOrNull(body)?.data);
       if (!run.datasetId) throw new ApifyRefused(201, "the provider started a run with no dataset");
       return { id: run.id, datasetId: run.datasetId };
     },
@@ -166,7 +162,7 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
         method: "GET",
         headers: headers(false),
       });
-      return runOf(obj(body)?.data);
+      return runOf(recordOrNull(body)?.data);
     },
     async listActorRuns(actor, sinceIso) {
       const q = new URLSearchParams({ desc: "1", limit: "100" });
@@ -174,15 +170,15 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
         method: "GET",
         headers: headers(false),
       });
-      const items = obj(obj(body)?.data)?.items;
+      const items = recordOrNull(recordOrNull(body)?.data)?.items;
       const out: { id: string; status: string; startedAt: string; datasetId: string | null }[] = [];
       for (const it of Array.isArray(items) ? items : []) {
-        const o = obj(it);
-        const id = str(o?.id);
-        const status = str(o?.status);
-        const startedAt = str(o?.startedAt);
+        const o = recordOrNull(it);
+        const id = trimmedOrNull(o?.id);
+        const status = trimmedOrNull(o?.status);
+        const startedAt = trimmedOrNull(o?.startedAt);
         if (!o || !id || !status || !startedAt || startedAt < sinceIso) continue;
-        out.push({ id, status, startedAt, datasetId: str(o.defaultDatasetId) });
+        out.push({ id, status, startedAt, datasetId: trimmedOrNull(o.defaultDatasetId) });
       }
       return out;
     },
@@ -191,7 +187,7 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
         method: "GET",
         headers: headers(false),
       });
-      const store = str(obj(obj(body)?.data)?.defaultKeyValueStoreId);
+      const store = trimmedOrNull(recordOrNull(recordOrNull(body)?.data)?.defaultKeyValueStoreId);
       if (!store) return null;
       const rec = await call(
         `${APIFY_BASE}/key-value-stores/${encodeURIComponent(store)}/records/INPUT`,
@@ -232,13 +228,16 @@ export function apifyClient(fetchImpl: typeof fetch, token: string): ApifyClient
         method: "GET",
         headers: headers(false),
       });
-      const d = obj(obj(body)?.data);
+      const d = recordOrNull(recordOrNull(body)?.data);
       const infos = Array.isArray(d?.pricingInfos) ? (d.pricingInfos as unknown[]) : [];
-      const events = obj(obj(obj(infos[infos.length - 1])?.pricingPerEvent)?.actorChargeEvents) ?? {};
+      const events =
+        recordOrNull(recordOrNull(recordOrNull(infos[infos.length - 1])?.pricingPerEvent)?.actorChargeEvents) ?? {};
       const out: Record<string, number> = {};
       for (const [name, e] of Object.entries(events)) {
         const price =
-          num(obj(obj(obj(e)?.eventTieredPricingUsd)?.BRONZE)?.tieredEventPriceUsd) ?? num(obj(e)?.eventPriceUsd);
+          finiteOrNull(
+            recordOrNull(recordOrNull(recordOrNull(e)?.eventTieredPricingUsd)?.BRONZE)?.tieredEventPriceUsd,
+          ) ?? finiteOrNull(recordOrNull(e)?.eventPriceUsd);
         if (price !== null) out[name] = price;
       }
       return out;

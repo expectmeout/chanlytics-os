@@ -103,7 +103,7 @@ const none = (): DealReportDto => ({
 });
 
 /** How many of each key, most first; a tie keeps the order its set is written in. A null is not a key. */
-function tally<K extends string>(keys: readonly (K | null)[], order: readonly K[]): { key: K; count: number }[] {
+function countByKey<K extends string>(keys: readonly (K | null)[], order: readonly K[]): { key: K; count: number }[] {
   const n = new Map<K, number>();
   for (const k of keys) if (k !== null) n.set(k, (n.get(k) ?? 0) + 1);
   return [...n]
@@ -171,11 +171,11 @@ export async function dealReport(
         d.amount_cents === null ? [] : [{ amount_cents: d.amount_cents, per: d.per, currency: d.currency }],
       ),
     },
-    sources: tally(
+    sources: countByKey(
       yes.map((d) => cameFrom.get(d.contact_id) ?? null),
       CAME_FROM_ORDER,
     ).map(({ key, count }) => ({ came_from: key, count })),
-    reasons: tally(
+    reasons: countByKey(
       passed.map((d) => (isDealLostReason(d.lost_reason) ? d.lost_reason : null)),
       DEAL_LOST_REASONS,
     ).map(({ key, count }) => ({ reason: key, count })),

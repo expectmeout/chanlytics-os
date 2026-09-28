@@ -1,6 +1,6 @@
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Application from "expo-application";
-import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts";
+import { THEME_COLORS, THEME_INK } from "@chanlytics/contracts/phone-app";
 
 /**
  * The site no longer speaks to this version of the app: said plainly, over everything, with the way to the update.
