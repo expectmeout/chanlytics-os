@@ -169,7 +169,8 @@ export const POST = write({
     // The thread, before anything else: a question that could not be saved is
     // not answered, so a person never sees an answer they cannot find again.
     const kept = await threadForTurn(ctx, { tenantId, threadId, text, scope: askedScope, answering });
-    const { thread: turn, history, sinceLastMs, scope } = kept;
+    // The thread's earlier turns: their words, the time since the last, and while it is warm the turns as sent.
+    const { thread: turn, scope, ...earlier } = kept;
     await appendMessage(ctx, turn.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
 
     // A turn keeps what may be kept across turns (the workspace's name and zone, five minutes): the next question of
@@ -213,10 +214,9 @@ export const POST = write({
           language,
           scope,
           surface,
-          history,
+          ...earlier,
           text: askTurnText(text, answering),
           openedMs,
-          sinceLastMs,
           context,
           emit: (ev) => send(line(ev)),
           // One clock for the turn: the tools' today is the readers' today.
