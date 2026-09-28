@@ -20,7 +20,7 @@
  * no call to Stripe.
  */
 import type Stripe from "stripe";
-import { json } from "../lib/http.js";
+import { json, refuse } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { logger } from "../lib/log.js";
 import {
@@ -54,7 +54,7 @@ export async function POST(request: Request): Promise<Response> {
   const L = logger({ hook: "stripe" });
   const s = stripe();
   const secret = env.STRIPE_WEBHOOK_SECRET;
-  if (!s || !secret) return json(503, { ok: false, error: "not_ready" });
+  if (!s || !secret) return refuse(503, "not_ready");
   const raw = await request.text();
   const sig = request.headers.get("stripe-signature") ?? "";
   let event: Stripe.Event;
@@ -62,10 +62,10 @@ export async function POST(request: Request): Promise<Response> {
     event = s.webhooks.constructEvent(raw, sig, secret);
   } catch (e) {
     L.warn("stripe_signature_rejected", { error: e instanceof Error ? e.message : String(e) });
-    return json(400, { ok: false, error: "signature" });
+    return refuse(400, "signature");
   }
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
 
   // The claim, and the lease THIS delivery holds on it. A delivery that took
   // the claim and then failed gives it back below, so the retry the 500 asks
@@ -88,7 +88,7 @@ export async function POST(request: Request): Promise<Response> {
     // Told to come back, the retry finds the claim applied, or its lease run
     // out, and takes it over.
     L.info("stripe_event_in_flight", { type: event.type, event_id: event.id });
-    return json(503, { ok: false, error: "in_flight" });
+    return refuse(503, "in_flight");
   };
   // The answer once the work is done, the claim completed first: from here a
   // retry is a duplicate for ever. Nothing before this makes it one.
@@ -182,7 +182,7 @@ export async function POST(request: Request): Promise<Response> {
               status: current.why.status,
             });
             await giveBack();
-            return json(503, { ok: false, error: "stripe_unreadable" });
+            return refuse(503, "stripe_unreadable");
           }
           const rowStillLive = current.read === "found" && receptionistOn(subscriptionFacts(current.value).status);
           if (rowStillLive) {
@@ -260,7 +260,7 @@ export async function POST(request: Request): Promise<Response> {
         if (dup) return dup;
         if (!row || !(await isAttributed(db, row.tenant_id))) return done(json(200, { ok: true }));
         const invoice = await invoiceOf(idOf(charge.payment_intent));
-        if (invoice === UNREADABLE) return json(503, { ok: false, error: "stripe_unreadable" });
+        if (invoice === UNREADABLE) return refuse(503, "stripe_unreadable");
         const r = invoice ? await reverseForInvoice(db, invoice, event.id, "refund", charge.amount_refunded, L) : null;
         return ledgerAnswer(r, "partner_reversed");
       }
@@ -277,7 +277,7 @@ export async function POST(request: Request): Promise<Response> {
         if (event.type === "charge.dispute.closed" && dispute.status !== "won" && dispute.status !== "prevented")
           return done(json(200, { ok: true }));
         const invoice = await invoiceOf(idOf(dispute.payment_intent));
-        if (invoice === UNREADABLE) return json(503, { ok: false, error: "stripe_unreadable" });
+        if (invoice === UNREADABLE) return refuse(503, "stripe_unreadable");
         const kind = event.type === "charge.dispute.created" ? "dispute" : "dispute_won";
         const r = invoice ? await reverseForInvoice(db, invoice, event.id, kind, dispute.amount, L) : null;
         return ledgerAnswer(r, "partner_reversed");
@@ -303,6 +303,6 @@ export async function POST(request: Request): Promise<Response> {
     // The claim goes back before the 500 does: Stripe's retry has to find the
     // event unspent, or the change this delivery failed to apply is lost.
     await giveBack();
-    return json(500, { ok: false, error: "write_failed" });
+    return refuse(500, "write_failed");
   }
 }

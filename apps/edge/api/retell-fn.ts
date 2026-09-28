@@ -28,7 +28,7 @@
  * agent SPEAKS this string, so an error status would make it say nothing at all
  * while the caller waits.
  */
-import { json } from "../lib/http.js";
+import { json, refuse } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
 import { effectiveReplyMode } from "../lib/packages/core.js";
@@ -105,7 +105,7 @@ export async function POST(request: Request): Promise<Response> {
   // The signature, or the tool's x-fn-secret header while this door still reads one. Whether Retell signs
   // custom-function calls is what the log answers (voice-door-auth.ts); this file used to say it did not.
   if (!voiceDoorAuth("fn", request, raw).ok) {
-    return json(401, { ok: false, error: "bad_secret" });
+    return refuse(401, "bad_secret");
   }
 
   let body: {

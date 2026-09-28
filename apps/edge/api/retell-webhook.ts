@@ -32,7 +32,7 @@
 import { notify } from "../lib/ops/notify.js";
 import type { NotifyMessage } from "../lib/ops/notify.js";
 import { loadTenantNotifications, loadTenantRuntime } from "../lib/tenant-runtime.js";
-import { json } from "../lib/http.js";
+import { json, refuse } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import {
   normalizeCall,
@@ -268,7 +268,7 @@ async function erasureRefusal(
       tenant: routed.tenantId,
       error: errField(e),
     });
-    return json(503, { ok: false, error: "erasure_unreadable" });
+    return refuse(503, "erasure_unreadable");
   }
   if (erased) {
     L.info("retell_call_skipped_erased", {
@@ -520,7 +520,7 @@ async function tellOwner(db: Db, routed: RoutedChannel | null, notice: NotifyMes
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   if (!(await admitted(raw, request.headers.get("x-retell-signature")))) {
-    return json(401, { ok: false, error: "unauthorized" });
+    return refuse(401, "unauthorized");
   }
   const delivery = readDelivery(raw);
   if (!delivery) return json(200, { ok: true });
@@ -532,7 +532,7 @@ export async function POST(request: Request): Promise<Response> {
     // not acknowledged. The SMS and WhatsApp doors answer the same 503, and a
     // credential-less deployment answers no_database platform-wide (lib/pg.ts).
     L.error("retell_no_database", { call_id: n.retellCallId, retell_event: event });
-    return json(503, { ok: false, error: "no_database" });
+    return refuse(503, "no_database");
   }
   // Whose call this is, decided ONCE and before anything is written. A read
   // that FAILED is not "nobody's agent": the dead letter below is for a
@@ -545,7 +545,7 @@ export async function POST(request: Request): Promise<Response> {
   const lookup = await routeDelivery(db, n);
   if (lookup.lookupFailed) {
     L.error("retell_routing_unreadable", { call_id: n.retellCallId, agent_id: n.agentId, retell_event: event });
-    return json(503, { ok: false, error: "routing_unreadable" });
+    return refuse(503, "routing_unreadable");
   }
   const routed = lookup.channel;
   const refusal = await erasureRefusal(db, n, routed, event);
@@ -579,7 +579,7 @@ export async function POST(request: Request): Promise<Response> {
     // a 503, as the WhatsApp and SMS doors give a write the database
     // refused: try again.
     L.error("ingest_call_failed", { error: errField(e) });
-    return json(503, { ok: false, error: "ingest_failed" });
+    return refuse(503, "ingest_failed");
   }
 
   if (event === "call_analyzed") {

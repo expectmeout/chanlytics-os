@@ -2243,13 +2243,13 @@ function forWords(forMe, forUserId, forName) {
   return forUserId && name ? `For ${name}` : null;
 }
 function nextStepOf(r2, tz, nowMs) {
-  const words4 = r2.step_body?.trim();
-  if (!r2.step_id || !words4) return null;
+  const words3 = r2.step_body?.trim();
+  if (!r2.step_id || !words3) return null;
   const day = stepDayOf(r2.step_due_on, tz, nowMs);
   if (!day) return null;
   return {
     id: r2.step_id,
-    words: words4,
+    words: words3,
     day,
     due: day.due,
     forWho: forWords(r2.step_for_me, r2.step_for_user_id, r2.step_for_name),
@@ -3289,7 +3289,7 @@ var decisionOf = (data) => {
   return typeof id === "string" && id ? id : null;
 };
 var idIn = (pl, k) => typeof pl?.[k] === "string" && pl[k] ? pl[k] : null;
-var refuseWith = (words4) => ({ refused: words4 });
+var refuseWith = (words3) => ({ refused: words3 });
 var ownEntry = (m, k) => Object.prototype.hasOwnProperty.call(m, k) ? m[k] : void 0;
 var PEOPLE_CHANGED = { type: "surface:clients" };
 
@@ -4158,8 +4158,8 @@ function leadBand(search) {
   };
 }
 var keyInWords = (key) => {
-  const words4 = key.replace(/_/g, " ").trim();
-  return words4 ? words4.charAt(0).toUpperCase() + words4.slice(1) : "";
+  const words3 = key.replace(/_/g, " ").trim();
+  return words3 ? words3.charAt(0).toUpperCase() + words3.slice(1) : "";
 };
 var ratingLabel = (rating, reviews) => rating === null || rating === void 0 ? "" : `${rating.toFixed(1)} \xB7 ${reviews ?? 0}`;
 var stageLabelOf = (stage, closedReason) => stage === "archived" ? LEAD_CLOSED_WORDS[closedReason] ?? LEAD_STAGE_WORDS.archived : LEAD_STAGE_WORDS[stage];
@@ -5499,21 +5499,21 @@ var PURPOSE_REFUSALS = {
 var OFFERS_BY_WHATSAPP_NOTE = "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
 function consentChangeOf(e) {
   const d = e.data ?? {};
-  const str2 = (k) => typeof d[k] === "string" && d[k] !== "" ? d[k] : null;
+  const str = (k) => typeof d[k] === "string" && d[k] !== "" ? d[k] : null;
   return {
     id: e.id,
     contact_id: e.subject_id,
     at: e.created_at,
     // Email's answer is its own (00174): read as the conversational one, an unsubscribe said "nothing goes out".
     purpose: d.purpose === "marketing" ? "marketing" : d.purpose === "email_marketing" ? "email_marketing" : "conversational",
-    consent: str2("consent"),
-    previous: str2("previous"),
-    source: str2("source"),
-    by: str2("by"),
-    note: str2("note"),
-    channel: str2("channel"),
-    message_external_id: str2("message_external_id"),
-    words: str2("words")
+    consent: str("consent"),
+    previous: str("previous"),
+    source: str("source"),
+    by: str("by"),
+    note: str("note"),
+    channel: str("channel"),
+    message_external_id: str("message_external_id"),
+    words: str("words")
   };
 }
 function purposeOfTemplate(category) {
@@ -5813,7 +5813,7 @@ var NOTE_WORDS = {
   stepReopened: "Step open again",
   setTheNext: "Set the next one",
   /** Done's name for a screen reader, where a header holds more than the step. */
-  markDone: (words4) => `Mark \u201C${words4}\u201D done`
+  markDone: (words3) => `Mark \u201C${words3}\u201D done`
 };
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -6183,7 +6183,7 @@ function nextQuestions(next, places) {
   for (const raw of next) {
     const q = clip(raw, ASK_ANSWER_CAPS.question);
     if (!q || out.some((x) => sameQuestion(x, q))) continue;
-    if (FOLLOWUP_ECHO.some(([words4, route]) => words4.test(q) && places.some((p) => route.test(p)))) continue;
+    if (FOLLOWUP_ECHO.some(([words3, route]) => words3.test(q) && places.some((p) => route.test(p)))) continue;
     out.push(q);
     if (out.length >= ASK_ANSWER_CAPS.next) break;
   }
@@ -6251,11 +6251,11 @@ var KIND_WORDS = {
 };
 function answerFromV1(m) {
   const language = m.language ?? "en";
-  const words4 = KIND_WORDS[language === "es" ? "es" : "en"];
+  const words3 = KIND_WORDS[language === "es" ? "es" : "en"];
   const cites = m.citations ?? [];
   const items = cites.filter((c) => c.kind !== "page").slice(0, ASK_ANSWER_CAPS.items).map((c) => ({
     title: clip(c.label, ASK_ANSWER_CAPS.title),
-    meta: words4[c.kind],
+    meta: words3[c.kind],
     line: "",
     source: { kind: c.kind, id: c.id, label: c.label, to: c.to || citationRoute(c), door: true }
   }));
@@ -7033,8 +7033,8 @@ function templateTitle(name, title) {
   if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
   const s = starterByName(name);
   if (s) return s.title;
-  const words4 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  return words4 ? words4[0].toUpperCase() + words4.slice(1) : String(name ?? "");
+  const words3 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words3 ? words3[0].toUpperCase() + words3.slice(1) : String(name ?? "");
 }
 function playbookName(trigger, tpl) {
   return starterForTrigger(trigger.id)?.name === tpl.name ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
@@ -7097,8 +7097,8 @@ function noNumberWords(who, purpose) {
 function saidYesWords(who, purpose, sending, saidYes) {
   const noNumber = sending === 0 && saidYes > 0;
   const n = noNumber ? saidYes : sending;
-  const words4 = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
-  return noNumber ? `${words4}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words4;
+  const words3 = `${n} ${n === 1 ? "person" : "people"} on ${who} said yes to ${purpose === "marketing" ? "offers" : "messages"}`;
+  return noNumber ? `${words3}, ${n === 1 ? "with no number" : "none with a number"} to send to` : words3;
 }
 function broadcastStep(cta, to, members) {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
@@ -7372,12 +7372,12 @@ function findLanguages(query, list2 = WHATSAPP_LANGUAGES) {
     const name = fold(l.name);
     const label = fold(l.label);
     const native = fold(l.native);
-    const words4 = [label, native].join(" ").split(/[\s(),’'（）]+/).filter(Boolean);
+    const words3 = [label, native].join(" ").split(/[\s(),’'（）]+/).filter(Boolean);
     let score = -1;
     if (code2 === q || code2.split("_")[0] === q) score = 0;
     else if (name.startsWith(q) || label.startsWith(q)) score = 1;
     else if (native.startsWith(q)) score = 2;
-    else if (words4.some((w) => w.startsWith(q))) score = 3;
+    else if (words3.some((w) => w.startsWith(q))) score = 3;
     else if (code2.startsWith(q)) score = 4;
     else if (label.includes(q) || native.includes(q)) score = 5;
     if (score >= 0) scored.push({ l, score, at: at2 });
@@ -7850,7 +7850,19 @@ function receiptWords(r2, clock3) {
   return parts2.join(" \xB7 ");
 }
 var initialsOf2 = (name, named) => named ? name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => Array.from(w)[0] ?? "").join("").toUpperCase() || "\u2014" : "\u2014";
-function toRunReportVM(d, opts) {
+function barSpanOf(reached, opts) {
+  const starts = reached.map((r2) => r2.sent_at ? Date.parse(r2.sent_at) : NaN).filter(Number.isFinite);
+  const start = starts.length ? Math.min(...starts) : opts.nowMs;
+  const heard = reached.flatMap((r2) => [r2.delivered_at, r2.read_at, r2.replied ? r2.replied_at : null, r2.consent_after ? r2.consent_at : null]).map((s) => s ? Date.parse(s) : NaN).filter((t) => Number.isFinite(t) && t >= start && t - start <= opts.windowMs);
+  const last = heard.length ? Math.max(...heard) - start : 0;
+  const windowH = opts.windowMs / HOUR_MS;
+  const spanH = RUN_REPORT_SPANS_H.find((h) => h <= windowH && h * HOUR_MS > last) ?? windowH;
+  return { start, spanH, step: spanH * HOUR_MS / RUN_REPORT_STEPS };
+}
+function cutOffWordsOf(state) {
+  return state === "failed" ? "the run stopped before them" : state === "canceled" ? "canceled before it reached them" : state === "sent" ? "never sent" : null;
+}
+function runFactsOf(d, opts) {
   const clock3 = opts.clock ?? ((iso) => iso);
   const reached = d.recipients.filter((r2) => r2.state === "sent");
   const sent = reached.length;
@@ -7859,129 +7871,216 @@ function toRunReportVM(d, opts) {
   const waiting = replied.filter((r2) => r2.waiting_on_you).length;
   const yes = reached.filter((r2) => r2.consent_after === "opted_in");
   const stopped = reached.filter((r2) => r2.consent_after === "opted_out");
-  const starts = reached.map((r2) => r2.sent_at ? Date.parse(r2.sent_at) : NaN).filter(Number.isFinite);
-  const start = starts.length ? Math.min(...starts) : opts.nowMs;
-  const heard = reached.flatMap((r2) => [r2.delivered_at, r2.read_at, r2.replied ? r2.replied_at : null, r2.consent_after ? r2.consent_at : null]).map((s) => s ? Date.parse(s) : NaN).filter((t) => Number.isFinite(t) && t >= start && t - start <= opts.windowMs);
-  const last = heard.length ? Math.max(...heard) - start : 0;
-  const windowH = opts.windowMs / HOUR_MS;
-  const spanH = RUN_REPORT_SPANS_H.find((h) => h <= windowH && h * HOUR_MS > last) ?? windowH;
-  const step2 = spanH * HOUR_MS / RUN_REPORT_STEPS;
-  const bars2 = (stamps) => {
-    const out = new Array(RUN_REPORT_STEPS).fill(0);
-    for (const s of stamps) {
-      const t = s ? Date.parse(s) : NaN;
-      if (!Number.isFinite(t)) continue;
-      const i = Math.floor((t - start) / step2);
-      if (i >= 0 && i < RUN_REPORT_STEPS) out[i] += 1;
-    }
-    return out;
-  };
-  const pct3 = (n) => sent > 0 && n > 0 ? Math.round(n / sent * 100) : null;
+  const { start, spanH, step: step2 } = barSpanOf(reached, opts);
   const never = sent - delivered.length;
   const greets = (d.broadcast?.params ?? []).some((p) => p && p.kind === "first_name");
-  const state = d.broadcast?.state;
-  const cutOff = state === "failed" ? "the run stopped before them" : state === "canceled" ? "canceled before it reached them" : state === "sent" ? "never sent" : null;
-  const people = d.recipients.map((r2) => {
-    const out = r2.state === "sent";
-    const hiThere = out && greets && !r2.first_name;
-    const answer = r2.consent_after ? consentAnswerWords(r2.consent_after, r2.consent_purpose) : null;
-    const pill = r2.consent_after === "opted_out" && out ? { label: "Asked to stop", tone: "warn" } : r2.replied && out ? { label: "Replied", tone: "ok" } : r2.consent_after === "opted_in" && out ? { label: "Said yes", tone: "ok" } : r2.state === "skipped" ? { label: "Held back", tone: "plain" } : r2.state === "failed" ? { label: "Not sent", tone: "danger" } : r2.state === "queued" ? { label: cutOff ? "Not sent" : "Waiting", tone: "plain" } : r2.message_status === "failed" ? { label: "Never delivered", tone: "danger" } : r2.message_status === "read" ? { label: "Read", tone: "info" } : r2.message_status === "delivered" ? { label: "Delivered", tone: "info" } : { label: "Sent", tone: "plain" };
-    const quote = r2.replied && r2.reply_words ? `\u201C${r2.reply_words}\u201D` : null;
-    const words4 = r2.state === "skipped" ? r2.reason && HELD_REASONS[r2.reason] || r2.reason || "held back" : r2.state === "failed" ? r2.reason && HELD_REASONS[r2.reason] || HELD_REASONS.send_failed || "WhatsApp refused it" : r2.state === "queued" ? cutOff ?? "not sent yet" : r2.consent_after === "opted_out" ? quote ? `${quote} \u2014 ${answer}` : answer : quote ? quote : r2.consent_after === "opted_in" ? answer : r2.message_status === "failed" ? "WhatsApp could not deliver it" : hiThere ? "greeted \u201CHi there\u201D \u2014 no name on file" : receiptWords(r2, clock3);
-    const door = r2.consent_after === "opted_out" && out ? { label: "See consent", to: `clients/${r2.contact_id}` } : hiThere ? { label: "Add a name", to: `clients/${r2.contact_id}` } : r2.replied && r2.conversation_id ? { label: "Open the thread", to: `inbox/th-${r2.conversation_id}` } : null;
-    const inn = ["all"];
-    if (out && r2.replied) inn.push("replied");
-    if (r2.state === "skipped" || r2.state === "failed" || r2.state === "queued" && cutOff) inn.push("held");
-    if (out && r2.consent_after === "opted_out") inn.push("stopped");
+  const cutOff = cutOffWordsOf(d.broadcast?.state);
+  return {
+    d,
+    clock: clock3,
+    reached,
+    sent,
+    delivered,
+    replied,
+    waiting,
+    yes,
+    stopped,
+    start,
+    spanH,
+    step: step2,
+    never,
+    greets,
+    cutOff
+  };
+}
+function barsOf({ start, step: step2 }, stamps) {
+  const out = new Array(RUN_REPORT_STEPS).fill(0);
+  for (const s of stamps) {
+    const t = s ? Date.parse(s) : NaN;
+    if (!Number.isFinite(t)) continue;
+    const i = Math.floor((t - start) / step2);
+    if (i >= 0 && i < RUN_REPORT_STEPS) out[i] += 1;
+  }
+  return out;
+}
+var pctOf = ({ sent }, n) => sent > 0 && n > 0 ? Math.round(n / sent * 100) : null;
+var PERSON_PILLS = [
+  (r2, { out }) => r2.consent_after === "opted_out" && out ? { label: "Asked to stop", tone: "warn" } : null,
+  (r2, { out }) => r2.replied && out ? { label: "Replied", tone: "ok" } : null,
+  (r2, { out }) => r2.consent_after === "opted_in" && out ? { label: "Said yes", tone: "ok" } : null,
+  (r2) => r2.state === "skipped" ? { label: "Held back", tone: "plain" } : null,
+  (r2) => r2.state === "failed" ? { label: "Not sent", tone: "danger" } : null,
+  (r2, { cutOff }) => r2.state === "queued" ? { label: cutOff ? "Not sent" : "Waiting", tone: "plain" } : null,
+  (r2) => r2.message_status === "failed" ? { label: "Never delivered", tone: "danger" } : null,
+  (r2) => r2.message_status === "read" ? { label: "Read", tone: "info" } : null,
+  (r2) => r2.message_status === "delivered" ? { label: "Delivered", tone: "info" } : null
+];
+function personPillOf(r2, c) {
+  for (const row2 of PERSON_PILLS) {
+    const pill = row2(r2, c);
+    if (pill) return pill;
+  }
+  return { label: "Sent", tone: "plain" };
+}
+function personWordsOf(r2, { hiThere, answer, quote, cutOff, clock: clock3 }) {
+  if (r2.state === "skipped") return r2.reason && HELD_REASONS[r2.reason] || r2.reason || "held back";
+  if (r2.state === "failed")
+    return r2.reason && HELD_REASONS[r2.reason] || HELD_REASONS.send_failed || "WhatsApp refused it";
+  if (r2.state === "queued") return cutOff ?? "not sent yet";
+  if (r2.consent_after === "opted_out") return quote ? `${quote} \u2014 ${answer}` : answer;
+  if (quote) return quote;
+  if (r2.consent_after === "opted_in") return answer;
+  if (r2.message_status === "failed") return "WhatsApp could not deliver it";
+  if (hiThere) return "greeted \u201CHi there\u201D \u2014 no name on file";
+  return receiptWords(r2, clock3);
+}
+function personDoorOf(r2, { out, hiThere }) {
+  if (r2.consent_after === "opted_out" && out) return { label: "See consent", to: `clients/${r2.contact_id}` };
+  if (hiThere) return { label: "Add a name", to: `clients/${r2.contact_id}` };
+  if (r2.replied && r2.conversation_id) return { label: "Open the thread", to: `inbox/th-${r2.conversation_id}` };
+  return null;
+}
+function personFiltersOf(r2, { out, cutOff }) {
+  const inn = ["all"];
+  if (out && r2.replied) inn.push("replied");
+  if (r2.state === "skipped" || r2.state === "failed" || r2.state === "queued" && cutOff) inn.push("held");
+  if (out && r2.consent_after === "opted_out") inn.push("stopped");
+  return inn;
+}
+function personLineOf(r2, { greets, cutOff, clock: clock3 }) {
+  const out = r2.state === "sent";
+  const hiThere = out && greets && !r2.first_name;
+  const answer = r2.consent_after ? consentAnswerWords(r2.consent_after, r2.consent_purpose) : null;
+  const quote = r2.replied && r2.reply_words ? `\u201C${r2.reply_words}\u201D` : null;
+  const c = { out, hiThere, answer, quote, cutOff, clock: clock3 };
+  const pill = personPillOf(r2, c);
+  const words3 = personWordsOf(r2, c);
+  const door = personDoorOf(r2, c);
+  const inn = personFiltersOf(r2, c);
+  return {
+    contact_id: r2.contact_id,
+    name: r2.name,
+    initials: initialsOf2(r2.name, !!r2.first_name),
+    pill,
+    words: words3,
+    door,
+    at: out ? clock3(r2.replied_at || r2.consent_at || r2.read_at || r2.delivered_at || r2.sent_at) : null,
+    attn: out && r2.consent_after === "opted_out" || hiThere,
+    held: !out,
+    in: inn
+  };
+}
+function replyOutcomeOf(r2, clock3) {
+  if (r2.waiting_on_you) return { words: "Waiting on you", tone: "warn" };
+  if (r2.answered_by === "receptionist")
     return {
-      contact_id: r2.contact_id,
-      name: r2.name,
-      initials: initialsOf2(r2.name, !!r2.first_name),
-      pill,
-      words: words4,
-      door,
-      at: out ? clock3(r2.replied_at || r2.consent_at || r2.read_at || r2.delivered_at || r2.sent_at) : null,
-      attn: out && r2.consent_after === "opted_out" || hiThere,
-      held: !out,
-      in: inn
+      words: `The receptionist answered${clock3(r2.answered_at) ? ` \xB7 ${clock3(r2.answered_at)}` : ""}`,
+      tone: "ok"
     };
-  });
-  const replies = replied.slice().sort((a, b) => String(a.replied_at ?? "").localeCompare(String(b.replied_at ?? ""))).map((r2) => ({
+  if (r2.answered_by === "team")
+    return { words: `Your team answered${clock3(r2.answered_at) ? ` \xB7 ${clock3(r2.answered_at)}` : ""}`, tone: "ok" };
+  return { words: "Not answered yet", tone: "plain" };
+}
+function repliesOf({ replied, clock: clock3 }) {
+  return replied.slice().sort((a, b) => String(a.replied_at ?? "").localeCompare(String(b.replied_at ?? ""))).map((r2) => ({
     contact_id: r2.contact_id,
     name: r2.name,
     initials: initialsOf2(r2.name, !!r2.first_name),
     quote: r2.reply_words ? `\u201C${r2.reply_words}\u201D` : null,
-    outcome: r2.waiting_on_you ? { words: "Waiting on you", tone: "warn" } : r2.answered_by === "receptionist" ? {
-      words: `The receptionist answered${clock3(r2.answered_at) ? ` \xB7 ${clock3(r2.answered_at)}` : ""}`,
-      tone: "ok"
-    } : r2.answered_by === "team" ? { words: `Your team answered${clock3(r2.answered_at) ? ` \xB7 ${clock3(r2.answered_at)}` : ""}`, tone: "ok" } : { words: "Not answered yet", tone: "plain" },
+    outcome: replyOutcomeOf(r2, clock3),
     to: r2.conversation_id ? `inbox/th-${r2.conversation_id}` : null
   }));
+}
+function runStopOf({ d, sent }) {
   const failed = d.broadcast?.state === "failed";
   const code2 = d.broadcast?.failure ?? null;
+  return failed ? {
+    words: broadcastFailureWords(code2),
+    fix: broadcastFailureFix(code2, sent),
+    tone: code2 === "paused" ? "warn" : "danger"
+  } : null;
+}
+var spanWordsOf = (spanH) => spanH === 1 ? "the first hour" : spanH < 24 ? `the first ${spanH} hours` : spanH === 24 ? "the first day" : `the first ${spanH / 24} days`;
+var runGroupsOf = (people) => ({
+  all: people.length,
+  replied: people.filter((p) => p.in.includes("replied")).length,
+  held: people.filter((p) => p.in.includes("held")).length,
+  stopped: people.filter((p) => p.in.includes("stopped")).length
+});
+var sentFigure = (f) => ({
+  id: "sent",
+  label: "Messages sent",
+  n: f.sent,
+  pct: null,
+  sub: `of ${f.d.recipients.length} on the list`,
+  tone: "plain",
+  bars: barsOf(
+    f,
+    f.reached.map((r2) => r2.sent_at)
+  )
+});
+var deliveredFigure = (f) => ({
+  id: "delivered",
+  label: "Delivered",
+  n: f.delivered.length,
+  pct: pctOf(f, f.delivered.length),
+  sub: f.sent === 0 ? "nothing has gone out" : f.never > 0 ? `${f.never} never reached the handset` : "every one reached the handset",
+  tone: f.delivered.length > 0 ? "ok" : "plain",
+  bars: barsOf(
+    f,
+    f.delivered.map((r2) => r2.delivered_at ?? r2.read_at)
+  )
+});
+var repliedFigure = (f) => ({
+  id: "replied",
+  label: "Replied",
+  n: f.replied.length,
+  pct: pctOf(f, f.replied.length),
+  sub: f.waiting > 0 ? `${f.waiting} waiting on you in the Inbox` : f.replied.length > 0 ? "each one is a thread in the Inbox" : "nobody has written back yet",
+  tone: f.replied.length > 0 ? "ok" : "plain",
+  bars: barsOf(
+    f,
+    f.replied.map((r2) => r2.replied_at)
+  )
+});
+var saidYesFigure = (f) => ({
+  id: "said_yes",
+  label: "Said yes",
+  n: f.yes.length,
+  pct: pctOf(f, f.yes.length),
+  sub: f.yes.length > 0 ? answersWords(f.yes, "opted_in") : "nobody new said yes",
+  tone: f.yes.length > 0 ? "ok" : "plain",
+  bars: barsOf(
+    f,
+    f.yes.map((r2) => r2.consent_at)
+  )
+});
+var stoppedFigure = (f) => ({
+  id: "stopped",
+  label: "Asked to stop",
+  n: f.stopped.length,
+  pct: pctOf(f, f.stopped.length),
+  sub: f.stopped.length > 0 ? answersWords(f.stopped, "opted_out") : "nobody asked to stop",
+  tone: f.stopped.length > 0 ? "warn" : "plain",
+  bars: barsOf(
+    f,
+    f.stopped.map((r2) => r2.consent_at)
+  )
+});
+var RUN_FIGURES = [sentFigure, deliveredFigure, repliedFigure, saidYesFigure, stoppedFigure];
+function toRunReportVM(d, opts) {
+  const f = runFactsOf(d, opts);
+  const people = d.recipients.map((r2) => personLineOf(r2, f));
+  const replies = repliesOf(f);
+  const stop = runStopOf(f);
   return {
     enrolled: d.recipients.length,
-    span: spanH === 1 ? "the first hour" : spanH < 24 ? `the first ${spanH} hours` : spanH === 24 ? "the first day" : `the first ${spanH / 24} days`,
-    groups: {
-      all: people.length,
-      replied: people.filter((p) => p.in.includes("replied")).length,
-      held: people.filter((p) => p.in.includes("held")).length,
-      stopped: people.filter((p) => p.in.includes("stopped")).length
-    },
+    span: spanWordsOf(f.spanH),
+    groups: runGroupsOf(people),
     people,
     replies,
-    stop: failed ? {
-      words: broadcastFailureWords(code2),
-      fix: broadcastFailureFix(code2, sent),
-      tone: code2 === "paused" ? "warn" : "danger"
-    } : null,
-    figures: [
-      {
-        id: "sent",
-        label: "Messages sent",
-        n: sent,
-        pct: null,
-        sub: `of ${d.recipients.length} on the list`,
-        tone: "plain",
-        bars: bars2(reached.map((r2) => r2.sent_at))
-      },
-      {
-        id: "delivered",
-        label: "Delivered",
-        n: delivered.length,
-        pct: pct3(delivered.length),
-        sub: sent === 0 ? "nothing has gone out" : never > 0 ? `${never} never reached the handset` : "every one reached the handset",
-        tone: delivered.length > 0 ? "ok" : "plain",
-        bars: bars2(delivered.map((r2) => r2.delivered_at ?? r2.read_at))
-      },
-      {
-        id: "replied",
-        label: "Replied",
-        n: replied.length,
-        pct: pct3(replied.length),
-        sub: waiting > 0 ? `${waiting} waiting on you in the Inbox` : replied.length > 0 ? "each one is a thread in the Inbox" : "nobody has written back yet",
-        tone: replied.length > 0 ? "ok" : "plain",
-        bars: bars2(replied.map((r2) => r2.replied_at))
-      },
-      {
-        id: "said_yes",
-        label: "Said yes",
-        n: yes.length,
-        pct: pct3(yes.length),
-        sub: yes.length > 0 ? answersWords(yes, "opted_in") : "nobody new said yes",
-        tone: yes.length > 0 ? "ok" : "plain",
-        bars: bars2(yes.map((r2) => r2.consent_at))
-      },
-      {
-        id: "stopped",
-        label: "Asked to stop",
-        n: stopped.length,
-        pct: pct3(stopped.length),
-        sub: stopped.length > 0 ? answersWords(stopped, "opted_out") : "nobody asked to stop",
-        tone: stopped.length > 0 ? "warn" : "plain",
-        bars: bars2(stopped.map((r2) => r2.consent_at))
-      }
-    ]
+    stop,
+    figures: RUN_FIGURES.map((figure) => figure(f))
   };
 }
 
@@ -9343,10 +9442,10 @@ function guessName(item, services = []) {
   const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);
   for (const part of parts2) {
     if (svc.has(part.toLowerCase())) continue;
-    const words4 = part.split(/\s+/);
-    if (words4.length < 2 || words4.length > 4) continue;
-    if (!words4.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
-    if (words4.some((w) => svc.has(w.toLowerCase()))) continue;
+    const words3 = part.split(/\s+/);
+    if (words3.length < 2 || words3.length > 4) continue;
+    if (!words3.every((w) => NAME_WORD.test(w) && CAPITAL.test(w))) continue;
+    if (words3.some((w) => svc.has(w.toLowerCase()))) continue;
     return part;
   }
   return null;
@@ -9439,14 +9538,14 @@ function toBookingReportVM(dto) {
       rest: ""
     };
   const pct3 = Math.round(dto.booked / dto.asked * 100);
-  const words4 = `of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`;
+  const words3 = `of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`;
   const unbooked = dto.asked - dto.booked;
   return {
     present: true,
     calendar: "ok",
     headline: `${dto.booked} of ${dto.asked} booked`,
-    sub: `${pct3}% ${words4}`,
-    words: words4,
+    sub: `${pct3}% ${words3}`,
+    words: words3,
     pct: pct3,
     asked: dto.asked,
     booked: dto.booked,
@@ -10609,8 +10708,8 @@ function blockShareWords(chars, total) {
   const f = Math.min(1, chars / total);
   if (f >= 0.95) return "nearly everything it reads";
   if (f < 0.075) return "less than a tenth of everything it reads";
-  const [share2, words4] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
-  return `${Math.abs(share2 - f) > 0.03 ? "about " : ""}${words4} of everything it reads`;
+  const [share2, words3] = SHARES.reduce((best, s) => Math.abs(s[0] - f) < Math.abs(best[0] - f) ? s : best);
+  return `${Math.abs(share2 - f) > 0.03 ? "about " : ""}${words3} of everything it reads`;
 }
 function promptCostWords(chars, total) {
   const share2 = blockShareWords(chars, total);
@@ -10705,18 +10804,18 @@ function bookingRulesWords(rules) {
 }
 function bookingRuleRefusal(key) {
   const shape = BookingRulesSchema.shape;
-  const words4 = {
+  const words3 = {
     lead_hours: (lo, hi) => `Least notice is ${lo} to ${hi} hours; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.lead_hours, "hour", "hours")}.`,
     slot_min: (lo, hi) => `A slot is ${lo} to ${hi} minutes; leave it empty for the calendar\u2019s ${pluralGrouped(BOOKING_DEFAULTS.slot_min, "minute", "minutes")}.`,
     buffer_min: (lo, hi) => `The gap is ${lo} to ${hi} minutes; leave it empty for ${BOOKING_DEFAULTS.buffer_min === 0 ? "none" : pluralGrouped(BOOKING_DEFAULTS.buffer_min, "minute", "minutes")}.`,
     max_days_ahead: (lo, hi) => `Times are offered ${lo} to ${hi} days ahead; leave it empty to use ${pluralGrouped(BOOKING_DEFAULTS.max_days_ahead, "day", "days")}.`,
     party_max: (lo, hi) => `A booking is for ${lo} to ${hi} people; leave it empty for no rule.`
   };
-  const say2 = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
+  const say2 = Object.prototype.hasOwnProperty.call(words3, key) ? words3[key] : null;
   const bound = say2 ? shape[key]?.unwrap?.() : null;
   if (!say2 || !bound || bound.minValue == null || bound.maxValue == null) {
     throw new TypeError(
-      `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
+      `bookingRuleRefusal knows the five booking rules a box holds a number for (${Object.keys(words3).join(", ")}), not ${JSON.stringify(key)}.`
     );
   }
   return say2(bound.minValue, bound.maxValue);
@@ -10787,7 +10886,7 @@ function profileRefusal(key, seen, of) {
   const L2 = PROFILE_LIMITS;
   const chars = (max) => `At most ${count(max)} characters${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
   const lines = (max, one, many) => `At most ${pluralGrouped(max, one, many)}, one to a line${seen === void 0 ? "." : ` \u2014 this is ${count(seen)}.`}`;
-  const words4 = {
+  const words3 = {
     tone: () => chars(L2.tone),
     services: () => `At most ${pluralGrouped(L2.services, "service", "services")}.`,
     serviceName: () => chars(L2.serviceName),
@@ -10810,10 +10909,10 @@ function profileRefusal(key, seen, of) {
     instructions: () => chars(L2.instructions),
     message: () => chars(L2.message)
   };
-  const say2 = Object.prototype.hasOwnProperty.call(words4, key) ? words4[key] : null;
+  const say2 = Object.prototype.hasOwnProperty.call(words3, key) ? words3[key] : null;
   if (!say2) {
     throw new TypeError(
-      `profileRefusal knows the tab's own caps (${Object.keys(words4).join(", ")}), not ${JSON.stringify(key)}.`
+      `profileRefusal knows the tab's own caps (${Object.keys(words3).join(", ")}), not ${JSON.stringify(key)}.`
     );
   }
   return say2();
@@ -11431,6 +11530,9 @@ function reviewReplyWords(mode, canReply) {
   return "";
 }
 
+// src/shared/numbers.ts
+var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
+
 // src/reports/reports.ts
 var REPORT_CHANNELS = [
   { key: "whatsapp", label: "WhatsApp" },
@@ -11496,7 +11598,6 @@ function bars(entries) {
   const max = Math.max(1, ...entries.map((e) => e[2]));
   return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
 }
-var sum = (xs) => xs.reduce((a, b) => a + b, 0);
 function priorOf(n, previous, pick) {
   return Array.from({ length: n }, (_, i) => {
     const j = previous.length - n + i;
@@ -11613,7 +11714,7 @@ function rhythmLine(week) {
   if (week.quietest === null) return null;
   return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
 }
-function toReportVM(dto) {
+function periodFactsOf(dto) {
   const days = dto.days;
   const series = dto.series ?? [];
   const current = series.slice(-days);
@@ -11632,105 +11733,116 @@ function toReportVM(dto) {
     newPeople: d.new_contacts
   }));
   const tot = {
-    in: sum(current.map((d) => d.messages_in)),
-    ai: sum(current.map((d) => d.answered_ai)),
-    you: sum(current.map((d) => d.answered_you)),
-    none: sum(current.map((d) => d.unanswered)),
-    escalations: sum(current.map((d) => d.escalations)),
-    calls: sum(current.map((d) => d.calls)),
-    callSeconds: sum(current.map((d) => d.call_seconds)),
-    newPeople: sum(current.map((d) => d.new_contacts))
+    in: sumOf(current.map((d) => d.messages_in)),
+    ai: sumOf(current.map((d) => d.answered_ai)),
+    you: sumOf(current.map((d) => d.answered_you)),
+    none: sumOf(current.map((d) => d.unanswered)),
+    escalations: sumOf(current.map((d) => d.escalations)),
+    calls: sumOf(current.map((d) => d.calls)),
+    callSeconds: sumOf(current.map((d) => d.call_seconds)),
+    newPeople: sumOf(current.map((d) => d.new_contacts))
   };
   const prev = {
-    in: sum(previous.map((d) => d.messages_in)),
-    ai: sum(previous.map((d) => d.answered_ai)),
-    you: sum(previous.map((d) => d.answered_you)),
-    none: sum(previous.map((d) => d.unanswered)),
-    escalations: sum(previous.map((d) => d.escalations)),
-    calls: sum(previous.map((d) => d.calls)),
-    newPeople: sum(previous.map((d) => d.new_contacts))
+    in: sumOf(previous.map((d) => d.messages_in)),
+    ai: sumOf(previous.map((d) => d.answered_ai)),
+    you: sumOf(previous.map((d) => d.answered_you)),
+    none: sumOf(previous.map((d) => d.unanswered)),
+    escalations: sumOf(previous.map((d) => d.escalations)),
+    calls: sumOf(previous.map((d) => d.calls)),
+    newPeople: sumOf(previous.map((d) => d.new_contacts))
   };
   const noun = `${days} days`;
-  const rangeLabel = REPORT_RANGES.find((r2) => r2.days === days)?.label ?? noun;
-  const priorHadAny = prev.in + prev.calls > 0;
   const answeredTotal = tot.ai + tot.you + tot.none;
-  const aiShare = answeredTotal ? Math.round(tot.ai / answeredTotal * 100) : null;
   const prevAnsweredTotal = prev.ai + prev.you + prev.none;
-  const prevShare = prevAnsweredTotal ? Math.round(prev.ai / prevAnsweredTotal * 100) : null;
   const sortedReply = [...dto.reply_seconds ?? []].filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
-  const median = quantile(sortedReply, 0.5);
-  const p90 = quantile(sortedReply, 0.9);
-  const bucketCounts = REPLY_BUCKETS.map((b, i) => {
-    const lo = i === 0 ? -Infinity : REPLY_BUCKETS[i - 1].max;
-    return [b.id, b.label, sortedReply.filter((s) => s >= lo && s < b.max).length];
-  });
-  const tiles = [
-    {
-      id: "messages",
-      label: "Customer messages",
-      value: String(tot.in),
-      meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
-      delta: deltaOf(tot.in, prev.in, true, noun),
-      spark: points.map((p) => p.in),
-      compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
-    },
-    {
-      id: "answered",
-      label: "Receptionist answered",
-      value: aiShare === null ? "\u2014" : `${aiShare}%`,
-      meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
-      // A share compares in POINTS. Against counts, the share could fall from
-      // 100% to 60% while the delta read +20% in green.
-      delta: pointsDelta(aiShare, prevShare, noun),
-      spark: points.map((p) => p.ai),
-      compare: null
-    },
-    {
-      id: "reply",
-      label: "Median reply time",
-      value: fmtSeconds(median),
-      meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies` : "no receptionist replies yet",
-      delta: null,
-      spark: [],
-      compare: null
-    },
-    {
-      id: "needed",
-      label: "Needed you",
-      value: String(tot.escalations),
-      meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
-      delta: deltaOf(tot.escalations, prev.escalations, false, noun),
-      spark: points.map((p) => p.escalations),
-      compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny)
-    },
-    {
-      id: "calls",
-      label: "Calls",
-      value: String(tot.calls),
-      meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
-      delta: deltaOf(tot.calls, prev.calls, true, noun),
-      spark: points.map((p) => p.calls),
-      compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
-    },
-    {
-      id: "people",
-      label: "New people",
-      value: String(tot.newPeople),
-      meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
-      delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
-      spark: points.map((p) => p.newPeople),
-      compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
-    }
-  ];
-  const reasons = bars(
-    Object.entries(dto.reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r2, n]) => [r2, capitalize(reasonShort(r2)) || r2, n])
-  );
-  const sentiments = bars(
-    Object.entries(dto.sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
-  ).map((b) => ({ ...b, tone: callMoodTone(b.id) }));
+  return {
+    dto,
+    days,
+    current,
+    previous,
+    points,
+    tot,
+    prev,
+    noun,
+    rangeLabel: REPORT_RANGES.find((r2) => r2.days === days)?.label ?? noun,
+    // A comparison needs a period before that was lived in: its zeros are a count only if someone reached the business.
+    priorHadAny: prev.in + prev.calls > 0,
+    answeredTotal,
+    aiShare: answeredTotal ? Math.round(tot.ai / answeredTotal * 100) : null,
+    prevAnsweredTotal,
+    prevShare: prevAnsweredTotal ? Math.round(prev.ai / prevAnsweredTotal * 100) : null,
+    sortedReply,
+    median: quantile(sortedReply, 0.5),
+    p90: quantile(sortedReply, 0.9)
+  };
+}
+var messagesTile = ({ days, current, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "messages",
+  label: "Customer messages",
+  value: String(tot.in),
+  meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
+  delta: deltaOf(tot.in, prev.in, true, noun),
+  spark: points.map((p) => p.in),
+  compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
+});
+var answeredTile = ({ points, tot, noun, answeredTotal, aiShare, prevShare }) => ({
+  id: "answered",
+  label: "Receptionist answered",
+  value: aiShare === null ? "\u2014" : `${aiShare}%`,
+  meta: answeredTotal ? `${tot.ai} of ${answeredTotal} \xB7 ${tot.you} by you \xB7 ${tot.none} unanswered` : "nothing to answer",
+  // A share compares in POINTS. Against counts, the share could fall from
+  // 100% to 60% while the delta read +20% in green.
+  delta: pointsDelta(aiShare, prevShare, noun),
+  spark: points.map((p) => p.ai),
+  compare: null
+});
+var replyTile = ({ sortedReply, median, p90 }) => ({
+  id: "reply",
+  label: "Median reply time",
+  value: fmtSeconds(median),
+  meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies` : "no receptionist replies yet",
+  delta: null,
+  spark: [],
+  compare: null
+});
+var neededTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "needed",
+  label: "Needed you",
+  value: String(tot.escalations),
+  meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
+  delta: deltaOf(tot.escalations, prev.escalations, false, noun),
+  spark: points.map((p) => p.escalations),
+  compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny)
+});
+var callsTile = ({ dto, points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "calls",
+  label: "Calls",
+  value: String(tot.calls),
+  meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
+  delta: deltaOf(tot.calls, prev.calls, true, noun),
+  spark: points.map((p) => p.calls),
+  compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
+});
+var peopleTile = ({ points, tot, prev, noun, rangeLabel, priorHadAny }) => ({
+  id: "people",
+  label: "New people",
+  value: String(tot.newPeople),
+  meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
+  delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
+  spark: points.map((p) => p.newPeople),
+  compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
+});
+var REPORT_TILES = [messagesTile, answeredTile, replyTile, neededTile, callsTile, peopleTile];
+var reasonBarsOf = (reasons) => bars(
+  Object.entries(reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r2, n]) => [r2, capitalize(reasonShort(r2)) || r2, n])
+);
+var moodBarsOf = (sentiments) => bars(
+  Object.entries(sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
+).map((b) => ({ ...b, tone: callMoodTone(b.id) }));
+function weekShapeOf({ current, previous }) {
   const weekNow = weekOf(current);
   const weekBefore = weekOf(previous);
-  const week = {
+  return {
     axes: [...REPORT_WEEK_SHORT],
     long: [...REPORT_WEEK_LONG],
     current: weekNow,
@@ -11739,74 +11851,102 @@ function toReportVM(dto) {
     quietest: onlyIndex(weekNow, (a, b) => a < b),
     unit: current.length > 7 ? "average" : "count"
   };
-  const channels = channelsOf(dto.channels);
+}
+function answeredOf(f) {
+  const { current, previous, points, tot, prev, answeredTotal, prevAnsweredTotal } = f;
+  return {
+    points,
+    totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none },
+    max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)),
+    prior: priorOf(current.length, previous, (d) => d.messages_in),
+    share: answeredTotal ? tot.ai / answeredTotal : null,
+    priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null
+  };
+}
+function replyTimeOf({ sortedReply, median, p90 }) {
+  const bucketCounts = REPLY_BUCKETS.map((b, i) => {
+    const lo = i === 0 ? -Infinity : REPLY_BUCKETS[i - 1].max;
+    return [b.id, b.label, sortedReply.filter((s) => s >= lo && s < b.max).length];
+  });
+  return {
+    count: sortedReply.length,
+    median,
+    p90,
+    medianLabel: fmtSeconds(median),
+    p90Label: fmtSeconds(p90),
+    buckets: bars(bucketCounts)
+  };
+}
+function callsOf({ dto, current, previous, points, tot }, sentiments) {
+  return {
+    points,
+    total: tot.calls,
+    minutes: Math.round(tot.callSeconds / 60),
+    voicemail: dto.voicemail ?? 0,
+    sentiments,
+    max: Math.max(1, ...points.map((p) => p.calls)),
+    prior: priorOf(current.length, previous, (d) => d.calls)
+  };
+}
+function peopleOf({ current, previous, points, tot, prev }) {
   const peopleBefore = priorOf(current.length, previous, (d) => d.new_contacts);
   const peopleRun = runningTotal(points.map((p) => p.newPeople));
-  const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
-  const first = current[0]?.day;
-  const last = current[current.length - 1]?.day;
   return {
-    days,
-    rangeLabel,
+    points,
+    total: tot.newPeople,
+    max: Math.max(1, ...points.map((p) => p.newPeople)),
+    prior: peopleBefore,
+    cumulative: {
+      points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
+      prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null
+    }
+  };
+}
+function linesOf(f, week, channels) {
+  const { points, tot, prev, rangeLabel, answeredTotal, prevAnsweredTotal, sortedReply, median, p90 } = f;
+  const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
+  return {
+    hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${sortedReply.length ? ` Half of its replies went out within ${fmtSeconds(median)}.` : ""}` : "No customer wrote in this period.",
+    heroBefore: prevAnsweredTotal ? `${Math.round(prev.ai / prevAnsweredTotal * 100)}% the ${rangeLabel} before` : null,
+    answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
+    // Nine in ten is a claim about a tenth: under ten replies it would be a guess, so the slowest one is said instead.
+    reply: sortedReply.length >= 10 ? `Nine in ten within ${fmtSeconds(p90)}.` : sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null,
+    calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
+    channels: channelsLine(channels, rangeLabel),
+    rhythm: rhythmLine(week)
+  };
+}
+function toReportVM(dto) {
+  const f = periodFactsOf(dto);
+  const tiles = REPORT_TILES.map((tile) => tile(f));
+  const reasons = reasonBarsOf(dto.reasons);
+  const sentiments = moodBarsOf(dto.sentiments);
+  const week = weekShapeOf(f);
+  const channels = channelsOf(dto.channels);
+  const first = f.current[0]?.day;
+  const last = f.current[f.current.length - 1]?.day;
+  return {
+    days: f.days,
+    rangeLabel: f.rangeLabel,
     since: first ? fmtDay(first) : "",
     until: last ? fmtDay(last) : "",
     timezone: dto.timezone,
-    empty: tot.in === 0 && tot.calls === 0,
+    empty: f.tot.in === 0 && f.tot.calls === 0,
     tiles,
-    answered: {
-      points,
-      totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none },
-      max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)),
-      prior: priorOf(current.length, previous, (d) => d.messages_in),
-      share: answeredTotal ? tot.ai / answeredTotal : null,
-      priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null
-    },
+    answered: answeredOf(f),
     reasons,
-    replyTime: {
-      count: sortedReply.length,
-      median,
-      p90,
-      medianLabel: fmtSeconds(median),
-      p90Label: fmtSeconds(p90),
-      buckets: bars(bucketCounts)
-    },
-    calls: {
-      points,
-      total: tot.calls,
-      minutes: Math.round(tot.callSeconds / 60),
-      voicemail: dto.voicemail ?? 0,
-      sentiments,
-      max: Math.max(1, ...points.map((p) => p.calls)),
-      prior: priorOf(current.length, previous, (d) => d.calls)
-    },
-    people: {
-      points,
-      total: tot.newPeople,
-      max: Math.max(1, ...points.map((p) => p.newPeople)),
-      prior: peopleBefore,
-      cumulative: {
-        points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
-        prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null
-      }
-    },
+    replyTime: replyTimeOf(f),
+    calls: callsOf(f, sentiments),
+    people: peopleOf(f),
     speed: dto.replies ? speedOf(
       dto.replies,
-      current.map((d) => d.day)
+      f.current.map((d) => d.day)
     ) : null,
     week,
     hours: hoursOf2(dto.hours),
     channels,
-    period: { now: `Last ${rangeLabel}`, before: `The ${rangeLabel} before` },
-    lines: {
-      hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${sortedReply.length ? ` Half of its replies went out within ${fmtSeconds(median)}.` : ""}` : "No customer wrote in this period.",
-      heroBefore: prevAnsweredTotal ? `${Math.round(prev.ai / prevAnsweredTotal * 100)}% the ${rangeLabel} before` : null,
-      answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
-      // Nine in ten is a claim about a tenth: under ten replies it would be a guess, so the slowest one is said instead.
-      reply: sortedReply.length >= 10 ? `Nine in ten within ${fmtSeconds(p90)}.` : sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null,
-      calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
-      channels: channelsLine(channels, rangeLabel),
-      rhythm: rhythmLine(week)
-    },
+    period: { now: `Last ${f.rangeLabel}`, before: `The ${f.rangeLabel} before` },
+    lines: linesOf(f, week, channels),
     table: {
       columns: [
         "Day",
@@ -11818,7 +11958,7 @@ function toReportVM(dto) {
         "Needed you",
         "New people"
       ],
-      rows: points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople])
+      rows: f.points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople])
     }
   };
 }
@@ -11884,8 +12024,8 @@ function hoursFromGoogle(periods) {
   }
   return { hours, unsure: DAYS.filter((d) => unsure.has(d)) };
 }
-function placesQueryOf(words4) {
-  const w = words4.replace(/\s+/g, " ").trim();
+function placesQueryOf(words3) {
+  const w = words3.replace(/\s+/g, " ").trim();
   return /^[\d\s().+-]+$/.test(w) ? normalizePhone(w) ?? w : w;
 }
 var GOOGLE_SHOWN_REVIEWS = 5;
@@ -12523,8 +12663,8 @@ function isTypingTarget(tagName, contentEditable) {
   return contentEditable || t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
 }
 function pageTitle(crumbs, needs) {
-  const words4 = (crumbs ?? []).map((c) => (typeof c === "string" ? c : c?.label ?? "").trim()).filter(Boolean).reverse();
-  const where = [...words4, "Chanlytics"].join(" \xB7 ");
+  const words3 = (crumbs ?? []).map((c) => (typeof c === "string" ? c : c?.label ?? "").trim()).filter(Boolean).reverse();
+  const where = [...words3, "Chanlytics"].join(" \xB7 ");
   const n = Math.floor(Number(needs));
   return n > 0 ? `(${n}) ${where}` : where;
 }
@@ -12725,10 +12865,10 @@ function consentPageVM(f) {
   const conversation = waysFor(f, CONVERSATION_PHRASE);
   const offers = waysFor({ ...f, smsE164: null }, CONSENT_PHRASE);
   const empty = conversation.length === 0 && offers.length === 0;
-  const words4 = askWords(name);
+  const words3 = askWords(name);
   const asks = empty ? [] : [
-    ...conversation.length ? [{ purpose: "conversational", ...words4.conversational, ways: conversation }] : [],
-    ...offers.length ? [{ purpose: "marketing", ...words4.marketing, ways: offers }] : []
+    ...conversation.length ? [{ purpose: "conversational", ...words3.conversational, ways: conversation }] : [],
+    ...offers.length ? [{ purpose: "marketing", ...words3.marketing, ways: offers }] : []
   ];
   return {
     title: `Text messages from ${name}`,
@@ -12742,18 +12882,18 @@ function consentPageVM(f) {
 }
 function consentFormVM(f) {
   const name = f.businessName.trim() || "This business";
-  const words4 = askWords(name);
+  const words3 = askWords(name);
   const sections = [
     {
       purpose: "conversational",
-      ...words4.conversational,
+      ...words3.conversational,
       box: `Yes, text me about my appointments with ${name}.`,
       sign: "Signature for this box"
     },
     ...f.whatsappE164 ? [
       {
         purpose: "marketing",
-        ...words4.marketing,
+        ...words3.marketing,
         box: `Yes, send me offers and news from ${name} on WhatsApp.`,
         sign: "Signature for this box"
       }
@@ -13019,12 +13159,12 @@ function handOf(v) {
   if (!v || typeof v !== "object") return null;
   const h = v;
   if (!HAND_KINDS.includes(h.kind) || typeof h.words !== "string") return null;
-  const words4 = h.words.trim();
-  return words4 ? { kind: h.kind, words: words4 } : null;
+  const words3 = h.words.trim();
+  return words3 ? { kind: h.kind, words: words3 } : null;
 }
-function handStepWords(kind, business, words4) {
+function handStepWords(kind, business, words3) {
   const who = business.trim() || "This business";
-  return kind === "call" ? `Call ${who}: ${words4.trim()}` : `${who}: ${words4.trim()}`;
+  return kind === "call" ? `Call ${who}: ${words3.trim()}` : `${who}: ${words3.trim()}`;
 }
 
 // src/reach-out/reach-out-words.ts
@@ -13227,9 +13367,9 @@ ${s.body}`).join("\n");
 function handIssues(hand, i, steps) {
   const out = [];
   if (i === 0 || i < steps - 1) out.push({ step: i, field: "body", problem: "hand_not_last" });
-  const words4 = hand.words.trim();
-  if (!words4) out.push({ step: i, field: "body", problem: "hand_words_empty" });
-  else if (words4.length > HAND_WORDS_MAX) out.push({ step: i, field: "body", problem: "hand_words_long" });
+  const words3 = hand.words.trim();
+  if (!words3) out.push({ step: i, field: "body", problem: "hand_words_empty" });
+  else if (words3.length > HAND_WORDS_MAX) out.push({ step: i, field: "body", problem: "hand_words_long" });
   return out;
 }
 function chainIssueWords(i) {
@@ -13667,11 +13807,11 @@ var NUMBER_IN_TEXT = /\+?\(?\d[\d\s().-]{5,}\d/g;
 var numberRun = (run) => run.replace(/\D/g, "").length >= 7 && !/^\d{4}-\d{2}-\d{2}$/.test(run.trim());
 function firstWords(text, n) {
   const kept = [];
-  let words4 = 0;
+  let words3 = 0;
   for (const token2 of text.split(" ")) {
     const isWord = wordCount(token2) > 0;
-    if (isWord && words4 === n) break;
-    if (isWord) words4++;
+    if (isWord && words3 === n) break;
+    if (isWord) words3++;
     kept.push(token2);
   }
   return kept.join(" ");
@@ -13686,8 +13826,8 @@ var REFERRAL_SUMMARY = "They say to write to someone else.";
 var NOT_A_NAME = /* @__PURE__ */ new Set(["the", "a", "an", "our", "their", "my", "your", "please"]);
 var referralNames = (referTo) => [...referTo.replace(ADDRESS_IN_TEXT, " ").matchAll(/\p{Lu}\p{L}+/gu)].map((m) => m[0].toLowerCase()).filter((w) => !NOT_A_NAME.has(w));
 var saysAny = (summary, names2) => {
-  const words4 = new Set(summary.toLowerCase().split(/\P{L}+/u));
-  return names2.some((n) => words4.has(n));
+  const words3 = new Set(summary.toLowerCase().split(/\P{L}+/u));
+  return names2.some((n) => words3.has(n));
 };
 var intentOf = (v) => {
   if (typeof v !== "string") return null;
@@ -13721,9 +13861,9 @@ function ownLines(lines, pastHeads) {
     const t = lines[i].trim();
     const next = (lines[i + 1] ?? "").trim();
     if (ORIGINAL.test(t) || t === "--" || OUTLOOK_RULE.test(t) && /^from:/i.test(next)) break;
-    const oneLine2 = QUOTE_HEAD.test(t);
-    const twoLines = !oneLine2 && QUOTE_OPEN.test(t) && QUOTE_HEAD.test(`${t} ${next}`);
-    if (oneLine2 || twoLines) {
+    const oneLine = QUOTE_HEAD.test(t);
+    const twoLines = !oneLine && QUOTE_OPEN.test(t) && QUOTE_HEAD.test(`${t} ${next}`);
+    if (oneLine || twoLines) {
       if (!pastHeads) break;
       if (twoLines) i++;
       continue;
@@ -13788,15 +13928,15 @@ function otherWriter(leadAddress, replyFrom) {
 }
 function replyStepWords(reading, p) {
   const b = p.business.trim() || "The business";
-  let words4;
+  let words3;
   if (reading.intent === "not_now")
-    words4 = `Write to ${b} again: they said not now${reading.summary ? ` ("${reading.summary}")` : ""}.`;
+    words3 = `Write to ${b} again: they said not now${reading.summary ? ` ("${reading.summary}")` : ""}.`;
   else if (reading.intent === "wrong_person") {
     const who = reading.referTo ?? "someone else";
-    words4 = p.automatic ? `${b}'s automatic reply says to write to ${who}.` : `${b} said to write to ${who} instead.`;
-  } else if (reading.intent === "away") words4 = `${b} is back today: write to them.`;
+    words3 = p.automatic ? `${b}'s automatic reply says to write to ${who}.` : `${b} said to write to ${who} instead.`;
+  } else if (reading.intent === "away") words3 = `${b} is back today: write to them.`;
   else return null;
-  return withinChars(p.writer ? `${words4} (${p.writer} wrote it.)` : words4, STEP_WORDS_MAX);
+  return withinChars(p.writer ? `${words3} (${p.writer} wrote it.)` : words3, STEP_WORDS_MAX);
 }
 function automaticPlan(r2, c, today) {
   if (r2.intent === "away")
@@ -14551,8 +14691,8 @@ function amountWords(cents, per, currency = "USD") {
   const p = per && DEAL_PERS.includes(per) ? DEAL_PER_WORDS[per] : null;
   return p && per !== "once" ? `${money2} ${p}` : money2;
 }
-function parseAmount(words4) {
-  const digits2 = String(words4 || "").replace(/[^0-9.-]/g, "");
+function parseAmount(words3) {
+  const digits2 = String(words3 || "").replace(/[^0-9.-]/g, "");
   const n = digits2 ? Number(digits2) : NaN;
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
 }
@@ -15018,10 +15158,10 @@ function dealNextAct(p, nowMs, deal = p.deal) {
   if (deal.proposal?.sending) return act("won");
   const send = dealSendOf(p);
   const sent = sentOf(p, deal);
-  const words4 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
-  if (!sent && send.reach) return act("send", words4(proposalMessage(url)));
+  const words3 = (text) => send.can ? { text } : { hint: DEAL_ACT_HINTS.approved };
+  if (!sent && send.reach) return act("send", words3(proposalMessage(url)));
   if (sent && send.reach && followUpOn(p, deal)?.kind !== "will" && waitingOnProposal({ deal, askedMs: p.askedMs ?? null }, nowMs, p.dealPace ?? null))
-    return act("follow-up", words4(proposalFollowUp(url)));
+    return act("follow-up", words3(proposalFollowUp(url)));
   return act("won");
 }
 function dealMenuActs(deal) {
@@ -15767,7 +15907,7 @@ function reachLines(reach, p) {
       door: null
     }
   ];
-  const lines = reasons.map((r2, rank) => ({ ...r2, rank })).filter((r2) => r2.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words4, tone, door }) => ({ n, words: `${n} ${words4}`, tone, door }));
+  const lines = reasons.map((r2, rank) => ({ ...r2, rank })).filter((r2) => r2.n > 0).sort((a, b) => b.n - a.n || a.rank - b.rank).map(({ n, words: words3, tone, door }) => ({ n, words: `${n} ${words3}`, tone, door }));
   return { pool: reach.pool, held: reach.heardAny + (once ? 0 : reach.heardThis) + reach.overLimit, lines };
 }
 function runDayPassed(run, today) {
@@ -15893,9 +16033,9 @@ function consultationWas(atMs, tz, nowMs) {
   return `${DEAL_CARD_WORDS.consultation} was ${day === "Today" ? "today" : day}`;
 }
 function namesService(title, service) {
-  const words4 = (s) => foldName(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const said = words4(title);
-  const named = words4(service);
+  const words3 = (s) => foldName(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const said = words3(title);
+  const named = words3(service);
   return named.length > 0 && said.some((_, i) => named.every((w, j) => said[i + j] === w));
 }
 function consultedDealOf(p, open) {
@@ -16245,7 +16385,7 @@ var STAGE_OF = {
 };
 function dealSheetBody(mode, draft, deal, opts) {
   const P = DEAL_SHEET_WORDS.problems;
-  const problem = (field, words4) => ({ problem: { field, words: words4 } });
+  const problem = (field, words3) => ({ problem: { field, words: words3 } });
   const moving = mode !== "propose";
   if (moving && !deal?.id) return problem(null, DEAL_SHEET_WORDS.moved);
   const body = { stage: STAGE_OF[mode] };
@@ -16316,9 +16456,9 @@ var REFUSAL_FIELD = {
   bad_reason: "reason"
 };
 function dealSheetRefusal(message) {
-  const words4 = (message ?? "").trim() || DEAL_SHEET_WORDS.failed;
-  const code2 = Object.keys(DEAL_REFUSALS).find((k) => DEAL_REFUSALS[k] === words4);
-  return { field: code2 && REFUSAL_FIELD[code2] || null, words: words4 };
+  const words3 = (message ?? "").trim() || DEAL_SHEET_WORDS.failed;
+  const code2 = Object.keys(DEAL_REFUSALS).find((k) => DEAL_REFUSALS[k] === words3);
+  return { field: code2 && REFUSAL_FIELD[code2] || null, words: words3 };
 }
 
 // src/deals/pipeline/pipeline.ts
@@ -16485,7 +16625,7 @@ function pipelineOf(rows, nowMs, tz, pace, view = "all") {
       null
     )
   ].filter((g) => g.count > 0);
-  const part = (words4, press = null) => words4 ? { words: words4, view: press, tone: press ? "warn" : null } : null;
+  const part = (words3, press = null) => words3 ? { words: words3, view: press, tone: press ? "warn" : null } : null;
   const line = [
     part(proposals.length ? `${plural(proposals.length, "proposal", "proposals")} out` : null),
     part(proposals.length ? worth(proposals) : null),
@@ -16696,13 +16836,13 @@ function reachOutSendsFrom(d, named) {
 function normalizeHost(typed) {
   return typed.trim().toLowerCase().replace(/\.$/, "");
 }
-var HOST2 = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+var DOMAIN_NAME = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 function whyNotASendingHost(typed, platform) {
   const h = normalizeHost(typed);
   if (!h) return "Write the domain you'll send from, like getyourbusiness.com.";
   if (/[/:@\s]/.test(h)) return "Write the domain alone, like getyourbusiness.com: no https://, no address, no path.";
   if (h.startsWith("www.")) return "Write the domain without www.";
-  if (h.length > 253 || !HOST2.test(h)) return "That isn't a domain name. It looks like getyourbusiness.com.";
+  if (h.length > 253 || !DOMAIN_NAME.test(h)) return "That isn't a domain name. It looks like getyourbusiness.com.";
   if (FREE_MAIL_DOMAINS.has(h)) return `${h} is free mail: nobody can add records to it. Use a domain you own.`;
   const mine = platform.mailDomain?.toLowerCase() ?? null;
   const parent = mine ? mine.split(".").slice(-2).join(".") : null;
@@ -17209,7 +17349,7 @@ var FIRST_RUN_LIVE_WORDS = {
   knows: "Knows",
   knowsNothing: "Only your name so far",
   change: "Change",
-  greeting: (words4) => `Every caller hears \u201C${words4}\u201D`,
+  greeting: (words3) => `Every caller hears \u201C${words3}\u201D`,
   finishNote: "We'll email you a copy of this.",
   /** The "you're live" email (canvas C2, decision 4): sent once, on the workspace's first activation of its calls. */
   emailSubject: (business) => business ? `Your receptionist is answering ${business}'s calls` : "Your receptionist is answering your calls",
@@ -17300,7 +17440,7 @@ var CARRIER_WORDS = {
   other: "Another carrier or a landline",
   office: "An office phone system"
 };
-var MODE_WORDS = {
+var FORWARDING_MODE_WORDS = {
   unanswered: "Only calls you don't answer",
   always: "Every call"
 };
@@ -19520,12 +19660,12 @@ var MONEY = /\b(price[sd]?|pricing|cost[s]?|charge[sd]?|discount(?:ed|s)?|deal|c
 var CONTACT_DETAIL = /https?:\/\/|www\.|@\S|\b\d{3}[\s.-]?\d{3}[\s.-]?\d{4}\b/i;
 var AIMED_AT_US = /\b(note that|make a note|write (that )?down|remember (that|this)|put (it|that) in|tell the (owner|manager|boss)|you (told|said|promised)|your (system|rules|policy))\b/i;
 var SENSITIVE = /\b(pregnan\w*|cancer|chemo\w*|diabet\w*|depress\w*|anxiety|therap\w*|medicat\w*|surgery|hiv|disab\w*|religio\w*|church|mosque|synagogue|politic\w*|immigra\w*|visa|deport\w*|divorc\w*|custody|arrest\w*|lawsuit|court|bankrupt\w*|unemploy\w*|sexual\w*|gay|lesbian|transgender)\b/i;
-var words3 = (s) => new Set(
+var wordSet = (s) => new Set(
   norm(s).split(" ").filter((w) => w.length > 2)
 );
 function overlap(a, b) {
-  const A = words3(a);
-  const B = words3(b);
+  const A = wordSet(a);
+  const B = wordSet(b);
   if (!A.size || !B.size) return 0;
   let both = 0;
   for (const w of A) if (B.has(w)) both += 1;
@@ -19778,7 +19918,7 @@ function toPersonRowVM(r2, tz, now = /* @__PURE__ */ new Date(), viewerId = null
 }
 
 // src/people/person-attention.ts
-function oneLine(text, max) {
+function clippedLine(text, max) {
   const t = text.replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}\u2026` : t;
 }
@@ -19793,9 +19933,9 @@ function attentionRow(p, tz, nowMs) {
   let sentence2;
   let quoted = false;
   if (p.quote) {
-    sentence2 = oneLine(p.quote, 160);
+    sentence2 = clippedLine(p.quote, 160);
     quoted = true;
-  } else if (p.callSummary) sentence2 = oneLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
+  } else if (p.callSummary) sentence2 = clippedLine(tidyCallSummary(p.callSummary) ?? p.callSummary, 160);
   else if (p.deal && p.deal.stage === "proposed" && p.deal.brief) sentence2 = p.deal.brief;
   else if (p.nextVisit) sentence2 = `Booked \xB7 ${p.nextVisit}`;
   else if (p.lastVisit) sentence2 = `Last visit \xB7 ${p.lastVisit}`;
@@ -20754,8 +20894,8 @@ function rangeOf(s) {
   const to = to0 === 0 ? 24 * 60 : to0 <= from ? to0 + 24 * 60 : to0;
   return { from, to };
 }
-function dayOf(words4) {
-  const w = words4.replace(/\([^)]*\)/g, "").trim().toLowerCase();
+function dayOf(words3) {
+  const w = words3.replace(/\([^)]*\)/g, "").trim().toLowerCase();
   if (w === "closed") return [];
   if (w === "open 24 hours" || w === "24 hours") return [{ from: 0, to: 24 * 60 }];
   const ranges = w.split(/\s*,\s*/).map(rangeOf);
@@ -20917,7 +21057,7 @@ var REACH_OUT_CHECKS_PER_DAY = 400;
 function isReachOutRun(audience) {
   return !!audience && typeof audience === "object" && audience.kind === "reach_out";
 }
-function reachOutSlots(words4, lead, workspace, opening = null) {
+function reachOutSlots(words3, lead, workspace, opening = null) {
   const values = {
     business: lead.business_name?.trim() || null,
     city: lead.city?.trim() || null,
@@ -20926,9 +21066,9 @@ function reachOutSlots(words4, lead, workspace, opening = null) {
     "booking link": workspace.bookingLink?.trim() || null,
     opening: opening?.trim() || null
   };
-  const named = slotsNamed(words4);
+  const named = slotsNamed(words3);
   const missing = named.stray || named.names.some((k) => !isReachOutSlot(k) || values[k] === null);
-  const text = replaceSlots(words4, (k) => isReachOutSlot(k) ? values[k] : null);
+  const text = replaceSlots(words3, (k) => isReachOutSlot(k) ? values[k] : null);
   return missing ? { ok: false, reason: "missing_value" } : { ok: true, text };
 }
 
@@ -21144,13 +21284,13 @@ function approvalWordsOf(r2, p) {
     });
   if (r2.held.length > 0) why.push({ tone: "warn", text: `${r2.held.length} held by the check`, door: "See them" });
   if (r2.checking > 0) why.push({ tone: "info", text: `The receptionist is checking ${r2.checking} more`, door: null });
-  const words4 = [];
+  const words3 = [];
   if (r2.first) {
     const open = r2.first.opening;
     const leads = !!open && r2.first.body.startsWith(open);
     const rest = leads ? r2.first.body.slice(open.length) : r2.first.body;
-    if (leads) words4.push({ text: open, opening: true });
-    if (rest.trim()) words4.push({ text: rest.replace(/^\s+/, ""), opening: false });
+    if (leads) words3.push({ text: open, opening: true });
+    if (rest.trim()) words3.push({ text: rest.replace(/^\s+/, ""), opening: false });
   }
   const hosts = r2.domains.map((d) => d.host);
   const from = r2.domains.length === 1 ? `all from ${r2.domains[0].host}, ${plural(r2.domains[0].sent_days, "clean day", "clean days")}` : r2.domains.length > 1 ? `from ${hosts.slice(0, -1).join(", ")} and ${hosts[hosts.length - 1]}` : null;
@@ -21168,7 +21308,7 @@ function approvalWordsOf(r2, p) {
       "none heard from you before",
       ...from ? [from] : []
     ],
-    words: words4,
+    words: words3,
     reader: r2.first ? `as ${r2.first.business_name} reads it \xB7 every opening is its own; your offer and ask are the same for all ${total}` : null,
     approve: approveWords(r2.today, earlier || passed ? "now" : at2),
     approveNote: r2.checking > 0 ? `${r2.checking} more are being checked; they go once they pass.` : null,
@@ -21235,13 +21375,13 @@ function reportRowOf(s, step2) {
   ];
 }
 function chainReportWordsOf(c, report, reach, p) {
-  const sum3 = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
-  const written = sum3("written");
-  const wroteBack = sum3("wrote_back");
-  const saidNo = sum3("said_no");
-  const bounced = sum3("bounced");
-  const held = sum3("held");
-  const handed = sum3("handed");
+  const sum = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
+  const written = sum("written");
+  const wroteBack = sum("wrote_back");
+  const saidNo = sum("said_no");
+  const bounced = sum("bounced");
+  const held = sum("held");
+  const handed = sum("handed");
   const clauses = [`${written} written`];
   if (handed > 0) clauses.push(`${handed} handed to you`);
   if (wroteBack > 0) clauses.push(`${wroteBack} wrote back`);
@@ -21370,10 +21510,10 @@ function reachOutAddHandStep(d, kind) {
   const step2 = { id: null, subject: null, body: "", after_days: REACH_OUT_AFTER_DAYS.first, hand: { kind, words: "" } };
   return { ...d, steps: [...d.steps, step2] };
 }
-function reachOutSetHandWords(d, i, words4) {
+function reachOutSetHandWords(d, i, words3) {
   const s = d.steps[i];
   if (!s?.hand) return d;
-  return { ...d, steps: d.steps.map((x, j) => j === i ? { ...x, hand: { kind: s.hand.kind, words: words4 } } : x) };
+  return { ...d, steps: d.steps.map((x, j) => j === i ? { ...x, hand: { kind: s.hand.kind, words: words3 } } : x) };
 }
 function reachOutDropStep(d) {
   return d.steps.length > 1 ? { ...d, steps: d.steps.slice(0, -1) } : d;
@@ -21409,10 +21549,10 @@ function reachOutDraftIssues(d, has3) {
   const steps = d.steps.map(() => ({ subject: [], body: [], after_days: [] }));
   const out = { steps, signed_by: [], chain: [], ready: issues.length === 0 };
   for (const i of issues) {
-    const words4 = chainIssueWords(i);
-    if (i.step === null) (i.field === "signed_by" ? out.signed_by : out.chain).push(words4);
+    const words3 = chainIssueWords(i);
+    if (i.step === null) (i.field === "signed_by" ? out.signed_by : out.chain).push(words3);
     else if (i.field === "subject" || i.field === "body" || i.field === "after_days")
-      steps[i.step][i.field].push(words4);
+      steps[i.step][i.field].push(words3);
   }
   return out;
 }
@@ -21658,7 +21798,6 @@ function bookedSeenOf(items, own) {
 }
 
 // src/reports/campaign-report.ts
-var sum2 = (xs) => xs.reduce((a, b) => a + b, 0);
 var pct2 = (n, d) => d ? Math.round(n / d * 100) : null;
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function toCampaignReportVM(dto) {
@@ -21677,22 +21816,22 @@ function toCampaignReportVM(dto) {
     optOuts: d.opt_outs
   }));
   const tot = {
-    sent: sum2(current.map((d) => d.sent)),
-    delivered: sum2(current.map((d) => d.delivered)),
-    replied: sum2(current.map((d) => d.replied)),
-    optIns: sum2(current.map((d) => d.opt_ins)),
-    optOuts: sum2(current.map((d) => d.opt_outs))
+    sent: sumOf(current.map((d) => d.sent)),
+    delivered: sumOf(current.map((d) => d.delivered)),
+    replied: sumOf(current.map((d) => d.replied)),
+    optIns: sumOf(current.map((d) => d.opt_ins)),
+    optOuts: sumOf(current.map((d) => d.opt_outs))
   };
   const prev = {
-    sent: sum2(previous.map((d) => d.sent)),
-    delivered: sum2(previous.map((d) => d.delivered)),
-    replied: sum2(previous.map((d) => d.replied)),
-    optIns: sum2(previous.map((d) => d.opt_ins)),
-    optOuts: sum2(previous.map((d) => d.opt_outs))
+    sent: sumOf(previous.map((d) => d.sent)),
+    delivered: sumOf(previous.map((d) => d.delivered)),
+    replied: sumOf(previous.map((d) => d.replied)),
+    optIns: sumOf(previous.map((d) => d.opt_ins)),
+    optOuts: sumOf(previous.map((d) => d.opt_outs))
   };
   const noun = `${days} days`;
   const rawSources = dto.sources ?? [];
-  const sends = sum2(rawSources.map((s) => s.runs));
+  const sends = sumOf(rawSources.map((s) => s.runs));
   const maxSent = Math.max(1, ...rawSources.map((s) => s.sent));
   const sources = rawSources.map((s) => ({
     id: s.id,
@@ -21917,8 +22056,8 @@ function capabilityStatus(kind, i, nowMs = Date.now()) {
   const ready = blockers.length === 0;
   const activated = activationOf(i, kind);
   const live = ready && !!tested && !!activated;
-  const words4 = live ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.` : activated && !ready ? `Activated, but not ready: ${blockers[0].words}` : ready && tested ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Activate it to say it is yours.` : ready ? "Ready. Try it from your own phone, then activate it." : blockers[0].words;
-  return { kind, ready, blockers, tested, activated, live, words: words4 };
+  const words3 = live ? `Active since ${agoWords(Date.parse(activated.at), nowMs)}.` : activated && !ready ? `Activated, but not ready: ${blockers[0].words}` : ready && tested ? `Tested (${tested.what} ${agoWords(Date.parse(tested.at), nowMs)}). Activate it to say it is yours.` : ready ? "Ready. Try it from your own phone, then activate it." : blockers[0].words;
+  return { kind, ready, blockers, tested, activated, live, words: words3 };
 }
 
 // src/setup/setup-rows-phone.ts
@@ -22222,7 +22361,7 @@ function keepRow(_i, ctx) {
   const f = fw?.forwarding ?? null;
   const kept = fw?.e164 ? formatPhoneDisplay(fw.e164) ?? fw.e164 : "your number";
   const dest = voiceReady && voice.number ? voiceNum : null;
-  const how = f ? `${MODE_WORDS[f.mode] ?? "Forwarded"} \xB7 ${CARRIER_WORDS[f.carrier] ?? "your carrier"}` : "";
+  const how = f ? `${FORWARDING_MODE_WORDS[f.mode] ?? "Forwarded"} \xB7 ${CARRIER_WORDS[f.carrier] ?? "your carrier"}` : "";
   const title = "The number you already have";
   if (fw && f && fw.forwarding_state === "verified") {
     return {
@@ -22795,9 +22934,9 @@ function googleAudienceWords(a) {
   return null;
 }
 function smsStateRow(line, nowMs) {
-  const num3 = line ? formatPhoneDisplay(line.e164) : null;
+  const num2 = line ? formatPhoneDisplay(line.e164) : null;
   const since = line ? agoWords(Date.parse(line.state_since), nowMs) : null;
-  const base = { kind: "sms", icon: "chat", title: "Texting", detail: num3, verb: null };
+  const base = { kind: "sms", icon: "chat", title: "Texting", detail: num2, verb: null };
   const ready = line?.voice_state === "answering";
   if (ready && (!line?.sms_state || line.sms_state === "none")) {
     return {
@@ -22818,7 +22957,7 @@ function smsStateRow(line, nowMs) {
         ...base,
         state: "connected",
         stateWords: "On",
-        sentence: line?.reg_sole_prop ? `Customers text ${num3 ?? "this number"} and the receptionist answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}` : `Customers text ${num3 ?? "this number"}; the receptionist answers inside your hours.`
+        sentence: line?.reg_sole_prop ? `Customers text ${num2 ?? "this number"} and the receptionist answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}` : `Customers text ${num2 ?? "this number"}; the receptionist answers inside your hours.`
       };
     case "approved":
       return {
@@ -23283,6 +23422,175 @@ var DEFAULT_STATUS = {
   upstream_auth: 503,
   internal: 500
 };
+
+// src/shared/edge-errors.ts
+var EDGE_ERROR_CODES = [
+  "accounts_unreadable",
+  "already_registered",
+  "already_sent",
+  "already_subscribed",
+  "ask_budget",
+  "bad_request",
+  "bad_secret",
+  "bad_signature",
+  "bad_template",
+  "bad_tenant",
+  "brain_failed",
+  "calendar_backlog",
+  "campaign_rejected",
+  "channel_read_failed",
+  "channel_write_failed",
+  "check_unset",
+  "cold_lane_unset",
+  "config_broken",
+  "connection_write_failed",
+  "context_failed",
+  "could_not_queue",
+  "could_not_retire_old_draft",
+  "credentials_failed",
+  "direct",
+  "dns_hold",
+  "email_off",
+  "empty_draft",
+  "erasure_unreadable",
+  "exchange_failed",
+  "google_refused",
+  "host_elsewhere",
+  "host_taken",
+  "in_flight",
+  "ingest_failed",
+  "invalid",
+  "key_unavailable",
+  "line_exists",
+  "line_failed_retry",
+  "line_not_retryable",
+  "line_retry_taken",
+  "listing_read_failed",
+  "listing_write_failed",
+  "message_read_failed",
+  "meta_failed",
+  "meta_refused",
+  "mock_registration",
+  "model_failed",
+  "model_unavailable",
+  "model_unreachable",
+  "moved",
+  "no_account",
+  "no_app_credentials",
+  "no_billing_record",
+  "no_business_record",
+  "no_campaign_to_resubmit",
+  "no_channel",
+  "no_cold_key",
+  "no_credentials",
+  "no_customer",
+  "no_database",
+  "no_domain_readable",
+  "no_fn_secret",
+  "no_line_credentials",
+  "no_line_provider",
+  "no_listing",
+  "no_location",
+  "no_locations",
+  "no_messaging_service",
+  "no_model_key",
+  "no_oauth_client",
+  "no_open_handover",
+  "no_open_invitation",
+  "no_persona",
+  "no_phone",
+  "no_places_key",
+  "no_platform_mailbox",
+  "no_primary_profile",
+  "no_provider",
+  "no_provider_credentials",
+  "no_provider_key",
+  "no_refresh_token",
+  "no_registration_readable",
+  "no_review",
+  "no_sender",
+  "no_subaccount",
+  "no_subscription",
+  "no_such_location",
+  "no_token",
+  "no_waba",
+  "no_whatsapp_channel",
+  "no_workspace_readable",
+  "not_a_held_draft",
+  "not_connected",
+  "not_found",
+  "not_from_profile",
+  "not_held",
+  "not_on_maps",
+  "not_paused",
+  "not_ready",
+  "not_rejected",
+  "not_trialing",
+  "nothing_to_answer",
+  "number_taken",
+  "number_unreadable",
+  "payment_required",
+  "pin_required",
+  "platform_hold",
+  "platform_only",
+  "playbooks_backlog",
+  "policy_block_price",
+  "policy_never",
+  "preview_failed",
+  "provider",
+  "provider_refused",
+  "provider_unauthorized",
+  "purge_failed",
+  "query_failed",
+  "reach_out_step",
+  "read_failed",
+  "record_incomplete",
+  "register_failed",
+  "registration_pending",
+  "replace_failed",
+  "resubmit_failed",
+  "review_read_failed",
+  "review_write_failed",
+  "routing_unreadable",
+  "run_failed",
+  "scope_missing",
+  "signature",
+  "sole_proprietor_incomplete",
+  "stripe_refused",
+  "stripe_unreadable",
+  "subscribe_failed",
+  "token_audience",
+  "token_expired",
+  "token_malformed",
+  "token_required",
+  "token_signature",
+  "too_large",
+  "too_many",
+  "unauthorized",
+  "unavailable",
+  "unfile_failed",
+  "unknown_op",
+  "unreadable",
+  "waba_unreadable",
+  "workspace_mismatch",
+  "write_failed"
+];
+
+// src/shared/unknown.ts
+var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+var finiteOrZero = (v) => typeof v === "number" && Number.isFinite(v) ? v : 0;
+var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+var nonBlankOrNull = (v) => typeof v === "string" && v.trim() ? v : null;
+var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
+var lineOrNull = (s) => {
+  const t = (s ?? "").replace(/[\r\n]+/g, " ").trim();
+  return t ? t.slice(0, 200) : null;
+};
+
+// src/shared/bytes.ts
+var encoder = null;
+var utf8Bytes = (s) => (encoder ??= new TextEncoder()).encode(s);
+var hexOf = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
 // src/shared/csv.ts
 function csvCell(v) {
@@ -24179,8 +24487,8 @@ function templatePreviewValues(t, own = {}) {
     const at2 = typeof v?.position === "number" && v.position >= 1 ? v.position - 1 : i;
     const kind = kinds[i];
     const label = labels[i] && !/^Value [0-9]+$/.test(labels[i]) ? labels[i] : OWN_SLOT_LABEL.get(kind) ?? `Value ${at2 + 1}`;
-    const words4 = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
-    if (words4 !== null) values[at2] = words4;
+    const words3 = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
+    if (words3 !== null) values[at2] = words3;
   });
   return values;
 }
@@ -24275,13 +24583,13 @@ function sendableTemplates(list2) {
   if (blocked.length === 0) return { sendable, blocked, why: null };
   const n = blocked.length;
   const reasons = blocked.map((t) => templateBlocked(t));
-  const words4 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
+  const words3 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
   const many = COUNT_WORDS[n] ?? String(n);
   const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
   return {
     sendable,
     blocked,
-    why: `${lead} can't go out from here \u2014 ${words4}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
+    why: `${lead} can't go out from here \u2014 ${words3}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
   };
 }
 function templateLinkButton(components) {
@@ -25604,149 +25912,174 @@ var LEAK_ORDER = [
   "quiet"
 ];
 var askWhy = (text, math) => `${text} ${capitalize(math)}. Why is that?`;
-function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
-  const found = /* @__PURE__ */ new Map();
+function leakFactsOf(reports, people, noReply, nowMs) {
   const list2 = (id) => people ? people.lists.find((l) => l.id === id) ?? null : null;
   const step2 = (id) => {
     const l = list2(id);
     return l && l.action && l.action.enabled && l.count > 0 ? { label: l.action.cta, to: l.action.to } : null;
   };
+  let clock3 = null;
+  const dealsAt = () => {
+    clock3 ??= { at: people && people.fetchedAt || nowMs };
+    return clock3.at;
+  };
+  return { reports, people, noReply, list: list2, step: step2, dealsAt };
+}
+function neverBookedLeak({ reports, list: list2, step: step2 }) {
   const b = reports ? reports.booking : null;
-  if (reports && b && b.present && b.pct !== null && (b.asked ?? 0) >= 5 && b.pct <= 25) {
-    const asked = b.asked ?? 0;
-    const booked = b.booked ?? 0;
-    const never = list2("asked_never_booked");
-    const text = booked === 0 ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.` : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
-    const math = never ? `${b.headline} \xB7 ${never.count} on Asked, never booked` : b.headline;
-    found.set("never-booked", {
-      id: "never-booked",
-      tone: "warn",
-      tag: "Booking gap",
-      icon: "calendar",
-      text,
-      math,
-      people: [],
-      peopleLead: null,
-      ask: askWhy(text, math),
-      cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
-      also: step2("asked_never_booked")
-    });
-  }
+  if (!(reports && b && b.present && b.pct !== null && (b.asked ?? 0) >= 5 && b.pct <= 25)) return null;
+  const asked = b.asked ?? 0;
+  const booked = b.booked ?? 0;
+  const never = list2("asked_never_booked");
+  const text = booked === 0 ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.` : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
+  const math = never ? `${b.headline} \xB7 ${never.count} on Asked, never booked` : b.headline;
+  return {
+    id: "never-booked",
+    tone: "warn",
+    tag: "Booking gap",
+    icon: "calendar",
+    text,
+    math,
+    people: [],
+    peopleLead: null,
+    ask: askWhy(text, math),
+    cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
+    also: step2("asked_never_booked")
+  };
+}
+function unansweredLeak({ reports, noReply }) {
   const a = reports && reports.vm.answered ? reports.vm.answered.totals : null;
-  if (reports && a && a.none >= 2) {
-    const text = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
-    const math = `of ${a.in} in the last ${reports.vm.rangeLabel} \xB7 the receptionist answered ${a.ai}, you answered ${a.you}`;
-    found.set("unanswered", {
-      id: "unanswered",
-      tone: "warn",
-      tag: "No reply",
-      icon: "alert",
-      text,
-      math,
-      people: noReply.slice(0, 2).map((r2) => ({ id: r2.conversationId, name: r2.who, to: r2.to, title: `Open ${r2.who}'s thread` })),
-      peopleLead: "Waiting now",
-      ask: askWhy(text, math),
-      cta: { label: "Open Reports", to: "reports" },
-      also: null
-    });
-  }
-  const dealsAt = people && people.fetchedAt || nowMs;
+  if (!(reports && a && a.none >= 2)) return null;
+  const text = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
+  const math = `of ${a.in} in the last ${reports.vm.rangeLabel} \xB7 the receptionist answered ${a.ai}, you answered ${a.you}`;
+  return {
+    id: "unanswered",
+    tone: "warn",
+    tag: "No reply",
+    icon: "alert",
+    text,
+    math,
+    people: noReply.slice(0, 2).map((r2) => ({ id: r2.conversationId, name: r2.who, to: r2.to, title: `Open ${r2.who}'s thread` })),
+    peopleLead: "Waiting now",
+    ask: askWhy(text, math),
+    cta: { label: "Open Reports", to: "reports" },
+    also: null
+  };
+}
+function consultsWaitingLeak({ people, dealsAt }) {
+  const at2 = dealsAt();
   const consultRows = (people?.rows ?? []).filter(
     (r2) => typeof r2.id === "string" && typeof r2.name === "string" && "deal" in r2 && "consultedMs" in r2
   );
-  const held = consultationsWithoutProposal(consultRows, dealsAt);
-  if (people && people.dealsOn && held.length >= 1) {
-    const n = held.length;
-    const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
-    const math = `${consultsHeldWords(n)} \xB7 on Pipeline`;
-    found.set("consults-waiting", {
-      id: "consults-waiting",
-      tone: "warn",
-      tag: "Next step",
-      icon: "calendar",
-      text,
-      math,
-      people: held.slice(0, 2).map((r2) => ({ id: r2.id, name: r2.name, to: `clients/${r2.id}`, title: `Open ${r2.name} in People` })),
-      peopleLead: "Held with",
-      ask: askWhy(text, math),
-      cta: { label: "See who", to: "clients/pipeline" },
-      also: null
-    });
-  }
-  const dealRows = (people?.rows ?? []).filter(
-    (r2) => "deal" in r2 && "askedMs" in r2
+  const held = consultationsWithoutProposal(consultRows, at2);
+  if (!(people && people.dealsOn && held.length >= 1)) return null;
+  const n = held.length;
+  const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
+  const math = `${consultsHeldWords(n)} \xB7 on Pipeline`;
+  return {
+    id: "consults-waiting",
+    tone: "warn",
+    tag: "Next step",
+    icon: "calendar",
+    text,
+    math,
+    people: held.slice(0, 2).map((r2) => ({ id: r2.id, name: r2.name, to: `clients/${r2.id}`, title: `Open ${r2.name} in People` })),
+    peopleLead: "Held with",
+    ask: askWhy(text, math),
+    cta: { label: "See who", to: "clients/pipeline" },
+    also: null
+  };
+}
+function proposalsWaitingWords(n, pace, po, inHand) {
+  const ago3 = pace ? `${pace.waitDays} days` : "a week";
+  const text = pace?.longerThanUsual ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than ${ago3} ago with nothing back.`;
+  const since = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
+  const counted2 = po ? `${po.count} on Proposal out \xB7 ${since}` : since;
+  const math = inHand ? `${counted2} \xB7 the follow-up has ${inHand} more` : counted2;
+  return { text, math };
+}
+function yoursToFollowUp(waiting) {
+  return waiting.filter((r2) => !isOptedOutContact({ consent: r2.consent.state, dnc: r2.consent.dnc })).slice(0, 2).flatMap(
+    (r2) => r2.id && r2.name ? [{ id: r2.id, name: r2.name, to: `clients/${r2.id}`, title: `Open ${r2.name}` }] : []
   );
+}
+function proposalsWaitingLeak({ people, list: list2, dealsAt }) {
+  const dealRows = (people?.rows ?? []).filter((r2) => "deal" in r2 && "askedMs" in r2);
   const pace = people?.dealPace ?? null;
-  const out = proposalsWaiting(dealRows, dealsAt, pace);
+  const out = proposalsWaiting(dealRows, dealsAt(), pace);
   const inHand = out.filter((r2) => r2.followUp?.kind === "will").length;
   const waiting = out.filter((r2) => r2.followUp?.kind !== "will");
   const po = list2("proposal_out");
-  if (people && people.dealsOn && waiting.length >= 1) {
-    const n = waiting.length;
-    const ago3 = pace ? `${pace.waitDays} days` : "a week";
-    const text = pace?.longerThanUsual ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than ${ago3} ago with nothing back.`;
-    const since = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
-    const counted2 = po ? `${po.count} on Proposal out \xB7 ${since}` : since;
-    const math = inHand ? `${counted2} \xB7 the follow-up has ${inHand} more` : counted2;
-    found.set("proposals-waiting", {
-      id: "proposals-waiting",
-      tone: "warn",
-      tag: "Waiting",
-      icon: "clock",
-      text,
-      math,
-      // Never someone who asked to stop: a follow-up is not theirs to be sent, by hand or at all.
-      people: inHand ? waiting.filter((r2) => !isOptedOutContact({ consent: r2.consent.state, dnc: r2.consent.dnc })).slice(0, 2).flatMap(
-        (r2) => r2.id && r2.name ? [{ id: r2.id, name: r2.name, to: `clients/${r2.id}`, title: `Open ${r2.name}` }] : []
-      ) : [],
-      peopleLead: inHand ? "Yours to follow up" : null,
-      ask: askWhy(text, math),
-      cta: {
-        label: "See who",
-        to: inHand ? pipelineRoute({ view: "waiting" }) : po ? `clients/seg:${po.id}` : "clients"
-      },
-      also: null
-    });
-  }
+  if (!(people && people.dealsOn && waiting.length >= 1)) return null;
+  const { text, math } = proposalsWaitingWords(waiting.length, pace, po, inHand);
+  return {
+    id: "proposals-waiting",
+    tone: "warn",
+    tag: "Waiting",
+    icon: "clock",
+    text,
+    math,
+    people: inHand ? yoursToFollowUp(waiting) : [],
+    peopleLead: inHand ? "Yours to follow up" : null,
+    ask: askWhy(text, math),
+    cta: {
+      label: "See who",
+      to: inHand ? pipelineRoute({ view: "waiting" }) : po ? `clients/seg:${po.id}` : "clients"
+    },
+    also: null
+  };
+}
+function unreachableLeak({ people, list: list2 }) {
   const yes = list2("opted_in");
   const offers = list2("offers_ok");
-  if (people && yes && offers && yes.count >= 3 && offers.count === 0) {
-    const noNumber = people.rows.some((r2) => saidYesTo(r2, "marketing"));
-    const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
-    const math = `${noNumber ? NO_NUMBER_REACH : "a broadcast reaches only the second yes"} \xB7 0 can receive one`;
-    found.set("unreachable", {
-      id: "unreachable",
-      tone: "warn",
-      tag: "Reach",
-      icon: "users",
-      text,
-      math,
-      people: [],
-      peopleLead: null,
-      ask: askWhy(text, math),
-      cta: { label: "Open People", to: `clients/seg:${yes.id}` },
-      also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
-    });
-  }
+  if (!(people && yes && offers && yes.count >= 3 && offers.count === 0)) return null;
+  const noNumber = people.rows.some((r2) => saidYesTo(r2, "marketing"));
+  const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
+  const math = `${noNumber ? NO_NUMBER_REACH : "a broadcast reaches only the second yes"} \xB7 0 can receive one`;
+  return {
+    id: "unreachable",
+    tone: "warn",
+    tag: "Reach",
+    icon: "users",
+    text,
+    math,
+    people: [],
+    peopleLead: null,
+    ask: askWhy(text, math),
+    cta: { label: "Open People", to: `clients/seg:${yes.id}` },
+    also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
+  };
+}
+function quietLeak({ people, list: list2, step: step2 }) {
   const quiet = list2("quiet");
-  if (quiet && quiet.count >= 5) {
-    const text = `${quiet.count} people have not heard from you in 30 days.`;
-    const math = people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list";
-    found.set("quiet", {
-      id: "quiet",
-      tone: "info",
-      tag: "Gone quiet",
-      icon: "clock",
-      text,
-      math,
-      people: [],
-      peopleLead: null,
-      ask: askWhy(text, math),
-      cta: { label: "See who", to: `clients/seg:${quiet.id}` },
-      also: step2("quiet")
-    });
-  }
-  const all = LEAK_ORDER.map((id) => found.get(id)).filter((x) => !!x);
+  if (!(quiet && quiet.count >= 5)) return null;
+  const text = `${quiet.count} people have not heard from you in 30 days.`;
+  const math = people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list";
+  return {
+    id: "quiet",
+    tone: "info",
+    tag: "Gone quiet",
+    icon: "clock",
+    text,
+    math,
+    people: [],
+    peopleLead: null,
+    ask: askWhy(text, math),
+    cta: { label: "See who", to: `clients/seg:${quiet.id}` },
+    also: step2("quiet")
+  };
+}
+var LEAK_FINDERS = {
+  "never-booked": neverBookedLeak,
+  unanswered: unansweredLeak,
+  "consults-waiting": consultsWaitingLeak,
+  "proposals-waiting": proposalsWaitingLeak,
+  unreachable: unreachableLeak,
+  quiet: quietLeak
+};
+function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
+  const facts = leakFactsOf(reports, people, noReply, nowMs);
+  const all = LEAK_ORDER.map((id) => LEAK_FINDERS[id](facts)).filter((x) => !!x);
   const more = Math.max(0, all.length - max);
   return { rows: all.slice(0, max), more, moreLine: more ? `and ${more} more` : null };
 }
@@ -26603,12 +26936,12 @@ function sentenceFor(r2, verdict, nowMs) {
       if (!THEIRS_TO_FIX.includes(r2.sms_state ?? "") && mode === "stripe") {
         return whyCannotSpend(mode, status) ?? "Something about their billing needs them.";
       }
-      const words4 = textingWords({
+      const words3 = textingWords({
         sms_state: r2.sms_state ?? "none",
         reg_mock: r2.reg_mock ?? false,
         reg_sole_prop: r2.reg_sole_prop ?? false
       }).sentence;
-      return r2.line_error ? `${words4} \u2014 ${r2.line_error}` : words4;
+      return r2.line_error ? `${words3} \u2014 ${r2.line_error}` : words3;
     }
     case "quiet":
       return quietFor === null ? "Answering, and no customer has ever reached them." : `Answering, and no customer has reached them in ${quietFor} days.`;
@@ -26899,10 +27232,10 @@ function humanize(kind) {
   const tail = (rest ?? "").replace(/_/g, " ");
   return `${family.charAt(0).toUpperCase()}${family.slice(1)}${tail ? ` \xB7 ${tail}` : ""}`;
 }
-var str = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
-var num2 = (o, k) => typeof o[k] === "number" ? o[k] : null;
+var textAt = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
+var numberAt = (o, k) => typeof o[k] === "number" ? o[k] : null;
 function importWords(p) {
-  const n = (k) => num2(p, k) ?? 0;
+  const n = (k) => numberAt(p, k) ?? 0;
   const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
   const stopped = n("failed") > 0 ? ", then stopped at a fault" : "";
   return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
@@ -26915,11 +27248,11 @@ var CONVERTED_HOW = {
 };
 function readingWords(kind, p, base) {
   if (kind === "lead.converted") {
-    const how = CONVERTED_HOW[str(p, "how") ?? ""];
+    const how = CONVERTED_HOW[textAt(p, "how") ?? ""];
     return how ? `${base} \xB7 ${how}` : base;
   }
-  const who = str(p, "business") ?? "A business";
-  if (str(p, "unread")) return `${who} wrote back \xB7 not read yet`;
+  const who = textAt(p, "business") ?? "A business";
+  if (textAt(p, "unread")) return `${who} wrote back \xB7 not read yet`;
   return isReplyIntent(p.intent) && p.intent !== "other" ? `${who} wrote back \xB7 ${REPLY_INTENT_WORDS[p.intent]}` : `${who} wrote back`;
 }
 var WHOLE_SENTENCE = /* @__PURE__ */ new Map([
@@ -26929,13 +27262,13 @@ var WHOLE_SENTENCE = /* @__PURE__ */ new Map([
 ]);
 function activityWords(kind, payload) {
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
-  const base = kind === "take_over" && str(p, "how") === "transfer" ? "Took over a call" : WORDS[kind] ?? humanize(kind);
+  const base = kind === "take_over" && textAt(p, "how") === "transfer" ? "Took over a call" : WORDS[kind] ?? humanize(kind);
   const whole = WHOLE_SENTENCE.get(kind);
   if (whole) return whole(p, base);
   const bits2 = [];
   switch (kind) {
     case "take_over": {
-      if (str(p, "how") === "transfer") bits2.push("passed to the business's line");
+      if (textAt(p, "how") === "transfer") bits2.push("passed to the business's line");
       break;
     }
     case "sending_domain.added":
@@ -26944,54 +27277,54 @@ function activityWords(kind, payload) {
     case "sending_domain.released":
     case "sending_domain.resumed":
     case "sending_domain.removed": {
-      const host = str(p, "host");
+      const host = textAt(p, "host");
       if (host) bits2.push(host);
-      const why = str(p, "why");
+      const why = textAt(p, "why");
       if (kind === "sending_domain.held" && why) bits2.push(domainHoldWords(why));
       break;
     }
     case "consent_change":
     case "contact.consent_changed": {
-      const purpose = str(p, "purpose") === "marketing" ? "offers" : str(p, "purpose") === "email_marketing" ? "marketing email" : "messages about their visit";
-      const consent = str(p, "consent");
+      const purpose = textAt(p, "purpose") === "marketing" ? "offers" : textAt(p, "purpose") === "email_marketing" ? "marketing email" : "messages about their visit";
+      const consent = textAt(p, "consent");
       bits2.push(
         consent === "opted_in" ? `yes to ${purpose}` : consent === "opted_out" ? `no to ${purpose}` : `${purpose}: not asked`
       );
-      const source = str(p, "source");
+      const source = textAt(p, "source");
       if (source && source !== "operator") bits2.push(source.replace(/_/g, " "));
       break;
     }
     case "change_role": {
-      const role = str(p, "role") ?? str(p, "to");
+      const role = textAt(p, "role") ?? textAt(p, "to");
       if (role) bits2.push(`to ${role}`);
       break;
     }
     case "export": {
-      const what = str(p, "what");
+      const what = textAt(p, "what");
       if (what) bits2.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
-      const rows = num2(p, "rows");
+      const rows = numberAt(p, "rows");
       if (rows !== null) bits2.push(`${rows} rows`);
       break;
     }
     case "pause_agent":
     case "resume_agent": {
-      const mode = str(p, "receptionist_mode");
+      const mode = textAt(p, "receptionist_mode");
       if (mode) bits2.push(mode === "inherit" ? "follows the workspace" : mode);
-      const batch = num2(p, "batch");
+      const batch = numberAt(p, "batch");
       if (batch) bits2.push(`one of ${batch}`);
       break;
     }
     case "send_broadcast": {
-      const name = str(p, "name");
+      const name = textAt(p, "name");
       if (name) bits2.push(name);
-      const n = num2(p, "recipients");
+      const n = numberAt(p, "recipients");
       if (n !== null) bits2.push(`${n} people`);
       if (p.approved === true) bits2.push("approved by hand");
       break;
     }
     case "broadcast.sent": {
-      const sent = num2(p, "sent");
-      const held = num2(p, "held");
+      const sent = numberAt(p, "sent");
+      const held = numberAt(p, "held");
       if (sent !== null) bits2.push(`${sent} got it`);
       if (held) bits2.push(`${held} held`);
       break;
@@ -27002,37 +27335,37 @@ function activityWords(kind, payload) {
       break;
     }
     case "policy.changed": {
-      const cls = str(p, "class");
-      const mode = str(p, "mode");
+      const cls = textAt(p, "class");
+      const mode = textAt(p, "mode");
       if (cls) bits2.push(cls);
       if (mode) bits2.push(mode);
       break;
     }
     case "line.texting_rejected":
     case "line.failed": {
-      const why = str(p, "error") ?? str(p, "reason");
+      const why = textAt(p, "error") ?? textAt(p, "reason");
       if (why) bits2.push(why.slice(0, 80));
       break;
     }
     case "platform.acted": {
-      const action = str(p, "action");
+      const action = textAt(p, "action");
       if (action) bits2.push(action);
       break;
     }
     case "playbook.run": {
-      const outcome = str(p, "outcome");
+      const outcome = textAt(p, "outcome");
       if (outcome) bits2.push(outcome);
-      const n = num2(p, "recipients") ?? num2(p, "count");
+      const n = numberAt(p, "recipients") ?? numberAt(p, "count");
       if (n !== null) bits2.push(`${n} people`);
       break;
     }
     case "lead.round": {
-      const state = str(p, "state");
+      const state = textAt(p, "state");
       if (state === "ended") {
         bits2.push("finished");
-        const ending = str(p, "ending");
+        const ending = textAt(p, "ending");
         if (ending && ending in LEAD_ENDING_WORDS) bits2.push(LEAD_ENDING_WORDS[ending]);
-        const counted2 = num2(p, "counted");
+        const counted2 = numberAt(p, "counted");
         if (counted2 !== null) bits2.push(`${counted2} found`);
       } else if (state) {
         bits2.push(
@@ -27042,9 +27375,9 @@ function activityWords(kind, payload) {
       break;
     }
     case "lead.no_card": {
-      const card = str(p, "card");
+      const card = textAt(p, "card");
       if (card) bits2.push(card.replace(/_/g, " "));
-      const asked = str(p, "asked");
+      const asked = textAt(p, "asked");
       if (asked) bits2.push(asked.slice(0, 80));
       break;
     }
@@ -27998,6 +28331,7 @@ export {
   DRAFT_WHYS,
   E164,
   EARLIER_FALLBACK_DEFAULTS,
+  EDGE_ERROR_CODES,
   EMAIL_ELSEWHERE_SENTENCE,
   EMAIL_NOT_ANSWERED_SENTENCE,
   EMAIL_TEMPLATE_LIST_WORDS,
@@ -28029,6 +28363,7 @@ export {
   FOLLOW_UP_NEEDS_LINK,
   FOLLOW_UP_ONE,
   FORWARDING_MODES,
+  FORWARDING_MODE_WORDS,
   FORWARDING_TEST_WINDOW_MS,
   FORWARD_IS_HANDOFF,
   FREE_MAIL_DOMAINS,
@@ -28216,7 +28551,6 @@ export {
   MESSAGE_TYPES,
   MIN_MS,
   MOCK_TEXTING_SENTENCE,
-  MODE_WORDS,
   MOMENT_TRIGGERS,
   NEEDS_KEY_PREFIX,
   NEEDS_TITLE,
@@ -28797,6 +29131,8 @@ export {
   filterOpenings,
   filterTimeline,
   findLanguages,
+  finiteOrNull,
+  finiteOrZero,
   firstLine,
   firstNameOf,
   firstReceptionistOf,
@@ -28860,6 +29196,7 @@ export {
   heardSinceProposal,
   heardWords,
   heldNoticeWords,
+  hexOf,
   holdDoors,
   holdWords,
   hoursFromGoogle,
@@ -28999,6 +29336,7 @@ export {
   leadsRoute,
   leadsStanding,
   lineCredentialFailure,
+  lineOrNull,
   lineReleaseAfterDays,
   lineReleaseDay,
   lineReleaseStep,
@@ -29064,6 +29402,7 @@ export {
   nextThemePref,
   noNumberWords,
   noProposalSince,
+  nonBlankOrNull,
   normalizeAnswer,
   normalizeEmail,
   normalizeFromLocal,
@@ -29283,6 +29622,7 @@ export {
   receptionistCardOf,
   receptionistOf,
   receptionistOn,
+  recordOrNull,
   refusalOf,
   registrationPathOf,
   registrationPreflight,
@@ -29439,6 +29779,7 @@ export {
   stepSheetMerge,
   stepWhenWords,
   suggestLocalPart,
+  sumOf,
   telHref,
   templateBlocked,
   templateComponents,
@@ -29518,6 +29859,7 @@ export {
   trialWords,
   triggerOf,
   triggerOffered,
+  trimmedOrNull,
   tzClock,
   unknownDetails,
   unmetNeed,
@@ -29527,6 +29869,7 @@ export {
   unsureHoursWords,
   usPhone,
   usableDeviceTimezone,
+  utf8Bytes,
   v1FromAnswer,
   validateReachOutChain,
   validateReachOutWords,

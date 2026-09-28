@@ -146,7 +146,7 @@ interface GoogleReadiness {
 }
 
 const NOT_READY: GoogleReadiness = { places: false, profile: false, audience: null, oauth: null };
-let readyCache: { at: number; value: GoogleReadiness } | null = null;
+let googleReadyCache: { at: number; value: GoogleReadiness } | null = null;
 
 /**
  * What this deployment can do with Google. Cached for five minutes per
@@ -155,7 +155,7 @@ let readyCache: { at: number; value: GoogleReadiness } | null = null;
  * cannot work.
  */
 export async function googleReadiness(now = Date.now()): Promise<GoogleReadiness> {
-  if (readyCache && now - readyCache.at < READY_TTL_MS) return readyCache.value;
+  if (googleReadyCache && now - googleReadyCache.at < READY_TTL_MS) return googleReadyCache.value;
   const a = await edgeGoogle({ op: "status" }, 4_000);
   const b = a.body ?? {};
   const ready =
@@ -182,7 +182,7 @@ export async function googleReadiness(now = Date.now()): Promise<GoogleReadiness
               : null,
         }
       : NOT_READY;
-  readyCache = { at: now, value };
+  googleReadyCache = { at: now, value };
   return value;
 }
 

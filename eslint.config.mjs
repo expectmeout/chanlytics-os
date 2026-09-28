@@ -41,6 +41,20 @@ const OUR_TS_RULES = {
     { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
   ],
   "no-empty": ["error", { allowEmptyCatch: true }],
+  // A line that must not compile says why: the type tests' negatives (`*.type-test.ts`) are `@ts-expect-error <why>`,
+  // and one whose line starts to compile is TS2578, an unused directive, so the typecheck fails. `@ts-ignore` stays
+  // silent when the line it hides is fixed, and `@ts-nocheck` hides a whole file: neither is written. The phone app
+  // (apps/mobile) lints under Expo's config, not this one, so the rule does not reach its files.
+  "@typescript-eslint/ban-ts-comment": [
+    "error",
+    {
+      "ts-expect-error": "allow-with-description",
+      "ts-ignore": true,
+      "ts-nocheck": true,
+      "ts-check": false,
+      minimumDescriptionLength: 10,
+    },
+  ],
 };
 
 /** Plugin map for every TypeScript block. */
@@ -136,11 +150,13 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
  */
 export const LIMITED_TREES = [
   "packages/db/src",
+  "packages/contracts/src/broadcasts",
   "packages/contracts/src/consent",
   "packages/contracts/src/google",
   "packages/contracts/src/lines",
   "packages/contracts/src/notes",
   "packages/contracts/src/playbooks",
+  "packages/contracts/src/reports",
   "packages/contracts/src/shared",
   "packages/core/src/inbound",
   "apps/dashboard/src/auth",
@@ -163,19 +179,19 @@ export const LIMITED_TREES = [
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
   "apps/edge/lib/email",
-  "apps/edge/lib/notes",
   "apps/edge/lib/ops",
   "apps/edge/lib/packages",
   "apps/edge/lib/sms",
 ];
 
 /**
- * The held trees where a function still takes more than four parameters (measured 28 September 2026: 40 functions,
+ * The held trees where a function still takes more than four parameters (measured 28 September 2026: 43 functions,
  * db's widest at 7 and today-sample's at 11). `max-params` waits in these; a tree leaves this list when its last one
  * takes an object instead.
  */
 export const WIDE_PARAMS = [
   "packages/db/src",
+  "packages/contracts/src/broadcasts",
   "packages/contracts/src/playbooks",
   "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/platform",

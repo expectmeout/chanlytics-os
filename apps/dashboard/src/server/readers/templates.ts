@@ -20,7 +20,7 @@ const COLUMNS =
   "id, channel, name, language, body_preview, variables, category, meta_status, quality, rejected_reason, synced_at, source, hidden_at, title, components";
 
 /** Rows per page: PostgREST's max_rows (supabase config), which answers at most this many whatever a select asks for. */
-const PAGE = 1000;
+const TEMPLATES_PAGE = 1000;
 
 /**
  * Every row a read matches, a page at a time. PostgREST cuts an answer at
@@ -35,10 +35,10 @@ async function everyRow<T>(
 ): Promise<T[]> {
   const out: T[] = [];
   for (;;) {
-    const { data, error } = await page(out.length, out.length + PAGE - 1);
+    const { data, error } = await page(out.length, out.length + TEMPLATES_PAGE - 1);
     if (error) throw new Error(`${what}: ${error.message}`);
     out.push(...(data ?? []));
-    if ((data ?? []).length < PAGE) return out;
+    if ((data ?? []).length < TEMPLATES_PAGE) return out;
   }
 }
 

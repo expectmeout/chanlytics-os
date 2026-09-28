@@ -733,7 +733,7 @@ export async function approveBetween(io, message) {
 /**
  * An approval put back once turn 2 has answered, as the Line undoes a card (commit.ts undoProposal): the settings read
  * again; the card's own undo (spec.undo.call, which refuses once anyone has saved since the card); the settings read
- * once more and compared, field by field, with the ones before the card (the rule e2e/settings-business.spec.ts keeps),
+ * once more and compared, field by field, with the ones before the card (the rule e2e/settings/settings-business.spec.ts keeps),
  * so an undo whose answer was lost is verified all the same when they read as they were; and only then the outcome
  * recorded as undone. `{ ok: true, undone, recorded }`, or `lost` (above): what to put back by hand.
  */

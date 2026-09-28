@@ -7,7 +7,7 @@
  * shown, never the focus, since a blur that dropped a sheet at once moved Save from under the finger between the press
  * and the click. A pinch zoom shrinks what is shown too, and is no keyboard.
  *
- * Run against data-bits itself, on a window and a document that answer what the helper asks of them; e2e/phone.spec.ts
+ * Run against data-bits itself, on a window and a document that answer what the helper asks of them; e2e/shell/phone.spec.ts
  * stands a sheet on it.
  */
 import { test } from "node:test";

@@ -31,7 +31,7 @@
  * Auth: x-cron-key against the Vault-held sweep key, like the other sweeps;
  * pg_cron calls this from the database (migration 00097).
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
@@ -59,7 +59,7 @@ const MAX_PER_TICK = 2;
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "lines" });
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
 
@@ -69,8 +69,8 @@ export async function POST(request: Request): Promise<Response> {
   const choice = lineProviderFromEnv();
   const apiKey = env.RETELL_API_KEY;
   const fnSecret = env.RETELL_FN_SECRET;
-  if (!choice) return json(503, { ok: false, error: "no_line_provider" });
-  if (!apiKey || !fnSecret) return json(503, { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret" });
+  if (!choice) return refuse(503, "no_line_provider");
+  if (!apiKey || !fnSecret) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
 
   // The decisions -- which lines, whether each is still owed an automatic try, the
   // take that makes a resume exclusive, when the platform hears -- live in
@@ -101,7 +101,7 @@ export async function POST(request: Request): Promise<Response> {
       MAX_PER_TICK,
     );
   } catch (e) {
-    return json(503, { ok: false, error: e instanceof Error ? e.message : String(e) });
+    return refuse(503, "query_failed", e instanceof Error ? e.message : String(e));
   }
 
   // The numbers of workspaces that stopped paying. Its own failure is said beside the stuck lines' result rather than
