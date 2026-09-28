@@ -46,6 +46,56 @@ function cell(row, col) {
   return row[col];
 }
 
+/**
+ * A select that names a JSON path the way PostgREST spells one there -- `alias:column->key`, or `column->key`, named
+ * for its key -- answers with exactly the columns it names: a path's value under its name, null where the row holds no
+ * such key, as `->` answers. Modelled for Ask's thread read (store.ts readThread), which reads each key of a turn it
+ * draws and never the turn as the model was sent it (content.raw). A select that names no path answers whole rows, as
+ * it always has here; any other spelling beside a path is refused by name. Null when the select names no path.
+ * Not modelled: a column the table does not have, which PostgREST refuses with a 400; here it reads as undefined, or
+ * as null through a path.
+ */
+function projectionOf(columns) {
+  if (typeof columns !== "string" || !columns.includes("->")) return null;
+  const picks = columns
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .map((spec) => {
+      const m = /^(?:(\w+):)?(\w+)(?:->(\w+))?$/.exec(spec);
+      if (!m) throw new Error(`fakeDb: select(${spec}) is not modelled`);
+      const [, alias, column, key] = m;
+      if (key === undefined) return [alias ?? column, (row) => row[column]];
+      return [
+        alias ?? key,
+        (row) => (row[column] && typeof row[column] === "object" ? (row[column][key] ?? null) : null),
+      ];
+    });
+  return (row) => Object.fromEntries(picks.map(([name, read]) => [name, read(row)]));
+}
+
+/** jsonb's order for an object's keys: the shorter first, then by their bytes. */
+const byJsonbKey = (a, b) =>
+  Buffer.byteLength(a) - Buffer.byteLength(b) || Buffer.compare(Buffer.from(a), Buffer.from(b));
+/**
+ * A value as jsonb keeps it: written as JSON, then every object's keys, at every depth, in jsonb's order. Not modelled:
+ * a key that reads as an integer ("10"), which JavaScript always orders first, ascending, whatever order an object's
+ * keys were set in -- jsonb puts "10" after "a", and an object here cannot.
+ */
+function asJsonb(value) {
+  const reorder = (v) =>
+    Array.isArray(v)
+      ? v.map(reorder)
+      : v && typeof v === "object"
+        ? Object.fromEntries(
+            Object.keys(v)
+              .sort(byJsonbKey)
+              .map((k) => [k, reorder(v[k])]),
+          )
+        : v;
+  return value === undefined ? undefined : reorder(JSON.parse(JSON.stringify(value)));
+}
+
 /** Rows a filter selects. `eq` is strict, `is` is the NULL test, `lt` is whatever `<` does — ISO timestamps sort as text. */
 function matches(row, filters) {
   return filters.every(([op, col, val]) =>
@@ -357,6 +407,20 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
     newest_messages: (args) => newestMessagesIn(tables, args),
   };
 
+  /**
+   * A row as it is written: a column named in `opts.jsonb` (`"<table>.<column>"`) is kept as jsonb keeps it (asJsonb),
+   * its objects' keys in jsonb's order and never the writer's. Modelled for Ask's raw turn, which must come back as the
+   * bytes that were sent (server/ask/memory.ts storedRaw). A column not named is kept as the writer gave it, as always.
+   */
+  const written = (table, values) => {
+    const row = { ...values };
+    for (const named of opts.jsonb ?? []) {
+      const [t, column] = named.split(".");
+      if (t === table && column in row) row[column] = asJsonb(row[column]);
+    }
+    return row;
+  };
+
   const from = (table) => {
     const q = {
       table,
@@ -381,11 +445,13 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // what was written, as PostgREST does.
       if (q.op === "insert") {
         const at = stampOf(tables);
-        const made = q.values.map((v) => ({
-          id: crypto.randomUUID(),
-          created_at: at,
-          ...v,
-        }));
+        const made = q.values.map((v) =>
+          written(table, {
+            id: crypto.randomUUID(),
+            created_at: at,
+            ...v,
+          }),
+        );
         // A table named in `opts.unique` holds each id once, as its primary key does: an insert of an id it holds fails
         // as Postgres fails it (23505). Modelled for a writer whose row's id is derived, so a second write of the same
         // email is the same row, never a second one.
@@ -429,8 +495,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         // limit and its range, whatever it asked for. The Inbox asked for 4,000 messages and got 1,000, silently.
         if (opts.maxRows != null) out = out.slice(0, opts.maxRows);
         // Deliberately a copy: the sweep must not be able to mutate the ledger
-        // by holding on to a row it read.
-        return { data: out.map((r) => ({ ...r })), error: null, count: q.counted ? matched : null };
+        // by holding on to a row it read. A select that names a JSON path answers
+        // the columns it names (projectionOf).
+        const project = projectionOf(q.columns) ?? ((r) => ({ ...r }));
+        return { data: out.map(project), error: null, count: q.counted ? matched : null };
       }
 
       // A delete removes what matches, in place, and counts it when asked:
@@ -461,11 +529,11 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             // alone, as PostgREST does: a claim on a unique row learns it lost
             // by getting no row back. A merging upsert answers with the row.
             if (q.ignoreDuplicates) continue;
-            Object.assign(existing, v);
+            Object.assign(existing, written(table, v));
             made.push(existing);
             continue;
           }
-          const r = { id: crypto.randomUUID(), created_at: at, ...v };
+          const r = written(table, { id: crypto.randomUUID(), created_at: at, ...v });
           rows().push(r);
           made.push(r);
         }
@@ -485,7 +553,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         rows().filter((r) => !hit.includes(r)),
       );
       if (clash) return { data: null, error: clash };
-      for (const r of hit) Object.assign(r, q.values);
+      for (const r of hit) Object.assign(r, written(table, q.values));
       // `.select("a, b")` after an update reads those columns back, as PostgREST
       // does, and `.select("*")` the whole row: how a caller that must act on what
       // it just wrote avoids a second round trip. No select at all answers with ids.

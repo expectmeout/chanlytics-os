@@ -298,7 +298,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
   assert.ok(
     readCode("apps/dashboard/src/legacy/demo/pages/calendar.jsx").includes("window.CalendarSeed = CalendarSeed;"),
   );
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
   assert.ok(sd.includes('key: "calendar"') && sd.includes('read("GET calendar"'), "one override, fed by the route");
   // The form's "Check the address" button went with the form: the Business page's calendar row states its last read
   // and its count, and says a read that failed with its Retry (the spec's "When you're open"), executed in
@@ -395,7 +395,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
       svc.includes("consult_first: needsConsultation(s.name, profile?.booking_rules),"),
     "the services as Settings keeps them",
   );
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
   assert.ok(
     sd.includes("days: String(w.days)") &&
       sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") &&
@@ -492,7 +492,7 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
     bridge.includes("export async function refresh(opts: { fresh?: boolean } = {}): Promise<boolean>"),
     "and a refresh the board can call, fresh on request, saying whether a read landed",
   );
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
   assert.ok(
     sd.includes("const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));"),
     "the first read is the window around the business's today",

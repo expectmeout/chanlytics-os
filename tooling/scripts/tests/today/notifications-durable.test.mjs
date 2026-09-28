@@ -103,7 +103,7 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   );
   // This person's marks ride on each row -- their read and their dismissal, never another person's -- RUN through the
   // route in reads-routes.test.mjs ("reading notifications") and through its reader in readers.test.mjs.
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/notifications.ts");
   assert.ok(
     sd.includes('key: "notifications",') && sd.includes('refreshOnTables: ["notifications"],'),
     "repaints as the edge writes a row",

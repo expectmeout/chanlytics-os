@@ -162,228 +162,318 @@ function errorWords(e: unknown): string {
   return (e instanceof Error ? e.message : String(e)).slice(0, 500);
 }
 
-export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<SagaResult> {
-  let line: LineRow = { ...start, facts: { ...(start.facts ?? {}) } };
-  const save = async (patch: Partial<LineRow>) => {
-    line = { ...line, ...patch, facts: patch.facts ? { ...patch.facts } : line.facts };
-    await ports.store.save(patch);
-  };
-  const fact = async (k: string, v: unknown) => save({ facts: { ...line.facts, [k]: v } });
+/**
+ * One run of the saga: its own copy of the row, kept current as it saves, so each step reads what the steps before it
+ * wrote; the vault's secrets as the run last heard them; and the moves every step is made of.
+ */
+interface LineRun {
+  readonly ports: LinePorts;
+  line: LineRow;
+  secrets: LineSecrets;
+  /** Persist a patch of the row, the run's own copy first. */
+  save(patch: Partial<LineRow>): Promise<void>;
+  /** One fact onto the row's facts. */
+  fact(k: string, v: unknown): Promise<void>;
   /** Before every provider call: stop here if the run is out of time (`more`: what a longer step needs besides). */
-  const room = (more = 0) => {
-    if (ports.timeLeft && ports.timeLeft() <= more) throw OUT_OF_TIME;
-  };
+  room(more?: number): void;
   /**
    * Make a thing once. The receipt of a create is written after the provider answers, so a run killed in between left
    * it made and the row silent -- and two of them cost nothing but for the trunk (its domain is the line's, so a second
    * is refused, for ever) and the SIP credential (its username is the line's). So the ask is marked first, and a run
    * that finds the mark with no receipt looks before asking again. A fresh line makes no extra call.
    */
-  const once = async <T>(key: string, look: () => Promise<T | null>, make: () => Promise<T>): Promise<T> => {
-    const asked = `asked_${key}`;
-    room();
-    if (line.facts[asked] === true) {
-      const found = await look();
-      if (found) return found;
-      room();
-    } else {
-      // Marked only once the run has time to ask: a mark with no ask behind it costs the next run a look.
-      await fact(asked, true);
-    }
-    return make();
-  };
+  once<T>(key: string, look: () => Promise<T | null>, make: () => Promise<T>): Promise<T>;
+  /** Merge into the vault, the run's own copy first. */
+  putSecrets(s: LineSecrets): Promise<void>;
+  /** The line's own subaccount to act as: its SID from the row, its token from the vault. */
+  sub(): ProviderAccount;
+}
 
-  if (line.voice_state === "answering" && nextLineStep(line) === null) return { ok: true, line };
-  if (!line.e164) {
-    await save({ voice_state: "failed", step: "number", last_error: "no number chosen", state_since: ports.now() });
-    return { ok: false, step: "number", error: "no number chosen", line };
+/** A run from the row it starts at. Its secrets are the vault's once runLineSaga has read them. */
+function lineRun(start: LineRow, ports: LinePorts): LineRun {
+  const run: LineRun = {
+    ports,
+    line: { ...start, facts: { ...(start.facts ?? {}) } },
+    secrets: {},
+    async save(patch) {
+      run.line = { ...run.line, ...patch, facts: patch.facts ? { ...patch.facts } : run.line.facts };
+      await ports.store.save(patch);
+    },
+    fact: async (k, v) => run.save({ facts: { ...run.line.facts, [k]: v } }),
+    room(more = 0) {
+      if (ports.timeLeft && ports.timeLeft() <= more) throw OUT_OF_TIME;
+    },
+    async once(key, look, make) {
+      const asked = `asked_${key}`;
+      run.room();
+      if (run.line.facts[asked] === true) {
+        const found = await look();
+        if (found) return found;
+        run.room();
+      } else {
+        // Marked only once the run has time to ask: a mark with no ask behind it costs the next run a look.
+        await run.fact(asked, true);
+      }
+      return make();
+    },
+    async putSecrets(s) {
+      run.secrets = { ...run.secrets, ...s };
+      await ports.store.putSecrets(s);
+    },
+    sub() {
+      if (!run.line.subaccount_sid || !run.secrets.auth_token)
+        throw new Error("the subaccount's token is missing from the vault");
+      return { sid: run.line.subaccount_sid, token: run.secrets.auth_token };
+    },
+  };
+  return run;
+}
+
+/** What each step does, one handler per step: nextLineStep says which runs next, and each checks its own effect first. */
+const ON_STEP: Record<LineStep, (run: LineRun) => Promise<void>> = {
+  subaccount: subaccountStep,
+  number: numberStep,
+  trunk: trunkStep,
+  agent: agentStep,
+  import: importStep,
+  messaging: messagingStep,
+  channel: channelStep,
+};
+
+export async function runLineSaga(start: LineRow, ports: LinePorts): Promise<SagaResult> {
+  const run = lineRun(start, ports);
+
+  if (run.line.voice_state === "answering" && nextLineStep(run.line) === null) return { ok: true, line: run.line };
+  if (!run.line.e164) {
+    await run.save({ voice_state: "failed", step: "number", last_error: "no number chosen", state_since: ports.now() });
+    return { ok: false, step: "number", error: "no number chosen", line: run.line };
   }
 
-  let secrets = await ports.store.getSecrets();
-  const putSecrets = async (s: LineSecrets) => {
-    secrets = { ...secrets, ...s };
-    await ports.store.putSecrets(s);
-  };
-  const sub = (): ProviderAccount => {
-    if (!line.subaccount_sid || !secrets.auth_token)
-      throw new Error("the subaccount's token is missing from the vault");
-    return { sid: line.subaccount_sid, token: secrets.auth_token };
-  };
-
-  let step: LineStep | null = nextLineStep(line);
-  await save({ voice_state: "provisioning", step, last_error: null, state_since: ports.now() });
+  run.secrets = await ports.store.getSecrets();
+  let step: LineStep | null = nextLineStep(run.line);
+  await run.save({ voice_state: "provisioning", step, last_error: null, state_since: ports.now() });
 
   try {
-    while ((step = nextLineStep(line)) !== null) {
-      room();
-      await save({ step });
-      switch (step) {
-        case "subaccount": {
-          const name = subaccountName(ports.tenant.name, line.id);
-          const acct = await once(
-            "subaccount",
-            () => ports.provider.findSubaccount(ports.master, name),
-            () => ports.provider.createSubaccount(ports.master, name),
-          );
-          await putSecrets({ auth_token: acct.token });
-          await save({ subaccount_sid: acct.sid });
-          break;
-        }
-        case "number": {
-          // LOOK BEFORE BUYING. This is the only step that spends, and the only one
-          // whose effect the row could not vouch for: the receipt is written after
-          // the provider answers, and a saga killed in that window left a number
-          // bought, unpaid-attention-to and unreachable -- a retry would ask to buy
-          // it again and be refused for ever, because the account already owns it.
-          //
-          // Idempotent now, which is the property every other step already had.
-          const held = await ports.provider.ownedNumber(sub(), line.e164);
-          if (!held) room();
-          const bought =
-            held ?? (await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} · Chanlytics`));
-          await save({ number_sid: bought.sid, e164: bought.e164 });
-          break;
-        }
-        case "trunk": {
-          const acct = sub();
-          if (!line.trunk_sid) {
-            const domainName = trunkDomain(line.id);
-            const t = await once(
-              "trunk",
-              () => ports.provider.findTrunk(acct, domainName),
-              () => ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} · Chanlytics`, domainName }),
-            );
-            await save({ trunk_sid: t.sid, termination_uri: t.domainName });
-          }
-          if (!line.credential_list_sid) {
-            const name = `${ports.tenant.name} · Chanlytics`;
-            const cl = await once(
-              "credential_list",
-              () => ports.provider.findCredentialList(acct, name),
-              () => ports.provider.createCredentialList(acct, name),
-            );
-            await save({ credential_list_sid: cl.sid });
-          }
-          if (!secrets.sip_password || !secrets.sip_username) {
-            const username = sipUsername(line.id);
-            const password = sipPassword(ports.random);
-            if (!isValidSipPassword(password)) throw new Error("generated SIP password failed Twilio's rule");
-            // Its password went with the run that made it, and a list holds a username once: removed, made again.
-            await once(
-              "credential",
-              async () => {
-                const lost = await ports.provider.findCredential(acct, line.credential_list_sid!, username);
-                if (lost) {
-                  room();
-                  await ports.provider.deleteCredential(acct, line.credential_list_sid!, lost.sid);
-                }
-                return null;
-              },
-              () => ports.provider.addCredential(acct, line.credential_list_sid!, username, password),
-            );
-            await putSecrets({ sip_username: username, sip_password: password });
-          }
-          if (line.facts.credential_list_attached !== true) {
-            room();
-            await ports.provider.attachCredentialList(acct, line.trunk_sid!, line.credential_list_sid!);
-            await fact("credential_list_attached", true);
-          }
-          if (typeof line.facts.origination_sid !== "string") {
-            const o = await once(
-              "origination",
-              () => ports.provider.findOrigination(acct, line.trunk_sid!, RETELL_ORIGINATION),
-              () =>
-                ports.provider.addOrigination(acct, line.trunk_sid!, {
-                  sipUrl: RETELL_ORIGINATION,
-                  friendlyName: "Retell",
-                }),
-            );
-            await fact("origination_sid", o.sid);
-          }
-          if (line.facts.number_attached !== true) {
-            room();
-            await ports.provider.attachNumber(acct, line.trunk_sid!, line.number_sid!);
-            await fact("number_attached", true);
-          }
-          await fact("trunk_ready", true);
-          break;
-        }
-        case "agent": {
-          room(AGENT_STEP_MORE_MS);
-          const a = await ports.agent.ensure();
-          await save({ retell_agent_id: a.agentId, facts: { ...line.facts, llm_id: a.llmId, agent_pinned: a.pinned } });
-          break;
-        }
-        case "import": {
-          if (!secrets.sip_username || !secrets.sip_password)
-            throw new Error("the SIP credential is missing from the vault");
-          const body = retellImportBody({
-            e164: line.e164,
-            terminationUri: line.termination_uri!,
-            username: secrets.sip_username,
-            password: secrets.sip_password,
-            agentId: line.retell_agent_id!,
-            pinned: line.facts.agent_pinned === true,
-            nickname: ports.nickname,
-            inboundWebhookUrl: ports.inboundWebhookUrl,
-          });
-          const r = await ports.retell.importNumber(body);
-          if (!r.ok) {
-            const msg =
-              typeof r.body?.message === "string" ? r.body.message : JSON.stringify(r.body ?? {}).slice(0, 200);
-            throw new Error(`Retell import: HTTP ${r.status} ${msg}`);
-          }
-          await save({
-            facts: {
-              ...line.facts,
-              retell_imported: true,
-              retell_number_type: typeof r.body?.phone_number_type === "string" ? r.body.phone_number_type : "custom",
-            },
-          });
-          break;
-        }
-        case "messaging": {
-          const acct = sub();
-          if (!line.messaging_service_sid) {
-            const svc = await ports.provider.createMessagingService(acct, {
-              friendlyName: `${ports.tenant.name} · Chanlytics`,
-              inboundUrl: ports.smsInboundUrl,
-            });
-            await save({ messaging_service_sid: svc.sid });
-          }
-          if (line.facts.number_in_service !== true) {
-            room();
-            await ports.provider.addNumberToService(acct, line.messaging_service_sid!, line.number_sid!);
-            await fact("number_in_service", true);
-          }
-          break;
-        }
-        case "channel": {
-          if (typeof line.facts.channel_id !== "string") {
-            const c = await ports.channel.ensure({ agentId: line.retell_agent_id!, e164: line.e164, lineId: line.id });
-            await fact("channel_id", c.channelId);
-          }
-          if (typeof line.facts.sms_channel_id !== "string") {
-            const s = await ports.smsChannel.ensure({
-              e164: line.e164,
-              lineId: line.id,
-              serviceSid: line.messaging_service_sid!,
-            });
-            await fact("sms_channel_id", s.channelId);
-          }
-          break;
-        }
-      }
+    while ((step = nextLineStep(run.line)) !== null) {
+      run.room();
+      await run.save({ step });
+      await ON_STEP[step](run);
     }
-    await save({ voice_state: "answering", step: null, last_error: null, state_since: ports.now() });
-    return { ok: true, line };
+    await run.save({ voice_state: "answering", step: null, last_error: null, state_since: ports.now() });
+    return { ok: true, line: run.line };
   } catch (e) {
     // Out of time is not a failure: the row keeps "provisioning" and its step, and the next run goes on from there.
     if (e === OUT_OF_TIME)
-      return { ok: true, later: true, step: (line.step ?? step ?? "subaccount") as LineStep, line };
+      return { ok: true, later: true, step: (run.line.step ?? step ?? "subaccount") as LineStep, line: run.line };
     const error = errorWords(e);
-    const at = (line.step ?? step ?? "subaccount") as LineStep;
-    await save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
-    return { ok: false, step: at, error, line };
+    const at = (run.line.step ?? step ?? "subaccount") as LineStep;
+    await run.save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
+    return { ok: false, step: at, error, line: run.line };
+  }
+}
+
+/** The line's own subaccount, made by the master account: its token to the vault, its SID onto the row. */
+async function subaccountStep(run: LineRun): Promise<void> {
+  const { ports } = run;
+  const name = subaccountName(ports.tenant.name, run.line.id);
+  const acct = await run.once(
+    "subaccount",
+    () => ports.provider.findSubaccount(ports.master, name),
+    () => ports.provider.createSubaccount(ports.master, name),
+  );
+  await run.putSecrets({ auth_token: acct.token });
+  await run.save({ subaccount_sid: acct.sid });
+}
+
+/** The number the owner chose, in the line's subaccount. */
+async function numberStep(run: LineRun): Promise<void> {
+  const { ports } = run;
+  // LOOK BEFORE BUYING. This is the only step that spends, and the only one
+  // whose effect the row could not vouch for: the receipt is written after
+  // the provider answers, and a saga killed in that window left a number
+  // bought, unpaid-attention-to and unreachable -- a retry would ask to buy
+  // it again and be refused for ever, because the account already owns it.
+  //
+  // Idempotent now, which is the property every other step already had.
+  const held = await ports.provider.ownedNumber(run.sub(), run.line.e164!);
+  if (!held) run.room();
+  const bought =
+    held ?? (await ports.provider.buyNumber(run.sub(), run.line.e164!, `${ports.tenant.name} · Chanlytics`));
+  await run.save({ number_sid: bought.sid, e164: bought.e164 });
+}
+
+/** The trunk's parts, in order, each skipped when the row already holds it: the trunk is ready once all six stand. */
+const TRUNK_PARTS: readonly ((run: LineRun, acct: ProviderAccount) => Promise<void>)[] = [
+  ensureTrunk,
+  ensureCredentialList,
+  ensureSipCredential,
+  ensureCredentialListAttached,
+  ensureOrigination,
+  ensureNumberAttached,
+];
+
+/** The SIP trunk that carries the line's calls to Retell, built in the line's subaccount. */
+async function trunkStep(run: LineRun): Promise<void> {
+  const acct = run.sub();
+  for (const ensure of TRUNK_PARTS) await ensure(run, acct);
+  await run.fact("trunk_ready", true);
+}
+
+/** The trunk itself, on the line's own SIP domain. */
+async function ensureTrunk(run: LineRun, acct: ProviderAccount): Promise<void> {
+  if (run.line.trunk_sid) return;
+  const { ports } = run;
+  const domainName = trunkDomain(run.line.id);
+  const t = await run.once(
+    "trunk",
+    () => ports.provider.findTrunk(acct, domainName),
+    () => ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} · Chanlytics`, domainName }),
+  );
+  await run.save({ trunk_sid: t.sid, termination_uri: t.domainName });
+}
+
+/** The credential list the trunk knows Retell by. */
+async function ensureCredentialList(run: LineRun, acct: ProviderAccount): Promise<void> {
+  if (run.line.credential_list_sid) return;
+  const { ports } = run;
+  const name = `${ports.tenant.name} · Chanlytics`;
+  const cl = await run.once(
+    "credential_list",
+    () => ports.provider.findCredentialList(acct, name),
+    () => ports.provider.createCredentialList(acct, name),
+  );
+  await run.save({ credential_list_sid: cl.sid });
+}
+
+/** The SIP credential Retell presents, in the list; its password is drawn here and kept in the vault. */
+async function ensureSipCredential(run: LineRun, acct: ProviderAccount): Promise<void> {
+  if (run.secrets.sip_password && run.secrets.sip_username) return;
+  const { ports } = run;
+  const username = sipUsername(run.line.id);
+  const password = sipPassword(ports.random);
+  if (!isValidSipPassword(password)) throw new Error("generated SIP password failed Twilio's rule");
+  // Its password went with the run that made it, and a list holds a username once: removed, made again.
+  await run.once(
+    "credential",
+    async () => {
+      const lost = await ports.provider.findCredential(acct, run.line.credential_list_sid!, username);
+      if (lost) {
+        run.room();
+        await ports.provider.deleteCredential(acct, run.line.credential_list_sid!, lost.sid);
+      }
+      return null;
+    },
+    () => ports.provider.addCredential(acct, run.line.credential_list_sid!, username, password),
+  );
+  await run.putSecrets({ sip_username: username, sip_password: password });
+}
+
+/** The credential list, on the trunk. */
+async function ensureCredentialListAttached(run: LineRun, acct: ProviderAccount): Promise<void> {
+  if (run.line.facts.credential_list_attached === true) return;
+  const { ports } = run;
+  run.room();
+  await ports.provider.attachCredentialList(acct, run.line.trunk_sid!, run.line.credential_list_sid!);
+  await run.fact("credential_list_attached", true);
+}
+
+/** Where the trunk sends the line's calls: Retell's SIP door. */
+async function ensureOrigination(run: LineRun, acct: ProviderAccount): Promise<void> {
+  if (typeof run.line.facts.origination_sid === "string") return;
+  const { ports } = run;
+  const o = await run.once(
+    "origination",
+    () => ports.provider.findOrigination(acct, run.line.trunk_sid!, RETELL_ORIGINATION),
+    () =>
+      ports.provider.addOrigination(acct, run.line.trunk_sid!, {
+        sipUrl: RETELL_ORIGINATION,
+        friendlyName: "Retell",
+      }),
+  );
+  await run.fact("origination_sid", o.sid);
+}
+
+/** The number, on the trunk. */
+async function ensureNumberAttached(run: LineRun, acct: ProviderAccount): Promise<void> {
+  if (run.line.facts.number_attached === true) return;
+  const { ports } = run;
+  run.room();
+  await ports.provider.attachNumber(acct, run.line.trunk_sid!, run.line.number_sid!);
+  await run.fact("number_attached", true);
+}
+
+/** The workspace's phone receptionist: the one it has, or a new one. */
+async function agentStep(run: LineRun): Promise<void> {
+  const { ports } = run;
+  run.room(AGENT_STEP_MORE_MS);
+  const a = await ports.agent.ensure();
+  await run.save({ retell_agent_id: a.agentId, facts: { ...run.line.facts, llm_id: a.llmId, agent_pinned: a.pinned } });
+}
+
+/** The number, imported to Retell over the trunk with its SIP credential, answered by the receptionist. */
+async function importStep(run: LineRun): Promise<void> {
+  const { ports } = run;
+  if (!run.secrets.sip_username || !run.secrets.sip_password)
+    throw new Error("the SIP credential is missing from the vault");
+  const body = retellImportBody({
+    e164: run.line.e164!,
+    terminationUri: run.line.termination_uri!,
+    username: run.secrets.sip_username,
+    password: run.secrets.sip_password,
+    agentId: run.line.retell_agent_id!,
+    pinned: run.line.facts.agent_pinned === true,
+    nickname: ports.nickname,
+    inboundWebhookUrl: ports.inboundWebhookUrl,
+  });
+  const r = await ports.retell.importNumber(body);
+  if (!r.ok) {
+    const msg = typeof r.body?.message === "string" ? r.body.message : JSON.stringify(r.body ?? {}).slice(0, 200);
+    throw new Error(`Retell import: HTTP ${r.status} ${msg}`);
+  }
+  await run.save({
+    facts: {
+      ...run.line.facts,
+      retell_imported: true,
+      retell_number_type: typeof r.body?.phone_number_type === "string" ? r.body.phone_number_type : "custom",
+    },
+  });
+}
+
+/** Texting: the line's own Messaging Service, inbound to our webhook, and the number in its sender pool. */
+async function messagingStep(run: LineRun): Promise<void> {
+  const { ports } = run;
+  const acct = run.sub();
+  if (!run.line.messaging_service_sid) {
+    const svc = await ports.provider.createMessagingService(acct, {
+      friendlyName: `${ports.tenant.name} · Chanlytics`,
+      inboundUrl: ports.smsInboundUrl,
+    });
+    await run.save({ messaging_service_sid: svc.sid });
+  }
+  if (run.line.facts.number_in_service !== true) {
+    run.room();
+    await ports.provider.addNumberToService(acct, run.line.messaging_service_sid!, run.line.number_sid!);
+    await run.fact("number_in_service", true);
+  }
+}
+
+/** The routing rows that bring the line's calls and texts back to the workspace. */
+async function channelStep(run: LineRun): Promise<void> {
+  const { ports } = run;
+  if (typeof run.line.facts.channel_id !== "string") {
+    const c = await ports.channel.ensure({
+      agentId: run.line.retell_agent_id!,
+      e164: run.line.e164!,
+      lineId: run.line.id,
+    });
+    await run.fact("channel_id", c.channelId);
+  }
+  if (typeof run.line.facts.sms_channel_id !== "string") {
+    const s = await ports.smsChannel.ensure({
+      e164: run.line.e164!,
+      lineId: run.line.id,
+      serviceSid: run.line.messaging_service_sid!,
+    });
+    await run.fact("sms_channel_id", s.channelId);
   }
 }

@@ -1120,6 +1120,14 @@ function usPhone(raw) {
   if (/^(\d)\1{9}$/.test(ten) || ten === "1234567890") return null;
   return e164;
 }
+function isSiteRoot(url) {
+  try {
+    const w = (url ?? "").trim();
+    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
+  } catch {
+    return false;
+  }
+}
 function siteHost(url) {
   if (!url) return null;
   let host;
@@ -6575,7 +6583,7 @@ function v1FromAnswer(a) {
 // src/ask/answer-format.ts
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -6731,6 +6739,14 @@ var PageContextSchema = z11.object({
   rows: z11.array(z11.object({ kind: z11.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
   askedAt: z11.number().int().nonnegative()
 }).strict();
+var isRowFocus = (k) => k !== "page" && ASK_SCOPE_KINDS.includes(k);
+function itemFocus(m, n) {
+  const item = (m.answer ?? answerFromV1(m)).show.items[n - 1];
+  if (!item) return void 0;
+  const { kind: cited, id, label } = item.source;
+  const kind = cited === "broadcast" ? "run" : cited;
+  return isRowFocus(kind) ? { kind, id, label: label.slice(0, 80) || `this ${kind}` } : null;
+}
 
 // src/templates/starter-templates.ts
 var STARTER_LANGUAGES = [
@@ -13745,20 +13761,12 @@ function rereadAt(unread2, done, receivedAt, now) {
   const at2 = (unread2 === "model_failed" || unread2 === "no_model") && done === 0 ? now + HOUR_MS : nextDay;
   return at2 > receivedAt + REPLY_REREAD_DAYS * DAY_MS ? null : at2;
 }
-function ownedDomainOf(address, website) {
+function ownedDomainOf(address, website, root = null) {
   const a = normalizeEmail(address);
   const host = siteHost(website);
-  if (!a || !host || !isSiteRoot(website)) return null;
+  if (!a || !host || root === false || !isSiteRoot(website)) return null;
   const domain = a.slice(a.lastIndexOf("@") + 1);
   return domain === host ? domain : null;
-}
-function isSiteRoot(website) {
-  try {
-    const w = (website ?? "").trim();
-    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
-  } catch {
-    return false;
-  }
 }
 var NO_EFFECT = {
   stops: false,
@@ -13832,7 +13840,7 @@ function readingPlan(reading, c) {
         ...stopped,
         saidNo: true,
         suppressFrom: writer,
-        suppressDomain: ownedDomainOf(c.leadAddress, c.leadWebsite) ?? ownedDomainOf(c.replyFrom, c.leadWebsite)
+        suppressDomain: ownedDomainOf(c.leadAddress, c.leadWebsite, c.leadWebsiteRoot) ?? ownedDomainOf(c.replyFrom, c.leadWebsite, c.leadWebsiteRoot)
       };
     case "wrong_person": {
       const readDay = zoneDayKey(c.readAt, c.tz);
@@ -14014,7 +14022,8 @@ function replyLeftAsOf(meta) {
   const went = bareAddress(email.request?.from);
   const own = bareAddress(email.own_request?.from);
   if (!went) return null;
-  return own ? `Went from ${went}: ${own} could not send it.` : `Went from ${went}.`;
+  if (!own) return `Went from ${went}.`;
+  return email.left_as_why === "domain_held" ? `Went from ${went}: ${own}'s domain is held.` : `Went from ${went}: ${own} could not send it.`;
 }
 
 // src/conversations/inbox-thread.ts
@@ -22874,359 +22883,309 @@ function smsStateRow(line, nowMs) {
       };
   }
 }
-function connectionRows(i, nowMs = Date.now()) {
-  const out = [];
+function connectionFactsOf(i, nowMs) {
   const channel = (kind) => channelFor(i.channels, kind);
-  const wa = channel("whatsapp");
+  return {
+    nowMs,
+    wa: channel("whatsapp"),
+    voice: channel("voice"),
+    own: i.lines.rows.find((l) => l.provider !== "carrier") ?? null,
+    connection: i.google?.connection ?? null,
+    listing: i.google?.listing ?? null
+  };
+}
+function whatsappRow2(i, { wa }) {
+  const base = { kind: "whatsapp", icon: "chat", title: "WhatsApp Business" };
   if (wa) {
     const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
     const flagged = wa.on && h.tone === "danger";
     const health = wa.on && h.tone !== "unknown" ? ` \xB7 ${h.label}` : "";
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: wa.number,
-        state: !wa.on ? "off" : flagged ? "attention" : "connected",
-        stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On",
-        sentence: `${wa.healthLabel}${health}`,
-        verb: { label: "Templates", to: "messages", who: "operator" }
-      })
-    );
-  } else if (i.whatsapp === void 0) {
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: "Checking whether Chanlytics can connect a number\u2026",
-        verb: null
-      })
-    );
-  } else if (i.whatsapp?.ready) {
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
-        verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" }
-      })
-    );
-  } else {
-    const why = i.whatsapp?.reason === "no_config_id" ? " \u2014 the Embedded Signup configuration is missing on the Chanlytics side" : i.whatsapp?.reason === "preview" ? " \u2014 only on the production dashboard" : "";
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: `Chanlytics isn't set up to connect numbers yet${why}.`,
-        verb: null
-      })
-    );
+    return {
+      ...base,
+      detail: wa.number,
+      state: !wa.on ? "off" : flagged ? "attention" : "connected",
+      stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On",
+      sentence: `${wa.healthLabel}${health}`,
+      verb: { label: "Templates", to: "messages", who: "operator" }
+    };
   }
-  const voice = channel("voice");
-  const own = i.lines.rows.find((l2) => l2.provider !== "carrier") ?? null;
-  if (voice) {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: voice.number,
-        state: voice.on ? "connected" : "off",
-        stateWords: voice.on ? "On" : "Off",
-        sentence: voice.healthLabel,
-        verb: null
-      })
-    );
-  } else if (own && own.voice_state === "provisioning") {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: formatPhoneDisplay(own.e164),
-        state: "waiting_them",
-        stateWords: "Waiting on us",
-        sentence: `Setting up \u2014 ${LINE_STEP_WORDS[own.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(own.state_since), nowMs)}. Usually a minute or two.`,
-        verb: null
-      })
-    );
-  } else if (own && own.voice_state === "failed") {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: formatPhoneDisplay(own.e164),
-        state: "waiting_them",
-        stateWords: "Waiting on us",
-        sentence: "Setting up stopped. A person at Chanlytics has it, or you can retry it.",
-        verb: { label: "Retry it", to: firstRunStepRoute("phone"), who: "owner" }
-      })
-    );
-  } else if (i.lineRequestedAt) {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: null,
-        state: "waiting_them",
-        stateWords: "Waiting on us",
-        sentence: `Requested ${agoWords(Date.parse(i.lineRequestedAt), nowMs)} \u2014 a person at Chanlytics will set up your line with you and reach you by email.`,
-        verb: null
-      })
-    );
-  } else if (i.lines.ready) {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: "Get a number the receptionist answers, or keep the one you have.",
-        verb: { label: "Get a line", to: firstRunStepRoute("phone"), who: "owner" }
-      })
-    );
-  } else {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: "We set up your phone line with you.",
-        verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" }
-      })
-    );
-  }
-  out.push(row(smsStateRow(own, nowMs)));
-  const g = i.google;
-  const c = g?.connection ?? null;
-  const l = g?.listing ?? null;
-  if (c && c.location_name) {
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: c.location_title,
-        state: c.sync_error ? "attention" : "connected",
-        stateWords: c.sync_error ? "Could not sync" : "Connected",
-        sentence: connectionWords(c, nowMs),
-        verb: { label: "Disconnect", to: "verb:google-disconnect", who: "owner" }
-      })
-    );
-  } else if (c) {
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: null,
-        state: "waiting_you",
-        stateWords: "Waiting on you",
-        sentence: `${connectionWords(c, nowMs)}.`,
-        verb: null,
-        body: "google_choose"
-      })
-    );
-  } else if (g?.ready.profile) {
-    const note = googleAudienceWords(g.ready.audience);
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: `Sign in to Google once; every review and the right to answer them follow.${note ? ` ${note}` : ""}`,
-        verb: { label: "Connect Google", to: "verb:google-connect", who: "owner" }
-      })
-    );
-  } else {
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: null,
-        state: "later",
-        stateWords: "Later",
-        sentence: "Every review and the replies you send from Reports arrive with the Business Profile connection.",
-        verb: null
-      })
-    );
-  }
-  if (l) {
-    out.push(
-      row({
-        kind: "google_listing",
-        icon: "star",
-        title: "Your listing on Google",
-        detail: l.address,
-        state: l.check_error ? "attention" : "connected",
-        stateWords: l.check_error ? "Could not be read" : "Watched",
-        sentence: `${listingLine(l)} \xB7 ${checkedWords(l, nowMs)}`,
-        verb: { label: c && c.location_name ? "Sync now" : "Check now", to: "verb:google-check", who: "operator" }
-      })
-    );
-  } else if (g?.ready.places) {
-    out.push(
-      row({
-        kind: "google_listing",
-        icon: "star",
-        title: "Your listing on Google",
-        detail: null,
-        state: "none",
-        stateWords: "Not watched",
-        sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
-        verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE, who: "owner" }
-      })
-    );
-  } else {
-    out.push(
-      row({
-        kind: "google_listing",
-        icon: "star",
-        title: "Your listing on Google",
-        detail: null,
-        state: "later",
-        stateWords: "Later",
-        sentence: "Your public listing on Google Maps, read once a day for new reviews.",
-        verb: null
-      })
-    );
-  }
-  const cal = i.calendar?.state ?? "none";
-  if (cal === "ok") {
-    out.push(
-      row({
-        kind: "calendar",
-        icon: "calendar",
-        title: "Calendar",
-        detail: "iCal feed",
-        state: "connected",
-        stateWords: CALENDAR_FEED_WORDS.ok,
-        sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.",
-        verb: { label: "Open Calendar", to: "calendar", who: "operator" }
-      })
-    );
-  } else if (cal === "unavailable") {
-    out.push(
-      row({
-        kind: "calendar",
-        icon: "calendar",
-        title: "Calendar",
-        detail: "iCal feed",
-        state: "attention",
-        stateWords: CALENDAR_FEED_WORDS.unavailable,
-        sentence: "Your calendar could not be read. Check the address in Settings \u203A Business.",
-        verb: { label: "Check the address", to: "admin/workspace", who: "owner" }
-      })
-    );
-  } else {
-    out.push(
-      row({
-        kind: "calendar",
-        icon: "calendar",
-        title: "Calendar",
-        detail: null,
-        state: "none",
-        stateWords: CALENDAR_FEED_WORDS.none,
-        sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.",
-        verb: { label: "Paste the address", to: "admin/workspace", who: "owner" }
-      })
-    );
-  }
-  out.push(
-    row({
-      kind: "instagram",
-      icon: "instagram",
-      title: "Instagram",
+  if (i.whatsapp === void 0) {
+    return {
+      ...base,
       detail: null,
-      state: "later",
-      stateWords: "Later",
-      sentence: "Direct messages, answered by the receptionist like WhatsApp.",
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Checking whether Chanlytics can connect a number\u2026",
       verb: null
-    })
-  );
+    };
+  }
+  if (i.whatsapp?.ready) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
+      verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" }
+    };
+  }
+  const why = i.whatsapp?.reason === "no_config_id" ? " \u2014 the Embedded Signup configuration is missing on the Chanlytics side" : i.whatsapp?.reason === "preview" ? " \u2014 only on the production dashboard" : "";
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: "Not connected",
+    sentence: `Chanlytics isn't set up to connect numbers yet${why}.`,
+    verb: null
+  };
+}
+function phoneRow(i, { voice, own, nowMs }) {
+  const base = { kind: "phone", icon: "phone", title: "Phone line" };
+  if (voice) {
+    return {
+      ...base,
+      detail: voice.number,
+      state: voice.on ? "connected" : "off",
+      stateWords: voice.on ? "On" : "Off",
+      sentence: voice.healthLabel,
+      verb: null
+    };
+  }
+  if (own && own.voice_state === "provisioning") {
+    return {
+      ...base,
+      detail: formatPhoneDisplay(own.e164),
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: `Setting up \u2014 ${LINE_STEP_WORDS[own.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(own.state_since), nowMs)}. Usually a minute or two.`,
+      verb: null
+    };
+  }
+  if (own && own.voice_state === "failed") {
+    return {
+      ...base,
+      detail: formatPhoneDisplay(own.e164),
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: "Setting up stopped. A person at Chanlytics has it, or you can retry it.",
+      verb: { label: "Retry it", to: firstRunStepRoute("phone"), who: "owner" }
+    };
+  }
+  if (i.lineRequestedAt) {
+    return {
+      ...base,
+      detail: null,
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: `Requested ${agoWords(Date.parse(i.lineRequestedAt), nowMs)} \u2014 a person at Chanlytics will set up your line with you and reach you by email.`,
+      verb: null
+    };
+  }
+  if (i.lines.ready) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Get a number the receptionist answers, or keep the one you have.",
+      verb: { label: "Get a line", to: firstRunStepRoute("phone"), who: "owner" }
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: "Not connected",
+    sentence: "We set up your phone line with you.",
+    verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" }
+  };
+}
+function smsRow(_i, { own, nowMs }) {
+  return smsStateRow(own, nowMs);
+}
+function googleProfileRow(i, { connection: c, nowMs }) {
+  const g = i.google;
+  const base = { kind: "google_profile", icon: "shield", title: "Google Business Profile" };
+  if (c && c.location_name) {
+    return {
+      ...base,
+      detail: c.location_title,
+      state: c.sync_error ? "attention" : "connected",
+      stateWords: c.sync_error ? "Could not sync" : "Connected",
+      sentence: connectionWords(c, nowMs),
+      verb: { label: "Disconnect", to: "verb:google-disconnect", who: "owner" }
+    };
+  }
+  if (c) {
+    return {
+      ...base,
+      detail: null,
+      state: "waiting_you",
+      stateWords: "Waiting on you",
+      sentence: `${connectionWords(c, nowMs)}.`,
+      verb: null,
+      body: "google_choose"
+    };
+  }
+  if (g?.ready.profile) {
+    const note = googleAudienceWords(g.ready.audience);
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: `Sign in to Google once; every review and the right to answer them follow.${note ? ` ${note}` : ""}`,
+      verb: { label: "Connect Google", to: "verb:google-connect", who: "owner" }
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Every review and the replies you send from Reports arrive with the Business Profile connection.",
+    verb: null
+  };
+}
+function googleListingRow(i, { connection: c, listing: l, nowMs }) {
+  const g = i.google;
+  const base = { kind: "google_listing", icon: "star", title: "Your listing on Google" };
+  if (l) {
+    return {
+      ...base,
+      detail: l.address,
+      state: l.check_error ? "attention" : "connected",
+      stateWords: l.check_error ? "Could not be read" : "Watched",
+      sentence: `${listingLine(l)} \xB7 ${checkedWords(l, nowMs)}`,
+      verb: { label: c && c.location_name ? "Sync now" : "Check now", to: "verb:google-check", who: "operator" }
+    };
+  }
+  if (g?.ready.places) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not watched",
+      sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
+      verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE, who: "owner" }
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Your public listing on Google Maps, read once a day for new reviews.",
+    verb: null
+  };
+}
+function calendarRow2(i) {
+  const cal = i.calendar?.state ?? "none";
+  const base = { kind: "calendar", icon: "calendar", title: "Calendar" };
+  if (cal === "ok") {
+    return {
+      ...base,
+      detail: "iCal feed",
+      state: "connected",
+      stateWords: CALENDAR_FEED_WORDS.ok,
+      sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.",
+      verb: { label: "Open Calendar", to: "calendar", who: "operator" }
+    };
+  }
+  if (cal === "unavailable") {
+    return {
+      ...base,
+      detail: "iCal feed",
+      state: "attention",
+      stateWords: CALENDAR_FEED_WORDS.unavailable,
+      sentence: "Your calendar could not be read. Check the address in Settings \u203A Business.",
+      verb: { label: "Check the address", to: "admin/workspace", who: "owner" }
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: CALENDAR_FEED_WORDS.none,
+    sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.",
+    verb: { label: "Paste the address", to: "admin/workspace", who: "owner" }
+  };
+}
+function instagramRow() {
+  return {
+    kind: "instagram",
+    icon: "instagram",
+    title: "Instagram",
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Direct messages, answered by the receptionist like WhatsApp.",
+    verb: null
+  };
+}
+function emailRow2(i, { nowMs }) {
+  const base = { kind: "email", icon: "mail", title: "Email" };
   const mailbox = i.email?.mailbox ?? null;
   if (mailbox) {
     const last = mailbox.last_received_at ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.` : "";
     const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
     const heldDomains = (i.email?.sending?.domains ?? []).filter((d) => d.state === "held").length;
-    out.push(
-      row({
-        kind: "email",
-        icon: "mail",
-        title: "Email",
-        detail: mailbox.address,
-        state: mailbox.last_error || heldDomains ? "attention" : "connected",
-        stateWords: mailbox.last_error ? "Waiting on us" : heldDomains ? `On \xB7 ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held` : "On",
-        sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
-        verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
-        body: "email_setup"
-      })
-    );
-  } else if (i.email?.ready) {
-    out.push(
-      row({
-        kind: "email",
-        icon: "mail",
-        title: "Email",
-        detail: null,
-        state: "none",
-        stateWords: "Not set up",
-        sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
-        verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
-        body: "email_setup"
-      })
-    );
-  } else {
-    out.push(
-      row({
-        kind: "email",
-        icon: "mail",
-        title: "Email",
-        detail: null,
-        state: "later",
-        stateWords: "Later",
-        sentence: "An address customers write to, answered from your Inbox.",
-        verb: null
-      })
-    );
+    return {
+      ...base,
+      detail: mailbox.address,
+      state: mailbox.last_error || heldDomains ? "attention" : "connected",
+      stateWords: mailbox.last_error ? "Waiting on us" : heldDomains ? `On \xB7 ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held` : "On",
+      sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
+      verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
+      body: "email_setup"
+    };
   }
-  out.push(
-    row({
-      kind: "deposits",
-      icon: "money",
-      title: "Deposits",
+  if (i.email?.ready) {
+    return {
+      ...base,
       detail: null,
-      state: "later",
-      stateWords: "Later",
-      sentence: "Deposits and payments taken by the receptionist.",
-      verb: null
-    })
-  );
-  return out.sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
+      state: "none",
+      stateWords: "Not set up",
+      sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
+      verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
+      body: "email_setup"
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "An address customers write to, answered from your Inbox.",
+    verb: null
+  };
+}
+function depositsRow() {
+  return {
+    kind: "deposits",
+    icon: "money",
+    title: "Deposits",
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Deposits and payments taken by the receptionist.",
+    verb: null
+  };
+}
+var ROW_BUILDERS = [
+  whatsappRow2,
+  phoneRow,
+  smsRow,
+  googleProfileRow,
+  googleListingRow,
+  calendarRow2,
+  instagramRow,
+  emailRow2,
+  depositsRow
+];
+function connectionRows(i, nowMs = Date.now()) {
+  const facts = connectionFactsOf(i, nowMs);
+  return ROW_BUILDERS.map((build) => row(build(i, facts))).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
 }
 var CONNECTION_GROUP_WORDS = {
   connected: {
@@ -28696,6 +28655,7 @@ export {
   cleanParam,
   cleanPartnerCode,
   cleanTimezone,
+  clip,
   clipAtWord,
   clockDate,
   clockDateYear,
@@ -28962,6 +28922,7 @@ export {
   isReplyUndoRefusal,
   isSellsBy,
   isSidebarPref,
+  isSiteRoot,
   isThemePref,
   isTimezone,
   isTypingTarget,
@@ -28971,6 +28932,7 @@ export {
   isUuid,
   isWaitRefusal,
   isYes,
+  itemFocus,
   jobNewsWords,
   judgeAsked,
   judgeDomain,

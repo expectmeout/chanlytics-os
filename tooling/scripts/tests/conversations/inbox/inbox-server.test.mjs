@@ -373,7 +373,7 @@ globalThis.window = {
 };
 const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
-const { inboxOverride } = await quiet(() => import(at("apps/dashboard/src/legacy-bridge/surface-data.ts")));
+const { inboxOverride } = await quiet(() => import(at("apps/dashboard/src/legacy-bridge/surfaces/inbox.ts")));
 
 test("the bridge asks once for every escalated thread past the newest hundred, and says how many it could not read", async () => {
   const dtoConv = (id) => ({
