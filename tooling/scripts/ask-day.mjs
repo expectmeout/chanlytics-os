@@ -50,18 +50,23 @@ async function page(path) {
 
 const since = new Date(Date.now() - HOURS * 3600 * 1000).toISOString();
 const tenantFilter = TENANT ? `&tenant_id=eq.${TENANT}` : "";
-/** Every assistant turn in the window and the model that answered it; turns from before Phase 0 carry no shape. */
+/**
+ * Every assistant turn in the window and the model that answered it; turns from before Phase 0 carry no shape. The
+ * three keys of the row's content read here, each by its JSON path: an answer's content also holds the turn as the
+ * model was sent it (content.raw, the Phase 5 plan, D11), which a whole read would download for every turn.
+ */
 const all = (
   await page(
     `ask_messages?role=eq.assistant&created_at=gte.${encodeURIComponent(since)}${tenantFilter}` +
-      `&select=tenant_id,content,created_at&order=created_at.asc`,
+      `&select=tenant_id,created_at,model:content->model,shape:content->shape,failed:content->failed` +
+      `&order=created_at.asc`,
   )
 ).map((r) => ({
   tenant: r.tenant_id,
   at: r.created_at,
-  model: r.content?.model ?? "?",
-  shape: r.content?.shape ?? null,
-  failed: r.content?.failed === true,
+  model: r.model ?? "?",
+  shape: r.shape ?? null,
+  failed: r.failed === true,
 }));
 /** The turns that carry a shape: the table's rows. */
 const turns = all.filter((t) => t.shape && t.shape.v === 1);

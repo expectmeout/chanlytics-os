@@ -148,10 +148,18 @@ const run = (root, state) =>
   );
 
 /**
- * A business a reach-out wrote to: its person, its lead (website `website`), the chain, the email that left from
- * SEND_HOST `sentAgo` ago, and its send. `later` plans a second step's send in a live run, and holds a third.
+ * A business a reach-out wrote to: its person, its lead (website `website`, and whether the finder saw it as the host's
+ * root, 00237), the chain, the email that left from SEND_HOST `sentAgo` ago, and its send. `later` plans a second
+ * step's send in a live run, and holds a third.
  */
-async function wroteTo({ host, website = host, stage = "nurture", sentAgo = HOUR, later = false } = {}) {
+async function wroteTo({
+  host,
+  website = host,
+  websiteRoot = null,
+  stage = "nurture",
+  sentAgo = HOUR,
+  later = false,
+} = {}) {
   n += 1;
   const address = `office-${n}@${host}`;
   const person = await one(db.from("contacts").insert({ tenant_id: A, email: address, display_name: `Fixture ${n}` }));
@@ -167,6 +175,7 @@ async function wroteTo({ host, website = host, stage = "nurture", sentAgo = HOUR
       stage,
       contact_id: person,
       website_host: website,
+      website_root: websiteRoot,
     }),
   );
   const root = await chain();
@@ -326,6 +335,7 @@ async function readAs(messageId, answer, { reread = 0, unread = "model_failed", 
     business: of.business,
     leadAddress: of.lead_email,
     leadWebsite: of.lead_website,
+    leadWebsiteRoot: of.lead_website_root,
     replyFrom: of.from,
     reread: reread > 0,
     readAt,
@@ -564,6 +574,23 @@ test("no, from an ISP's address: the addresses on the list and never the ISP's d
   assert.equal(await held(`someone-else@${isp}`), false, "another customer of the ISP is not held");
   assert.deepEqual(await rowsFor("domain", isp), []);
 });
+
+test(
+  "no, from a page under an ISP's host (00237): the finder saw the page, so the host's domain stays open",
+  { skip },
+  async () => {
+    const isp = `pages-${stamp}.example`;
+    // The lead's website was isp/~dana/: it keeps the host alone, and the finder's word that it was a page under it.
+    const ro = await wroteTo({ host: isp, websiteRoot: false });
+    const msg = await replied(ro);
+    assert.deepEqual([(await replyOf(msg)).lead_website, (await replyOf(msg)).lead_website_root], [isp, false]);
+    const { plan } = await readAs(msg, NO);
+    assert.equal(plan.suppressDomain, null);
+    assert.equal(await held(ro.address), true, "the address itself is closed");
+    assert.equal(await held(`someone-else@${isp}`), false, "another customer of the host is not");
+    assert.deepEqual(await rowsFor("domain", isp), []);
+  },
+);
 
 test("wrong person: a step due today on the lead's person, naming who", { skip }, async () => {
   const ro = await wroteTo({ host: `wrong-${stamp}.example` });
