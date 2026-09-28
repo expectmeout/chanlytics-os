@@ -1237,7 +1237,39 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** the dashboard only, after PR 6's routes.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `bf860170`). What departed from the tasks, and why:
+>
+> - **The surface is the Inbox's only.** `ROUTE_DRAWS.inbox` gains `reach_out_replies`; Today's draws take it in PR 8, which draws it, because `surface-boot.test.mjs` pins Today's draws to what Today reads. `packages/db/src/realtime.ts` names the table (00222 published it), and the undo reads the readings, the thread, Today and Leads again (`refresh-map.ts`).
+> - **The list carries what the words need.** PR 6's DTO gains:
+>   - `rereads`, so the strip knows the last try;
+>   - `said_no` (the plan's `suppressFrom` and `suppressDomain`);
+>   - `step_day` (the plan's step);
+>   - `until_at`.
+>
+>   The answer gains `mailbox`, the mailbox's address. `ReplyFrom`'s held and removed arms name the own address they would have gone from.
+> - **The words are contracts'** (`reach-out-reply-words.ts`): `replyStripOf`, `replyChipOf`, `replyFromLineOf`, `replyLeftAsOf`, and a no's sentence in `replyNoticeWords`. Where the plan's cases left a word open:
+>   - a not-now's draft is "a line of thanks";
+>   - a draft still waiting says "The receptionist is drafting an answer.";
+>   - `other` says nothing under its title.
+> - **The composer's line is drawn under the strip**, not inside the composer, so `Composer` takes one line (the draft's door) and nothing more. It shows only for a thread with a reading, which is every thread an own domain can answer.
+> - **A sent reply's "Went from…" rides the bubble's existing note** (`entry.leftOut`, which already says what an email left out): `toInboxThreadVM` asks `replyLeftAsOf` when there is nothing else to say. No page line.
+> - **`__replies` publishes `readingOf` and `stripFor`** beside the plan's names:
+>   - `stripFor(thread)` is the strip or null: null when no reading, or when a person's reply is newer than the reading on the thread's own timeline;
+>   - `readingOf` is what the row's chip and the seed read.
+> - **"Use the draft" is a window event** (`inbox:use-draft`) that the composer's door (`useReplyDraftDoor`, in `reply-strip.jsx`) takes for its own thread, into the composer's own writer. Nothing reaches into the composer's state from outside.
+> - **The pages stay at their length, with one guarded line each.**
+>   - `inbox-thread.jsx` is one line shorter, because the comment above the composer was reflowed.
+>   - The guard is the component's presence on window, because the Inbox's many tests load these pages without `reply-strip.jsx`. Each guard is a branch, and the rises are rows in `docs/debt.md`: `InboxThread` +2 branches, `Composer` +1 line and +1 branch, `InboxList` +1 line, its row +1 line and +1 branch.
+>   - The new keys and files were raised with `UPDATE_BASELINES=raise` (`bank()` never writes a new key): globals `__REPLIES`, `__replies`, `__clock` +1, and publishers `reach-out/replies.ts`, `reply-strip.jsx`.
+> - **Gates are `approve`**, as every Inbox control's is. The role table has no `inbox` permission.
+> - **Tests:**
+>   - `reach-out-replies/reply-words.test.mjs` (10);
+>   - `reach-out-replies/reply-strip-page.test.mjs` (9, the legacy harness over the real bridge with the undo stubbed);
+>   - `reply-routes.test.mjs` (the new facts);
+>   - `reply-freeze.test.mjs` (the own address named).
+>
+> - **The workspace route's budget holds.** The strip, its bridge and its words add 1.9 KB gzipped; on the branch's first base that took the route past its band, and the budget was raised, until `main` took the demo off the route (#1210) and the rise was merged away.
+> - **A Part 4 test failed by the clock**, not by this change: `reach-out-approval.test.mjs` expected a run's first send as a bare time, which from 10 PM to midnight in Chicago is tomorrow's. It now says it as the page does (`firstSendWhen`).
 
 ### Task 7.1: The surface
 
