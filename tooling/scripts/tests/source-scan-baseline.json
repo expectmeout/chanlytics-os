@@ -59,7 +59,7 @@
     "playbooks/playbooks.test.mjs": 22,
     "playbooks/visit-playbooks.test.mjs": 5,
     "public/business-page.test.mjs": 10,
-    "receptionist/brain-v2.test.mjs": 9,
+    "receptionist/brain-v2.test.mjs": 8,
     "receptionist/eval-harness.test.mjs": 7,
     "receptionist/policies/policy-classes.test.mjs": 6,
     "receptionist/prompt/business-clock.test.mjs": 4,

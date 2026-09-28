@@ -38,7 +38,14 @@ import {
   blockIn,
   writeBlock,
 } from "../_ratchet.mjs";
-import { MEASURES, sourceScan, bankedSourceScan, SOURCE_SCAN_BASELINE } from "../_measures.mjs";
+import {
+  MEASURES,
+  WIRE_CASING,
+  wireCounts,
+  sourceScan,
+  bankedSourceScan,
+  SOURCE_SCAN_BASELINE,
+} from "../_measures.mjs";
 
 const REGISTER = "docs/debt.md";
 /** The pages that print the numbers: the register, and the takeover checklist scored from it. */
@@ -65,6 +72,7 @@ function blockFrom(by, scanCounts) {
   const lint = readBaseline("lint-warnings.json") ?? {};
   const budget = readBaseline("bundle-budget.json") ?? {};
   const effects = Object.values(lint).reduce((a, rules) => a + (rules["react-hooks/exhaustive-deps"] ?? 0), 0);
+  const wire = wireCounts(by["wire-casing.json"]);
   const rows = [
     ["functions over the limit", keys(complexity), `of which over 200 lines: ${over200}`],
     ["files over 800 lines", keys(by["file-length.json"]), ""],
@@ -82,6 +90,7 @@ function blockFrom(by, scanCounts) {
       `selectors naming ${keys(by["kit-primitives.json"])} classes`,
     ],
     ["inline style props", total(by["inline-styles.json"]), `in ${keys(by["inline-styles.json"])} files`],
+    ["wire names not in snake_case", wire.names, `in ${wire.routes} routes`],
     ["dead exports, types and modules", total(readBaseline("dead-exports.json")), ""],
     ["source-text reads in tests", total(scanCounts), ""],
     [
@@ -103,11 +112,18 @@ const sourceScanBaseline = () => JSON.parse(readPage(SOURCE_SCAN_BASELINE));
 const fromFiles = () =>
   blockFrom(Object.fromEntries(baselineFiles.map((f) => [f, readBaseline(f)])), sourceScanBaseline().counts);
 
-/** What the bank is writing: each measure banked against its baseline, as its ratchet banks it. */
+/**
+ * What the bank is writing: each measure banked against its baseline, as its ratchet banks it. The wire's among them,
+ * though its ratchet is a file of its own (routes/wire-casing.test.mjs): it builds the dashboard's program, which this
+ * file asks for only when it banks.
+ */
 const fromBank = () =>
   blockFrom(
     Object.fromEntries(
-      MEASURES.map((m) => [m.file, bank(m.measure(), readBaseline(m.file), { mode: m.mode, raise: RAISE })]),
+      [...MEASURES, WIRE_CASING].map((m) => [
+        m.file,
+        bank(m.measure(), readBaseline(m.file), { mode: m.mode, raise: RAISE }),
+      ]),
     ),
     bankedSourceScan(sourceScan().counts, sourceScanBaseline(), RAISE),
   );
