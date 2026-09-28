@@ -1016,7 +1016,30 @@ An automatic out-of-office pauses a chain until the day it names (G8). A person'
 
 **Reverting** the edge after PR 6: every reply leaves as the mailbox's request, which is N5's rule.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `df9487f7`). What departed from the tasks, and why:
+>
+> - **The refusal's words have no day.** `DELIVERY_REFUSALS` holds fixed sentences, and a canceled row keeps only its reason. The words are "Away: their automatic reply says they're out. This email waits, and goes to them after the day they're back." The day stays on the reading (`reach_out_replies.until_at`), where the Inbox shows it (PR 7). A run's line says "away until the day they're back" (`HELD_REASONS`).
+> - **The reading door is not re-created.** An automatic away's plan names `skipSends: 'outreach_away'`, as PR 3 left it, but `reach_out_reply_apply` still executes only `outreach_wrote_back`. The send door and the clock do the skip instead:
+>   - a claimed send whose lead is away is refused `outreach_away` through `outreachRefusalOf`, which the run maps to `skipped`;
+>   - the followers leave the lead out while the day is ahead;
+>   - after the day, they take the lead back past that skip, and past no other.
+>
+>   This is one skip, made where the facts are read at the moment of sending, rather than a second one made by the reading.
+> - **The away fact has two arms**, by contact and by the send's own lead. An out-of-office from another address of the business (the office's, answering a person's cold email) pauses that lead too.
+> - **`stamp_email_left_as` is new in 00223.** It is how the door records `left_as` and its reason: one statement merged into `meta.email`, like 00128's `stamp_email_sent`. It writes only an outbound email, only `own` or `mailbox`, and only a reason of up to 60 characters. The Message-ID of the request that left still arrives through the receipt, as for every email: both requests are frozen under the row's id, so the receipt finds the row either way. A failed stamp is logged (`deliver_left_as_failed`) and never thrown, because the words already left.
+> - **The reply's twin must be frozen for the same row.** The door refuses an `ownEmail` whose `idempotency_key` is not the row's id, as it refuses such an `email`. The wire (`emailSender`) sends the twin only when:
+>   - the payload says `reply`;
+>   - its purpose is not outreach;
+>   - an own route's address is the twin's From;
+>   - that route's `requestLeavesAs` holds.
+>
+>   The reasons when it cannot are `no_own_route`, `domain_has_no_route`, `twin_names_another_recipient` and `route_refuses_twin`.
+> - **Where the code went.** The senders (`whatsappSender`, `emailSender`, `EmailRoute`) moved from `deliver.ts` to `packages/core/src/wire-senders.ts`, still exported by name from core's index. `deliver()` put its frozen-row check (`assertFrozenFor`) and its wire call (`putOnWire`) in helpers. This keeps the file under 800 lines and the function under its banked size (now 160 lines and 31 branches, banked down from 175 and 38).
+> - **Where the tests went.**
+>   - The own-domain tests are in `messages/deliver.test.mjs`, beside the wire they prove, rather than a new `reach-out-replies/reply-own-domain.test.mjs`.
+>   - `reach-out-stops/stop-skips.test.mjs` is not written. The away skip is proven in `reach-out/core-run-reach-out.test.mjs` (a follower whose facts say away is skipped `outreach_away`) and on the stack. `outreach_lead_closed` is PR 9's to prove.
+>   - `reach-out-stops/reply-away.db.test.mjs` also proves the away arm by lead, and `stamp_email_left_as`.
+> - **Microsoft 365's out-of-office still stops a chain rather than pausing it** (fixture 14, still modeled). Exchange Online's headers, as documented, carry `Auto-Submitted: auto-generated` and no `X-Autoreply`, so `classifyReceived` claims it `automated`, not `auto_reply`. Only `auto_reply` pauses (N1), so such a chain is stopped, with a step for the day they are back. That is the safe direction: it never sends more. Widening the pause to Exchange's headers waits for a capture from a live mailbox, which is still owed. It is a change to `classifyReceived` alone, with no migration.
 
 ### Task 4.1: The migration
 
