@@ -10,11 +10,10 @@
  * and nothing else).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ASK_MAX_TOKENS, ASK_MODELS, DAY_MS } from "./packages/contracts.js";
+import { ASK_MAX_TOKENS, ASK_MODELS } from "./packages/contracts.js";
 import type { Database, Json } from "./packages/db.js";
 import { emitEvent } from "./packages/db.js";
 import { logger, errField } from "./log.js";
-import { readAllRows } from "./paged.js";
 
 export const ASK_USAGE_KIND = "usage.ask_tokens" as const;
 
@@ -27,28 +26,16 @@ export interface AskUsage {
 
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
-/** Ask's tokens in the last day, this workspace. Read failures count as zero, never as a refusal. */
+/**
+ * Ask's tokens in the last day, this workspace: input plus output of every usage.ask_tokens event of the last 24
+ * hours, summed in one statement (ask_tokens_day, 00239). Read failures count as zero, never as a refusal.
+ */
 export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number> {
   const L = logger({ tenant: tenantId });
   try {
-    // Every turn of the day, a page at a time: `.limit(2000)` was capped at PostgREST's 1,000 rows, so a day past a
-    // thousand turns was under-counted and the budget let the platform key spend on.
-    const since = new Date(Date.now() - DAY_MS).toISOString();
-    const rows = await readAllRows("ask usage, last day", (from, to) =>
-      db
-        .from("events")
-        .select("data")
-        .eq("tenant_id", tenantId)
-        .eq("kind", ASK_USAGE_KIND)
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .order("id")
-        .range(from, to),
-    );
-    return rows.reduce((sum, r) => {
-      const d = (r.data ?? {}) as Record<string, unknown>;
-      return sum + num(d.input_tokens) + num(d.output_tokens);
-    }, 0);
+    const { data, error } = await db.rpc("ask_tokens_day", { p_tenant: tenantId });
+    if (error) throw new Error(`ask_tokens_day: ${error.message}`);
+    return num(Number(data));
   } catch (e) {
     L.error("ask_budget_read_failed", { error: errField(e) });
     return 0;
