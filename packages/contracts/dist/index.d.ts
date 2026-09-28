@@ -883,13 +883,13 @@ declare const INSTRUCTIONS_MAX = 20000;
 declare const BusinessProfileSchema: z.ZodObject<{
     address: z.ZodOptional<z.ZodString>;
     hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+        sun: "sun";
         mon: "mon";
         tue: "tue";
         wed: "wed";
         thu: "thu";
         fri: "fri";
         sat: "sat";
-        sun: "sun";
     }> & z.core.$partial, z.ZodObject<{
         open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
         close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -2026,13 +2026,13 @@ declare const TenantConfigSchema: z.ZodObject<{
         profile: z.ZodOptional<z.ZodObject<{
             address: z.ZodOptional<z.ZodString>;
             hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+                sun: "sun";
                 mon: "mon";
                 tue: "tue";
                 wed: "wed";
                 thu: "thu";
                 fri: "fri";
                 sat: "sat";
-                sun: "sun";
             }> & z.core.$partial, z.ZodObject<{
                 open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                 close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -2130,13 +2130,13 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
         profile: z.ZodOptional<z.ZodObject<{
             address: z.ZodOptional<z.ZodString>;
             hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+                sun: "sun";
                 mon: "mon";
                 tue: "tue";
                 wed: "wed";
                 thu: "thu";
                 fri: "fri";
                 sat: "sat";
-                sun: "sun";
             }> & z.core.$partial, z.ZodObject<{
                 open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                 close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -4204,21 +4204,6 @@ interface TemplateSentWords {
  */
 declare function templateSentWords(s: TemplateSends | null | undefined, tz: string, nowMs: number): TemplateSentWords;
 
-/**
- * Read-only availability: what is open, from a calendar feed and the rules.
- *
- * The receptionist never books. It may SEE the calendar — the owner's
- * appointments as an iCal feed, which every booking tool that syncs to
- * Google, Apple or Outlook can produce (Booksy Biz syncs two-way with Google
- * and Apple; Calendly, Square and the rest do the same) — subtract what is
- * taken from the opening hours, apply the owner's booking rules, and say
- * which windows are open before sending the booking link. The link is the
- * only way anything gets booked, whatever provider stands behind it.
- *
- * Pure: the feed text comes in, the windows come out, nothing is fetched
- * here. The edge fetches and caches; tests feed fixtures.
- */
-
 /** A taken stretch of time, epoch milliseconds. */
 interface BusyBlock {
     start: number;
@@ -4267,56 +4252,6 @@ interface ParseOptions {
         to: number;
     };
 }
-/** Offset of `tz` from UTC at the instant `atMs`, in milliseconds. */
-declare function zoneOffsetMs(tz: string, atMs: number): number;
-/** The instant a wall-clock time in `tz` refers to. Two passes cover a DST edge. */
-declare function localToUtcMs(tz: string, y: number, m: number, d: number, hh: number, mm: number): number;
-/** The wall clock of an instant in `tz`. */
-declare function clockInZone(tz: string, atMs: number): {
-    hh: number;
-    mm: number;
-    ss: number;
-};
-/** "YYYY-MM-DD" and the weekday key ("mon".."sun") of an instant in `tz`. */
-declare function dayInZone(tz: string, atMs: number): {
-    key: string;
-    weekday: string;
-    y: number;
-    m: number;
-    d: number;
-};
-/** The weekday keys in the order getUTCDay() numbers them, which is Sunday first. */
-/** The days of the week by their number from Sunday (Date.getUTCDay, and Google's Point.day). */
-declare const WEEKDAY_KEYS: readonly ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-/**
- * The local day `days` after the one `atMs` falls on -- BY THE CALENDAR, not by
- * the clock.
- *
- * THE DEFECT THIS EXISTS FOR. Every one of these used to be written as
- * `dayInZone(tz, now + n * 86_400_000)`: add a fixed number of milliseconds,
- * then ask which local day that landed on. Two days a year that is not the
- * next day. On 8 March 2026 New York loses an hour, so a customer asking at
- * 23:30 the night before was offered 9 March next and **8 March was never
- * offered at all**; on 1 November it gains one, so a read at 00:30 emitted
- * 1 November twice and lost a day off the far end of the horizon. Nobody sees
- * an error: the receptionist simply says the wrong days out loud.
- *
- * A calendar day is a count of days, so it is counted in days. The date is
- * read in the business's zone, stepped over UTC midnights (which never shift),
- * and handed back as a date -- no instant is carried across the boundary, so
- * there is nothing for an hour to move. The RRULE expander below has always
- * stepped this way, which is why a weekly appointment stays at 2 PM across a
- * change and the offered days did not. `calendar.ts shiftKey` is the twin that
- * steps a DATE to a date; this is the one that starts from an instant, which
- * is where reading "now" went wrong.
- */
-declare function dayPlusInZone(tz: string, atMs: number, days: number): {
-    key: string;
-    weekday: string;
-    y: number;
-    m: number;
-    d: number;
-};
 /**
  * The taken time in a feed. Cancelled events and events marked transparent
  * (free) are not taken. A recurring event is expanded when its rule is one a
@@ -4328,156 +4263,6 @@ declare function dayPlusInZone(tz: string, atMs: number, days: number): {
  * is what Google writes when one appointment in a weekly series is moved.
  */
 declare function parseIcs(text: string, fallbackTz: string, opts?: ParseOptions): ParsedFeed;
-interface BookingRulesLike {
-    lead_hours?: number;
-    buffer_min?: number;
-    max_days_ahead?: number;
-    slot_min?: number;
-}
-interface Opening {
-    key: string;
-    /** "mon".."sun" in the business's zone. */
-    weekday: string;
-    /** "Tuesday, September 9" */
-    label: string;
-    windows: Array<{
-        start: number;
-        end: number;
-    }>;
-}
-interface FreeWindowsInput {
-    hours: Record<string, Hours | undefined> | undefined;
-    closures?: Closure[];
-    tz: string;
-    busy: BusyBlock[];
-    rules?: BookingRulesLike | null;
-    now: Date;
-}
-/** The booking rules a workspace has until it sets its own. */
-declare const BOOKING_DEFAULTS: {
-    lead_hours: number;
-    buffer_min: number;
-    max_days_ahead: number;
-    slot_min: number;
-};
-/**
- * When a day is open, as one list of [open, close] spans.
- *
- * open/close and intervals are UNIONED, merged where they touch or overlap,
- * and a span that runs backwards is dropped. This is the ONE reader: the
- * prompt (config.ts), the free windows a caller is offered and the calendar
- * board all read a day through it. It used to have two readers -- the prompt
- * unioned the two, this one let intervals win -- so a row holding both could
- * be described two ways, and "are you open at nine?" had two answers.
- */
-declare function dayIntervals(h: Hours | undefined): Array<[string, string]>;
-declare function closedOn(closures: Closure[] | undefined, key: string): boolean;
-/**
- * The open windows, day by day: opening hours minus what is taken (each
- * taken block widened by the buffer), never earlier than now plus the lead
- * time, never shorter than one slot, never on a closed date.
- */
-declare function freeWindows(input: FreeWindowsInput): Opening[];
-/**
- * The openings a caller actually asked about: one day (a date or a weekday
- * name), and only windows long enough for the service they want. Days with
- * nothing left are dropped.
- */
-declare function filterOpenings(openings: Opening[], by: {
-    day?: string | null;
-    minMinutes?: number | null;
-}): Opening[];
-/**
- * The openings as the receptionist is told them: a few days, the windows on
- * each, and the rule that the calendar decides. Text on both channels; the
- * phone agent reads it aloud in its own words.
- *
- * `hasBookingLink` is required: what follows an opening is the link, or for a
- * business with none, the details the team needs (NO_LINK_DETAILS).
- */
-declare function describeOpenings(openings: Opening[], tz: string, opts: {
-    maxDays?: number;
-    daysAhead?: number;
-    hasBookingLink: boolean;
-}): string;
-/** A service the business lists, as far as matching one needs it. */
-interface ServiceLike {
-    name: string;
-    duration_min?: number;
-}
-declare const foldName: (s: string) => string;
-/**
- * Whether two names on one of the business's lists (its services, its languages) are one: accents, case and the space
- * around a name are not the name (foldName). The one test for "already there" on such a list: the first run's chips and
- * the Business tab's languages box both ask it, so a language chosen as "Haitian Créole" is the chip "Haitian Creole",
- * and is not offered again beside it. An empty name is no name, and the same as none. A business's own name is
- * facts.ts sameName's, which lets punctuation go too.
- */
-declare function sameListed(a: string, b: string): boolean;
-/**
- * The listed service somebody means, from what they said ("a haircut", "the
- * balayage thing", "uñas"): exact first, then one name containing the other,
- * then the service sharing the most words of four letters or more.
- *
- * One function for the phone tool and the assistant. The two copies it
- * replaced split words differently, and the phone's cut "uñas" at the ñ into
- * two pieces too short to count, so a caller asking for nails matched nothing.
- */
-declare function matchService<S extends ServiceLike>(services: readonly S[] | undefined, asked: unknown): S | null;
-/** The booking rules as far as a consultation needs them. */
-interface ConsultRules {
-    consult_first?: readonly string[];
-}
-/**
- * Whether a listed service needs a consultation before it can be booked, as Business lists them. Accents, case and the
- * spaces around a name are not the name, as in matchService; the board matched them exactly, lower-cased.
- */
-declare function needsConsultation(name: string, rules: ConsultRules | null | undefined): boolean;
-/** What an asked-for service is offered as: itself, or a consultation first. */
-interface ServiceOffer<S extends ServiceLike = ServiceLike> {
-    /** The listed service asked about. */
-    service: S;
-    /** Offered as a consultation, never as itself. */
-    consultation: boolean;
-    /** The listed service a consultation is, when the business lists one: the one sharing the service's words first. */
-    consultationService: S | null;
-    /** How long an open time has to be: the service's own length, a consultation's, or null for any open time. */
-    minMinutes: number | null;
-}
-/**
- * The one rule for a service asked about, for the phone tool, the assistant and the board. A service that needs a
- * consultation first is never offered itself: the consultation is, sized by the consultation the business lists
- * ("Consultation", "Consulta"), or any open time when it lists none. All three sized a three-hour color correction by
- * its own length while the prompt said a consultation comes first (C5b). A client is past the consultation, and is
- * offered the service itself (0004).
- */
-declare function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown, opts?: {
-    client?: boolean;
-}): ServiceOffer<S> | null;
-/**
- * The words before the open times, the phone's and the assistant's alike: a service's length, or that it needs a
- * consultation first and what is offered instead.
- */
-declare function offerLead(offer: ServiceOffer | null): string;
-
-/**
- * The people in a calendar: who an appointment is for, read from the words
- * a booking tool wrote into the owner's calendar and matched against People.
- *
- * Booksy, Square, Fresha, Acuity and Google's own appointment schedules all
- * put the client's name and the service in the title; some add a phone or
- * an email in the description, and a booking made through Google adds the
- * booker as a guest. None of it is structured, so the match goes by
- * evidence: a phone number found anywhere in the event beats an address, an
- * address beats a name, and a name only counts when it is a whole saved name
- * of four letters or more. A number and an address are exact — they are the
- * person, or nobody; a name is a guess, and a name match is the only one that
- * says so. People has held an address since 00125, so the customer a booking
- * through Google adds as a guest is now someone, not an unmatched block.
- *
- * Pure. The dashboard's calendar, the person's profile, both receptionists
- * and the tests share it, so an appointment is the same person everywhere.
- */
 
 interface EventContacts {
     /** E.164. */
@@ -5911,7 +5696,7 @@ declare const LIST_DRAFT_JSON_SCHEMA: {
                                 };
                                 readonly value: {
                                     readonly type: "string";
-                                    readonly enum: readonly ("ended" | "proposed" | "won" | "lost" | "consultation" | "needs_you" | "waiting_on_you" | "me" | "teammate" | "nobody")[];
+                                    readonly enum: readonly ("ended" | "proposed" | "won" | "lost" | "needs_you" | "consultation" | "waiting_on_you" | "me" | "teammate" | "nobody")[];
                                 };
                             };
                         };
@@ -5947,7 +5732,7 @@ declare const LIST_DRAFT_JSON_SCHEMA: {
                     };
                     readonly value: {
                         readonly type: "string";
-                        readonly enum: readonly ("ended" | "proposed" | "won" | "lost" | "consultation" | "needs_you" | "waiting_on_you" | "me" | "teammate" | "nobody")[];
+                        readonly enum: readonly ("ended" | "proposed" | "won" | "lost" | "needs_you" | "consultation" | "waiting_on_you" | "me" | "teammate" | "nobody")[];
                     };
                 };
             };
@@ -7346,6 +7131,71 @@ interface ConversationDto {
 /** The customer asked not to be contacted. Delegates to the one predicate in
  *  ./consent so the view model and every send path cannot disagree. */
 declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
+
+/**
+ * The service somebody means and what it is offered as: names folded one way (foldName, sameListed), the listed
+ * service a caller or the assistant asked for (matchService), and whether it needs a consultation first
+ * (needsConsultation, offerFor, offerLead). The phone tool, the assistant and the board read the one rule here.
+ */
+/** A service the business lists, as far as matching one needs it. */
+interface ServiceLike {
+    name: string;
+    duration_min?: number;
+}
+declare const foldName: (s: string) => string;
+/**
+ * Whether two names on one of the business's lists (its services, its languages) are one: accents, case and the space
+ * around a name are not the name (foldName). The one test for "already there" on such a list: the first run's chips and
+ * the Business tab's languages box both ask it, so a language chosen as "Haitian Créole" is the chip "Haitian Creole",
+ * and is not offered again beside it. An empty name is no name, and the same as none. A business's own name is
+ * facts.ts sameName's, which lets punctuation go too.
+ */
+declare function sameListed(a: string, b: string): boolean;
+/**
+ * The listed service somebody means, from what they said ("a haircut", "the
+ * balayage thing", "uñas"): exact first, then one name containing the other,
+ * then the service sharing the most words of four letters or more.
+ *
+ * One function for the phone tool and the assistant. The two copies it
+ * replaced split words differently, and the phone's cut "uñas" at the ñ into
+ * two pieces too short to count, so a caller asking for nails matched nothing.
+ */
+declare function matchService<S extends ServiceLike>(services: readonly S[] | undefined, asked: unknown): S | null;
+/** The booking rules as far as a consultation needs them. */
+interface ConsultRules {
+    consult_first?: readonly string[];
+}
+/**
+ * Whether a listed service needs a consultation before it can be booked, as Business lists them. Accents, case and the
+ * spaces around a name are not the name, as in matchService; the board matched them exactly, lower-cased.
+ */
+declare function needsConsultation(name: string, rules: ConsultRules | null | undefined): boolean;
+/** What an asked-for service is offered as: itself, or a consultation first. */
+interface ServiceOffer<S extends ServiceLike = ServiceLike> {
+    /** The listed service asked about. */
+    service: S;
+    /** Offered as a consultation, never as itself. */
+    consultation: boolean;
+    /** The listed service a consultation is, when the business lists one: the one sharing the service's words first. */
+    consultationService: S | null;
+    /** How long an open time has to be: the service's own length, a consultation's, or null for any open time. */
+    minMinutes: number | null;
+}
+/**
+ * The one rule for a service asked about, for the phone tool, the assistant and the board. A service that needs a
+ * consultation first is never offered itself: the consultation is, sized by the consultation the business lists
+ * ("Consultation", "Consulta"), or any open time when it lists none. All three sized a three-hour color correction by
+ * its own length while the prompt said a consultation comes first (C5b). A client is past the consultation, and is
+ * offered the service itself (0004).
+ */
+declare function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown, opts?: {
+    client?: boolean;
+}): ServiceOffer<S> | null;
+/**
+ * The words before the open times, the phone's and the assistant's alike: a service's length, or that it needs a
+ * consultation first and what is offered instead.
+ */
+declare function offerLead(offer: ServiceOffer | null): string;
 
 /**
  * Consultations, the step before a deal (0008): which consult-first service a calendar title names, whether a
@@ -10258,13 +10108,13 @@ declare const AskSettingsChangeSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strip>, z.ZodObject<{
     op: z.ZodLiteral<"set_hours">;
     day: z.ZodEnum<{
+        sun: "sun";
         mon: "mon";
         tue: "tue";
         wed: "wed";
         thu: "thu";
         fri: "fri";
         sat: "sat";
-        sun: "sun";
     }>;
     open: z.ZodNullable<z.ZodString>;
     close: z.ZodNullable<z.ZodString>;
@@ -10822,6 +10672,150 @@ declare const PERSON_DETAIL_WORDS: {
     none: Record<DetailField, (shows: string | null) => string>;
 };
 
+/** Offset of `tz` from UTC at the instant `atMs`, in milliseconds. */
+declare function zoneOffsetMs(tz: string, atMs: number): number;
+/** The instant a wall-clock time in `tz` refers to. Two passes cover a DST edge. */
+declare function localToUtcMs(tz: string, y: number, m: number, d: number, hh: number, mm: number): number;
+/** The wall clock of an instant in `tz`. */
+declare function clockInZone(tz: string, atMs: number): {
+    hh: number;
+    mm: number;
+    ss: number;
+};
+/** "YYYY-MM-DD" and the weekday key ("mon".."sun") of an instant in `tz`. */
+declare function dayInZone(tz: string, atMs: number): {
+    key: string;
+    weekday: string;
+    y: number;
+    m: number;
+    d: number;
+};
+/** The weekday keys in the order getUTCDay() numbers them, which is Sunday first. */
+/** The days of the week by their number from Sunday (Date.getUTCDay, and Google's Point.day). */
+declare const WEEKDAY_KEYS: readonly ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+/**
+ * The local day `days` after the one `atMs` falls on -- BY THE CALENDAR, not by
+ * the clock.
+ *
+ * THE DEFECT THIS EXISTS FOR. Every one of these used to be written as
+ * `dayInZone(tz, now + n * 86_400_000)`: add a fixed number of milliseconds,
+ * then ask which local day that landed on. Two days a year that is not the
+ * next day. On 8 March 2026 New York loses an hour, so a customer asking at
+ * 23:30 the night before was offered 9 March next and **8 March was never
+ * offered at all**; on 1 November it gains one, so a read at 00:30 emitted
+ * 1 November twice and lost a day off the far end of the horizon. Nobody sees
+ * an error: the receptionist simply says the wrong days out loud.
+ *
+ * A calendar day is a count of days, so it is counted in days. The date is
+ * read in the business's zone, stepped over UTC midnights (which never shift),
+ * and handed back as a date -- no instant is carried across the boundary, so
+ * there is nothing for an hour to move. The RRULE expander below has always
+ * stepped this way, which is why a weekly appointment stays at 2 PM across a
+ * change and the offered days did not. `calendar.ts shiftKey` is the twin that
+ * steps a DATE to a date; this is the one that starts from an instant, which
+ * is where reading "now" went wrong.
+ */
+declare function dayPlusInZone(tz: string, atMs: number, days: number): {
+    key: string;
+    weekday: string;
+    y: number;
+    m: number;
+    d: number;
+};
+
+/**
+ * Read-only availability: what is open, from a calendar feed and the rules.
+ *
+ * The receptionist never books. It may SEE the calendar — the owner's
+ * appointments as an iCal feed, which every booking tool that syncs to
+ * Google, Apple or Outlook can produce (Booksy Biz syncs two-way with Google
+ * and Apple; Calendly, Square and the rest do the same) — subtract what is
+ * taken from the opening hours, apply the owner's booking rules, and say
+ * which windows are open before sending the booking link. The link is the
+ * only way anything gets booked, whatever provider stands behind it.
+ *
+ * Pure: the feed text comes in, the windows come out, nothing is fetched
+ * here. The edge fetches and caches; tests feed fixtures.
+ *
+ * This module holds the windows: the booking rules, the one reader of a day's hours (dayIntervals), the open
+ * times (freeWindows), the ones a caller asked about (filterOpenings) and the words the receptionist is told
+ * them in (describeOpenings). The feed is read in feed.ts and its text in ics-text.ts, the clock is
+ * zone-math.ts, and the service a caller means, and what it is offered as, is service-offer.ts.
+ */
+
+interface BookingRulesLike {
+    lead_hours?: number;
+    buffer_min?: number;
+    max_days_ahead?: number;
+    slot_min?: number;
+}
+interface Opening {
+    key: string;
+    /** "mon".."sun" in the business's zone. */
+    weekday: string;
+    /** "Tuesday, September 9" */
+    label: string;
+    windows: Array<{
+        start: number;
+        end: number;
+    }>;
+}
+interface FreeWindowsInput {
+    hours: Record<string, Hours | undefined> | undefined;
+    closures?: Closure[];
+    tz: string;
+    busy: BusyBlock[];
+    rules?: BookingRulesLike | null;
+    now: Date;
+}
+/** The booking rules a workspace has until it sets its own. */
+declare const BOOKING_DEFAULTS: {
+    lead_hours: number;
+    buffer_min: number;
+    max_days_ahead: number;
+    slot_min: number;
+};
+/**
+ * When a day is open, as one list of [open, close] spans.
+ *
+ * open/close and intervals are UNIONED, merged where they touch or overlap,
+ * and a span that runs backwards is dropped. This is the ONE reader: the
+ * prompt (config.ts), the free windows a caller is offered and the calendar
+ * board all read a day through it. It used to have two readers -- the prompt
+ * unioned the two, this one let intervals win -- so a row holding both could
+ * be described two ways, and "are you open at nine?" had two answers.
+ */
+declare function dayIntervals(h: Hours | undefined): Array<[string, string]>;
+declare function closedOn(closures: Closure[] | undefined, key: string): boolean;
+/**
+ * The open windows, day by day: opening hours minus what is taken (each
+ * taken block widened by the buffer), never earlier than now plus the lead
+ * time, never shorter than one slot, never on a closed date.
+ */
+declare function freeWindows(input: FreeWindowsInput): Opening[];
+/**
+ * The openings a caller actually asked about: one day (a date or a weekday
+ * name), and only windows long enough for the service they want. Days with
+ * nothing left are dropped.
+ */
+declare function filterOpenings(openings: Opening[], by: {
+    day?: string | null;
+    minMinutes?: number | null;
+}): Opening[];
+/**
+ * The openings as the receptionist is told them: a few days, the windows on
+ * each, and the rule that the calendar decides. Text on both channels; the
+ * phone agent reads it aloud in its own words.
+ *
+ * `hasBookingLink` is required: what follows an opening is the link, or for a
+ * business with none, the details the team needs (NO_LINK_DETAILS).
+ */
+declare function describeOpenings(openings: Opening[], tz: string, opts: {
+    maxDays?: number;
+    daysAhead?: number;
+    hasBookingLink: boolean;
+}): string;
+
 /** Only an address on the public internet, over https or http; webcal is https in a hat. Null when it is not one. */
 declare function feedUrlOk(raw: string | null | undefined): string | null;
 /**
@@ -10914,21 +10908,9 @@ declare function seasonHorizon(now: Date, daysAhead?: number): FeedHorizon;
 declare function previewHorizon(now: Date): FeedHorizon;
 
 /**
- * Calendar — the owner's calendar as the receptionist reads it.
- *
- * A viewer, never a scheduler: what the feed says is taken, the hours and
- * closures the business keeps, and the windows the receptionist would offer
- * a caller — the same windows the phone tool and the assistant compute
- * (availability.ts), so the page shows what callers are told. Nothing is
- * booked here; the booking link does that, whichever tool stands behind it.
- *
- * The DTO is what the route returns for one span of days; the view model is
- * what the page draws — a week or a day on the mockup's own geometry (hours
- * down, days across), a month of counts, or an agenda — with bands where
- * the business is closed, blocks where the calendar is taken, dashed
- * windows where it is open, and the words Settings gave it: the hours, the
- * closures ahead, the booking rules, the services and how long they take.
- * Pure; tests feed fixtures.
+ * What `GET /api/v1/calendar` returns for one span of days (CalendarWeekDto): each day's appointments and the
+ * windows the receptionist would offer, the feed's state, and the hours, closures, rules and services Settings
+ * keeps. The page's view model is made from it in calendar.ts.
  */
 
 interface CalendarItemDto {
@@ -11026,6 +11008,7 @@ interface CalendarWeekDto {
     days: CalendarDayDto[];
     error?: string;
 }
+
 /** The key `n` days after `key`. */
 declare function shiftKey(key: string, n: number): string;
 /** The Monday of the week `key` is in. */
@@ -11040,6 +11023,20 @@ declare function monthSpan(key: string): {
 declare function shiftMonth(key: string, n: number): string;
 /** "September 2026" */
 declare function monthLabelOf(key: string): string;
+/** Midnight of a day key in `tz`, as an instant. */
+/**
+ * Midnight of a day key, in the business's zone.
+ *
+ * ONE CLOCK, NOT TWO. This was a hand-written two-pass guess over a private
+ * `zoneOffsetOf`, which computed the same offset `zoneOffsetMs` in
+ * availability.ts already computed, by a different route — and the two passes
+ * were `localToUtcMs` spelled out again, in a file that already imported from
+ * that module. Daylight saving is the one piece of arithmetic in this product
+ * it is least affordable to have two of: a second copy does not fail, it
+ * disagrees, twice a year, about which hour a day starts.
+ */
+declare function zoneMidnight(tz: string, key: string): number;
+
 /** "9 AM", "2:30 PM". */
 declare function clockLabel(t: number): string;
 /**
@@ -11073,6 +11070,31 @@ declare function feedNotes(feed: Pick<CalendarFeedDto, "state" | "skipped_recurr
  * with half its hours said the prompt's "ask them to call" to the owner (C3).
  */
 declare function hoursLines(hours: Record<string, Hours | undefined> | null | undefined): string[];
+/** Something a read of the calendar left out, said so the owner can act on it. */
+interface CalendarFeedNoteVM {
+    id: "repeats" | "undrawn";
+    /** "2 repeating events count only once." */
+    title: string;
+    body: string;
+}
+/**
+ * The calendar feed's state, in the words the Calendar's pill, Connections and Setup all use (C3): the page drew a
+ * coloured dot where Connections said "Readable". `stale` is a read that landed before a refresh that didn't.
+ */
+declare const CALENDAR_FEED_WORDS: {
+    readonly ok: "Readable";
+    readonly stale: "Last good read";
+    readonly unavailable: "Could not be read";
+    readonly none: "Not connected";
+};
+type CalendarFeedHealth = keyof typeof CALENDAR_FEED_WORDS;
+
+/**
+ * The Calendar's view model (CalendarVM): the span the page draws, its days with their bands, blocks and open
+ * windows, the feed as the pill and the bar say it, and the hours, closures, rules and services beside them.
+ * Types only; calendar.ts builds it (toCalendarVM).
+ */
+
 interface CalendarBlockVM {
     id: string;
     /** Hours from midnight in the business's zone, fractional. */
@@ -11160,24 +11182,6 @@ interface CalendarClosureVM {
     label: string;
     note: string | null;
 }
-/** Something a read of the calendar left out, said so the owner can act on it. */
-interface CalendarFeedNoteVM {
-    id: "repeats" | "undrawn";
-    /** "2 repeating events count only once." */
-    title: string;
-    body: string;
-}
-/**
- * The calendar feed's state, in the words the Calendar's pill, Connections and Setup all use (C3): the page drew a
- * coloured dot where Connections said "Readable". `stale` is a read that landed before a refresh that didn't.
- */
-declare const CALENDAR_FEED_WORDS: {
-    readonly ok: "Readable";
-    readonly stale: "Last good read";
-    readonly unavailable: "Could not be read";
-    readonly none: "Not connected";
-};
-type CalendarFeedHealth = keyof typeof CALENDAR_FEED_WORDS;
 interface CalendarVM {
     timezone: string;
     /** "New York": the zone by the name Settings gives it (C3). */
@@ -11245,6 +11249,7 @@ interface CalendarVM {
     services: CalendarServiceVM[];
     bookingLink: string | null;
 }
+
 /**
  * The appointment's title with the person's name taken out of it, so a row that names them does not say them
  * twice: "Gloss · Emily Chen" beside Emily Chen is "Gloss". A salon writes the customer into the event title,
@@ -11261,19 +11266,7 @@ declare function serviceOf(title: string, personName: string | null | undefined)
  * days are past, the next open time and the closures ahead.
  */
 declare function toCalendarVM(dto: CalendarWeekDto, now?: Date): CalendarVM;
-/** Midnight of a day key in `tz`, as an instant. */
-/**
- * Midnight of a day key, in the business's zone.
- *
- * ONE CLOCK, NOT TWO. This was a hand-written two-pass guess over a private
- * `zoneOffsetOf`, which computed the same offset `zoneOffsetMs` in
- * availability.ts already computed, by a different route — and the two passes
- * were `localToUtcMs` spelled out again, in a file that already imported from
- * that module. Daylight saving is the one piece of arithmetic in this product
- * it is least affordable to have two of: a second copy does not fail, it
- * disagrees, twice a year, about which hour a day starts.
- */
-declare function zoneMidnight(tz: string, key: string): number;
+
 type CalendarView = "week" | "day" | "month" | "agenda";
 /** The days a view needs, from the day it looks at: a week (the day's week), six weeks for a month, two weeks for the agenda. */
 declare function spanForView(view: CalendarView, anchor: string): {
@@ -11556,13 +11549,13 @@ declare const BrainConfigSchema: z.ZodObject<{
     profile: z.ZodOptional<z.ZodObject<{
         address: z.ZodOptional<z.ZodString>;
         hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+            sun: "sun";
             mon: "mon";
             tue: "tue";
             wed: "wed";
             thu: "thu";
             fri: "fri";
             sat: "sat";
-            sun: "sun";
         }> & z.core.$partial, z.ZodObject<{
             open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
             close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -12676,9 +12669,9 @@ declare const BrainOutputSchema: z.ZodObject<{
         other: "other";
         booking: "booking";
         complaint: "complaint";
+        location: "location";
         hours: "hours";
         services: "services";
-        location: "location";
         pricing: "pricing";
         smalltalk: "smalltalk";
     }>>;

@@ -25,7 +25,7 @@ import { BROADCAST_STATE_LABELS } from "../broadcasts/broadcasts";
 import { PERSON_MODE_WORDS, PERSON_STATE_LABELS } from "../people/people";
 import { ROLE_WORDS } from "./identity";
 import { SETUP_STATE_WORDS } from "../setup/setup";
-import { CALENDAR_FEED_WORDS } from "../calendar/calendar";
+import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";
 import { SOURCE_WORDS, type FactSource } from "../config/facts";
 import {
   LEAD_CALL_OUTCOME_TONES,

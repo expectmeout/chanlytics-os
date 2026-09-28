@@ -7,7 +7,8 @@
  * each person is read as, and what the pool can give a list. The edge's runner had built its own: its visits were never
  * marked as consultations, so a playbook on a list that reads one ran on nobody the page counted.
  */
-import type { ConsultRules, FeedItem } from "../calendar/availability";
+import type { ConsultRules } from "../calendar/service-offer";
+import type { FeedItem } from "../calendar/feed";
 import {
   indexFeed,
   toVisitDto,
