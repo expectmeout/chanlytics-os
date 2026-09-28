@@ -75,7 +75,10 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
     assert.ok(src.includes("pauseMsFor(ctx,"), `${rel} reads the limit`);
     assert.ok(!src.includes("PAUSE_MS"), `${rel}: REGRESSION — Settings said N hours, the verb paused for 24`);
   }
-  const inbound = readCode("packages/core/src/inbound/answer.ts");
+  // The acknowledgement (unreadable.ts), the escalating reply (dispatch.ts) and the one closure (ingest.ts).
+  const inbound = ["unreadable", "dispatch", "ingest"]
+    .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
+    .join("\n");
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
   // The WhatsApp-app echo pausing for the workspace's own pause_hours, and for
   // the default day when none is set, is run in whatsapp-door.test.mjs.

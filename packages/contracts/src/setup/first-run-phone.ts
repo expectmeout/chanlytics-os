@@ -14,7 +14,15 @@ import { billingDoorOpen, maySpend, priceWords, CHECKOUT_OUTCOME_WORDS } from ".
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import { agoWords, DAY_MS } from "../shared/time";
 import { CARRIER_WORDS, forwardingCodes, isCarrier, isForwardingMode, type Carrier } from "../voice/forwarding";
-import { lineStuckProvisioning, SETUP_STATE_WORDS, type SetupDto, type SetupState, type SetupVM } from "./setup";
+import {
+  lineStuckProvisioning,
+  SETUP_STATE_WORDS,
+  type LineDto,
+  type SetupDto,
+  type SetupRowVM,
+  type SetupState,
+  type SetupVM,
+} from "./setup";
 
 export const PHONE_WAYS = ["keep", "new", "move"] as const;
 export type PhoneWay = (typeof PHONE_WAYS)[number];
@@ -284,7 +292,88 @@ export interface FirstRunPhoneInput {
 }
 
 export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPhoneInput): FirstRunPhoneVM {
-  const W = FIRST_RUN_PHONE_WORDS;
+  const s = phoneStepOf({ dto, vm, choice, returned, nowMs });
+  // Where the receptionist's line stands decides the stage: it answers, it is on its way, or there is none yet.
+  if (dto.channels.voice.present) return answeringStageOf(s);
+  if (s.ownLine) return onItsWayStageOf(s, s.ownLine);
+  return noLineYetStageOf(s);
+}
+
+/** What every stage says alike: the way, the three ways, the numbers, the box and the area code. */
+type PhoneStepBase = Pick<FirstRunPhoneVM, "way" | "ways" | "number" | "listed" | "box" | "area">;
+/** What the step says while the number is on its way, and over Setup's rows: who sees the number, nothing to press. */
+type PhoneStepReady = Pick<
+  FirstRunPhoneVM,
+  "heading" | "lead" | "plan" | "cta" | "questions" | "code" | "forwardFrom" | "saved" | "keepCode"
+>;
+
+/**
+ * What every stage of the step is drawn from, read once (as Setup's rows read their context): the input, the number
+ * the step is about, the line and the money, the owner's two answers, and the parts the stages say alike.
+ */
+interface PhoneStep extends FirstRunPhoneInput {
+  way: PhoneWay;
+  /** A number kept or moved: the calls nobody picks up at it are forwarded to the receptionist's. */
+  forwarded: boolean;
+  number: string | null;
+  area: string | null;
+  /** The workspace's own line, past "none"; null before one is bought. */
+  ownLine: LineDto | null;
+  /** Setup's line row, whose words the step says while the number is on its way. */
+  lineRow: SetupRowVM | null;
+  /** Whether this workspace may put a charge on Chanlytics' account (maySpend). */
+  canSpend: boolean;
+  pick: PhonePick | null;
+  /** The number picked, as the app writes one. */
+  picked: string | null;
+  base: PhoneStepBase;
+  ready: PhoneStepReady;
+  /** Every case this step does not draw: Setup's own rows say it. */
+  rows: FirstRunPhoneVM;
+  rings: PhoneRings | null;
+  company: PhoneCompany | null;
+  /** The two questions about the number kept or moved, for a choice this tab holds; null otherwise. */
+  questions: FirstRunPhoneVM["questions"];
+  /** Both answered: the carrier whose code they choose is known. */
+  answered: boolean;
+}
+
+function phoneStepOf(input: FirstRunPhoneInput): PhoneStep {
+  const { dto, vm, choice } = input;
+  const { way, forwarded, listed, number, area } = numbersOf(dto, choice);
+  const billing = dto.billing;
+  const ownLine = dto.lines?.rows.find((l) => l.voice_state !== "none") ?? null;
+  const lineRow = vm.rows.find((r) => r.id === "line") ?? null;
+  const pick = choice?.pick ?? null;
+  const base: PhoneStepBase = {
+    way,
+    ways: waysOf(number, listed),
+    number,
+    listed,
+    box: formatPhoneDisplay(listed) ?? "",
+    area,
+  };
+  const ready = readyOf(choice, forwarded);
+  return {
+    ...input,
+    way,
+    forwarded,
+    number,
+    area,
+    ownLine,
+    lineRow,
+    canSpend: !billing || maySpend(billing.mode, billing.status),
+    pick,
+    picked: pick ? formatPhoneDisplay(pick.e164) : null,
+    base,
+    ready,
+    rows: { ...base, ...ready, stage: "rows", status: null },
+    ...answersOf(choice, forwarded, number),
+  };
+}
+
+/** The number the step is about: the way chosen (the first, before a choice), the listing's, the one to keep or move. */
+function numbersOf(dto: SetupDto, choice: PhoneChoice | null) {
   const way: PhoneWay = choice?.way ?? "keep";
   const forwarded = way !== "new";
   const listed = normalizePhone(dto.google?.phone ?? null);
@@ -292,39 +381,28 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
   // The box starts from the listing's number; what the owner typed replaces it, and an emptied box is none.
   const number = choice && choice.number !== null ? typed : listed;
   const area = areaCodeOf(forwarded ? number : null) ?? areaCodeOf(listed);
-  const billing = dto.billing;
-  const lines = dto.lines;
-  const ownLine = lines?.rows.find((l) => l.voice_state !== "none") ?? null;
-  const lineRow = vm.rows.find((r) => r.id === "line") ?? null;
-  const canSpend = !billing || maySpend(billing.mode, billing.status);
-  const pick = choice?.pick ?? null;
-  const picked = pick ? formatPhoneDisplay(pick.e164) : null;
-  const waiting = (sentence: string, detail: string) => ({
-    state: "waiting_them" as const,
-    words: SETUP_STATE_WORDS.waiting_them,
-    sentence,
-    detail,
-  });
+  return { way, forwarded, listed, number, area };
+}
 
-  const base = {
-    way,
-    ways: [
-      {
-        key: "keep" as const,
-        title: W.keepTitle(formatPhoneDisplay(number)),
-        sentence: number && number === listed ? W.keepListed : W.keepTyped,
-        recommended: W.recommended,
-      },
-      { key: "new" as const, title: W.newTitle, sentence: W.newSentence, recommended: null },
-      { key: "move" as const, title: W.moveTitle, sentence: W.moveSentence, recommended: null },
-    ],
-    number,
-    listed,
-    box: formatPhoneDisplay(listed) ?? "",
-    area,
-  };
-  // Who sees the number depends on the way chosen; a tab that lost the choice says neither.
-  const ready = {
+/** The three ways (canvas R3): keeping the number customers know first, and recommended. */
+function waysOf(number: string | null, listed: string | null): FirstRunPhoneWayVM[] {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return [
+    {
+      key: "keep",
+      title: W.keepTitle(formatPhoneDisplay(number)),
+      sentence: number && number === listed ? W.keepListed : W.keepTyped,
+      recommended: W.recommended,
+    },
+    { key: "new", title: W.newTitle, sentence: W.newSentence, recommended: null },
+    { key: "move", title: W.moveTitle, sentence: W.moveSentence, recommended: null },
+  ];
+}
+
+/** Said while the number is on its way: who sees it depends on the way chosen; a tab that lost the choice says neither. */
+function readyOf(choice: PhoneChoice | null, forwarded: boolean): PhoneStepReady {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
     heading: W.readyHeading,
     lead: !choice ? "" : forwarded ? W.readyLeadForwarded : W.readyLeadNew,
     plan: null,
@@ -335,13 +413,30 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
     saved: null,
     keepCode: null,
   };
-  const rows: FirstRunPhoneVM = { ...base, ...ready, stage: "rows", status: null };
+}
 
-  // The two questions, for a number kept or moved (a choice this tab holds, with a number to forward from).
+/** The owner's two answers, and the questions they answer. */
+function answersOf(choice: PhoneChoice | null, forwarded: boolean, number: string | null) {
   const rings = choice?.rings ?? null;
   const company = choice?.company ?? null;
+  // The two questions, for a number kept or moved (a choice this tab holds, with a number to forward from).
   const asking = !!choice && forwarded && !!number;
-  const questionsFor = (about: string): NonNullable<FirstRunPhoneVM["questions"]> => ({
+  return {
+    rings,
+    company,
+    questions: asking && number ? questionsAbout(number, rings, company) : null,
+    answered: !!forwardingCarrierOf(rings, company),
+  };
+}
+
+/** The two questions (canvas R4) about the number the forwarding is for: which phone rings, and a mobile's company. */
+function questionsAbout(
+  about: string,
+  rings: PhoneRings | null,
+  company: PhoneCompany | null,
+): NonNullable<FirstRunPhoneVM["questions"]> {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
     rings: {
       label: W.ringsLabel(formatPhoneDisplay(about)),
       options: PHONE_RINGS.map((k) => ({ key: k, label: W.rings[k] })),
@@ -359,224 +454,289 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
             value: company,
           }
         : null,
-  });
-  const questions = asking && number ? questionsFor(number) : null;
-  const answered = !!forwardingCarrierOf(rings, company);
-  const show = (lineAnswers: boolean) => ({
-    label: rings === "office" ? W.showOffice : W.show,
-    held: !lineAnswers ? W.readySoon : answered ? null : W.answerFirst,
-    act: "forward" as const,
-  });
+  };
+}
 
-  // A line that answers: the code, once the forwarding is saved; the questions, while a number kept or moved has none
-  // yet (or the owner asked to change the answers); Setup's rows otherwise. One switched off is the rows' to say.
-  if (dto.channels.voice.present) {
-    const dest = dto.channels.voice.active ? dto.channels.voice.number : null;
-    const fw = lines?.rows.find((l) => l.kind === "forwarded") ?? null;
-    const f = fw?.forwarding ?? null;
-    const saved =
-      !!fw &&
-      !!f &&
-      isCarrier(f.carrier) &&
-      (fw.forwarding_state === "instructed" || fw.forwarding_state === "verified");
-    if (!dest) return rows;
-    const savedFrom = saved ? normalizePhone(fw!.e164) : null;
-    // Asked again after the code was shown: about the number the saved forwarding is for, whatever the tab holds.
-    if (saved && choice?.redo && savedFrom) {
-      return {
-        ...base,
-        stage: "ask",
-        heading: W.askHeading,
-        lead: W.askLead,
-        plan: null,
-        status: null,
-        questions: questionsFor(savedFrom),
-        cta: show(true),
-        code: null,
-        forwardFrom: savedFrom,
-        saved: { carrier: f!.carrier as Carrier },
-        keepCode: W.keepCode,
-      };
-    }
-    if (saved && f!.carrier === "office") {
-      const mode = isForwardingMode(f!.mode) ? f!.mode : "unanswered";
-      const codes = forwardingCodes("office", mode, f!.destination_e164 ?? dest);
-      const keepRow = vm.rows.find((r) => r.id === "keep") ?? null;
-      // One ask a day (setup_request): an ask older than that is offered again, in case it reached nobody.
-      const askedAt = dto.requests.forwarding ? Date.parse(dto.requests.forwarding) : NaN;
-      const asked = !Number.isNaN(askedAt) && nowMs - askedAt < DAY_MS ? askedAt : null;
-      return {
-        ...base,
-        stage: "code",
-        heading: W.officeHeading,
-        lead: W.officeLead,
-        plan: null,
-        status: null,
-        questions: null,
-        cta: { label: W.done, held: null, act: "onward" },
-        code: {
-          label: W.officeLabel(mode === "always"),
-          dial: formatPhoneDisplay(f!.destination_e164 ?? dest) ?? dest,
-          tel: codes.on.tel,
-          tap: null,
-          steps: [...W.officeSteps],
-          warn: W.officeWarn,
-          off: W.officeOff,
-          help: { label: W.helpOffice, notes: codes.notes },
-          change: savedFrom ? W.change : null,
-          verified: fw!.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
-          withMe: {
-            sentence: W.withMe,
-            label: W.withMeLabel,
-            asked: asked !== null ? W.withMeAsked(agoWords(asked, nowMs)) : null,
-          },
-        },
-        forwardFrom: null,
-        saved: null,
-        keepCode: null,
-      };
-    }
-    if (saved) {
-      // Not an office phone system (drawn above): a company with its codes.
-      const carrier = f!.carrier as PhoneCompany;
-      // The mode saved, which Setup's own card may have set to every call: the code and the lead follow it.
-      const mode = isForwardingMode(f!.mode) ? f!.mode : "unanswered";
-      const codes = forwardingCodes(carrier, mode, f!.destination_e164 ?? dest);
-      // What rings, as answered; a tab that lost the answers says neither (a mobile with another company is `other` too).
-      // An office answer the saved forwarding does not bear out (another tab changed it) is not said either.
-      const said = rings === "office" ? null : rings;
-      const keepRow = vm.rows.find((r) => r.id === "keep") ?? null;
-      return {
-        ...base,
-        stage: "code",
-        heading: W.codeHeading,
-        lead: mode === "always" ? W.codeLeadAll : W.codeLead,
-        plan: null,
-        status: null,
-        questions: null,
-        cta: { label: W.done, held: null, act: "onward" },
-        code: {
-          label: said
-            ? W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said)
-            : CARRIER_WORDS[carrier],
-          dial: codes.on.code,
-          tel: codes.on.tel,
-          tap: said === "mobile" ? W.tap : null,
-          steps: said === "mobile" ? [...W.stepsMobile] : said === "landline" ? [...W.stepsLandline] : [...W.stepsAny],
-          warn: said === "mobile" ? W.warnMobile : said === "landline" ? W.warnLandline : W.warnAny,
-          off: W.off(codes.off.code),
-          help: { label: W.help, notes: codes.notes },
-          change: savedFrom ? W.change : null,
-          verified: fw!.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
-          withMe: null,
-        },
-        forwardFrom: null,
-        saved: null,
-        keepCode: null,
-      };
-    }
-    if (questions) {
-      return {
-        ...base,
-        stage: "ask",
-        heading: W.askHeading,
-        lead: W.askLead,
-        plan: null,
-        status: null,
-        questions,
-        cta: show(true),
-        code: null,
-        forwardFrom: number,
-        saved: null,
-        keepCode: null,
-      };
-    }
-    return rows;
-  }
-  if (ownLine) {
-    // On its way: the line row's own words (canvas R4, "the step words are Setup's own"). Stopped: the row's Retry.
-    const onItsWay =
-      (ownLine.voice_state === "provisioning" && !lineStuckProvisioning(ownLine, nowMs)) ||
-      ownLine.voice_state === "answering";
-    return onItsWay && lineRow
-      ? {
-          ...base,
-          ...ready,
-          stage: "getting",
-          status: {
-            state: lineRow.state,
-            words: lineRow.stateWords,
-            sentence: lineRow.sentence,
-            detail: lineRow.details[0] ?? "",
-          },
-          questions,
-          cta: questions ? show(false) : null,
-        }
-      : rows;
-  }
-  // No provider here, or a person was asked for a line: the row says who has it.
-  if (!lines?.ready || dto.requests.line || dto.requests.port) return rows;
-
-  // The plan the number starts: none yet (the step's checkout, which takes no trial), or a free trial (its plan starts
-  // early, here). Anything else that cannot spend (a failed card, a subscription that ended) is Billing's, on the row.
-  const onTrial = billingDoorOpen(billing) && billing.status === "trialing";
-  const plan =
-    billingDoorOpen(billing) && (billing.status === "none" || onTrial)
-      ? {
-          offer: W.planOffer(priceWords(billing.price ?? null)),
-          note: onTrial ? W.planNoteTrial : W.planNote,
-        }
-      : null;
-  if (!canSpend && !plan) return rows;
-  if (plan && returned) {
-    return {
-      ...base,
-      ...ready,
-      stage: "starting",
-      status: waiting(W.starting, W.startingDetail),
-    };
-  }
-  // Pressed, and the workspace may spend: the page buys, once, and this is what it says meanwhile, with the questions
-  // for a number kept or moved (canvas R4: the owner answers while the number gets ready).
-  if (canSpend && choice?.pending) {
-    return {
-      ...base,
-      ...ready,
-      stage: "buying",
-      status: waiting(way === "new" && picked ? W.buyingNew(picked) : W.buyingIn(forwarded ? area : null), W.usually),
-      questions,
-      cta: questions ? show(false) : null,
-    };
-  }
-  // A number to keep or move is forwarded from, so it must be one a US phone company forwards: a US number with its
-  // area code, which is also where the receptionist's own is bought.
-  const typedSome = !!choice && typeof choice.number === "string" && choice.number.trim() !== "";
-  const boxProblem = way !== "new" && typedSome && !(number && areaCodeOf(number)) ? W.held.us : null;
-  const held =
-    way === "new"
-      ? pick
-        ? null
-        : W.held.pick
-      : (boxProblem ?? (!number ? W.held.number : areaCodeOf(number) ? null : W.held.us));
-  const label = plan
-    ? way === "keep"
-      ? W.cta.planKeep
-      : way === "new"
-        ? W.cta.planNew(picked)
-        : W.cta.planMove
-    : way === "keep"
-      ? W.cta.keep
-      : way === "new"
-        ? W.cta.new(picked)
-        : W.cta.move;
+/** The button the questions lead to: held until the line answers, then until both are answered. */
+function showCtaOf(s: PhoneStep, lineAnswers: boolean): NonNullable<FirstRunPhoneVM["cta"]> {
+  const W = FIRST_RUN_PHONE_WORDS;
   return {
-    ...base,
+    label: s.rings === "office" ? W.showOffice : W.show,
+    held: !lineAnswers ? W.readySoon : s.answered ? null : W.answerFirst,
+    act: "forward",
+  };
+}
+
+/** The forwarding saved on the workspace's line: a carrier, with its code shown (instructed) or proven (verified). */
+interface SavedForwarding {
+  line: LineDto;
+  forwarding: NonNullable<LineDto["forwarding"]>;
+  carrier: Carrier;
+}
+
+/** A line that answers: the receptionist's own number the calls go to, and what is saved to send them there. */
+interface AnsweringLine {
+  dest: string;
+  saved: SavedForwarding | null;
+  /** The number the saved forwarding is for, E.164; null where it has none to ask about. */
+  from: string | null;
+}
+
+/**
+ * A line that answers: the code, once the forwarding is saved; the questions, while a number kept or moved has none
+ * yet (or the owner asked to change the answers); Setup's rows otherwise. One switched off is the rows' to say.
+ */
+function answeringStageOf(s: PhoneStep): FirstRunPhoneVM {
+  const voice = s.dto.channels.voice;
+  const dest = voice.active ? voice.number : null;
+  const saved = savedForwardingOf(s.dto.lines);
+  if (!dest) return s.rows;
+  const line: AnsweringLine = { dest, saved, from: saved ? normalizePhone(saved.line.e164) : null };
+  for (const stage of ANSWERING_STAGES) {
+    const drawn = stage(s, line);
+    if (drawn) return drawn;
+  }
+  return s.rows;
+}
+
+function savedForwardingOf(lines: SetupDto["lines"]): SavedForwarding | null {
+  const fw = lines?.rows.find((l) => l.kind === "forwarded") ?? null;
+  const f = fw?.forwarding ?? null;
+  return fw && f && isCarrier(f.carrier) && (fw.forwarding_state === "instructed" || fw.forwarding_state === "verified")
+    ? { line: fw, forwarding: f, carrier: f.carrier }
+    : null;
+}
+
+/**
+ * The stages over a line that answers, in the order they are decided -- the questions asked again, an office phone
+ * system's forwarding, a phone's code, the questions -- each null where it does not draw: the first that draws, draws.
+ */
+const ANSWERING_STAGES: readonly ((s: PhoneStep, line: AnsweringLine) => FirstRunPhoneVM | null)[] = [
+  askedAgainStageOf,
+  officeCodeStageOf,
+  phoneCodeStageOf,
+  questionsStageOf,
+];
+
+/** Asked again after the code was shown: about the number the saved forwarding is for, whatever the tab holds. */
+function askedAgainStageOf(s: PhoneStep, line: AnsweringLine): FirstRunPhoneVM | null {
+  if (!line.saved || !s.choice?.redo || !line.from) return null;
+  return askStageOf(s, {
+    questions: questionsAbout(line.from, s.rings, s.company),
+    forwardFrom: line.from,
+    saved: { carrier: line.saved.carrier },
+    keepCode: FIRST_RUN_PHONE_WORDS.keepCode,
+  });
+}
+
+/** An office phone system (canvas V6): the number to forward to, where to set it, and a person to do it with. */
+function officeCodeStageOf(s: PhoneStep, line: AnsweringLine): FirstRunPhoneVM | null {
+  const saved = line.saved;
+  if (!saved || saved.carrier !== "office") return null;
+  const W = FIRST_RUN_PHONE_WORDS;
+  const f = saved.forwarding;
+  const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
+  const codes = forwardingCodes("office", mode, f.destination_e164 ?? line.dest);
+  const keepRow = s.vm.rows.find((r) => r.id === "keep") ?? null;
+  const asked = withMeAskedOf(s);
+  return codeStageOf(s, W.officeHeading, W.officeLead, {
+    label: W.officeLabel(mode === "always"),
+    dial: formatPhoneDisplay(f.destination_e164 ?? line.dest) ?? line.dest,
+    tel: codes.on.tel,
+    tap: null,
+    steps: [...W.officeSteps],
+    warn: W.officeWarn,
+    off: W.officeOff,
+    help: { label: W.helpOffice, notes: codes.notes },
+    change: line.from ? W.change : null,
+    verified: saved.line.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
+    withMe: {
+      sentence: W.withMe,
+      label: W.withMeLabel,
+      asked: asked !== null ? W.withMeAsked(agoWords(asked, s.nowMs)) : null,
+    },
+  });
+}
+
+/** When the owner asked a person to do it with them. One ask a day (setup_request): an ask older than that is offered
+ * again, in case it reached nobody. */
+function withMeAskedOf(s: PhoneStep): number | null {
+  const askedAt = s.dto.requests.forwarding ? Date.parse(s.dto.requests.forwarding) : NaN;
+  return !Number.isNaN(askedAt) && s.nowMs - askedAt < DAY_MS ? askedAt : null;
+}
+
+/** A phone with a code (canvas R5, P5): not an office phone system (the stage before), a company with its codes. */
+function phoneCodeStageOf(s: PhoneStep, line: AnsweringLine): FirstRunPhoneVM | null {
+  const saved = line.saved;
+  if (!saved || saved.carrier === "office") return null;
+  const W = FIRST_RUN_PHONE_WORDS;
+  const carrier = saved.carrier;
+  const f = saved.forwarding;
+  // The mode saved, which Setup's own card may have set to every call: the code and the lead follow it.
+  const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
+  const codes = forwardingCodes(carrier, mode, f.destination_e164 ?? line.dest);
+  // What rings, as answered; a tab that lost the answers says neither (a mobile with another company is `other` too).
+  // An office answer the saved forwarding does not bear out (another tab changed it) is not said either.
+  const said = s.rings === "office" ? null : s.rings;
+  const keepRow = s.vm.rows.find((r) => r.id === "keep") ?? null;
+  return codeStageOf(s, W.codeHeading, mode === "always" ? W.codeLeadAll : W.codeLead, {
+    label: said
+      ? W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said)
+      : CARRIER_WORDS[carrier],
+    dial: codes.on.code,
+    tel: codes.on.tel,
+    ...ringWordsOf(said),
+    off: W.off(codes.off.code),
+    help: { label: W.help, notes: codes.notes },
+    change: line.from ? W.change : null,
+    verified: saved.line.forwarding_state === "verified" && keepRow ? keepRow.sentence : null,
+    withMe: null,
+  });
+}
+
+/** For the phone that rings: a mobile's tap to dial, the steps, and what answers before the receptionist can. */
+function ringWordsOf(said: PhoneRings | null): Pick<FirstRunPhoneCodeVM, "tap" | "steps" | "warn"> {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    tap: said === "mobile" ? W.tap : null,
+    steps: said === "mobile" ? [...W.stepsMobile] : said === "landline" ? [...W.stepsLandline] : [...W.stepsAny],
+    warn: said === "mobile" ? W.warnMobile : said === "landline" ? W.warnLandline : W.warnAny,
+  };
+}
+
+/** The line answers and nothing is saved yet: the questions for a number kept or moved (a new one is done). */
+function questionsStageOf(s: PhoneStep): FirstRunPhoneVM | null {
+  if (!s.questions) return null;
+  return askStageOf(s, { questions: s.questions, forwardFrom: s.number, saved: null, keepCode: null });
+}
+
+/** The two questions, and the button that saves the forwarding their answers choose. */
+function askStageOf(
+  s: PhoneStep,
+  asked: Pick<FirstRunPhoneVM, "questions" | "forwardFrom" | "saved" | "keepCode">,
+): FirstRunPhoneVM {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    ...s.base,
+    stage: "ask",
+    heading: W.askHeading,
+    lead: W.askLead,
+    plan: null,
+    status: null,
+    questions: asked.questions,
+    cta: showCtaOf(s, true),
+    code: null,
+    forwardFrom: asked.forwardFrom,
+    saved: asked.saved,
+    keepCode: asked.keepCode,
+  };
+}
+
+/** The code to dial, or where to forward: its heading and lead, the code, and the button on to Try it. */
+function codeStageOf(s: PhoneStep, heading: string, lead: string, code: FirstRunPhoneCodeVM): FirstRunPhoneVM {
+  return {
+    ...s.base,
+    stage: "code",
+    heading,
+    lead,
+    plan: null,
+    status: null,
+    questions: null,
+    cta: { label: FIRST_RUN_PHONE_WORDS.done, held: null, act: "onward" },
+    code,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null,
+  };
+}
+
+/** On its way: the line row's own words (canvas R4, "the step words are Setup's own"). Stopped: the row's Retry. */
+function onItsWayStageOf(s: PhoneStep, ownLine: LineDto): FirstRunPhoneVM {
+  const onItsWay =
+    (ownLine.voice_state === "provisioning" && !lineStuckProvisioning(ownLine, s.nowMs)) ||
+    ownLine.voice_state === "answering";
+  const row = s.lineRow;
+  if (!onItsWay || !row) return s.rows;
+  return {
+    ...s.base,
+    ...s.ready,
+    stage: "getting",
+    status: { state: row.state, words: row.stateWords, sentence: row.sentence, detail: row.details[0] ?? "" },
+    questions: s.questions,
+    cta: s.questions ? showCtaOf(s, false) : null,
+  };
+}
+
+/** No line yet: Setup's rows, the plan starting, the number being bought, or the choosing. */
+function noLineYetStageOf(s: PhoneStep): FirstRunPhoneVM {
+  const { dto, choice, returned } = s;
+  // No provider here, or a person was asked for a line: the row says who has it.
+  if (!dto.lines?.ready || dto.requests.line || dto.requests.port) return s.rows;
+  const onTrial = billingDoorOpen(dto.billing) && dto.billing.status === "trialing";
+  const plan = planOf(dto.billing, onTrial);
+  if (!s.canSpend && !plan) return s.rows;
+  if (plan && returned) return startingStageOf(s);
+  if (s.canSpend && choice?.pending) return buyingStageOf(s);
+  return chooseStageOf(s, plan, onTrial);
+}
+
+/**
+ * The plan the number starts: none yet (the step's checkout, which takes no trial), or a free trial (its plan starts
+ * early, here). Anything else that cannot spend (a failed card, a subscription that ended) is Billing's, on the row.
+ */
+function planOf(billing: SetupDto["billing"], onTrial: boolean): FirstRunPhoneVM["plan"] {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return billingDoorOpen(billing) && (billing.status === "none" || onTrial)
+    ? { offer: W.planOffer(priceWords(billing.price ?? null)), note: onTrial ? W.planNoteTrial : W.planNote }
+    : null;
+}
+
+/** Back from checkout before the plan lands: starting, until Stripe confirms it. */
+function startingStageOf(s: PhoneStep): FirstRunPhoneVM {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return { ...s.base, ...s.ready, stage: "starting", status: waitingOn(W.starting, W.startingDetail) };
+}
+
+/**
+ * Pressed, and the workspace may spend: the page buys, once, and this is what it says meanwhile, with the questions
+ * for a number kept or moved (canvas R4: the owner answers while the number gets ready).
+ */
+function buyingStageOf(s: PhoneStep): FirstRunPhoneVM {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    ...s.base,
+    ...s.ready,
+    stage: "buying",
+    status: waitingOn(
+      s.way === "new" && s.picked ? W.buyingNew(s.picked) : W.buyingIn(s.forwarded ? s.area : null),
+      W.usually,
+    ),
+    questions: s.questions,
+    cta: s.questions ? showCtaOf(s, false) : null,
+  };
+}
+
+/** What the step says while we are the ones waited on: the state, its word, the sentence and the line under it. */
+function waitingOn(sentence: string, detail: string): NonNullable<FirstRunPhoneVM["status"]> {
+  return { state: "waiting_them", words: SETUP_STATE_WORDS.waiting_them, sentence, detail };
+}
+
+/** Choosing (canvas R3): the three ways, the plan the number starts, and the one button, held until it can go. */
+function chooseStageOf(s: PhoneStep, plan: FirstRunPhoneVM["plan"], onTrial: boolean): FirstRunPhoneVM {
+  const W = FIRST_RUN_PHONE_WORDS;
+  const boxProblem = boxProblemOf(s);
+  return {
+    ...s.base,
     stage: "choose",
     heading: W.chooseHeading,
     lead: W.chooseLead,
     plan,
     boxProblem,
-    cta: { label, held, act: plan ? (onTrial ? "startNow" : "plan") : "buy" },
+    cta: {
+      label: ctaLabelOf(s.way, plan, s.picked),
+      held: ctaHeldOf(s, boxProblem),
+      act: plan ? (onTrial ? "startNow" : "plan") : "buy",
+    },
     status: null,
     questions: null,
     code: null,
@@ -584,4 +744,28 @@ export function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }: FirstRunPh
     saved: null,
     keepCode: null,
   };
+}
+
+/**
+ * A number to keep or move is forwarded from, so it must be one a US phone company forwards: a US number with its
+ * area code, which is also where the receptionist's own is bought.
+ */
+function boxProblemOf(s: PhoneStep): string | null {
+  const typedSome = !!s.choice && typeof s.choice.number === "string" && s.choice.number.trim() !== "";
+  return s.way !== "new" && typedSome && !(s.number && areaCodeOf(s.number)) ? FIRST_RUN_PHONE_WORDS.held.us : null;
+}
+
+/** Why the button cannot go yet: no number picked, or none to keep or move that a US phone company forwards. */
+function ctaHeldOf(s: PhoneStep, boxProblem: string | null): string | null {
+  const W = FIRST_RUN_PHONE_WORDS;
+  if (s.way === "new") return s.pick ? null : W.held.pick;
+  return boxProblem ?? (!s.number ? W.held.number : areaCodeOf(s.number) ? null : W.held.us);
+}
+
+/** The button named for the result, per way: starting the plan, or, once it runs, the number kept, got or moved. */
+function ctaLabelOf(way: PhoneWay, plan: FirstRunPhoneVM["plan"], picked: string | null): string {
+  const W = FIRST_RUN_PHONE_WORDS;
+  if (way === "keep") return plan ? W.cta.planKeep : W.cta.keep;
+  if (way === "new") return plan ? W.cta.planNew(picked) : W.cta.new(picked);
+  return plan ? W.cta.planMove : W.cta.move;
 }
