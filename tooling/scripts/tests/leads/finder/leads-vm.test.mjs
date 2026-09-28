@@ -55,11 +55,9 @@ import {
   leadQuestionMail,
   LEAD_QUESTION_WAIT_LINE,
 } from "../../../../../packages/contracts/src/leads/leads.ts";
-import {
-  LEAD_ROUND_ENDINGS,
-  LEAD_ENDING_WORDS,
-  LeadSearchPlanSchema,
-} from "../../../../../packages/contracts/src/leads/lead-search.ts";
+import { LEAD_ROUND_ENDINGS } from "../../../../../packages/contracts/src/leads/search/sets.ts";
+import { LEAD_ENDING_WORDS } from "../../../../../packages/contracts/src/leads/search/endings.ts";
+import { LeadSearchPlanSchema } from "../../../../../packages/contracts/src/leads/search/plan.ts";
 
 /* ------------------------------------------------------------ the fixtures */
 

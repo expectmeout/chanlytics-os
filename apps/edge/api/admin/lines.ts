@@ -39,13 +39,13 @@ import { emitEvent } from "../../lib/packages/db.js";
 import { SPEND_NUMBER, SPEND_TEXTING, UUID, type SpendWords } from "../../lib/packages/contracts.js";
 import { lineForClient, lineProviderFromEnv, type LineProviderChoice } from "../../lib/lines/lines.js";
 import { releaseLine } from "../../lib/lines/line-release.js";
+import { registerLine } from "../../lib/lines/a2p-register.js";
+import { syncRegistration } from "../../lib/lines/a2p-sync.js";
 import {
-  registerLine,
-  syncRegistration,
   unfileMockRegistration,
   resubmitRejectedCampaign,
   replaceRejectedCampaign,
-} from "../../lib/lines/a2p.js";
+} from "../../lib/lines/a2p-refile.js";
 import { scheduleJob } from "../../lib/packages/jobs.js";
 import { claimLineForResume, type LineDbRow } from "../../lib/lines/line-resume.js";
 import { dashboardOrigin } from "../../lib/dashboard-origin.js";

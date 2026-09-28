@@ -1,7 +1,7 @@
 /**
  * The Leads scope of People, in words (PRD 2026-09-17 v3 §6, §9; release B).
  *
- * Release A (`lead-search.ts`, `lead-judge.ts`) holds the plan, the stored sets
+ * Release A (`search/`, `lead-judge.ts`) holds the plan, the stored sets
  * and every rule with a right answer. This file is what the OWNER sees: the
  * word a stored value wears, the shape a request takes, the view a route
  * spells, and the view models the page draws a row, the rail and the standing
@@ -20,7 +20,7 @@ import {
   LEAD_STAGES,
   type LeadEmailState,
   type LeadFit,
-} from "./lead-search";
+} from "./search/sets";
 import {
   LEAD_ERASE_WORDS,
   LEAD_CALL_OUTCOME_TONES,
@@ -48,9 +48,9 @@ export * from "./lead-review";
 export * from "./lead-row";
 
 /**
- * One home per set. Release A declares all six in `lead-search.ts` and `schema-sets.ts:122` holds
+ * One home per set. Release A declares all six in `search/sets.ts` and `schema-sets.ts:122` holds
  * `LEAD_OPERATION_KINDS` Exactly equal to `lead_operations.kind`; B widens that one by `stage` and `bulk`
- * **in `lead-search.ts`**, in the same commit as 4.2's migration and `gen:schema-sets` (4.2 step 5) -- widening it
+ * **in `search/sets.ts`**, in the same commit as 4.2's migration and `gen:schema-sets` (4.2 step 5) -- widening it
  * here first fails `schema-sets.ts:122` with `Type 'false' does not satisfy the constraint 'true'` until the
  * generated set carries the two new kinds. Nothing below re-declares a stored set.
  */

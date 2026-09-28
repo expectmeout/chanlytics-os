@@ -6,7 +6,9 @@
  */
 import { clockDate } from "../shared/clock";
 import { plural } from "../shared/words";
-import { DEAL_ACT_WORDS, dealPaceOf, type DealPaceVM, type DealVM } from "../deals/deals";
+import { DEAL_ACT_WORDS } from "../deals/deal-words";
+import type { DealVM } from "../deals/deal-vm";
+import { dealPaceOf, type DealPaceVM } from "../deals/deal-waits";
 import {
   mayReach,
   type PersonCampaignVM,

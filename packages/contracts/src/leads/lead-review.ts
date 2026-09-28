@@ -5,7 +5,7 @@
 import type { LeadMonthDto, LeadSearchDto } from "./lead-dtos";
 import { leadExclusionWord } from "./lead-facts";
 import { milesLabel } from "./lead-helpers";
-import type { LeadArea } from "./lead-search";
+import type { LeadArea } from "./search/plan";
 import type { LeadClass } from "./lead-words";
 
 /* ------------------------------------------- Needs review, as a queue (D3) */

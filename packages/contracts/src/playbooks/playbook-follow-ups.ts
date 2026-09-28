@@ -5,7 +5,8 @@
 import { shiftKey } from "../calendar/calendar";
 import { clockNear, wallClockAt, zoneDayKey } from "../shared/clock";
 import { type AskedPurpose, purposeOfPlaybook } from "../consent/consent";
-import { type DealPaceVM, SELLS_BY_QUESTION, SELLS_BY_WORDS, waitingOnProposal } from "../deals/deals";
+import { SELLS_BY_QUESTION, SELLS_BY_WORDS } from "../deals/sells-by";
+import { type DealPaceVM, waitingOnProposal } from "../deals/deal-waits";
 import { type PersonRowVM, whyNotReceive } from "../people/people";
 import { runDueNow } from "./playbook-schedule";
 import { DAY_MS, sweepTickAtOrAfter } from "./playbook-time";
