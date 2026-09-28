@@ -20,7 +20,7 @@
   "apps/dashboard/app/api/v1/views/route.ts": 1,
   "apps/dashboard/app/api/v1/workspaces/create/route.ts": 1,
   "apps/dashboard/app/api/v1/workspaces/route.ts": 5,
-  "apps/dashboard/src/server/ask/store.ts": 9,
+  "apps/dashboard/src/server/ask/store.ts": 10,
   "apps/dashboard/src/server/ask/tools/act/broadcast.ts": 1,
   "apps/dashboard/src/server/ask/tools/act/deal.ts": 2,
   "apps/dashboard/src/server/ask/tools/act/person.ts": 2,

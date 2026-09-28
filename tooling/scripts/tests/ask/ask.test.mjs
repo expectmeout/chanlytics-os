@@ -49,6 +49,10 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 const { toApiTools, ACT_TOOL_NAMES } = await import(
   pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/tools/index.ts")).href
 );
+// The words history a turn is asked with (executed in ask-turn.test.mjs): memory.ts's, beside the live replay.
+const { foldHistory } = await import(
+  pathToFileURL(path.join(here, "../../../../apps/dashboard/src/server/ask/memory.ts")).href
+);
 // Sorted by name, the acts among the reads (D11): told apart by the act names the loop itself tells apart.
 const READ_TOOLS = toApiTools("owner", true).filter((t) => !ACT_TOOL_NAMES.has(t.name));
 const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
@@ -1169,10 +1173,14 @@ test("the Open button says where it goes, a repeated question is the same thread
     loop.includes("await ports.round(") && !loop.includes("for await (const ev of"),
     "the loop delegates the stream to round.ts, through the ports a test can replace",
   );
-  assert.ok(
-    loop.includes("export function foldHistory("),
+  // The history a turn is asked with is memory.ts's to decide (the Phase 5 plan, PR 5.4): the words fold beside the
+  // live replay, and loop.ts takes both from there.
+  assert.equal(
+    typeof foldHistory,
+    "function",
     "the history fold is a named rule, not a loop in the middle of a function",
   );
+  assert.ok(!loop.includes("function foldHistory("), "memory.ts's, and loop.ts takes it from there");
 });
 
 test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one tool too many refused every turn on production", () => {

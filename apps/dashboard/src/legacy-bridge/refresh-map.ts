@@ -10,20 +10,18 @@
  * playbooks pages, which keep a hook until they read the surfaces directly.
  */
 import type { RouteKey } from "../client/api";
-import {
-  broadcastsOverride,
-  calendarOverride,
-  conversationsOverride,
-  inboxOverride,
-  liveOverride,
-  notificationsOverride,
-  peopleOverride,
-  playbooksOverride,
-  reportsOverride,
-  settingsOverride,
-  todayOverride,
-  type SurfaceOverride,
-} from "./surface-data";
+import { broadcastsOverride } from "./surfaces/broadcasts";
+import { calendarOverride } from "./surfaces/calendar";
+import { conversationsOverride } from "./surfaces/conversations";
+import { inboxOverride } from "./surfaces/inbox";
+import { liveOverride } from "./surfaces/live";
+import { notificationsOverride } from "./surfaces/notifications";
+import { peopleOverride } from "./surfaces/people";
+import { playbooksOverride } from "./surfaces/playbooks";
+import { reportsOverride } from "./surfaces/reports";
+import { settingsOverride } from "./surfaces/settings";
+import { todayOverride } from "./surfaces/today";
+import type { SurfaceOverride } from "./surface-data";
 import { billingOverride } from "./billing";
 import { googleOverride } from "./google";
 import { leadsOverride } from "./leads";

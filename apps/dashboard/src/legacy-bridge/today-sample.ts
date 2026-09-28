@@ -30,7 +30,7 @@ import {
 } from "@chanlytics/contracts";
 import { reportsSample } from "./reports-sample";
 import { TODAY_HELPERS } from "./today";
-import type { ReportsSurface } from "./surface-data";
+import type { ReportsSurface } from "./surfaces/reports";
 // The row the popover draws, from the bridge that owns it. `import type` is erased, so notifications.ts's
 // own `./api` import never reaches this browser-only bundle.
 import type { BellRow } from "./notifications";
