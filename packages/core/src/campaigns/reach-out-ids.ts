@@ -12,3 +12,6 @@ export const sendIdFor = (runId: string, leadId: string): Promise<string> =>
   uuidV5(`reach_out_send:${runId}:${leadId}`);
 export const sendMessageId = (sendId: string, attempt: number): Promise<string> =>
   uuidV5(`reach_out_email:${sendId}:${attempt}`);
+/** The team's step a hand step makes for a lead (Part 5, G20): once per step and lead, whichever day's run reaches it. */
+export const handStepIdFor = (stepId: string, leadId: string): Promise<string> =>
+  uuidV5(`reach_out_hand:${stepId}:${leadId}`);

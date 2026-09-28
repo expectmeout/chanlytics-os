@@ -255,3 +255,5 @@ export type {
 } from "./reach-out-replies";
 export { bookedSeenOf, BOOKED_SEEN_CAP } from "./reach-out-booked";
 export type { BookedSeen } from "./reach-out-booked";
+export { handOf, handStepWords, HAND_KINDS, HAND_WORDS_MAX } from "./reach-out-hand";
+export type { HandKind, StepHand } from "./reach-out-hand";
