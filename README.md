@@ -144,7 +144,8 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
 - **Pull request titles.** A pull request's title is the squash commit's
   subject: one sentence saying what is now true, at most 100 characters, not
   ending in a period. What moved goes in the body, with the proof and what to
-  set or apply. CI checks the title (`tooling/scripts/checks/pr-title.mjs`).
+  set or apply. CI checks the title (`tooling/scripts/checks/pr-title.mjs`);
+  pull requests opened before 29 Sep 2026 are exempt.
 - **Migrations.** Named for the schema change (`00151_jobs_drop_blob_thread_erase.sql`),
   re-runnable statements, a header of a few lines saying what changed. An applied
   migration is never edited or renamed. The lesson behind a change goes in the

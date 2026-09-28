@@ -1,14 +1,15 @@
 /**
  * A pull request's title is the squash commit's subject: one sentence saying what is now true, at most 100
  * characters, not ending in a period; what moved goes in the body (README, Conventions; docs/naming.md, History).
- * checks/pr-title.mjs holds the title in CI; this holds the check, over titles main merged and titles made to break it.
+ * A pull request opened before 29 September 2026 is exempt. checks/pr-title.mjs holds the title in CI; this holds the
+ * check, over titles main merged, titles made to break it, and either side of the rule's first day.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { ROOT } from "../_source.mjs";
-import { TITLE_MAX, titleProblems } from "../../checks/pr-title.mjs";
+import { TITLE_MAX, TITLE_RULE_FROM, exemptByDate, titleProblems } from "../../checks/pr-title.mjs";
 
 const keeps = (title) => titleProblems(title).length === 0;
 
@@ -56,10 +57,26 @@ test("a title does not end in a period, and says something", () => {
   assert.equal(titleProblems(`${"a".repeat(TITLE_MAX)}.`).length, 2, "each break is said");
 });
 
-test("run as CI runs it: the title from the environment, a failure that says why, and a pass", () => {
+test("the rule starts on 29 September 2026: a pull request opened before it is exempt, one opened then or after is held", () => {
+  assert.equal(TITLE_RULE_FROM, "2026-09-29T00:00:00Z");
+  assert.equal(exemptByDate("2026-09-28T23:59:59Z"), true, "the last second before the rule");
+  assert.equal(exemptByDate("2026-09-01T09:00:00Z"), true);
+  assert.equal(exemptByDate("2026-09-29T00:00:00Z"), false, "the rule's first moment is held");
+  assert.equal(exemptByDate("2026-10-05T14:30:00Z"), false);
+  // A time that is missing or unreadable is held: the exemption never widens because the event said nothing.
+  for (const none of ["", undefined, null, "yesterday", "2026-13-45T00:00:00Z"])
+    assert.equal(exemptByDate(none), false, JSON.stringify(none));
+});
+
+test("run as CI runs it: the title and its opening time from the environment, a failure that says why, and a pass", () => {
   const script = path.join(ROOT, "tooling/scripts/checks/pr-title.mjs");
-  const run = (title, args = []) =>
-    spawnSync(process.execPath, [script, ...args], { env: { ...process.env, PR_TITLE: title }, encoding: "utf8" });
+  const AFTER = "2026-09-29T00:00:00Z";
+  const BEFORE = "2026-09-28T23:59:59Z";
+  const run = (title, createdAt = AFTER, args = []) =>
+    spawnSync(process.execPath, [script, ...args], {
+      env: { ...process.env, PR_TITLE: title, PR_CREATED_AT: createdAt },
+      encoding: "utf8",
+    });
   const long = run("a".repeat(TITLE_MAX + 1));
   assert.equal(long.status, 1);
   assert.match(long.stderr, /101 characters, over 100/);
@@ -68,5 +85,13 @@ test("run as CI runs it: the title from the environment, a failure that says why
   assert.match(ended.stderr, /ends with a period/);
   const kept = run("The wire says snake_case");
   assert.equal(kept.status, 0, kept.stderr);
-  assert.equal(run("", ["The title as an argument"]).status, 0, "an argument is read before the environment");
+  assert.equal(run("", AFTER, ["The title as an argument"]).status, 0, "an argument is read before the environment");
+
+  // Either side of the day, the same title that breaks the rule.
+  const before = run("a".repeat(TITLE_MAX + 1), BEFORE);
+  assert.equal(before.status, 0, before.stderr);
+  assert.match(before.stdout, /exempt, opened 2026-09-28T23:59:59Z/);
+  assert.match(before.stdout, /not held: The title is 101 characters/, "it still says what it would refuse");
+  assert.equal(run("a".repeat(TITLE_MAX + 1), AFTER).status, 1, "opened on the day, held");
+  assert.equal(run("a".repeat(TITLE_MAX + 1), "").status, 1, "a local run, with no opening time, is held");
 });

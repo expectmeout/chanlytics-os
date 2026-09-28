@@ -66,7 +66,8 @@ every name under 63 bytes, where Postgres truncates. An applied name is never re
 
 - **A pull request's title is the squash commit's subject**: one sentence saying what is now true, at most 100
   characters, not ending in a period; what moved goes in the body. CI checks the title
-  (`tooling/scripts/checks/pr-title.mjs`, in `.github/workflows/ci.yml`).
+  (`tooling/scripts/checks/pr-title.mjs`, in `.github/workflows/ci.yml`); a pull request opened before 29 September
+  2026 is exempt.
 - **Migrations** are `NNNNN_what_changed.sql` and **decisions** `NNNN-what-is-decided.md`, one number each, every
   decision listed in `docs/decisions/README.md` with the status its note says. `database/migrations.test.mjs`,
   `history/decisions.test.mjs`.
