@@ -293,7 +293,7 @@ honest:
   declared demo session, and a test fails CI if the shell declares a route the
   table does not classify.
 - `src/legacy-bridge/surface-data.ts` is the seam that feeds a real surface
-  from `/api/v1`, and nothing a real surface draws may state a fact the
+  from `/api/v1`, with one module per surface in `src/legacy-bridge/surfaces/`, and nothing a real surface draws may state a fact the
   database cannot support. A zero is a measurement and is shown; an invented
   number is not.
 
@@ -381,6 +381,7 @@ apps/dashboard/src/legacy-bridge/
   ask/
   mascot/
   reach-out/
+  surfaces/
   today-sample/
 apps/dashboard/src/legacy/
   components/

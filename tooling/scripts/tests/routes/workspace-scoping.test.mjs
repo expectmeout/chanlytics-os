@@ -35,7 +35,15 @@ const API = path.join(ROOT, "apps/dashboard/app/api/v1");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
 
 const withRoute = read("apps/dashboard/src/server/with-route.ts");
-const surfaceData = read("apps/dashboard/src/legacy-bridge/surface-data.ts");
+// The seam and each surface's module beside it (legacy-bridge/surfaces/), read as one text.
+const surfaceData = [
+  "apps/dashboard/src/legacy-bridge/surface-data.ts",
+  ...fs
+    .readdirSync(path.join(ROOT, "apps/dashboard/src/legacy-bridge/surfaces"))
+    .map((f) => `apps/dashboard/src/legacy-bridge/surfaces/${f}`),
+]
+  .map((p) => read(p))
+  .join("\n");
 const runner = read("apps/dashboard/src/legacy-bridge/surface-runner.ts");
 
 /* ------------------------ one resolver, one rule -------------------------- */

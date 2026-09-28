@@ -469,9 +469,25 @@ test("what the page on screen draws from other surfaces follows its own surface,
   let known;
   try {
     const modules = await Promise.all(
-      ["surface-data", "setup", "leads", "google", "billing", "reach-out/replies"].map((m) =>
-        importSrc(`apps/dashboard/src/legacy-bridge/${m}.ts`),
-      ),
+      [
+        "surface-data",
+        "surfaces/inbox",
+        "surfaces/today",
+        "surfaces/conversations",
+        "surfaces/settings",
+        "surfaces/people",
+        "surfaces/broadcasts",
+        "surfaces/playbooks",
+        "surfaces/calendar",
+        "surfaces/reports",
+        "surfaces/notifications",
+        "surfaces/live",
+        "setup",
+        "leads",
+        "google",
+        "billing",
+        "reach-out/replies",
+      ].map((m) => importSrc(`apps/dashboard/src/legacy-bridge/${m}.ts`)),
     );
     known = new Set(
       modules.flatMap((mod) =>

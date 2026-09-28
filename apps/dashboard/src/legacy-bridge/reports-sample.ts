@@ -17,7 +17,7 @@ import {
   type BookingReportDto,
   HOUR_MS,
 } from "@chanlytics/contracts";
-import type { ReportsSurface } from "./surface-data";
+import type { ReportsSurface } from "./surfaces/reports";
 
 const ZONE = "America/New_York";
 const SPAN = 180;
