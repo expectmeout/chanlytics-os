@@ -9,16 +9,21 @@
  * cost at the models' list prices. Read-only; the service role, because a
  * day's turns belong to every member of every workspace.
  *
- *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node tooling/scripts/ops/ask-day.mjs [--json]
+ *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node tooling/scripts/ops/ask-day.mjs [--json] [--check]
+ *
+ * --check says last, in one line, whether the day held the nightly's lines (ask-stats.mjs askDayVerdict), and exits 1
+ * when it crossed one: the nightly workflow opens an issue with that line.
  */
 import { writeFileSync, mkdirSync } from "node:fs";
-import { spread, pct, ms, missTally } from "../ask-stats.mjs";
+import { spread, pct, ms, missTally, askDayVerdict } from "../ask-stats.mjs";
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const HOURS = Math.max(1, Number(process.env.HOURS) || 24);
 const TENANT = process.env.TENANT || null;
 const JSON_OUT = process.argv.includes("--json");
+/** The nightly's check (the Phase 6 plan, D4): the day against its lines, said last, exit 1 when one is crossed. */
+const CHECK = process.argv.includes("--check");
 if (!URL_ || !KEY) {
   console.error("NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
   process.exit(2);
@@ -184,4 +189,15 @@ if (JSON_OUT) {
     ),
   );
   console.log(`saved ${out}`);
+}
+
+if (CHECK) {
+  const verdict = askDayVerdict({
+    turns: turns.length,
+    cacheHit: whole.cache_hit.median,
+    firstTextMs: whole.first_text.median,
+    misses: whole.misses,
+  });
+  console.log(`\n${verdict.line}`);
+  if (!verdict.ok) process.exitCode = 1;
 }

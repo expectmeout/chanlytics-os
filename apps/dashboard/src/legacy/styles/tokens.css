@@ -19,6 +19,10 @@
   --text-3xl:   28px;
   --text-4xl:   36px;
   --text-5xl:   48px;
+  /* A field's words on a touch screen. Below 16px, Safari on a phone zooms the page into the field it focuses, so
+     this is not a step of the scale above and does not move with it (globals.css holds every field to it under a
+     coarse pointer; the Ask line and the phone's own fields read it too). */
+  --field-text-touch: 16px;
 
   --leading-tight: 1.2;
   --leading-snug:  1.35;
