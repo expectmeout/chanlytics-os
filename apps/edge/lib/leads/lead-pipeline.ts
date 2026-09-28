@@ -7,7 +7,7 @@
  * deployment fails by name (packages/jobs handlers).
  *
  * The job's own id is the owner of every claim and lease it takes, so a job
- * the ledger tries again finds its own claim (core runner.ts).
+ * the ledger tries again finds its own claim (core runner/claim.ts).
  */
 import { check, collect, startRound, type LeadPorts } from "../packages/core.js";
 import { scheduleJobOnce, type ClaimedJob, type JobContext } from "../packages/jobs.js";
