@@ -709,11 +709,6 @@
     "branches": 1,
     "depth": 0
   },
-  "apps/edge/lib/lines/a2p-campaign-facts.ts::campaignFactsFor#1": {
-    "lines": 221,
-    "branches": 12,
-    "depth": 0
-  },
   "apps/edge/lib/lines/a2p-register.ts::registerLine#1": {
     "lines": 215,
     "branches": 26,
