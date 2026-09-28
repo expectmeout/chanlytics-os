@@ -404,11 +404,11 @@ const useArSeedKeys = ({ open, A, onClose, live, asked, setTick, setView, setSco
     // Taken once open, after the route's own scope, so a request's scope wins.
     const d = asked.current;
     if (d) {
-      asked.current = null;
-      if (d.about) setScope(typeof d.about === "object" ? d.about : null);
+      asked.current = null; const r = arRoute(), chip = d.about ? (typeof d.about === "object" ? d.about : null) : A.scopeFor(r.page, r.param, arScopeLabel(r.page, r.param));
+      if (d.about) setScope(chip);
       if (d.thread) openThread({ id: d.thread });
       else if (d.mode === "compose" || !d.prompt) { setActive(null); setQuick(null); setQuery(d.prompt || ""); }
-      else submit(d.prompt);
+      else submit(d.prompt, chip); // the chip this opening shows: `scope` is still the last opening's until the next draw
     }
     return () => window.removeEventListener("keydown", onKeys);
   });
@@ -507,9 +507,9 @@ const arActs = ({ A, M, onClose, pushed, active, setActive, live, setLive, turnS
 // thread. A question that repeats a thread's first question resumes that thread rather than opening a twin. `turn` is
 // what the stream writes and the landing reads: its thread's id, the final message, and what it has said.
 const arSubmitter = (ln) => {
-  const { A, M, query, live, active, threads, threadsReady, turnSeq, scope, surface, openedAt, setQuery, setView, setUnfolded, setLang, setQuick, setActive, setLive, openThread } = ln;
-  const submit = async (qArg) => {
-    const q = (typeof qArg === "string" ? qArg : query).trim();
+  const { A, M, query, live, active, threads, threadsReady, turnSeq, scope, surface, openedAt, setQuery, setView, setUnfolded, setLang, setQuick, setActive, setLive, setScope, openThread } = ln;
+  const submit = async (qArg, chipArg) => {
+    const q = (typeof qArg === "string" ? qArg : query).trim(), chip = chipArg !== undefined ? chipArg : scope; // a seed names its opening's chip
     if (!q || live) return;
     setQuery("");
     setView("rows");
@@ -533,10 +533,10 @@ const arSubmitter = (ln) => {
     if (!base) {
       const list = await (threadsReady.current || Promise.resolve(threads));
       const twin = list.find((th) => A.sameQuestion(th.title, q));
-      if (twin) base = await openThread(twin);
+      if (twin) { base = await openThread(twin); if (chip) setScope(chip); } // the chip it is asked with, not the twin's stored scope
     }
     const userMsg = { id: "u-" + Date.now(), role: "user", text: q, atMs: Date.now(), citations: [], followups: [], proposals: [] };
-    const thread = base ? { ...base, messages: [...base.messages, userMsg], scope: scope || base.scope || null } : { id: null, title: q, messages: [userMsg], scope: scope || null }; // asked with the chip's scope, else the thread's own, which it then holds (D9)
+    const thread = base ? { ...base, messages: [...base.messages, userMsg], scope: chip || base.scope || null } : { id: null, title: q, messages: [userMsg], scope: chip || null }; // asked with the chip's scope, else the thread's own, which it then holds (D9)
     setActive(thread);
     const mine = ++turnSeq.current;
     setLive({ q, text: "", say: null, traces: [] });
@@ -918,7 +918,7 @@ const arStage = ({ talk, live, stageRef, phone, faceRef, AskFace, scope, setScop
           <span className="ask-scope" title={`${scope.kind}: ${scope.label}`} data-testid="ask-scope">
             <Icon name={arScopeIcon(scope)} size={10} />
             <span>{scope.label}</span>
-            <button type="button" onClick={() => { setScope(null); setActive((a) => (a && a.scope ? { ...a, scope: null } : a)); }} aria-label={t.clearScope}><Icon name="x" size={9} /></button>
+            <button type="button" onClick={() => { setScope(null); setActive((a) => (a && a.scope ? { ...a, scope: null } : a)); }} aria-label={t.clearScope}><Icon name="x" size={9} /></button>{/* the open thread's scope too, so its next question goes with none (D9) */}
           </span>
         ) : null}
         <input
