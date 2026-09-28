@@ -1,7 +1,7 @@
 /**
  * An erased person leaves Ask: by their id, the ids of their conversations and calls, and their number and address
  * however a turn spells them, everywhere in the workspace; and by their name in the threads that are about them
- * (00237; the Ask Rewired Phase 5 plan, D13). The first test that runs scrub_ask_for_contact: 00040's was pinned by
+ * (00238; the Ask Rewired Phase 5 plan, D13). The first test that runs scrub_ask_for_contact: 00040's was pinned by
  * reading its text, and it matched a person by digits and an address alone, case-sensitive, took every empty thread
  * in the workspace with it, and ran on anyone.
  *

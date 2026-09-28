@@ -1,4 +1,4 @@
--- 00237 · A person is scrubbed from Ask by name, in the threads that are about them.
+-- 00238 · A person is scrubbed from Ask by name, in the threads that are about them.
 --
 -- Ask Rewired, Phase 5, PR 5.6 (docs/superpowers/plans/2026-09-27-ask-rewired-5-memory.md: finding 8, D13).
 -- 00040's scrub deleted every Ask message in the workspace whose JSON text held the person's id or one of the
@@ -165,4 +165,4 @@ end $$;
 revoke execute on function public.scrub_ask_for_contact(uuid, uuid, text[]) from public, anon;
 grant execute on function public.scrub_ask_for_contact(uuid, uuid, text[]) to authenticated;
 comment on function public.scrub_ask_for_contact(uuid, uuid, text[]) is
-  'Owner-only, and only for a person being erased: removes every Ask message in the workspace whose words hold their id, a conversation or call id of theirs, or a spelling of their number or address; strips the raw turn off a message whose raw alone does; and in the threads those make theirs (or that are scoped to them) removes every message naming them, strips every raw, clears the title and scope, and removes a thread left empty (00237). Returns the messages removed plus the raws stripped.';
+  'Owner-only, and only for a person being erased: removes every Ask message in the workspace whose words hold their id, a conversation or call id of theirs, or a spelling of their number or address; strips the raw turn off a message whose raw alone does; and in the threads those make theirs (or that are scoped to them) removes every message naming them, strips every raw, clears the title and scope, and removes a thread left empty (00238). Returns the messages removed plus the raws stripped.';
