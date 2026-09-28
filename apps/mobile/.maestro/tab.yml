@@ -1,0 +1,22 @@
+# One tab, by the system bar's own item (Android): TAB is the tab's word. The item is found by its label, the bar's own
+# view (Material's small label, or the large one on the tab in front), never by the word alone: a page may say it too
+# (People's ⋯ button is "More", the Calendar has a "Today" button). Every tab is labelled (labelVisibilityMode), so the
+# label is there whichever tab is in front. It is pressed only when it is not already in front. Then the tab must be in
+# front, and its page not the offline screen.
+appId: com.chanlytics.app
+---
+- runFlow:
+    when:
+      notVisible:
+        text: ${TAB}
+        selected: true
+    commands:
+      - tapOn:
+          id: .*navigation_bar_item_(small|large)_label_view
+          text: ${TAB}
+      - waitForAnimationToEnd:
+          timeout: 5000
+- assertVisible:
+    text: ${TAB}
+    selected: true
+- assertNotVisible: No connection
