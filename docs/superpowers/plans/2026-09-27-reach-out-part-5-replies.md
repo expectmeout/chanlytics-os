@@ -1097,7 +1097,30 @@ Draft mode's first use, as decision 0017 records it: for interested, a question 
 
 **Deploy order:** the edge and packages only. Either order.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `5b630026`). What departed from the tasks, and why:
+>
+> - **The draft is a stage of `readReply`, not a verb of its own.**
+>   - `draftStage` runs between the apply and the claim, so the notice carries the draft.
+>   - `draftLater` is the job's `draft` stage, which drafts a reading still waiting and tells nobody.
+>   - Both record through `markDraft` (00222's `reach_out_reply_draft`, compare-and-set from none or waiting).
+>   - A draft is read back before the notice, so a retry, or the draft's own job, keeps the one draft already kept.
+> - **The gates are a contracts predicate the edge's port asks.** `draftRefusal` in `reach-out/reach-out-reply-draft.ts` holds G14's order: `no_receptionist`, `off`, `budget`, `may_not_spend`. The edge's port (`apps/edge/lib/reach-out/reply-draft.ts`) reads the facts for it:
+>   - the runtime, from a `RoutedChannel` built from the mailbox;
+>   - the reply policy's mode;
+>   - `tokensLast24h` under `tokenBudgetSpent`;
+>   - `workspaceMaySpend`.
+>
+>   A missing mailbox, or no model key on the edge, is `no_receptionist`: neither can speak. "Off" is the policy mode `never`, the one mode under which the receptionist says nothing. A workspace on its free trial is `may_not_spend`, as it is for the reading itself (`maySpend` leaves `trialing` out).
+> - **The brain is raced against the job's deadline**, which the verb only reaches with `DRAFT_NEEDS_MS` (25 s) left. `generateReply` takes no signal, and its client may retry once. The draft's job, short of time, throws for the ledger's retry and marks nothing.
+> - **No holding words.** The brain is handed `""` as its fallback, so an answer it could not give (a hand-off, a refusal, a record it could not read, a blank) is `not_drafted`, never the holding words. Its tokens are counted whether or not it drafted.
+> - **Usage:** the one writer is `recordTokens(db, tenantId, conversationId, usage)` in `receptionist/budget.ts`, which `persist.ts` now calls. A draft's event also carries `source: "reach_out_reply_draft"`. A write that fails is logged (`reach_out_reply_draft_usage_failed`), and the draft stands.
+> - **`answer.ts` asks `tokenBudgetSpent` and nothing else new.** The file is pinned at its length, and a second import would wrap the import line. Beside the predicate, contracts also holds `tokenCapOf`, which the draft's port uses to pass the cap to `tokensLast24h`.
+> - **The notice quotes the draft on one line**, clipped at 240 characters (`draftExcerpt`, over `clipAtWord`): "The receptionist drafted an answer: “…” Nothing is sent without you." It is never in `redacted`. The same words stand for a not-now's line of thanks.
+> - **The RoutedChannel's `externalId` is the mailbox's local part**, the one address the row keeps. `loadTenantRuntime` reads nothing of it for an email kind.
+> - **Tests:**
+>   - `reach-out-replies/reply-draft.test.mjs` covers the contracts, the verb over fakes, and the edge's port over a database in memory (the real runtime loader, gates and usage writer, with the brain handed in);
+>   - `reply-read-door.test.mjs` now models the draft's door and proves the notice carries the draft;
+>   - `whatsapp/inbound-executed.test.mjs` is unchanged and green.
 
 ### Task 5.1: One budget, one usage writer
 

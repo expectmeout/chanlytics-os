@@ -13,12 +13,18 @@
  *     already (outreach_wrote_back), and the reply is read again later, so a missed no still becomes an opt-out.
  *   - A re-read (stage reread-<n>) applies only while the reading is still unread and at the re-read before it, and
  *     tells only what nobody was told (a no, and an automatic reply's first real reading).
+ *   - The draft (PR 5, decision 0017): for interested, a question and not now, the receptionist writes an answer (or a
+ *     line of thanks) and it is kept on the reading, never as a message: nothing sends it but a person. It is tried
+ *     once, after the apply and before the notice, so the notice carries it. A job with too little time left marks it
+ *     waiting, hands it to a job of its own (stage "draft"), and tells without it; that job tells nobody.
  *   - The notice, in two phases (B2): the claim, then the telling, then the mark only once the owner was told. A
  *     telling that failed throws, so the ledger tries again once the claim has gone stale; told is never marked before.
  *
- * It sends nothing to the business. The draft (PR 5) and the pages (PRs 7 and 8) come later.
+ * It sends nothing to the business. The pages (PRs 7 and 8) come later.
  */
 import {
+  DRAFT_NEEDS_MS,
+  leadReplyNote,
   parseReplyReading,
   readingPlan,
   replyNoticeWords,
@@ -28,6 +34,7 @@ import {
   rereadAt,
   UNREAD_READING,
   zoneDayKey,
+  type DraftWhy,
   type ReadingPlan,
   type ReplyClaim,
   type ReplyIntent,
@@ -52,6 +59,8 @@ export interface ReplyFacts {
   /** The address the reach-out wrote to, and the lead's website. */
   leadAddress: string | null;
   leadWebsite: string | null;
+  /** The chain's signature ({{your name}}), which a draft ends with. */
+  signedBy: string | null;
   /** The business's zone. */
   tz: string;
 }
@@ -67,7 +76,18 @@ export interface KeptReading {
   tell: boolean;
   told: boolean;
   undone: boolean;
+  /** What its plan drafts (contracts readingPlan), and how far the draft got: its text once written. */
+  draft: "answer" | "thanks" | null;
+  draftState: DraftState;
+  draftText: string | null;
 }
+
+/** reach_out_replies.draft_state. */
+export type DraftState = "none" | "waiting" | "written" | "not_written";
+
+/** A draft's mark: waiting for a job of its own, written, or not written and why. */
+export type DraftMark =
+  { state: "waiting" } | { state: "written"; draft: string } | { state: "not_written"; why: DraftWhy };
 
 /** The notice as the workspace is told it: words only; where it goes and how is the runtime's. */
 export interface ReplyNotice {
@@ -105,7 +125,17 @@ export interface ReplyReadPorts {
   tell(tenantId: string, notice: ReplyNotice): Promise<boolean>;
   /** The notice's second phase: marked told, only while this run's claim still holds it. */
   told(tenantId: string, messageId: string, claim: string): Promise<void>;
-  /** This message's next read, at most once per stage. */
+  /**
+   * The receptionist's draft of an answer to their reply, over the thread and the lead note: the text, or which gate
+   * stopped it (contracts draftRefusal) or that it was not drafted. Throws when it failed; no call runs past `deadline`.
+   */
+  draft(
+    tenantId: string,
+    ask: { conversationId: string; text: string; note: string; deadline: number },
+  ): Promise<{ text: string } | { why: DraftWhy }>;
+  /** The draft's mark (reach_out_reply_draft): only from none or waiting, so a second stage never writes over the first. */
+  markDraft(tenantId: string, messageId: string, mark: DraftMark): Promise<boolean>;
+  /** This message's next read, or its draft, at most once per stage. */
   scheduleOnce(at: number, payload: { message_id: string; stage: string }): Promise<"scheduled" | "already_scheduled">;
   now(): number;
 }
@@ -117,9 +147,14 @@ export interface ReadReplyCommand {
   stage?: unknown;
   /** How long a claim on the notice holds before another run may take it: the job's lease. */
   tellStaleMs: number;
+  /** When this job stops starting work (epoch ms): a draft needs DRAFT_NEEDS_MS of it. */
+  deadline: number;
 }
 
-export type ReadReplyOutcome = "not_a_reply" | "already_read" | "read" | "told";
+export type ReadReplyOutcome = "not_a_reply" | "already_read" | "read" | "told" | "drafted";
+
+/** The stage that drafts a reading's answer once a first job ran out of time for it. */
+const DRAFT_STAGE = "draft";
 
 /** Which read a stage is: 0 for the first, n for "reread-<n>". */
 export function rereadOf(stage: unknown): number {
@@ -161,7 +196,69 @@ async function readNow(
   return { reading, unread: reading ? null : "model_failed", now };
 }
 
+/** Ask the receptionist, and keep what it answered on the reading: a draft, or why there is none. It never throws. */
+async function draftNow(
+  ports: ReplyReadPorts,
+  cmd: ReadReplyCommand,
+  facts: ReplyFacts,
+  kind: "answer" | "thanks",
+): Promise<void> {
+  let out: { text: string } | { why: DraftWhy };
+  try {
+    out = await ports.draft(cmd.tenantId, {
+      conversationId: facts.conversationId,
+      text: replyTextOf(facts.text),
+      note: leadReplyNote({ business: facts.business, answered: facts.answered, signedBy: facts.signedBy, kind }),
+      deadline: cmd.deadline,
+    });
+  } catch {
+    // A brain that failed or ran out of time drafts nothing: the reading and its notice stand without it.
+    out = { why: "not_drafted" };
+  }
+  const text = "text" in out ? out.text.trim() : "";
+  await ports.markDraft(
+    cmd.tenantId,
+    cmd.messageId,
+    text ? { state: "written", draft: text } : { state: "not_written", why: "why" in out ? out.why : "not_drafted" },
+  );
+}
+
+/**
+ * The draft stage, between the apply and the notice (G16): drafted now when the job has the time, else marked waiting
+ * and handed to a job of its own. Answers the draft the notice carries, if one was written.
+ */
+async function draftStage(
+  ports: ReplyReadPorts,
+  cmd: ReadReplyCommand,
+  facts: ReplyFacts,
+  kept: KeptReading,
+): Promise<string | null> {
+  if (!kept.draft || kept.draftState !== "none") return kept.draftText;
+  if (cmd.deadline - ports.now() < DRAFT_NEEDS_MS) {
+    await ports.markDraft(cmd.tenantId, cmd.messageId, { state: "waiting" });
+    await ports.scheduleOnce(ports.now(), { message_id: cmd.messageId, stage: DRAFT_STAGE });
+    return null;
+  }
+  await draftNow(ports, cmd, facts, kept.draft);
+  // Read back: a run that marked it first (a retry, the draft's own job) is the one kept.
+  return (await ports.reading(cmd.tenantId, cmd.messageId))?.draftText ?? null;
+}
+
+/** The draft's own job: drafts a reading still waiting, and tells nobody (the first job told the owner without it). */
+async function draftLater(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise<ReadReplyOutcome> {
+  const facts = await ports.reply(cmd.tenantId, cmd.messageId);
+  if (!facts) return "not_a_reply";
+  const kept = await ports.reading(cmd.tenantId, cmd.messageId);
+  if (!kept || kept.undone || !kept.draft || (kept.draftState !== "none" && kept.draftState !== "waiting"))
+    return "already_read";
+  if (cmd.deadline - ports.now() < DRAFT_NEEDS_MS)
+    throw new Error("reply_read: no time left to draft; the ledger tries again");
+  await draftNow(ports, cmd, facts, kept.draft);
+  return "drafted";
+}
+
 export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise<ReadReplyOutcome> {
+  if (cmd.stage === DRAFT_STAGE) return draftLater(ports, cmd);
   const n = rereadOf(cmd.stage);
   const { tenantId, messageId } = cmd;
   const facts = await ports.reply(tenantId, messageId);
@@ -194,6 +291,9 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
     if (at !== null) await ports.scheduleOnce(at, { message_id: messageId, stage: `reread-${n + 1}` });
   }
 
+  // Tried once, before the notice, so the notice carries it (G16). A re-read's plan never drafts.
+  const draft = await draftStage(ports, cmd, facts, kept);
+
   if (!kept.tell || kept.told) return "read";
   // B2: claim, tell, and only then mark told. A claim another run holds is not this run's to finish: it throws, and the
   // ledger tries again once the claim is stale (its waits outlast the lease), when the notice is either told or free.
@@ -205,7 +305,7 @@ export async function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): P
     business: facts.business,
     summary: kept.summary ?? "",
     quote: replyTextOf(facts.text),
-    draft: false,
+    draft,
     unread: kept.unread,
     automatic: facts.claim === "auto_reply",
     reread: n > 0,
