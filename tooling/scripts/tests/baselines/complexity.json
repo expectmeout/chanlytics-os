@@ -635,12 +635,12 @@
     "depth": 2
   },
   "apps/edge/api/admin/sending-domains.ts::POST#1": {
-    "lines": 84,
+    "lines": 83,
     "branches": 33,
     "depth": 3
   },
   "apps/edge/api/admin/steer.ts::POST#1": {
-    "lines": 177,
+    "lines": 175,
     "branches": 46,
     "depth": 1
   },
@@ -650,7 +650,7 @@
     "depth": 4
   },
   "apps/edge/api/admin/voice-provision.ts::POST#1": {
-    "lines": 203,
+    "lines": 202,
     "branches": 43,
     "depth": 2
   },
@@ -705,13 +705,13 @@
     "depth": 0
   },
   "apps/edge/lib/lines/a2p-register.ts::registerLine#1": {
-    "lines": 215,
+    "lines": 213,
     "branches": 26,
     "depth": 1
   },
   "apps/edge/lib/lines/a2p-sync.ts::syncRegistration#1": {
-    "lines": 169,
-    "branches": 34,
+    "lines": 164,
+    "branches": 32,
     "depth": 2
   },
   "apps/edge/lib/playbooks.ts::loadTenantRunContext#1": {

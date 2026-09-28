@@ -58,6 +58,7 @@ export const POST = write({
           tenant: member.tenantId,
           status: a.status,
           error: typeof b.error === "string" ? b.error.slice(0, 300) : null,
+          detail: typeof b.detail === "string" ? b.detail.slice(0, 300) : null,
         }),
       );
       throw new AppError(
