@@ -6004,7 +6004,33 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
   } finally {
     console.error = was;
   }
+
+  // A chain of two turns: the window runs from the newest turn's last round, never from the base's. The base began ten
+  // minutes back; the newest just now is live, and the newest begun at 4:31, though saved in time, is cold.
+  const longer = async (newestAgo) => {
+    const { world, ctx, base, second } = await twoTurnChain();
+    const rawOfRow = (id) => world.ask_messages.find((m) => m.id === id).content.raw;
+    rawOfRow(second).at = Date.now() - newestAgo;
+    rawOfRow(base).at = Date.now() - 10 * MIN;
+    const { r } = await nextTurn(ctx, [ROUND([answer("Three.")])]);
+    return r.shape.replay;
+  };
+  assert.equal(await longer(0), "live", "a base ten minutes back, the newest now: live");
+  assert.equal(await longer(4 * MIN + 31_000), "rebuilt", "the newest begun at 4:31: cold");
 });
+
+/**
+ * A thread whose chain is two turns long, both kept as the route keeps them: the base, then a live turn that replayed
+ * it -- the database's rows, the caller, and the two answers' ids.
+ */
+async function twoTurnChain() {
+  const { world, ctx } = threadWorld();
+  const r1 = await runAskTurn(turn(ctx).input, ports(sentAs([ROUND([answer("One.")])]).round));
+  const base = await keep(ctx, "Who needs me?", r1);
+  const t2 = await nextTurn(ctx, [ROUND([answer("Two.")])]);
+  assert.equal(t2.r.shape.replay, "live");
+  return { world, ctx, base, second: await keep(ctx, "And?", t2.r) };
+}
 
 test("the chain (the Phase 5 plan, D1, D3): each live turn names the answer it replayed last, and the next follows those links -- twelve turns replayed, the base's included, and the thirteenth turn's chain is cold, its turn the next chain's base; two tabs that interleave break a link", async () => {
   const { ctx } = threadWorld();
@@ -6074,6 +6100,14 @@ test("the chain (the Phase 5 plan, D1, D3): each live turn names the answer it r
     ["rebuilt", 0],
     "two answers in a row: cold, by the rows alone",
   );
+
+  // A later turn of the chain whose raw keeps a base, though its row says it went live and its link holds: it was asked
+  // with a words history, so its thinking is bound to that, never to the turns before it. The chain breaks.
+  const { world, ctx: kept, second } = await twoTurnChain();
+  const raw = world.ask_messages.find((m) => m.id === second).content.raw;
+  raw.blocks = JSON.stringify({ base: [], ...JSON.parse(raw.blocks) });
+  const { r: broken } = await nextTurn(kept, [ROUND([answer("Three.")])]);
+  assert.equal(broken.shape.replay, "rebuilt", "a later turn that keeps a base: cold");
 });
 
 test("the bound (the Phase 5 plan, D3, corrected): a replay of 48 messages is live and 49 cold; round one's request at 360,000 characters as sent is live, and at 360,001 cold -- room under the edge's 700,000 for two rounds of four reads at their caps", async () => {
