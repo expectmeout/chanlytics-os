@@ -762,6 +762,7 @@ declare function speedOf(replies: readonly {
 };
 /** A caller's mood as the voice provider reads it ("Positive", "Neutral", "Negative", "Unknown"), as a status tone. */
 declare function callMoodTone(sentiment: string): "" | "ok" | "danger";
+/** The Reports page's view model: a builder per part, over the facts counted once. */
 declare function toReportVM(dto: ReportDto): ReportVM;
 
 /**
@@ -8241,6 +8242,9 @@ declare function receiptWords(r: Pick<BroadcastRecipientDto, "sent_at" | "messag
  * a day, up to the reply window -- so replies that came in the first hour have
  * a shape instead of one bar, and a run whose answers trickled in over three
  * days looks like it.
+ *
+ * The facts are counted once (runFactsOf); each part has its builder, run in
+ * the order the run has always been read.
  */
 declare function toRunReportVM(d: {
     broadcast?: {

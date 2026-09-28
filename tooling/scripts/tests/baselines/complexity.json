@@ -54,11 +54,6 @@
     "branches": 13,
     "depth": 1
   },
-  "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx::CreateWorkspace#1": {
-    "lines": 320,
-    "branches": 32,
-    "depth": 1
-  },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx::LegacyApp#1": {
     "lines": 181,
     "branches": 11,
@@ -709,11 +704,6 @@
     "branches": 1,
     "depth": 0
   },
-  "apps/edge/lib/lines/a2p-campaign-facts.ts::campaignFactsFor#1": {
-    "lines": 221,
-    "branches": 12,
-    "depth": 0
-  },
   "apps/edge/lib/lines/a2p-register.ts::registerLine#1": {
     "lines": 215,
     "branches": 26,
@@ -789,16 +779,6 @@
     "branches": 49,
     "depth": 3
   },
-  "packages/contracts/src/broadcasts/run-report.ts::toRunReportVM#1": {
-    "lines": 229,
-    "branches": 29,
-    "depth": 0
-  },
-  "packages/contracts/src/broadcasts/run-report.ts::toRunReportVM/map(fn)#3": {
-    "lines": 70,
-    "branches": 55,
-    "depth": 1
-  },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {
     "lines": 186,
     "branches": 53,
@@ -859,11 +839,6 @@
     "branches": 84,
     "depth": 0
   },
-  "packages/contracts/src/reports/reports.ts::toReportVM#1": {
-    "lines": 237,
-    "branches": 37,
-    "depth": 0
-  },
   "packages/contracts/src/setup/capabilities.ts::capabilityStatus#1": {
     "lines": 66,
     "branches": 36,
@@ -903,11 +878,6 @@
     "lines": 200,
     "branches": 55,
     "depth": 2
-  },
-  "packages/contracts/src/today/today-leaks.ts::todayLeaks#1": {
-    "lines": 207,
-    "branches": 66,
-    "depth": 1
   },
   "packages/contracts/src/voice/live.ts::toLiveCallVM#1": {
     "lines": 86,
