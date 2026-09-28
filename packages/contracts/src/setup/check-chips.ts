@@ -9,8 +9,9 @@
  * in front of its customers (trade-neutral.test.mjs). A line naming one trade's own services says so with
  * `trade-word:`: the table only reaches a business Google lists as that trade.
  */
-import { sameListed } from "../calendar/availability";
-import { COMMON_LANGUAGES, PROFILE_LIMITS, profileRefusal } from "../config/business-tab";
+import { sameListed } from "../calendar/service-offer";
+import { PROFILE_LIMITS, profileRefusal } from "../config/business-tab/fold-limits";
+import { COMMON_LANGUAGES } from "../config/business-tab/how-it-answers";
 
 const SUGGESTIONS: Readonly<Record<string, readonly string[]>> = {
   hair_salon: [

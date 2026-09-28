@@ -37,7 +37,8 @@ import {
   type RegistrationPath,
 } from "../packages/contracts.js";
 import { lineForClient, type LineProviderChoice } from "./lines.js";
-import { campaignFactsFor, type RegisterResult } from "./a2p.js";
+import { campaignFactsFor } from "./a2p-campaign-facts.js";
+import type { RegisterResult } from "./a2p-register.js";
 import { retryRequestedBy, type LineDbRow } from "./line-resume.js";
 import type { LineReleaseResult } from "./line-release.js";
 import { errorMessage, type DoorAnswer } from "../admin-door.js";

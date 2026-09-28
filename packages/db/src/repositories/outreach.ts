@@ -19,6 +19,8 @@ export interface OutreachFactsRow {
    * answers or cites one sent to them, or a call they made. An out-of-office is not one.
    */
   wrote_back: boolean;
+  /** An automatic out-of-office whose day is still ahead (00226): the chain waits. A database before 00226 says nothing. */
+  away: boolean;
   /**
    * The From host's row as Connections set it up, with the days it has sent on since it was clean (D15, 00184); null
    * when the workspace owns no such domain.
@@ -60,6 +62,8 @@ export async function outreachFactsOf(
     lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
     suppressed: f.suppressed === true,
     wrote_back: f.wrote_back,
+    // Absent before 00226: not away, as it was.
+    away: f.away === true,
     domain:
       f.domain && typeof f.domain === "object" && typeof f.domain.state === "string"
         ? {
@@ -201,6 +205,10 @@ export interface ReplyReadingRow {
   plan: Json;
   told_at: string | null;
   undone_at: string | null;
+  /** The receptionist's draft (PR 5): its text once written, how far it got, and why there is none. */
+  draft: string | null;
+  draft_state: string;
+  draft_why: string | null;
 }
 
 /** The reading kept for this message, if any. A read that fails throws. */
@@ -210,12 +218,38 @@ export async function replyReadingOf(
 ): Promise<ReplyReadingRow | null> {
   const { data, error } = await db
     .from("reach_out_replies")
-    .select("intent, claim, summary, unread, rereads, plan, told_at, undone_at")
+    .select("intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why")
     .eq("tenant_id", p.tenantId)
     .eq("message_id", p.messageId)
     .maybeSingle();
   if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
   return data ?? null;
+}
+
+/**
+ * The draft's mark (00222 reach_out_reply_draft): waiting, written with its text, or not written with why. Written only
+ * from none or waiting, so a second stage never writes over the first: true when this call wrote it.
+ */
+export async function markReplyDraft(
+  db: Db,
+  p: {
+    tenantId: string;
+    messageId: string;
+    state: "waiting" | "written" | "not_written";
+    draft: string | null;
+    why: string | null;
+  },
+): Promise<boolean> {
+  // The door takes a null draft and a null why (its own left(), case); the generated Args say string for both.
+  const { data, error } = await db.rpc("reach_out_reply_draft", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_state: p.state,
+    p_draft: p.draft,
+    p_why: p.why,
+  } as never);
+  if (error) throw new Error(`cannot mark the reply's draft: ${error.message}`);
+  return data === true;
 }
 
 /** One read of the workspace's UTC day, taken if it is under `cap` (00222 reach_out_read_take): true when taken. */
@@ -278,4 +312,95 @@ export async function markReplyTold(db: Db, p: { tenantId: string; messageId: st
     p_claimed_at: p.claim,
   });
   if (error) throw new Error(`cannot mark the reply's notice told: ${error.message}`);
+}
+
+/** A reading as the dashboard lists it: the row, and the lead, send and step it answers. */
+export interface ReplyListRow {
+  message_id: string;
+  conversation_id: string;
+  read_at: string;
+  intent: string;
+  claim: string;
+  summary: string | null;
+  named_day: string | null;
+  refer_to: string | null;
+  unread: string | null;
+  rereads: number;
+  undone_at: string | null;
+  draft: string | null;
+  draft_state: string;
+  draft_why: string | null;
+  /** What the reading did (contracts ReadingPlan, as JSON), and an automatic away's day back. */
+  plan: Json;
+  until_at: string | null;
+  business: string | null;
+  /** The step the reply answers (reach_out_sends.playbook_id), and its chain's first step. */
+  playbook_id: string | null;
+  root_id: string | null;
+}
+
+const REPLY_LIST_COLUMNS =
+  "message_id, conversation_id, read_at, intent, claim, summary, named_day, refer_to, unread, rereads, undone_at, draft, draft_state, draft_why, plan, until_at, lead_id, send_id";
+
+/**
+ * A workspace's readings since a moment, newest first and at most `limit`, on the caller's client (RLS decides): with
+ * the business each answers and the step its reach-out email was, read in one batch each.
+ */
+export async function repliesFor(
+  db: Db,
+  p: { tenantId: string; since: string; conversationId?: string | null; limit: number },
+): Promise<ReplyListRow[]> {
+  let q = db.from("reach_out_replies").select(REPLY_LIST_COLUMNS).eq("tenant_id", p.tenantId).gte("read_at", p.since);
+  if (p.conversationId) q = q.eq("conversation_id", p.conversationId);
+  const { data, error } = await q.order("read_at", { ascending: false }).limit(p.limit);
+  if (error) throw new Error(`cannot read the replies: ${error.message}`);
+  const rows = data ?? [];
+  const ids = (k: "lead_id" | "send_id") => [...new Set(rows.map((r) => r[k]).filter((v): v is string => !!v))];
+  const [leads, sends] = await Promise.all([
+    ids("lead_id").length
+      ? db.from("leads").select("id, business_name").eq("tenant_id", p.tenantId).in("id", ids("lead_id"))
+      : Promise.resolve({ data: [], error: null }),
+    ids("send_id").length
+      ? db
+          .from("reach_out_sends")
+          .select("id, playbook_id, root_id")
+          .eq("tenant_id", p.tenantId)
+          .in("id", ids("send_id"))
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (leads.error) throw new Error(`cannot read the replies' leads: ${leads.error.message}`);
+  if (sends.error) throw new Error(`cannot read the replies' emails: ${sends.error.message}`);
+  const business = new Map((leads.data ?? []).map((l) => [l.id, l.business_name as string | null]));
+  const step = new Map((sends.data ?? []).map((s) => [s.id, s]));
+  return rows.map(({ lead_id, send_id, ...r }) => ({
+    ...r,
+    business: (lead_id && business.get(lead_id)) || null,
+    playbook_id: (send_id && step.get(send_id)?.playbook_id) || null,
+    root_id: (send_id && step.get(send_id)?.root_id) || null,
+  }));
+}
+
+/** A reading by its message, on the caller's client: the row a member's undo acts on. Null when RLS hides it. */
+export async function replyReadingRefOf(db: Db, messageId: string): Promise<{ id: string; tenant_id: string } | null> {
+  const { data, error } = await db
+    .from("reach_out_replies")
+    .select("message_id, tenant_id")
+    .eq("message_id", messageId)
+    .maybeSingle();
+  if (error) throw new Error(`cannot read the reply: ${error.message}`);
+  return data ? { id: data.message_id, tenant_id: data.tenant_id } : null;
+}
+
+/** Whether the caller may undo this reading (00222 reach_out_reply_undoable): null when they may, else why not. */
+export async function replyUndoableOf(db: Db, messageId: string): Promise<string | null> {
+  const { data, error } = await db.rpc("reach_out_reply_undoable", { p_message_id: messageId });
+  if (error) throw new Error(`cannot ask whether the reply can be undone: ${error.message}`);
+  return typeof data === "string" && data ? data : null;
+}
+
+/** "Read as no · undo" (00222 reach_out_reply_undo), as the caller. A refusal throws the door's error, its code kept. */
+export async function undoReplyReading(db: Db, messageId: string): Promise<Json> {
+  const { data, error } = await db.rpc("reach_out_reply_undo", { p_message_id: messageId });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  return data;
 }

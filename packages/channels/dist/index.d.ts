@@ -156,7 +156,15 @@ interface SendResult {
     errorBody?: string;
     /** The provider's own error code when it gives one: a text's carrier says 21610 for a person who opted out (sms.ts smsRefusalOf). */
     code?: number | null;
+    /**
+     * A person's email reply only (core emailSender): whether it left by the own domain it was frozen with, or as the
+     * mailbox's request, and why not by its own when it could not.
+     */
+    leftAs?: "own" | "mailbox";
+    leftAsWhy?: EmailLeftAsWhy;
 }
+/** Why a person's reply frozen with an own domain left as the mailbox's request instead (N5, G15). */
+type EmailLeftAsWhy = "no_own_route" | "domain_has_no_route" | "twin_names_another_recipient" | "route_refuses_twin";
 /** Whether Graph refused a send as too many, too fast: HTTP 429, or one of GRAPH_THROTTLE_CODES. */
 declare function graphThrottled(r: {
     ok: boolean;
@@ -1311,16 +1319,6 @@ interface EmailRequestInput {
     messageId: string;
     tenantId: string;
 }
-/** bestmovers@mail.chanlytics.com: the address a workspace publishes and sends from. */
-declare function hostedAddress(localPart: string, domain: string): string;
-/** r+<token>@mail.chanlytics.com: where a reply comes back. It routes to a workspace; it authenticates nobody. */
-declare function replyRouteAddress(replyToken: string, domain: string): string;
-/** A workspace's hosted identity, from its mailbox row and the deployment's mail domain. */
-declare function hostedIdentity(mailbox: {
-    local_part: string;
-    reply_token: string;
-    from_name: string;
-}, domain: string): EmailIdentity;
 /** `"Name" <address>`, the name quoted so a comma or a bracket in it cannot end it early. */
 declare function mailboxHeader(name: string, address: string): string;
 /** "Re: <their subject>", once, however many prefixes the chain has stacked. A parent without one still gets a subject a person can find. */
@@ -1333,8 +1331,6 @@ declare function replySubject(parentSubject: string | null | undefined): string;
  * to carry design; no markup from the words survives into it.
  */
 declare function emailHtml(text: string): string;
-/** A Message-ID as a header carries it, angle brackets and all; null for anything that is not one. */
-declare function messageIdHeader(id: string | null | undefined): string | null;
 /** The chain a reply carries: the parent's chain, then the parent. Bounded, oldest dropped first, the root kept. */
 declare function referencesFor(parent: Pick<EmailParent, "rfcMessageId" | "references">): string[];
 /**
@@ -1364,6 +1360,77 @@ declare function referencesFor(parent: Pick<EmailParent, "rfcMessageId" | "refer
 declare function buildEmailRequest(i: EmailRequestInput): EmailRequest;
 /** Is this stored value a request the wire may send? The row's meta is JSON; the wire trusts its shape, not its type. */
 declare function isEmailRequest(v: unknown): v is EmailRequest;
+
+/** A Message-ID as a header carries it, angle brackets and all; null for anything that is not one. */
+declare function messageIdHeader(id: string | null | undefined): string | null;
+/** `Ana Reyes <ana@x.com>` or `ana@x.com`: the address and the phrase, apart. The phrase is the sender's own and proves nothing. */
+declare function addressOf(header: string | null | undefined): {
+    address: string;
+    name: string | null;
+} | null;
+
+/** bestmovers@mail.chanlytics.com: the address a workspace publishes and sends from. */
+declare function hostedAddress(localPart: string, domain: string): string;
+/** r+<token>@mail.chanlytics.com: where a reply comes back. It routes to a workspace; it authenticates nobody. */
+declare function replyRouteAddress(replyToken: string, domain: string): string;
+/** A workspace's hosted identity, from its mailbox row and the deployment's mail domain. */
+declare function hostedIdentity(mailbox: {
+    local_part: string;
+    reply_token: string;
+    from_name: string;
+}, domain: string): EmailIdentity;
+/** The addresses one workspace's email may leave as and be answered at: what the wire holds a frozen request to. */
+interface EmailSendsAs {
+    /** The From address. */
+    address: string;
+    /** Every Reply-To that still routes to this workspace: the live reply route, and the rotated-out one until it is revoked. */
+    replyRoutes: string[];
+}
+/** What a mailbox row sends as, on the deployment's mail domain. */
+declare function sendsAs(mailbox: {
+    local_part: string;
+    reply_token: string;
+    reply_token_prev: string | null;
+}, domain: string): EmailSendsAs;
+/**
+ * What one of a workspace's own domains sends as (Reach out): From on the
+ * workspace's domain, answered at the mailbox's own reply routes, so a reply
+ * to a cold email lands in the same Inbox as every other. With cold reply
+ * domains (D17) the routes are on them too: a cold email is frozen with the
+ * one set now, and one frozen before a switch still leaves as it was.
+ */
+declare function sendsAsOwnDomain(domain: {
+    host: string;
+    from_local: string;
+}, mailbox: {
+    local_part: string;
+    reply_token: string;
+    reply_token_prev: string | null;
+}, mailDomain: string, coldReplyDomains?: string | readonly string[] | null): EmailSendsAs;
+/**
+ * The identity a cold email is frozen with: the own domain's name and address, and the mailbox's live reply route on
+ * the domain its replies come back on (the mail domain, or the cold reply domain when it is set, D17).
+ */
+declare function ownDomainIdentity(domain: {
+    host: string;
+    from_local: string;
+    from_name: string;
+}, mailbox: {
+    reply_token: string;
+}, replyDomain: string): EmailIdentity;
+/**
+ * Does this frozen request leave as this workspace and nobody else? The
+ * request is JSON on a row; the wire is bound to a workspace's mailbox. A
+ * request whose From or Reply-To is another's is refused rather than sent, the
+ * same promise the WhatsApp wire keeps by taking its credentials from the
+ * tenant and never from the environment.
+ */
+declare function requestLeavesAs(request: EmailRequest, as: EmailSendsAs): boolean;
+
+/**
+ * Whether a webhook delivery is Resend's: the Svix signature over it, computed and checked inside the replay window.
+ * The first thing intake asks; what a delivery carries is intake.ts and receipts.ts.
+ */
 interface SvixHeaders {
     id: string | null;
     timestamp: string | null;
@@ -1385,6 +1452,7 @@ declare function resendWebhookSignature(secret: string, id: string, timestamp: s
  * event is about.
  */
 declare function verifyResendWebhook(secret: string | undefined, h: SvixHeaders, rawBody: string, nowMs: number): Promise<boolean>;
+
 /** Which of the platform's addresses a delivery names: a workspace's published one, or a reply route. */
 type PlatformRecipient = {
     kind: "mailbox";
@@ -1402,11 +1470,6 @@ type PlatformRecipient = {
  * and nothing else: no workspace publishes an address there.
  */
 declare function platformRecipient(address: string, domain: string, coldReplyDomains?: string | readonly string[] | null): PlatformRecipient | null;
-/** `Ana Reyes <ana@x.com>` or `ana@x.com`: the address and the phrase, apart. The phrase is the sender's own and proves nothing. */
-declare function addressOf(header: string | null | undefined): {
-    address: string;
-    name: string | null;
-} | null;
 /** One received email as the webhook announces it: a pointer, and who it was delivered to. */
 interface EmailReceivedEvent {
     type: "email.received";
@@ -1467,6 +1530,7 @@ declare function messageIdsIn(header: string | null | undefined): string[];
  */
 type EmailClaim = "report" | "auto_reply" | "automated" | "person";
 declare function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from">): EmailClaim;
+
 type EmailReceiptType = "sent" | "delivered" | "delivery_delayed" | "bounced" | "complained" | "failed" | "suppressed";
 interface EmailReceipt {
     type: EmailReceiptType;
@@ -1515,53 +1579,11 @@ interface EmailReceiptEffect {
  * interim.
  */
 declare function emailReceiptEffect(r: EmailReceipt): EmailReceiptEffect;
-/** The addresses one workspace's email may leave as and be answered at: what the wire holds a frozen request to. */
-interface EmailSendsAs {
-    /** The From address. */
-    address: string;
-    /** Every Reply-To that still routes to this workspace: the live reply route, and the rotated-out one until it is revoked. */
-    replyRoutes: string[];
-}
-/** What a mailbox row sends as, on the deployment's mail domain. */
-declare function sendsAs(mailbox: {
-    local_part: string;
-    reply_token: string;
-    reply_token_prev: string | null;
-}, domain: string): EmailSendsAs;
+
 /**
- * What one of a workspace's own domains sends as (Reach out): From on the
- * workspace's domain, answered at the mailbox's own reply routes, so a reply
- * to a cold email lands in the same Inbox as every other. With cold reply
- * domains (D17) the routes are on them too: a cold email is frozen with the
- * one set now, and one frozen before a switch still leaves as it was.
+ * Two answers the provider gives a call, read: what a refusal means for the next send (resendLimitOf), and what it
+ * thinks of the mail domain (mailDomainsFrom). The calls themselves are ../email-resend.ts.
  */
-declare function sendsAsOwnDomain(domain: {
-    host: string;
-    from_local: string;
-}, mailbox: {
-    local_part: string;
-    reply_token: string;
-    reply_token_prev: string | null;
-}, mailDomain: string, coldReplyDomains?: string | readonly string[] | null): EmailSendsAs;
-/**
- * The identity a cold email is frozen with: the own domain's name and address, and the mailbox's live reply route on
- * the domain its replies come back on (the mail domain, or the cold reply domain when it is set, D17).
- */
-declare function ownDomainIdentity(domain: {
-    host: string;
-    from_local: string;
-    from_name: string;
-}, mailbox: {
-    reply_token: string;
-}, replyDomain: string): EmailIdentity;
-/**
- * Does this frozen request leave as this workspace and nobody else? The
- * request is JSON on a row; the wire is bound to a workspace's mailbox. A
- * request whose From or Reply-To is another's is refused rather than sent, the
- * same promise the WhatsApp wire keeps by taking its credentials from the
- * tenant and never from the environment.
- */
-declare function requestLeavesAs(request: EmailRequest, as: EmailSendsAs): boolean;
 /**
  * What a refusal from the provider means for the next send, read from the
  * names Resend documents for its 429 and 409 answers:
@@ -1601,7 +1623,7 @@ declare function emailPlainText(e: Pick<ReceivedEmail, "text" | "html">): string
 /**
  * Email over Resend: the one function with a network in it.
  *
- * It sends a request that was built and frozen elsewhere (email.ts) and says
+ * It sends a request that was built and frozen elsewhere (email/request.ts) and says
  * what happened. Like every send adapter here it RETURNS a result and never
  * throws, and it is bounded: a hung connection must not take the worker's
  * whole run with it (whatsapp.ts postGraph says why).
@@ -1770,8 +1792,14 @@ declare function dmarcOf(txt: readonly (readonly string[])[]): "found" | "missin
  * paid for. Chanlytics' own primary profile is not moved into the
  * subaccount; it is REFERENCED by sid, and that reference is the whole
  * declaration that this business is ours.
+ *
+ * This module holds the wire's own vocabulary: the Trust Hub policies, the two
+ * hosts, and a request and how its form is written. The requests themselves are
+ * trust-hub.ts (the profiles, the end users, the address) and brand-campaign.ts
+ * (the brand and the campaign); the business they describe is
+ * business-record.ts; the saga's steps are steps.ts and what the carriers
+ * answer is verdict.ts.
  */
-
 /** Trust Hub policies, by the names Twilio gives them. */
 declare const A2P_POLICIES: {
     /** The bundle one customer of an ISV gets. */
@@ -1795,6 +1823,20 @@ declare const A2P_POLICIES: {
 };
 declare const TRUSTHUB = "https://trusthub.twilio.com/v1";
 declare const MESSAGING = "https://messaging.twilio.com/v1";
+interface A2PRequest {
+    url: string;
+    method: "GET" | "POST" | "DELETE";
+    /**
+     * Form fields; the caller encodes them. A list is sent as REPEATED keys —
+     * `MessageSamples=a&MessageSamples=b` — which is the only shape Twilio
+     * parses. Indexed keys (`MessageSamples[0]`) come back as
+     * "Unable to process JSON".
+     */
+    form?: Record<string, string | string[]>;
+}
+/** One place that knows how a list is written on the wire. */
+declare function encodeForm(form: Record<string, string | string[]>): string;
+
 /** What every registration asks of a business, collected once and reused. */
 interface BusinessRecord {
     /** The name on the tax filing, not the trading name. */
@@ -1845,19 +1887,7 @@ type BrandType = "STANDARD" | "SOLE_PROPRIETOR";
  * nothing else.
  */
 declare function brandTypeFor(r: Pick<BusinessRecord, "ein">): BrandType;
-interface A2PRequest {
-    url: string;
-    method: "GET" | "POST" | "DELETE";
-    /**
-     * Form fields; the caller encodes them. A list is sent as REPEATED keys —
-     * `MessageSamples=a&MessageSamples=b` — which is the only shape Twilio
-     * parses. Indexed keys (`MessageSamples[0]`) come back as
-     * "Unable to process JSON".
-     */
-    form?: Record<string, string | string[]>;
-}
-/** One place that knows how a list is written on the wire. */
-declare function encodeForm(form: Record<string, string | string[]>): string;
+
 /** The customer's own bundle, under our primary profile. */
 declare function customerProfileRequest(o: {
     friendlyName: string;
@@ -1940,6 +1970,13 @@ declare function a2pProfileEndUserRequest(o: {
 }): A2PRequest;
 declare function evaluateTrustProductRequest(bundleSid: string): A2PRequest;
 declare function submitTrustProductRequest(bundleSid: string): A2PRequest;
+
+/**
+ * The Messaging API half of a registration, as requests: the brand registered from the two profiles, and the
+ * campaign on the line's Messaging Service, filed, corrected in place or taken off. The profiles are trust-hub.ts;
+ * the policies, the hosts and the request's shape are wire.ts.
+ */
+
 /**
  * The brand. `mock` registers against Twilio's test registry: free, never
  * routes a real message, and gone after thirty days — which is how this
@@ -2067,6 +2104,12 @@ declare function updateCampaignRequest(messagingServiceSid: string, campaignSid:
  * compliance list is then empty.
  */
 declare function deleteCampaignRequest(messagingServiceSid: string, campaignSid: string): A2PRequest;
+
+/**
+ * The registration's steps and their receipts: the order the saga walks them (A2P_STEPS), what it has made so far
+ * (A2PState), and the next step on either registration (nextA2PStep). The saga that runs them is ../a2p-saga.ts.
+ */
+
 type A2PStep = SchemaSet<"lines.reg_step">;
 /** In the order the saga walks them; schema-agreement.ts holds them to the column. */
 declare const A2P_STEPS: readonly ["profile", "business", "representative", "address", "document", "primary", "submit", "a2p_profile", "brand", "campaign"];
@@ -2096,6 +2139,11 @@ declare const EMPTY_A2P_STATE: A2PState;
  * genuinely shared, which is why one function still answers for both.
  */
 declare function nextA2PStep(s: A2PState, brandType?: BrandType): A2PStep | null;
+
+/**
+ * What the carriers answered, in the product's words: a wait told apart from a refusal (isBrandNotReady), why they
+ * refused (refusalWords), the line's sms_state (smsStateFor), and the bell a change rings (registrationVerdict).
+ */
 /**
  * The campaign cannot be filed until the carriers have finished with the
  * brand. That is a WAIT, not a refusal: everything asked for was accepted,
@@ -2734,4 +2782,4 @@ interface LeadJudge {
 }
 declare function leadJudge(client: LeadJudgeClient, model: string, fallbacks: boolean): LeadJudge;
 
-export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignError, type CampaignFacts, type CarrierConsent, DEFAULT_FN_URL, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type EmailCampaign, type EmailClaim, type EmailIdentity, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, MESSAGING, type MailCapability, type MailDomainFacts, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProviderAnswer, type ProviderDomain, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RESEND_API, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type RecordingFetch, type ResendAnswer, type ResendConfig, type ResendLimit, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_TIMEOUT_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, STATE_TTL_MS, type SagaResult, type SendEmailOptions, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SvixHeaders, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WEBHOOK_TOLERANCE_S, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, apifyClient, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, buildEmailRequest, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, createAgent, createAgentVersion, createMailDomain, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deletePhoneNumber, deleteReplyRequest, desiredVoiceShell, dmarcOf, dryProvider, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, findMailDomain, getAgent, getAgentRaw, getCall, getMailDomain, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, graphThrottled, hostedAddress, hostedIdentity, idTokenClaims, importPhoneNumber, isAreaCode, isBrandNotReady, isE164, isEmailRequest, isValidSipPassword, keywordsFor, leadJudge, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, mailDomainsFrom, mailboxHeader, mergeConsent, messageIdHeader, messageIdsIn, needsHydration, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, ownDomainIdentity, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerDomainFrom, publishAgentVersion, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, removeMailDomain, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestLeavesAs, resendLimitOf, resendRequest, resendWebhookSignature, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendTemplate, sendText, sendsAs, sendsAsOwnDomain, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioSignature, twilioSignedString, twilioUrls, unb64url, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyMailDomain, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withCarrierConsent, withKey };
+export { type A2PAnswer, type A2PPorts, type A2PRequest, type A2PResult, type A2PState, type A2PStep, A2P_POLICIES, A2P_STEPS, APIFY_BASE, APIFY_RUN_END_EVENTS, APIFY_TIMEOUT_MS, type AgentPlan, type ApifyClient, ApifyRefused, ApifyRetryable, type ApifyRun, type AvailableNumber, type BrandType, type BusinessRecord, CALLER_UNKNOWN, CALL_ANALYSIS_FIELDS, type CampaignError, type CampaignFacts, type CarrierConsent, DEFAULT_FN_URL, type DryCall, type DryProvider, EDGE_TOKEN_TTL_MS, EMPTY_A2P_STATE, type EdgeClaims, type EdgeTokenVerdict, type EmailCampaign, type EmailClaim, type EmailIdentity, type EmailLeftAsWhy, type EmailParent, type EmailReceipt, type EmailReceiptEffect, type EmailReceiptType, type EmailReceivedEvent, type EmailRequest, type EmailRequestInput, type EmailSendsAs, type EmailSuppressionReason, FACTS_UNAVAILABLE, FRESH_SLACK_MS, GBP_ACCOUNTS_URL, GBP_INFO_BASE, GBP_LOCATIONS_READ_MASK, GBP_REPLY_MAX, GBP_REVIEWS_MAX_PAGES, GBP_REVIEWS_PAGE, GBP_V4_BASE, GOOGLE_AUTH_URL, GOOGLE_REVOKE_URL, GOOGLE_TOKEN_URL, type GbpAccount, type GbpLocation, type GbpReview, type GbpReviewsPage, HANDOFF_VAR, type KnownReview, LEAD_JUDGE_DEFAULT_MODEL, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_MAX_TOKENS, LINE_COSTS, LINE_STEPS, LOW_VOLUME_USECASE, type LeadJudge, type LeadJudgeAnswer, type LeadJudgeClient, type LinePorts, type LineProvider, type LineProviderName, type LineRow, type LineSecrets, type LineStep, type LineVoiceState, type ListCallsPage, type ListingBefore, type ListingCheckPlan, type LiveAgentSettings, type LiveCallControl, type LiveVoiceLlm, MESSAGING, type MailCapability, type MailDomainFacts, type NormalizedCall, type NormalizedInbound, type OAuthClient, type OAuthState, PLACES_BASE, PLACES_DETAILS_MASK, PLACES_SEARCH_LIMIT, PLACES_SEARCH_MASK, PLACES_TIMEOUT_MS, PLACE_ID, PROFILE_SCOPES, type PlaceCandidate, type PlaceDetails, type PlaceReview, PlacesError, type PlacesHttp, type PlacesRequest, type PlatformRecipient, type ProfileBefore, type ProfileSyncPlan, type ProviderAccount, type ProviderAnswer, type ProviderDomain, type ProvisionAction, type ProvisionSecrets, type ProvisionStep, type ProvisionStepId, RESEND_API, RETELL_ORIGINATION, REVIEW_BELL_MAX, type ReceivedEmail, type RecordingFetch, type ResendAnswer, type ResendConfig, type ResendLimit, type RetellAgentConfig, type RetellCall, type RetellConfig, type RetellLlmConfig, type RetellTool, type RetellTranscriptTurn, type RetellWrite, type ReviewBell, SEND_DEADLINE_MS, SEND_TIMEOUT_MS, SMS_FOOTER, SMS_HELD_DETAILS, SMS_HELD_REASON, SMS_MAX_CHARS, SMS_OPTED_OUT_CODE, STATE_TTL_MS, type SagaResult, type SendEmailOptions, type SendResult, type SmsInbound, type SmsRegistrationState, type SmsSendResult, type SmsStatus, type SvixHeaders, TRUSTHUB, type TokenGrant, type TwilioAnswer, TwilioError, type TwilioHttp, UNSUBSCRIBE_PATH, type UnsubscribeClaims, VOICE_AGENT_DEFAULTS, VOICE_LLM_DEFAULTS, VOICE_NUMBER_DEFAULTS, VOICE_SHELL_BEGIN, VOICE_SHELL_PROMPT, VOICE_WEBHOOK_EVENTS, VOICE_WEBHOOK_TIMEOUT_MS, type VoiceConvergencePlan, type VoiceProvisionPlan, type VoiceProvisionRequest, type VoiceProvisionState, type VoiceShellTarget, WEBHOOK_TOLERANCE_S, type WaChangeValue, type WaConfig, type WaMediaRef, type WaRawMessage, a2pProfileEndUserRequest, a2pProfileRequest, accountsRequest, addressOf, addressRequest, agentSettingsDrift, apifyClient, assignRequest, authorizeUrl, availabilityUrl, b64url, brandRequest, brandTypeFor, buildEmailRequest, businessAttributes, businessEndUserRequest, callSummaryLine, campaignRequest, carrierConsent, chooseLineProvider, classifyReceived, cleanReply, createAgent, createAgentVersion, createMailDomain, createPhoneNumber, createRetellLlm, customerProfileRequest, deleteCampaignRequest, deletePhoneNumber, deleteReplyRequest, desiredVoiceShell, dmarcOf, dryProvider, emailHtml, emailPlainText, emailReceiptEffect, emailReceiptFrom, emailReceivedEventFrom, encodeForm, evaluateRequest, evaluateTrustProductRequest, fetchMailDomains, fetchMediaBytes, fetchReceivedEmail, fetchRecording, fetchTwilio, findMailDomain, getAgent, getAgentRaw, getCall, getMailDomain, getPhoneNumber, getPlace, getRetellLlm, grantHasScope, graphThrottled, hostedAddress, hostedIdentity, idTokenClaims, importPhoneNumber, isAreaCode, isBrandNotReady, isE164, isEmailRequest, isValidSipPassword, keywordsFor, leadJudge, listAccounts, listCalls, listLocations, listReviews, liveTurns, locationsRequest, mailDomainsFrom, mailboxHeader, mergeConsent, messageIdHeader, messageIdsIn, needsHydration, newNonce, nextA2PStep, nextLineStep, normalizeCall, normalizeInbound, ownDomainIdentity, parseAccounts, parseLocations, parsePlaceDetails, parsePlacesSearch, parseReviewsPage, parseTokenResponse, parseTranscriptText, placesDetailsRequest, placesFetch, placesSearchRequest, planAgentSettings, planListingCheck, planProfileSync, planVoiceConvergence, planVoiceProvision, platformRecipient, providerDomainFrom, publishAgentVersion, receivedEmailFrom, referencesFor, refusalWords, registrationVerdict, removeMailDomain, replyRequest, replyRouteAddress, replySubject, replyToReview, representativeAttributes, representativeEndUserRequest, requestLeavesAs, resendLimitOf, resendRequest, resendWebhookSignature, retellImportBody, reviewBells, reviewIdOf, reviewParent, reviewsRequest, revokeRequest, runA2PSaga, runLineSaga, sameSignature, searchPlaces, sendEmail, sendTemplate, sendText, sendsAs, sendsAsOwnDomain, signEdgeToken, signState, signUnsubscribeToken, sipPassword, sipUsername, smsAsWaMessage, smsBody, smsInboundFrom, smsInboundUrl, smsKeywordConsent, smsRefusalOf, smsStateFor, smsStatusFrom, smsStatusToRow, smsStatusUrl, soleProprietorEndUserRequest, soleProprietorProfileRequest, starRatingNumber, starterAttributes, starterEndUserRequest, starterProfileRequest, stopCall, stripKey, subaccountName, submitProfileRequest, submitTrustProductRequest, supportingDocumentRequest, tokenExchangeRequest, tokenRefreshRequest, trunkDomain, trustProductAssignRequest, twilioProvider, twilioSignature, twilioSignedString, twilioUrls, unb64url, unsubscribeUrl, updateAgent, updateCampaignRequest, updateEndUserRequest, updateLiveCall, updatePhoneNumber, verifyEdgeToken, verifyMailDomain, verifyResendWebhook, verifyRetellSignature, verifyState, verifyTwilioSignature, verifyUnsubscribeToken, voiceAgentCreateBody, voiceEndpoints, voiceLlmCreateBody, voiceNumberBindBody, voiceNumberBinding, voiceNumberCreateBody, voiceShellDrift, voiceShellTools, withCarrierConsent, withKey };

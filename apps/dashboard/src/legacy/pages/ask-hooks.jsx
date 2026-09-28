@@ -170,4 +170,122 @@ const useAskSpeech = (A) => {
   return { canSpeak: !!(A && A.canSpeak()), speakingId, toggle, stop };
 };
 
-window.AskHooks = { useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech };
+// A phone's thread (docs/superpowers/specs/2026-09-27-ask-chat-on-a-phone-design.md): the newest question stands at
+// the top as a question is asked or a conversation opened (D5), and Latest is offered once it is out of sight below
+// (D7). The arithmetic is pure, so it is proved without a layout; the thread is the question's offsetParent (ask.css).
+const ahStill = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+/** The scroll that stands the newest question a breath under the thread's top edge; the first stands at the top. */
+const ahPinTop = (qTop, gap = 14) => Math.max(0, qTop - gap);
+/** Whether the newest question's first line is below what the thread shows: Latest is offered then. */
+const ahLatestShown = ({ qTop, scrollTop, clientHeight }) => qTop > scrollTop + clientHeight - 24;
+/** Stand the newest question at the top of the thread `body`, gliding unless motion is reduced. */
+const ahPinNow = (body) => {
+  const q = body && body.querySelector ? body.querySelector("#ask-now-q") : null;
+  if (!q) return;
+  const top = ahPinTop(q.offsetTop);
+  if (typeof body.scrollTo === "function") body.scrollTo({ top, behavior: ahStill() ? "auto" : "smooth" });
+  else body.scrollTop = top;
+};
+/** D5: each time `key` changes (another question, another conversation), the newest question stands at the top. */
+const useAskPin = (bodyRef, key, on) => {
+  useAhEffect(() => {
+    if (on) ahPinNow(bodyRef.current);
+  }, [bodyRef, key, on]);
+};
+/** D7: whether the newest question is out of sight below, read again as the thread scrolls, once a frame. */
+const useAskLatest = (bodyRef, on) => {
+  const [shown, setShown] = useAhState(false);
+  useAhEffect(() => {
+    const body = bodyRef.current;
+    if (!on || !body || !body.addEventListener) {
+      setShown(false);
+      return undefined;
+    }
+    let frame = 0;
+    const look = () => {
+      frame = 0;
+      const q = body.querySelector("#ask-now-q");
+      setShown(!!q && ahLatestShown({ qTop: q.offsetTop, scrollTop: body.scrollTop, clientHeight: body.clientHeight }));
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(look);
+    };
+    body.addEventListener("scroll", onScroll, { passive: true });
+    look();
+    return () => {
+      body.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [bodyRef, on, setShown]);
+  return shown;
+};
+
+// A phone's field focused: the field and the three slide to where the screen made room for the keys (moved here
+// unchanged from ask-real.jsx, which the Line's hooks call as `slide` and `slideFrom`).
+// The keyboard's own beat on iOS: what it takes to rise, and what the field and the three take to reach their places.
+const AH_KEYS_MS = 250;
+const ahRect = (el) => (el && typeof el.getBoundingClientRect === "function" ? el.getBoundingClientRect() : null);
+/** Where the field and the hero stand as the field is focused, to slide them from there once the screen has made room. */
+const ahSlideFrom = (stage, hero) => (ahStill() ? null : { stage: ahRect(stage), hero: ahRect(hero) });
+// A phone's field just focused: the screen has made room for the keys at once (data-bits watchKeyboard's kb-expected;
+// ask.css), so the browser finds the field above them and moves nothing. What the eye sees is the field and the three
+// sliding to their places over the keyboard's own beat: a still copy of the field that React never holds goes from
+// where the field stood to where it is, over the field itself, held clear meanwhile (the kit's way, as `leaving`), and
+// the hero is drawn from where it stood and let go (translate, never transform: the kit's rule). Under reduced motion
+// they are simply there (ahSlideFrom gives nothing).
+const ahSlide = (from, stage, hero) => {
+  if (!from) return;
+  const modal = stage && stage.parentElement;
+  const now = ahRect(stage);
+  const box = ahRect(modal);
+  if (from.stage && now && box) {
+    const dy = now.top - from.stage.top;
+    if (Math.abs(dy) > 1) {
+      const ghost = stage.cloneNode(true);
+      ghost.setAttribute("aria-hidden", "true");
+      ghost.removeAttribute("data-testid");
+      ghost.querySelectorAll("[id], [data-testid]").forEach((el) => {
+        el.removeAttribute("id");
+        el.removeAttribute("data-testid");
+      });
+      Object.assign(ghost.style, {
+        position: "absolute",
+        left: `${from.stage.left - box.left}px`,
+        top: `${from.stage.top - box.top}px`,
+        width: `${from.stage.width}px`,
+        margin: "0",
+        pointerEvents: "none",
+        transition: `translate ${AH_KEYS_MS}ms var(--ease-out)`,
+      });
+      modal.appendChild(ghost);
+      stage.style.opacity = "0";
+      requestAnimationFrame(() => {
+        ghost.style.translate = `0 ${dy}px`;
+      });
+      setTimeout(() => {
+        ghost.remove();
+        stage.style.opacity = "";
+      }, AH_KEYS_MS + 30);
+    }
+  }
+  const heroNow = ahRect(hero);
+  if (from.hero && heroNow) {
+    const dh = from.hero.top - heroNow.top;
+    if (Math.abs(dh) > 1) {
+      hero.style.transition = "none";
+      hero.style.translate = `0 ${dh}px`;
+      void hero.offsetHeight;
+      hero.style.transition = `translate ${AH_KEYS_MS}ms var(--ease-out)`;
+      hero.style.translate = "0 0";
+      setTimeout(() => {
+        hero.style.transition = "";
+        hero.style.translate = "";
+      }, AH_KEYS_MS + 30);
+    }
+  }
+};
+
+window.AskHooks = {
+  useAskTalk, useHoldSpace, useHoldPress, useAskFocus, useAskSpeech, useAskPin, useAskLatest,
+  pinNow: ahPinNow, pinTop: ahPinTop, latestShown: ahLatestShown, slide: ahSlide, slideFrom: ahSlideFrom,
+};

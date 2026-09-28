@@ -7,7 +7,8 @@ import type { LeadCounts, LeadRowDto, LeadSearchDto } from "./lead-dtos";
 import { leadSlots, leadTileSrc, leadTintOf, leadTodayLine, leadUndoable, leadWhere } from "./lead-facts";
 import { clockIn, milesLabel } from "./lead-helpers";
 import { leadReviewGroups } from "./lead-review";
-import { LEAD_CLOSED_REASONS, type LeadEmailState, siteHost } from "./lead-search";
+import { LEAD_CLOSED_REASONS, type LeadEmailState } from "./search/sets";
+import { siteHost } from "./search/clean";
 import {
   LEAD_CLOSED_WORDS,
   LEAD_EMAIL_WORDS,
@@ -22,7 +23,7 @@ import {
   type LeadStage,
 } from "./lead-words";
 import { agoShort, agoWords } from "../shared/time";
-import { initialsOf } from "../conversations/viewmodels";
+import { initialsOf } from "../conversations/thread-contact";
 
 /* ------------------------------------------------ what the page is given -- */
 

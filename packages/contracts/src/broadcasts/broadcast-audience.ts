@@ -4,7 +4,8 @@
  */
 import { type AskedPurpose, mayMessageFor, PURPOSE_REFUSALS } from "../consent/consent";
 import { PEOPLE_LISTS } from "../people/lists";
-import { mayReceive, type PersonRowVM, saidYesTo } from "../people/people";
+import { mayReceive, saidYesTo } from "../people/person-consent";
+import type { PersonRowVM } from "../people/person-row";
 import type { RunReach } from "../playbooks/playbooks";
 import { firstNameOf } from "../templates/templates";
 

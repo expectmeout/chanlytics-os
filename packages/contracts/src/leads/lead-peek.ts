@@ -15,7 +15,8 @@ import {
 } from "./lead-facts";
 import { CLOCK, clockIn, hourOf, milesLabel } from "./lead-helpers";
 import type { LeadSlot } from "./lead-row";
-import type { LeadEmailState, LeadSearchPlan } from "./lead-search";
+import type { LeadSearchPlan } from "./search/plan";
+import type { LeadEmailState } from "./search/sets";
 import { roleAtLeast } from "../config/roles";
 import {
   LEAD_CLOSED_WORDS,
@@ -35,7 +36,7 @@ import {
   type LeadStage,
 } from "./lead-words";
 import { formatPhoneDisplay } from "../shared/phone";
-import { initialsOf } from "../conversations/viewmodels";
+import { initialsOf } from "../conversations/thread-contact";
 import { DAY_MS } from "../shared/time";
 
 /* ---------------------------------------------------------------- the peek */
@@ -444,7 +445,7 @@ export function leadSearchWords(
     new Date(s.asked_on),
   );
   // Release A spells an exclusion `exclusions[]: { key, text, origin }` and a criterion
-  // `criteria[]: { key, text, standard, required }` (lead-search.ts, LeadSearchPlanSchema):
+  // `criteria[]: { key, text, standard, required }` (search/plan.ts, LeadSearchPlanSchema):
   // what is left out is the exclusions list, and its words are `text`.
   // Said once: an exclusion the owner's own words already name ("…, leaving out Starbucks and other chains") is not
   // said again after them. One Claude added ("chain stores like Barnes & Noble") still is.

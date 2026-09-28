@@ -76,6 +76,8 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   leads_question: ["search is waiting for your answer", "searches are waiting for your answer"],
   // Searches finish in runs (a morning's round of eight), and eight "is done" rows buried the bell's first screen.
   leads_ready: ["search finished", "searches finished"],
+  // A reach-out that wrote to several businesses hears back from several (Reach out Part 5).
+  reach_out_replied: ["reply to a reach-out", "replies to a reach-out"],
 };
 
 /** A warning outranks good news, whatever their clocks say. */

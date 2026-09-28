@@ -1,9 +1,9 @@
 /**
  * Where a business's customers book, when it is a page on a booking platform. The first run's Check offers the one a
  * business's website names (3c-4), and the lead finder reads a lead whose website or email address is on one as not
- * the business's own (lead-search.ts): the platforms are named here, once.
+ * the business's own (leads/search/clean.ts): the platforms are named here, once.
  */
-import { BrainConfigSchema } from "../config/config";
+import { BrainConfigSchema } from "../config/workspace-config/brain-config";
 
 /** Whether a host is a domain or on one of its subdomains: the one rule every list of hosts here is read by. */
 export function onDomain(host: string, domain: string): boolean {

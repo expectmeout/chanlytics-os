@@ -48,8 +48,9 @@ import type {
 import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "../broadcasts/broadcasts";
 import type { REPLY_INTENTS, REPLY_UNREADS } from "../reach-out/reach-out-replies";
 import type { CALL_OUTCOMES } from "../voice/call-words";
-import type { POLICY_CLASSES, POLICY_MODES } from "../config/config";
-import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES, SELLS_BY } from "../deals/deals";
+import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/policy-classes";
+import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES } from "../deals/deal-words";
+import type { SELLS_BY } from "../deals/sells-by";
 import type { SERVER_NOTIFICATION_KINDS } from "../today/notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "../playbooks/playbooks";
 import type { TEMPLATE_CATEGORIES } from "../templates/templates";
@@ -73,7 +74,7 @@ import type {
   LEAD_STAGES,
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
-} from "../leads/lead-search";
+} from "../leads/search/sets";
 
 export type SchemaSetKey = keyof typeof SCHEMA_SETS;
 /** The values one column's CHECK allows, e.g. SchemaSet<"lines.voice_state">. */

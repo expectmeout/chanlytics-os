@@ -112,11 +112,11 @@ export const PARTNER_WORDS = {
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
   offer:
-    "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+    "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
   terms:
-    "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+    "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up…",
@@ -136,7 +136,7 @@ export const PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces…",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -158,11 +158,14 @@ export function shareWords(shareBp: number): string {
   return `${shown}% of what it pays for its plan`;
 }
 
-/** How many workspaces came through the link, as a sentence. Zero is a real count and is said. */
+/**
+ * How many workspaces have this person as their partner, as a sentence: through the link, a handover its owner took,
+ * or an owner's invitation (partner_tenants). Zero is a real count and is said.
+ */
 export function broughtWords(count: number): string {
-  if (count <= 0) return "No workspace has come through your link yet.";
-  if (count === 1) return "1 workspace came through your link.";
-  return `${count} workspaces came through your link.`;
+  if (count <= 0) return "No workspace has you as its partner yet.";
+  if (count === 1) return "1 workspace has you as its partner.";
+  return `${count} workspaces have you as their partner.`;
 }
 
 /** One line of partner_balance() (00203): a currency's total in one state, and when the next held one is due. */
@@ -379,7 +382,7 @@ export function partnerWorkspacesVM(
   const needs = rows.filter((r) => r.verdict !== null && NEEDS_THE_PARTNER.includes(r.verdict)).length;
   const parts = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
   if (needs) parts.push(`${needs} need${needs === 1 ? "s" : ""} you`);
-  return { rows, summary: total ? parts.join(" · ") : "No workspace has come through your link yet." };
+  return { rows, summary: total ? parts.join(" · ") : broughtWords(0) };
 }
 
 /* ---------------------------------------------------------------------------------- the back office (0012, P5) */
@@ -402,7 +405,7 @@ export interface PlatformPartnerBalanceDto {
   last_paid_at: string | null;
 }
 
-/** One line of platform_partner_workspaces() (00205): who brought a workspace, and its standing. */
+/** One line of platform_partner_workspaces() (00205, 00225): who brought a workspace, how, and its standing. */
 export interface PlatformPartnerWorkspaceDto {
   tenant_id: string;
   partner_id: string;
@@ -411,9 +414,14 @@ export interface PlatformPartnerWorkspaceDto {
   standing: string | null;
   standing_why: string | null;
   standing_at: string | null;
-  /** Who decided it: the sweep's checks, or a person in the back office. Null until it is judged. */
+  /**
+   * Who decided it: the sweep's checks ('sweep'), a person in the back office ('person'), or the rule as a partner
+   * joined a workspace that was already paying ('joining', 0020). Null until it is judged.
+   */
   decided_by: string | null;
   checks: Record<string, unknown> | null;
+  /** How the partner came: link, handover or invite (0020). Absent from a database before 00225. */
+  origin?: string | null;
 }
 
 /** A person's three decisions, as the back office's buttons say them. */
@@ -531,7 +539,7 @@ export function platformPartnerSummary(rows: readonly PlatformPartnerBalanceDto[
 }
 
 export interface PlatformPartnerStandingVM {
-  /** "Brought by ada-co" */
+  /** "Brought by ada-co", "Set up and handed over by ada-co", "ada-co, asked in by its owner" */
   by: string;
   /** Its standing and why, in words: "Under review: The card that pays for it also pays for a workspace the partner owns." */
   standing: string;
@@ -546,14 +554,27 @@ const STANDING_LABELS: Record<string, string> = {
   disqualified: "Disqualified",
 };
 
+/** Who decided a standing, after its label: nothing for one that has not been. */
+const DECIDED_BY_WORDS: Record<string, string> = {
+  person: " (decided by a person)",
+  sweep: " (the nightly check)",
+  joining: " (as the partner joined)",
+};
+
+/** How the partner came to the workspace, for its row: "Brought by ada-co". */
+const BY_ORIGIN: Record<string, (code: string) => string> = {
+  link: (code) => `Brought by ${code}`,
+  handover: (code) => `Set up and handed over by ${code}`,
+  invite: (code) => `${code}, asked in by its owner`,
+};
+
 /** A workspace's partner, for its row in the back office. */
 export function platformPartnerStanding(w: PlatformPartnerWorkspaceDto): PlatformPartnerStandingVM {
   const label = w.standing ? (STANDING_LABELS[w.standing] ?? w.standing) : "Not judged yet";
-  const whose =
-    w.decided_by === "person" ? " (decided by a person)" : w.decided_by === "sweep" ? " (the nightly check)" : "";
+  const whose = (w.decided_by && DECIDED_BY_WORDS[w.decided_by]) ?? "";
   const why = w.standing ? (w.standing_why ? `: ${w.standing_why}` : "") : ": judged once it has paid";
   return {
-    by: `Brought by ${w.code}`,
+    by: (BY_ORIGIN[w.origin ?? "link"] ?? BY_ORIGIN.link)(w.code),
     standing: `${label}${whose}${why}`,
     tone:
       w.standing === "review"

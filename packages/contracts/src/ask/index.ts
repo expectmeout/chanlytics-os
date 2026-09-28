@@ -1,18 +1,6 @@
 /** Ask, the workspace assistant: its limits, the answer as the Line draws it, the model it runs on and a turn's shape. */
 export {
-  cleanAnswer,
-  isUngrounded,
   scopeFromRoute,
-  detectLanguage,
-  askJump,
-  buildAskSuggestions,
-  dayFromQuestion,
-  askIntent,
-  callsToday,
-  applySettingsChange,
-  describeSettingsChange,
-  sameQuestion,
-  navigateLabel,
   ASK_MAX_CHARS,
   ASK_MAX_ROUNDS,
   ASK_TURN_BUDGET_MS,
@@ -20,18 +8,13 @@ export {
   ASK_TOKENS_DAY,
   ASK_RETENTION_DAYS,
   ASK_CAPS,
-  ASK_LANGUAGES,
   ASK_THREAD_VERBS,
   ASK_UNDO_MS,
   AskProposalOutcomeSchema,
-  ASK_PAGES,
   ASK_SURFACES,
   ASK_SCOPE_KINDS,
-  AskSettingsChangeSchema,
-  FOLLOWUP_ECHO,
 } from "./ask";
 export type {
-  AskLanguage,
   AskRole,
   AskThreadVerb,
   AskProposal,
@@ -39,14 +22,19 @@ export type {
   AskMessageVM,
   AskThreadVM,
   AskScope,
-  JumpEntry,
   AskSurface,
-  AskSuggestion,
-  SuggestionInput,
-  FastCall,
-  AskIntent,
-  AskSettingsChange,
 } from "./ask";
+export { detectLanguage, ASK_LANGUAGES } from "./ask-language";
+export type { AskLanguage } from "./ask-language";
+export { cleanAnswer, isUngrounded, sameQuestion, navigateLabel, FOLLOWUP_ECHO } from "./answer-text";
+export { askJump, ASK_PAGES } from "./ask-jump";
+export type { JumpEntry } from "./ask-jump";
+export { buildAskSuggestions } from "./ask-suggestions";
+export type { AskSuggestion, SuggestionInput } from "./ask-suggestions";
+export { dayFromQuestion, askIntent, callsToday } from "./ask-fast-paths";
+export type { FastCall, AskIntent } from "./ask-fast-paths";
+export { applySettingsChange, describeSettingsChange, AskSettingsChangeSchema } from "./ask-settings-change";
+export type { AskSettingsChange } from "./ask-settings-change";
 export {
   emptyReadSet,
   noteRows,

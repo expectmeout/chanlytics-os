@@ -22,7 +22,9 @@ export {
   stampMailboxReceived,
   mailboxOfTenant,
   lastInboundEmail,
+  answeredReachOutEmail,
   stampEmailSent,
+  stampEmailLeftAs,
   sentEmailRequestOf,
   sentEmailOf,
   stampEmailComplaint,
@@ -58,9 +60,14 @@ export {
   takeReplyRead,
   applyReplyReading,
   claimReplyTell,
+  markReplyDraft,
+  repliesFor,
+  replyReadingRefOf,
+  replyUndoableOf,
+  undoReplyReading,
   markReplyTold,
 } from "./repositories/outreach";
-export type { OutreachFactsRow, ReachOutReplyOf, ReplyReadingRow } from "./repositories/outreach";
+export type { OutreachFactsRow, ReachOutReplyOf, ReplyReadingRow, ReplyListRow } from "./repositories/outreach";
 export {
   domainCapacityOf,
   reachOutAudience,
@@ -225,6 +232,13 @@ export {
   declineHandover,
   getPartnerHandovers,
   getHandoverInvite,
+  invitePartner,
+  withdrawPartnerInvite,
+  getWorkspacePartner,
+  getPartnerInvitations,
+  acceptPartnerInvite,
+  declinePartnerInvite,
+  getPartnerInviteMail,
 } from "./repositories/partner";
 export type {
   PartnerRow,
@@ -243,6 +257,11 @@ export type {
   OpenHandover,
   PartnerHandoverLine,
   HandoverInvite,
+  PartnerInviteSent,
+  WorkspacePartner,
+  PartnerInvitation,
+  PartnerJoined,
+  PartnerInviteMail,
 } from "./repositories/partner";
 export { readLeadOne } from "./repositories/leads";
 export type { LeadOneLead, LeadOneMember } from "./repositories/leads";

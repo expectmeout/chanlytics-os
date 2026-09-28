@@ -3,18 +3,14 @@
  * ear, a search waiting on its owner) in one row grammar, longest wait first. The facts are today-facts.ts's; the
  * calls worth an ear are today-rows.ts's.
  */
-import {
-  contactName,
-  threadChannelWords,
-  messageWords,
-  ESCALATION_REASON_LABELS,
-  formatWaited,
-  initialsOf,
-  clipAtWord,
-  type ConversationDto,
-} from "../conversations/viewmodels";
+import { ESCALATION_REASON_LABELS } from "../conversations/escalations";
+import { messageWords, clipAtWord } from "../conversations/message-words";
+import { threadChannelWords } from "../conversations/thread-channel";
+import { formatWaited } from "../conversations/thread-clock";
+import { contactName, initialsOf } from "../conversations/thread-contact";
+import type { ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
-import { reasonShort } from "../people/people";
+import { reasonShort } from "../people/person-row-facts";
 import { leadQuestionRoute, type LeadSearchDto } from "../leads/leads";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock } from "./today-clock";

@@ -44,6 +44,8 @@ export type {
   TemplateSendSource,
   TemplateSentWords,
 } from "./templates";
+export { STARTER_LANGUAGES, STARTER_TEMPLATES } from "./starter-templates";
+export type { StarterSlotKind, StarterSlot, StarterText, StarterTemplate } from "./starter-templates";
 export {
   starterByName,
   starterByKey,
@@ -51,54 +53,39 @@ export {
   starterForTrigger,
   starterText,
   starterDraft,
-  starterPreviewValues,
-  starterPreview,
-  templatePreviewValues,
-  templatePreview,
+} from "./starter-lookup";
+export { starterPreviewValues, starterPreview, templatePreviewValues, templatePreview } from "./template-preview";
+export type { OwnFacts } from "./template-preview";
+export {
   footerOf,
   templateFooter,
   templateParts,
   templateBlocked,
   sendableTemplates,
-  templateTitle,
+  templateLinkButton,
+} from "./template-parts";
+export type { TemplateButton, TemplateParts } from "./template-parts";
+export { TEMPLATE_TITLE_MAX, templateTitle, playbookName } from "./template-titles";
+export {
   languageWords,
-  inboxTemplates,
+  languageLabels,
+  LANGUAGE_GROUP_WORDS,
+  messageLanguageChoices,
+  templateUntranslatable,
+} from "./message-languages";
+export type { LanguageGroup, LanguageChoice } from "./message-languages";
+export { inboxTemplates, inboxSlots, slotToWrite } from "./inbox-templates";
+export type { InboxTemplateLike } from "./inbox-templates";
+export {
   guessSlotKind,
   defaultSlotKinds,
   defaultParamSpecs,
   slotChoices,
   templateSlots,
-  playbookName,
-  starterIndex,
-  compareTemplates,
-  defaultTemplate,
-  languageLabels,
-  messageLanguageChoices,
-  templateUntranslatable,
-  templateLinkButton,
-  groupTemplates,
-  bookingTemplate,
   slotLabels,
-  inboxSlots,
-  slotToWrite,
-  STARTER_LANGUAGES,
-  STARTER_TEMPLATES,
-  TEMPLATE_TITLE_MAX,
-  LANGUAGE_GROUP_WORDS,
-} from "./template-library";
-export type {
-  StarterSlotKind,
-  StarterSlot,
-  StarterText,
-  StarterTemplate,
-  OwnFacts,
-  TemplateButton,
-  TemplateParts,
-  InboxTemplateLike,
-  LanguageGroup,
-  LanguageChoice,
-  TemplateGroup,
-} from "./template-library";
+} from "./template-slots";
+export { starterIndex, compareTemplates, defaultTemplate, groupTemplates, bookingTemplate } from "./template-order";
+export type { TemplateGroup } from "./template-order";
 export {
   templateLanguage,
   languageName,

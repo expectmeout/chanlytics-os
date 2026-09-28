@@ -22,10 +22,11 @@
  * The toast's tones (chrome.ts) are the four of these that a flash can be.
  */
 import { BROADCAST_STATE_LABELS } from "../broadcasts/broadcasts";
-import { PERSON_MODE_WORDS, PERSON_STATE_LABELS } from "../people/people";
+import { PERSON_MODE_WORDS } from "../people/person-receptionist";
+import { PERSON_STATE_LABELS } from "../people/person-state";
 import { ROLE_WORDS } from "./identity";
 import { SETUP_STATE_WORDS } from "../setup/setup";
-import { CALENDAR_FEED_WORDS } from "../calendar/calendar";
+import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";
 import { SOURCE_WORDS, type FactSource } from "../config/facts";
 import {
   LEAD_CALL_OUTCOME_TONES,
@@ -37,7 +38,7 @@ import {
   LEAD_REVIEW_WORD,
   LEAD_STAGE_WORDS,
 } from "../leads/leads";
-import { DEAL_STAGE_WORDS } from "../deals/deals";
+import { DEAL_STAGE_WORDS } from "../deals/deal-words";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];

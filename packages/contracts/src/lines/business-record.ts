@@ -18,7 +18,7 @@
  *
  * — so a sole proprietor is never asked for a legal form they do not have, or
  * a website nothing in their registration sends, and never sees a required
- * box they cannot fill. Check it against `packages/channels/src/a2p.ts`: the
+ * box they cannot fill. Check it against `packages/channels/src/a2p/trust-hub.ts`: the
  * standard path's `businessEndUserRequest` reads the tax id, the legal form
  * and the website; the sole-proprietor path's `starterEndUserRequest` and
  * `soleProprietorEndUserRequest` read the person, their mobile, one name and
@@ -33,7 +33,7 @@ import {
   DEFAULT_INDUSTRY,
 } from "./a2p-enums";
 import { registrationPathOf, SOLE_PROP_LIMITS, type RegistrationPath } from "./registration-path";
-import { E164 } from "../config/config";
+import { E164 } from "../config/workspace-config/business-profile";
 
 export interface BusinessRecordDto {
   legal_name: string;

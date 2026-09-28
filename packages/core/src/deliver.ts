@@ -27,19 +27,12 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  sendText,
-  sendTemplate,
-  sendEmail,
-  requestLeavesAs,
   graphThrottled,
   resendLimitOf,
   smsRefusalOf,
   addressOf,
   type SendResult,
-  type WaConfig,
   type EmailRequest,
-  type EmailSendsAs,
-  type ResendConfig,
   type ResendLimit,
 } from "@chanlytics/channels";
 import {
@@ -55,6 +48,7 @@ import {
 import {
   emitEvent,
   outreachFactsOf,
+  stampEmailLeftAs,
   recordCarrierOptOut,
   recordOutbound,
   type Database,
@@ -95,11 +89,18 @@ export interface WirePayload {
   template?: TemplateSend;
   /**
    * The request an email leaves as, built and frozen when the message was
-   * queued (channels email.ts). Present on the email wire and nowhere else.
+   * queued (channels email/request.ts). Present on the email wire and nowhere else.
    */
   email?: EmailRequest;
   /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
   purpose?: SendPurpose;
+  /** A person's reply (the door's kindOf), the one other send that may leave by an own domain: by its twin below. */
+  reply?: boolean;
+  /**
+   * A person's reply to a reach-out, frozen a second time on the own domain the chain wrote from (G15): it leaves by
+   * that domain's route when the route still holds it, and as `email` on the mailbox otherwise (N5).
+   */
+  ownEmail?: EmailRequest;
 }
 
 /** How to put words on one channel's wire. Owns its own address format. */
@@ -112,59 +113,6 @@ export type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
  * environment, which is how one business's message left on another's line.
  */
 export type Wire = Partial<Record<Channel, Sender | null>>;
-
-/**
- * WhatsApp's wire from a workspace's credentials. Graph wants bare digits,
- * so the "+" is stripped here rather than by a caller who should not know.
- */
-export function whatsappSender(cfg: WaConfig | null): Sender | null {
-  if (!cfg) return null;
-  return (to, p) => {
-    const digits = to.replace(/^\+/, "");
-    return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
-  };
-}
-
-/**
- * One address a workspace's email may leave as, and the provider account it leaves through. "hosted" is the mailbox
- * on the platform's account, for everything but a cold email; "own" is one of the workspace's own verified domains on
- * the cold account, for outreach and nothing else.
- */
-export interface EmailRoute {
-  lane: "hosted" | "own";
-  cfg: ResendConfig;
-  as: EmailSendsAs;
-}
-
-/**
- * Email's wire, bound to ONE workspace's addresses. It sends the frozen request
- * and nothing it assembled itself: a delivery without one, one addressed to
- * somebody other than `to`, or one that would leave as another workspace, is a
- * failure the caller hears about, never a send. The provider keys are the
- * deployment's; the routes are what make the wire this workspace's: the hosted
- * mailbox on the platform's account, and each of its own verified domains on
- * the cold account (Reach out), so a cold email never spends the reputation
- * every workspace's replies share. The route is chosen by the request's From,
- * within the send's lane: an own domain carries outreach only, so a reply
- * frozen with an own domain's From never leaves around outreach's rules, and a
- * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
- * still applies. No routes, no email line (null, like a number with no
- * credentials).
- */
-export function emailSender(routes: EmailRoute[]): Sender | null {
-  if (routes.length === 0) return null;
-  const refuse = (errorBody: string): Promise<SendResult> =>
-    Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
-  return (to, p) => {
-    if (!p.email) return refuse("no_frozen_request");
-    if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
-    const from = addressOf(p.email.from)?.address;
-    const lane = p.purpose === "outreach" ? "own" : "hosted";
-    const route = routes.find((r) => r.lane === lane && r.as.address === from);
-    if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
-    return sendEmail(route.cfg, p.email);
-  };
-}
 
 export interface Delivery {
   tenantId: string;
@@ -181,6 +129,11 @@ export interface Delivery {
   template?: TemplateSend;
   /** The frozen request, on the email wire (WirePayload.email). */
   email?: EmailRequest;
+  /**
+   * A person's reply to a reach-out, frozen again on the own domain the chain wrote from (WirePayload.ownEmail): it
+   * may leave by that domain only as a reply (kindOf), and under the same row's id as `email`.
+   */
+  ownEmail?: EmailRequest;
   /**
    * The lead a cold email was written for (a reach-out's always names one): outreach's facts are that lead's, so a
    * business closed or archived is refused even when its person has another lead still being written to.
@@ -320,6 +273,8 @@ interface OutreachFacts {
    * email sent to them, or phoned it: a conversation now, never cold again (00181).
    */
   wroteBack: boolean;
+  /** An automatic out-of-office whose day is still ahead (00226): the chain waits for it. */
+  away: boolean;
   /** The request carries RFC 8058's one-click unsubscribe, both headers. */
   unsubscribable: boolean;
   /**
@@ -354,6 +309,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
       leadStage: null,
       suppressed: false,
       wroteBack: false,
+      away: false,
       unsubscribable,
       domainState: null,
       cleanSince: null,
@@ -383,6 +339,7 @@ async function outreachFacts(db: Db, d: Delivery, f: WireFacts, nowMs: number): 
     leadStage: facts.lead_stage,
     suppressed: facts.suppressed,
     wroteBack: facts.wrote_back,
+    away: facts.away,
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
@@ -428,7 +385,12 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number, o: OutreachFacts |
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
     // The lead's own facts, in the one mapping the reach-out clock also asks before it claims a send.
-    const lead = outreachRefusalOf({ leadStage: o.leadStage, suppressed: o.suppressed, wroteBack: o.wroteBack });
+    const lead = outreachRefusalOf({
+      leadStage: o.leadStage,
+      suppressed: o.suppressed,
+      wroteBack: o.wroteBack,
+      away: o.away,
+    });
     if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
@@ -543,6 +505,23 @@ async function stampThread(db: Db, d: Delivery, nowMs: number): Promise<void> {
  * "the row could not be changed" are different facts, and reading the second
  * as the first left a sent message queued for ever under a false race event.
  */
+/**
+ * How a person's reply left (G15, N5), on its row: the words already left, so a write that fails is logged, never
+ * thrown, the way a failed finalize is.
+ */
+async function leftAs(db: Db, d: Delivery, sent: SendResult): Promise<void> {
+  if (!sent.leftAs) return;
+  const why = sent.leftAsWhy ?? null;
+  await stampEmailLeftAs(db, { tenantId: d.tenantId, messageId: d.messageId!, leftAs: sent.leftAs, why }).catch(
+    (e: unknown) => {
+      console.error(
+        "deliver_left_as_failed",
+        JSON.stringify({ tenant: d.tenantId, message: d.messageId, error: e instanceof Error ? e.message : String(e) }),
+      );
+    },
+  );
+}
+
 async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise<boolean> {
   const { data, error } = await db
     .from("messages")
@@ -554,14 +533,41 @@ async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise
   return !!data && data.length > 0;
 }
 
+/**
+ * An email is written before it is sent, under the id its request was frozen with: every receipt names that row by the
+ * request's tag, so a row written after the send (recordOutbound's) is one no receipt can find, and its bounce
+ * suppresses nothing. A delivery that breaks this is a caller's mistake, said as one before anything is read.
+ */
+function assertFrozenFor(d: Delivery): void {
+  if (d.channel !== "email") return;
+  const keys = [d.email, d.ownEmail].map((r) => r?.idempotency_key ?? d.messageId);
+  if (d.messageId && keys.every((k) => k === d.messageId)) return;
+  throw new Error(
+    `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`,
+  );
+}
+
+type WireResult = SendResult & { reason?: "no_sender_for_channel" | "no_credentials" };
+
+/** The words on this workspace's wire for the channel, or why there is none. */
+async function putOnWire(wire: Wire, d: Delivery): Promise<WireResult> {
+  const send = wire[d.channel];
+  if (send === undefined)
+    return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
+  if (send === null)
+    return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
+  // Only a person's reply may leave by an own domain (G15); any other send never carries the twin.
+  const reply = d.email && kindOf(d) === "reply" ? { reply: true, ownEmail: d.ownEmail } : {};
+  return send(d.to, {
+    body: d.body,
+    template: d.template,
+    ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
+    ...reply,
+  });
+}
+
 export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Delivered> {
-  // An email is written before it is sent, under the id its request was frozen with: every receipt names that row by
-  // the request's tag, so a row written after the send (recordOutbound's, below) is one no receipt can find, and its
-  // bounce suppresses nothing. A delivery that breaks this is a caller's mistake, said as one before anything is read.
-  if (d.channel === "email" && (!d.messageId || (d.email && d.email.idempotency_key !== d.messageId)))
-    throw new Error(
-      `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`,
-    );
+  assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
   const outreach =
@@ -598,17 +604,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   };
   if (reason) return refuse(reason);
 
-  const send = ports.wire[d.channel];
-  const sent: SendResult & { reason?: "no_sender_for_channel" | "no_credentials" } =
-    send === undefined
-      ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" }
-      : send === null
-        ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }
-        : await send(d.to, {
-            body: d.body,
-            template: d.template,
-            ...(d.email ? { email: d.email, purpose: d.purpose } : {}),
-          });
+  const sent = await putOnWire(ports.wire, d);
 
   // The carrier's own no, on the person's behalf (channels smsRefusalOf:
   // Twilio 21610, the recipient replied STOP to this number before we heard --
@@ -660,6 +656,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
         // sends would push every customer off it. The thread rises when the business writes back.
         d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
         event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
+        leftAs(ports.db, d, sent),
       ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
     }

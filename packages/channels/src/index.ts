@@ -1,6 +1,14 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
 export { normalizeInbound, graphThrottled, sendText, sendTemplate, fetchMediaBytes } from "./whatsapp";
-export type { WaConfig, WaRawMessage, WaChangeValue, WaMediaRef, NormalizedInbound, SendResult } from "./whatsapp";
+export type {
+  WaConfig,
+  WaRawMessage,
+  WaChangeValue,
+  WaMediaRef,
+  NormalizedInbound,
+  SendResult,
+  EmailLeftAsWhy,
+} from "./whatsapp";
 export {
   liveTurns,
   parseTranscriptText,
@@ -134,54 +142,39 @@ export {
 } from "./sms";
 export type { SmsInbound, CarrierConsent, SmsStatus } from "./sms";
 export {
-  hostedAddress,
-  replyRouteAddress,
-  hostedIdentity,
   mailboxHeader,
   replySubject,
   emailHtml,
-  messageIdHeader,
   referencesFor,
   buildEmailRequest,
   isEmailRequest,
-  resendWebhookSignature,
-  verifyResendWebhook,
-  platformRecipient,
-  addressOf,
-  emailReceivedEventFrom,
-  receivedEmailFrom,
-  messageIdsIn,
-  classifyReceived,
-  emailReceiptFrom,
-  emailReceiptEffect,
+} from "./email/request";
+export type { EmailParent, EmailIdentity, EmailRequest, EmailCampaign, EmailRequestInput } from "./email/request";
+export { messageIdHeader, addressOf } from "./email/header-values";
+export {
+  hostedAddress,
+  replyRouteAddress,
+  hostedIdentity,
   sendsAs,
   sendsAsOwnDomain,
   ownDomainIdentity,
   requestLeavesAs,
-  resendLimitOf,
-  mailDomainsFrom,
-  WEBHOOK_TOLERANCE_S,
-} from "./email";
-export type {
-  EmailParent,
-  EmailIdentity,
-  EmailRequest,
-  EmailCampaign,
-  EmailRequestInput,
-  SvixHeaders,
-  PlatformRecipient,
-  EmailReceivedEvent,
-  ReceivedEmail,
-  EmailClaim,
-  EmailReceiptType,
-  EmailReceipt,
-  EmailSuppressionReason,
-  EmailReceiptEffect,
-  EmailSendsAs,
-  ResendLimit,
-  MailCapability,
-  MailDomainFacts,
-} from "./email";
+} from "./email/identity";
+export type { EmailSendsAs } from "./email/identity";
+export { resendWebhookSignature, verifyResendWebhook, WEBHOOK_TOLERANCE_S } from "./email/webhook-signature";
+export type { SvixHeaders } from "./email/webhook-signature";
+export {
+  platformRecipient,
+  emailReceivedEventFrom,
+  receivedEmailFrom,
+  messageIdsIn,
+  classifyReceived,
+} from "./email/intake";
+export type { PlatformRecipient, EmailReceivedEvent, ReceivedEmail, EmailClaim } from "./email/intake";
+export { emailReceiptFrom, emailReceiptEffect } from "./email/receipts";
+export type { EmailReceiptType, EmailReceipt, EmailSuppressionReason, EmailReceiptEffect } from "./email/receipts";
+export { resendLimitOf, mailDomainsFrom } from "./email/provider-answers";
+export type { ResendLimit, MailCapability, MailDomainFacts } from "./email/provider-answers";
 export { emailPlainText } from "./email-text";
 export {
   resendRequest,
@@ -203,9 +196,11 @@ export {
   dmarcOf,
 } from "./email-domains";
 export type { ProviderDomain, ProviderAnswer } from "./email-domains";
+export { A2P_POLICIES, TRUSTHUB, MESSAGING, encodeForm } from "./a2p/wire";
+export type { A2PRequest } from "./a2p/wire";
+export { brandTypeFor } from "./a2p/business-record";
+export type { BusinessRecord, BrandType } from "./a2p/business-record";
 export {
-  brandTypeFor,
-  encodeForm,
   customerProfileRequest,
   starterProfileRequest,
   starterEndUserRequest,
@@ -227,33 +222,20 @@ export {
   a2pProfileEndUserRequest,
   evaluateTrustProductRequest,
   submitTrustProductRequest,
+} from "./a2p/trust-hub";
+export {
   brandRequest,
   keywordsFor,
   campaignRequest,
   updateCampaignRequest,
   deleteCampaignRequest,
-  nextA2PStep,
-  isBrandNotReady,
-  refusalWords,
-  smsStateFor,
-  registrationVerdict,
-  A2P_POLICIES,
-  TRUSTHUB,
-  MESSAGING,
   LOW_VOLUME_USECASE,
-  A2P_STEPS,
-  EMPTY_A2P_STATE,
-} from "./a2p";
-export type {
-  BusinessRecord,
-  BrandType,
-  A2PRequest,
-  CampaignFacts,
-  A2PStep,
-  A2PState,
-  CampaignError,
-  SmsRegistrationState,
-} from "./a2p";
+} from "./a2p/brand-campaign";
+export type { CampaignFacts } from "./a2p/brand-campaign";
+export { nextA2PStep, A2P_STEPS, EMPTY_A2P_STATE } from "./a2p/steps";
+export type { A2PStep, A2PState } from "./a2p/steps";
+export { isBrandNotReady, refusalWords, smsStateFor, registrationVerdict } from "./a2p/verdict";
+export type { CampaignError, SmsRegistrationState } from "./a2p/verdict";
 export { runA2PSaga } from "./a2p-saga";
 export type { A2PAnswer, A2PPorts, A2PResult } from "./a2p-saga";
 export {

@@ -21,7 +21,7 @@ import {
   YIELD_AT_MS,
   runTick,
 } from "../../../../../packages/jobs/src/index.ts";
-import { DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS } from "../../../../../packages/core/src/leads/runner.ts";
+import { DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS } from "../../../../../packages/core/src/leads/runner/rules.ts";
 import { JUDGE_TIMEOUT_MS, PAGE_READ_ALLOWANCE_MS } from "../../../../../packages/core/src/leads/judge.ts";
 
 test("the last lead job a tick claims can still read a page and start the judge", () => {

@@ -17,9 +17,12 @@
 import { injectedTurn } from "./whisper";
 import { CALL_HEARTBEAT_MS, isLiveCall } from "../config/policy";
 import { formatPhoneDisplay } from "../shared/phone";
-import { mmss } from "../shared/clock";
+import { callLength, mmss } from "../shared/clock";
 import { callerName } from "../people/person-name";
-import { DISCONNECTION_LABELS, initialsOf, shortTime, spokenDuration, type CallDto } from "../conversations/viewmodels";
+import { DISCONNECTION_LABELS, type CallDto } from "../conversations/call-dto";
+import { spokenDuration } from "../conversations/call-vm";
+import { initialsOf } from "../conversations/thread-contact";
+import { shortTime } from "../conversations/thread-clock";
 import { callOutcomeWords } from "./call-words";
 import type { ChannelDto } from "../lines/channels";
 import { MIN_MS } from "../shared/time";
@@ -73,7 +76,8 @@ export interface LiveCallVM {
   heartbeatAtMs: number | null;
   /** "2:14 PM" today, "Aug 26" otherwise. */
   startedLabel: string;
-  /** mm:ss once the call has ended; null while live (the page runs its own clock). */
+  /** mm:ss once the call has ended, by the call card's rule (callLength); null while live (the page runs its own
+   *  clock), for a dial that never connected, and for a call with no length. */
   duration: string | null;
   summaryState: "ready" | "pending" | "none" | "missed";
   summary: string | null;
@@ -269,7 +273,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     startedAtMs,
     heartbeatAtMs,
     startedLabel: shortTime(dto.started_at, tz, now),
-    duration: live || missed || !dto.duration_ms ? null : mmss(dto.duration_ms),
+    duration: live || missed ? null : (callLength(dto.duration_ms) ?? null),
     summaryState,
     summary,
     sentiment: dto.sentiment,
@@ -282,7 +286,7 @@ export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCa
     outcomeWords: live ? null : callOutcomeWords(dto.outcome),
     followUp: live ? null : dto.follow_up?.trim() || null,
     callerName: dto.caller_name?.trim() || null,
-    lengthWords: live || missed || !dto.duration_ms ? null : spokenDuration(dto.duration_ms),
+    lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
     transcript: turnsOf(dto),
   };
 }

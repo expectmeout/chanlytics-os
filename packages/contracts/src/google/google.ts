@@ -19,8 +19,9 @@ import { agoWords, DATE_FMT, WEEK_MS, HOUR_MS, DAY_MS } from "../shared/time";
 import { plural } from "../shared/words";
 import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
 import { dayDate, fmtDay, deltaOf, type ReportTileVM } from "../reports/reports";
-import { DAYS, dayProblems, type Hours } from "../config/config";
-import { WEEKDAY_KEYS } from "../calendar/availability";
+import { DAYS, type Hours } from "../config/workspace-config/business-profile";
+import { dayProblems } from "../config/workspace-config/config-schema";
+import { WEEKDAY_KEYS } from "../calendar/zone-math";
 import { normalizePhone } from "../shared/phone";
 import { bookingPageOf } from "./booking-page";
 

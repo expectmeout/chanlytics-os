@@ -5,9 +5,7 @@ import {
   ASK_MAX_TOKENS,
   ASK_TURN_BUDGET_MS,
   answerForCards,
-  answerText,
   answerWords,
-  cacheHitOf,
   cleanAnswer,
   failedAnswer,
   isUngrounded,
@@ -46,6 +44,7 @@ import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
 import { replayBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
+import { finishTurn, type TurnEnd } from "./memory";
 
 /**
  * One turn of the assistant.
@@ -73,7 +72,12 @@ import { askModel } from "./model";
 // but the edge clamped every round to 2000, so 2000 was the real ceiling; it is
 // one number now, 4000 since the lead plan's card was cut at 2000 (D10). A cap
 // is not a spend, only a ceiling on what may be generated.
-const MAX_HISTORY = 12;
+
+/**
+ * The earlier turns a question is asked with, as words: counted as turns -- a person's message and what follows it
+ * until the next -- never as messages (the Phase 5 plan, D3's fallback until the replay). Twelve messages were six.
+ */
+const HISTORY_TURNS = 12;
 const HISTORY_CHARS = 1200;
 /** Say is sent at most this often while it is written (spec 7.4). */
 const SAY_EVERY_MS = 50;
@@ -198,13 +202,17 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
 }
 
 /**
- * The thread's prior turns, folded so no two neighbours share a role, starting with the person. The history is words;
- * the question may be blocks (the page's data, then the words): two neighbours of one role are joined as words, or, where
- * either is blocks, as one list of blocks with the words first.
+ * The thread's prior turns, folded so no two neighbours share a role, starting with the person: the last HISTORY_TURNS
+ * turns, from the question that starts the first of them, so an answer whose question the read cut off (readThread keeps
+ * the newest sixty rows) is left out. The history is words; the question may be blocks (the page's data, then the
+ * words): two neighbours of one role are joined as words, or, where either is blocks, as one list of blocks with the
+ * words first.
  */
 export function foldHistory(history: TurnInput["history"], last: string | unknown[]): Msg[] {
+  const questions = history.flatMap((h, i) => (h.role === "user" ? [i] : []));
+  const from = questions[Math.max(0, questions.length - HISTORY_TURNS)] ?? history.length;
   const messages: Msg[] = [
-    ...history.slice(-MAX_HISTORY).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
+    ...history.slice(from).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
     { role: "user", content: last },
   ];
   const asBlocks = (c: unknown): unknown[] => (Array.isArray(c) ? c : [{ type: "text", text: String(c) }]);
@@ -218,7 +226,6 @@ export function foldHistory(history: TurnInput["history"], last: string | unknow
       messages.splice(i + 1, 1);
     }
   }
-  if (messages[0]?.role !== "user") messages.shift();
   return messages;
 }
 
@@ -349,62 +356,29 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ASK_TURN_BUDGET_MS);
 
-  const done = (r: {
-    answer: AskAnswer;
-    failed: boolean;
-    failure: string | null;
-    rounds: number;
-    ungrounded?: boolean;
-  }): TurnResult => {
+  const done = (r: TurnEnd): TurnResult => {
     clearTimeout(timer);
-    const shape: AskTurnShape = {
-      v: 1,
-      model: model.id,
-      effort: model.effort,
-      surface: input.surface,
-      scope_kind: input.scope?.kind ?? null,
-      follow_up: input.history.length > 0,
-      since_last_ms: input.sinceLastMs ?? null,
-      opened_ms: input.openedMs ?? null,
-      context_rows: built ? built.rows : null,
-      context_chars: built ? built.chars : null,
-      warm: built ? (built.failed ? "failed" : built.warm) : input.context ? "failed" : "none",
-      context_ms: contextMs,
-      context_dropped: dataDropped && (pageBlocks.length > 0 || crossBlocks.length > 0),
-      cross_page: plan.map((p) => calledName(p.name, p.input)),
-      rounds: r.rounds,
-      rounds_ms: roundsMs,
-      tools_ms: toolsMs,
-      first_byte_ms: firstByteMs,
-      first_text_ms: firstTextMs,
-      first_say_ms: firstSayMs,
-      final_ms: Date.now() - t0,
+    return finishTurn(r, {
+      input,
+      model,
+      t0,
+      built,
+      contextMs,
+      dataDropped,
+      pageBlocks,
+      crossBlocks,
+      plan,
+      roundsMs,
+      toolsMs,
+      firstByteMs,
+      firstTextMs,
+      firstSayMs,
       tokens,
-      cache_hit: cacheHitOf(tokens),
-      cap_hits: capHits,
+      capHits,
       format,
-      failed: r.failed,
-    };
-    console.log(
-      JSON.stringify({
-        level: "info",
-        event: "ask_turn_shape",
-        tenant: input.tenantId,
-        ...shape,
-        tools: toolsUsed,
-        form: r.answer.form,
-      }),
-    );
-    return {
-      ungrounded: false,
-      tools: toolsUsed,
+      toolsUsed,
       proposals,
-      latencyMs: Date.now() - t0,
-      ...r,
-      text: answerText(r.answer),
-      model: model.id,
-      shape,
-    };
+    });
   };
   /** A turn that could not be answered: its sentence, in the person's language, is the answer's headline. */
   const fail = (sentence: string, failure: string, rounds: number) =>

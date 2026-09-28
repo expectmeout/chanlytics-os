@@ -114,8 +114,8 @@ test("the three surfaces agree on the filler's cases", () => {
 
 test("the wiring: every surface reads the one function, and Today's queue is named for what it holds", () => {
   for (const [file, s] of [
-    ["packages/contracts/src/conversations/viewmodels.ts", /standingOf\(\s*\{/],
-    ["packages/contracts/src/people/people.ts", /standingOf\(\s*\{/],
+    ["packages/contracts/src/conversations/inbox-thread.ts", /standingOf\(\s*\{/],
+    ["packages/contracts/src/people/person-state.ts", /standingOf\(\s*\{/],
     ["packages/contracts/src/today/today-facts.ts", /standingOf\(\s*\{/],
   ])
     assert.ok(s.test(readCode(file)), `${file} reads standingOf`);

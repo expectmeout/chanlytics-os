@@ -31,7 +31,7 @@
  * UTC, so a bad row never throws on a page; the write path already refuses one
  * (workspace.ts isTimezone).
  */
-import { localToUtcMs } from "../calendar/availability";
+import { localToUtcMs } from "../calendar/zone-math";
 import { DAY_MS } from "./time";
 
 interface ZoneFormats {
@@ -257,20 +257,21 @@ export function fromZonedInput(value: string | null | undefined, tz: string): nu
 
 /**
  * "2:05": a length in minutes and seconds, rounded to the second, never below "0:00": a length below zero reads
- * "0:00", and so does one that is not a number at all (NaN printed "NaN:NaN"). A view that prints nothing for a call
- * with no length asks callLength instead.
+ * "0:00", and so does one that is not a finite number (NaN printed "NaN:NaN", Infinity "Infinity:NaN"). A view that
+ * prints nothing for a call with no length asks callLength instead.
  */
 export function mmss(ms: number): string {
-  const total = Math.max(0, Math.round(ms / 1000) || 0);
+  const total = Number.isFinite(ms) ? Math.max(0, Math.round(ms / 1000)) : 0;
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
 /**
  * A call's length on a clock face, "2:05", or nothing for a call with no length on record: none, zero, below zero, or
- * not a number. The one rule for "no length": the call card (toCallVM) and a person's timeline both ask it, so a
- * missing or NaN length reads the same on each. They were two guards that disagreed on NaN, which the timeline
- * printed as "NaN:NaN".
+ * not a finite number (NaN, or an unbounded length, which is no clock reading either). The one rule for "no length":
+ * the call card (toCallVM), a person's timeline, the Live card and the call's export all ask it, so a missing, NaN or
+ * infinite length reads the same on each. The card and the timeline were two guards that disagreed on NaN, which the
+ * timeline printed as "NaN:NaN"; an infinite length printed "Infinity:NaN" on all four.
  */
 export function callLength(ms: number | null | undefined): string | undefined {
-  return ms != null && ms > 0 ? mmss(ms) : undefined;
+  return ms != null && Number.isFinite(ms) && ms > 0 ? mmss(ms) : undefined;
 }

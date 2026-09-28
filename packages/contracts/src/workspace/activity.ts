@@ -1,5 +1,6 @@
 import { DECISION_VERBS, EVENT_KINDS, type DecisionVerb } from "../shared/enums";
-import { LEAD_ENDING_WORDS, type LeadRoundEnding } from "../leads/lead-search";
+import { LEAD_ENDING_WORDS } from "../leads/search/endings";
+import type { LeadRoundEnding } from "../leads/search/sets";
 import { domainHoldWords } from "../email/sending-domains";
 import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import type { Tone } from "../shell/tone";

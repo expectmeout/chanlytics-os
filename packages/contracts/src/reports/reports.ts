@@ -13,7 +13,7 @@
  * view model also says the one sentence under each chart (`lines`), so the
  * page composes no sentence of its own.
  */
-import { reasonShort } from "../people/people";
+import { reasonShort } from "../people/person-row-facts";
 import { DATE_FMT } from "../shared/time";
 import { capitalize } from "../shared/words";
 

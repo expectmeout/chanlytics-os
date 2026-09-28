@@ -20,15 +20,10 @@ import { requireUuid } from "@/server/request-guards";
 import { load, readerContext } from "@/server/readers";
 import * as readers from "@/server/readers/facts";
 import { runAskTurn, type TurnEvent } from "@/server/ask/loop";
-import {
-  askTurnText,
-  titleFromQuestion,
-  titleFromSearch,
-  workspaceFacts,
-  type SearchAnswering,
-} from "@/server/ask/prompt";
+import { threadForTurn } from "@/server/ask/memory";
+import { askTurnText, workspaceFacts, type SearchAnswering } from "@/server/ask/prompt";
 import { searchRow } from "@/server/leads/leads";
-import { appendMessage, createThread, readThread, touchThread } from "@/server/ask/store";
+import { appendMessage, touchThread } from "@/server/ask/store";
 
 /**
  * POST /api/v1/ask — one turn of the workspace assistant.
@@ -43,7 +38,9 @@ import { appendMessage, createThread, readThread, touchThread } from "@/server/a
  * Every member may ask (the viewer role is the floor), counted as questions;
  * the workspace must be named, since a thread lands in one. The body is the
  * route's own to read: a scope and a surface are accepted only in the shapes
- * the palette sends, and the rest is ignored rather than refused.
+ * the palette sends, and the rest is ignored rather than refused. A scope is
+ * the turn's, and the thread keeps the one its latest turn ran with: `null`
+ * clears it, and a question sent with none is asked with the thread's.
  *
  * `answering: { search_id }` is the Leads answer row's: the text is the
  * owner's answer to that search's question, and it is what the thread keeps
@@ -70,6 +67,26 @@ function line(ev: TurnEvent | { t: "thread"; id: string; title: string }): strin
   return `${JSON.stringify(ev)}\n`;
 }
 
+/**
+ * The scope the question is asked with (the Phase 5 plan, D9), three ways: one in the palette's shape is this turn's;
+ * `null` is none, and clears the thread's; absent is no opinion (undefined), and the thread keeps its own. Anything
+ * else is absent: ignored rather than refused.
+ */
+function scopeAsked(raw: unknown): AskScope | null | undefined {
+  if (raw === null) return null;
+  if (!raw || typeof raw !== "object") return undefined;
+  const s = raw as Partial<AskScope>;
+  if (
+    typeof s.kind !== "string" ||
+    !SCOPE_KINDS.has(s.kind) ||
+    typeof s.id !== "string" ||
+    !s.id ||
+    typeof s.label !== "string"
+  )
+    return undefined;
+  return { kind: s.kind, id: s.id.slice(0, 120), label: s.label.slice(0, 80) };
+}
+
 export const POST = write({
   scope: workspace,
   role: "viewer",
@@ -90,19 +107,7 @@ export const POST = write({
       throw new AppError("validation", `Keep a question under ${ASK_MAX_CHARS} characters.`);
     const threadId =
       typeof body?.thread_id === "string" && body.thread_id ? requireUuid(body.thread_id, "thread") : null;
-    let scope: AskScope | null = null;
-    if (body?.scope && typeof body.scope === "object") {
-      const s = body.scope as Partial<AskScope>;
-      if (
-        typeof s.kind === "string" &&
-        SCOPE_KINDS.has(s.kind) &&
-        typeof s.id === "string" &&
-        s.id &&
-        typeof s.label === "string"
-      ) {
-        scope = { kind: s.kind as AskScope["kind"], id: s.id.slice(0, 120), label: s.label.slice(0, 80) };
-      }
-    }
+    const askedScope = scopeAsked(body?.scope);
     // The page the question was asked on (contracts PageContext): identities and words, read by its one schema. One the
     // schema refuses is no context, said once in the log, and never a refused question: an older tab sends none, and a
     // context is a help to the answer, not a condition of it. The turn reads the page again from these identities.
@@ -158,29 +163,8 @@ export const POST = write({
 
     // The thread, before anything else: a question that could not be saved is
     // not answered, so a person never sees an answer they cannot find again.
-    let history: Array<{ role: "user" | "assistant"; text: string }> = [];
-    let sinceLastMs: number | null = null;
-    let thread: { id: string; title: string; scope: AskScope | null } | null = null;
-    if (threadId) {
-      const found = await readThread(ctx, threadId);
-      if (found && found.tenantId === tenantId) {
-        thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
-        history = found.turns;
-        // The thread's previous turn, before this question is appended: how long the person waited to ask again. A
-        // read that came back full holds the oldest turns, not the newest, so its last is not the previous turn.
-        const lastAt = found.messages.at(-1)?.atMs;
-        sinceLastMs = !found.truncated && lastAt ? Math.max(0, Date.now() - lastAt) : null;
-        if (!scope) scope = found.thread.scope;
-      } else if (!answering) throw new AppError("not_found", "That thread is not yours.", 404);
-    }
-    if (!thread) {
-      // A thread keeps its first question as its title (D9); an answer's is the search's name, never the sentence
-      // the model is given.
-      const title = answering ? titleFromSearch(answering.name) : titleFromQuestion(text);
-      const created = await createThread(ctx, tenantId, title, scope);
-      thread = { id: created.id, title: created.title, scope };
-    }
-    const turn = thread;
+    const kept = await threadForTurn(ctx, { tenantId, threadId, text, scope: askedScope, answering });
+    const { thread: turn, history, sinceLastMs, scope } = kept;
     await appendMessage(ctx, turn.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
 
     // A turn keeps what may be kept across turns (the workspace's name and zone, five minutes): the next question of
@@ -260,8 +244,9 @@ export const POST = write({
         let saved: { id: string; created_at: string } | null = null;
         try {
           saved = await appendMessage(ctx, turn.id, tenantId, "assistant", content);
-          // A thread keeps its first question as its title (D9); an answer only moves it up the list.
-          await touchThread(ctx, turn.id);
+          // A thread keeps its first question as its title; an answer moves it up the list, and it keeps the scope
+          // this turn ran with (the Phase 5 plan, D9), so the next question sent with none is asked about the same.
+          await touchThread(ctx, turn.id, scope);
         } catch (e) {
           console.error("ask_save_failed", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
         }

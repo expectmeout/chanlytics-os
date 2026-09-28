@@ -5,9 +5,11 @@
  */
 import { clockDate } from "../shared/clock";
 import { DAY_MS } from "../shared/time";
-import type { PersonDetailDto, PersonProposalVM } from "./people";
+import type { PersonDetailDto } from "./person-dto";
+import type { PersonProposalVM } from "./person-reach";
 import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
-import { type ConversationDto, writtenChannelOf } from "../conversations/viewmodels";
+import type { ConversationDto } from "../conversations/thread-dto";
+import { writtenChannelOf } from "../conversations/thread-channel";
 
 export const MONTH_MS = 30 * DAY_MS;
 

@@ -5,7 +5,7 @@
 import type { LeadRowDto, LeadSearchDto } from "./lead-dtos";
 import { CLOCK, hourOf } from "./lead-helpers";
 import type { LeadSlot, LeadSlotState } from "./lead-row";
-import { LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord } from "./lead-search";
+import { LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord } from "./search/class";
 import { LEAD_CHECK_WORDS, LEAD_LEFT_OUT_WORD, LEAD_MAILBOX_WORDS, LEAD_UNREACHABLE_WORD } from "./lead-words";
 import { DAY_MS } from "../shared/time";
 
