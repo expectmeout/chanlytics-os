@@ -45,7 +45,7 @@ unnamed durations                    78   in 35 files
 dead exports, types and modules     165
 source-text reads in tests          830
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
-workspace route JS, KB gzipped     1006   the shell included
+workspace route JS, KB gzipped     1017   the shell included
 workspace route CSS, KB gzipped     122
 ```
 
