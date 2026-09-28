@@ -1,4 +1,10 @@
 import "server-only";
+
+/**
+ * What a turn keeps of its thread: the thread it continues and the history it is asked with, before the model is asked
+ * (threadForTurn, the ask route's), and the turn as it ends, measured (finishTurn, runAskTurn's).
+ */
+
 import {
   AppError,
   answerText,
@@ -15,11 +21,6 @@ import { titleFromQuestion, titleFromSearch, type SearchAnswering } from "./prom
 import { createThread, readThread } from "./store";
 import type { BuiltContext, SearchResultBlock } from "./context";
 import type { TurnInput, TurnResult } from "./loop";
-
-/**
- * What a turn keeps of its thread: the thread it continues and the history it is asked with, before the model is asked
- * (threadForTurn, the ask route's), and the turn as it ends, measured (finishTurn, runAskTurn's).
- */
 
 /** The question as the route read it, and the search it answers, if any. */
 interface Asked {
@@ -106,9 +107,10 @@ interface TurnSoFar {
 }
 
 /** The turn as it returns: its end, with where the time went and what the model was fed (AskTurnShape), logged. */
-export function finishTurn(r: TurnEnd, so: TurnSoFar): TurnResult {
-  const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan } = so;
-  const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits, format, toolsUsed, proposals } = so;
+export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
+  const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan } = soFar;
+  const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits, format, toolsUsed, proposals } =
+    soFar;
   const shape: AskTurnShape = {
     v: 1,
     model: model.id,
