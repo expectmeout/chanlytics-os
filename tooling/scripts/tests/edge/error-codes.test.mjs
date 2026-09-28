@@ -107,7 +107,7 @@ const NOT_ANSWERS = {
  * reasons the verifier refuses a token with. tsc holds each member to the set at the refusal; while it stands, each
  * member is answered.
  */
-const TOKEN = { head: "token_", verifier: "packages/channels/src/edge-token.ts" };
+const TOKEN = { head: "token_", verifier: "packages/channels/src/tokens/edge-token.ts" };
 
 /** The expression under parentheses, `as`, `satisfies` and `!`: what the value is, not how it is typed. */
 function bare(e) {
