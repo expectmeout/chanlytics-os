@@ -2,7 +2,7 @@
  * The format the model writes Ask's answer in: the answer's shape (ask-answer.ts) as a JSON schema, passed as
  * `output_config.format` and read back by normalizeAnswer. It rides in every request. Pure.
  */
-import { ASK_LANGUAGES } from "./ask";
+import { ASK_LANGUAGES } from "./ask-language";
 import { ASK_ANSWER_CAPS as C } from "./ask-answer";
 import { ASK_CITATION_KINDS, ASK_ROW_WORDS } from "./citations";
 

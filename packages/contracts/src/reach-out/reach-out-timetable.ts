@@ -11,7 +11,7 @@
  * A run is a few hundred leads over a few domains, planned inside one request: the times are kept sorted and searched,
  * and a lead's open spans are worked out once per zone and week, since most leads share both.
  */
-import { dayPlusInZone, localToUtcMs } from "../calendar/availability";
+import { dayPlusInZone, localToUtcMs } from "../calendar/zone-math";
 import { DEFAULT_WEEK, type OpenWindow, type WeekHours, type WeekdayKey } from "./lead-hours";
 import { DAY_MS, MIN_MS } from "../shared/time";
 

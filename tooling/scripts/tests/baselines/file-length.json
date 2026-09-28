@@ -13,9 +13,5 @@
   "apps/dashboard/src/legacy/pages/inbox.jsx": 976,
   "apps/dashboard/src/legacy/pages/people.jsx": 3255,
   "apps/dashboard/src/legacy/pages/settings.jsx": 1912,
-  "packages/contracts/src/ask/ask.ts": 806,
-  "packages/contracts/src/calendar/availability.ts": 917,
-  "packages/contracts/src/calendar/calendar.ts": 839,
-  "packages/contracts/src/people/people.ts": 1042,
   "packages/core/src/inbound/answer.ts": 1007
 }

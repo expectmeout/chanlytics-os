@@ -8,7 +8,8 @@ import { DEAL_ACT_WORDS, type DealActId, type DealStage } from "../deal-words";
 import type { DealVM } from "../deal-vm";
 import { waitingOnProposal, type DealPaceVM } from "../deal-waits";
 import { consultServiceOf, noProposalSince } from "../deal-consultations";
-import { mayReach, proposalAction, proposalMessage, type PersonNoteVM } from "../../people/people";
+import { mayReach, proposalAction, proposalMessage } from "../../people/person-reach";
+import type { PersonNoteVM } from "../../notes/person-notes";
 import type { FollowUpStand } from "../../playbooks/playbooks";
 
 /** What the sheet is opened to do: a new proposal, the proposal edited, a passed one again, a yes, a pass, an end. */

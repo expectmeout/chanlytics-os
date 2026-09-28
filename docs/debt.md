@@ -74,10 +74,8 @@ argued in its commit message, and takes no row here: nothing is owed that was no
 | `InboxThread` +2 branches (2 lines fewer), `Composer` +1 line and +1 branch, `InboxList` +1 line and its row +1 line and +1 branch (Reach out, Part 5 PR 7)        | One guarded line each: the strip's mount and the draft's seed in `InboxThread`, the draft's door in `Composer`, the chip on the row. The guard is the component's presence on window, because the Inbox's many tests load these pages without `reply-strip.jsx`                                                                                                 | The Inbox leaves the shell, or these functions are split                  |
 | Window global readers (Reach out, Part 5 PR 8): `__REPLIES` +2, `__today` +1                                                                                       | Today's queue and the bell say "Read the draft" from the readings the Inbox's surface already holds, so the bridge's `today.ts` and `notifications.ts` read `__REPLIES` rather than a second read of the same table; the Notifications pane lists its kinds from `__today.notificationKinds`, since `surface-data.ts`, which feeds `__SETTINGS`, is at its caps | The Inbox, Today and Settings leave the shell (the shell's exit decision) |
 | Directories over 20 modules: `legacy-bridge` 54 → 55 (`manifest-demo.ts`, the demo's own list)                                                                     | The demo left the real manifest: only a declared demo session asks for its files, through a dynamic `import()`, which needs a module of its own to name. It sits beside the list it follows, in the directory that loads both; `legacy/pages` fell by one (`segments.jsx` moved to `legacy/demo/pages/`)                                                        | The shell leaves (decision 0015), and the two manifests with it           |
-| File length: contracts `calendar/calendar.ts` 838 → 839 (the config split)                                                                                         | `DAYS` and the profile's types are `workspace-config/business-profile.ts` and `hoursRuns` is the prompt's week, `workspace-config/prompt-hours.ts`: two modules where `config.ts` was one, so its one import is two lines. Nothing else in the file changed                                                                                                     | `calendar.ts` is split below 800 lines                                    |
 | Tree shape: dashboard `server/readers/` 31 → 32 modules (Ask Rewired 4.5, the Phase 4 plan's D12)                                                                  | `readers/messages.ts`, the message search reader, is Phase 4's one new reader file: the others went into the domain files that exist (one lead into `leads.ts`, one search into `searches.ts`, the pipeline into `people.ts`), and no reader's domain holds what was written and said in every thread and call                                                  | A move splits `server/readers/` (none planned; #1161 kept it whole)       |
 | `runAskTurn` (dashboard `server/ask/loop.ts`) +1 branch, 86 → 87 (Ask Rewired 4.3, #1202; raised in #1201's merge of main)                                         | The scoped read (`cross-page.ts` `scopedRead`) is handed the page's route, `input.context?.route`, so a lead open on a search's view rides in as that search found it; the `?.` is the branch, the page being null from an older tab or a script. `runAskTurn` is Ask Rewired's; the plan leaves its split to it                                                | Split with Ask Rewired: one of Ask's functions over the limit             |
-| File length: contracts `people/people.ts` 1019 → 1042 (the barrel rule: no `export *` outside a root)                                                              | Its three `export *` lines are named re-exports of the 29 names read through it, by the people barrel and by modules in six domains, and Prettier writes a long list a name a line. Naming fewer would move those readers to each name's own module: a change to what reads what, which the rule does not ask                                                   | `people.ts` is split below 800 lines                                      |
 
 ## The numbers
 
@@ -88,14 +86,14 @@ fails when this block and the baselines disagree.
 
 ```text
 functions over the limit            207   of which over 200 lines: 64
-files over 800 lines                 19
+files over 800 lines                 15
 directories over 20 modules           7
 window globals                      200   names
 window publishers                   446   sites in 153 files
 copies                              152   of 38 names
 as unknown as                       221
 table names outside packages/db     533
-unnamed durations                    78   in 35 files
+unnamed durations                    78   in 38 files
 dead exports, types and modules     165
 source-text reads in tests          829
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps

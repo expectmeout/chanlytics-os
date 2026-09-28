@@ -21,7 +21,7 @@ import { reviewReplyWords, type ReviewReplyMode } from "./review-reply";
 import { dayDate, fmtDay, deltaOf, type ReportTileVM } from "../reports/reports";
 import { DAYS, type Hours } from "../config/workspace-config/business-profile";
 import { dayProblems } from "../config/workspace-config/config-schema";
-import { WEEKDAY_KEYS } from "../calendar/availability";
+import { WEEKDAY_KEYS } from "../calendar/zone-math";
 import { normalizePhone } from "../shared/phone";
 import { bookingPageOf } from "./booking-page";
 
