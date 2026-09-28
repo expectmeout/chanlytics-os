@@ -21,7 +21,7 @@ import { signOutNatively } from "@/shell/native-auth";
 import { listenPushToStart } from "@/shell/live-activity";
 import { getState, reloadEveryPage, setState, useShell } from "@/shell/state";
 import { recallAndKeep } from "@/shell/remembered";
-import { decideReload, isOlderThan, minAppOf, shaOf } from "@/shell/deploy";
+import { decideReload, isOlderThan, launchLine, minAppOf, shaOf } from "@/shell/deploy";
 import { Update } from "@/shell/Update";
 import * as Application from "expo-application";
 import { THEME_COLORS } from "@chanlytics/contracts/phone-app";
@@ -83,12 +83,9 @@ async function lookAtUpdates(locked: () => boolean): Promise<void> {
 
 installForegroundHandler();
 
-// Which bundle this launch runs, said once in the device's log (logcat's ReactNativeJS): an update's id, when it was
-// published and its channel, or the build's own bundle. The walk reads it to say what it walked
-// (tooling/scripts/mobile/walk.mjs). Nothing of a person's is in it.
+// Which bundle this launch runs, said once in the device's log for the walk to name (launchLine).
 console.info(
-  "app_launch",
-  JSON.stringify({
+  launchLine({
     update: Updates.updateId,
     publishedAt: Updates.createdAt?.toISOString() ?? null,
     embedded: Updates.isEmbeddedLaunch,
