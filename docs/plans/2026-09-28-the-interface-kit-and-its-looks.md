@@ -4,10 +4,11 @@
 the pixels first, then the kit, then every page on it, then the new look, and last the rules that keep people and
 agents on it. A PRD.**
 
-**Date:** 28 September 2026 · **Owner:** Ruben · **Status:** draft, waiting on the decisions in §8 · **Written
-against:** `origin/main` at `81c5a7a42` (#1261), and #1205 (open), which settles decision 0015. Every count below was
-measured on that tree on 28 September, and every fact carries its file and line. Where this document and the code
-disagree, the code wins and this document is corrected.
+**Date:** 28 September 2026 · **Owner:** Ruben · **Status:** decided, not built: Ruben took every recommendation in
+§8 on 28 September ("go with your recommendations") · **Written against:** `origin/main` at `81c5a7a42` (#1261),
+and #1205 (open), which settles decision 0015. Every count below was measured on that tree on 28 September, and every
+fact carries its file and line. Where this document and the code disagree, the code wins and this document is
+corrected.
 
 **Follows:** decision 0015 (the shell leaves one surface at a time; settled by #1205), the frontend plan
 (`docs/plans/2026-09-27-frontend-performance-scale.md`, §17 "one set of breakpoints, as tokens"), the organization
@@ -428,8 +429,9 @@ variant appears (decision 7).
 
 ### 3.7 The measures and the lint
 
-Four holds, all built in step 1.1 so that nothing new gets added while the program runs. Each measure is a `MEASURES`
-entry seeded with `UPDATE_BASELINES=raise`, with its row in `docs/debt.md`:
+Three measures, built in step 1.1 so that nothing new gets added while the program runs, and a lint rule that arrives
+with `src/surfaces` in step 1.7. Each measure is a `MEASURES` entry seeded with `UPDATE_BASELINES=raise`, with its row
+in `docs/debt.md`:
 
 1. **`style-values.json`:** per stylesheet, the font sizes, radii, shadows, colours and blurs written as literals.
    Parsed as CSS, not text (decision 8), in a new `tooling/scripts/tests/_css.mjs` beside `_ast.mjs`.
@@ -452,17 +454,20 @@ add one there with its gallery entry." The style tests live in a new `tooling/sc
 Each step is one pull request, merged the day it opens, dashboard only, shippable in either deploy order. "Proof" is
 what the pull request shows; "Done when" is what makes the next step safe.
 
-### Before Phase 1: what must already be true (owned elsewhere)
+### What each step waits on from elsewhere
 
-- #1205 merged: 0015 decided.
-- 0015's lint steps, which "go first": the effect-hook alias as `use\w+Effect`, `exhaustive-deps` an error under the
-  warnings ceiling, `no-undef` over the shell.
-- The Road to Ten's one compiler, so the kit's TypeScript compiles once, the same way everywhere.
+- Steps 1.1 to 1.6 wait on nothing outside this program.
+- Step 1.7 creates the folder decision 0015 names, so it waits for 0015 to be decided (#1205). If 0015's pilot lands
+  first, step 1.7 builds on the folder the pilot made.
+- 0015's lint steps (the effect-hook alias as `use\w+Effect`, `exhaustive-deps` an error under the warnings ceiling,
+  `no-undef` over the shell) go before its first move, as 0015 says, which is Phase 3.
+- The kit's TypeScript compiles under the compiler main has. The Road to Ten's single compiler covers it with
+  everything else when it lands.
 
 ### Phase 1 · The foundation (nothing a member can see)
 
 **1.1 The counts hold.** The CSS parser as a root devDependency pinned to the lockfile's version; `_css.mjs`; the
-three measures and the lint rule of §3.7; their rows in `docs/debt.md`; fixture tests in `tests/styles/`.
+three measures of §3.7; their rows in `docs/debt.md`; fixture tests in `tests/styles/`.
 _Proof:_ each counter's fixtures, including a stylesheet that should count zero; the register block redrawn. _Done
 when:_ a new chip class or raw font size in any stylesheet is a red build with advice.
 
@@ -489,7 +494,8 @@ _Proof:_ `theme-boot.test.mjs` extended (both attributes before paint, every sto
 sidebar spec; style equality. _Done when:_ `[data-look="glass"]` in a stylesheet would reach every page at once.
 
 **1.7 The kit's home.** `apps/dashboard/src/surfaces/` and `src/surfaces/kit/` join the dashboard's TypeScript lint
-block, the browser layer and `LIMITED_TREES` (`eslint.config.mjs:281-295, 317-328, 137-170`), with a probe;
+block, the browser layer and `LIMITED_TREES` (`eslint.config.mjs:281-295, 317-328, 137-170`), with the rule on raw
+elements (§3.7, item 4), each with its probe;
 `kit/variants.ts`; `kit/kit.css`, imported by both entry files right after the tokens; `kit/classes.json`; the docs
 tree redrawn with `UPDATE_BASELINES=1`. 0015's pilot also creates `src/surfaces/`: whichever lands first creates it.
 _Proof:_ the probes; style equality. _Done when:_ a TSX component can be written, linted and tested in the kit.
@@ -627,13 +633,13 @@ alternatives.
 
 | Step | What                                  | A member sees it | Proof                           | Waits on                            |
 | ---- | ------------------------------------- | ---------------- | ------------------------------- | ----------------------------------- |
-| 1.1  | The counts hold                       | no               | fixtures, register              | #1205; 0015's lint steps            |
+| 1.1  | The counts hold                       | no               | fixtures, register              | nothing                             |
 | 1.2  | The proof tool                        | no               | its self-test                   | 1.1                                 |
 | 1.3  | Dead and leaking styles               | no               | style equality                  | 1.2                                 |
 | 1.4  | Roles, and Classic                    | no               | style equality                  | 1.3                                 |
 | 1.5  | Literals that equal a token           | no               | style equality                  | 1.4                                 |
 | 1.6  | The look setting                      | no               | boot tests, style equality      | 1.4                                 |
-| 1.7  | The kit's home                        | no               | lint probes, style equality     | one compiler                        |
+| 1.7  | The kit's home                        | no               | lint probes, style equality     | #1205: 0015 decided                 |
 | 2.1  | Kit-grade CSS into the kit            | no               | style equality                  | 1.7                                 |
 | 2.2  | The missing primitives                | no               | gallery, style equality         | 2.1                                 |
 | 2.3  | The gallery                           | no               | e2e spec                        | 2.2                                 |
@@ -661,8 +667,8 @@ the surfaces are done, since they are not offered to members until step 5.5.
 
 ## 6. Tests and gates
 
-- **The four holds** (§3.7), from step 1.1: three measures with fixtures and register rows, and the lint rule with its
-  probe.
+- **The holds** (§3.7): three measures with fixtures and register rows from step 1.1, and the lint rule with its probe
+  from step 1.7.
 - **Style equality** (§3.5) on every step a member must not see, with a planted fault shown to differ.
 - **The gallery spec,** from step 2.3: every class in `classes.json` drawn, each reading its tokens in both modes and
   both looks.
@@ -697,30 +703,27 @@ the surfaces are done, since they are not offered to members until step 5.5.
 
 ---
 
-## 8. Decisions for Ruben
+## 8. Decisions, as taken
 
-Answer by number; each has a recommendation.
+Ruben took every recommendation on 28 September ("go with your recommendations"). Each is written as decided, with
+the road not taken beside it.
 
-1. **The approach.** shadcn's model without its packages (recommended), or Tailwind with shadcn/ui.
-2. **Where the kit lives.** `apps/dashboard/src/surfaces/kit/`, the folder 0015 names (recommended).
-3. **Where a look is saved.** On each device, as the theme is (recommended), or on the member's account, through
-   `profiles` and `PUT /api/v1/me`, with a migration.
-4. **The kit's class names.** Keep the house's names (`.btn`, `.pill`, `.chip`…) with a registry (recommended), or
-   prefix every kit class, which renames 374 button uses and the rest.
-5. **The primary action in Glass.** The accent, coral, as the canvases draw it (recommended), or ink, as today. Today's
-   rule keeps the accent for live things only; a `--primary-*` role lets each look decide.
-6. **Classic's future.** Retire it a release cycle after Glass is the default (recommended), or keep both looks.
-7. **The gallery.** On the e2e harness only (recommended), or also a route in production for platform staff.
-8. **The CSS parser for the measures.** lightningcss, the parser the build already uses (recommended), or postcss.
-9. **Tweaks.** An accent hue and a font as device preferences now, or later (recommended: later; the tiers allow it).
-10. **The kit's order per surface.** After the surface's move (recommended), or before it, in the JSX, when its move
-    is far off.
-11. **Harmonies in Phase 4.** A page takes the kit's primitive even where its own differed a little, each difference
-    shown (recommended), or Phase 4 stays pixel-identical and the kit carries temporary variants until Phase 5.
-12. **Ask on the phone in Glass.** The ✦ disc settled on 25 September, drawn in the glass circle the canvases show
-    (recommended), or as it is today.
-13. **The canvases.** Kept with Ruben, as today (recommended), or committed under `docs/design/` so agents can open
-    them (six files, about five megabytes, with screenshots of the harness).
+1. **The approach:** shadcn's model without its packages. Not Tailwind with shadcn/ui.
+2. **Where the kit lives:** `apps/dashboard/src/surfaces/kit/`, the folder 0015 names.
+3. **Where a look is saved:** on each device, as the theme is. No table, route or migration; not on the account.
+4. **The kit's class names:** the house's names (`.btn`, `.pill`, `.chip`…), listed in a registry. No prefix, so the
+   374 button uses keep their class.
+5. **The primary action in Glass:** the accent, coral, as the canvases draw it. Classic keeps ink; the `--primary-*`
+   roles let each look decide.
+6. **Classic's future:** retired a release cycle after Glass is the default. Not kept as a second look.
+7. **The gallery:** on the e2e harness only. Not a production route.
+8. **The CSS parser for the measures:** lightningcss, the parser the build already uses. Not postcss.
+9. **Tweaks:** later. The tiers allow an accent hue and a font as device preferences when they are wanted.
+10. **The kit's order per surface:** after the surface's move. Not before it, in the JSX.
+11. **Harmonies in Phase 4:** a page takes the kit's primitive even where its own differed a little, and the pull
+    request shows each difference. Not temporary kit variants.
+12. **Ask on the phone in Glass:** the ✦ disc settled on 25 September, drawn in the glass circle the canvases show.
+13. **The canvases:** kept with Ruben, outside the repository. Not committed under `docs/design/`.
 
 ---
 
