@@ -9,7 +9,7 @@
  * the member's own (their saved view, on every device): it puts an optional
  * row off Today's card, and nothing else.
  */
-import { CALENDAR_FEED_WORDS } from "../calendar/calendar";
+import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";
 import { agoWords } from "../shared/time";
 import { plural } from "../shared/words";
 import { bookingPageOffered, listingLine } from "../google/google";

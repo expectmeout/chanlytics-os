@@ -3,7 +3,7 @@
  * consultation has had no proposal since, and where a person stands on the way to a deal (dealStageOf), the one
  * rule the Pipeline's groups and People's deal lists both read.
  */
-import { foldName, needsConsultation, type ConsultRules } from "../calendar/availability";
+import { foldName, needsConsultation, type ConsultRules } from "../calendar/service-offer";
 import { DAY_MS } from "../shared/time";
 import type { DealStage } from "./deal-words";
 import { dealIsOpen, type DealVM } from "./deal-vm";

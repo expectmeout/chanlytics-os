@@ -675,7 +675,7 @@ function isRealDate(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES2 = {
+var DAY_NAMES = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -684,7 +684,7 @@ var DAY_NAMES2 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME = DAY_NAMES2;
+var DAY_NAME = DAY_NAMES;
 function dayProblems(h, day) {
   const name2 = DAY_NAME[day] ?? day;
   const out = [];
@@ -8436,7 +8436,7 @@ function isRealDate2(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES22 = {
+var DAY_NAMES2 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -8445,7 +8445,7 @@ var DAY_NAMES22 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME2 = DAY_NAMES22;
+var DAY_NAME2 = DAY_NAMES2;
 function dayProblems2(h, day) {
   const name2 = DAY_NAME2[day] ?? day;
   const out = [];
@@ -12267,7 +12267,7 @@ function isRealDate3(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES23 = {
+var DAY_NAMES3 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -12276,7 +12276,7 @@ var DAY_NAMES23 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME3 = DAY_NAMES23;
+var DAY_NAME3 = DAY_NAMES3;
 function dayProblems3(h, day) {
   const name2 = DAY_NAME3[day] ?? day;
   const out = [];
@@ -15270,7 +15270,7 @@ function isRealDate22(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES222 = {
+var DAY_NAMES22 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -15279,7 +15279,7 @@ var DAY_NAMES222 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME22 = DAY_NAMES222;
+var DAY_NAME22 = DAY_NAMES22;
 function dayProblems22(h, day) {
   const name2 = DAY_NAME22[day] ?? day;
   const out = [];
@@ -16570,11 +16570,11 @@ function mondayOf(key) {
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
   return shiftKey(key, -((dow + 6) % 7));
 }
-var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 function zoneMidnight(tz, key) {
   const { y, m, d } = keyParts(key);
   return localToUtcMs(tz, y, m, d, 0, 0);
 }
+var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var EVENT_KINDS22 = [
   "message.received",
   "message.sent",
@@ -18500,7 +18500,7 @@ function isRealDate32(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES232 = {
+var DAY_NAMES32 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -18509,7 +18509,7 @@ var DAY_NAMES232 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME32 = DAY_NAMES232;
+var DAY_NAME32 = DAY_NAMES32;
 function dayProblems32(h, day) {
   const name2 = DAY_NAME32[day] ?? day;
   const out = [];
@@ -22197,7 +22197,7 @@ function isRealDate4(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES24 = {
+var DAY_NAMES4 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -22206,7 +22206,7 @@ var DAY_NAMES24 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME4 = DAY_NAMES24;
+var DAY_NAME4 = DAY_NAMES4;
 function dayProblems4(h, day) {
   const name2 = DAY_NAME4[day] ?? day;
   const out = [];

@@ -15,7 +15,7 @@ import { z } from "zod";
 import type { AskAnswer } from "./ask-answer";
 import type { AskCitation } from "./citations";
 import type { ProposalNeeds } from "../ask-proposals/spec";
-import { dayPlusInZone } from "../calendar/availability";
+import { dayPlusInZone } from "../calendar/zone-math";
 import { parseLeadsRoute } from "../leads/lead-plan";
 import { parsePipelineRoute } from "../deals/pipeline/pipeline-views";
 
