@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { devtoolsSocketOf, launchOf, median, nodesOf } from "../../mobile/device.mjs";
 import { fromTheStart } from "../../mobile/cold-start.mjs";
+import { launchLine } from "../../../../apps/mobile/src/shell/deploy.ts";
 
 test("a node says its text and its description, entities undone, at the centre of its bounds", () => {
   const xml = [
@@ -38,21 +39,26 @@ test("a WebView's DevTools socket is its own process's, never another whose id s
   assert.equal(devtoolsSocketOf(table, "424"), null);
 });
 
-test("the bundle a launch ran is the last launch line in the log, and nothing when there is none or it does not read", () => {
-  const log = [
-    "--------- beginning of main",
-    '09-28 14:00:01.100  4247  4270 I ReactNativeJS: app_launch {"update":null,"publishedAt":null,"embedded":true,"channel":"preview"}',
-    '09-28 14:00:02.200  4247  4270 I ReactNativeJS: Running "main"',
-    '09-28 14:05:01.100  5001  5020 I ReactNativeJS: app_launch {"update":"01a0e88a","publishedAt":"2026-09-28T15:02:47.138Z","embedded":false,"channel":"preview"}',
-  ].join("\r\n");
-  assert.deepEqual(launchOf(log), {
-    update: "01a0e88a",
-    publishedAt: "2026-09-28T15:02:47.138Z",
+test("the bundle a launch ran is the last line the app wrote as it started, read back from the device's log, and nothing when there is none or it does not read", () => {
+  // The app's own line after the device's prefix, as the emulator printed one on 28 September (logcat's threadtime).
+  const logged = (line) => `09-28 16:22:30.308 23774 23811 I ReactNativeJS: ${line}`;
+  const embedded = { update: null, publishedAt: null, embedded: true, channel: "preview" };
+  const update = {
+    update: "01a0e9aa-08a6-720b-8552-18b293e0d69c",
+    publishedAt: "2026-09-28T20:17:09.798Z",
     embedded: false,
     channel: "preview",
-  });
+  };
+  const log = [
+    "--------- beginning of main",
+    logged(launchLine(embedded)),
+    logged('Running "main"'),
+    logged(launchLine(update)),
+  ];
+  assert.deepEqual(launchOf(log.join("\r\n")), update);
+  assert.deepEqual(launchOf(log.slice(0, 3).join("\n")), embedded);
   assert.equal(launchOf("--------- beginning of main"), null);
-  assert.equal(launchOf("I ReactNativeJS: app_launch {not json"), null);
+  assert.equal(launchOf(logged("app_launch {not json")), null);
 });
 
 test("a run's times are the page's own, moved to the moment the run started the app", () => {

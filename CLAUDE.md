@@ -19,7 +19,8 @@ of the public will experience.
 ## Read next, in this order
 
 1. `README.md`: the moving parts, the things that will surprise you, the conventions.
-2. `docs/glossary.md`: the words, and the one rule about _tenant_ versus _workspace_.
+2. `docs/glossary.md`: the words, and the two rules about storage's own, _tenant_ versus _workspace_ and _contact_
+   versus _person_. `docs/naming.md` is the grammar every name follows.
 3. `docs/architecture.md`: how it is wired, and where to look for each concern.
 4. `docs/runbook.md`: run it, test it, deploy it, roll it back.
 5. `docs/decisions/`: what is decided and not yet built. Read the relevant note before
@@ -41,6 +42,7 @@ UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet'
 UPDATE_BASELINES=raise corepack pnpm test     # the same, raising a number that rose: argued under "Rises" in docs/debt.md
 corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks a fall, -- --raise a rise
 corepack pnpm check:bundle                    # after a dashboard build: the workspace route's JS and CSS against its budget; -- --update banks a fall, -- --raise a rise
+corepack pnpm check:style-equality -- record <file> --against <file>   # a change that must move nothing on screen, recorded and compared (docs/runbook.md)
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 corepack pnpm e2e                             # Playwright, against production by default
 node tooling/scripts/gen/route-types.mjs      # the typed client, after a route changes (--check to verify)
@@ -66,6 +68,8 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **Nothing in the UI states a fact the database cannot support.** A zero is shown; an invented
   number is not. `surface-registry.ts` decides what is real; `no-fabricated-data.spec.ts` checks it.
 - **Storage says tenant, everything a person or the API sees says workspace.** Never both in one layer.
+- **Names follow `docs/naming.md`.** Storage keeps its words, the wire is snake_case, every closed set is
+  declared once. The tests it names hold it, and it marks the ones still owed.
 - **One predicate per rule.** Consent is `mayMessageFor`; standing is `standingOf`; the reply window
   is `replyWindow`. A second implementation of a rule is a bug even when it agrees.
 - **One send door.** Everything a customer receives leaves through `packages/core/src/deliver.ts`.
