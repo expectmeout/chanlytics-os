@@ -634,11 +634,6 @@
     "branches": 50,
     "depth": 1
   },
-  "apps/dashboard/src/server/workspace/setup.ts::setupDtoFor#1": {
-    "lines": 272,
-    "branches": 83,
-    "depth": 1
-  },
   "apps/edge/api/admin/eval.ts::POST#1": {
     "lines": 100,
     "branches": 36,
@@ -675,7 +670,7 @@
     "depth": 1
   },
   "apps/edge/api/cron/calendar.ts::POST#1": {
-    "lines": 80,
+    "lines": 81,
     "branches": 32,
     "depth": 3
   },
