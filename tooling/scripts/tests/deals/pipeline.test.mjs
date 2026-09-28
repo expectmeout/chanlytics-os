@@ -720,7 +720,9 @@ const quietly = async (fn) => {
     console.error = e;
   }
 };
-const { peopleOverride } = await quietly(() => import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts"));
+const { peopleOverride } = await quietly(
+  () => import("../../../../apps/dashboard/src/legacy-bridge/surfaces/people.ts"),
+);
 const { installClock } = await import("../../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
 
@@ -2428,7 +2430,7 @@ test("a recorded move lands on the row as the door answers: the Pipeline regroup
     answer = { deal: dto({ stage: "lost", decided_at: iso(now), version: 3 }), from: "won", decision_id: "dec-3" };
     await Promise.race([recordDeal("wes", { stage: "lost", deal_id: before.id, version: 2 }), waited()]);
     assert.equal(globalThis.window.__PEOPLE.rows.find((x) => x.id === "wes").deal.stage, "won");
-    const { placeDeal } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+    const { placeDeal } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/people.ts");
     assert.equal(placeDeal("nobody-here", won), false, "someone People does not hold: nothing to move");
   } finally {
     land();

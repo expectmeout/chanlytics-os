@@ -82,8 +82,11 @@ export const ASK_ANSWER_CAPS = {
   question: 90,
 } as const;
 
-/** One line of words in at most n characters; a longer one ends on a whole word, with an ellipsis. */
-const clip = (s: string | null | undefined, n: number) => {
+/**
+ * One line of words in at most n characters; a longer one ends on a whole word, with an ellipsis. Every part of an
+ * answer is cut by it, and so is every part of an earlier answer's line in a cold turn's history (server/ask/prompt.ts).
+ */
+export const clip = (s: string | null | undefined, n: number) => {
   const t = (s ?? "").replace(/\s+/g, " ").trim();
   if (t.length <= n) return t;
   const cut = t.slice(0, n - 1);
