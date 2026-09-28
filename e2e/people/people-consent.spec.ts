@@ -131,7 +131,7 @@ test.describe("Consent for one person", () => {
 
   /**
    * The address, for real: this workspace is the nightly's own and its people
-   * are seeded (tooling/scripts/e2e-workspace.mjs resets `email` each run), so
+   * are seeded (tooling/scripts/ops/e2e-workspace.mjs resets `email` each run), so
    * the door is walked end to end instead of intercepted. What is wrong with a
    * typed address is said under the field and sends nothing; a good one goes
    * through PUT details to set_person_email (00125), comes back in the door's

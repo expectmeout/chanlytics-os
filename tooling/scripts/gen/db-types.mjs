@@ -151,7 +151,7 @@ function looksGenerated(src) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
   const CLI = process.env.SUPABASE_CLI || "supabase";
   const check = process.argv.includes("--check");
   const out = path.join(ROOT, OUT);

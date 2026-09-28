@@ -111,7 +111,7 @@ test("a mock brand cannot be deleted, so the messaging profile is what changes",
   // The campaign delete is the INSTANCE url. The collection answers 405, which
   // the first version swallowed as best-effort -- so the mock campaign stayed
   // on the service and the refile was refused a step later, about the brand.
-  const chan = readCode("packages/channels/src/a2p/brand-campaign.ts");
+  const chan = readCode("packages/channels/src/lines/a2p/brand-campaign.ts");
   assert.ok(chan.includes('Compliance/Usa2p/${campaignSid}`, method: "DELETE"'));
   assert.ok(
     /if \(!gone\)\s*return \{\s*ok: false,\s*error: "provider_refused",/.test(lib),
@@ -261,7 +261,7 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
   // The first version of this path deleted the campaign and filed a new one,
   // which answers a rejection by buying a second vetting -- $15, every time,
   // for every workspace, on corrections that are usually one line of copy.
-  const chan = readCode("packages/channels/src/a2p/brand-campaign.ts");
+  const chan = readCode("packages/channels/src/lines/a2p/brand-campaign.ts");
   assert.ok(chan.includes("export function updateCampaignRequest("));
   assert.ok(
     chan.includes('Compliance/Usa2p/${campaignSid}`, method: "POST"'),

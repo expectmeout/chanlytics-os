@@ -10,7 +10,7 @@ import {
   ApifyRefused,
   ApifyRetryable,
   APIFY_RUN_END_EVENTS,
-} from "../../../../../packages/channels/src/apify.ts";
+} from "../../../../../packages/channels/src/leads/apify.ts";
 import { actorRun } from "../../_lead-fixtures.mjs";
 
 function http(answers) {

@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --no-splitting",
     "typecheck": "tsc --noEmit",
-    "gen:types": "node ../../tooling/scripts/check-db-types.mjs"
+    "gen:types": "node ../../tooling/scripts/gen/db-types.mjs"
   },
   "dependencies": {
     "@chanlytics/contracts": "workspace:*",

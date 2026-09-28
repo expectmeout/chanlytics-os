@@ -35,7 +35,7 @@ rows (`docs/debt.md`).
 ```text
 functions over the limit            198   of which over 200 lines: 56
 files over 800 lines                 13
-directories over 20 modules           6
+directories over 20 modules           4
 window globals                      200   names
 window publishers                   446   sites in 164 files
 copies                               52   of 14 names
@@ -108,10 +108,10 @@ repository's root. `tooling/scripts/tests/docs/docs-paths.test.mjs` fails when o
 13. **Multi-tenancy**: `docs/architecture.md`, Tenancy; `docs/glossary.md` for the tenant and workspace rule.
 14. **Integrations**: `packages/channels` adapters; doors under `apps/edge/api`; Stripe in `apps/edge/lib/billing/billing.ts`.
 15. **Background jobs**: `packages/jobs`, `apps/edge/api/jobs/tick.ts`, the sweeps under `apps/edge/api/cron`.
-16. **AI**: one receptionist (`apps/edge/lib/receptionist/brain.ts`, the composer in `packages/contracts/src/config/workspace-config/compose.ts`, the structured answer in `packages/contracts/src/config/brain.ts`); Ask under `src/server/ask`; the lead judge in `packages/channels/src/lead-judge.ts` and `packages/core/src/leads`. The mockup's agent fleet is not built, by decision.
+16. **AI**: one receptionist (`apps/edge/lib/receptionist/brain.ts`, the composer in `packages/contracts/src/config/workspace-config/compose.ts`, the structured answer in `packages/contracts/src/config/brain.ts`); Ask under `src/server/ask`; the lead judge in `packages/channels/src/leads/lead-judge.ts` and `packages/core/src/leads`. The mockup's agent fleet is not built, by decision.
 17. **Adding a feature**: `CLAUDE.md`, Where new code goes, and the canonical example table.
 18. **Reusing a component**: `src/legacy/components`, and the `btn`, `set-input`, `record-*` classes the pages already use.
-19. **A new endpoint**: copy the snooze route; add its row to `tooling/scripts/tests/route-policy.json` (the test prints what it expects); run `tooling/scripts/gen-route-types.mjs`.
+19. **A new endpoint**: copy the snooze route; add its row to `tooling/scripts/tests/route-policy.json` (the test prints what it expects); run `tooling/scripts/gen/route-types.mjs`.
 20. **Writing a test**: copy `tooling/scripts/tests/sms/sms-door.test.mjs` for a door, `tooling/scripts/tests/conversations/core-thread-verbs.test.mjs` for a verb, any `tooling/scripts/tests/<domain>/*.db.test.mjs` for the database.
 21. **Run locally**: `docs/runbook.md`.
 22. **Deploy and roll back**: `docs/runbook.md`.

@@ -34,7 +34,7 @@ const PAID = process.env.E2E_PAID_LEADS === "1";
 const WHY_UNPAID = "a real search spends on the source and the judge: set E2E_PAID_LEADS=1 to run it";
 
 /**
- * The seed's search and its six leads (tooling/scripts/e2e-workspace.mjs, which
+ * The seed's search and its six leads (tooling/scripts/ops/e2e-workspace.mjs, which
  * owns them). Restated here rather than imported, as thread.spec.ts restates
  * Robin: that file is ESM run by plain node, and Playwright compiles a spec to
  * CJS, so an import of it fails at load. The first test reads the workspace back
