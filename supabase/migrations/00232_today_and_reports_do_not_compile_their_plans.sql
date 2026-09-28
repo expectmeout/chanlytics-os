@@ -21,12 +21,14 @@
 -- function now runs with jit off. A function's `set` holds for every statement
 -- it runs, cached or not, and for the functions it calls.
 --
--- Whether production compiles today depends on its Postgres having the JIT
--- provider and on its setting (select pg_jit_available()); where it does not,
--- this changes nothing. #1226 (00223, 00224) and #1249 (00231) recreate these
--- functions with the same setting, so it holds whichever file is applied last.
+-- All of this needs a Postgres with the JIT provider, which pg_jit_available()
+-- reports. Where there is none, this changes nothing: the replayed stack,
+-- Supabase's Postgres 17 image, has jit on and no provider.
 --
--- Re-runnable: `alter function ... set` replaces the setting.
+-- A `create or replace` of one of these functions without the setting drops
+-- it, as 00223 and 00224 (#1226) and 00231 (#1249) would. Where one of them is
+-- applied after this, run this again. Re-runnable: `alter function ... set`
+-- replaces the setting.
 
 alter function public.metrics_summary(uuid, integer) set jit = off;
 alter function public.report_series(uuid, integer) set jit = off;

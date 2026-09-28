@@ -2,10 +2,10 @@
  * Today's and Reports' reads run without JIT (00232), on a real database.
  *
  * metrics_summary, report_series, campaign_series and first_replies run plans estimated past jit_above_cost, from the
- * whole platform's tables, so Postgres compiled them on every call: modelled, Today's read of a workspace took 2.6 s
- * with JIT and 0.2 s without. Each now carries `jit = off`. What this holds is that the setting survives every
- * migration after it: a later copy of one of these functions that leaves the setting out drops it, and this fails.
- * It also says, in the log, whether this stack's Postgres could compile at all, which is the question for production.
+ * whole platform's tables, so a Postgres with the JIT provider compiles them on every call: modelled, Today's read of a
+ * workspace took 2.6 s with JIT and 0.2 s without. Each now carries `jit = off`. What this holds is that the setting
+ * survives every migration after it: a later copy of one of these functions that leaves the setting out drops it, and
+ * this fails. It also says, in the log, whether this stack's Postgres could compile at all.
  *
  * Read through the CLI in a transaction that never commits, as sweep-registry.db.test.mjs turns a clock;
  * SUPABASE_CLI names the binary when `supabase` is not on PATH.
