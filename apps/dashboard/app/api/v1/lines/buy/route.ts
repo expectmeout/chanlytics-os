@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AppError } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
+import { edgeRefusalWords } from "@/server/edge";
 
 const Body = z.object({
   number: z
@@ -69,14 +70,9 @@ export const POST = write({
         "Getting a line is not available here yet — ask us and a person at Chanlytics sets it up with you.",
         409,
       );
-    if (a.status === 400)
-      throw new AppError("validation", typeof b.error === "string" ? b.error : "That number cannot be used.", 400);
+    if (a.status === 400) throw new AppError("validation", edgeRefusalWords(b) ?? "That number cannot be used.", 400);
     if (a.status !== 200 && a.status !== 202 && a.status !== 502)
-      throw new AppError(
-        "internal",
-        typeof b.error === "string" ? b.error : "The carrier did not answer. Try again in a moment.",
-        502,
-      );
+      throw new AppError("internal", edgeRefusalWords(b) ?? "The carrier did not answer. Try again in a moment.", 502);
     // 202: the saga is on the ledger; the row says the step, and Setup repaints from it.
     return {
       ok: b.ok === true,

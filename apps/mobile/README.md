@@ -7,14 +7,19 @@ The shell that holds Chanlytics on a phone: five native tabs, each a WebView of 
 
 ## Run it
 
-Nothing here runs in Expo Go. Every command runs from this directory.
+Nothing here runs in Expo Go. Every command runs from this directory. EAS's CLI is not a dependency of the repository:
+`npx eas-cli@latest` runs it, and the first command asks to log in to the Expo account.
 
 ```bash
-corepack pnpm install                                   # from the repository root, once
-corepack pnpm exec eas build --profile development-simulator --platform ios   # a simulator build, no Apple account needed
-corepack pnpm exec eas build --profile development --platform android          # an APK for an emulator or a phone
-corepack pnpm start                                      # the dev client loop, once one is installed
+corepack pnpm install                                                              # from the repository root, once
+npx eas-cli@latest build --profile development-simulator --platform ios           # a simulator build, no Apple account needed
+npx eas-cli@latest build --profile development --platform android                  # an APK for an emulator or a phone
+corepack pnpm start                                                                # the dev client loop, once one is installed
+corepack pnpm typecheck                                                            # the routes' types first, then tsc
 ```
+
+`typecheck` generates the routes' own types before it runs (`expo customize tsconfig.json`, as Expo's docs say for a
+check without a dev server), so an address in the app that names no screen is a type error, in CI as here.
 
 **The preview app on main** (`.eas/workflows/preview.yml`): a push to main that changes what the app is made of (this
 app, the lockfile, or a contracts module its entry reaches; `test/preview-paths.test.mjs` holds the list to that
@@ -36,6 +41,8 @@ EAS environment or a local `.env.local` may point it elsewhere, at a preview for
   `deploy.ts` when a deploy reloads the pages; `Offline.tsx` the screen without a network.
 - `src/app/(tabs)`: the five tabs; `src/app/_layout.tsx` the theme, the sign-in gate, the foreground looks.
 - `test/`: the pure modules, run by the repository's `corepack pnpm test`.
+- `.maestro/`: the walk's flows, which `tooling/scripts/mobile/walk.mjs` runs on an Android emulator or phone, signed in
+  (`docs/runbook.md`, "Walk the phone app").
 
 ## Being told
 
@@ -52,6 +59,7 @@ native sign-in".
 
 ## What waits on what
 
-PR 1 (this) needs only an Expo project and `EXPO_TOKEN`. Push (PR 2) needs the Apple Developer Program's APNs key
-and a Firebase project; native sign-in (PR 3) the Apple and Google providers. SDK 58 renames
-`expo-router/unstable-native-tabs` to `expo-router/native-tabs`; that is the whole move.
+The preview builds and updates itself from main. What only the accounts' owner can do is the PRD's section 7: the
+store accounts and their keys for the submissions, Apple's push key, Android's Firebase file (the runbook's "Turn on
+push"), and the sign-in providers (the runbook's "Turn on native sign-in"). The app is on SDK 57, the stable SDK;
+when 58 is stable, native tabs move from `expo-router/unstable-native-tabs` to `expo-router/native-tabs`.

@@ -448,7 +448,7 @@ function handoffSection({ profile, channel }: SectionFacts): string[] {
   } else {
     // The phone has real mechanics where WhatsApp has a token: a transfer
     // tool, a booking-link tool and an end-call tool, all defined on the Retell
-    // shell (packages/channels/src/voice-shell.ts). The prompt has to name
+    // shell (packages/channels/src/voice/voice-shell.ts). The prompt has to name
     // them and say when, or the model reads "hand the caller to a person",
     // has no idea how, and says "let me get someone" to nobody.
     //

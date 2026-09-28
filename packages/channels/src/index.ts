@@ -34,7 +34,7 @@ export {
   needsHydration,
   fetchRecording,
   verifyRetellSignature,
-} from "./voice-retell";
+} from "./voice/voice-retell";
 export type {
   RetellConfig,
   RetellTranscriptTurn,
@@ -46,7 +46,7 @@ export type {
   LiveCallControl,
   RetellLlmConfig,
   RecordingFetch,
-} from "./voice-retell";
+} from "./voice/voice-retell";
 export {
   availabilityUrl,
   voiceShellTools,
@@ -66,7 +66,7 @@ export {
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
   CALL_ANALYSIS_FIELDS,
-} from "./voice-shell";
+} from "./voice/voice-shell";
 export type {
   RetellTool,
   VoiceShellTarget,
@@ -74,7 +74,7 @@ export type {
   VoiceConvergencePlan,
   LiveAgentSettings,
   AgentPlan,
-} from "./voice-shell";
+} from "./voice/voice-shell";
 export {
   voiceEndpoints,
   withKey,
@@ -88,7 +88,7 @@ export {
   VOICE_LLM_DEFAULTS,
   VOICE_AGENT_DEFAULTS,
   VOICE_NUMBER_DEFAULTS,
-} from "./voice-provision";
+} from "./voice/voice-provision";
 export type {
   ProvisionSecrets,
   VoiceProvisionRequest,
@@ -97,7 +97,7 @@ export type {
   ProvisionAction,
   ProvisionStep,
   VoiceProvisionPlan,
-} from "./voice-provision";
+} from "./voice/voice-provision";
 export {
   chooseLineProvider,
   trunkDomain,
@@ -109,14 +109,14 @@ export {
   LINE_COSTS,
   isE164,
   isAreaCode,
-} from "./lines";
-export type { LineProviderName, ProviderAccount, AvailableNumber, LineProvider, SmsSendResult } from "./lines";
-export { twilioProvider, twilioUrls, TwilioError, fetchTwilio } from "./lines-twilio";
-export type { TwilioAnswer, TwilioHttp } from "./lines-twilio";
-export { dryProvider } from "./lines-dry";
-export type { DryCall, DryProvider } from "./lines-dry";
-export { retellImportBody, nextLineStep, runLineSaga, LINE_STEPS } from "./lines-saga";
-export type { LineStep, LineVoiceState, LineRow, LineSecrets, LinePorts, SagaResult } from "./lines-saga";
+} from "./lines/lines";
+export type { LineProviderName, ProviderAccount, AvailableNumber, LineProvider, SmsSendResult } from "./lines/lines";
+export { twilioProvider, twilioUrls, TwilioError, fetchTwilio } from "./lines/lines-twilio";
+export type { TwilioAnswer, TwilioHttp } from "./lines/lines-twilio";
+export { dryProvider } from "./lines/lines-dry";
+export type { DryCall, DryProvider } from "./lines/lines-dry";
+export { retellImportBody, nextLineStep, runLineSaga, LINE_STEPS } from "./lines/lines-saga";
+export type { LineStep, LineVoiceState, LineRow, LineSecrets, LinePorts, SagaResult } from "./lines/lines-saga";
 export {
   smsInboundFrom,
   smsAsWaMessage,
@@ -139,8 +139,8 @@ export {
   SMS_MAX_CHARS,
   SMS_HELD_REASON,
   SMS_HELD_DETAILS,
-} from "./sms";
-export type { SmsInbound, CarrierConsent, SmsStatus } from "./sms";
+} from "./lines/sms";
+export type { SmsInbound, CarrierConsent, SmsStatus } from "./lines/sms";
 export {
   mailboxHeader,
   replySubject,
@@ -175,7 +175,7 @@ export { emailReceiptFrom, emailReceiptEffect } from "./email/receipts";
 export type { EmailReceiptType, EmailReceipt, EmailSuppressionReason, EmailReceiptEffect } from "./email/receipts";
 export { resendLimitOf, mailDomainsFrom } from "./email/provider-answers";
 export type { ResendLimit, MailCapability, MailDomainFacts } from "./email/provider-answers";
-export { emailPlainText } from "./email-text";
+export { emailPlainText } from "./email/email-text";
 export {
   resendRequest,
   sendEmail,
@@ -184,8 +184,8 @@ export {
   RESEND_API,
   SEND_TIMEOUT_MS,
   SEND_DEADLINE_MS,
-} from "./email-resend";
-export type { ResendConfig, ResendAnswer, SendEmailOptions } from "./email-resend";
+} from "./email/email-resend";
+export type { ResendConfig, ResendAnswer, SendEmailOptions } from "./email/email-resend";
 export {
   providerDomainFrom,
   createMailDomain,
@@ -194,12 +194,12 @@ export {
   verifyMailDomain,
   removeMailDomain,
   dmarcOf,
-} from "./email-domains";
-export type { ProviderDomain, ProviderAnswer } from "./email-domains";
-export { A2P_POLICIES, TRUSTHUB, MESSAGING, encodeForm } from "./a2p/wire";
-export type { A2PRequest } from "./a2p/wire";
-export { brandTypeFor } from "./a2p/business-record";
-export type { BusinessRecord, BrandType } from "./a2p/business-record";
+} from "./email/email-domains";
+export type { ProviderDomain, ProviderAnswer } from "./email/email-domains";
+export { A2P_POLICIES, TRUSTHUB, MESSAGING, encodeForm } from "./lines/a2p/wire";
+export type { A2PRequest } from "./lines/a2p/wire";
+export { brandTypeFor } from "./lines/a2p/business-record";
+export type { BusinessRecord, BrandType } from "./lines/a2p/business-record";
 export {
   customerProfileRequest,
   starterProfileRequest,
@@ -222,7 +222,7 @@ export {
   a2pProfileEndUserRequest,
   evaluateTrustProductRequest,
   submitTrustProductRequest,
-} from "./a2p/trust-hub";
+} from "./lines/a2p/trust-hub";
 export {
   brandRequest,
   keywordsFor,
@@ -230,14 +230,14 @@ export {
   updateCampaignRequest,
   deleteCampaignRequest,
   LOW_VOLUME_USECASE,
-} from "./a2p/brand-campaign";
-export type { CampaignFacts } from "./a2p/brand-campaign";
-export { nextA2PStep, A2P_STEPS, EMPTY_A2P_STATE } from "./a2p/steps";
-export type { A2PStep, A2PState } from "./a2p/steps";
-export { isBrandNotReady, refusalWords, smsStateFor, registrationVerdict } from "./a2p/verdict";
-export type { CampaignError, SmsRegistrationState } from "./a2p/verdict";
-export { runA2PSaga } from "./a2p-saga";
-export type { A2PAnswer, A2PPorts, A2PResult } from "./a2p-saga";
+} from "./lines/a2p/brand-campaign";
+export type { CampaignFacts } from "./lines/a2p/brand-campaign";
+export { nextA2PStep, A2P_STEPS, EMPTY_A2P_STATE } from "./lines/a2p/steps";
+export type { A2PStep, A2PState } from "./lines/a2p/steps";
+export { isBrandNotReady, refusalWords, smsStateFor, registrationVerdict } from "./lines/a2p/verdict";
+export type { CampaignError, SmsRegistrationState } from "./lines/a2p/verdict";
+export { runA2PSaga } from "./lines/a2p-saga";
+export type { A2PAnswer, A2PPorts, A2PResult } from "./lines/a2p-saga";
 export {
   placesSearchRequest,
   placesDetailsRequest,
@@ -254,9 +254,9 @@ export {
   PLACES_TIMEOUT_MS,
   PlacesError,
   PLACE_ID,
-} from "./google-places";
-export type { PlacesRequest, PlacesHttp, PlaceCandidate, PlaceReview, PlaceDetails } from "./google-places";
-export { reviewBells, planListingCheck, planProfileSync, REVIEW_BELL_MAX, FRESH_SLACK_MS } from "./google-sync";
+} from "./google/google-places";
+export type { PlacesRequest, PlacesHttp, PlaceCandidate, PlaceReview, PlaceDetails } from "./google/google-places";
+export { reviewBells, planListingCheck, planProfileSync, REVIEW_BELL_MAX, FRESH_SLACK_MS } from "./google/google-sync";
 export type {
   ListingBefore,
   ReviewBell,
@@ -264,7 +264,7 @@ export type {
   ProfileBefore,
   KnownReview,
   ProfileSyncPlan,
-} from "./google-sync";
+} from "./google/google-sync";
 export {
   authorizeUrl,
   tokenExchangeRequest,
@@ -283,8 +283,8 @@ export {
   GOOGLE_REVOKE_URL,
   PROFILE_SCOPES,
   STATE_TTL_MS,
-} from "./google-oauth";
-export type { OAuthClient, TokenGrant, OAuthState } from "./google-oauth";
+} from "./google/google-oauth";
+export type { OAuthClient, TokenGrant, OAuthState } from "./google/google-oauth";
 export {
   accountsRequest,
   locationsRequest,
@@ -308,13 +308,30 @@ export {
   GBP_REVIEWS_PAGE,
   GBP_REVIEWS_MAX_PAGES,
   GBP_REPLY_MAX,
-} from "./google-profile";
-export type { GbpAccount, GbpLocation, GbpReview, GbpReviewsPage } from "./google-profile";
-export { signEdgeToken, verifyEdgeToken, EDGE_TOKEN_TTL_MS } from "./edge-token";
-export type { EdgeClaims, EdgeTokenVerdict } from "./edge-token";
-export { signUnsubscribeToken, verifyUnsubscribeToken, unsubscribeUrl, UNSUBSCRIBE_PATH } from "./unsubscribe-token";
-export type { UnsubscribeClaims } from "./unsubscribe-token";
-export { apifyClient, APIFY_BASE, APIFY_TIMEOUT_MS, APIFY_RUN_END_EVENTS, ApifyRetryable, ApifyRefused } from "./apify";
-export type { ApifyRun, ApifyClient } from "./apify";
-export { leadJudge, LEAD_JUDGE_MAX_TOKENS, LEAD_JUDGE_FALLBACK_BETA, LEAD_JUDGE_DEFAULT_MODEL } from "./lead-judge";
-export type { LeadJudgeClient, LeadJudgeAnswer, LeadJudge } from "./lead-judge";
+} from "./google/google-profile";
+export type { GbpAccount, GbpLocation, GbpReview, GbpReviewsPage } from "./google/google-profile";
+export { signEdgeToken, verifyEdgeToken, EDGE_TOKEN_TTL_MS } from "./tokens/edge-token";
+export type { EdgeClaims, EdgeTokenVerdict } from "./tokens/edge-token";
+export {
+  signUnsubscribeToken,
+  verifyUnsubscribeToken,
+  unsubscribeUrl,
+  UNSUBSCRIBE_PATH,
+} from "./tokens/unsubscribe-token";
+export type { UnsubscribeClaims } from "./tokens/unsubscribe-token";
+export {
+  apifyClient,
+  APIFY_BASE,
+  APIFY_TIMEOUT_MS,
+  APIFY_RUN_END_EVENTS,
+  ApifyRetryable,
+  ApifyRefused,
+} from "./leads/apify";
+export type { ApifyRun, ApifyClient } from "./leads/apify";
+export {
+  leadJudge,
+  LEAD_JUDGE_MAX_TOKENS,
+  LEAD_JUDGE_FALLBACK_BETA,
+  LEAD_JUDGE_DEFAULT_MODEL,
+} from "./leads/lead-judge";
+export type { LeadJudgeClient, LeadJudgeAnswer, LeadJudge } from "./leads/lead-judge";

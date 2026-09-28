@@ -8,6 +8,7 @@ import {
   type RegistrationPath,
 } from "@chanlytics/contracts";
 import { edgeLines } from "@/server/connections/lines";
+import { edgeRefusalWords } from "@/server/edge";
 import type { RouteContext } from "@/server/with-route";
 
 /**
@@ -96,8 +97,8 @@ export const PUT = write({
 
     const a = await edgeLines({ op: "record", tenant_id: member.tenantId, record, path }, 20_000);
     const b = a.body ?? {};
-    if (a.status === 400)
-      throw new AppError("validation", typeof b.error === "string" ? b.error : "That could not be saved.", 400);
+    // The first problem the edge found on the row it would write, in the owner's words (`detail`).
+    if (a.status === 400) throw new AppError("validation", edgeRefusalWords(b) ?? "That could not be saved.", 400);
     if (a.status === 503 && typeof b.error === "string" && b.error === "preview")
       throw new AppError("conflict", "Saving the business on record only works on the production dashboard.", 409);
     if (a.status !== 200) throw new AppError("internal", "The record could not be saved. Try again in a moment.", 502);

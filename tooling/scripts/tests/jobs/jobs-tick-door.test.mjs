@@ -338,7 +338,7 @@ test("a ledger that cannot be claimed from is a 503 carrying the error, said as 
   await listening(async (log) => {
     assert.deepEqual(
       await answer(await knock()),
-      [503, { ok: false, error: "Error: claim_due_jobs: connection refused" }],
+      [503, { ok: false, error: "query_failed", detail: "Error: claim_due_jobs: connection refused" }],
       "the 503 is what sweep_health() reads as the database's problem",
     );
     assert.deepEqual(

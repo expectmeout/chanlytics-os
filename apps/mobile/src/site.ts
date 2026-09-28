@@ -12,7 +12,7 @@ import { APP_ROUTE_RE } from "@chanlytics/contracts/phone-app";
 export const DEFAULT_SITE_ORIGIN = "https://app.chanlytics.com";
 export const SITE_ORIGIN = (process.env.EXPO_PUBLIC_SITE_ORIGIN || DEFAULT_SITE_ORIGIN).replace(/\/+$/, "");
 
-export type Platform = "ios" | "android";
+type Platform = "ios" | "android";
 
 export function userAgentToken(version: string, platform: Platform): string {
   return `ChanlyticsApp/${version || "0.0.0"} (${platform})`;

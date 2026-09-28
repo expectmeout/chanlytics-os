@@ -365,16 +365,20 @@ test("past status every op needs a database and a workspace id; an unknown op is
   await keyed(async () => {
     assert.deepEqual(
       await answer(await knock({ op: "portal" }, { "x-diag-key": KEY })),
-      [400, { ok: false, error: "tenant_id (a workspace id) is required" }],
+      [400, { ok: false, error: "bad_tenant", detail: "tenant_id (a workspace id) is required" }],
       "a key holder is about no workspace",
     );
     assert.deepEqual(
       await answer(await knock({ op: "portal", tenant_id: "harbor" }, { "x-diag-key": KEY })),
-      [400, { ok: false, error: "tenant_id (a workspace id) is required" }],
+      [400, { ok: false, error: "bad_tenant", detail: "tenant_id (a workspace id) is required" }],
       "and must name it by id",
     );
   });
-  const list = { ok: false, error: "op must be status, checkout, portal, invoices, sync, resume or start_now" };
+  const list = {
+    ok: false,
+    error: "unknown_op",
+    detail: "op must be status, checkout, portal, invoices, sync, resume or start_now",
+  };
   assert.deepEqual(await answer(await knock({ op: "dance" })), [400, list]);
   assert.deepEqual(await answer(await knock({})), [400, list]);
   assert.deepEqual(await answer(await knock("not json")), [400, list]);
@@ -525,7 +529,7 @@ test("checkout is refused in the door's words -- no such workspace, no billing r
   let db = use(t);
   assert.deepEqual(await answer(await knock({ op: "checkout" }, { "x-edge-token": token({ workspace: GHOST }) })), [
     404,
-    { ok: false, error: "no such workspace" },
+    { ok: false, error: "not_found", detail: "no such workspace" },
   ]);
   assert.equal(writes(db, "billing_accounts").length, 0);
 

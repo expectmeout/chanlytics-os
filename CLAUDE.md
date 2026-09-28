@@ -43,7 +43,7 @@ corepack pnpm check:dead-exports              # knip against a baseline that may
 corepack pnpm check:bundle                    # after a dashboard build: the workspace route's JS and CSS against its budget; -- --update banks a fall, -- --raise a rise
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 corepack pnpm e2e                             # Playwright, against production by default
-node tooling/scripts/gen-route-types.mjs      # the typed client, after a route changes (--check to verify)
+node tooling/scripts/gen/route-types.mjs      # the typed client, after a route changes (--check to verify)
 corepack pnpm gen:schema-sets                 # the closed sets, after a migration changes one (needs the stack)
 corepack pnpm gen:db-types                    # database.types.ts, after a migration (needs the stack)
 ```
@@ -104,6 +104,10 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **The edge reads the environment through `lib/env.ts` and logs through `lib/log.ts`.** A
   `process.env` read or a `console` call anywhere else on the edge is a lint error. Event names
   never change; they are what alerting greps for.
+- **A refusal on the edge is a code.** `refuse(status, code, detail?)` from `apps/edge/lib/http.ts`, the code one of
+  `EDGE_ERROR_CODES` (`packages/contracts/src/shared/edge-errors.ts`), reused before one is added; the words for a
+  person or for support go in `detail`. tsc refuses any other `error` at `json` and `refuse`, and
+  `tooling/scripts/tests/edge/error-codes.test.mjs` holds the set both ways.
 - **Prettier owns formatting.** The hook formats what you stage; CI runs `format:check`. Never
   argue with it in a review.
 
@@ -119,7 +123,7 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 | A core verb                                   | `packages/core/src/conversations/snooze.ts` over `packages/core/src/conversations/ports.ts`                                        | A decision row plus a change to its subject; errors as `AppError`                                                                                |
 | An app-plane route                            | `apps/dashboard/app/api/v1/conversations/[id]/snooze/route.ts`                                                                     | `write()` or `read()` from `apps/dashboard/src/server/route.ts`; add the row to `tooling/scripts/tests/route-policy.json`; regenerate the client |
 | A repository                                  | `packages/db/src/repositories/thread.ts`                                                                                           | The one place a table is typed; RLS decides reads on the session client                                                                          |
-| A provider adapter                            | `packages/channels/src/sms.ts`                                                                                                     | Owns the wire format; knows nothing about threads                                                                                                |
+| A provider adapter                            | `packages/channels/src/lines/sms.ts`                                                                                               | Owns the wire format; knows nothing about threads                                                                                                |
 | A job handler                                 | `packages/jobs/src/handlers.ts`                                                                                                    | Builds ports from the job's context and calls core                                                                                               |
 | A migration                                   | `supabase/migrations/00125_a_person_may_have_an_email.sql`                                                                         | Header of a few lines, re-runnable statements, RLS and grants like the other tenant tables                                                       |
 | A view model                                  | `packages/contracts/src/calendar/calendar.ts` with `packages/contracts/src/calendar/calendar-vm.ts`                                | Pure; every sentence the page says comes from here                                                                                               |
@@ -130,6 +134,7 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 | A test of a verb                              | `tooling/scripts/tests/conversations/core-thread-verbs.test.mjs`                                                                   | Fakes for the ports                                                                                                                              |
 | A ratchet                                     | `tooling/scripts/tests/repo/code-health-ratchets.test.mjs`, `tooling/scripts/tests/_ratchet.mjs`, `tooling/scripts/tests/_ast.mjs` | Measure the syntax tree, never the text; the baseline may only fall; a row in `docs/debt.md`                                                     |
 | A database test                               | `tooling/scripts/tests/<domain>/*.db.test.mjs`                                                                                     | Runs against the replayed stack in CI when database paths change; skips without credentials                                                      |
+| A type test                                   | `packages/contracts/src/shared/identity.type-test.ts`                                                                              | Positives are `Holds<Exactly<…>>`; a negative is one line under `// @ts-expect-error <why>`                                                      |
 | A design that changes the shape of the system | `docs/decisions/0002-appointments-record.md`                                                                                       | Written against a named commit, steps shippable in either deploy order                                                                           |
 
 ## Where new code goes
@@ -155,10 +160,15 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
   `packages/contracts/src/mobile/app-bridge.ts`.
 - A test: `tooling/scripts/tests/<domain>/`, named for what it proves; a world or helper it
   shares stays at the root as `tooling/scripts/tests/_<name>.mjs`.
-- A journey through the running app in a browser: a Playwright spec in `e2e/` (`e2e/people.spec.ts`), signed in
-  by `e2e/session.ts`, run nightly against production in the suite's own workspace.
+- A promise only the compiler can check (a brand, a closed set, a route's shape): a type test beside the module it
+  proves, named for it, as `packages/contracts/src/shared/identity.type-test.ts` is for
+  `packages/contracts/src/shared/identity.ts`. Its project's `tsc --noEmit` compiles it; nothing compiles
+  TypeScript under `tooling/scripts/tests/`, so one written there could never fail.
+- A journey through the running app in a browser: a Playwright spec in `e2e/<domain>/` (`e2e/people/people.spec.ts`),
+  signed in by `e2e/session.ts` and run nightly against production in the suite's own workspace; the helpers stay at
+  the root, and so does a domain's only spec until its second.
 - A script a person runs: `tooling/scripts/`. One that writes production is dry-run by default, writes a backup
-  first and takes `--apply` (`tooling/scripts/lead-marks-backfill.mjs`).
+  first and takes `--apply` (`tooling/scripts/ops/lead-marks-backfill.mjs`).
 - A file a script writes: regenerated by its command under Commands, never edited.
   `apps/dashboard/src/client/routes.generated.ts` and `packages/contracts/src/route-keys.generated.ts` follow the
   routes; `packages/contracts/src/schema-sets.generated.ts` and `packages/db/src/database.types.ts` the migrations.

@@ -21,6 +21,7 @@ import {
   brandTypeFor,
   type A2PPorts,
   type A2PRequest,
+  type A2PResult,
   type A2PState,
   type BusinessRecord,
 } from "../packages/channels.js";
@@ -30,6 +31,7 @@ import {
   businessRecordProblems,
   registrationPathOf,
   registrationPreflight,
+  type EdgeErrorCode,
 } from "../packages/contracts.js";
 import { platformTo } from "../ops/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
@@ -171,7 +173,9 @@ export interface RegisterResult {
   /** Not a refusal: the carriers have not finished with the brand yet. */
   pending?: boolean;
   step?: string;
-  error?: string;
+  error?: EdgeErrorCode;
+  /** What the carrier said when the filing stopped, as the row's `last_error` keeps it. */
+  detail?: string;
   /**
    * What is wrong and what to do about it, in the OWNER'S words, when the
    * pre-flight refused. Returned as well as stored on the row: an error TOKEN was
@@ -400,7 +404,21 @@ export async function registerLine(
     L.info("a2p_filed", { mock: o.mock, brand: result.state.brandSid, campaign: result.state.campaignSid });
   else if (waiting) L.info("a2p_waiting_on_brand", { brand: result.state.brandSid });
   else L.error("a2p_failed", { step: result.step, error: result.error });
-  return result.ok
-    ? { ok: true, state: result.state, smsState }
-    : { ok: false, pending: result.pending, step: result.step, error: result.error, state: result.state, smsState };
+  return result.ok ? { ok: true, state: result.state, smsState } : stoppedFiling(result, smsState);
+}
+
+/**
+ * A filing the saga stopped: where, and the carrier's words in `detail` (the row keeps them as its last_error). A
+ * campaign waiting on the brand is not a refusal, and its code says so.
+ */
+function stoppedFiling(result: Extract<A2PResult, { ok: false }>, smsState: string): RegisterResult {
+  return {
+    ok: false,
+    pending: result.pending,
+    step: result.step,
+    error: result.pending ? "registration_pending" : "register_failed",
+    detail: result.error,
+    state: result.state,
+    smsState,
+  };
 }

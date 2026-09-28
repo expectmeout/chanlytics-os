@@ -423,7 +423,7 @@ test("THE LOST RECEIPT: a number bought without its SID saved is found, not boug
   // provider, and a retry could never succeed because a carrier will not sell you a
   // number you already hold. This walks exactly that.
   const { dryProvider } = await import(
-    pathToFileURL(path.join(here, "../../../../packages/channels/src/lines-dry.ts")).href
+    pathToFileURL(path.join(here, "../../../../packages/channels/src/lines/lines-dry.ts")).href
   );
   const provider = dryProvider();
   const acct = { sid: "ACsub", token: "t" };
@@ -444,7 +444,7 @@ test("a read that FAILS must not be reported as 'we do not own it'", async () =>
   // implementation throws on a non-200 rather than returning null, and the step
   // retries instead of spending.
   const { twilioProvider, TwilioError } = await import(
-    pathToFileURL(path.join(here, "../../../../packages/channels/src/lines-twilio.ts")).href
+    pathToFileURL(path.join(here, "../../../../packages/channels/src/lines/lines-twilio.ts")).href
   );
   const acct = { sid: "ACsub", token: "t" };
   const owned = (answer) => twilioProvider(async () => answer).ownedNumber(acct, "+13055550100");
