@@ -9,10 +9,10 @@
  * cost at the models' list prices. Read-only; the service role, because a
  * day's turns belong to every member of every workspace.
  *
- *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node tooling/scripts/ask-day.mjs [--json]
+ *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node tooling/scripts/ops/ask-day.mjs [--json]
  */
 import { writeFileSync, mkdirSync } from "node:fs";
-import { spread, pct, ms } from "./ask-stats.mjs";
+import { spread, pct, ms } from "../ask-stats.mjs";
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

@@ -16,10 +16,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { compare, normalise, postgrestVersion, OUT, FIX } from "../../check-db-types.mjs";
+import { compare, normalise, postgrestVersion, OUT, FIX } from "../../gen/db-types.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const SCRIPT = path.join(ROOT, "tooling/scripts/check-db-types.mjs");
+const SCRIPT = path.join(ROOT, "tooling/scripts/gen/db-types.mjs");
 
 /**
  * A database.types.ts in miniature: the generator's shape, small enough to

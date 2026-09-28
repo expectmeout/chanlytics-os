@@ -4,9 +4,9 @@
  * outbound_send job's last check. The unit and integration tests cover the
  * layers below; this one exercises the ones only a signed-in browser reaches.
  *
- *   node tooling/scripts/optout-probe.mjs create           # dry run
- *   node tooling/scripts/optout-probe.mjs create --apply
- *   node tooling/scripts/optout-probe.mjs clean --apply
+ *   node tooling/scripts/ops/optout-probe.mjs create           # dry run
+ *   node tooling/scripts/ops/optout-probe.mjs create --apply
+ *   node tooling/scripts/ops/optout-probe.mjs clean --apply
  *
  * This writes to whatever database SUPABASE_URL points at, which in practice
  * is production, so it follows the house rules for that: dry-run by default,

@@ -41,7 +41,7 @@ if (!URL_ || !KEY || !TENANT || !OWNER) {
 const APPLY = process.argv.includes("--apply");
 const PURGE = process.argv.includes("--purge");
 const HERE = dirname(fileURLToPath(import.meta.url));
-const PHOTO = process.env.FILLER_PHOTO || join(HERE, "fixtures", "filler-photo.jpg");
+const PHOTO = process.env.FILLER_PHOTO || join(HERE, "..", "fixtures", "filler-photo.jpg");
 const TZ = "America/New_York";
 
 /* ------------------------------- the clock -------------------------------- */
@@ -1523,7 +1523,7 @@ async function apply() {
   }
   console.log(`  ✓ ${NOTIFICATIONS.length} notifications`);
 
-  const backups = join(HERE, "..", "backups");
+  const backups = join(HERE, "..", "..", "backups");
   mkdirSync(backups, { recursive: true });
   const path = join(backups, `filler-${NOW.toISOString().replace(/[:.]/g, "-")}.jsonl`);
   writeFileSync(path, ledger.map((l) => JSON.stringify(l)).join("\n") + "\n");

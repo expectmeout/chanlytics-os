@@ -11,7 +11,7 @@ the WhatsApp receptionist reads — `composeSystemPrompt(…, "voice")` now
 carries the phone mechanics (transfer, booking link, end call) and the new
 profile fields `handoff_number`, `website`, `notes[]` and the opt-in
 `no_health_advice` guardrail, all editable in Settings → Business.
-`tooling/scripts/voice-converge.mjs` brings an existing hand-typed agent onto
+`tooling/scripts/ops/voice-converge.mjs` brings an existing hand-typed agent onto
 the shell (dry-run default, JSONL backup, `--apply`, `--pin`), and
 `/api/diag` reports `voiceAgents[].shell.drift` so a line that slid off it is
 visible. Applying it to the live salon agent is the owner's step: the line

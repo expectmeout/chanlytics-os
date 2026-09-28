@@ -54,6 +54,8 @@
       "entry": [
         "*.mjs",
         "checks/*.mjs",
+        "gen/*.mjs",
+        "ops/*.mjs",
         "tests/**/*.mjs",
         "e2e-harness/**/*.{ts,mjs}",
         "mobile/{sign-in,cold-start,walk}.mjs"

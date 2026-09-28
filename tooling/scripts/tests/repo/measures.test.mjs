@@ -16,7 +16,7 @@ import tseslint from "typescript-eslint";
 import { bank, compare } from "../_ratchet.mjs";
 import { functionsIn, windowUse, unknownCasts, copiesAmong, repoFiles } from "../_ast.mjs";
 import { bankedSourceScan } from "../_measures.mjs";
-import { knipCommand } from "../../check-dead-exports.mjs";
+import { knipCommand } from "../../checks/dead-exports.mjs";
 import { bankWarnings } from "../../checks/lint.mjs";
 
 const source = (text, name = "fixture.ts") =>
@@ -345,7 +345,7 @@ test("a short name declared in three files is a copy like any other", () => {
 
 /* ---- knip without pnpm ---- */
 
-// check-dead-exports spawned a bare `pnpm`, which a corepack-only machine does not have.
+// checks/dead-exports.mjs spawned a bare `pnpm`, which a corepack-only machine does not have.
 test("knip runs from node alone, from knip's own bin", () => {
   const [exe, args] = knipCommand(["--version"]);
   assert.equal(exe, process.execPath);

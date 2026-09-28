@@ -122,7 +122,7 @@ test("retention is planned only when asked, and refused outside the provider's r
 });
 
 test("the converger, the diagnostic and the provisioning script all read the same plan", () => {
-  const converge = readRaw("tooling/scripts/voice-converge.mjs");
+  const converge = readRaw("tooling/scripts/ops/voice-converge.mjs");
   assert.ok(converge.includes("planAgentSettings(agent, retentionDays !== undefined ? { retentionDays } : {})"));
   assert.ok(converge.includes("/update-agent/${agent.agent_id}"));
   assert.ok(converge.includes('"--retention-days"'));
