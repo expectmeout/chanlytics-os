@@ -8,6 +8,7 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ASK_MODEL } from "@chanlytics/contracts";
@@ -983,4 +984,189 @@ test("the scope is each turn's (the Phase 5 plan, D9): a follow-up asked on anot
   } finally {
     setAskPorts(null);
   }
+});
+
+/* ------------------------------------ the turn as the model was sent it, kept on its row (Phase 5, 5.3) -- */
+
+const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
+const sha256 = (s) => createHash("sha256").update(s).digest("hex");
+/** A card the scripted model proposes, the same bytes every turn. */
+const CARD = {
+  id: "p-1",
+  kind: "policy",
+  needs: "operator",
+  title: "Autonomy: reply",
+  summary: "Ask first on every reply.",
+  payload: { class: "reply", mode: "ask" },
+  undo: null,
+};
+const SIGNATURE = "EmwKAhgBEgxzaWduYXR1cmU=";
+/**
+ * The model, scripted: one round that thinks, proposes a card and answers beside it -- a turn that ends on a call no
+ * request answered -- each request kept as it was sent.
+ */
+function besideACard() {
+  const requests = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      requests.push(JSON.parse(JSON.stringify(call.request)));
+      onText(answered);
+      return {
+        blocks: [
+          { type: "thinking", id: "", name: "", text: "", json: "", thinking: "", signature: SIGNATURE },
+          {
+            type: "tool_use",
+            id: "t-card",
+            name: "propose_autonomy",
+            text: "",
+            json: '{"class":"reply","mode":"ask"}',
+          },
+          { type: "text", id: "", name: "", text: answered, json: "" },
+        ],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+    propose: async () => ({ proposal: CARD, result: JSON.stringify({ proposed: true, id: CARD.id }), isError: false }),
+  });
+  return requests;
+}
+/** What `fn` answered, and every line console.log printed while it ran. */
+async function printed(fn) {
+  const said = [];
+  const was = console.log;
+  console.log = (...parts) => said.push(parts.join(" "));
+  try {
+    return { value: await fn(), said };
+  } finally {
+    console.log = was;
+  }
+}
+
+/** A caller over a database in memory that keeps a turn's content as jsonb does: its objects' keys in jsonb's order. */
+const asJsonb = (tables, params = {}) => ({
+  supabase: fakeDb(tables, {}, {}, { jsonb: ["ask_messages.content"] }),
+  userId: USER,
+  email: "ada@example.com",
+  params,
+});
+
+test("the turn as the model was sent it rides on the answer's row, at content.raw (the Phase 5 plan, D11): its messages and blocks one JSON string beside its scalars, so they come back the bytes that were sent though jsonb reorders every object's keys; the words history the turn was asked with among them; nowhere else -- not on the stream, not in a log line; a turn that failed keeps none", async () => {
+  const tables = askWorld();
+  const requests = besideACard();
+  try {
+    const { value: lines, said } = await printed(async () =>
+      linesOf(
+        await ask.POST.run(send("POST", { text: "Ask me before every reply", surface: "today" }, inA), asJsonb(tables)),
+      ),
+    );
+    const row = tables.ask_messages[1];
+    assert.equal(row.role, "assistant");
+    const raw = row.content.raw;
+    assert.ok(raw, "the answer's row keeps the turn as it was sent");
+    // The trap: what the row keeps as objects comes back in jsonb's order, never the writer's.
+    assert.deepEqual(Object.keys(raw), ["at", "model", "blocks", "prefix"], "jsonb's order: shorter keys first");
+    assert.deepEqual(Object.keys(row.content.answer), ["v", "do", "say", "form", "show", "language"]);
+    assert.deepEqual(Object.keys(lines.at(-1).message.answer), ["v", "form", "say", "show", "do", "language"]);
+    // The string comes back as it went.
+    const sent = requests[0];
+    assert.equal(requests.length, 1);
+    const blocks = JSON.parse(raw.blocks);
+    assert.deepEqual(Object.keys(blocks), ["base", "question", "rounds", "final", "results"]);
+    assert.equal(
+      JSON.stringify([...blocks.base, { role: "user", content: blocks.question }, ...blocks.rounds]),
+      JSON.stringify(sent.messages),
+      "read back, the last request's messages, byte for byte",
+    );
+    assert.deepEqual([blocks.base, blocks.rounds], [[], []], "a thread's first turn, one round");
+    assert.deepEqual(blocks.final, [
+      { type: "thinking", thinking: "", signature: SIGNATURE },
+      { type: "tool_use", id: "t-card", name: "propose_autonomy", input: { class: "reply", mode: "ask" } },
+      { type: "text", text: answered },
+    ]);
+    assert.deepEqual(
+      blocks.results,
+      [
+        {
+          type: "tool_result",
+          tool_use_id: "t-card",
+          content: JSON.stringify({ proposed: true, id: CARD.id }),
+          is_error: false,
+        },
+      ],
+      "the card's result, which no request carried",
+    );
+    assert.equal(raw.model, ASK_MODEL);
+    assert.equal(
+      raw.prefix,
+      sha256(JSON.stringify({ system: sent.system, tools: sent.tools, format: !!sent.output_config.format })),
+    );
+    assert.ok(Number.isInteger(raw.at) && raw.at <= Date.parse(row.created_at), "the round began before the save");
+
+    assert.equal(lines.at(-1).t, "final");
+    assert.deepEqual(
+      lines.at(-1).message.proposals.map((p) => p.id),
+      [CARD.id],
+      "the final line is the answer the Line draws",
+    );
+    for (const l of lines)
+      assert.ok(!JSON.stringify(l).includes('"raw"') && !JSON.stringify(l).includes(SIGNATURE), `${l.t}: no raw`);
+    const logged = said.filter((l) => l.includes('"event":"ask_turn'));
+    assert.equal(logged.length, 2, "ask_turn_shape and ask_turn");
+    for (const l of logged) assert.ok(!l.includes('"raw"') && !l.includes(SIGNATURE), "no log line carries it");
+
+    // A follow-up: the words history it was asked with is the base of its turn, as the request carried it.
+    const follow = { text: "And the reminders?", thread_id: row.thread_id };
+    await linesOf(await ask.POST.run(send("POST", follow, inA), asJsonb(tables)));
+    const next = JSON.parse(tables.ask_messages[3].content.raw.blocks);
+    assert.deepEqual(next.base, [
+      { role: "user", content: "Ask me before every reply" },
+      { role: "assistant", content: "Here is the search with the franchises in." },
+    ]);
+    assert.equal(
+      JSON.stringify([...next.base, { role: "user", content: next.question }, ...next.rounds]),
+      JSON.stringify(requests[1].messages),
+      "the follow-up's, byte for byte",
+    );
+
+    // A turn that failed keeps nothing to replay.
+    setAskPorts({
+      round: async () => {
+        throw new GatewayRefused({ kind: "budget", used: 1, cap: 1 });
+      },
+      shape: async () => "",
+    });
+    await linesOf(await ask.POST.run(send("POST", { ...follow, text: "And tomorrow?" }, inA), asJsonb(tables)));
+    const failed = tables.ask_messages[5].content;
+    assert.deepEqual([failed.failed, failed.failure, failed.raw], [true, "budget", null]);
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("the database in memory keeps a column named jsonb as jsonb keeps it: what is written comes back with every object's keys, at every depth, shortest first, then by their bytes -- a call's input and a card's reordered -- and a string as it went; a column not named keeps the writer's order", async () => {
+  const world = { t: [] };
+  const db = fakeDb(world, {}, {}, { jsonb: ["t.content"] });
+  const input = {
+    action: "search",
+    words: "parking",
+    card: [{ action: "invite", email: "a@example.com", role: "viewer" }],
+  };
+  await db.from("t").insert({ id: "b", content: input, other: input });
+  const [kept] = world.t;
+  assert.deepEqual(Object.keys(kept.content), ["card", "words", "action"]);
+  assert.deepEqual(Object.keys(kept.content.card[0]), ["role", "email", "action"]);
+  assert.deepEqual(kept.content, input, "the same values");
+  assert.deepEqual(Object.keys(kept.other), ["action", "words", "card"], "a column not named: the writer's order");
+  await db
+    .from("t")
+    .update({ content: { action: "search", words: "parking" } })
+    .eq("id", "b");
+  assert.equal(JSON.stringify(world.t[0].content), '{"words":"parking","action":"search"}', "an update the same");
+  await db
+    .from("t")
+    .update({ content: { a: JSON.stringify(input) } })
+    .eq("id", "b");
+  assert.equal(world.t[0].content.a, JSON.stringify(input), "a string comes back as it went");
 });
