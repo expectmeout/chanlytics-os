@@ -10,7 +10,7 @@
     "repo/legacy-harness.test.mjs"
   ],
   "counts": {
-    "ask/ask.test.mjs": 56,
+    "ask/ask.test.mjs": 55,
     "auth/auth-gate.test.mjs": 5,
     "auth/signup-posture.test.mjs": 5,
     "auth/signup.test.mjs": 9,
@@ -42,7 +42,7 @@
     "lines/a2p-refile.test.mjs": 17,
     "lines/a2p.test.mjs": 17,
     "lines/forwarding.test.mjs": 4,
-    "lines/line-recovery.test.mjs": 6,
+    "lines/line-recovery.test.mjs": 5,
     "lines/lines-saga.test.mjs": 8,
     "lines/numbers-two-tables.test.mjs": 1,
     "lines/registration-path.test.mjs": 8,
@@ -107,7 +107,7 @@
     "voice/voice-pipeline.test.mjs": 3,
     "voice/voice-provision.test.mjs": 3,
     "voice/voice-provisioning.test.mjs": 1,
-    "whatsapp/whatsapp-connect.test.mjs": 11,
+    "whatsapp/whatsapp-connect.test.mjs": 10,
     "whatsapp/whatsapp-steps.test.mjs": 3,
     "workspace/exports.test.mjs": 7,
     "workspace/identity.test.mjs": 10,

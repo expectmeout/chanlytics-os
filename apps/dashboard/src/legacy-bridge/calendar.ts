@@ -32,7 +32,7 @@ import {
   paintHeldCalendar,
   setCalendarFresh,
   setCalendarSpan,
-} from "./surface-data";
+} from "./surfaces/calendar";
 import { refreshSurfaces } from "./surface-runner";
 
 /** Load `days` days starting on `from` (a day key); a null `from` is the window around today. */

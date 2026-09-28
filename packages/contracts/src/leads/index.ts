@@ -81,6 +81,7 @@ export {
   cleanEmailCandidates,
   usPhone,
   siteHost,
+  isSiteRoot,
   stateCode,
 } from "./search/clean";
 export type { CleanedEmails } from "./search/clean";

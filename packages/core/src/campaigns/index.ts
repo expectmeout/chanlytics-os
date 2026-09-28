@@ -30,7 +30,7 @@ export { cancelBroadcast } from "./cancel";
 export type { CancelReceipt } from "./cancel";
 export { checkPlaybook } from "./check-playbook";
 export type { PlaybookInput, CheckPlaybookPorts } from "./check-playbook";
-export { reachOutRunIdFor, sendIdFor, sendMessageId } from "./reach-out-ids";
+export { reachOutRunIdFor, sendIdFor, sendMessageId, handStepIdFor } from "./reach-out-ids";
 export type {
   ReachOutStep,
   ReachOutLead,
@@ -39,5 +39,10 @@ export type {
   PlannedSend,
   ReachOutRunPorts,
   ReachOutRunOutcome,
+  FollowedStep,
+  HandStep,
+  HandStepPorts,
+  HandItem,
 } from "./reach-out-ports";
 export { runReachOut } from "./run-reach-out";
+export { runHandStep } from "./run-hand-step";

@@ -88,7 +88,7 @@ const quietly = async (fn) => {
   }
 };
 const { peopleOverride } = await quietly(
-  () => import("../../../../../apps/dashboard/src/legacy-bridge/surface-data.ts"),
+  () => import("../../../../../apps/dashboard/src/legacy-bridge/surfaces/people.ts"),
 );
 const { saveView } = await import("../../../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
 const {

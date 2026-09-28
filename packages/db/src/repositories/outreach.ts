@@ -126,6 +126,8 @@ export interface ReachOutReplyOf {
   /** The address the reach-out wrote to, as stored; the lead's website host. */
   lead_email: string | null;
   lead_website: string | null;
+  /** Whether the finder saw that website as its host's root (00237); null when it was not kept, or before 00237. */
+  lead_website_root: boolean | null;
   answered_message_id: string | null;
   /** The first 600 characters of the email it answers. */
   answered_text: string | null;
@@ -179,6 +181,7 @@ export async function reachOutReplyOf(
     lead_contact_id: textOf(o.lead_contact_id),
     lead_email: textOf(o.lead_email),
     lead_website: textOf(o.lead_website),
+    lead_website_root: typeof o.lead_website_root === "boolean" ? o.lead_website_root : null,
     answered_message_id: textOf(o.answered_message_id),
     answered_text: textOf(o.answered_text),
     business: textOf(o.business) ?? "",

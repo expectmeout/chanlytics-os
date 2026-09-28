@@ -16,7 +16,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { conversationTabs } from "../../../../apps/dashboard/src/legacy-bridge/surface-data.ts";
+import { conversationTabs } from "../../../../apps/dashboard/src/legacy-bridge/surfaces/conversations.ts";
 
 /* ------------------------------------------------------------- the strip */
 

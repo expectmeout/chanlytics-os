@@ -178,6 +178,8 @@ export async function followUpFacts(ctx: RouteContext, tenantId: string, now: Da
   const p = pb.data;
   if (!p || p.state !== "running" || mode === "never" || tenant.data?.status === "paused" || !number || !out)
     return null;
+  // A moment always has its template (00228's CHECK); only a reach-out's hand step has none.
+  if (!p.template_name || !p.template_language) return null;
   const tpl = await ctx.supabase
     .from("templates")
     .select("meta_status, category")
