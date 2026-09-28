@@ -5,7 +5,7 @@
  * none of this ever reaches the receptionist.
  */
 import { clockDate, clockNear, wallClockAt, zoneDayKey } from "../shared/clock";
-import { isRealDate } from "../config/config";
+import { isRealDate } from "../config/workspace-config/config-schema";
 
 /** How a step's day stands against the business's today. */
 export type StepDue = "past" | "today" | "ahead";

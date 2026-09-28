@@ -3,14 +3,12 @@
  * clause and its receipt, and the proof the lines are listening. The words they are said in live here too;
  * the list join and the seconds phrase are today-bands.ts's.
  */
-import {
-  toCallVM,
-  contactName,
-  threadChannelWords,
-  type ConversationDto,
-  type EscalationDto,
-  type CallDto,
-} from "../conversations/viewmodels";
+import type { CallDto } from "../conversations/call-dto";
+import { toCallVM } from "../conversations/call-vm";
+import type { EscalationDto } from "../conversations/escalations";
+import { threadChannelWords } from "../conversations/thread-channel";
+import { contactName } from "../conversations/thread-contact";
+import type { ConversationDto } from "../conversations/thread-dto";
 import { reasonShort } from "../people/people";
 import { capitalize, plural } from "../shared/words";
 import { andList, secondsPhrase } from "./today-bands";

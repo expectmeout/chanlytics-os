@@ -12,9 +12,9 @@
  *
  * Nothing here is read or drawn yet: the job that asks the model and applies the plan is PR 3's.
  */
-import { isRealDate } from "../config/config";
+import { isRealDate } from "../config/workspace-config/config-schema";
 import { mondayOf, shiftKey } from "../calendar/calendar";
-import { clipAtWord } from "../conversations/viewmodels";
+import { clipAtWord } from "../conversations/message-words";
 import { siteHost } from "../leads/lead-search";
 import { wallClockAt, zoneDayKey } from "../shared/clock";
 import { DAY_MS, HOUR_MS } from "../shared/time";
