@@ -168,7 +168,7 @@ const AIMED_AT_US =
 const SENSITIVE =
   /\b(pregnan\w*|cancer|chemo\w*|diabet\w*|depress\w*|anxiety|therap\w*|medicat\w*|surgery|hiv|disab\w*|religio\w*|church|mosque|synagogue|politic\w*|immigra\w*|visa|deport\w*|divorc\w*|custody|arrest\w*|lawsuit|court|bankrupt\w*|unemploy\w*|sexual\w*|gay|lesbian|transgender)\b/i;
 
-const words = (s: string) =>
+const wordSet = (s: string) =>
   new Set(
     norm(s)
       .split(" ")
@@ -176,8 +176,8 @@ const words = (s: string) =>
   );
 /** How much of the shorter one the other says: 1 is the same words. */
 function overlap(a: string, b: string): number {
-  const A = words(a);
-  const B = words(b);
+  const A = wordSet(a);
+  const B = wordSet(b);
   if (!A.size || !B.size) return 0;
   let both = 0;
   for (const w of A) if (B.has(w)) both += 1;

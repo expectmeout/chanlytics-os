@@ -65,7 +65,7 @@ export function providerDomainFrom(body: unknown): ProviderDomain | null {
   };
 }
 
-async function call(
+async function resendCall(
   cfg: ResendConfig,
   method: "GET" | "POST" | "DELETE",
   path: string,
@@ -76,7 +76,7 @@ async function call(
 }
 
 /** What went wrong, in the provider's own words when it gave some. */
-function refusal(status: number, json: unknown, raw: string): { ok: false; status: number; message: string } {
+function resendRefusal(status: number, json: unknown, raw: string): { ok: false; status: number; message: string } {
   const m = (json as { message?: unknown } | null)?.message;
   return {
     ok: false,
@@ -87,14 +87,14 @@ function refusal(status: number, json: unknown, raw: string): { ok: false; statu
 
 /** Register a domain at the cold account: sending on, receiving off, opens and clicks off. */
 export async function createMailDomain(cfg: ResendConfig, host: string): Promise<ProviderAnswer<ProviderDomain>> {
-  const r = await call(cfg, "POST", "", {
+  const r = await resendCall(cfg, "POST", "", {
     name: host,
     region: "us-east-1",
     open_tracking: false,
     click_tracking: false,
     capabilities: { sending: "enabled", receiving: "disabled" },
   });
-  if (r.status < 200 || r.status >= 300) return refusal(r.status, r.json, r.raw);
+  if (r.status < 200 || r.status >= 300) return resendRefusal(r.status, r.json, r.raw);
   const d = providerDomainFrom(r.json);
   return d
     ? { ok: true, value: d }
@@ -103,9 +103,9 @@ export async function createMailDomain(cfg: ResendConfig, host: string): Promise
 
 /** Where a domain stands. `value: null` is the provider saying it has no such domain (404): a fact, not a failure. */
 export async function getMailDomain(cfg: ResendConfig, id: string): Promise<ProviderAnswer<ProviderDomain | null>> {
-  const r = await call(cfg, "GET", `/${encodeURIComponent(id)}`);
+  const r = await resendCall(cfg, "GET", `/${encodeURIComponent(id)}`);
   if (r.status === 404) return { ok: true, value: null };
-  if (r.status < 200 || r.status >= 300) return refusal(r.status, r.json, r.raw);
+  if (r.status < 200 || r.status >= 300) return resendRefusal(r.status, r.json, r.raw);
   const d = providerDomainFrom(r.json);
   return d
     ? { ok: true, value: d }
@@ -127,8 +127,8 @@ export async function findMailDomain(
   const want = name.trim().toLowerCase();
   let after: string | null = null;
   for (let page = 0; page < FIND_PAGES_MAX; page++) {
-    const r = await call(cfg, "GET", `?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
-    if (r.status < 200 || r.status >= 300) return refusal(r.status, r.json, r.raw);
+    const r = await resendCall(cfg, "GET", `?limit=100${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+    if (r.status < 200 || r.status >= 300) return resendRefusal(r.status, r.json, r.raw);
     const body = (r.json ?? {}) as { data?: unknown; has_more?: unknown };
     if (!Array.isArray(body.data))
       return { ok: false, status: r.status, message: "the provider answered a shape that is not a list" };
@@ -150,16 +150,16 @@ export async function findMailDomain(
 
 /** Ask the provider to check the records now. Asynchronous at the provider: the answer is read by getMailDomain. */
 export async function verifyMailDomain(cfg: ResendConfig, id: string): Promise<ProviderAnswer<true>> {
-  const r = await call(cfg, "POST", `/${encodeURIComponent(id)}/verify`);
-  if (r.status < 200 || r.status >= 300) return refusal(r.status, r.json, r.raw);
+  const r = await resendCall(cfg, "POST", `/${encodeURIComponent(id)}/verify`);
+  if (r.status < 200 || r.status >= 300) return resendRefusal(r.status, r.json, r.raw);
   return { ok: true, value: true };
 }
 
 /** Remove a domain. Already gone (404) is gone: the removal the caller wanted. */
 export async function removeMailDomain(cfg: ResendConfig, id: string): Promise<ProviderAnswer<"removed" | "gone">> {
-  const r = await call(cfg, "DELETE", `/${encodeURIComponent(id)}`);
+  const r = await resendCall(cfg, "DELETE", `/${encodeURIComponent(id)}`);
   if (r.status === 404) return { ok: true, value: "gone" };
-  if (r.status < 200 || r.status >= 300) return refusal(r.status, r.json, r.raw);
+  if (r.status < 200 || r.status >= 300) return resendRefusal(r.status, r.json, r.raw);
   return { ok: true, value: "removed" };
 }
 

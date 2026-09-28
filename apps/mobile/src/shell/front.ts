@@ -3,7 +3,7 @@
  * React on purpose; a native tab press arrives through a listener, not a render. Each Surface sets itself here
  * whenever its tab is in front and its page is ready, and forgets itself as it unmounts.
  */
-import type { ShellMessage } from "@chanlytics/contracts";
+import type { ShellMessage } from "@chanlytics/contracts/phone-app";
 import type { SurfaceHandle } from "./Surface";
 import type { Tab } from "./state";
 

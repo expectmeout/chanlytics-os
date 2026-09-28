@@ -523,17 +523,26 @@ inbox working that long.
 The phone app is told through Expo's push service (`apps/edge/lib/ops/push.ts`, PR 0 and PR 2 of the phone app).
 Nothing sends until a build carries push credentials, and nothing is signed until the token is set.
 
-1. **Credentials, once per platform**, from `apps/mobile`: `eas credentials --platform ios` and say yes to the push
-   key (needs the Apple Developer Program); `eas credentials --platform android` and upload the FCM V1 service
-   account JSON from the Firebase project (Project settings, Service accounts). Android also needs the app's own
-   `google-services.json` from the same project (Project settings, Your apps, the Android app `com.chanlytics.app`),
-   as `android.googleServicesFile` in `app.config.ts`, from an EAS file variable in the preview and production
-   environments (its identifiers are public, so committing it is fine too); without it a phone never gets a push
-   token, and the app's `askForToken` answers null without a word. Then a new build of each.
-2. **Enhanced push security**, in the Expo dashboard under Access tokens: turn it on for the project, then set
+1. **Credentials, once per platform**, from `apps/mobile`: `npx eas-cli@latest credentials --platform ios` and say
+   yes to the push key (needs the Apple Developer Program); `npx eas-cli@latest credentials --platform android` and
+   upload the FCM V1 service account JSON from the Firebase project (Project settings, Service accounts).
+2. **Android's Firebase file, once**: the app's own `google-services.json` from the same project (Project settings,
+   Your apps, the Android app `com.chanlytics.app`), handed to EAS as a file variable and never to the tree
+   (`apps/mobile/.gitignore` refuses it). From `apps/mobile`:
+
+   ```bash
+   npx eas-cli@latest env:set --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment preview --environment production --visibility secret
+   ```
+
+   Then delete the local copy. EAS writes the file for each job and names its path in `GOOGLE_SERVICES_JSON`, which
+   `app.config.ts` hands to `android.googleServicesFile`; without it a phone is never given a push token, and the app
+   logs `push_token_unavailable`. The file is part of the native fingerprint, so no update can bring it to an
+   installed app: build again (`npx eas-cli@latest build --profile preview --platform android` for the preview app).
+
+3. **Enhanced push security**, in the Expo dashboard under Access tokens: turn it on for the project, then set
    `EXPO_ACCESS_TOKEN` on the edge (Vercel, the messaging project) to a token of that account. In that order: the
    variable first is harmless, the switch first refuses every send until the variable lands.
-3. **Watch** `push_send` and `push_receipts` on the jobs ledger: a `push_rejected 401` is the token; a phone the
+4. **Watch** `push_send` and `push_receipts` on the jobs ledger: a `push_rejected 401` is the token; a phone the
    receipts say is gone is forgotten by the job, never by hand.
 
 ## Turn on the call in progress on phones
