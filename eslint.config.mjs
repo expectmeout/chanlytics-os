@@ -41,6 +41,19 @@ const OUR_TS_RULES = {
     { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
   ],
   "no-empty": ["error", { allowEmptyCatch: true }],
+  // A line that must not compile says why: the type tests' negatives (`*.type-test.ts`) are `@ts-expect-error <why>`,
+  // and one whose line starts to compile is TS2578, an unused directive, so the typecheck fails. `@ts-ignore` stays
+  // silent when the line it hides is fixed, and `@ts-nocheck` hides a whole file: neither is written.
+  "@typescript-eslint/ban-ts-comment": [
+    "error",
+    {
+      "ts-expect-error": "allow-with-description",
+      "ts-ignore": true,
+      "ts-nocheck": true,
+      "ts-check": false,
+      minimumDescriptionLength: 10,
+    },
+  ],
 };
 
 /** Plugin map for every TypeScript block. */
