@@ -571,9 +571,15 @@ The app signs in with Apple and Google natively (PR 3 of the phone app) and hand
    the app's bundle id `com.chanlytics.app` to the client ids (the Services ID and key are for the web's own Apple
    sign-in, if ever). EAS Build turns the Sign in with Apple capability on from `usesAppleSignIn`.
 2. **Google**: in the Google Cloud project, an iOS OAuth client for `com.chanlytics.app` and a web client; in
-   Supabase, Providers → Google → Authorized Client IDs, add the iOS client id. Then `eas env:create` for
-   `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` and `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in each environment, and a new build:
-   the Google button and its URL scheme exist only in a build made with the ids.
+   Supabase, Providers → Google → Authorized Client IDs, add the iOS client id. Then, from `apps/mobile`, the two ids
+   in the preview and production environments (plain text: an `EXPO_PUBLIC_` value is in the app's bundle anyway),
+   and a new build, since the Google button and its URL scheme exist only in a build made with the ids:
+
+   ```bash
+   npx eas-cli@latest env:set --name EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID --value <ios client id> --environment preview --environment production --visibility plaintext
+   npx eas-cli@latest env:set --name EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID --value <web client id> --environment preview --environment production --visibility plaintext
+   ```
+
 3. **Watch** `native_sign_in_failed` on the dashboard's logs: a provider that does not know the app answers there.
 
 ## Apply a migration

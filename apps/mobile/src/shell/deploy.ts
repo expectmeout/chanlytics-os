@@ -3,9 +3,11 @@
  * no-store; the shell asks on every return to the foreground and reloads every page when the sha it last saw has
  * changed, never more than once in five minutes, and never for the first sha it learns (that is not a change).
  */
-export const RELOAD_GAP_MS = 5 * 60 * 1000;
+import { MIN_MS } from "@chanlytics/contracts/phone-app";
 
-export interface DeployInput {
+export const RELOAD_GAP_MS = 5 * MIN_MS;
+
+interface DeployInput {
   lastSha: string | null;
   sha: string | null;
   lastReloadAt: number;
