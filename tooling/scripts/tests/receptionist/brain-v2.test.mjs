@@ -269,7 +269,7 @@ test("the handler keeps the record on the row, holds a reply below the dial, and
 
 test("the dial reaches the policy row through the route and the pane", () => {
   const route = readCode("apps/dashboard/app/api/v1/policies/route.ts");
-  assert.ok(route.includes("minConfidence?: number"));
+  assert.ok(route.includes("min_confidence: z.number({ error: DIAL_WORDS.min_confidence }).optional(),"));
   assert.ok(route.includes("limits.min_confidence = Math.round(c * 100) / 100;"));
   assert.ok(
     route.includes('if (mode === "" && dials.some((d) => d !== undefined)) {'),
@@ -277,7 +277,7 @@ test("the dial reaches the policy row through the route and the pane", () => {
   );
   assert.ok(
     readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes(
-      "const dials = Object.fromEntries(Object.entries(limits).filter(([, v]) => v !== undefined));",
+      "if (d.minConfidence !== undefined) wire.min_confidence = d.minConfidence;",
     ),
   );
   const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");

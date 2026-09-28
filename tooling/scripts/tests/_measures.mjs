@@ -2,7 +2,8 @@
  * The measures behind docs/debt.md, in one module.
  *
  * The ratchets (repo/code-health-ratchets.test.mjs), the source-scan ratchet
- * (repo/source-scan-ratchet.test.mjs) and the register (repo/debt-register.test.mjs)
+ * (repo/source-scan-ratchet.test.mjs), the wire's ratchet (routes/wire-casing.test.mjs)
+ * and the register (repo/debt-register.test.mjs)
  * all read the definitions here, so a number means one thing wherever it is
  * printed. It also keeps banking honest: the node runner starts test files in
  * parallel, and a register that read the baselines while the ratchets were still
@@ -21,6 +22,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import ts from "typescript";
 import { ROOT, readCode } from "./_source.mjs";
 import {
   repoFiles,
@@ -227,3 +229,130 @@ export function bankedSourceScan(counts, baseline, raise) {
       .map((f) => [f, out[f]]),
   );
 }
+
+/* ---- The wire's names (routes/wire-casing.test.mjs) ---- */
+
+/**
+ * The typed client's registry: every /api/v1 handler under the key route-policy.json gives it, as a type that
+ * carries what the handler takes and answers (the phantom `Shape<I, O>` of apps/dashboard/src/server/route.ts).
+ */
+export const WIRE_REGISTRY = "apps/dashboard/src/client/routes.generated.ts";
+/** How many levels below a route's body, query or answer its names are read. */
+export const WIRE_DEPTH = 6;
+/** The wire's one casing (docs/naming.md): lower-case words joined by underscores, one word included. */
+export const isSnakeCase = (name) => /^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(name);
+/** Objects JSON writes as a string or as nothing: their members are not names on the wire. */
+const NOT_OBJECTS_ON_THE_WIRE = new Set([
+  "Date",
+  "Map",
+  "Set",
+  "Promise",
+  "Response",
+  "Blob",
+  "ArrayBuffer",
+  "Uint8Array",
+  "ReadableStream",
+  "Headers",
+  "URL",
+]);
+
+/**
+ * Every property name in `type`, to WIRE_DEPTH levels below it: through unions, intersections, arrays and a record's
+ * values, never a record's keys (a workspace's id is data, not a name). A type met again is walked again only from
+ * higher up, where more of it is in reach, so what is found does not depend on the order it is met in.
+ */
+function namesIn(checker, type, at, out, depth = 0, seen = new Map()) {
+  if (!type || depth > WIRE_DEPTH || (seen.get(type) ?? Infinity) <= depth) return out;
+  seen.set(type, depth);
+  if (type.isUnion() || type.isIntersection()) {
+    for (const t of type.types) namesIn(checker, t, at, out, depth, seen);
+  } else if (checker.isArrayType(type) || checker.isTupleType(type)) {
+    for (const t of checker.getTypeArguments(type)) namesIn(checker, t, at, out, depth + 1, seen);
+  } else if (type.flags & ts.TypeFlags.Object && !NOT_OBJECTS_ON_THE_WIRE.has(type.getSymbol()?.getName())) {
+    for (const info of checker.getIndexInfosOfType(type)) namesIn(checker, info.type, at, out, depth + 1, seen);
+    for (const p of checker.getPropertiesOfType(type)) {
+      // A symbol-keyed member (a brand, the phantom shape itself) is a type's, never JSON's.
+      if (p.getName().startsWith("__@")) continue;
+      out.add(p.getName());
+      namesIn(checker, checker.getTypeOfSymbolAtLocation(p, at), at, out, depth + 1, seen);
+    }
+  }
+  return out;
+}
+
+/**
+ * What each route in a registry takes and answers, by name: `{ [route]: { takes, answers } }`, each list sorted, or
+ * null for a handler that carries no shape. The registry is a module whose `Routes` type names each handler; a
+ * handler's module the checker could not resolve reads as `any`, which has no shape, so it cannot read as clean.
+ */
+export function wireShapes(program, registry) {
+  const checker = program.getTypeChecker();
+  const alias = program
+    .getSourceFile(registry)
+    ?.statements.find((s) => ts.isTypeAliasDeclaration(s) && s.name.text === "Routes");
+  if (!alias) throw new Error(`${registry} has no Routes type for the checker to read`);
+  const side = (io, name) => {
+    const s = io.getProperty(name);
+    return [...namesIn(checker, s && checker.getTypeOfSymbolAtLocation(s, alias), alias, new Set())].sort();
+  };
+  const out = {};
+  for (const route of checker.getPropertiesOfType(checker.getTypeAtLocation(alias.name))) {
+    const handler = checker.getTypeOfSymbolAtLocation(route, alias);
+    const shape = checker.getPropertiesOfType(handler).find((p) => p.getName().startsWith("__@shape"));
+    const io = shape && checker.getNonNullableType(checker.getTypeOfSymbolAtLocation(shape, alias));
+    out[route.getName()] = io ? { takes: side(io, "input"), answers: side(io, "output") } : null;
+  }
+  return out;
+}
+
+let dashboard;
+/**
+ * The dashboard's registry read with the dashboard's own compiler options, as its typecheck reads it, once per
+ * process: the program takes seconds to build, and the ratchet and the guards beside it read the same shapes.
+ */
+export function dashboardWire() {
+  if (!dashboard) {
+    const config = ts.getParsedCommandLineOfConfigFile(
+      path.join(ROOT, "apps/dashboard/tsconfig.json"),
+      {},
+      {
+        ...ts.sys,
+        onUnRecoverableConfigFileDiagnostic: (d) => {
+          throw new Error(ts.flattenDiagnosticMessageText(d.messageText, "\n"));
+        },
+      },
+    );
+    const registry = path.join(ROOT, WIRE_REGISTRY).split(path.sep).join("/");
+    const program = ts.createProgram({
+      rootNames: [registry],
+      options: { ...config.options, noEmit: true, incremental: false },
+    });
+    dashboard = wireShapes(program, registry);
+  }
+  return dashboard;
+}
+
+/** One entry per name a route takes or answers that is not snake_case: `<route> takes <name>`, `<route> answers <name>`. */
+export function offTheWire(shapes) {
+  const out = {};
+  for (const [route, io] of Object.entries(shapes)) {
+    for (const name of io?.takes ?? []) if (!isSnakeCase(name)) out[`${route} takes ${name}`] = 1;
+    for (const name of io?.answers ?? []) if (!isSnakeCase(name)) out[`${route} answers ${name}`] = 1;
+  }
+  return out;
+}
+
+/** The register's two numbers for the wire: how many distinct names are not snake_case, and in how many routes. */
+export function wireCounts(held) {
+  const parts = Object.keys(held ?? {}).map((k) => /^(.*) (?:takes|answers) (\S+)$/.exec(k) ?? [k, k, k]);
+  return { names: new Set(parts.map((p) => p[2])).size, routes: new Set(parts.map((p) => p[1])).size };
+}
+
+/** The wire's ratchet: its own test file, because it needs the type checker's program, not the syntax trees above. */
+export const WIRE_CASING = {
+  name: "wire names not in snake_case",
+  file: "wire-casing.json",
+  measure: () => offTheWire(dashboardWire()),
+  advice:
+    "The wire is snake_case (docs/naming.md, decision 0022): name the field in snake_case in the route's type, and turn a view model into it in a named mapping, never a converter. A field a page or the phone app reads is answered in both spellings for one release.",
+};

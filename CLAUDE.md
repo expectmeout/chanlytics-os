@@ -19,7 +19,8 @@ of the public will experience.
 ## Read next, in this order
 
 1. `README.md`: the moving parts, the things that will surprise you, the conventions.
-2. `docs/glossary.md`: the words, and the one rule about _tenant_ versus _workspace_.
+2. `docs/glossary.md`: the words, and the two rules about storage's own, _tenant_ versus _workspace_ and _contact_
+   versus _person_. `docs/naming.md` is the grammar every name follows.
 3. `docs/architecture.md`: how it is wired, and where to look for each concern.
 4. `docs/runbook.md`: run it, test it, deploy it, roll it back.
 5. `docs/decisions/`: what is decided and not yet built. Read the relevant note before
@@ -66,6 +67,8 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **Nothing in the UI states a fact the database cannot support.** A zero is shown; an invented
   number is not. `surface-registry.ts` decides what is real; `no-fabricated-data.spec.ts` checks it.
 - **Storage says tenant, everything a person or the API sees says workspace.** Never both in one layer.
+- **Names follow `docs/naming.md`.** Storage keeps its words, the wire is snake_case, every closed set is
+  declared once. The tests it names hold it, and it marks the ones still owed.
 - **One predicate per rule.** Consent is `mayMessageFor`; standing is `standingOf`; the reply window
   is `replyWindow`. A second implementation of a rule is a bug even when it agrees.
 - **One send door.** Everything a customer receives leaves through `packages/core/src/deliver.ts`.

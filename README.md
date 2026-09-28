@@ -129,18 +129,22 @@ and return success — only `INSERT` raises. Any permission-sensitive update mus
 
 ## Conventions
 
-- **Names.** Storage says _tenant_; everything a person or the API sees says
-  _workspace_; never both in one layer. A new table carries `tenant_id`. The
-  product's nouns are People, Lists, Playbooks, Templates and Settings, and a
-  new route or API path uses them (`docs/glossary.md` lists the five old names
-  still in use). The thing that answers is the receptionist, never the bot or
-  the agent.
+- **Names.** `docs/naming.md` is the rule for every name, and `docs/glossary.md`
+  has the words. Storage says _tenant_; everything a person or the API sees says
+  _workspace_; never both in one layer. A new table carries `tenant_id`. A new
+  name says _person_, and _contact_ stays only in storage's existing names and
+  foreign keys. The product's nouns are People, Lists, Playbooks, Templates and
+  Settings, and a new route or API path uses them (`docs/glossary.md` lists the
+  old names still in use). The wire is snake_case. The thing that answers is the
+  receptionist, never the bot or the agent.
 - **No customer in the code.** A real business's name, number, link, address or
   prompt is configuration, read from the database or the environment, never a
   literal in the tree. Migrations that seeded the first workspace are history
   and stay as they are; nothing new follows them.
-- **Commits.** An imperative subject under 72 characters that names the change;
-  the reasoning goes in the body, not the subject.
+- **Pull request titles.** A pull request's title is the squash commit's
+  subject: one sentence saying what is now true, at most 100 characters, not
+  ending in a period. What moved goes in the body, with the proof and what to
+  set or apply. CI checks the title (`tooling/scripts/checks/pr-title.mjs`).
 - **Migrations.** Named for the schema change (`00151_jobs_drop_blob_thread_erase.sql`),
   re-runnable statements, a header of a few lines saying what changed. An applied
   migration is never edited or renamed. The lesson behind a change goes in the

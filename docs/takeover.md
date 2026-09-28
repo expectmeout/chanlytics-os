@@ -42,6 +42,7 @@ copies                              152   of 38 names
 as unknown as                       221
 table names outside packages/db     533
 unnamed durations                    78   in 38 files
+wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     165
 source-text reads in tests          829
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
