@@ -275,7 +275,7 @@ const LivePanel = ({ call, ended, onEnd, onTakeOver }) => {
 };
 
 // ---------- Page ----------
-const LiveMonitorPage = () => {
+const LiveMonitorSeed = () => {
   const { LIVE_CALLS } = window.LIVE_DATA;
   const [activeId, setActiveId] = useLmState(LIVE_CALLS.find(c => c.live)?.id || LIVE_CALLS[0].id);
   const [endedIds, setEndedIds] = useLmState(() => new Set(
@@ -359,4 +359,6 @@ const LiveMonitorPage = () => {
   );
 };
 
-window.LiveMonitorPage = LiveMonitorPage;
+// A real workspace renders its calls (pages/live-monitor.jsx); the seeded console keeps the demo, drawn by that page
+// where the bridge has not fed it.
+window.LiveMonitorSeed = LiveMonitorSeed;

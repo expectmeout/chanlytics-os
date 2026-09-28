@@ -39,7 +39,7 @@ const ALLOWED = new Map([
     "the seeded Broadcasts of the mockup; a real workspace renders pages/broadcasts.jsx",
   ],
   [
-    "apps/dashboard/src/legacy/pages/segments.jsx",
+    "apps/dashboard/src/legacy/demo/pages/segments.jsx",
     "the seeded Segments of the mockup; a real workspace's lists are a view of People (people.jsx)",
   ],
   [

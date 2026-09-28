@@ -617,7 +617,10 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
 });
 
 test("the turn route: same-origin POST, a rate bucket, the thread saved before the model is asked, JSON lines out, a sixty-second ceiling", () => {
-  const r = readCode("apps/dashboard/app/api/v1/ask/route.ts");
+  // The route, and the thread it keeps (server/ask/memory.ts, moved out of it in PR 5.0): read in the one scan.
+  const [r, memory] = ["app/api/v1/ask/route.ts", "src/server/ask/memory.ts"].map((f) =>
+    readCode(`apps/dashboard/${f}`),
+  );
   assert.ok(r.includes("export const maxDuration = 60;"));
   assert.ok(r.includes('rate: "ask",'));
   assert.ok(
@@ -627,7 +630,10 @@ test("the turn route: same-origin POST, a rate bucket, the thread saved before t
   assert.ok(r.includes('"content-type": "application/x-ndjson; charset=utf-8"'));
   assert.ok(r.includes('"cache-control": "private, no-store"'));
   assert.ok(r.includes("const result = await runAskTurn({"));
-  assert.ok(!r.includes("service"), "the turn runs on the session client, never the service role");
+  assert.ok(
+    ![r, memory].some((code) => code.includes("service")),
+    "the turn and the thread it keeps run on the session client, never the service role",
+  );
   const rate = readCode("apps/dashboard/src/server/rate-limit.ts");
   assert.ok(rate.includes('ask: { limit: 20, windowMs: 60_000, noun: "questions" },'));
 });

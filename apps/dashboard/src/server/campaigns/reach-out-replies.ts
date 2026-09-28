@@ -12,6 +12,7 @@ import {
   REACH_OUT_REPLY_DAYS,
   REPLIES_PAGE,
   REPLY_UNDO_REFUSALS,
+  type ReachOutRepliesDto,
   type ReachOutRepliesQuery,
   type ReachOutReplyDto,
   type ReplyFrom,
@@ -28,7 +29,7 @@ import {
   type ReplyListRow,
 } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
-import { replyFromOf, replyIdentityOf } from "../connections/email";
+import { mailboxAddressOf, replyFromOf, replyIdentityOf } from "../connections/email";
 import { sendingDomainsFor } from "../connections/sending-domains";
 
 /** A chain's name and the step's place in it, 1 for its first email, by walking back to the chain's first step. */
@@ -81,6 +82,17 @@ async function undoableByMessage(ctx: RouteContext, rows: ReplyListRow[]): Promi
 
 const DRAFT_STATES = new Set(["none", "waiting", "written", "not_written"]);
 
+/** What the reading's plan (contracts ReadingPlan, kept as JSON) says the page needs: what a no stopped, the step's day. */
+function planFacts(plan: Json): Pick<ReachOutReplyDto, "said_no" | "step_day"> {
+  const p = plan && typeof plan === "object" && !Array.isArray(plan) ? plan : {};
+  const text = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
+  const step = p.step && typeof p.step === "object" && !Array.isArray(p.step) ? p.step : {};
+  return {
+    said_no: p.saidNo === true ? { address: text(p.suppressFrom), domain: text(p.suppressDomain) } : null,
+    step_day: text(step.dueOn),
+  };
+}
+
 /**
  * The workspace's readings since `since` (at most the reading's own window back), newest first, one thread's alone
  * when asked: what each was read as and did, its draft, whether this member may undo it, and where an answer goes out
@@ -91,7 +103,7 @@ export async function listReplies(
   tenantId: string,
   q: ReachOutRepliesQuery,
   now = Date.now(),
-): Promise<{ replies: ReachOutReplyDto[] }> {
+): Promise<ReachOutRepliesDto> {
   const floor = now - REACH_OUT_REPLY_DAYS * DAY_MS;
   const since = q.since && Date.parse(q.since) > floor ? new Date(Date.parse(q.since)) : new Date(floor);
   const rows = await repliesFor(ctx.supabase, {
@@ -100,10 +112,11 @@ export async function listReplies(
     conversationId: q.conversation_id ?? null,
     limit: REPLIES_PAGE,
   });
-  const [steps, from, undoable] = await Promise.all([
+  const [steps, from, undoable, mailbox] = await Promise.all([
     rows.length ? reachOutStepsOf(ctx.supabase, tenantId) : Promise.resolve([]),
     replyFromByThread(ctx, tenantId, [...new Set(rows.map((r) => r.conversation_id))]),
     undoableByMessage(ctx, rows),
+    mailboxAddressOf(ctx, tenantId),
   ]);
   const byId = new Map(steps.map((s) => [s.id, s]));
   const replies = rows.map((r): ReachOutReplyDto => {
@@ -119,6 +132,7 @@ export async function listReplies(
       refer_to: r.refer_to,
       unread: isUnread(r.unread) ? r.unread : null,
       reread: r.rereads > 0,
+      rereads: r.rereads,
       undone: r.undone_at !== null,
       can_undo: undoable.has(r.message_id),
       draft: r.draft,
@@ -128,9 +142,11 @@ export async function listReplies(
       chain,
       step,
       reply_from: from.get(r.conversation_id) ?? { from: "mailbox", because: null },
+      ...planFacts(r.plan),
+      until_at: r.until_at,
     };
   });
-  return { replies };
+  return { replies, mailbox };
 }
 
 /** A refusal in the undo door's own words, as the status a caller reads it by. */

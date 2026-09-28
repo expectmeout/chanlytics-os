@@ -129,7 +129,11 @@ export function askApi(client: Api = api()) {
       input: {
         text: string;
         threadId: string | null;
-        scope: AskScope | null;
+        /**
+         * The turn's scope, which its thread then keeps: the Line's chip, or none (null, which clears the thread's).
+         * Omitted by a caller with no opinion (the Leads answer row), so the thread keeps its own.
+         */
+        scope?: AskScope | null;
         surface: AskSurface;
         /** The search whose question the text answers (the Leads answer row): the route reads it and tells the model. */
         answering?: { searchId: string } | null;
@@ -146,7 +150,7 @@ export function askApi(client: Api = api()) {
           body: {
             text: input.text,
             thread_id: input.threadId,
-            scope: input.scope,
+            ...(input.scope !== undefined ? { scope: input.scope } : {}),
             surface: input.surface,
             ...(input.answering ? { answering: { search_id: input.answering.searchId } } : {}),
             ...(typeof input.openedMs === "number" && input.openedMs >= 0
