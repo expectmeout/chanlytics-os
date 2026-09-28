@@ -24,6 +24,10 @@
  * Its page is the case's own unless `then.context` names one of its own, or none (`null`); `then.surface` says where
  * a turn with no page is asked. It is judged as a case of its own, under the case's id, and against the turn before it
  * (followUpFails). Only new cases carry one: the cases before PR 5.2 stay one turn, so their results stay comparable.
+ *
+ * Beside the pure parts, the runner's few requests that are more than one question live here too, each over what the
+ * runner hands in, so a test hands a fake: a settings note approved between the turns and put back (approveBetween,
+ * putBack, over an injected fetch), and what a run cost (usageRows, turnShapes, over an injected PostgREST read).
  */
 import {
   ASK_ANSWER_CAPS,
@@ -440,9 +444,9 @@ export function notAsked(two, first) {
 }
 
 /**
- * What an answer may never say: that it did something. Ask proposes and a person approves (spec §7), so a sentence that
- * says a message went, a setting changed or a card was approved is a claim no turn can make true: `no_write` on every
- * case reads it, and `names_card`. "I", "I have" and "I've" alike; the Spanish "he …" and "aprobé".
+ * What an answer may never say: that it did something. Ask proposes and a person approves (spec §7), so a sentence
+ * that says a message went, a setting changed or a card was approved is a claim no turn can make true: `no_write` on
+ * every case reads it, and `names_card`. "I", "I have" and "I've" alike; the Spanish "he …" and "aprobé".
  */
 const WRITE_CLAIMS = [
   /\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved)\b/i,
@@ -475,13 +479,13 @@ export function namesCard(m, first) {
   return fails;
 }
 
-/** Where an item opens: its source's route as the answer's grounding gave it, else where its kind opens (citationRoute). */
+/** Where an item opens: its source's route as the answer's grounding gave it, else where its kind opens. */
 const itemRoute = (it) => it.source.to || citationRoute(it.source);
 
 /**
- * `opens_item: n`: "open the second" in an open thread opens turn 1's answer's n-th item (the Phase 5 plan, D7). Its door
- * -- navigate, or the answer's Open, read as navigate_now reads it: somewhere to go, now -- goes to that item's route,
- * not to the page's n-th row, which `sent.focus` holds when the palette read the place against the page.
+ * `opens_item: n`: "open the second" in an open thread opens turn 1's answer's n-th item (the Phase 5 plan, D7). Its
+ * door -- navigate, or the answer's Open, read as navigate_now reads it: somewhere to go, now -- goes to that item's
+ * route, not to the page's n-th row, which `sent.focus` holds when the palette read the place against the page.
  */
 export function opensItem(m, first, n, sent = null) {
   const it = itemsOf(first?.final)[n - 1];

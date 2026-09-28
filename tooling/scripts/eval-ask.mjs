@@ -36,9 +36,10 @@
  * sent as PUT settings marked `x-via: ask`, the outcome recorded on turn 1's message), and put back in a `finally` once
  * turn 2 has answered (the card's own undo, the outcome recorded as undone, the settings read again and compared field
  * by field with the ones before). That note and its undo are the only things a run writes but its threads. One that
- * cannot be put back ends the run at once, exit 3, saying what to put back by hand. Do not run across 09:00 UTC: the
- * nightly's converge (e2e-workspace.mjs) rewrites the workspace's config and deletes its Ask threads then, so a turn 2
- * can lose its thread and a put back its compare.
+ * cannot be put back ends the run at once, exit 3, saying what to put back by hand; a run interrupted between the two
+ * (Ctrl+C) skips the `finally`, and the line it printed as it approved names the note to take out. Do not run across
+ * 09:00 UTC: the nightly's converge (e2e-workspace.mjs) rewrites the workspace's config and deletes its Ask threads
+ * then, so a turn 2 can lose its thread and a put back its compare.
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
  *   E2E_USER_EMAIL=… [REPS=3] [SURFACE=today] [ONLY=id,id] node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]

@@ -2,7 +2,10 @@
 // the page's GETs answer, the way the palette builds it, and held to the schema the route reads it with; the judge's
 // excuse for a case the page answers, and what a case's page asks of the answer; the case set's pages, each built
 // over fixture answers and placed on its surface as the palette places its route; and the runner's listing, run with
-// no credentials, which says every case, the turns and their cost and spends nothing.
+// no credentials, which says every case, the turns and their cost and spends nothing. A case's second turn (the Phase
+// 5 plan, PR 5.2): its page and its scope, what turn 1 asks of it (names_card, opens_item, drops_first_scope and the
+// claims no answer may make), a settings note approved between the turns and put back over a fake settings door, the
+// cost read turn by turn and past PostgREST's thousand rows, and the ten cases that carry one.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
