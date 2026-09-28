@@ -375,13 +375,13 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-list.jsx::InboxList#1": {
-    "lines": 409,
+    "lines": 410,
     "branches": 58,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-list.jsx::InboxList/map(fn)#6": {
-    "lines": 110,
-    "branches": 49,
+    "lines": 111,
+    "branches": 50,
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-rail.jsx::InboxAgentRail#1": {
@@ -395,13 +395,13 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::Composer#1": {
-    "lines": 227,
-    "branches": 36,
+    "lines": 228,
+    "branches": 37,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::InboxThread#1": {
-    "lines": 119,
-    "branches": 54,
+    "lines": 117,
+    "branches": 56,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::TemplateSendButton#1": {

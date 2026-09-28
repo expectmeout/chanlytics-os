@@ -155,15 +155,13 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
       {thread.approval?.suggestedReply && !decided && (
         <Composer key={planParam} thread={thread} reply={(thread.approval.plan && thread.approval.plan.param) ? (((thread.approval.plan.param.options || [])[planParam] || {}).reply || thread.approval.suggestedReply) : thread.approval.suggestedReply} hasApproval onSend={onSend} />
       )}
-      {/* P0: the mockup hid the composer on "done" because done meant
-          "decided, nothing left to do". On real threads "handled" is the
-          NORMAL resting state — the receptionist answered and nothing
-          escalated — so hiding the composer left the operator with no way to
-          follow up with their own customer. Real threads always get a reply
-          path; the closed-window branch inside Composer downgrades it to
-          approved templates when the 24h window has lapsed. */}
+      {/* P0: the mockup hid the composer on "done" ("decided, nothing left to do"). On real threads "handled" is the NORMAL
+          resting state, so hiding it left the operator no way to follow up with their own customer. Real threads always get
+          a reply path; the closed-window branch inside Composer downgrades it to approved templates past the 24h window.
+          A reply to a reach-out, read, draws its strip above it, and the receptionist's draft seeds it (reply-strip.jsx). */}
+      {window.ReplyStrip && <window.ReplyStrip thread={thread} />}
       {(!thread.approval || decided) && (thread.real || thread.state !== "done") && (
-        <Composer thread={thread} reply={thread.veto ? thread.veto.draft : ""} onType={thread.veto ? () => onVetoAct(thread.id, "type") : null} onSend={onSend} />
+        <Composer thread={thread} reply={thread.veto ? thread.veto.draft : window.__replies ? window.__replies.draftOf(thread.id) : ""} onType={thread.veto ? () => onVetoAct(thread.id, "type") : null} onSend={onSend} />
       )}
     </div>
   );
@@ -1519,6 +1517,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
   };
   const [text, setText] = React.useState(() => (draftOf && window.__tabMemory.draft("reply", draftOf)) || reply);
   const write = (v) => { setText(v); keepWords(v); };
+  if (window.useReplyDraftDoor) window.useReplyDraftDoor(draftOf, write); // "Use the draft" (reply-strip.jsx): always there, or never
   const [alt, setAlt] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
   const taRef = React.useRef(null);
