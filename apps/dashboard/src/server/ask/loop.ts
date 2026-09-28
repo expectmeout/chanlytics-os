@@ -42,9 +42,9 @@ import { stableSystem, turnWords, type WorkspaceFacts } from "./prompt";
 import { buildContext, shapeBlock, type BuiltContext, type SearchResultBlock } from "./context";
 import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
-import { replayBlocks, runRound, type RoundBlock } from "./round";
+import { replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
-import { finishTurn, type TurnEnd } from "./memory";
+import { finishTurn, type RawTurn, type TurnEnd } from "./memory";
 
 /**
  * One turn of the assistant.
@@ -142,6 +142,8 @@ export interface TurnResult {
   model: AskModelId;
   /** Where the time went and what the model was fed (ask-shape.ts): logged, and stored on the turn's row. */
   shape: AskTurnShape;
+  /** The turn as the model was sent it (memory.ts): stored on the turn's row, never logged or shipped; null if it failed. */
+  raw: RawTurn | null;
 }
 
 type Msg = { role: "user" | "assistant"; content: unknown };
@@ -378,6 +380,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       format,
       toolsUsed,
       proposals,
+      questionAt,
     });
   };
   /** A turn that could not be answered: its sentence, in the person's language, is the answer's headline. */
@@ -648,6 +651,8 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         calls.map(async (b) => ({ block: b, out: ACT_TOOL_NAMES.has(b.name) ? await propose(b) : await read(b) })),
       );
       const refused = outcomes.some(({ out }) => out.isError);
+      // The round as it went out and came back: a turn that ends on it keeps it as the turn it was (memory.ts).
+      const lastRound = { request, blocks, outcomes, roundAt };
 
       // Beside acts, the answer stands when every card was made: an act only
       // checks and proposes. A card refused or cut off would leave an answer
@@ -701,6 +706,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           failed: false,
           failure: null,
           rounds: round,
+          lastRound,
         });
       }
 
@@ -711,18 +717,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         const answer = answerForCards(proposals.slice(before), input.language);
         if (firstSayMs === null) firstSayMs = Date.now() - t0;
         input.emit({ t: "say", headline: answer.say.headline, detail: answer.say.detail });
-        return done({ answer, failed: false, failure: null, rounds: round });
+        return done({ answer, failed: false, failure: null, rounds: round, lastRound });
       }
       messages.push({ role: "assistant", content: replayBlocks(blocks) });
-      messages.push({
-        role: "user",
-        content: outcomes.map(({ block, out }) => ({
-          type: "tool_result",
-          tool_use_id: block.id,
-          content: out.result,
-          is_error: out.isError,
-        })),
-      });
+      messages.push({ role: "user", content: resultBlocks(outcomes) });
       if (Date.now() - t0 > ASK_TURN_BUDGET_MS - 8_000 && !last) {
         // Not enough time for another read: the next round is the last, and
         // answers with what there is. Appended to the newest message, never an
