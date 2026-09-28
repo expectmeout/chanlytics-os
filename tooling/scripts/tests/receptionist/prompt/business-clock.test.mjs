@@ -108,7 +108,10 @@ test("the clock is sent as its OWN system block, uncached", () => {
 });
 
 test("both channels read the tenant's zone, and neither invents one", () => {
-  const wa = readCode("packages/core/src/inbound/answer.ts");
+  // Every module of the message path, answer.ts's order and the phases beside it: the zone lint below reads them all.
+  const wa = ["answer", "context", "ingest", "gates", "unreadable", "reply-gates", "model-turn", "dispatch"]
+    .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
+    .join("\n");
   assert.ok(wa.includes('resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy, rt?.known)'));
   // The clock also carries the closures, so it can state a shut day in the
   // block the model reads LAST — where the weekly grid cannot outrank it.

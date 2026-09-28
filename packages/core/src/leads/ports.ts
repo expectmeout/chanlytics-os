@@ -119,6 +119,11 @@ export interface LeadColumns {
   lat: number | null;
   lng: number | null;
   website_host: string | null;
+  /**
+   * Whether the website is that host's root (00237): a page under a host (an ISP's "/~joe/") is no proof the host is
+   * the business's own, so a no from it never closes the host's whole domain.
+   */
+  website_root: boolean | null;
   instagram_url: string | null;
   /** The neighbourhood the listing names (D5, 00146): "Hawthorne", for the row's one line about where. */
   neighborhood: string | null;

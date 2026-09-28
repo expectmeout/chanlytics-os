@@ -657,7 +657,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
         edge,
       ),
   );
-  const wa = readCode("packages/core/src/inbound/answer.ts");
+  const wa = readCode("packages/core/src/inbound/model-turn.ts");
   assert.ok(
     wa.includes("const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;") &&
       wa.includes("if (visits) leadNote = `${leadNote}\\n${visits}`;"),
@@ -1201,7 +1201,12 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   );
   // The assistant answers who booked and who never did: people.search runs over a feed in ask-turn.test.mjs, its
   // Booked and Asked, never booked lists judged over the People page's own rows.
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const sd = [
+    "apps/dashboard/src/legacy-bridge/surfaces/people.ts",
+    "apps/dashboard/src/legacy-bridge/surfaces/reports.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(
     sd.includes('(!l.needsCalendar || calendar.state === "ok") &&') &&
       sd.includes("(!l.needsDeals || dealsOn),") &&
@@ -1526,7 +1531,12 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
     routes.includes("/^(seg|list|state):/.test(param)") &&
       routes.includes("initialSaved={savedId} initialState={stateId}"),
   );
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const sd = [
+    "apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts",
+    "apps/dashboard/src/legacy-bridge/surfaces/people.ts",
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   assert.ok(sd.includes("action: peopleListAction(l.id, members)") && sd.includes("groups: PEOPLE_LIST_GROUPS.map("));
   assert.ok(
     sd.includes('(!l.needsCalendar || people.calendar?.state === "ok")'),
@@ -1830,7 +1840,7 @@ test("the table: identity that says who, Offers where First contact was, Visits 
     "the list envelope carries the link",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes("bookingLink: data.booking_link ?? null,"),
+    readCode("apps/dashboard/src/legacy-bridge/surfaces/people.ts").includes("bookingLink: data.booking_link ?? null,"),
   );
 });
 
