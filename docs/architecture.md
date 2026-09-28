@@ -85,11 +85,16 @@ fails on drift.
 per URL, grouped as the URLs are (`admin/`, `cron/`). `apps/edge/lib` is
 everything the doors call, grouped by domain: `receptionist/` (what it decides
 and says), `whatsapp/`, `sms/`, `email/`, `voice/`, `lines/`, `leads/`,
-`calendar/`, `google/`, `ops/` (who gets told). A domain earns a directory
-when it has more than one module; a domain that is one module sits at the
-root, beside the edge's own plumbing: the environment, the logger, the HTTP
-shapes, the Postgres handle, pagination, the two door guards, the control-plane
-door, and the erasure check.
+`calendar/`, `google/`, `ops/` (who gets told). A domain earns a directory at
+its second module; a domain that is one module sits at the root (`notes.ts`,
+the note sweep), beside the edge's own plumbing: the environment, the logger,
+the HTTP shapes, the Postgres handle, pagination, the two door guards, the
+control-plane door, and the erasure check. The same rule holds in every tree
+the code is grouped by domain in (each package's `src`,
+`apps/dashboard/src/server`, `tooling/scripts`, `apps/mobile/src`), and not in
+the URL trees, where a folder is a path (`apps/edge/api`, `apps/dashboard/app`,
+`apps/mobile/src/app`); `tooling/scripts/tests/repo/contracts-barrels.test.mjs`
+holds it.
 
 ## The four doors
 
@@ -324,7 +329,6 @@ apps/edge/lib/
   google/
   leads/
   lines/
-  notes/
   ops/
   packages/
   partners/
@@ -430,8 +434,16 @@ tooling/scripts/
   checks/
   e2e-harness/
   evals/
+  mobile/
   tests/
 e2e/
+  auth/
+  campaigns/
+  conversations/
+  people/
+  settings/
+  shell/
+  today/
 supabase/migrations/
 ```
 
@@ -470,8 +482,10 @@ the suite still asserts on source text rather than behaviour;
 `tooling/scripts/tests/source-scan-baseline.json` is the ratchet that may only
 fall, keyed by each file's path relative to the tests directory. The files are
 grouped by domain under `tooling/scripts/tests/<domain>/`, the shared worlds
-and helpers at the root, and the runner globs every depth. Playwright specs in
-`e2e/` run nightly against production in the suite's own workspace.
+and helpers at the root, and the runner globs every depth. Playwright specs run
+nightly against production in the suite's own workspace. A browser spec goes in
+`e2e/<domain>/`, as `e2e/people/people.spec.ts` is; the helpers stay at the
+root, and so does a domain's only spec until its second.
 
 ## What is decided and not yet built
 

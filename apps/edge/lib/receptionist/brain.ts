@@ -30,7 +30,7 @@ export const BRAIN_MODEL = "claude-opus-5";
  * reply. 20s x 2 attempts leaves room for the send that follows.
  */
 const BRAIN_TIMEOUT_MS = 20_000;
-const client = new Anthropic({ timeout: BRAIN_TIMEOUT_MS, maxRetries: 1 });
+const brainClient = new Anthropic({ timeout: BRAIN_TIMEOUT_MS, maxRetries: 1 });
 
 export interface BrainReply {
   text: string;
@@ -57,7 +57,9 @@ interface RawResponse {
 }
 
 // output_config predates this SDK pin's types; the API accepts it (proven in prod).
-const create = client.messages.create.bind(client.messages) as unknown as (p: unknown) => Promise<RawResponse>;
+const create = brainClient.messages.create.bind(brainClient.messages) as unknown as (
+  p: unknown,
+) => Promise<RawResponse>;
 
 /** The API refused the REQUEST — its format or schema — not the content. */
 function formatRejected(e: unknown): boolean {

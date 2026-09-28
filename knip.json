@@ -52,7 +52,13 @@
       "project": ["src/**/*.ts"]
     },
     "tooling/scripts": {
-      "entry": ["*.mjs", "checks/*.mjs", "tests/**/*.mjs", "e2e-harness/**/*.{ts,mjs}"],
+      "entry": [
+        "*.mjs",
+        "checks/*.mjs",
+        "tests/**/*.mjs",
+        "e2e-harness/**/*.{ts,mjs}",
+        "mobile/{sign-in,cold-start,walk}.mjs"
+      ],
       "project": ["**/*.{ts,mjs}"]
     }
   }

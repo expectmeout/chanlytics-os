@@ -42,22 +42,22 @@ function billingReturnUrl(slug: string | null, outcome: "success" | "cancel" | "
   return `${dashboardOrigin()}${page}?billing=${outcome}#/${CHECKOUT_RETURN_ROUTE[back]}`;
 }
 
-let client: Stripe | null = null;
-let injected: Stripe | null = null;
+let stripeClient: Stripe | null = null;
+let injectedStripe: Stripe | null = null;
 /** Tests: a Stripe client handed in (the SDK's own webhooks helper beside fakes for the calls), so the webhook and the ops run without a key or a network. */
 export function setStripeClient(c: Stripe | null): void {
-  injected = c;
+  injectedStripe = c;
 }
 /** How long one call through the shared Stripe client may take. */
 const STRIPE_TIMEOUT_MS = 20_000;
 export function stripe(): Stripe | null {
-  if (injected) return injected;
+  if (injectedStripe) return injectedStripe;
   const key = env.STRIPE_SECRET_KEY;
   if (!key) return null;
   // Built on first use, not at import: the webhook and the ops share it, and
   // a deployment without a key must still answer "not ready".
-  client ??= new Stripe(key, { timeout: STRIPE_TIMEOUT_MS, maxNetworkRetries: 1 });
-  return client;
+  stripeClient ??= new Stripe(key, { timeout: STRIPE_TIMEOUT_MS, maxNetworkRetries: 1 });
+  return stripeClient;
 }
 
 function priceId(): string | null {

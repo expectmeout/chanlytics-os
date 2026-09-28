@@ -1,7 +1,55 @@
 import "server-only";
-import { erasedEmailHash, erasedPhoneHash } from "@chanlytics/contracts";
+import { erasedEmailHash, erasedPhoneHash, formatPhoneDisplay, normalizeEmail } from "@chanlytics/contracts";
 import { readAllRowsByKey } from "@chanlytics/db";
 import { serviceDb } from "../service-db";
+
+/** A North American number as formatPhoneDisplay writes it, `+1 (AAA) EEE-NNNN`, read back into its three groups. */
+const NORTH_AMERICAN = /^\+1 \((\d{3})\) (\d{3})-(\d{4})$/;
+
+/**
+ * The keys an erasure finds a person's copies by, from what the route read while the rows exist: the contact's number
+ * and address, and the external id of each of their identities (a WhatsApp wa_id is the number's digits, an email
+ * identity's an address). Pure; it reads nothing.
+ *
+ * `identifiers` match the finished jobs (scrubErasedJobs): the digits of the number and of every identity, then the
+ * address as stored. `needles` are what the Ask scrub looks for (scrub_ask_for_contact): the identifiers, then every
+ * way a sentence spells each number -- the display form the pages and the assistant write, `+1 (555) 010-0123`
+ * (formatPhoneDisplay, never a second implementation), and for a North American number the national forms read off it,
+ * `5550100123`, `(555) 010-0123`, `555-010-0123`, `555.010.0123`, `555 010 0123` -- then every address, lower-cased.
+ * The person's names and their conversations' and calls' ids are the database's to find: the scrub reads them off the
+ * live rows.
+ */
+export function erasureKeys(
+  contact: { phone_e164: string | null; email: string | null },
+  externalIds: readonly (string | null)[],
+): { identifiers: string[]; needles: string[] } {
+  const digitsOf = (s: string | null) => (s ?? "").replace(/\D/g, "");
+  const keys = [contact.phone_e164, ...externalIds];
+  const identifiers = [...new Set(keys.map(digitsOf).filter(Boolean)), ...(contact.email ? [contact.email] : [])];
+  const numbers = new Set(
+    keys
+      .filter((k) => !normalizeEmail(k))
+      .map(digitsOf)
+      .filter(Boolean),
+  );
+  const spoken = [...numbers].flatMap((n) => {
+    const shown = formatPhoneDisplay(n);
+    if (!shown) return [];
+    const na = NORTH_AMERICAN.exec(shown);
+    if (!na) return [shown];
+    const [, area, exchange, line] = na;
+    return [
+      shown,
+      `${area}${exchange}${line}`,
+      `(${area}) ${exchange}-${line}`,
+      `${area}-${exchange}-${line}`,
+      `${area}.${exchange}.${line}`,
+      `${area} ${exchange} ${line}`,
+    ];
+  });
+  const addresses = [contact.email, ...externalIds].map((a) => normalizeEmail(a)).filter((a): a is string => !!a);
+  return { identifiers, needles: [...new Set([...identifiers, ...spoken, ...addresses])] };
+}
 
 /**
  * Remove private objects from the `media` bucket.
