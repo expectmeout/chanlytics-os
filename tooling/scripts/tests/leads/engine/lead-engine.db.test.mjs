@@ -2977,6 +2977,75 @@ test(
   },
 );
 
+// 00237: whether the listing's website is its host's root rides the same commit, and a place found again gains it
+// where it had none (a lead found before it was kept), never overwriting what it says.
+test(
+  "the lead says whether its website is its own: written by the commit, filled where it was not known",
+  { skip },
+  async () => {
+    const search = ok(
+      await db
+        .from("lead_searches")
+        .insert({
+          tenant_id: A,
+          created_by: owner.userId,
+          via: "people",
+          card: "local_businesses",
+          name: "florists",
+          asked: "florists in Austin",
+          plan: plan(3),
+        })
+        .select("id")
+        .single(),
+    ).id;
+    const round = ok(
+      await db
+        .from("lead_rounds")
+        .insert({
+          tenant_id: A,
+          search_id: search,
+          seq: 1,
+          purpose: "probe",
+          plan: plan(3),
+          plan_version: 1,
+          target: 3,
+          state: "queued",
+          allowance_reserved: 3,
+          cost_reserved_usd: 1,
+          month: leadMonth(TZ, new Date()),
+          day: "2026-09-20",
+          platform_day: "2026-09-20",
+        })
+        .select("id")
+        .single(),
+    ).id;
+    const run = await runOf(round, "florist", "w-root");
+    const rooted = (n, root) => {
+      const p = place(n, "qualified");
+      p.place = { ...p.place, website_root: root };
+      return p;
+    };
+    const page = (places, from) =>
+      commit(run.id, "w-root", run.gen, from, from + 1, {
+        judgment: null,
+        places,
+        usage_usd: 0,
+        items_seen: places.length,
+        run_state: null,
+        next: null,
+        round: from === 0 ? { state: "probing", question: null, ending: null } : null,
+      });
+    let r = ok(await page([rooted(931, true), rooted(932, false), rooted(933, null)], 0));
+    assert.equal(r.ok, true, JSON.stringify(r));
+    const rootOf = async (n) => (await leadByPlace(`ChIJfixture0${n}`)).website_root;
+    assert.deepEqual([await rootOf(931), await rootOf(932), await rootOf(933)], [true, false, null]);
+    // Found again: the one not known learns it; the ones that say already keep what they say.
+    r = ok(await page([rooted(931, false), rooted(932, true), rooted(933, false)], 1));
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.deepEqual([await rootOf(931), await rootOf(932), await rootOf(933)], [true, false, false]);
+  },
+);
+
 // D6 (00147): the business's own mark rides the same commit as every other fact about it, fills a known place only
 // where it was empty, and goes with the rest when the lead is blanked. Since 00161 the page returns the copy we keep
 // (the next case) and not this address, which the dashboard could never draw; the address is read from the row.

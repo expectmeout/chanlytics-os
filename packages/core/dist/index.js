@@ -4822,6 +4822,14 @@ function usPhone(raw) {
   if (/^(\d)\1{9}$/.test(ten) || ten === "1234567890") return null;
   return e164;
 }
+function isSiteRoot(url) {
+  try {
+    const w = (url ?? "").trim();
+    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
+  } catch {
+    return false;
+  }
+}
 function siteHost(url) {
   if (!url) return null;
   let host;
@@ -7969,20 +7977,12 @@ function rereadAt(unread2, done, receivedAt, now) {
   const at2 = (unread2 === "model_failed" || unread2 === "no_model") && done === 0 ? now + HOUR_MS2 : nextDay;
   return at2 > receivedAt + REPLY_REREAD_DAYS * DAY_MS2 ? null : at2;
 }
-function ownedDomainOf(address, website) {
+function ownedDomainOf(address, website, root = null) {
   const a = normalizeEmail(address);
   const host = siteHost(website);
-  if (!a || !host || !isSiteRoot(website)) return null;
+  if (!a || !host || root === false || !isSiteRoot(website)) return null;
   const domain = a.slice(a.lastIndexOf("@") + 1);
   return domain === host ? domain : null;
-}
-function isSiteRoot(website) {
-  try {
-    const w = (website ?? "").trim();
-    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
-  } catch {
-    return false;
-  }
 }
 var NO_EFFECT = {
   stops: false,
@@ -8056,7 +8056,7 @@ function readingPlan(reading, c) {
         ...stopped,
         saidNo: true,
         suppressFrom: writer,
-        suppressDomain: ownedDomainOf(c.leadAddress, c.leadWebsite) ?? ownedDomainOf(c.replyFrom, c.leadWebsite)
+        suppressDomain: ownedDomainOf(c.leadAddress, c.leadWebsite, c.leadWebsiteRoot) ?? ownedDomainOf(c.replyFrom, c.leadWebsite, c.leadWebsiteRoot)
       };
     case "wrong_person": {
       const readDay = zoneDayKey(c.readAt, c.tz);
@@ -12623,13 +12623,13 @@ function whatsappSender(cfg) {
     return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
   };
 }
-function emailSender(routes) {
+function emailSender(routes, held = []) {
   if (routes.length === 0) return null;
   const refuse = (errorBody) => Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
   return async (to, p) => {
     if (!p.email) return refuse("no_frozen_request");
     if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
-    const own = p.reply && p.ownEmail && p.purpose !== "outreach" ? ownRouteOf(routes, to, p.ownEmail) : null;
+    const own = p.reply && p.ownEmail && p.purpose !== "outreach" ? ownRouteOf(routes, held, to, p.ownEmail) : null;
     if (own && "route" in own) return { ...await sendEmail(own.route.cfg, p.ownEmail), leftAs: "own" };
     const from = addressOf(p.email.from)?.address;
     const lane = p.purpose === "outreach" ? "own" : "hosted";
@@ -12639,13 +12639,14 @@ function emailSender(routes) {
     return own ? { ...sent, leftAs: "mailbox", leftAsWhy: own.why } : sent;
   };
 }
-function ownRouteOf(routes, to, twin) {
+function ownRouteOf(routes, held, to, twin) {
   const owns = routes.filter((r4) => r4.lane === "own");
-  if (owns.length === 0) return { why: "no_own_route" };
-  if (twin.to.length !== 1 || twin.to[0] !== to) return { why: "twin_names_another_recipient" };
   const from = addressOf(twin.from)?.address;
+  const isHeld = from !== void 0 && held.includes(from);
+  if (owns.length === 0) return { why: isHeld ? "domain_held" : "no_own_route" };
+  if (twin.to.length !== 1 || twin.to[0] !== to) return { why: "twin_names_another_recipient" };
   const route = owns.find((r4) => r4.as.address === from);
-  if (!route) return { why: "domain_has_no_route" };
+  if (!route) return { why: isHeld ? "domain_held" : "domain_has_no_route" };
   return requestLeavesAs(twin, route.as) ? { route } : { why: "route_refuses_twin" };
 }
 
@@ -13212,6 +13213,7 @@ async function readReply(ports, cmd) {
       business: facts.business,
       leadAddress: facts.leadAddress,
       leadWebsite: facts.leadWebsite,
+      leadWebsiteRoot: facts.leadWebsiteRoot ?? null,
       replyFrom: facts.from,
       reread: n > 0,
       readAt: now
@@ -47449,6 +47451,7 @@ function cleanPlace(raw) {
     phone,
     phoneSources: phone ? onSite ? 2 : 1 : 0,
     host,
+    root: host ? isSiteRoot(raw.website) : null,
     region: stateCode(raw.state),
     emails: kept.slice(0, 10),
     dropped
@@ -48025,6 +48028,7 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
       lat: loc?.lat ?? null,
       lng: loc?.lng ?? null,
       website_host: c.host,
+      website_root: c.root,
       instagram_url: c.raw.instagram,
       phone_e164: c.phone,
       phone_sources: c.phoneSources,
@@ -48050,8 +48054,7 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
       claimed: excluded ? null : c.raw.claimed,
       maps_url: excluded ? null : c.raw.mapsUrl,
       rank: excluded ? null : c.raw.rank,
-      // The business's own mark (D6): read from its home page after the judge has decided, by markPlaces below,
-      // with the copy of it we keep (00161).
+      // The business's own mark (D6) and the copy we keep (00161): read from its home page by markPlaces, below.
       logo_url: null,
       mark_path: null
     },

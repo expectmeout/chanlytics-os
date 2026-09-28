@@ -77,6 +77,12 @@ test("cleaning by rule: E.164 with placeholders dropped, the site's number count
   );
   const q = cleanPlace(card.mapItem(mapsItem(3, { phoneUnformatted: "+11234567890", phones: [] })));
   assert.deepEqual([q.phone, q.phoneSources], [null, 0]);
+  // Whether the website is its host's root (00237): a page under a host keeps the host, and says it is a page.
+  assert.equal(p.root, true, "https://www.place0002.example/ is its host's root");
+  const page = cleanPlace(card.mapItem(mapsItem(5, { website: "http://www.isp.example/~dana/" })));
+  assert.deepEqual([page.host, page.root], ["isp.example", false]);
+  const none = cleanPlace(card.mapItem(mapsItem(6, { website: null })));
+  assert.deepEqual([none.host, none.root], [null, null]);
 });
 
 test("the card keeps what the listing shows about the business, for the owner and never the judge: its own words, hours, a photo, the spread of reviews, price, the socials, whether it is claimed, its rank, its Maps page", () => {
