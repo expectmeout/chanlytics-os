@@ -69,11 +69,6 @@
     "branches": 4,
     "depth": 1
   },
-  "apps/dashboard/src/legacy-bridge/surface-runner.ts::startSurfaces#1": {
-    "lines": 243,
-    "branches": 8,
-    "depth": 1
-  },
   "apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts::apply#1": {
     "lines": 146,
     "branches": 31,

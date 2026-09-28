@@ -37,7 +37,8 @@ const win = {
 };
 globalThis.window = win;
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
-const { startSurfaces, bootWaitsFor } = await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
+const { startSurfaces, bootWaitsFor, getConnection, getSurfaceStatuses, markHydrated, onSurfaceStatusChange } =
+  await importSrc("apps/dashboard/src/legacy-bridge/surface-runner.ts");
 const { getActiveWorkspace } = await importSrc("apps/dashboard/src/legacy-bridge/workspace.ts");
 const { read } = await importSrc("apps/dashboard/src/legacy-bridge/api.ts");
 
@@ -610,5 +611,155 @@ test("a page read that never lands holds the rest for the route's wait at most, 
     assert.deepEqual(again.order, ["workspace", "people", "settings"], "in one go, with no wait");
   } finally {
     delete win.__routeWaitMs;
+  }
+});
+
+const turn = async (n) => {
+  for (let i = 0; i < n; i += 1) await new Promise((r) => setImmediate(r));
+};
+
+test("a failed boot over CACHED real data is degraded, not seeded", async () => {
+  // The cache restores real rows before React mounts. If both boot attempts
+  // then fail, recording "seeded" is the one thing that is not true:
+  // yesterday's real conversations are on screen under a status meaning "no
+  // real data", so the pill shows neither live nor stale. refresh() has
+  // always used this rule; boot did not.
+  win.location.pathname = "/w/acme";
+  win.location.hash = "";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  markHydrated(["cached-rows"]);
+  const down = (key) => ({
+    key,
+    apply: async () => {
+      throw new Error("down");
+    },
+  });
+  const quiet = mock.method(console, "error", () => {});
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const stop = startSurfaces([down("cached-rows"), down("never-loaded")]);
+  try {
+    await turn(10);
+    assert.equal(getSurfaceStatuses().get("cached-rows"), undefined, "one retry first: a boot blip is not a failure");
+    mock.timers.tick(800);
+    await turn(10);
+    assert.equal(getSurfaceStatuses().get("cached-rows"), "degraded", "real rows on screen, and stale");
+    assert.equal(getSurfaceStatuses().get("never-loaded"), "seeded", "no real rows ever: failed, not stale");
+  } finally {
+    stop();
+    mock.timers.reset();
+    quiet.mock.restore();
+  }
+});
+
+test("the runner hears the tab and the network in order, and its stop undoes it in the same order: listeners, pending refreshes, the feed, the connection", async () => {
+  win.location.pathname = "/w/acme";
+  win.location.hash = "";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  const said = [];
+  globalThis.document = {
+    visibilityState: "hidden",
+    addEventListener: (type) => said.push(`document +${type}`),
+    removeEventListener: (type) => said.push(`document -${type}`),
+  };
+  const { addEventListener, removeEventListener } = win;
+  win.addEventListener = (type) => said.push(`window +${type}`);
+  win.removeEventListener = (type) => said.push(`window -${type}`);
+  const navigatorWas = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: { onLine: false } });
+  let connection = JSON.stringify(getConnection());
+  const off = onSurfaceStatusChange(() => {
+    const now = JSON.stringify(getConnection());
+    if (now !== connection) said.push(`connection ${now}`);
+    connection = now;
+  });
+  const joins = [];
+  const join = (onChange) => {
+    joins.push(onChange);
+    return () => said.push("the feed left");
+  };
+  const clearTimeoutWas = globalThis.clearTimeout;
+  let stop = () => {};
+  try {
+    stop = startSurfaces(
+      [{ key: "inbox", refreshOnMessageInserts: true, debounceMs: 60_000, apply: async () => {} }],
+      join,
+    );
+    assert.deepEqual(said, [
+      "document +visibilitychange",
+      'connection {"offline":true,"realtimeDown":false}',
+      "window +offline",
+      "window +online",
+    ]);
+    await settle(10);
+    assert.equal(joins.length, 1, "the feed is joined once the boot is in");
+    joins[0]({ id: "m1" }, "messages", "INSERT");
+    said.length = 0;
+    globalThis.clearTimeout = (t) => {
+      said.push("a pending refresh cleared");
+      clearTimeoutWas(t);
+    };
+    stop();
+    stop = () => {};
+    assert.deepEqual(said, [
+      "document -visibilitychange",
+      "window -offline",
+      "window -online",
+      "a pending refresh cleared",
+      "the feed left",
+      'connection {"offline":false,"realtimeDown":false}',
+    ]);
+  } finally {
+    stop();
+    globalThis.clearTimeout = clearTimeoutWas;
+    off();
+    if (navigatorWas) Object.defineProperty(globalThis, "navigator", navigatorWas);
+    else delete globalThis.navigator;
+    win.addEventListener = addEventListener;
+    win.removeEventListener = removeEventListener;
+    globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
+  }
+});
+
+test("a boot that ends after its runner stopped never reloads for another workspace's cache; one that ends running does", async () => {
+  // Restored cache belongs to whoever was signed in when it was written: a different workspace reloads the tab, once
+  // its boot is in. A runner already stopped (a StrictMode unmount, a workspace switch) is past deciding that.
+  win.location.pathname = "/w/acme";
+  win.location.hash = "";
+  win.__ACTIVE_WORKSPACE = "id-a";
+  const m = new Map();
+  globalThis.sessionStorage = {
+    getItem: (k) => (m.has(k) ? m.get(k) : null),
+    setItem: (k, v) => m.set(k, String(v)),
+    removeItem: (k) => m.delete(k),
+  };
+  const cachedFor = (tenant) =>
+    m.set(
+      "chanlytics.surfaces.v1",
+      JSON.stringify({ build: process.env.NEXT_PUBLIC_BUILD_SHA || "dev", tenant, surfaces: {} }),
+    );
+  const reloads = win.reloads;
+  try {
+    cachedFor("id-old");
+    let finish = () => {};
+    const slow = {
+      key: "settings",
+      apply: () =>
+        new Promise((r) => {
+          finish = r;
+        }),
+    };
+    const stop = startSurfaces([slow]);
+    await settle(2);
+    stop();
+    finish();
+    await settle(10);
+    assert.equal(win.reloads, reloads, "stopped: nothing is reloaded");
+    cachedFor("id-old");
+    const stop2 = startSurfaces([{ key: "settings", apply: async () => {} }]);
+    await settle(10);
+    stop2();
+    assert.equal(win.reloads, reloads + 1, "running: another workspace's rows are dropped and the tab reloads");
+  } finally {
+    delete globalThis.sessionStorage;
   }
 });
