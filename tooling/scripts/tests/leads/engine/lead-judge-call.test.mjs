@@ -9,7 +9,7 @@ import {
   leadJudge,
   LEAD_JUDGE_MAX_TOKENS,
   LEAD_JUDGE_FALLBACK_BETA,
-} from "../../../../../packages/channels/src/lead-judge.ts";
+} from "../../../../../packages/channels/src/leads/lead-judge.ts";
 import { JUDGE_OUTPUT_SCHEMA } from "@chanlytics/contracts";
 import { PLAN } from "../../_lead-fixtures.mjs";
 

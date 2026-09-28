@@ -568,7 +568,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
     "ensure reads the active voice row before creating",
   );
   // voice-provision making the receptionist through the same lib is run in voice-doors.test.mjs.
-  const adapter = readCode("packages/channels/src/voice-retell.ts");
+  const adapter = readCode("packages/channels/src/voice/voice-retell.ts");
   assert.ok(adapter.includes('"/import-phone-number"'));
   const env = readRaw("apps/edge/.env.example");
   for (const k of ["TWILIO_ACCOUNT_SID=", "TWILIO_AUTH_TOKEN=", "LINES_DRY_RUN="]) assert.ok(env.includes(k), k);
@@ -592,7 +592,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   // The package hands the edge every value the saga's four modules export: its barrel names each one.
   const channels = await import("@chanlytics/channels");
   for (const m of ["lines", "lines-twilio", "lines-dry", "lines-saga"]) {
-    const mod = await import(new URL(`../../../../packages/channels/src/${m}.ts`, import.meta.url).href);
+    const mod = await import(new URL(`../../../../packages/channels/src/lines/${m}.ts`, import.meta.url).href);
     for (const name of Object.keys(mod)) assert.ok(name in channels, `${m}.ts: ${name}`);
   }
 });

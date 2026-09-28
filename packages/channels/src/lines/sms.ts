@@ -13,7 +13,7 @@
  * keyed with the auth token of the account the number belongs to, base64.
  */
 import { SMS_OPT_OUT_PATTERN } from "@chanlytics/contracts";
-import type { NormalizedInbound, WaRawMessage } from "./whatsapp";
+import type { NormalizedInbound, WaRawMessage } from "../whatsapp";
 
 /** Twilio's inbound message, the fields the product reads. */
 export interface SmsInbound {

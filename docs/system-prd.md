@@ -353,7 +353,7 @@ Routing is always `agent_id → tenant_channels (kind 'voice', external_id)`. On
 
 ### 6.2 The shell
 
-`packages/channels/src/voice-shell.ts` is the one definition of everything the phone agent is told that is not a fact: the prompt and its placeholders (`{{business_facts}}`, `{{caller_context}}`, `{{greeting}}`, `{{handoff_number}}`), a spoken default for any variable that cannot be filled (Retell reads an unfilled placeholder aloud, braces and all), four tools, the webhook events (`call_started`, `transcript_updated`, `call_ended`, `call_analyzed`) on a 20-second budget, and the post-call analysis fields (`caller_wanted`, `outcome`, `follow_up`, `caller_name`, `caller_email`). Three readers use it: provisioning; the converger (`/api/admin/voice-converge` and `voice-converge.mjs` — a published version cannot change, so it drafts a new one, patches it, and publishes only when told); and the diagnostic that reports drift.
+`packages/channels/src/voice/voice-shell.ts` is the one definition of everything the phone agent is told that is not a fact: the prompt and its placeholders (`{{business_facts}}`, `{{caller_context}}`, `{{greeting}}`, `{{handoff_number}}`), a spoken default for any variable that cannot be filled (Retell reads an unfilled placeholder aloud, braces and all), four tools, the webhook events (`call_started`, `transcript_updated`, `call_ended`, `call_analyzed`) on a 20-second budget, and the post-call analysis fields (`caller_wanted`, `outcome`, `follow_up`, `caller_name`, `caller_email`). Three readers use it: provisioning; the converger (`/api/admin/voice-converge` and `voice-converge.mjs` — a published version cannot change, so it drafts a new one, patches it, and publishes only when told); and the diagnostic that reports drift.
 
 | Tool                 | Answered by                | Does                                                                                                                                                                                |
 | -------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -401,7 +401,7 @@ A recording reaches a browser only through `/api/v1/calls/:id/recording`, which 
 
 `lines` is the asset: one row per number the platform bought or forwards, and the whole story of getting it working. `tenant_channels` is the routing derived from it (`config.line_id` points back). A channel row can exist with no line — a number bought inside Retell, like the live salon's — and `number_drift()` reports where the two disagree (00087).
 
-The saga (`packages/channels/src/lines-saga.ts`, pure over its ports; `apps/edge/lib/lines/lines.ts` wires the real ones):
+The saga (`packages/channels/src/lines/lines-saga.ts`, pure over its ports; `apps/edge/lib/lines/lines.ts` wires the real ones):
 
 subaccount → number → trunk → agent → import → channel, with the Messaging Service for texting (00074)
 

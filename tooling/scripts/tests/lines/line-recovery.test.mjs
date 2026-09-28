@@ -423,7 +423,7 @@ test("THE LOST RECEIPT: a number bought without its SID saved is found, not boug
   // provider, and a retry could never succeed because a carrier will not sell you a
   // number you already hold. This walks exactly that.
   const { dryProvider } = await import(
-    pathToFileURL(path.join(here, "../../../../packages/channels/src/lines-dry.ts")).href
+    pathToFileURL(path.join(here, "../../../../packages/channels/src/lines/lines-dry.ts")).href
   );
   const provider = dryProvider();
   const acct = { sid: "ACsub", token: "t" };
@@ -443,7 +443,7 @@ test("a read that FAILS must not be reported as 'we do not own it'", () => {
   // That answer sends the saga on to buy a second number. So the Twilio
   // implementation throws on a non-200 rather than returning null, and the step
   // retries instead of spending.
-  const impl = readCode("packages/channels/src/lines-twilio.ts");
+  const impl = readCode("packages/channels/src/lines/lines-twilio.ts");
   const body = impl.slice(impl.indexOf("async ownedNumber("), impl.indexOf("async releaseNumber("));
   assert.match(body, /if \(a\.status === 404\) return null;/, "a 404 is a real 'no'");
   assert.match(body, /need\(a, "list owned numbers"\)/, "and anything else throws");

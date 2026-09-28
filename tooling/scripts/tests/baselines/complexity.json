@@ -784,17 +784,17 @@
     "branches": 35,
     "depth": 2
   },
-  "packages/channels/src/a2p-saga.ts::runA2PSaga#1": {
+  "packages/channels/src/lines/a2p-saga.ts::runA2PSaga#1": {
     "lines": 181,
     "branches": 42,
     "depth": 5
   },
-  "packages/channels/src/lines-saga.ts::runLineSaga#1": {
+  "packages/channels/src/lines/lines-saga.ts::runLineSaga#1": {
     "lines": 225,
     "branches": 41,
     "depth": 5
   },
-  "packages/channels/src/lines-twilio.ts::twilioProvider#1": {
+  "packages/channels/src/lines/lines-twilio.ts::twilioProvider#1": {
     "lines": 261,
     "branches": 2,
     "depth": 0

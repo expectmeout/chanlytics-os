@@ -127,7 +127,7 @@ One piece of it is now vestigial. `mirrorBlobPause` (`apps/dashboard/src/server/
 
 ### 5.3 Texting while talking, and WhatsApp during a call
 
-The voice agent holds exactly four tools (`packages/channels/src/voice-shell.ts:114`):
+The voice agent holds exactly four tools (`packages/channels/src/voice/voice-shell.ts:114`):
 
 | Tool                 | What it does                                  | What it may not do                                                |
 | -------------------- | --------------------------------------------- | ----------------------------------------------------------------- |

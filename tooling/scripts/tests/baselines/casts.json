@@ -95,7 +95,7 @@
   "apps/edge/lib/voice/forwarding.ts": 1,
   "apps/edge/lib/whatsapp/persist.ts": 2,
   "apps/edge/lib/whatsapp/waba-events.ts": 2,
-  "packages/channels/src/voice-shell.ts": 1,
+  "packages/channels/src/voice/voice-shell.ts": 1,
   "packages/contracts/src/config/business-tab/abilities.ts": 1,
   "packages/contracts/src/config/business-tab/booking-rules-words.ts": 1,
   "packages/contracts/src/config/business-tab/fold-limits.ts": 1,
