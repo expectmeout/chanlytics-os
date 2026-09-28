@@ -177,6 +177,7 @@ import { z as z18 } from "zod";
 import { z as z19 } from "zod";
 import { z as z20 } from "zod";
 import { z as z21 } from "zod";
+import { z as z22 } from "zod";
 z.config({ jitless: true });
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
@@ -2036,6 +2037,11 @@ var EVENT_KINDS = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -2873,10 +2879,10 @@ var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -2895,7 +2901,7 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -2976,12 +2982,38 @@ var PartnerSecondFactorResetSchema = z21.object({
   partner_id: z21.string().uuid("That partner does not exist."),
   why: z21.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
+var PARTNER_INVITE_DAYS = 14;
+var PartnerInviteSchema = z22.object({
+  code: z22.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
 
 // ../channels/dist/index.js
-import { z as z22 } from "zod";
+import { z as z23 } from "zod";
 import { z as z72 } from "zod";
 import { z as z52 } from "zod";
-import { z as z23 } from "zod";
+import { z as z24 } from "zod";
 import { z as z42 } from "zod";
 import { z as z32 } from "zod";
 import { z as z62 } from "zod";
@@ -2999,6 +3031,7 @@ import { z as z182 } from "zod";
 import { z as z192 } from "zod";
 import { z as z202 } from "zod";
 import { z as z212 } from "zod";
+import { z as z222 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -7939,7 +7972,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
-z22.config({ jitless: true });
+z23.config({ jitless: true });
 var MIN_MS2 = 6e4;
 var HOUR_MS2 = 36e5;
 var DAY_MS2 = 864e5;
@@ -8003,38 +8036,38 @@ var US_STATES2 = {
 var US_CODES2 = new Set(Object.values(US_STATES2));
 var KEY2 = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe2 = (s2) => s2.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words2 = (min, max) => z23.string().transform((s2) => stripUnsafe2(s2).trim()).pipe(z23.string().min(min).max(max));
-var LeadSearchPlanSchema2 = z23.object({
-  version: z23.number().int().min(1),
-  card: z23.literal("local_businesses"),
+var words2 = (min, max) => z24.string().transform((s2) => stripUnsafe2(s2).trim()).pipe(z24.string().min(min).max(max));
+var LeadSearchPlanSchema2 = z24.object({
+  version: z24.number().int().min(1),
+  card: z24.literal("local_businesses"),
   name: words2(2, 80),
   asked: words2(1, 400),
-  terms: z23.array(words2(2, 60)).min(1).max(5),
-  area: z23.object({
-    kind: z23.enum(["zip", "city", "radius"]),
+  terms: z24.array(words2(2, 60)).min(1).max(5),
+  area: z24.object({
+    kind: z24.enum(["zip", "city", "radius"]),
     label: words2(2, 80),
-    state: z23.string().regex(/^[A-Z]{2}$/),
-    center: z23.object({ lat: z23.number().min(-90).max(90), lng: z23.number().min(-180).max(180) }).nullable(),
-    radius_m: z23.number().int().min(500).max(2e5),
-    zip: z23.string().regex(/^\d{5}$/).optional(),
+    state: z24.string().regex(/^[A-Z]{2}$/),
+    center: z24.object({ lat: z24.number().min(-90).max(90), lng: z24.number().min(-180).max(180) }).nullable(),
+    radius_m: z24.number().int().min(500).max(2e5),
+    zip: z24.string().regex(/^\d{5}$/).optional(),
     query: words2(2, 120)
   }),
-  count: z23.number().int().min(1).max(LEAD_MAX_PLACES2),
-  contact: z23.enum(["phone", "email"]),
-  criteria: z23.array(
-    z23.object({
-      key: z23.string().regex(KEY2),
+  count: z24.number().int().min(1).max(LEAD_MAX_PLACES2),
+  contact: z24.enum(["phone", "email"]),
+  criteria: z24.array(
+    z24.object({
+      key: z24.string().regex(KEY2),
       text: words2(2, 120),
-      standard: z23.enum(["likely", "seen"]),
-      required: z23.boolean()
+      standard: z24.enum(["likely", "seen"]),
+      required: z24.boolean()
     })
   ).max(8),
-  exclusions: z23.array(
-    z23.object({
-      key: z23.string().regex(KEY2),
+  exclusions: z24.array(
+    z24.object({
+      key: z24.string().regex(KEY2),
       text: words2(2, 80),
-      origin: z23.enum(["claude", "you_said"]),
-      category_key: z23.string().regex(KEY2).optional()
+      origin: z24.enum(["claude", "you_said"]),
+      category_key: z24.string().regex(KEY2).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -9786,6 +9819,11 @@ var EVENT_KINDS2 = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -10581,10 +10619,10 @@ var PARTNER_WORDS2 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN2} to ${PARTNER_CODE_MAX2} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -10603,7 +10641,7 @@ var PARTNER_WORDS2 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -10684,6 +10722,32 @@ var PartnerSecondFactorResetSchema2 = z212.object({
   partner_id: z212.string().uuid("That partner does not exist."),
   why: z212.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
+var PARTNER_INVITE_DAYS2 = 14;
+var PartnerInviteSchema2 = z222.object({
+  code: z222.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS2 = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS2} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -10791,10 +10855,10 @@ var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
 
 // ../core/dist/index.js
-import { z as z24 } from "zod";
+import { z as z25 } from "zod";
 import { z as z73 } from "zod";
 import { z as z53 } from "zod";
-import { z as z25 } from "zod";
+import { z as z26 } from "zod";
 import { z as z43 } from "zod";
 import { z as z33 } from "zod";
 import { z as z63 } from "zod";
@@ -10812,10 +10876,11 @@ import { z as z183 } from "zod";
 import { z as z193 } from "zod";
 import { z as z203 } from "zod";
 import { z as z213 } from "zod";
-import { z as z222 } from "zod";
+import { z as z223 } from "zod";
+import { z as z232 } from "zod";
 import { z as z722 } from "zod";
 import { z as z522 } from "zod";
-import { z as z232 } from "zod";
+import { z as z242 } from "zod";
 import { z as z422 } from "zod";
 import { z as z322 } from "zod";
 import { z as z622 } from "zod";
@@ -10833,10 +10898,11 @@ import { z as z1822 } from "zod";
 import { z as z1922 } from "zod";
 import { z as z2022 } from "zod";
 import { z as z2122 } from "zod";
-import { z as z242 } from "zod";
+import { z as z2222 } from "zod";
+import { z as z252 } from "zod";
 import { z as z732 } from "zod";
 import { z as z532 } from "zod";
-import { z as z252 } from "zod";
+import { z as z262 } from "zod";
 import { z as z432 } from "zod";
 import { z as z332 } from "zod";
 import { z as z632 } from "zod";
@@ -10854,6 +10920,7 @@ import { z as z1832 } from "zod";
 import { z as z1932 } from "zod";
 import { z as z2032 } from "zod";
 import { z as z2132 } from "zod";
+import { z as z2232 } from "zod";
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -11773,7 +11840,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
-z24.config({ jitless: true });
+z25.config({ jitless: true });
 var MIN_MS3 = 6e4;
 var HOUR_MS3 = 36e5;
 var DAY_MS3 = 864e5;
@@ -11837,38 +11904,38 @@ var US_STATES3 = {
 var US_CODES3 = new Set(Object.values(US_STATES3));
 var KEY3 = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe3 = (s2) => s2.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words3 = (min, max) => z25.string().transform((s2) => stripUnsafe3(s2).trim()).pipe(z25.string().min(min).max(max));
-var LeadSearchPlanSchema3 = z25.object({
-  version: z25.number().int().min(1),
-  card: z25.literal("local_businesses"),
+var words3 = (min, max) => z26.string().transform((s2) => stripUnsafe3(s2).trim()).pipe(z26.string().min(min).max(max));
+var LeadSearchPlanSchema3 = z26.object({
+  version: z26.number().int().min(1),
+  card: z26.literal("local_businesses"),
   name: words3(2, 80),
   asked: words3(1, 400),
-  terms: z25.array(words3(2, 60)).min(1).max(5),
-  area: z25.object({
-    kind: z25.enum(["zip", "city", "radius"]),
+  terms: z26.array(words3(2, 60)).min(1).max(5),
+  area: z26.object({
+    kind: z26.enum(["zip", "city", "radius"]),
     label: words3(2, 80),
-    state: z25.string().regex(/^[A-Z]{2}$/),
-    center: z25.object({ lat: z25.number().min(-90).max(90), lng: z25.number().min(-180).max(180) }).nullable(),
-    radius_m: z25.number().int().min(500).max(2e5),
-    zip: z25.string().regex(/^\d{5}$/).optional(),
+    state: z26.string().regex(/^[A-Z]{2}$/),
+    center: z26.object({ lat: z26.number().min(-90).max(90), lng: z26.number().min(-180).max(180) }).nullable(),
+    radius_m: z26.number().int().min(500).max(2e5),
+    zip: z26.string().regex(/^\d{5}$/).optional(),
     query: words3(2, 120)
   }),
-  count: z25.number().int().min(1).max(LEAD_MAX_PLACES3),
-  contact: z25.enum(["phone", "email"]),
-  criteria: z25.array(
-    z25.object({
-      key: z25.string().regex(KEY3),
+  count: z26.number().int().min(1).max(LEAD_MAX_PLACES3),
+  contact: z26.enum(["phone", "email"]),
+  criteria: z26.array(
+    z26.object({
+      key: z26.string().regex(KEY3),
       text: words3(2, 120),
-      standard: z25.enum(["likely", "seen"]),
-      required: z25.boolean()
+      standard: z26.enum(["likely", "seen"]),
+      required: z26.boolean()
     })
   ).max(8),
-  exclusions: z25.array(
-    z25.object({
-      key: z25.string().regex(KEY3),
+  exclusions: z26.array(
+    z26.object({
+      key: z26.string().regex(KEY3),
       text: words3(2, 80),
-      origin: z25.enum(["claude", "you_said"]),
-      category_key: z25.string().regex(KEY3).optional()
+      origin: z26.enum(["claude", "you_said"]),
+      category_key: z26.string().regex(KEY3).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -13620,6 +13687,11 @@ var EVENT_KINDS3 = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -14415,10 +14487,10 @@ var PARTNER_WORDS3 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN3} to ${PARTNER_CODE_MAX3} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -14437,7 +14509,7 @@ var PARTNER_WORDS3 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -14518,6 +14590,32 @@ var PartnerSecondFactorResetSchema3 = z213.object({
   partner_id: z213.string().uuid("That partner does not exist."),
   why: z213.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
+var PARTNER_INVITE_DAYS3 = 14;
+var PartnerInviteSchema3 = z223.object({
+  code: z223.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS3 = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS3} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
 var GRAPH_THROTTLE_CODES = [4, 80007, 130429, 131048, 131056];
 function graphThrottled(r222) {
   if (r222.ok) return false;
@@ -14616,7 +14714,7 @@ var STATE_TTL_MS2 = 10 * MIN_MS3;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
 var PAYLOAD_BYTES2 = 1 + 16 * 3;
-z222.config({ jitless: true });
+z232.config({ jitless: true });
 function zoneParts(tz, at2) {
   const parts2 = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
@@ -14714,38 +14812,38 @@ var US_STATES22 = {
 var US_CODES22 = new Set(Object.values(US_STATES22));
 var KEY22 = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe22 = (s2) => s2.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words22 = (min, max) => z232.string().transform((s2) => stripUnsafe22(s2).trim()).pipe(z232.string().min(min).max(max));
-var LeadSearchPlanSchema22 = z232.object({
-  version: z232.number().int().min(1),
-  card: z232.literal("local_businesses"),
+var words22 = (min, max) => z242.string().transform((s2) => stripUnsafe22(s2).trim()).pipe(z242.string().min(min).max(max));
+var LeadSearchPlanSchema22 = z242.object({
+  version: z242.number().int().min(1),
+  card: z242.literal("local_businesses"),
   name: words22(2, 80),
   asked: words22(1, 400),
-  terms: z232.array(words22(2, 60)).min(1).max(5),
-  area: z232.object({
-    kind: z232.enum(["zip", "city", "radius"]),
+  terms: z242.array(words22(2, 60)).min(1).max(5),
+  area: z242.object({
+    kind: z242.enum(["zip", "city", "radius"]),
     label: words22(2, 80),
-    state: z232.string().regex(/^[A-Z]{2}$/),
-    center: z232.object({ lat: z232.number().min(-90).max(90), lng: z232.number().min(-180).max(180) }).nullable(),
-    radius_m: z232.number().int().min(500).max(2e5),
-    zip: z232.string().regex(/^\d{5}$/).optional(),
+    state: z242.string().regex(/^[A-Z]{2}$/),
+    center: z242.object({ lat: z242.number().min(-90).max(90), lng: z242.number().min(-180).max(180) }).nullable(),
+    radius_m: z242.number().int().min(500).max(2e5),
+    zip: z242.string().regex(/^\d{5}$/).optional(),
     query: words22(2, 120)
   }),
-  count: z232.number().int().min(1).max(LEAD_MAX_PLACES22),
-  contact: z232.enum(["phone", "email"]),
-  criteria: z232.array(
-    z232.object({
-      key: z232.string().regex(KEY22),
+  count: z242.number().int().min(1).max(LEAD_MAX_PLACES22),
+  contact: z242.enum(["phone", "email"]),
+  criteria: z242.array(
+    z242.object({
+      key: z242.string().regex(KEY22),
       text: words22(2, 120),
-      standard: z232.enum(["likely", "seen"]),
-      required: z232.boolean()
+      standard: z242.enum(["likely", "seen"]),
+      required: z242.boolean()
     })
   ).max(8),
-  exclusions: z232.array(
-    z232.object({
-      key: z232.string().regex(KEY22),
+  exclusions: z242.array(
+    z242.object({
+      key: z242.string().regex(KEY22),
       text: words22(2, 80),
-      origin: z232.enum(["claude", "you_said"]),
-      category_key: z232.string().regex(KEY22).optional()
+      origin: z242.enum(["claude", "you_said"]),
+      category_key: z242.string().regex(KEY22).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -16710,6 +16808,11 @@ var EVENT_KINDS22 = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -17903,10 +18006,10 @@ var PARTNER_WORDS22 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN22} to ${PARTNER_CODE_MAX22} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -17925,7 +18028,7 @@ var PARTNER_WORDS22 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -18006,7 +18109,33 @@ var PartnerSecondFactorResetSchema22 = z2122.object({
   partner_id: z2122.string().uuid("That partner does not exist."),
   why: z2122.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
-z242.config({ jitless: true });
+var PARTNER_INVITE_DAYS22 = 14;
+var PartnerInviteSchema22 = z2222.object({
+  code: z2222.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS22 = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS22} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
+z252.config({ jitless: true });
 var MIN_MS32 = 6e4;
 var HOUR_MS32 = 36e5;
 var DAY_MS32 = 864e5;
@@ -18070,38 +18199,38 @@ var US_STATES32 = {
 var US_CODES32 = new Set(Object.values(US_STATES32));
 var KEY32 = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe32 = (s2) => s2.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words32 = (min, max) => z252.string().transform((s2) => stripUnsafe32(s2).trim()).pipe(z252.string().min(min).max(max));
-var LeadSearchPlanSchema32 = z252.object({
-  version: z252.number().int().min(1),
-  card: z252.literal("local_businesses"),
+var words32 = (min, max) => z262.string().transform((s2) => stripUnsafe32(s2).trim()).pipe(z262.string().min(min).max(max));
+var LeadSearchPlanSchema32 = z262.object({
+  version: z262.number().int().min(1),
+  card: z262.literal("local_businesses"),
   name: words32(2, 80),
   asked: words32(1, 400),
-  terms: z252.array(words32(2, 60)).min(1).max(5),
-  area: z252.object({
-    kind: z252.enum(["zip", "city", "radius"]),
+  terms: z262.array(words32(2, 60)).min(1).max(5),
+  area: z262.object({
+    kind: z262.enum(["zip", "city", "radius"]),
     label: words32(2, 80),
-    state: z252.string().regex(/^[A-Z]{2}$/),
-    center: z252.object({ lat: z252.number().min(-90).max(90), lng: z252.number().min(-180).max(180) }).nullable(),
-    radius_m: z252.number().int().min(500).max(2e5),
-    zip: z252.string().regex(/^\d{5}$/).optional(),
+    state: z262.string().regex(/^[A-Z]{2}$/),
+    center: z262.object({ lat: z262.number().min(-90).max(90), lng: z262.number().min(-180).max(180) }).nullable(),
+    radius_m: z262.number().int().min(500).max(2e5),
+    zip: z262.string().regex(/^\d{5}$/).optional(),
     query: words32(2, 120)
   }),
-  count: z252.number().int().min(1).max(LEAD_MAX_PLACES32),
-  contact: z252.enum(["phone", "email"]),
-  criteria: z252.array(
-    z252.object({
-      key: z252.string().regex(KEY32),
+  count: z262.number().int().min(1).max(LEAD_MAX_PLACES32),
+  contact: z262.enum(["phone", "email"]),
+  criteria: z262.array(
+    z262.object({
+      key: z262.string().regex(KEY32),
       text: words32(2, 120),
-      standard: z252.enum(["likely", "seen"]),
-      required: z252.boolean()
+      standard: z262.enum(["likely", "seen"]),
+      required: z262.boolean()
     })
   ).max(8),
-  exclusions: z252.array(
-    z252.object({
-      key: z252.string().regex(KEY32),
+  exclusions: z262.array(
+    z262.object({
+      key: z262.string().regex(KEY32),
       text: words32(2, 80),
-      origin: z252.enum(["claude", "you_said"]),
-      category_key: z252.string().regex(KEY32).optional()
+      origin: z262.enum(["claude", "you_said"]),
+      category_key: z262.string().regex(KEY32).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -19854,6 +19983,11 @@ var EVENT_KINDS32 = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -20641,10 +20775,10 @@ var PARTNER_WORDS32 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN32} to ${PARTNER_CODE_MAX32} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -20663,7 +20797,7 @@ var PARTNER_WORDS32 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -20744,6 +20878,32 @@ var PartnerSecondFactorResetSchema32 = z2132.object({
   partner_id: z2132.string().uuid("That partner does not exist."),
   why: z2132.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
+var PARTNER_INVITE_DAYS32 = 14;
+var PartnerInviteSchema32 = z2232.object({
+  code: z2232.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS32 = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS32} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
 async function recordCarrierOptOut(db, p) {
   const { data, error } = await db.from("contacts").update({
     consent: "opted_out",
@@ -21675,10 +21835,10 @@ var STALE_MS = 10 * 60 * 1e3;
 var STALE_REPLY_MS = 2 * 60 * 60 * 1e3;
 
 // ../db/dist/index.js
-import { z as z26 } from "zod";
+import { z as z27 } from "zod";
 import { z as z74 } from "zod";
 import { z as z54 } from "zod";
-import { z as z27 } from "zod";
+import { z as z28 } from "zod";
 import { z as z44 } from "zod";
 import { z as z34 } from "zod";
 import { z as z64 } from "zod";
@@ -21696,7 +21856,8 @@ import { z as z184 } from "zod";
 import { z as z194 } from "zod";
 import { z as z204 } from "zod";
 import { z as z214 } from "zod";
-z26.config({ jitless: true });
+import { z as z224 } from "zod";
+z27.config({ jitless: true });
 var MIN_MS4 = 6e4;
 var HOUR_MS4 = 36e5;
 var DAY_MS4 = 864e5;
@@ -21760,38 +21921,38 @@ var US_STATES4 = {
 var US_CODES4 = new Set(Object.values(US_STATES4));
 var KEY4 = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe4 = (s2) => s2.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words4 = (min, max) => z27.string().transform((s2) => stripUnsafe4(s2).trim()).pipe(z27.string().min(min).max(max));
-var LeadSearchPlanSchema4 = z27.object({
-  version: z27.number().int().min(1),
-  card: z27.literal("local_businesses"),
+var words4 = (min, max) => z28.string().transform((s2) => stripUnsafe4(s2).trim()).pipe(z28.string().min(min).max(max));
+var LeadSearchPlanSchema4 = z28.object({
+  version: z28.number().int().min(1),
+  card: z28.literal("local_businesses"),
   name: words4(2, 80),
   asked: words4(1, 400),
-  terms: z27.array(words4(2, 60)).min(1).max(5),
-  area: z27.object({
-    kind: z27.enum(["zip", "city", "radius"]),
+  terms: z28.array(words4(2, 60)).min(1).max(5),
+  area: z28.object({
+    kind: z28.enum(["zip", "city", "radius"]),
     label: words4(2, 80),
-    state: z27.string().regex(/^[A-Z]{2}$/),
-    center: z27.object({ lat: z27.number().min(-90).max(90), lng: z27.number().min(-180).max(180) }).nullable(),
-    radius_m: z27.number().int().min(500).max(2e5),
-    zip: z27.string().regex(/^\d{5}$/).optional(),
+    state: z28.string().regex(/^[A-Z]{2}$/),
+    center: z28.object({ lat: z28.number().min(-90).max(90), lng: z28.number().min(-180).max(180) }).nullable(),
+    radius_m: z28.number().int().min(500).max(2e5),
+    zip: z28.string().regex(/^\d{5}$/).optional(),
     query: words4(2, 120)
   }),
-  count: z27.number().int().min(1).max(LEAD_MAX_PLACES4),
-  contact: z27.enum(["phone", "email"]),
-  criteria: z27.array(
-    z27.object({
-      key: z27.string().regex(KEY4),
+  count: z28.number().int().min(1).max(LEAD_MAX_PLACES4),
+  contact: z28.enum(["phone", "email"]),
+  criteria: z28.array(
+    z28.object({
+      key: z28.string().regex(KEY4),
       text: words4(2, 120),
-      standard: z27.enum(["likely", "seen"]),
-      required: z27.boolean()
+      standard: z28.enum(["likely", "seen"]),
+      required: z28.boolean()
     })
   ).max(8),
-  exclusions: z27.array(
-    z27.object({
-      key: z27.string().regex(KEY4),
+  exclusions: z28.array(
+    z28.object({
+      key: z28.string().regex(KEY4),
       text: words4(2, 80),
-      origin: z27.enum(["claude", "you_said"]),
-      category_key: z27.string().regex(KEY4).optional()
+      origin: z28.enum(["claude", "you_said"]),
+      category_key: z28.string().regex(KEY4).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -23551,6 +23712,11 @@ var EVENT_KINDS4 = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -24338,10 +24504,10 @@ var PARTNER_WORDS4 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN4} to ${PARTNER_CODE_MAX4} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -24360,7 +24526,7 @@ var PARTNER_WORDS4 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -24441,6 +24607,32 @@ var PartnerSecondFactorResetSchema4 = z214.object({
   partner_id: z214.string().uuid("That partner does not exist."),
   why: z214.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
+var PARTNER_INVITE_DAYS4 = 14;
+var PartnerInviteSchema4 = z224.object({
+  code: z224.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS4 = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS4} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,
