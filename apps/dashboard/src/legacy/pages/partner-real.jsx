@@ -435,7 +435,7 @@ const PanePartner = ({ flash }) => {
   );
 };
 
-// The workspaces asking this partner to join them (0018): each says who asked and until when. Joining says whether it
+// The workspaces asking this partner to join them (0020): each says who asked and until when. Joining says whether it
 // earns a share, here on the pane, and the partner's workspaces are read again so it is there to open.
 const PartnerInvitations = ({ api, flash, onJoined }) => {
   const W = api.inviteWords;
@@ -484,7 +484,7 @@ const PartnerInvitations = ({ api, flash, onJoined }) => {
   );
 };
 
-// Settings › Team, below the team (0018): the workspace's partner, or asking one by their code. The owner's alone: for
+// Settings › Team, below the team (0020): the workspace's partner, or asking one by their code. The owner's alone: for
 // anyone else the read is refused and nothing is drawn, and an owner's View as another role sees what that role does.
 const TeamPartnerCard = ({ flash }) => {
   const api = window.__partner;

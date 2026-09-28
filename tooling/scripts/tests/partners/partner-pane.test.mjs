@@ -429,7 +429,7 @@ test("two-step sign-in: on says so; a project without it switched on says that; 
   assert.equal(byTestId(tree, "partner-second-factor-start"), null, "never offered on a guess");
 });
 
-/* ------------------------------------------------------------ a workspace asks a partner (0018) */
+/* ------------------------------------------------------------ a workspace asks a partner (0020) */
 
 /** An answer, then the card's own read again: two turns of the stub React before the tree says what was read. */
 const reread = async (paint) => {

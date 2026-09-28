@@ -1902,7 +1902,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
     </div>
   );
 };
-const TeamWithPartner = ({ flash }) => (window.PanePartner ? <window.PanePartner.Team flash={flash} /> : <TeamSection flash={flash} />); // Team, with its partner card (0018)
+const TeamWithPartner = ({ flash }) => (window.PanePartner ? <window.PanePartner.Team flash={flash} /> : <TeamSection flash={flash} />); // Team, with its partner card (0020)
 window.SettingsPage = SettingsPage;
 window.SET_TABS = SET_TABS;
 window.SET_TABS_PLATFORM = SET_TABS_PLATFORM; // the rail above decides who sees it

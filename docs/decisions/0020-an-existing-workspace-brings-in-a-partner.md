@@ -1,8 +1,12 @@
-# 0018 · An existing workspace brings in a partner
+# 0020 · An existing workspace brings in a partner
 
 **Status:** decided and built on the branch this note ships with (00225), on `6aba49b6` (main, 27 September 2026,
 after #1200). Ruben asked for it after trying it (a workspace he owned could not take on a partner) and left the
 shape to this note. Where this note and the code disagree, the code wins.
+
+Numbered 0018 until 28 September: #1205's note on the job lanes was opened first under 0018 and #1244 took 0019, so
+this one is 0020. 00225's header still says 0018: the migration was applied to production under that text, and an
+applied migration is never edited.
 
 ## Context
 

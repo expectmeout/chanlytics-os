@@ -673,7 +673,7 @@ export async function forgetEvent(db: Db, id: string, lease: string): Promise<vo
 /**
  * The bells a payment event rings, beside the row facts it keeps. A paid invoice that took no money (a trial's $0 first
  * invoice, a full discount) is not a payment and stamps nothing: last_paid_at says the workspace has paid, which
- * Billing shows and 0018 reads to decide whether a partner joining it earns. `amountPaid` absent is a payment.
+ * Billing shows and 0020 reads to decide whether a partner joining it earns. `amountPaid` absent is a payment.
  */
 export async function notePayment(
   db: Db,

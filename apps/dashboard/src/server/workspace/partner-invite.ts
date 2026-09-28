@@ -6,7 +6,7 @@ import { edgeConfigured, edgeHeaders, edgeUrl } from "../edge";
 const PARTNER_MAIL_TIMEOUT_MS = 8000;
 
 /**
- * An existing workspace asks a partner to join it (decision 0018): the half the database cannot do, which is telling
+ * An existing workspace asks a partner to join it (decision 0020): the half the database cannot do, which is telling
  * the partner. A partner always has an account, so the edge writes to it (partner-invite), by the address on that
  * account, never one the owner typed. Never throws: the invitation is on record, the partner's pane shows it, and a
  * send that failed can be asked again.

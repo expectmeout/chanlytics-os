@@ -181,7 +181,7 @@ test("invoice.paid that earns nothing: a one-time payment, a zero, and a payment
   assert.equal(
     zero.seen.some((s) => s.table === "billing_accounts" && s.op === "update"),
     false,
-    "a $0 invoice (a trial's first) is not a payment: last_paid_at stays as it was (0018 reads it)",
+    "a $0 invoice (a trial's first) is not a payment: last_paid_at stays as it was (0020 reads it)",
   );
   assert.deepEqual((await deliver("invoice.payment_failed", invoice({ id: "in_3" }))).body, { ok: true });
   assert.deepEqual(d.calls, []);

@@ -1,5 +1,5 @@
 /**
- * An existing workspace brings in a partner (decision 0018), run: the words (a code or a whole link, the owner's card
+ * An existing workspace brings in a partner (decision 0020), run: the words (a code or a whole link, the owner's card
  * in each state, what joining says, the partner's email); the six routes over a database in memory, each declaring
  * its policy and mapping the functions' own refusals; joining asking for the second factor before the database is
  * asked; the email's one way (the edge, by the partner's own address); and the edge's door, which writes only to the

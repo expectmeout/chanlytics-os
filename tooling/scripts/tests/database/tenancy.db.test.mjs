@@ -345,7 +345,7 @@ before(async () => {
   const code = `tenancy-${Date.now().toString(36)}`;
   ctx.partner = await seed("partners", { user_id: ctx.partnerUserId, code });
   await seed("partner_tenants", { tenant_id: A, partner_id: ctx.partner, code_used: code }, null);
-  // An owner's invitation to a partner (0018): read by the owner and the partner it names, written by functions.
+  // An owner's invitation to a partner (0020): read by the owner and the partner it names, written by functions.
   await seed("partner_invitations", invitation(), null);
   probes.push(["partner_invitations", "tenant_id", A]);
   await seed("partner_earnings", earning(`evt_tenancy_${key}`), null);

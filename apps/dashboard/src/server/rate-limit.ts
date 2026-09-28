@@ -136,9 +136,9 @@ export const RATE = {
   partner_handover: { limit: 20, windowMs: 3_600_000, noun: "workspaces handed over" },
   /** The owner's answer to a handover (0016): accept or decline, pressed by hand. */
   handover_answer: { limit: 30, windowMs: 3_600_000, noun: "handover answers" },
-  /** An owner asks a partner to join, or takes it back (0018): each writes to a partner, so the ceiling is a working session's. */
+  /** An owner asks a partner to join, or takes it back (0020): each writes to a partner, so the ceiling is a working session's. */
   partner_invite: { limit: 20, windowMs: HOUR_MS, noun: "partner invitations" },
-  /** A partner's answer to a workspace that asked (0018): join or decline, pressed by hand. */
+  /** A partner's answer to a workspace that asked (0020): join or decline, pressed by hand. */
   partner_invite_answer: { limit: 30, windowMs: HOUR_MS, noun: "invitation answers" },
   /**
    * The back office's partner verbs (0012, P5): a person's decision on a workspace a partner brought, and a payout

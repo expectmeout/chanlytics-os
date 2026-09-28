@@ -1,5 +1,5 @@
 /**
- * An existing workspace brings in a partner (decision 0018).
+ * An existing workspace brings in a partner (decision 0020).
  *
  * The pure half: what the owner types, what the owner's card and the partner's pane say, and the email the partner
  * is sent. The fourteen days and the rule on credit are the database's (00225); they are restated here only to be

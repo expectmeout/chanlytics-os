@@ -1,5 +1,5 @@
 /**
- * POST /api/admin/partner-invite — a workspace's owner asked a partner to join it (decision 0018): this tells the
+ * POST /api/admin/partner-invite — a workspace's owner asked a partner to join it (decision 0020): this tells the
  * partner, by email, which workspace and where to answer.
  *
  * The dashboard's team route calls it after partner_invite, from production only, and treats a failure as a shrug

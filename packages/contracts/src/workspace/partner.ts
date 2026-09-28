@@ -416,11 +416,11 @@ export interface PlatformPartnerWorkspaceDto {
   standing_at: string | null;
   /**
    * Who decided it: the sweep's checks ('sweep'), a person in the back office ('person'), or the rule as a partner
-   * joined a workspace that was already paying ('joining', 0018). Null until it is judged.
+   * joined a workspace that was already paying ('joining', 0020). Null until it is judged.
    */
   decided_by: string | null;
   checks: Record<string, unknown> | null;
-  /** How the partner came: link, handover or invite (0018). Absent from a database before 00225. */
+  /** How the partner came: link, handover or invite (0020). Absent from a database before 00225. */
   origin?: string | null;
 }
 

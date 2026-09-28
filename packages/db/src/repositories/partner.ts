@@ -37,7 +37,7 @@ export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
 
 /**
  * How many workspaces the caller brought (their partner_tenants rows, which partner_tenants_partner_select lets them
- * read): through their link, set up and accepted by an owner (0016), or joined at an owner's invitation (0018); one
+ * read): through their link, set up and accepted by an owner (0016), or joined at an owner's invitation (0020); one
  * still waiting for its owner is not brought yet. The same count whether or not they still sit on each team. On a database 00214 has not reached every
  * row is a link's. Null when it cannot be read.
  */
@@ -425,10 +425,10 @@ export async function getHandoverInvite(db: Db, tenantId: string): Promise<Hando
   };
 }
 
-/* ------------------------------------------------------------------------ a workspace asks a partner (0018) */
+/* ------------------------------------------------------------------------ a workspace asks a partner (0020) */
 
 /**
- * An existing workspace brings in a partner (decision 0018, 00225): its owner names them by code, and they accept.
+ * An existing workspace brings in a partner (decision 0020, 00225): its owner names them by code, and they accept.
  * Every write is a function that checks the caller; the verbs below answer the value, or the function's own code and
  * words, as the handover's do.
  */

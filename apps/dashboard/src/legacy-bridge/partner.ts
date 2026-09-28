@@ -81,7 +81,7 @@ export interface PartnerApi {
   /** The daily letter on or off (0014). The surface is written from the answer, so the switch shows what is kept. */
   setLetters(on: boolean): Promise<{ ok: boolean; message: string }>;
   inviteWords: typeof PARTNER_INVITE_WORDS;
-  /** The workspaces asking this partner to join them (0018), each as its row says it. */
+  /** The workspaces asking this partner to join them (0020), each as its row says it. */
   invitations(): Promise<
     { ok: true; rows: { workspaceId: string; sentence: string }[] } | { ok: false; message: string }
   >;
@@ -90,7 +90,7 @@ export interface PartnerApi {
    * the partner stays on their pane to read it, and the workspace is in their list to open.
    */
   answer(workspaceId: string, join: boolean): Promise<{ ok: boolean; message: string }>;
-  /** The open workspace's partner, as its owner manages it on Team (0018). */
+  /** The open workspace's partner, as its owner manages it on Team (0020). */
   team: {
     /** `code` is the refusal's: "forbidden" for anyone but an owner, whose Team shows no card. */
     read(): Promise<{ ok: true; vm: WorkspacePartnerVM } | { ok: false; code: string; message: string }>;

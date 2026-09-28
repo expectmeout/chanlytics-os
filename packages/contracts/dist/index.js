@@ -12569,7 +12569,7 @@ var EVENT_KINDS = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
-  // An existing workspace asks a partner to join it (0018): asked (again, on a second ask), taken back, joined, declined.
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
   "partner.invited",
   "partner.invite_withdrawn",
   "partner.invite_accepted",

@@ -22,7 +22,7 @@ once it is built: it is the record of why the code has that shape.
 | [0015](0015-the-shell-leaves-surface-by-surface.md)             | The shell leaves, one surface at a time                    | Proposed, not built; Ruben's to accept                                                                                                                            |
 | [0016](0016-a-partner-sets-up-a-workspace-and-hands-it-over.md) | A partner sets up a workspace and hands it to its owner    | Built with the note (00214, #1177)                                                                                                                                |
 | [0017](0017-a-lead-reply-is-drafted-on-its-reading.md)          | A lead's reply is drafted on its reading                   | Decided, not built (Reach out Part 5's PR 5 builds it)                                                                                                            |
-| [0018](0018-an-existing-workspace-brings-in-a-partner.md)       | An existing workspace brings in a partner                  | Built with the note (00225)                                                                                                                                       |
+| [0020](0020-an-existing-workspace-brings-in-a-partner.md)       | An existing workspace brings in a partner                  | Built with the note (00225)                                                                                                                                       |
 
 Open pull request #1039, the pricing note, is written as 0011, which the bearer token has held since #1149: it
 takes the next free number when it lands. A number never changes once it is on `main`.
