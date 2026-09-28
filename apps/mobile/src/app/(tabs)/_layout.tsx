@@ -25,7 +25,9 @@ export default function TabsLayout() {
   const needs = useShell((s) => s.needs);
   const ink = THEME_INK[useColorScheme() === "dark" ? "dark" : "light"];
   return (
-    <NativeTabs tintColor={ink} labelStyle={{ color: ink }}>
+    // Every tab says its name, on Android as on iOS: Material's own default for five tabs names only the one in front,
+    // which left four bare icons on a phone (the walk of 28 September).
+    <NativeTabs tintColor={ink} labelStyle={{ color: ink }} labelVisibilityMode="labeled">
       {TABS.map((t) => (
         <NativeTabs.Trigger
           key={t.name}
