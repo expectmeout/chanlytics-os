@@ -854,7 +854,7 @@ test("calls: a key the provider refuses (401, 403) leaves every row as it was an
     assert.equal(status, 503, JSON.stringify(body));
     assert.deepEqual(
       [body.ok, body.error, body.provider_status],
-      [false, "provider_refused_key", refused],
+      [false, "provider_unauthorized", refused],
       "the answer names the fault, inside the two hundred characters the health mail quotes",
     );
     assert.deepEqual(

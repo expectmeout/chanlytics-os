@@ -368,7 +368,7 @@ export async function POST(request: Request): Promise<Response> {
   if (provider.keyRefused !== null)
     return json(503, {
       ok: false,
-      error: "provider_refused_key",
+      error: "provider_unauthorized",
       provider_status: provider.keyRefused,
       ...counts,
       purge,
