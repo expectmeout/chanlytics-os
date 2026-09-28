@@ -854,6 +854,30 @@ the one migration, held for Ruben. PR 5.7: Phase 5 closed. **Proof:** two-turn h
 the previous turn's request; two-turn eval cases; a real two-turn run with no 400 and the first turn read from the
 cache; the first db test that runs the scrub.
 
+**Phase 5, landed** (28 Sep 2026). PR 5.0 (#1240), PR 5.1 (#1251), PR 5.2 (#1256), PR 5.3 (#1261), PR 5.4 (#1282),
+PR 5.5 (#1289) and PR 5.6 (#1284), each merged on green; 5.6's migration went to production on Ruben's yes before its
+merge, as `00238` (#1281 had taken `00237`). What landed beyond the plan: 5.3's raw turn stores the page's rows, whole
+threads and transcripts, the workspace's customers rather than the person's own words, so on Ruben's call a second
+migration, `00236` (#1264), made both Ask tables readable only while the reader belongs to the row's workspace
+(nothing deleted; a member added back reads them again), pushed and merged before 5.3. 5.4's round-one bound is
+360,000 characters, derived from 5.3's heaviest measured turn (700,000 less 333,141, less the envelope and a margin),
+not the plan's 400,000; what the person did with cards since the last answer is told once in the new question's words,
+keyed by record, never by editing an earlier message; and its one Rise is a second call site reading `ask_messages`
+in Ask's store, so a Line read never ships raws. 5.5 keeps the question and answer pairs and makes each answer one
+line (at most twelve turns and 16,000 characters, the oldest dropped whole), frozen on its cold turn with what it
+told; a row an earlier answer named is citable without a new read, anything about it read again; "open the second" is
+the open thread's last answer's item (contracts `itemFocus`), with a focus line in the turn's words. 5.6 refuses
+anyone not being erased, finds every needle in one pass with `strpos` (a `like any` scan over 500 raws of ~400,000
+characters ran 27 s, past the signed-in role's 8 s statement timeout; the function takes 3.6 s), strips a raw whose
+turn's words are clean instead of deleting the turn, sweeps only the person's own empty threads, and takes its
+spellings from the route (`erasureKeys`). The eval set is 90 cases, ten of them two turns in one thread (100 turns a
+pass). Owed by Ruben: the two-turn baseline against `341766f87` (main before 5.4) and again on main, and D12's
+real-key check (a turn 1 that ends in a card, a turn 2 asked on a page; watch `ask_context_rejected`,
+`ask_replay_rejected`, and the shape's `replay` and `cache_hit`). Open: the scrub's scan grows with the raws' size
+times the needles; stripping a raw once its thread is cold would bound it (Ruben's call). The wiring map's memory rows
+(D11, E2, E6, E9) and the erasure wire were re-read at `c3606c450` and republished:
+https://claude.ai/artifact/2iv8uSCuBgYYRt4zNoWQ31
+
 **Phase 6 · The gateway and the budget.** `ask_tokens_day` in SQL; the gateway sums by it; `diagnostics.previous_message_id`
 through the gateway in development; the hop timestamp; the nightly hit-ratio check with its issue. Migration: one
 function (additive). **Proof:** the budget refusal still fires at the line (a db test); the nightly opens an issue on a
