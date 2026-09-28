@@ -6,7 +6,13 @@
 import { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "../lines/line-failure";
 import { formatPhoneDisplay } from "../shared/phone";
 import { agoWords, spanLabel } from "../shared/time";
-import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "../voice/forwarding";
+import {
+  CARRIER_WORDS,
+  FORWARDING_MODE_WORDS,
+  forwardingTestOpen,
+  type Carrier,
+  type ForwardingMode,
+} from "../voice/forwarding";
 import { whyCannotSpend, priceWords, billingDoorOpen } from "../workspace/billing";
 import { capabilityStatus } from "./capabilities";
 import {
@@ -388,7 +394,7 @@ export function keepRow(_i: SetupInputs, ctx: SetupRowContext): SetupRowDraft {
   const kept = fw?.e164 ? (formatPhoneDisplay(fw.e164) ?? fw.e164) : "your number";
   const dest = voiceReady && voice.number ? voiceNum : null;
   const how = f
-    ? `${MODE_WORDS[f.mode as ForwardingMode] ?? "Forwarded"} · ${CARRIER_WORDS[f.carrier as Carrier] ?? "your carrier"}`
+    ? `${FORWARDING_MODE_WORDS[f.mode as ForwardingMode] ?? "Forwarded"} · ${CARRIER_WORDS[f.carrier as Carrier] ?? "your carrier"}`
     : "";
   const title = "The number you already have";
   if (fw && f && fw.forwarding_state === "verified") {

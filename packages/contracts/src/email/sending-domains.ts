@@ -102,7 +102,7 @@ export function normalizeHost(typed: string): string {
   return typed.trim().toLowerCase().replace(/\.$/, "");
 }
 
-const HOST = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
+const DOMAIN_NAME = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
 /** Why this cannot be a sending domain, in a sentence; null when it can (whether it is free is the table's to say). */
 export function whyNotASendingHost(typed: string, platform: { mailDomain: string | null }): string | null {
@@ -110,7 +110,7 @@ export function whyNotASendingHost(typed: string, platform: { mailDomain: string
   if (!h) return "Write the domain you'll send from, like getyourbusiness.com.";
   if (/[/:@\s]/.test(h)) return "Write the domain alone, like getyourbusiness.com: no https://, no address, no path.";
   if (h.startsWith("www.")) return "Write the domain without www.";
-  if (h.length > 253 || !HOST.test(h)) return "That isn't a domain name. It looks like getyourbusiness.com.";
+  if (h.length > 253 || !DOMAIN_NAME.test(h)) return "That isn't a domain name. It looks like getyourbusiness.com.";
   if (FREE_MAIL_DOMAINS.has(h)) return `${h} is free mail: nobody can add records to it. Use a domain you own.`;
   const mine = platform.mailDomain?.toLowerCase() ?? null;
   const parent = mine ? mine.split(".").slice(-2).join(".") : null;

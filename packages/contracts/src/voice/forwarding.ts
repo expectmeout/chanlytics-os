@@ -33,7 +33,7 @@ export const CARRIER_WORDS: Record<Carrier, string> = {
   office: "An office phone system",
 };
 
-export const MODE_WORDS: Record<ForwardingMode, string> = {
+export const FORWARDING_MODE_WORDS: Record<ForwardingMode, string> = {
   unanswered: "Only calls you don't answer",
   always: "Every call",
 };
