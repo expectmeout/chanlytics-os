@@ -684,11 +684,6 @@
     "branches": 35,
     "depth": 4
   },
-  "apps/edge/api/diag.ts::GET#1": {
-    "lines": 234,
-    "branches": 49,
-    "depth": 3
-  },
   "apps/edge/api/retell-fn.ts::POST#1": {
     "lines": 279,
     "branches": 40,
