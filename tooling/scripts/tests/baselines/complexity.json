@@ -779,11 +779,6 @@
     "branches": 42,
     "depth": 5
   },
-  "packages/channels/src/lines-saga.ts::runLineSaga#1": {
-    "lines": 225,
-    "branches": 41,
-    "depth": 5
-  },
   "packages/channels/src/whatsapp.ts::normalizeInbound#1": {
     "lines": 100,
     "branches": 51,
