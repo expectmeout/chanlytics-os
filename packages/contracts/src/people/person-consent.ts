@@ -1,7 +1,7 @@
 /**
  * What a person said yes or no to, and who may send them what: the consent sources, the refusals, and the three
  * predicates a broadcast, a playbook and a list read (mayReceive, whyNotReceive, saidYesTo). Moved whole from
- * people.ts (Reach out Part 2.5), which re-exports it.
+ * people.ts (Reach out Part 2.5); people/index.ts names it.
  */
 import { type AskedPurpose, mayMessageFor } from "../consent/consent";
 import type { PersonRowVM } from "./person-row";

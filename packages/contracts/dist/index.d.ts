@@ -7024,7 +7024,7 @@ declare function consultsHeldWords(n: number): string;
 /**
  * What a person said yes or no to, and who may send them what: the consent sources, the refusals, and the three
  * predicates a broadcast, a playbook and a list read (mayReceive, whyNotReceive, saidYesTo). Moved whole from
- * people.ts (Reach out Part 2.5), which re-exports it.
+ * people.ts (Reach out Part 2.5); people/index.ts names it.
  */
 
 interface PersonConsent {
@@ -18079,7 +18079,7 @@ declare function callerName(c: NameableCaller): string;
 
 /**
  * What a People list offers to do next (a broadcast to the ones who said yes, the step that gets more), and the
- * page's aggregates. Moved whole from people.ts (Reach out Part 2.5), which re-exports it.
+ * page's aggregates. Moved whole from people.ts (Reach out Part 2.5); people/index.ts names it.
  */
 
 interface PeopleListAction {
