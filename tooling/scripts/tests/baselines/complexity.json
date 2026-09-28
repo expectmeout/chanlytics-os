@@ -1,7 +1,7 @@
 {
   "apps/dashboard/app/api/v1/ask/route.ts::handle#1": {
-    "lines": 227,
-    "branches": 47,
+    "lines": 215,
+    "branches": 40,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::handle#1": {
