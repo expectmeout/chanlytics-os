@@ -18,6 +18,12 @@
  * So the two lists are asserted to be ONE list. Order is part of it — data
  * seeds globals that pages read at module scope — which makes "added at the
  * bottom" as loud as "not added at all".
+ *
+ * The bridge keeps two lists since the demo left the real one: `manifest.ts`,
+ * every file a real workspace draws, and `manifest-demo.ts`, the mockup's own
+ * (legacy/demo/), which the bridge asks for after the first and only in a
+ * session that declared itself a demo. The harness is such a session, so its
+ * list is the first and then the second.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -41,7 +47,9 @@ import {
   handoffE164,
   cleanTimezone,
 } from "@chanlytics/contracts";
+import ts from "typescript";
 import { ROOT, readCode, readRaw } from "../_source.mjs";
+import { parse as parseTs } from "../_ast.mjs";
 
 const LEGACY = "apps/dashboard/src/legacy";
 const html = readRaw(`${LEGACY}/Chanlytics.html`);
@@ -58,12 +66,19 @@ const harness = [...html.matchAll(new RegExp(`<script[^>]*\\bsrc="(${DIR}\\/[^"?
   (m) => m[1],
 );
 
-/** Every legacy file the bridge loads, in order; its seed-globals is the harness's stub file. */
-const manifest = readCode(`${LEGACY}-bridge/manifest.ts`)
-  .split("\n")
-  .map((l) => l.match(new RegExp(`^import "(?:@\\/legacy\\/)?(\\.\\/seed-globals|${DIR}\\/[^"]+\\.jsx)";`)))
-  .filter(Boolean)
-  .map((m) => (m[1] === "./seed-globals" ? STUBS : m[1]));
+/** The files one of the bridge's lists imports, in order, as the harness names them (seed-globals is the stub file). */
+const importsOf = (list) =>
+  parseTs(`${LEGACY}-bridge/${list}`)
+    .statements.filter(ts.isImportDeclaration)
+    .map((s) =>
+      s.moduleSpecifier.text === "./seed-globals" ? STUBS : s.moduleSpecifier.text.replace(/^@\/legacy\//, ""),
+    );
+
+/** Every legacy file the bridge loads for every workspace, in order. */
+const manifest = importsOf("manifest.ts");
+
+/** The mockup's own files, which the bridge loads after those only in a session that declared itself a demo. */
+const demoManifest = importsOf("manifest-demo.ts");
 
 /** The shell, which is where a deleted page keeps its last reference. */
 const shell = readCode(`${LEGACY}/pages/app-shell.jsx`);
@@ -86,11 +101,155 @@ test("the harness loads nothing that is no longer on disk", () => {
   assert.deepEqual(gone, [], `Chanlytics.html loads files that do not exist: ${gone.join(", ")}`);
 });
 
-test("the harness and the bridge load the same files in the same order", () => {
+test("the harness and the bridge load the same files in the same order: every workspace's, then the demo's", () => {
   // Not a set comparison: `data/` seeds globals that `pages/` read at module
   // scope, and people-data mutates clients-data's CLIENT_SEGMENTS. A file in
   // the list but in the wrong place is the same blank page as a file missing.
-  assert.deepEqual(harness, manifest);
+  // The harness is a demo session, so it loads what the app loads in one, in
+  // the app's order: manifest.ts's files, then manifest-demo.ts's.
+  assert.deepEqual(harness, [...manifest, ...demoManifest]);
+});
+
+test("a real workspace loads no file of the demo, and the demo's list holds nothing else", () => {
+  // A demo file in manifest.ts ships the mockup to every workspace again; a file of the app's in manifest-demo.ts is
+  // missing from every workspace but a demo.
+  const isDemo = (f) => f.startsWith("demo/");
+  assert.deepEqual(manifest.filter(isDemo), [], "manifest.ts, which every workspace loads");
+  assert.deepEqual(
+    demoManifest.filter((f) => !isDemo(f)),
+    [],
+    "manifest-demo.ts, which only a demo session loads",
+  );
+});
+
+test("the bridge asks for the demo's files only in a session that declared itself a demo, after its own, and waits", () => {
+  // manifest.ts's last statement before its export is `if (window.__DEMO_MODE) await import("./manifest-demo");`.
+  // Unguarded, a real workspace downloads the demo; not awaited, the shell draws a demo route before its page is
+  // there; above a static import, the demo runs before a file it reads.
+  const sf = parseTs(`${LEGACY}-bridge/manifest.ts`);
+  const asked = [];
+  const visit = (n) => {
+    if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword) asked.push(n);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  assert.deepEqual(
+    asked.map((c) => c.arguments[0].text),
+    ["./manifest-demo"],
+    "one dynamic import, of the demo's list",
+  );
+  const awaited = asked[0].parent;
+  const statement = awaited.parent;
+  const guard = statement.parent;
+  assert.ok(ts.isAwaitExpression(awaited) && ts.isExpressionStatement(statement), "awaited, as a statement");
+  assert.ok(ts.isIfStatement(guard) && guard.thenStatement === statement && !guard.elseStatement, "under an if");
+  assert.equal(guard.expression.getText(sf), "window.__DEMO_MODE", "the demo switch seed-globals.ts sets");
+  const at = sf.statements.indexOf(guard);
+  assert.ok(at > 0, "at the top level of the list");
+  assert.ok(sf.statements.slice(0, at).every(ts.isImportDeclaration), "after every file the list imports");
+  assert.ok(sf.statements.slice(at + 1).every(ts.isExportDeclaration), "and nothing after it but the export");
+});
+
+/** Every name a binding pattern declares, in TypeScript's tree. */
+const tsBound = (b, out) => {
+  if (ts.isIdentifier(b)) out.add(b.text);
+  else if (ts.isObjectBindingPattern(b) || ts.isArrayBindingPattern(b))
+    for (const e of b.elements) if (!ts.isOmittedExpression(e)) tsBound(e.name, out);
+  return out;
+};
+
+/** What a file puts on the harness's one scope: its top-level declarations, and what it publishes on window. */
+const namesSet = (sf) => {
+  const out = new Set();
+  for (const s of sf.statements) {
+    if (ts.isVariableStatement(s)) for (const d of s.declarationList.declarations) tsBound(d.name, out);
+    if ((ts.isFunctionDeclaration(s) || ts.isClassDeclaration(s)) && s.name) out.add(s.name.text);
+  }
+  const isWindow = (e) => !!e && ts.isIdentifier(e) && e.text === "window";
+  const visit = (n) => {
+    if (
+      ts.isBinaryExpression(n) &&
+      n.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isPropertyAccessExpression(n.left) &&
+      isWindow(n.left.expression)
+    )
+      out.add(n.left.name.text);
+    if (ts.isCallExpression(n) && n.expression.getText(sf) === "Object.assign" && isWindow(n.arguments[0]))
+      for (const a of n.arguments.slice(1))
+        if (ts.isObjectLiteralExpression(a)) for (const p of a.properties) if (p.name) out.add(p.name.text);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+};
+
+/**
+ * The names a file reads without declaring them anywhere in itself: a bare identifier in an expression (a JSX tag
+ * included), and `window.<name>`. Declared anywhere in the file counts as declared: coarser than scope, never louder.
+ */
+const namesRead = (sf) => {
+  const declared = new Set();
+  const bare = new Set();
+  const onWindow = new Set();
+  const visit = (n) => {
+    if (ts.isVariableDeclaration(n) || ts.isParameter(n)) tsBound(n.name, declared);
+    if ((ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n) || ts.isClassDeclaration(n)) && n.name)
+      declared.add(n.name.text);
+    if (ts.isPropertyAccessExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "window")
+      onWindow.add(n.name.text);
+    if (ts.isIdentifier(n)) {
+      const p = n.parent;
+      const aName =
+        (ts.isPropertyAccessExpression(p) && p.name === n) ||
+        ((ts.isPropertyAssignment(p) || ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p)) && p.name === n) ||
+        (ts.isBindingElement(p) && p.propertyName === n) ||
+        ts.isJsxAttribute(p) ||
+        ts.isLabeledStatement(p) ||
+        ts.isBreakOrContinueStatement(p);
+      if (!aName) bare.add(n.text);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return { bare: [...bare].filter((n) => !declared.has(n)), onWindow: [...onWindow] };
+};
+
+test("a file every workspace loads names nothing the demo alone defines, but the four forks' seeds, through window", () => {
+  // A real workspace never loads the demo's files, so a bare name only they define is a ReferenceError there: the
+  // route table named the Agents pages, Content, the Deal board and the seeded Lists bare until the demo left the
+  // manifest, and draws them by name through demoPage now. The four real pages that draw their seeded twin where
+  // the bridge has not fed them (calendar, broadcasts, outbound, live-monitor) read it off window at the draw, and
+  // draw nothing where it is absent; a fifth would be a page asking for the demo's data on a real workspace.
+  const own = new Set(manifest.filter((f) => f !== STUBS).flatMap((f) => [...namesSet(parseTs(`${LEGACY}/${f}`))]));
+  const demoOnly = new Set(
+    demoManifest.flatMap((f) => [...namesSet(parseTs(`${LEGACY}/${f}`))]).filter((n) => !own.has(n)),
+  );
+  const FORKS = new Set(["CalendarSeed", "BroadcastsSeed", "OutboundSeed", "LiveMonitorSeed"]);
+  const reads = [];
+  for (const f of manifest.filter((x) => x !== STUBS)) {
+    const { bare, onWindow } = namesRead(parseTs(`${LEGACY}/${f}`));
+    for (const n of bare) if (demoOnly.has(n)) reads.push(`${f}: ${n}`);
+    for (const n of onWindow) if (demoOnly.has(n) && !FORKS.has(n)) reads.push(`${f}: window.${n}`);
+  }
+  assert.deepEqual(reads, []);
+});
+
+test("every page the route table draws through demoPage is one a file of the demo publishes", () => {
+  // demoPage draws nothing for a name that is not there: right on a real workspace, and a blank route in the demo for
+  // a name spelled wrong.
+  const published = new Set(demoManifest.flatMap((f) => [...namesSet(parseTs(`${LEGACY}/${f}`))]));
+  const drawn = [];
+  const visit = (n) => {
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === "demoPage")
+      drawn.push(n.arguments[0].text);
+    ts.forEachChild(n, visit);
+  };
+  visit(parseTs(`${LEGACY}/pages/app-routes.jsx`));
+  assert.ok(drawn.length > 0, "the route table draws the demo's pages through demoPage");
+  assert.deepEqual(
+    drawn.filter((n) => !published.has(n)),
+    [],
+  );
 });
 
 test("every script the harness loads is cache-busted", () => {

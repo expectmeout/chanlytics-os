@@ -1268,7 +1268,7 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 >   - `reply-routes.test.mjs` (the new facts);
 >   - `reply-freeze.test.mjs` (the own address named).
 >
-> - **The workspace route's budget rose, 1006.3 → 1017.5 KB gzipped.** `main` already measured 1015.6 KB, inside the 1% band; the strip, its bridge and its words add 1.9 KB and take it past. The strip draws on every thread a reach-out's reply opened, so it stays on the route; the rise is a row under "Rises" in `docs/debt.md`.
+> - **The workspace route's budget holds.** The strip, its bridge and its words add 1.9 KB gzipped; on the branch's first base that took the route past its band, and the budget was raised, until `main` took the demo off the route (#1210) and the rise was merged away.
 > - **A Part 4 test failed by the clock**, not by this change: `reach-out-approval.test.mjs` expected a run's first send as a bare time, which from 10 PM to midnight in Chicago is tomorrow's. It now says it as the page does (`firstSendWhen`).
 
 ### Task 7.1: The surface
