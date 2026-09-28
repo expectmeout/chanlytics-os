@@ -36,10 +36,10 @@ rows (`docs/debt.md`).
 functions over the limit            207   of which over 200 lines: 64
 files over 800 lines                 29
 directories over 20 modules           7
-window globals                      198   names
-window publishers                   442   sites in 151 files
+window globals                      200   names
+window publishers                   446   sites in 153 files
 copies                              152   of 38 names
-as unknown as                       222
+as unknown as                       221
 table names outside packages/db     533
 unnamed durations                    78   in 35 files
 dead exports, types and modules     165

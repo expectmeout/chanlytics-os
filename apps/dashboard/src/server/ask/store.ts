@@ -106,7 +106,7 @@ export async function readThread(
   messages: AskMessageVM[];
   /** The same turns as the model reads them (modelTurnOf): the history a new turn on this thread is asked with. */
   turns: Array<{ role: "user" | "assistant"; text: string }>;
-  /** The thread may have more rows than the read returns (MESSAGES_CAP): the newest would not be here. */
+  /** The thread may have more rows than the read returns (MESSAGES_CAP): the oldest would not be here. */
   truncated: boolean;
   tenantId: string;
 } | null> {
@@ -117,14 +117,17 @@ export async function readThread(
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!t) return null;
+  // The newest MESSAGES_CAP rows, newest first (the id breaks a tie in the clock, so every read agrees), then put back
+  // in the order they were written: a thread past thirty turns reopens on its latest, and its history ends at the last.
   const { data: msgs, error: merr } = await ctx.supabase
     .from("ask_messages")
     .select("id, role, content, created_at")
     .eq("thread_id", id)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(MESSAGES_CAP);
   if (merr) throw new Error(merr.message);
-  const rows = msgs ?? [];
+  const rows = (msgs ?? []).reverse();
   return {
     thread: toThreadVM(t),
     messages: rows.map(toMessageVM),
@@ -134,6 +137,9 @@ export async function readThread(
   };
 }
 
+/** A scope as the thread's column holds it: its three fields, or none. */
+const scopeColumn = (s: AskScope | null): Json => (s ? { kind: s.kind, id: s.id, label: s.label } : null);
+
 export async function createThread(
   ctx: RouteContext,
   tenantId: string,
@@ -142,7 +148,7 @@ export async function createThread(
 ): Promise<AskThreadVM> {
   const { data, error } = await ctx.supabase
     .from("ask_threads")
-    .insert({ tenant_id: tenantId, user_id: ctx.userId, title, scope: (scope as unknown as Json) ?? null })
+    .insert({ tenant_id: tenantId, user_id: ctx.userId, title, scope: scopeColumn(scope) })
     .select("id, title, scope, last_at, created_at")
     .single();
   if (error) throw new Error(`ask thread: ${error.message}`);
@@ -165,10 +171,14 @@ export async function appendMessage(
   return data;
 }
 
-export async function touchThread(ctx: RouteContext, threadId: string): Promise<void> {
+/**
+ * A turn saved: its thread moves up the list and keeps the scope the turn ran with (the Phase 5 plan, D9), none
+ * included, so the next question sent without one is asked with it. The column grant allows both (00121).
+ */
+export async function touchThread(ctx: RouteContext, threadId: string, scope: AskScope | null): Promise<void> {
   const { error } = await ctx.supabase
     .from("ask_threads")
-    .update({ last_at: new Date().toISOString() })
+    .update({ last_at: new Date().toISOString(), scope: scopeColumn(scope) })
     .eq("id", threadId);
   if (error) console.error("ask_thread_touch_failed", error.message);
 }

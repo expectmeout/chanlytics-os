@@ -130,6 +130,7 @@ test("the domain held or removed: the mailbox's alone, and the composer is told 
     {
       from: "mailbox",
       because: "domain_held",
+      own: "sam@owndomain.example.com",
     },
   );
   const removed = world({ domains: [] });
@@ -139,6 +140,7 @@ test("the domain held or removed: the mailbox's alone, and the composer is told 
     {
       from: "mailbox",
       because: "domain_removed",
+      own: "sam@owndomain.example.com",
     },
   );
   const verified = world();

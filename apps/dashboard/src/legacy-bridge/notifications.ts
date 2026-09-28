@@ -25,6 +25,7 @@ import {
   EMPTY_READ_STATE,
   agoLabel,
   applyReadState,
+  bellActionOf,
   bellSections,
   type BellSectionVM,
   buildNotificationFeed,
@@ -35,6 +36,7 @@ import {
   type NotificationReadState,
   type NotificationRow,
   type NotificationsDto,
+  type ReachOutRepliesDto,
   SERVER_KEY_PREFIX,
   dedupeFeed,
   nameKnownCustomers,
@@ -129,6 +131,8 @@ export function feedFromGlobals(g: Globals, now: number) {
 }
 
 export function toRows(rows: NotificationRow[], now: number): BellRow[] {
+  // A reply to a reach-out whose draft waits says so on its row's door (Reach out Part 5, PR 8; contracts bellActionOf).
+  const readings = (globalThis as { __REPLIES?: ReachOutRepliesDto | null }).__REPLIES?.replies ?? [];
   return rows.map((r) => ({
     id: r.key,
     kind: r.kind,
@@ -139,7 +143,7 @@ export function toRows(rows: NotificationRow[], now: number): BellRow[] {
     title: r.title,
     message: r.message,
     about: r.about ?? null,
-    actions: [{ label: r.action, to: r.to, primary: true }],
+    actions: [{ label: bellActionOf(r, readings), to: r.to, primary: true }],
   }));
 }
 

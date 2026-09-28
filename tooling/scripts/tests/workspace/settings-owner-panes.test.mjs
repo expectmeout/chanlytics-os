@@ -764,3 +764,36 @@ test("the rail asks before a pane holding changes goes, and in words that are tr
     else delete W.__settingsSaving;
   }
 });
+
+test("Notifications lists what is sent in contracts' groups, the Reach-outs group among them, and offers no switch (N2)", async () => {
+  const { NOTIFICATION_KIND_GROUPS } = await import("@chanlytics/contracts");
+  workspace("owner");
+  globalThis.window.__today = { notificationKinds: NOTIFICATION_KIND_GROUPS };
+  try {
+    const tree = settings("notifications");
+    const kinds = byTestId(tree, "notif-kinds");
+    const groups = all(kinds, (n) => n.props?.["data-testid"] === "notif-group");
+    assert.deepEqual(
+      groups.map((g) => textOf(find(g, (n) => n.type === "h3"))),
+      ["Customers", "Reach-outs", "To Chanlytics"],
+    );
+    const reach = groups[1];
+    const rows = all(reach, (n) => n.props?.className === "set-row").map((r) =>
+      textOf(find(r, (n) => n.props?.className === "set-row-label")).trim(),
+    );
+    assert.deepEqual(rows, [
+      "They wrote back",
+      "A reach-out waits for you",
+      "A reach-out holds an email for you",
+      "A sending domain is held, and when it sends again",
+    ]);
+    assert.equal(
+      all(kinds, (n) => n.type === "input" || n.props?.role === "switch").length,
+      0,
+      "rows that say what is sent, never a switch no code reads",
+    );
+    assert.equal(all(groups[2], (n) => n.props?.className === "chip set-notif-platform").length, 2, "to Chanlytics");
+  } finally {
+    delete globalThis.window.__today;
+  }
+});

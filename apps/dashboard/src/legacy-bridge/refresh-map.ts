@@ -30,6 +30,7 @@ import { leadsOverride } from "./leads";
 import { setupOverride } from "./setup";
 import { refreshSurfaces } from "./surface-runner";
 import { reachOutsOverride } from "./reach-out/reach-outs";
+import { repliesOverride } from "./reach-out/replies";
 
 const thread = () => [inboxOverride, conversationsOverride, todayOverride];
 const people = () => [peopleOverride];
@@ -118,6 +119,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE reach-outs/[id]": () => [reachOutsOverride, playbooksOverride, broadcastsOverride, leadsOverride],
   // One held email decided moves its run and its lead, never its chain: the row's counts are its report, read on open.
   "POST reach-out-sends/[id]/decide": () => [broadcastsOverride, playbooksOverride, leadsOverride],
+  // "Read as no · undo" moves the reading, the person's consent and the leads the no closed.
+  "POST reach-out-replies/[id]/undo": () => [repliesOverride, ...thread(), leadsOverride],
   "POST broadcasts/[id]/recheck": runs,
   "POST templates": templates,
   "PUT templates/[id]": templates,

@@ -127,7 +127,7 @@ const runRows = (nav, flash, verbKind, room) => {
         initials="▶"
         glyph="bolt"
         name={r.audience.label}
-        meta="Playbook · ready"
+        meta={words(r).waiting.meta}
         sentence={words(r).waiting.sentence}
         status={words(r).waiting.status}
         tone="escalated"
@@ -178,7 +178,8 @@ const TodayQueue = ({ vm }) => {
     if (!res.ok) ppFlash(window.refusalToast(res, which === "snooze" ? "Not snoozed" : "Not resolved"));
     else if (!said) done();
   };
-  const rows = vm.queue.rows;
+  // A handoff whose thread's reply to a reach-out was read is that reply's row (contracts withReplies, PR 8).
+  const rows = window.__today && window.__today.withReplies ? window.__today.withReplies(vm.queue.rows) : vm.queue.rows;
   // One primary verb on the page: the first row's. Every other verb is drawn, quietly.
   let primaryLeft = true;
   const verbKind = () => { const k = primaryLeft ? "primary" : "ghost"; primaryLeft = false; return k; };
