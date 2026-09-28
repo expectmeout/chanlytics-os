@@ -138,13 +138,21 @@ Copy the shape of these; do not invent a second one.
 - A read or write of a table: `packages/db`.
 - An HTTP door for a provider, a sweep, or the job runner: `apps/edge/api`.
 - What such a door calls: `apps/edge/lib/<domain>/`, and `apps/edge/lib` itself for the
-  plumbing every domain uses. A new domain earns a directory at its second module.
+  plumbing every domain uses.
 - A member-facing route: `apps/dashboard/app/api/v1`.
 - What such a route calls: `apps/dashboard/src/server/<domain>/`, and `src/server` itself for the
   plumbing every domain uses (`route.ts`, `with-route.ts`, `edge.ts`, `tenant.ts` and their kind).
 - Something a page draws: `apps/dashboard/src/legacy/pages`, fed through `src/legacy-bridge`.
 - A test: `tooling/scripts/tests/<domain>/`, named for what it proves; a world or helper it
   shares stays at the root as `_name.mjs`.
+
+A domain earns a folder at its second module. Until then it is one module at its tree's root, beside
+the plumbing, named for the domain (`apps/edge/lib/notes.ts`). That holds in each package's `src`,
+`apps/dashboard/src/server`, `apps/edge/lib`, `tooling/scripts` and `apps/mobile/src` (in contracts,
+whose root is plumbing only, a lone module joins the domain it belongs with), and not in the URL
+trees, where a folder is a path (`apps/dashboard/app`, `apps/edge/api`, the phone app's `src/app`).
+`tooling/scripts/tests/repo/contracts-barrels.test.mjs` fails a folder of one module; an exception is
+listed there with its date and the program it waits on.
 
 ## What not to introduce
 

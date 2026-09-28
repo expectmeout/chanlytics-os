@@ -85,11 +85,16 @@ fails on drift.
 per URL, grouped as the URLs are (`admin/`, `cron/`). `apps/edge/lib` is
 everything the doors call, grouped by domain: `receptionist/` (what it decides
 and says), `whatsapp/`, `sms/`, `email/`, `voice/`, `lines/`, `leads/`,
-`calendar/`, `google/`, `ops/` (who gets told). A domain earns a directory
-when it has more than one module; a domain that is one module sits at the
-root, beside the edge's own plumbing: the environment, the logger, the HTTP
-shapes, the Postgres handle, pagination, the two door guards, the control-plane
-door, and the erasure check.
+`calendar/`, `google/`, `ops/` (who gets told). A domain earns a directory at
+its second module; a domain that is one module sits at the root (`notes.ts`,
+the note sweep), beside the edge's own plumbing: the environment, the logger,
+the HTTP shapes, the Postgres handle, pagination, the two door guards, the
+control-plane door, and the erasure check. The same rule holds in every tree
+the code is grouped by domain in (each package's `src`, the dashboard's
+`src/server`, `tooling/scripts`, the phone app's `src`), and not in the URL
+trees, where a folder is a path (`apps/edge/api`, `apps/dashboard/app`, the
+phone app's `src/app`); `tooling/scripts/tests/repo/contracts-barrels.test.mjs`
+holds it.
 
 ## The four doors
 
