@@ -3283,7 +3283,7 @@ declare function partnerLetter(news: PartnerLetterNews, opts: {
  *   ReachOutChainSchema,     a chain as the sheet saves it: its name, its search, its steps and their days, its pace,
  *   validateReachOutChain    its domains, and what its words ask the workspace to have
  *   checkOpening             an opening as the writer wrote it, read by code (F2)
- *   chainOf, customerDomainOf    the check's two code holds (F4, F6); a business's own site is lead-search's siteHost
+ *   chainOf, customerDomainOf    the check's two code holds (F4, F6); a business's own site is the lead cleaner's siteHost
  *   holdWords, holdDoors     what a held send says, and what its owner can do about it (F3)
  */
 
@@ -9534,80 +9534,12 @@ declare const PUSH_RECEIPTS_AFTER_MS: number;
 /** The window the bell counts over: the thirty days its route keeps. */
 declare const BELL_WINDOW_DAYS = 30;
 
-/** One place, as the judge is shown it. Every string is capped at LEAD_FACT_MAX and stripped of control characters by judgeUserContent. */
-interface PlaceFacts {
-    ref: number;
-    name: string;
-    category: string | null;
-    city: string | null;
-    state: string | null;
-    host: string | null;
-    rating: number | null;
-    reviews: number | null;
-    /** The cleaned candidates, in the cleaner's order; the judge picks one by index. */
-    emails: string[];
-    /** The listing's number equals one on their site; null when the listing has no number. */
-    phone_matches_site: boolean | null;
-}
-/** The keys a criterion's answer may cite: the facts, by name. */
-declare const JUDGE_FACT_KEYS: readonly ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
-type JudgeFactKey = (typeof JUDGE_FACT_KEYS)[number];
-type JudgeCriterionAnswer = "pass" | "fail" | "unknown";
-interface JudgePlaceAnswer {
-    ref: number;
-    criteria: {
-        key: string;
-        answer: JudgeCriterionAnswer;
-        facts: string[];
-    }[];
-    /** Into PlaceFacts.emails; null when none of them is the business's own. */
-    email_index: number | null;
-    /** Twelve words or fewer. */
-    reason: string;
-}
 /**
- * Hand-written, the shape apps/edge/lib/receptionist/brain.ts sends in production: every
- * property required, additionalProperties false, and no length or range
- * keywords (the API does not enforce them; the parser caps and checks after).
+ * The lead finder's closed sets, as the database stores them: a search's via; a round's purpose, state, ending and
+ * answer; a run's purpose and state; a lead's email state, stage and closing reason; a place's class and fit in a
+ * search; the kinds of counter, operation, preference and suppression, and a suppression's reason. The rules that
+ * read them are the modules beside this one.
  */
-declare const JUDGE_OUTPUT_SCHEMA: Record<string, unknown>;
-/**
- * What the rubric asks under each key, in the order it asks: the kind (worded with the plan's name), every criterion
- * with its standard, every exclusion. judgeSystemPrompt's lines, and what judgeAsked fingerprints.
- */
-declare function judgeQuestions(plan: LeadSearchPlan): Record<string, string>;
-/**
- * A short digest of each key's question, kept with an answer: a later plan reuses the answer only where it asks the
- * very same question. A key alone is not enough -- "Change what I asked" can keep every key and change the kind of
- * business, or a criterion's words, and an answer to the old question would stand for the new one.
- */
-declare function judgeAsked(plan: LeadSearchPlan): Record<string, string>;
-/**
- * The criteria with their standards, and the exclusions as criteria the place
- * must not be. A seen standard must cite a fact key; a likely one may be
- * Claude's read of the facts. Unknown when the facts do not say.
- */
-declare function judgeSystemPrompt(plan: LeadSearchPlan): string;
-/** Each place's facts, capped and stripped, as quoted JSON inside a <places> block. */
-declare function judgeUserContent(places: PlaceFacts[]): string;
-/**
- * The answer, read by code. Rejected whole when a place is missing or answered
- * twice, a ref is not among the places, a criterion key is not the plan's or
- * is answered twice or not at all, a fact key is not one the place has, or an
- * email index is out of range. The reason is capped to twelve words.
- */
-declare function parseJudgeAnswer(raw: unknown, plan: LeadSearchPlan, places: PlaceFacts[]): {
-    ok: true;
-    answers: JudgePlaceAnswer[];
-} | {
-    ok: false;
-    why: string;
-};
-/** SHA-256 of a UTF-8 string, as lower-case hex. */
-declare function sha256Hex(text: string): string;
-/** The judge's operation id for one batch: sha256 hex of `${runId}:${fromOffset}:${batch}`, so a replayed page finds its answer and pays nothing (E4). */
-declare function judgeOpId(runId: string, fromOffset: number, batch: number): string;
-
 declare const LEAD_SEARCH_VIAS: readonly ["people", "ask"];
 type LeadSearchVia = (typeof LEAD_SEARCH_VIAS)[number];
 declare const LEAD_ROUND_PURPOSES: readonly ["probe", "main", "topup", "renew"];
@@ -9637,329 +9569,6 @@ declare const LEAD_OPERATION_KINDS: readonly ["undo_search", "keep", "exclude", 
 declare const LEAD_PREFERENCE_KINDS: readonly ["chain", "wrong_kind", "too_far"];
 declare const LEAD_SUPPRESSION_KINDS: readonly ["email", "place", "phone", "domain"];
 declare const LEAD_SUPPRESSION_WHATS: readonly ["email_opt_out", "customer", "erased", "said_no"];
-/** §16.7, 18: Qualified leads a month, by the workspace's calendar month. */
-declare const LEAD_MONTHLY_ALLOWANCE = 500;
-/** §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. */
-declare const LEAD_MONTHLY_BUDGET_USD = 25;
-declare const LEAD_DAY_CAP_USD = 10;
-declare const LEAD_PLATFORM_DAY_CAP_USD = 50;
-/** §16.5: under this share of Qualified among the first places, the round stops and asks. */
-declare const LEAD_QUESTION_THRESHOLD = 0.6;
-/** Below this many judged places the question is not asked: too little to go on. */
-declare const LEAD_QUESTION_MIN_EVIDENCE = 10;
-declare const LEAD_PROBE_PLACES = 25;
-declare const LEAD_JUDGE_BATCH = 25;
-declare const LEAD_MAX_PLACES = 1000;
-/** Every fact a place gives the judge is cut to this many characters (§7.1). */
-declare const LEAD_FACT_MAX = 120;
-/** The judge's one reason, in words (§0.1). */
-declare const LEAD_REASON_MAX_WORDS = 12;
-/**
- * The engine's own first criterion, on every plan: the place is the kind of
- * business the search names (PRD §7 step 4, "the right kind of business or
- * not"). It is not one the owner writes and not one the plan stores -- the
- * rubric asks it, the class rule reads it, the validator expects it, all by
- * this key -- because the first real searches showed what happens without
- * it: a photographer prospecting wedding planners was handed two other
- * photographers, a band and a caterer as Qualified, since the only criterion
- * on the plan was "could recommend a photographer", and all of them could.
- * A likely standard, because its evidence IS the name and category, which a
- * seen standard is not allowed to rest on.
- */
-declare const LEAD_KIND_KEY = "kind";
-/** What the Excluded chip says for a place that was the wrong kind: "Not a wedding planner". */
-declare const leadKindWord: (name: string) => string;
-/**
- * A place with no phone and no email is not a lead. It used to reach Needs
- * review as "phone:none" or "email:none" -- work dressed as a lead, and the
- * largest share of the review pile on the first five real searches. It is
- * left out under this key, and the chip says why (leads.ts leadExclusionWord).
- */
-declare const LEAD_UNREACHABLE_KEY = "unreachable";
-/** The yield assumed before a probe has measured one: half the places asked for qualify. The card's minutes and the route's estimate both read it. */
-declare const LEAD_ASSUMED_YIELD = 0.5;
-/** A round's estimate is reserved with this much room (§13.3: the cap is the estimate with room). */
-declare const LEAD_ESTIMATE_MARGIN = 1.3;
-/** The main round asks for the remainder over the probe's yield, clamped here (S6). */
-declare const LEAD_ASK_MIN_FACTOR = 1.2;
-declare const LEAD_ASK_MAX_FACTOR = 4;
-/** An unanswered question ends the round after this long (§0.5). */
-declare const LEAD_QUESTION_WAIT_MS: number;
-type LeadContactStandard = "phone" | "email";
-/**
- * A lead's phone, as the count reads it (decision 0010): `ok` when it dials (contracts phoneDialable), `invalid` when a
- * number is there and does not, `none` when there is none.
- */
-type LeadPhoneState = "ok" | "invalid" | "none";
-declare function leadPhoneState(phone: string | null | undefined): LeadPhoneState;
-/** likely: Claude's read is enough. seen: a fact the card can show, cited by key (§0.1, 26). */
-type LeadCriterionStandard = "likely" | "seen";
-interface LeadCriterion {
-    key: string;
-    text: string;
-    standard: LeadCriterionStandard;
-    required: boolean;
-}
-/** A "Leaving out" chip. The judge answers it as a required criterion: `fail` means the place is what is left out. */
-interface LeadExclusion {
-    key: string;
-    text: string;
-    origin: "claude" | "you_said";
-    category_key?: string;
-}
-interface LeadArea {
-    kind: "zip" | "city" | "radius";
-    /** As the sentence says it: "Austin, TX". */
-    label: string;
-    /** Two letters. */
-    state: string;
-    /** Null for a city ask until the probe's coordinates give one, or a ZIP ask until A2 derives it from the ZCTA table (§12.5, 31). */
-    center: {
-        lat: number;
-        lng: number;
-    } | null;
-    radius_m: number;
-    zip?: string;
-    /** The card's own location query, built from the validated plan. */
-    query: string;
-}
-interface LeadSearchPlan {
-    version: number;
-    card: "local_businesses";
-    /** Who is sought, plural, as the sentence says it: "personal trainers". */
-    name: string;
-    /** The owner's words, at most 400 characters. */
-    asked: string;
-    terms: string[];
-    area: LeadArea;
-    count: number;
-    contact: LeadContactStandard;
-    criteria: LeadCriterion[];
-    exclusions: LeadExclusion[];
-}
-/** The route's input and the door's: the same shape, checked twice on purpose. */
-declare const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan>;
-/**
- * The plural the sentence calls them, with the area taken out of it (§8.3).
- * `name` is the model's own words, and a model asked for a plural writes the
- * place into it ("Hair salons in Brooklyn"), which the sentence then says
- * twice. A trailing place clause whose words are the area's is dropped; a
- * clause about something else ("pharmacies inside supermarkets") is kept. With
- * nothing left, the terms say who is sought, since those are the words the
- * source is actually searched with.
- */
-declare function planWho(plan: LeadSearchPlan): string;
-/**
- * Where the sentence says to look, with exactly one preposition -- code's, not
- * the model's. A label that already says where it is ("in Brooklyn, NY",
- * "within 25 miles of Austin") is said as it stands; anything else gets "in".
- */
-declare function planWhere(area: LeadArea): string;
-/**
- * The area as a bare noun, for a sentence that supplies its own preposition
- * ("There are 3 personal trainers in Austin, TX"): the label with a leading
- * place word and a radius phrase taken off, so nothing says "in" twice.
- */
-declare function planArea(area: LeadArea): string;
-/** One part of the plan's sentence: plain words, or a word the plan card makes a picker of. */
-interface LeadPlanWord {
-    text: string;
-    /** Which picker this word opens on the card; null for the words between the pickers. */
-    pick: "count" | "who" | "where" | "criterion" | "contact" | null;
-    /** The criterion this word is, for a criterion picker. */
-    key?: string;
-}
-/**
- * The plan as the words of one sentence, each marked with the picker it opens
- * (§7 step 2, §8.3): "Find 200 personal trainers in Austin, TX with a website,
- * then find their email and check it." The count, the plural, the area, each
- * criterion and the contact standard are the plan's own; nothing here reads
- * anything else. The sentence is derived once, here: the plan card draws these
- * words as buttons and `planSentence` joins them, so a card and a receipt can
- * never say the plan differently.
- */
-declare function planWords(plan: LeadSearchPlan): LeadPlanWord[];
-/** What the sentence's words say, with nothing marked: the sentence itself. */
-declare function planSaid(plan: LeadSearchPlan): string;
-/** What the plan leaves out, as one clause: " Leaving out: chain gyms." Empty when it leaves out nothing. */
-declare function planLeavingOut(plan: LeadSearchPlan): string;
-/**
- * The plan as one sentence, for a receipt, an Ask card's summary and a log:
- * the sentence the card draws, and what it leaves out. Every caller reads the
- * same words (§8.3).
- */
-declare function planSentence(plan: LeadSearchPlan): string;
-/** The counts the card's picker offers, unless the owner asked for a number of their own (§8.3). */
-declare const LEAD_COUNT_CHOICES: readonly [50, 100, 200, 500];
-/**
- * About how long a round takes, in minutes, for the card's "About 8 minutes --
- * leave the page if you like" and for the minutes beside each count in the
- * picker. From the places the round would ask for at the yield assumed before
- * a probe has measured one, the probe's own 25, and the card's rate. Never
- * under two minutes: a search that answers faster still reads as a moment.
- */
-/** The most one area's terms can yield at the assumed rate: terms × the card's per-term cap × the yield. Above it the picker says so. */
-declare function planCeiling(plan: LeadSearchPlan): number;
-declare function planMinutes(plan: LeadSearchPlan): number;
-/** The changed plan, with its version bumped when the area, count, contact standard, criteria or exclusions moved (S15). */
-declare function planVersionOf(plan: LeadSearchPlan, changed: Partial<LeadSearchPlan>): LeadSearchPlan;
-declare const LEAD_ENDING_WORDS: Record<LeadRoundEnding, string>;
-/**
- * Which of the nine endings a round gets, in the order the facts outrank each
- * other (S7). The target overrides everything else: once it is reached, that
- * is the ending, whatever else happened on the page that reached it.
- * "Searched everything" only when every term returned fewer places than it
- * was asked for; otherwise the round ended at its limit with few new matches,
- * and the next step is another round in the same area.
- */
-declare function endingOfRound(x: {
-    counted: number;
-    target: number;
-    termsShort: boolean[];
-    budgetLeftUsd: number;
-    allowanceLeft: number;
-    stopped: boolean;
-    sourceFailed: boolean;
-    unanswered: boolean;
-    paused: boolean;
-}): LeadRoundEnding;
-/** The half of a card Claude reads (§0.3, 23). The half code holds is A2's `CARDS`. */
-interface LeadCardBrief {
-    id: "local_businesses";
-    goodFor: string[];
-    notFor: string[];
-    settings: string[];
-    /** Bronze prices, 18 Sep 2026 (§10.1). */
-    costPerPlaceUsd: number;
-    contactsPerPlaceUsd: number;
-    judgePerPlaceUsd: number;
-    checkPerEmailUsd: number;
-    startUsd: number;
-    /** One search on the source tops out near this many places (§7 step 3). */
-    maxPerTerm: number;
-    /** How many places this card gets through in a minute, discovery, contacts, judging and checks together: the card's "About 8 minutes". */
-    placesPerMinute: number;
-    examples: string[];
-    approved: true;
-}
-declare const LEAD_CARDS: readonly LeadCardBrief[];
-/**
- * What a round is likely to cost, from the card's prices, with room (§13.3):
- * discovery and contacts per place asked, the judge per place, the mailbox
- * check per place under an email standard, and one start per term. The route
- * computes it, the door stores it, the counters reserve it.
- */
-declare function estimateRoundUsd(plan: LeadSearchPlan, purpose: LeadRoundPurpose, placesToAsk: number): number;
-/**
- * How many places to ask the source for (S6). The probe asks for 25 spread
- * across every term (E10). A later round asks for the remainder over the
- * yield so far (new Qualified places per place asked), clamped between 1.2x
- * and 4x the remainder, never past LEAD_MAX_PLACES or what one term can
- * return. `yieldSoFar` null means the probe. `remaining` at or under zero asks
- * for nothing at all; when the total is smaller than the number of terms, a
- * term asked for 0 got nothing to ask for, and a caller skips it.
- */
-declare function placesToAsk(plan: LeadSearchPlan, remaining: number, yieldSoFar: number | null): {
-    total: number;
-    perTerm: number[];
-};
-interface LeadClassification {
-    class: LeadMemberClass;
-    /** The criterion or exclusion whose required fail excluded the place; null otherwise. */
-    excluded_by: string | null;
-    /** For ordering only, never for counting. Null when excluded. */
-    fit: LeadFit | null;
-    /** Why it is not simply Qualified: `fail:<key>`, `unknown:<key>`, `inferred:<key>`, `out_of_area`, `email:<state>`, `phone:none`. */
-    reasons: string[];
-}
-/** The reason tokens of a contact standard not met, so SQL and the check can find "the email was the only reason". */
-declare const LEAD_EMAIL_REASON: RegExp;
-/**
- * Code decides the class from the judge's per-criterion answers (§0.1, 26).
- * Exclusions are checked before criteria, so a place that is both a chain and
- * without a website is tallied as the chain. Only a REQUIRED criterion (or an
- * exclusion: every exclusion is required) gates the class: a required fail
- * excludes, with that key as the reason; a required criterion answered
- * `unknown`, or a required seen criterion only read (no fact cited beyond the
- * name or category, which are descriptions, not evidence), sends the place to
- * review. An optional criterion never excludes and never sends a place to
- * review by itself — it only softens the fit band. A place with no location
- * or one outside the area, or one with no verified way to reach it, also sends it to review. Everything else
- * qualifies. A fit band is derived for ordering.
- *
- * ONE VERIFIED WAY TO REACH THEM IS ENOUGH (decision 0010; Ruben, 25 September 2026: "as long as a number or email
- * is verified then it may count"). A phone that dials (`phoneState` ok) or a mailbox that checked out (`emailState`
- * ok). The plan's `contact` is the owner's preference -- which is shown first -- and never a gate: a B2B search that
- * finds a good number, or a local one that finds a checked email, has found a lead. Without either, the email is the
- * one way left when there is one, and its token (`email:<state>`) is what lead_check_commit promotes on a check.
- */
-declare function classify(plan: LeadSearchPlan, answer: JudgePlaceAnswer, facts: PlaceFacts, emailState: LeadEmailState, inArea: boolean, phoneState: LeadPhoneState): LeadClassification;
-interface ProbeMember {
-    class: LeadMemberClass;
-    excluded_by: string | null;
-    term?: string | null;
-}
-type LeadQuestion = {
-    ask: true;
-    sentence: string;
-    criterionKey: string;
-    dropTerm: string | null;
-} | {
-    ask: false;
-};
-/**
- * An intent check, never an accuracy measure (P4). Measured by exclusion, not
- * by qualification: under an email standard almost nothing is Qualified yet
- * while the mailbox checks are still out, so Review must never read as a no.
- * Over the probe's places, when more than 1 − LEAD_QUESTION_THRESHOLD were
- * excluded, the round waits and asks whether the search matches what the
- * owner meant, from the most common exclusion. Only an exclusion's own tally
- * can be the topic: Include lifts an exclusion, and must never be offered
- * against a real requirement, so a place excluded by a required criterion is
- * not counted here. The sentence's own lead word ("Most"/"Half"/"Some") comes
- * from that chip's own share of the first n, never from everything excluded
- * for any reason (P2, S12: a line claims only what it names); when more
- * places were excluded than the chip accounts for, the sentence says so with
- * "and other kinds of places". A term is dropped first when it is demonstrably the
- * problem and at least one other term with enough places is demonstrably
- * working; never when every term is bad, and never on the strength of a term
- * nobody else has tried. It never asks the owner to relax a fact.
- */
-declare function questionAfterProbe(plan: LeadSearchPlan, members: ProbeMember[]): LeadQuestion;
-/**
- * Hosts that are a booking platform (booking-page.ts, which names them once), a site builder's shared domain or a
- * social page: a business there has no site of its own.
- */
-declare const LEAD_PLATFORM_HOSTS: readonly string[];
-/** Address domains that are never the business: platforms, builders' placeholders, trackers. */
-declare const LEAD_JUNK_EMAIL_DOMAINS: readonly string[];
-/** Local parts that are a template's placeholder, not a mailbox. */
-declare const LEAD_PLACEHOLDER_LOCALS: readonly ["filler", "yourdomain", "youremail", "your", "example", "email", "name", "user", "username", "test", "noreply", "no-reply", "donotreply"];
-/** Corporate roles that are not how a business takes a customer (§7.2). */
-declare const LEAD_ROLE_LOCALS: readonly ["careers", "career", "jobs", "recruiting", "recruitment", "hr", "media", "press", "pr", "privacy", "legal", "webmaster", "abuse", "postmaster"];
-interface CleanedEmails {
-    /** Best first: the business's own (five at most, a front desk first), free-mail (three), another company's (two). */
-    kept: string[];
-    dropped: {
-        email: string;
-        why: "malformed" | "duplicate" | "junk_domain" | "placeholder" | "role" | "image" | "foreign_list" | "over_limit";
-    }[];
-}
-/**
- * The addresses worth showing the judge, and why each of the others was
- * dropped (§7.2). When the page names more than three other companies'
- * domains, that is a list of partners or brands, not the business, and none
- * of theirs is kept.
- */
-declare function cleanEmailCandidates(emails: string[], host: string | null): CleanedEmails;
-/** A US number anyone can dial, in E.164; null for a placeholder, a mis-prefixed number or a foreign one. */
-declare function usPhone(raw: string | null | undefined): string | null;
-/** The website's host, www. removed; null when there is none of their own (a platform, a social page). */
-declare function siteHost(url: string | null | undefined): string | null;
-/** "Texas" or "TX" → "TX"; null for anything that is not a US state or DC. */
-declare function stateCode(raw: string | null | undefined): string | null;
-/** 'YYYY-MM' in the workspace's zone: the month a lead counts in (§0.2, 15). lead_month() in 00140 says the same. */
-declare function leadMonth(zone: string, at: Date): string;
 
 /**
  * The database's closed sets, and every hand-kept copy held to them.
@@ -15392,6 +15001,453 @@ declare const BOOKING_PLATFORM_HOSTS: readonly string[];
  */
 declare function bookingPageOf(raw: string | null | undefined): string | null;
 
+/** §16.7, 18: Qualified leads a month, by the workspace's calendar month. */
+declare const LEAD_MONTHLY_ALLOWANCE = 500;
+/** §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. */
+declare const LEAD_MONTHLY_BUDGET_USD = 25;
+declare const LEAD_DAY_CAP_USD = 10;
+declare const LEAD_PLATFORM_DAY_CAP_USD = 50;
+/** §16.5: under this share of Qualified among the first places, the round stops and asks. */
+declare const LEAD_QUESTION_THRESHOLD = 0.6;
+/** Below this many judged places the question is not asked: too little to go on. */
+declare const LEAD_QUESTION_MIN_EVIDENCE = 10;
+declare const LEAD_PROBE_PLACES = 25;
+declare const LEAD_JUDGE_BATCH = 25;
+declare const LEAD_MAX_PLACES = 1000;
+/** Every fact a place gives the judge is cut to this many characters (§7.1). */
+declare const LEAD_FACT_MAX = 120;
+/** The judge's one reason, in words (§0.1). */
+declare const LEAD_REASON_MAX_WORDS = 12;
+/** The yield assumed before a probe has measured one: half the places asked for qualify. The card's minutes and the route's estimate both read it. */
+declare const LEAD_ASSUMED_YIELD = 0.5;
+/** A round's estimate is reserved with this much room (§13.3: the cap is the estimate with room). */
+declare const LEAD_ESTIMATE_MARGIN = 1.3;
+/** The main round asks for the remainder over the probe's yield, clamped here (S6). */
+declare const LEAD_ASK_MIN_FACTOR = 1.2;
+declare const LEAD_ASK_MAX_FACTOR = 4;
+/** An unanswered question ends the round after this long (§0.5). */
+declare const LEAD_QUESTION_WAIT_MS: number;
+/** 'YYYY-MM' in the workspace's zone: the month a lead counts in (§0.2, 15). lead_month() in 00140 says the same. */
+declare function leadMonth(zone: string, at: Date): string;
+
+/**
+ * The lead finder: the plan, the sets, the caps, and every rule with a right
+ * answer (PRD 2026-09-17 v3 §0, §7.2, §10, §12, §13.3; release A1).
+ *
+ * Pure. The dashboard's routes, the edge's jobs and, later, the page read this
+ * file. The model proposes a plan in these shapes and judges places criterion
+ * by criterion (lead-judge.ts); everything decidable is decided here, by code:
+ * what a junk address is, which class a place gets from the judge's answers
+ * (§0.1), how many places a round asks for (S6), when the search stops to ask
+ * (P4), which of the nine endings a round gets (S7), what a round is likely
+ * to cost. No word here names the vendor that runs the searches: the owner
+ * sees Claude finding businesses, and where each fact came from.
+ *
+ * This module holds the plan itself: its shape, the schema the route and the door check it with, the states an
+ * area may name, and a changed plan's version. The rest is beside it: sets.ts, caps.ts, sentence.ts (the plan in
+ * words), cards.ts (the card, and what a round asks for, costs and takes), endings.ts, class.ts, question.ts (the
+ * question after the probe) and clean.ts (what code keeps of a listing).
+ */
+
+type LeadContactStandard = "phone" | "email";
+/** likely: Claude's read is enough. seen: a fact the card can show, cited by key (§0.1, 26). */
+type LeadCriterionStandard = "likely" | "seen";
+interface LeadCriterion {
+    key: string;
+    text: string;
+    standard: LeadCriterionStandard;
+    required: boolean;
+}
+/** A "Leaving out" chip. The judge answers it as a required criterion: `fail` means the place is what is left out. */
+interface LeadExclusion {
+    key: string;
+    text: string;
+    origin: "claude" | "you_said";
+    category_key?: string;
+}
+interface LeadArea {
+    kind: "zip" | "city" | "radius";
+    /** As the sentence says it: "Austin, TX". */
+    label: string;
+    /** Two letters. */
+    state: string;
+    /** Null for a city ask until the probe's coordinates give one, or a ZIP ask until A2 derives it from the ZCTA table (§12.5, 31). */
+    center: {
+        lat: number;
+        lng: number;
+    } | null;
+    radius_m: number;
+    zip?: string;
+    /** The card's own location query, built from the validated plan. */
+    query: string;
+}
+interface LeadSearchPlan {
+    version: number;
+    card: "local_businesses";
+    /** Who is sought, plural, as the sentence says it: "personal trainers". */
+    name: string;
+    /** The owner's words, at most 400 characters. */
+    asked: string;
+    terms: string[];
+    area: LeadArea;
+    count: number;
+    contact: LeadContactStandard;
+    criteria: LeadCriterion[];
+    exclusions: LeadExclusion[];
+}
+/** The route's input and the door's: the same shape, checked twice on purpose. */
+declare const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan>;
+/** The changed plan, with its version bumped when the area, count, contact standard, criteria or exclusions moved (S15). */
+declare function planVersionOf(plan: LeadSearchPlan, changed: Partial<LeadSearchPlan>): LeadSearchPlan;
+
+/**
+ * The plan in words (§8.3): who is sought and where, the sentence the plan card draws as pickers, and the one a
+ * receipt, an Ask card and a log say. Derived here once, from the plan (plan.ts) alone; `lowerFirst` is the
+ * question's too (question.ts).
+ */
+
+/**
+ * The plural the sentence calls them, with the area taken out of it (§8.3).
+ * `name` is the model's own words, and a model asked for a plural writes the
+ * place into it ("Hair salons in Brooklyn"), which the sentence then says
+ * twice. A trailing place clause whose words are the area's is dropped; a
+ * clause about something else ("pharmacies inside supermarkets") is kept. With
+ * nothing left, the terms say who is sought, since those are the words the
+ * source is actually searched with.
+ */
+declare function planWho(plan: LeadSearchPlan): string;
+/**
+ * Where the sentence says to look, with exactly one preposition -- code's, not
+ * the model's. A label that already says where it is ("in Brooklyn, NY",
+ * "within 25 miles of Austin") is said as it stands; anything else gets "in".
+ */
+declare function planWhere(area: LeadArea): string;
+/**
+ * The area as a bare noun, for a sentence that supplies its own preposition
+ * ("There are 3 personal trainers in Austin, TX"): the label with a leading
+ * place word and a radius phrase taken off, so nothing says "in" twice.
+ */
+declare function planArea(area: LeadArea): string;
+/** One part of the plan's sentence: plain words, or a word the plan card makes a picker of. */
+interface LeadPlanWord {
+    text: string;
+    /** Which picker this word opens on the card; null for the words between the pickers. */
+    pick: "count" | "who" | "where" | "criterion" | "contact" | null;
+    /** The criterion this word is, for a criterion picker. */
+    key?: string;
+}
+/**
+ * The plan as the words of one sentence, each marked with the picker it opens
+ * (§7 step 2, §8.3): "Find 200 personal trainers in Austin, TX with a website,
+ * then find their email and check it." The count, the plural, the area, each
+ * criterion and the contact standard are the plan's own; nothing here reads
+ * anything else. The sentence is derived once, here: the plan card draws these
+ * words as buttons and `planSentence` joins them, so a card and a receipt can
+ * never say the plan differently.
+ */
+declare function planWords(plan: LeadSearchPlan): LeadPlanWord[];
+/** What the sentence's words say, with nothing marked: the sentence itself. */
+declare function planSaid(plan: LeadSearchPlan): string;
+/** What the plan leaves out, as one clause: " Leaving out: chain gyms." Empty when it leaves out nothing. */
+declare function planLeavingOut(plan: LeadSearchPlan): string;
+/**
+ * The plan as one sentence, for a receipt, an Ask card's summary and a log:
+ * the sentence the card draws, and what it leaves out. Every caller reads the
+ * same words (§8.3).
+ */
+declare function planSentence(plan: LeadSearchPlan): string;
+
+/**
+ * The card Claude reads (§0.3), and what a round on it asks for, costs and takes: the places per term (S6), the
+ * estimate with room (§13.3), and the counts, the ceiling and the minutes the plan card's picker shows. The
+ * numbers a round is sized with are caps.ts's.
+ */
+
+/** The half of a card Claude reads (§0.3, 23). The half code holds is A2's `CARDS`. */
+interface LeadCardBrief {
+    id: "local_businesses";
+    goodFor: string[];
+    notFor: string[];
+    settings: string[];
+    /** Bronze prices, 18 Sep 2026 (§10.1). */
+    costPerPlaceUsd: number;
+    contactsPerPlaceUsd: number;
+    judgePerPlaceUsd: number;
+    checkPerEmailUsd: number;
+    startUsd: number;
+    /** One search on the source tops out near this many places (§7 step 3). */
+    maxPerTerm: number;
+    /** How many places this card gets through in a minute, discovery, contacts, judging and checks together: the card's "About 8 minutes". */
+    placesPerMinute: number;
+    examples: string[];
+    approved: true;
+}
+declare const LEAD_CARDS: readonly LeadCardBrief[];
+/**
+ * What a round is likely to cost, from the card's prices, with room (§13.3):
+ * discovery and contacts per place asked, the judge per place, the mailbox
+ * check per place under an email standard, and one start per term. The route
+ * computes it, the door stores it, the counters reserve it.
+ */
+declare function estimateRoundUsd(plan: LeadSearchPlan, purpose: LeadRoundPurpose, placesToAsk: number): number;
+/**
+ * How many places to ask the source for (S6). The probe asks for 25 spread
+ * across every term (E10). A later round asks for the remainder over the
+ * yield so far (new Qualified places per place asked), clamped between 1.2x
+ * and 4x the remainder, never past LEAD_MAX_PLACES or what one term can
+ * return. `yieldSoFar` null means the probe. `remaining` at or under zero asks
+ * for nothing at all; when the total is smaller than the number of terms, a
+ * term asked for 0 got nothing to ask for, and a caller skips it.
+ */
+declare function placesToAsk(plan: LeadSearchPlan, remaining: number, yieldSoFar: number | null): {
+    total: number;
+    perTerm: number[];
+};
+/** The counts the card's picker offers, unless the owner asked for a number of their own (§8.3). */
+declare const LEAD_COUNT_CHOICES: readonly [50, 100, 200, 500];
+/**
+ * About how long a round takes, in minutes, for the card's "About 8 minutes --
+ * leave the page if you like" and for the minutes beside each count in the
+ * picker. From the places the round would ask for at the yield assumed before
+ * a probe has measured one, the probe's own 25, and the card's rate. Never
+ * under two minutes: a search that answers faster still reads as a moment.
+ */
+/** The most one area's terms can yield at the assumed rate: terms × the card's per-term cap × the yield. Above it the picker says so. */
+declare function planCeiling(plan: LeadSearchPlan): number;
+declare function planMinutes(plan: LeadSearchPlan): number;
+
+/**
+ * The nine endings of a round (§0.5, S7): the words each is said in, and which one a round gets. The closed set
+ * itself is sets.ts's LEAD_ROUND_ENDINGS.
+ */
+
+declare const LEAD_ENDING_WORDS: Record<LeadRoundEnding, string>;
+/**
+ * Which of the nine endings a round gets, in the order the facts outrank each
+ * other (S7). The target overrides everything else: once it is reached, that
+ * is the ending, whatever else happened on the page that reached it.
+ * "Searched everything" only when every term returned fewer places than it
+ * was asked for; otherwise the round ended at its limit with few new matches,
+ * and the next step is another round in the same area.
+ */
+declare function endingOfRound(x: {
+    counted: number;
+    target: number;
+    termsShort: boolean[];
+    budgetLeftUsd: number;
+    allowanceLeft: number;
+    stopped: boolean;
+    sourceFailed: boolean;
+    unanswered: boolean;
+    paused: boolean;
+}): LeadRoundEnding;
+
+/** One place, as the judge is shown it. Every string is capped at LEAD_FACT_MAX and stripped of control characters by judgeUserContent. */
+interface PlaceFacts {
+    ref: number;
+    name: string;
+    category: string | null;
+    city: string | null;
+    state: string | null;
+    host: string | null;
+    rating: number | null;
+    reviews: number | null;
+    /** The cleaned candidates, in the cleaner's order; the judge picks one by index. */
+    emails: string[];
+    /** The listing's number equals one on their site; null when the listing has no number. */
+    phone_matches_site: boolean | null;
+}
+/** The keys a criterion's answer may cite: the facts, by name. */
+declare const JUDGE_FACT_KEYS: readonly ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+type JudgeFactKey = (typeof JUDGE_FACT_KEYS)[number];
+type JudgeCriterionAnswer = "pass" | "fail" | "unknown";
+interface JudgePlaceAnswer {
+    ref: number;
+    criteria: {
+        key: string;
+        answer: JudgeCriterionAnswer;
+        facts: string[];
+    }[];
+    /** Into PlaceFacts.emails; null when none of them is the business's own. */
+    email_index: number | null;
+    /** Twelve words or fewer. */
+    reason: string;
+}
+/**
+ * Hand-written, the shape apps/edge/lib/receptionist/brain.ts sends in production: every
+ * property required, additionalProperties false, and no length or range
+ * keywords (the API does not enforce them; the parser caps and checks after).
+ */
+declare const JUDGE_OUTPUT_SCHEMA: Record<string, unknown>;
+/**
+ * What the rubric asks under each key, in the order it asks: the kind (worded with the plan's name), every criterion
+ * with its standard, every exclusion. judgeSystemPrompt's lines, and what judgeAsked fingerprints.
+ */
+declare function judgeQuestions(plan: LeadSearchPlan): Record<string, string>;
+/**
+ * A short digest of each key's question, kept with an answer: a later plan reuses the answer only where it asks the
+ * very same question. A key alone is not enough -- "Change what I asked" can keep every key and change the kind of
+ * business, or a criterion's words, and an answer to the old question would stand for the new one.
+ */
+declare function judgeAsked(plan: LeadSearchPlan): Record<string, string>;
+/**
+ * The criteria with their standards, and the exclusions as criteria the place
+ * must not be. A seen standard must cite a fact key; a likely one may be
+ * Claude's read of the facts. Unknown when the facts do not say.
+ */
+declare function judgeSystemPrompt(plan: LeadSearchPlan): string;
+/** Each place's facts, capped and stripped, as quoted JSON inside a <places> block. */
+declare function judgeUserContent(places: PlaceFacts[]): string;
+/**
+ * The answer, read by code. Rejected whole when a place is missing or answered
+ * twice, a ref is not among the places, a criterion key is not the plan's or
+ * is answered twice or not at all, a fact key is not one the place has, or an
+ * email index is out of range. The reason is capped to twelve words.
+ */
+declare function parseJudgeAnswer(raw: unknown, plan: LeadSearchPlan, places: PlaceFacts[]): {
+    ok: true;
+    answers: JudgePlaceAnswer[];
+} | {
+    ok: false;
+    why: string;
+};
+/** SHA-256 of a UTF-8 string, as lower-case hex. */
+declare function sha256Hex(text: string): string;
+/** The judge's operation id for one batch: sha256 hex of `${runId}:${fromOffset}:${batch}`, so a replayed page finds its answer and pays nothing (E4). */
+declare function judgeOpId(runId: string, fromOffset: number, batch: number): string;
+
+/**
+ * The engine's own first criterion, on every plan: the place is the kind of
+ * business the search names (PRD §7 step 4, "the right kind of business or
+ * not"). It is not one the owner writes and not one the plan stores -- the
+ * rubric asks it, the class rule reads it, the validator expects it, all by
+ * this key -- because the first real searches showed what happens without
+ * it: a photographer prospecting wedding planners was handed two other
+ * photographers, a band and a caterer as Qualified, since the only criterion
+ * on the plan was "could recommend a photographer", and all of them could.
+ * A likely standard, because its evidence IS the name and category, which a
+ * seen standard is not allowed to rest on.
+ */
+declare const LEAD_KIND_KEY = "kind";
+/** What the Excluded chip says for a place that was the wrong kind: "Not a wedding planner". */
+declare const leadKindWord: (name: string) => string;
+/**
+ * A place with no phone and no email is not a lead. It used to reach Needs
+ * review as "phone:none" or "email:none" -- work dressed as a lead, and the
+ * largest share of the review pile on the first five real searches. It is
+ * left out under this key, and the chip says why (leads.ts leadExclusionWord).
+ */
+declare const LEAD_UNREACHABLE_KEY = "unreachable";
+/**
+ * A lead's phone, as the count reads it (decision 0010): `ok` when it dials (contracts phoneDialable), `invalid` when a
+ * number is there and does not, `none` when there is none.
+ */
+type LeadPhoneState = "ok" | "invalid" | "none";
+declare function leadPhoneState(phone: string | null | undefined): LeadPhoneState;
+interface LeadClassification {
+    class: LeadMemberClass;
+    /** The criterion or exclusion whose required fail excluded the place; null otherwise. */
+    excluded_by: string | null;
+    /** For ordering only, never for counting. Null when excluded. */
+    fit: LeadFit | null;
+    /** Why it is not simply Qualified: `fail:<key>`, `unknown:<key>`, `inferred:<key>`, `out_of_area`, `email:<state>`, `phone:none`. */
+    reasons: string[];
+}
+/** The reason tokens of a contact standard not met, so SQL and the check can find "the email was the only reason". */
+declare const LEAD_EMAIL_REASON: RegExp;
+/**
+ * Code decides the class from the judge's per-criterion answers (§0.1, 26).
+ * Exclusions are checked before criteria, so a place that is both a chain and
+ * without a website is tallied as the chain. Only a REQUIRED criterion (or an
+ * exclusion: every exclusion is required) gates the class: a required fail
+ * excludes, with that key as the reason; a required criterion answered
+ * `unknown`, or a required seen criterion only read (no fact cited beyond the
+ * name or category, which are descriptions, not evidence), sends the place to
+ * review. An optional criterion never excludes and never sends a place to
+ * review by itself — it only softens the fit band. A place with no location
+ * or one outside the area, or one with no verified way to reach it, also sends it to review. Everything else
+ * qualifies. A fit band is derived for ordering.
+ *
+ * ONE VERIFIED WAY TO REACH THEM IS ENOUGH (decision 0010; Ruben, 25 September 2026: "as long as a number or email
+ * is verified then it may count"). A phone that dials (`phoneState` ok) or a mailbox that checked out (`emailState`
+ * ok). The plan's `contact` is the owner's preference -- which is shown first -- and never a gate: a B2B search that
+ * finds a good number, or a local one that finds a checked email, has found a lead. Without either, the email is the
+ * one way left when there is one, and its token (`email:<state>`) is what lead_check_commit promotes on a check.
+ */
+declare function classify(plan: LeadSearchPlan, answer: JudgePlaceAnswer, facts: PlaceFacts, emailState: LeadEmailState, inArea: boolean, phoneState: LeadPhoneState): LeadClassification;
+
+/**
+ * The question after the probe (P4): when too many of the probe's places were excluded, the round waits and asks
+ * the owner whether its most common exclusion is what they meant, and may drop the term that brought them. Its
+ * threshold and its evidence are caps.ts's.
+ */
+
+interface ProbeMember {
+    class: LeadMemberClass;
+    excluded_by: string | null;
+    term?: string | null;
+}
+type LeadQuestion = {
+    ask: true;
+    sentence: string;
+    criterionKey: string;
+    dropTerm: string | null;
+} | {
+    ask: false;
+};
+/**
+ * An intent check, never an accuracy measure (P4). Measured by exclusion, not
+ * by qualification: under an email standard almost nothing is Qualified yet
+ * while the mailbox checks are still out, so Review must never read as a no.
+ * Over the probe's places, when more than 1 − LEAD_QUESTION_THRESHOLD were
+ * excluded, the round waits and asks whether the search matches what the
+ * owner meant, from the most common exclusion. Only an exclusion's own tally
+ * can be the topic: Include lifts an exclusion, and must never be offered
+ * against a real requirement, so a place excluded by a required criterion is
+ * not counted here. The sentence's own lead word ("Most"/"Half"/"Some") comes
+ * from that chip's own share of the first n, never from everything excluded
+ * for any reason (P2, S12: a line claims only what it names); when more
+ * places were excluded than the chip accounts for, the sentence says so with
+ * "and other kinds of places". A term is dropped first when it is demonstrably the
+ * problem and at least one other term with enough places is demonstrably
+ * working; never when every term is bad, and never on the strength of a term
+ * nobody else has tried. It never asks the owner to relax a fact.
+ */
+declare function questionAfterProbe(plan: LeadSearchPlan, members: ProbeMember[]): LeadQuestion;
+
+/**
+ * Hosts that are a booking platform (booking-page.ts, which names them once), a site builder's shared domain or a
+ * social page: a business there has no site of its own.
+ */
+declare const LEAD_PLATFORM_HOSTS: readonly string[];
+/** Address domains that are never the business: platforms, builders' placeholders, trackers. */
+declare const LEAD_JUNK_EMAIL_DOMAINS: readonly string[];
+/** Local parts that are a template's placeholder, not a mailbox. */
+declare const LEAD_PLACEHOLDER_LOCALS: readonly ["filler", "yourdomain", "youremail", "your", "example", "email", "name", "user", "username", "test", "noreply", "no-reply", "donotreply"];
+/** Corporate roles that are not how a business takes a customer (§7.2). */
+declare const LEAD_ROLE_LOCALS: readonly ["careers", "career", "jobs", "recruiting", "recruitment", "hr", "media", "press", "pr", "privacy", "legal", "webmaster", "abuse", "postmaster"];
+interface CleanedEmails {
+    /** Best first: the business's own (five at most, a front desk first), free-mail (three), another company's (two). */
+    kept: string[];
+    dropped: {
+        email: string;
+        why: "malformed" | "duplicate" | "junk_domain" | "placeholder" | "role" | "image" | "foreign_list" | "over_limit";
+    }[];
+}
+/**
+ * The addresses worth showing the judge, and why each of the others was
+ * dropped (§7.2). When the page names more than three other companies'
+ * domains, that is a list of partners or brands, not the business, and none
+ * of theirs is kept.
+ */
+declare function cleanEmailCandidates(emails: string[], host: string | null): CleanedEmails;
+/** A US number anyone can dial, in E.164; null for a placeholder, a mis-prefixed number or a foreign one. */
+declare function usPhone(raw: string | null | undefined): string | null;
+/** The website's host, www. removed; null when there is none of their own (a platform, a social page). */
+declare function siteHost(url: string | null | undefined): string | null;
+/** "Texas" or "TX" → "TX"; null for anything that is not a US state or DC. */
+declare function stateCode(raw: string | null | undefined): string | null;
+
 /**
  * What the Leads routes answer: the check, the row, a search and its rounds, the counts and the month. Moved whole from leads.ts (Reach out Part 2.5), which
  * re-exports it.
@@ -15651,12 +15707,12 @@ declare const LEAD_REVIEW_WORD = "Needs review";
 declare const LEAD_LEFT_OUT_WORD = "Left out";
 /** What a lead's class is called. The page kept a second copy that said "Excluded" for the same state. */
 declare const LEAD_CLASS_WORDS: Record<LeadMemberClass, string>;
-/** The Excluded chip for a place with no phone and no email (lead-search.ts LEAD_UNREACHABLE_KEY). */
+/** The Excluded chip for a place with no phone and no email (search/class.ts LEAD_UNREACHABLE_KEY). */
 declare const LEAD_UNREACHABLE_WORD = "No way to reach them";
 declare const LEAD_CHECK_UNSURE = "Couldn't tell";
 /**
  * One label per check and answer; the particulars are the check's own reason. The seven, and `kind`: the engine's own
- * first criterion, on every plan (lead-search.ts LEAD_KIND_KEY), which the judge answers for every place. A read check
+ * first criterion, on every plan (search/class.ts LEAD_KIND_KEY), which the judge answers for every place. A read check
  * under any other key is the plan's, and `leadCheckWord` (lead-facts.ts) says it in the plan's words.
  */
 declare const LEAD_CHECK_WORDS: Record<LeadCheckKey | "kind", Record<"yes" | "no" | "unknown", string>>;

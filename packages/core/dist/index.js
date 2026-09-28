@@ -135,9 +135,9 @@ var require_cjs = __commonJS({
 import { z } from "zod";
 import { z as z10 } from "zod";
 import { z as z5 } from "zod";
+import { z as z2 } from "zod";
 import { z as z4 } from "zod";
 import { z as z3 } from "zod";
-import { z as z2 } from "zod";
 import { z as z6 } from "zod";
 import { z as z8 } from "zod";
 import { z as z7 } from "zod";
@@ -967,162 +967,11 @@ var DEFAULT_OPTIONS = {
 
 // ../channels/dist/index.js
 z.config({ jitless: true });
-var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
-var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
-var TIME = z2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema = z2.object({ open: TIME, close: TIME });
-var HoursSchema = z2.object({
-  /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: TIME.nullable().optional(),
-  close: TIME.nullable().optional(),
-  /**
-   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-   * actually keeps. Additive: a day that has always been one stretch keeps
-   * saying so with open/close, and no stored config is rewritten.
-   */
-  intervals: z2.array(IntervalSchema).optional()
-}).strip();
-var DATE = z2.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema = z2.object({
-  date: DATE,
-  until: DATE.optional(),
-  note: z2.string().max(200).optional()
-});
-var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema = z2.object({
-  name: z2.string().min(1).max(80),
-  /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z2.number().int().min(1).max(1440).optional(),
-  /**
-   * Free text, not a number, and deliberately so: "from $45", "quoted at
-   * consult", "varies by length". A price the business cannot state flatly
-   * must not be forced into a field that looks like it can.
-   */
-  price_note: z2.string().max(120).optional()
-}).strip();
-var GuardrailsSchema = z2.object({
-  never_quote_prices: z2.boolean().optional(),
-  never_confirm_booking: z2.boolean().optional(),
-  disclose_ai: z2.boolean().optional(),
-  /**
-   * OPT-IN, unlike the three above. Those default on because absent means
-   * "the safe reading"; this one arrived after prompts were live, and a
-   * rule that defaulted on would have changed every composed prompt in
-   * production the moment it deployed.
-   */
-  no_health_advice: z2.boolean().optional()
-}).strip();
-var NoteSchema = z2.object({
-  title: z2.string().min(1).max(80),
-  text: z2.string().min(1).max(1200)
-}).strip();
-var BookingRulesSchema = z2.object({
-  /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z2.number().int().min(0).max(168).optional(),
-  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z2.number().int().min(0).max(120).optional(),
-  /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z2.number().int().min(1).max(90).optional(),
-  /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z2.number().int().min(15).max(240).optional(),
-  /** Services that need a consultation before they can be booked. */
-  consult_first: z2.array(z2.string().min(1).max(80)).max(20).optional(),
-  party_max: z2.number().int().min(1).max(20).optional(),
-  /**
-   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
-   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
-   */
-  ask_email: z2.boolean().optional(),
-  /** Anything else about booking, one short line each. */
-  notes: z2.array(z2.string().min(1).max(200)).max(10).optional()
-}).strip();
-var E164 = /^\+[1-9]\d{6,14}$/;
-var INSTRUCTIONS_MAX = 2e4;
-var BusinessProfileSchema = z2.object({
-  address: z2.string().max(300).optional(),
-  hours: z2.partialRecord(z2.enum(DAYS), HoursSchema).optional(),
-  /** Dates the business is shut regardless of the weekly grid. */
-  closures: z2.array(ClosureSchema).optional(),
-  services: z2.array(ServiceSchema).max(60).optional(),
-  languages: z2.array(z2.string().min(2).max(40)).max(8).optional(),
-  guardrails: GuardrailsSchema.optional(),
-  /** What must reach a person. One short line each. */
-  escalate_when: z2.array(z2.string().min(1).max(200)).max(20).optional(),
-  tone: z2.string().max(200).optional(),
-  /**
-   * The line a PERSON answers. The phone receptionist warm-transfers here
-   * during opening hours; absent, it takes a message instead. Never the
-   * receptionist's own line — that would ring itself.
-   */
-  handoff_number: z2.string().regex(E164, "E.164, like +12125550143").optional(),
-  website: z2.string().url().max(500).optional(),
-  notes: z2.array(NoteSchema).max(10).optional(),
-  booking_rules: BookingRulesSchema.optional(),
-  /**
-   * Anything the owner wants said that no field covers.
-   *
-   * The escape hatch that keeps this model honest — without it, structuring
-   * the facts would mean losing whatever did not fit, and the first migration
-   * would be a downgrade.
-   *
-   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
-   * the form carries that prompt into it.
-   */
-  extra_instructions: z2.string().max(INSTRUCTIONS_MAX).optional()
-}).strip();
-var BrainConfigSchema = z3.object({
-  business_name: z3.string().min(1).max(120),
-  /**
-   * The number the receptionist tells customers to call — an OVERRIDE, and
-   * optional because it should almost never be set.
-   *
-   * It was required, free text, and named the same as the line the
-   * receptionist answers, so every workspace typed something into it and
-   * nothing checked what. On the first live salon that produced a
-   * receptionist publishing the number it transfers to: customers who rang
-   * it reached a person's mobile and never the receptionist standing by,
-   * and the same string went to Google.
-   *
-   * Absent is now the right answer and the default: resolveFacts falls back
-   * to the provisioned voice line, formatted for speech, so the number
-   * published is the number answered by construction. A value here means a
-   * business deliberately publishes something else — a tracking line, a
-   * shopfront — and the pane says so in those words.
-   */
-  phone_display: z3.string().min(3).max(40).optional(),
-  /**
-   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
-   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
-   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
-   */
-  booking_link: z3.string().url().max(500).optional(),
-  /** The complete system prompt the model receives — the "AI memory" pane's
-   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z3.string().min(40).max(INSTRUCTIONS_MAX),
-  /**
-   * The business's facts, as fields.
-   *
-   * Optional: every config written before this existed stays valid, and
-   * nothing composes until a workspace actually fills it in. When present
-   * it REPLACES system_prompt as the source the prompt is built from.
-   */
-  profile: BusinessProfileSchema.optional(),
-  fallbacks: z3.object({
-    /** Sent when no model key is configured. */
-    greeting: z3.string().min(1).max(2e3),
-    /** Sent when the model call failed. */
-    error: z3.string().min(1).max(2e3),
-    /** Sent for voice notes / photos before escalating. */
-    non_text: z3.string().min(1).max(2e3)
-  }).strip()
-}).strip();
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_QUESTION_WAIT_MS = 24 * HOUR_MS;
 var US_STATES = {
@@ -1181,38 +1030,38 @@ var US_STATES = {
 var US_CODES = new Set(Object.values(US_STATES));
 var KEY = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words = (min, max) => z4.string().transform((s) => stripUnsafe(s).trim()).pipe(z4.string().min(min).max(max));
-var LeadSearchPlanSchema = z4.object({
-  version: z4.number().int().min(1),
-  card: z4.literal("local_businesses"),
+var words = (min, max) => z2.string().transform((s) => stripUnsafe(s).trim()).pipe(z2.string().min(min).max(max));
+var LeadSearchPlanSchema = z2.object({
+  version: z2.number().int().min(1),
+  card: z2.literal("local_businesses"),
   name: words(2, 80),
   asked: words(1, 400),
-  terms: z4.array(words(2, 60)).min(1).max(5),
-  area: z4.object({
-    kind: z4.enum(["zip", "city", "radius"]),
+  terms: z2.array(words(2, 60)).min(1).max(5),
+  area: z2.object({
+    kind: z2.enum(["zip", "city", "radius"]),
     label: words(2, 80),
-    state: z4.string().regex(/^[A-Z]{2}$/),
-    center: z4.object({ lat: z4.number().min(-90).max(90), lng: z4.number().min(-180).max(180) }).nullable(),
-    radius_m: z4.number().int().min(500).max(2e5),
-    zip: z4.string().regex(/^\d{5}$/).optional(),
+    state: z2.string().regex(/^[A-Z]{2}$/),
+    center: z2.object({ lat: z2.number().min(-90).max(90), lng: z2.number().min(-180).max(180) }).nullable(),
+    radius_m: z2.number().int().min(500).max(2e5),
+    zip: z2.string().regex(/^\d{5}$/).optional(),
     query: words(2, 120)
   }),
-  count: z4.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z4.enum(["phone", "email"]),
-  criteria: z4.array(
-    z4.object({
-      key: z4.string().regex(KEY),
+  count: z2.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z2.enum(["phone", "email"]),
+  criteria: z2.array(
+    z2.object({
+      key: z2.string().regex(KEY),
       text: words(2, 120),
-      standard: z4.enum(["likely", "seen"]),
-      required: z4.boolean()
+      standard: z2.enum(["likely", "seen"]),
+      required: z2.boolean()
     })
   ).max(8),
-  exclusions: z4.array(
-    z4.object({
-      key: z4.string().regex(KEY),
+  exclusions: z2.array(
+    z2.object({
+      key: z2.string().regex(KEY),
       text: words(2, 80),
-      origin: z4.enum(["claude", "you_said"]),
-      category_key: z4.string().regex(KEY).optional()
+      origin: z2.enum(["claude", "you_said"]),
+      category_key: z2.string().regex(KEY).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -1240,6 +1089,157 @@ var LeadSearchPlanSchema = z4.object({
 var US_NAMES = Object.fromEntries(
   Object.entries(US_STATES).map(([name, code2]) => [code2, name])
 );
+var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+var TIME = z3.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema = z3.object({ open: TIME, close: TIME });
+var HoursSchema = z3.object({
+  /** "09:00". Absent or null = closed that day, which is a real answer. */
+  open: TIME.nullable().optional(),
+  close: TIME.nullable().optional(),
+  /**
+   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+   * actually keeps. Additive: a day that has always been one stretch keeps
+   * saying so with open/close, and no stored config is rewritten.
+   */
+  intervals: z3.array(IntervalSchema).optional()
+}).strip();
+var DATE = z3.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema = z3.object({
+  date: DATE,
+  until: DATE.optional(),
+  note: z3.string().max(200).optional()
+});
+var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+var ServiceSchema = z3.object({
+  name: z3.string().min(1).max(80),
+  /** Minutes. The receptionist is asked "how long does it take" constantly. */
+  duration_min: z3.number().int().min(1).max(1440).optional(),
+  /**
+   * Free text, not a number, and deliberately so: "from $45", "quoted at
+   * consult", "varies by length". A price the business cannot state flatly
+   * must not be forced into a field that looks like it can.
+   */
+  price_note: z3.string().max(120).optional()
+}).strip();
+var GuardrailsSchema = z3.object({
+  never_quote_prices: z3.boolean().optional(),
+  never_confirm_booking: z3.boolean().optional(),
+  disclose_ai: z3.boolean().optional(),
+  /**
+   * OPT-IN, unlike the three above. Those default on because absent means
+   * "the safe reading"; this one arrived after prompts were live, and a
+   * rule that defaulted on would have changed every composed prompt in
+   * production the moment it deployed.
+   */
+  no_health_advice: z3.boolean().optional()
+}).strip();
+var NoteSchema = z3.object({
+  title: z3.string().min(1).max(80),
+  text: z3.string().min(1).max(1200)
+}).strip();
+var BookingRulesSchema = z3.object({
+  /** Least notice for a slot, in hours. Absent = 2. */
+  lead_hours: z3.number().int().min(0).max(168).optional(),
+  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
+  buffer_min: z3.number().int().min(0).max(120).optional(),
+  /** How far ahead open times are offered, in days. Absent = 14. */
+  max_days_ahead: z3.number().int().min(1).max(90).optional(),
+  /** The shortest window worth naming, in minutes. Absent = 30. */
+  slot_min: z3.number().int().min(15).max(240).optional(),
+  /** Services that need a consultation before they can be booked. */
+  consult_first: z3.array(z3.string().min(1).max(80)).max(20).optional(),
+  party_max: z3.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z3.boolean().optional(),
+  /** Anything else about booking, one short line each. */
+  notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
+}).strip();
+var E164 = /^\+[1-9]\d{6,14}$/;
+var INSTRUCTIONS_MAX = 2e4;
+var BusinessProfileSchema = z3.object({
+  address: z3.string().max(300).optional(),
+  hours: z3.partialRecord(z3.enum(DAYS), HoursSchema).optional(),
+  /** Dates the business is shut regardless of the weekly grid. */
+  closures: z3.array(ClosureSchema).optional(),
+  services: z3.array(ServiceSchema).max(60).optional(),
+  languages: z3.array(z3.string().min(2).max(40)).max(8).optional(),
+  guardrails: GuardrailsSchema.optional(),
+  /** What must reach a person. One short line each. */
+  escalate_when: z3.array(z3.string().min(1).max(200)).max(20).optional(),
+  tone: z3.string().max(200).optional(),
+  /**
+   * The line a PERSON answers. The phone receptionist warm-transfers here
+   * during opening hours; absent, it takes a message instead. Never the
+   * receptionist's own line — that would ring itself.
+   */
+  handoff_number: z3.string().regex(E164, "E.164, like +12125550143").optional(),
+  website: z3.string().url().max(500).optional(),
+  notes: z3.array(NoteSchema).max(10).optional(),
+  booking_rules: BookingRulesSchema.optional(),
+  /**
+   * Anything the owner wants said that no field covers.
+   *
+   * The escape hatch that keeps this model honest — without it, structuring
+   * the facts would mean losing whatever did not fit, and the first migration
+   * would be a downgrade.
+   *
+   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
+   * the form carries that prompt into it.
+   */
+  extra_instructions: z3.string().max(INSTRUCTIONS_MAX).optional()
+}).strip();
+var BrainConfigSchema = z4.object({
+  business_name: z4.string().min(1).max(120),
+  /**
+   * The number the receptionist tells customers to call — an OVERRIDE, and
+   * optional because it should almost never be set.
+   *
+   * It was required, free text, and named the same as the line the
+   * receptionist answers, so every workspace typed something into it and
+   * nothing checked what. On the first live salon that produced a
+   * receptionist publishing the number it transfers to: customers who rang
+   * it reached a person's mobile and never the receptionist standing by,
+   * and the same string went to Google.
+   *
+   * Absent is now the right answer and the default: resolveFacts falls back
+   * to the provisioned voice line, formatted for speech, so the number
+   * published is the number answered by construction. A value here means a
+   * business deliberately publishes something else — a tracking line, a
+   * shopfront — and the pane says so in those words.
+   */
+  phone_display: z4.string().min(3).max(40).optional(),
+  /**
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   */
+  booking_link: z4.string().url().max(500).optional(),
+  /** The complete system prompt the model receives — the "AI memory" pane's
+   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+  system_prompt: z4.string().min(40).max(INSTRUCTIONS_MAX),
+  /**
+   * The business's facts, as fields.
+   *
+   * Optional: every config written before this existed stays valid, and
+   * nothing composes until a workspace actually fills it in. When present
+   * it REPLACES system_prompt as the source the prompt is built from.
+   */
+  profile: BusinessProfileSchema.optional(),
+  fallbacks: z4.object({
+    /** Sent when no model key is configured. */
+    greeting: z4.string().min(1).max(2e3),
+    /** Sent when the model call failed. */
+    error: z4.string().min(1).max(2e3),
+    /** Sent for voice notes / photos before escalating. */
+    non_text: z4.string().min(1).max(2e3)
+  }).strip()
+}).strip();
+var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
 var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
@@ -3959,9 +3959,9 @@ var APIFY_RUN_END_EVENTS = [
 import { z as z20 } from "zod";
 import { z as z102 } from "zod";
 import { z as z52 } from "zod";
+import { z as z22 } from "zod";
 import { z as z42 } from "zod";
 import { z as z32 } from "zod";
-import { z as z22 } from "zod";
 import { z as z62 } from "zod";
 import { z as z82 } from "zod";
 import { z as z72 } from "zod";
@@ -4046,6 +4046,208 @@ function dayIntervals(h) {
     }
   }
   return merged;
+}
+var MIN_MS2 = 6e4;
+var HOUR_MS2 = 36e5;
+var DAY_MS2 = 864e5;
+var WEEK_MS2 = 7 * DAY_MS2;
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var LEAD_QUESTION_THRESHOLD = 0.6;
+var LEAD_QUESTION_MIN_EVIDENCE = 10;
+var LEAD_PROBE_PLACES = 25;
+var LEAD_JUDGE_BATCH = 25;
+var LEAD_MAX_PLACES2 = 1e3;
+var LEAD_FACT_MAX = 120;
+var LEAD_ESTIMATE_MARGIN = 1.3;
+var LEAD_ASK_MIN_FACTOR = 1.2;
+var LEAD_ASK_MAX_FACTOR = 4;
+var LEAD_QUESTION_WAIT_MS2 = 24 * HOUR_MS2;
+var US_STATES2 = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES2 = new Set(Object.values(US_STATES2));
+var KEY2 = /^[a-z][a-z0-9_]{0,39}$/;
+var stripUnsafe2 = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+var words2 = (min, max) => z22.string().transform((s) => stripUnsafe2(s).trim()).pipe(z22.string().min(min).max(max));
+var LeadSearchPlanSchema2 = z22.object({
+  version: z22.number().int().min(1),
+  card: z22.literal("local_businesses"),
+  name: words2(2, 80),
+  asked: words2(1, 400),
+  terms: z22.array(words2(2, 60)).min(1).max(5),
+  area: z22.object({
+    kind: z22.enum(["zip", "city", "radius"]),
+    label: words2(2, 80),
+    state: z22.string().regex(/^[A-Z]{2}$/),
+    center: z22.object({ lat: z22.number().min(-90).max(90), lng: z22.number().min(-180).max(180) }).nullable(),
+    radius_m: z22.number().int().min(500).max(2e5),
+    zip: z22.string().regex(/^\d{5}$/).optional(),
+    query: words2(2, 120)
+  }),
+  count: z22.number().int().min(1).max(LEAD_MAX_PLACES2),
+  contact: z22.enum(["phone", "email"]),
+  criteria: z22.array(
+    z22.object({
+      key: z22.string().regex(KEY2),
+      text: words2(2, 120),
+      standard: z22.enum(["likely", "seen"]),
+      required: z22.boolean()
+    })
+  ).max(8),
+  exclusions: z22.array(
+    z22.object({
+      key: z22.string().regex(KEY2),
+      text: words2(2, 80),
+      origin: z22.enum(["claude", "you_said"]),
+      category_key: z22.string().regex(KEY2).optional()
+    })
+  ).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
+  if (new Set(keys).size !== keys.length)
+    ctx.addIssue({
+      code: "custom",
+      message: "every criterion and exclusion has a key of its own",
+      path: ["criteria"]
+    });
+  const lowerTerms = p.terms.map((t) => t.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length)
+    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null)
+    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip)
+    ctx.addIssue({
+      code: "custom",
+      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
+      path: ["area", "zip"]
+    });
+  if (!US_CODES2.has(p.area.state))
+    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
+var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
+var lowerFirst = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+var US_NAMES2 = Object.fromEntries(
+  Object.entries(US_STATES2).map(([name, code2]) => [code2, name])
+);
+var LEAD_CARDS = [
+  {
+    id: "local_businesses",
+    goodFor: [
+      "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
+      "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
+      "emails and social profiles from the business's own website",
+      "a mailbox check on the email found"
+    ],
+    notFor: [
+      "people at home, or anyone who is not a business",
+      "online sellers and shops with no local listing",
+      "what a business stocks or sells inside (a listing does not show inventory: a seen standard on it cannot be met)",
+      "businesses outside the US"
+    ],
+    settings: [
+      "terms (up to five search phrases, widest first)",
+      "area (a city, a ZIP, or a center and radius)",
+      "count (1 to 1000)",
+      "contact standard (phone, or email checked)"
+    ],
+    costPerPlaceUsd: 3e-3,
+    contactsPerPlaceUsd: 2e-3,
+    judgePerPlaceUsd: 23e-4,
+    checkPerEmailUsd: 89e-5,
+    startUsd: 5e-5,
+    maxPerTerm: 120,
+    // Measured over five real searches on 20 September 2026: 10 to 25 minutes for 50 with checks, five in flight.
+    placesPerMinute: 8,
+    examples: [
+      "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
+      "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
+      "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks"
+    ],
+    approved: true
+  }
+];
+var cardOf = (plan) => {
+  const c = LEAD_CARDS.find((x) => x.id === plan.card);
+  if (!c) throw new Error(`no card ${plan.card}`);
+  return c;
+};
+var round4 = (n) => Math.round(n * 1e4) / 1e4;
+function estimateRoundUsd(plan, purpose, placesToAsk2) {
+  const c = cardOf(plan);
+  const places = Math.max(0, Math.floor(placesToAsk2));
+  const perPlace = c.costPerPlaceUsd + c.contactsPerPlaceUsd + c.judgePerPlaceUsd + (plan.contact === "email" ? c.checkPerEmailUsd : 0);
+  const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
+  return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
+}
+function spread(total, n, cap2) {
+  const each = Math.min(cap2, Math.floor(total / n));
+  const rest = Math.min(total - each * n, n);
+  return Array.from({ length: n }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
+}
+function placesToAsk(plan, remaining, yieldSoFar) {
+  const n = Math.max(1, plan.terms.length);
+  const cap2 = cardOf(plan).maxPerTerm;
+  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
+  if (yieldSoFar === null) {
+    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap2);
+    return { total: perTerm2.reduce((a, b) => a + b, 0), perTerm: perTerm2 };
+  }
+  const left = Math.max(1, Math.ceil(remaining));
+  const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
+  const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
+  const total = Math.min(LEAD_MAX_PLACES2, cap2 * n, Math.ceil(clamped));
+  const perTerm = spread(total, n, cap2);
+  return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
 }
 var FREE_MAIL_DOMAINS = /* @__PURE__ */ new Set([
   "gmail.com",
@@ -4141,9 +4343,9 @@ function formatPhoneDisplay(e164) {
   if (digits2.length < 7) return `+${digits2}`;
   return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
 }
-var TIME2 = z22.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema2 = z22.object({ open: TIME2, close: TIME2 });
-var HoursSchema2 = z22.object({
+var TIME2 = z32.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema2 = z32.object({ open: TIME2, close: TIME2 });
+var HoursSchema2 = z32.object({
   /** "09:00". Absent or null = closed that day, which is a real answer. */
   open: TIME2.nullable().optional(),
   close: TIME2.nullable().optional(),
@@ -4152,37 +4354,37 @@ var HoursSchema2 = z22.object({
    * actually keeps. Additive: a day that has always been one stretch keeps
    * saying so with open/close, and no stored config is rewritten.
    */
-  intervals: z22.array(IntervalSchema2).optional()
+  intervals: z32.array(IntervalSchema2).optional()
 }).strip();
-var DATE2 = z22.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema2 = z22.object({
+var DATE2 = z32.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema2 = z32.object({
   date: DATE2,
   until: DATE2.optional(),
-  note: z22.string().max(200).optional()
+  note: z32.string().max(200).optional()
 });
 var DAYS2 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema2 = z22.object({
-  name: z22.string().min(1).max(80),
+var ServiceSchema2 = z32.object({
+  name: z32.string().min(1).max(80),
   /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z22.number().int().min(1).max(1440).optional(),
+  duration_min: z32.number().int().min(1).max(1440).optional(),
   /**
    * Free text, not a number, and deliberately so: "from $45", "quoted at
    * consult", "varies by length". A price the business cannot state flatly
    * must not be forced into a field that looks like it can.
    */
-  price_note: z22.string().max(120).optional()
+  price_note: z32.string().max(120).optional()
 }).strip();
-var GuardrailsSchema2 = z22.object({
-  never_quote_prices: z22.boolean().optional(),
-  never_confirm_booking: z22.boolean().optional(),
-  disclose_ai: z22.boolean().optional(),
+var GuardrailsSchema2 = z32.object({
+  never_quote_prices: z32.boolean().optional(),
+  never_confirm_booking: z32.boolean().optional(),
+  disclose_ai: z32.boolean().optional(),
   /**
    * OPT-IN, unlike the three above. Those default on because absent means
    * "the safe reading"; this one arrived after prompts were live, and a
    * rule that defaulted on would have changed every composed prompt in
    * production the moment it deployed.
    */
-  no_health_advice: z22.boolean().optional()
+  no_health_advice: z32.boolean().optional()
 }).strip();
 function guardrailsInForce(g) {
   return {
@@ -4192,51 +4394,51 @@ function guardrailsInForce(g) {
     no_health_advice: g?.no_health_advice === true
   };
 }
-var NoteSchema2 = z22.object({
-  title: z22.string().min(1).max(80),
-  text: z22.string().min(1).max(1200)
+var NoteSchema2 = z32.object({
+  title: z32.string().min(1).max(80),
+  text: z32.string().min(1).max(1200)
 }).strip();
-var BookingRulesSchema2 = z22.object({
+var BookingRulesSchema2 = z32.object({
   /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z22.number().int().min(0).max(168).optional(),
+  lead_hours: z32.number().int().min(0).max(168).optional(),
   /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z22.number().int().min(0).max(120).optional(),
+  buffer_min: z32.number().int().min(0).max(120).optional(),
   /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z22.number().int().min(1).max(90).optional(),
+  max_days_ahead: z32.number().int().min(1).max(90).optional(),
   /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z22.number().int().min(15).max(240).optional(),
+  slot_min: z32.number().int().min(15).max(240).optional(),
   /** Services that need a consultation before they can be booked. */
-  consult_first: z22.array(z22.string().min(1).max(80)).max(20).optional(),
-  party_max: z22.number().int().min(1).max(20).optional(),
+  consult_first: z32.array(z32.string().min(1).max(80)).max(20).optional(),
+  party_max: z32.number().int().min(1).max(20).optional(),
   /**
    * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
    * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
    */
-  ask_email: z22.boolean().optional(),
+  ask_email: z32.boolean().optional(),
   /** Anything else about booking, one short line each. */
-  notes: z22.array(z22.string().min(1).max(200)).max(10).optional()
+  notes: z32.array(z32.string().min(1).max(200)).max(10).optional()
 }).strip();
 var E1642 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX2 = 2e4;
-var BusinessProfileSchema2 = z22.object({
-  address: z22.string().max(300).optional(),
-  hours: z22.partialRecord(z22.enum(DAYS2), HoursSchema2).optional(),
+var BusinessProfileSchema2 = z32.object({
+  address: z32.string().max(300).optional(),
+  hours: z32.partialRecord(z32.enum(DAYS2), HoursSchema2).optional(),
   /** Dates the business is shut regardless of the weekly grid. */
-  closures: z22.array(ClosureSchema2).optional(),
-  services: z22.array(ServiceSchema2).max(60).optional(),
-  languages: z22.array(z22.string().min(2).max(40)).max(8).optional(),
+  closures: z32.array(ClosureSchema2).optional(),
+  services: z32.array(ServiceSchema2).max(60).optional(),
+  languages: z32.array(z32.string().min(2).max(40)).max(8).optional(),
   guardrails: GuardrailsSchema2.optional(),
   /** What must reach a person. One short line each. */
-  escalate_when: z22.array(z22.string().min(1).max(200)).max(20).optional(),
-  tone: z22.string().max(200).optional(),
+  escalate_when: z32.array(z32.string().min(1).max(200)).max(20).optional(),
+  tone: z32.string().max(200).optional(),
   /**
    * The line a PERSON answers. The phone receptionist warm-transfers here
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z22.string().regex(E1642, "E.164, like +12125550143").optional(),
-  website: z22.string().url().max(500).optional(),
-  notes: z22.array(NoteSchema2).max(10).optional(),
+  handoff_number: z32.string().regex(E1642, "E.164, like +12125550143").optional(),
+  website: z32.string().url().max(500).optional(),
+  notes: z32.array(NoteSchema2).max(10).optional(),
   booking_rules: BookingRulesSchema2.optional(),
   /**
    * Anything the owner wants said that no field covers.
@@ -4248,7 +4450,7 @@ var BusinessProfileSchema2 = z22.object({
    * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
    * the form carries that prompt into it.
    */
-  extra_instructions: z22.string().max(INSTRUCTIONS_MAX2).optional()
+  extra_instructions: z32.string().max(INSTRUCTIONS_MAX2).optional()
 }).strip();
 var trimmed = (v) => {
   const s = typeof v === "string" ? v.trim() : "";
@@ -4350,8 +4552,8 @@ function fallbackMessages(brain, known) {
   const say2 = (kind) => fillDetails(own(kind), values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
   return { greeting: say2("greeting"), error: say2("error"), non_text: say2("non_text") };
 }
-var BrainConfigSchema2 = z32.object({
-  business_name: z32.string().min(1).max(120),
+var BrainConfigSchema2 = z42.object({
+  business_name: z42.string().min(1).max(120),
   /**
    * The number the receptionist tells customers to call — an OVERRIDE, and
    * optional because it should almost never be set.
@@ -4369,16 +4571,16 @@ var BrainConfigSchema2 = z32.object({
    * business deliberately publishes something else — a tracking line, a
    * shopfront — and the pane says so in those words.
    */
-  phone_display: z32.string().min(3).max(40).optional(),
+  phone_display: z42.string().min(3).max(40).optional(),
   /**
    * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
    * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
    * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
    */
-  booking_link: z32.string().url().max(500).optional(),
+  booking_link: z42.string().url().max(500).optional(),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z32.string().min(40).max(INSTRUCTIONS_MAX2),
+  system_prompt: z42.string().min(40).max(INSTRUCTIONS_MAX2),
   /**
    * The business's facts, as fields.
    *
@@ -4387,13 +4589,13 @@ var BrainConfigSchema2 = z32.object({
    * it REPLACES system_prompt as the source the prompt is built from.
    */
   profile: BusinessProfileSchema2.optional(),
-  fallbacks: z32.object({
+  fallbacks: z42.object({
     /** Sent when no model key is configured. */
-    greeting: z32.string().min(1).max(2e3),
+    greeting: z42.string().min(1).max(2e3),
     /** Sent when the model call failed. */
-    error: z32.string().min(1).max(2e3),
+    error: z42.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
-    non_text: z32.string().min(1).max(2e3)
+    non_text: z42.string().min(1).max(2e3)
   }).strip()
 }).strip();
 function onDomain(host, domain) {
@@ -4454,324 +4656,6 @@ function bookingPageOf(raw) {
   u.hash = "";
   const page = u.toString();
   return page.length <= BOOKING_PAGE_MAX ? page : null;
-}
-var MIN_MS2 = 6e4;
-var HOUR_MS2 = 36e5;
-var DAY_MS2 = 864e5;
-var WEEK_MS2 = 7 * DAY_MS2;
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
-var LEAD_QUESTION_THRESHOLD = 0.6;
-var LEAD_QUESTION_MIN_EVIDENCE = 10;
-var LEAD_PROBE_PLACES = 25;
-var LEAD_JUDGE_BATCH = 25;
-var LEAD_MAX_PLACES2 = 1e3;
-var LEAD_FACT_MAX = 120;
-var LEAD_KIND_KEY = "kind";
-var LEAD_UNREACHABLE_KEY = "unreachable";
-var LEAD_ESTIMATE_MARGIN = 1.3;
-var LEAD_ASK_MIN_FACTOR = 1.2;
-var LEAD_ASK_MAX_FACTOR = 4;
-var LEAD_QUESTION_WAIT_MS2 = 24 * HOUR_MS2;
-function leadPhoneState(phone) {
-  if (!phone) return "none";
-  return phoneDialable(phone) ? "ok" : "invalid";
-}
-var US_STATES2 = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  "district of columbia": "DC",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY"
-};
-var US_CODES2 = new Set(Object.values(US_STATES2));
-var KEY2 = /^[a-z][a-z0-9_]{0,39}$/;
-var stripUnsafe2 = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words2 = (min, max) => z42.string().transform((s) => stripUnsafe2(s).trim()).pipe(z42.string().min(min).max(max));
-var LeadSearchPlanSchema2 = z42.object({
-  version: z42.number().int().min(1),
-  card: z42.literal("local_businesses"),
-  name: words2(2, 80),
-  asked: words2(1, 400),
-  terms: z42.array(words2(2, 60)).min(1).max(5),
-  area: z42.object({
-    kind: z42.enum(["zip", "city", "radius"]),
-    label: words2(2, 80),
-    state: z42.string().regex(/^[A-Z]{2}$/),
-    center: z42.object({ lat: z42.number().min(-90).max(90), lng: z42.number().min(-180).max(180) }).nullable(),
-    radius_m: z42.number().int().min(500).max(2e5),
-    zip: z42.string().regex(/^\d{5}$/).optional(),
-    query: words2(2, 120)
-  }),
-  count: z42.number().int().min(1).max(LEAD_MAX_PLACES2),
-  contact: z42.enum(["phone", "email"]),
-  criteria: z42.array(
-    z42.object({
-      key: z42.string().regex(KEY2),
-      text: words2(2, 120),
-      standard: z42.enum(["likely", "seen"]),
-      required: z42.boolean()
-    })
-  ).max(8),
-  exclusions: z42.array(
-    z42.object({
-      key: z42.string().regex(KEY2),
-      text: words2(2, 80),
-      origin: z42.enum(["claude", "you_said"]),
-      category_key: z42.string().regex(KEY2).optional()
-    })
-  ).max(8)
-}).superRefine((p, ctx) => {
-  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length)
-    ctx.addIssue({
-      code: "custom",
-      message: "every criterion and exclusion has a key of its own",
-      path: ["criteria"]
-    });
-  const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length)
-    ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null)
-    ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip)
-    ctx.addIssue({
-      code: "custom",
-      message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)",
-      path: ["area", "zip"]
-    });
-  if (!US_CODES2.has(p.area.state))
-    ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
-});
-var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
-var lowerFirst = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-var US_NAMES2 = Object.fromEntries(
-  Object.entries(US_STATES2).map(([name, code2]) => [code2, name])
-);
-function endingOfRound(x) {
-  if (x.counted >= x.target) return "target_reached";
-  if (x.paused) return "paused";
-  if (x.stopped) return "stopped";
-  if (x.sourceFailed) return "source_failed";
-  if (x.unanswered) return "question_unanswered";
-  if (x.allowanceLeft <= 0) return "month_leads_used";
-  if (x.budgetLeftUsd <= 0) return "budget_used";
-  if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
-  return "few_new_matches";
-}
-var LEAD_CARDS = [
-  {
-    id: "local_businesses",
-    goodFor: [
-      "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
-      "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
-      "emails and social profiles from the business's own website",
-      "a mailbox check on the email found"
-    ],
-    notFor: [
-      "people at home, or anyone who is not a business",
-      "online sellers and shops with no local listing",
-      "what a business stocks or sells inside (a listing does not show inventory: a seen standard on it cannot be met)",
-      "businesses outside the US"
-    ],
-    settings: [
-      "terms (up to five search phrases, widest first)",
-      "area (a city, a ZIP, or a center and radius)",
-      "count (1 to 1000)",
-      "contact standard (phone, or email checked)"
-    ],
-    costPerPlaceUsd: 3e-3,
-    contactsPerPlaceUsd: 2e-3,
-    judgePerPlaceUsd: 23e-4,
-    checkPerEmailUsd: 89e-5,
-    startUsd: 5e-5,
-    maxPerTerm: 120,
-    // Measured over five real searches on 20 September 2026: 10 to 25 minutes for 50 with checks, five in flight.
-    placesPerMinute: 8,
-    examples: [
-      "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
-      "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
-      "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks"
-    ],
-    approved: true
-  }
-];
-var cardOf = (plan) => {
-  const c = LEAD_CARDS.find((x) => x.id === plan.card);
-  if (!c) throw new Error(`no card ${plan.card}`);
-  return c;
-};
-var round4 = (n) => Math.round(n * 1e4) / 1e4;
-function estimateRoundUsd(plan, purpose, placesToAsk2) {
-  const c = cardOf(plan);
-  const places = Math.max(0, Math.floor(placesToAsk2));
-  const perPlace = c.costPerPlaceUsd + c.contactsPerPlaceUsd + c.judgePerPlaceUsd + (plan.contact === "email" ? c.checkPerEmailUsd : 0);
-  const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
-  return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
-}
-function spread(total, n, cap2) {
-  const each = Math.min(cap2, Math.floor(total / n));
-  const rest = Math.min(total - each * n, n);
-  return Array.from({ length: n }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
-}
-function placesToAsk(plan, remaining, yieldSoFar) {
-  const n = Math.max(1, plan.terms.length);
-  const cap2 = cardOf(plan).maxPerTerm;
-  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
-  if (yieldSoFar === null) {
-    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap2);
-    return { total: perTerm2.reduce((a, b) => a + b, 0), perTerm: perTerm2 };
-  }
-  const left = Math.max(1, Math.ceil(remaining));
-  const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
-  const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
-  const total = Math.min(LEAD_MAX_PLACES2, cap2 * n, Math.ceil(clamped));
-  const perTerm = spread(total, n, cap2);
-  return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
-}
-function classify(plan, answer, facts, emailState, inArea2, phoneState) {
-  if (facts.phone_matches_site === null && facts.emails.length === 0)
-    return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
-  const reasons = [];
-  const rubric = [
-    { key: LEAD_KIND_KEY, standard: "likely", required: true },
-    ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely", required: true })),
-    ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required }))
-  ];
-  let excludedBy = null;
-  let softFail = false;
-  let unknown = false;
-  for (const r22 of rubric) {
-    const a = answer.criteria.find((x) => x.key === r22.key);
-    const verdict = a?.answer ?? "unknown";
-    const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
-    if (verdict === "fail") {
-      if (r22.required) {
-        excludedBy = excludedBy ?? r22.key;
-        reasons.push(`fail:${r22.key}`);
-      } else {
-        softFail = true;
-      }
-    } else if (verdict === "unknown") {
-      if (r22.required) {
-        unknown = true;
-        reasons.push(`unknown:${r22.key}`);
-      } else {
-        softFail = true;
-      }
-    } else if (r22.standard === "seen" && readOnly) {
-      if (r22.required) {
-        unknown = true;
-        reasons.push(`inferred:${r22.key}`);
-      } else {
-        softFail = true;
-      }
-    }
-  }
-  if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
-  if (!inArea2) reasons.push("out_of_area");
-  if (phoneState !== "ok" && emailState !== "ok") {
-    if (emailState !== "none") reasons.push(`email:${emailState}`);
-    else reasons.push(`phone:${phoneState}`);
-  }
-  const fit = softFail ? "long" : unknown ? "look" : "strong";
-  return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
-}
-function questionAfterProbe(plan, members) {
-  const n = members.length;
-  if (n < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
-  const excluded = members.filter((m) => m.class === "excluded").length;
-  if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
-  const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
-  const tally2 = /* @__PURE__ */ new Map();
-  for (const m of members)
-    if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by))
-      tally2.set(m.excluded_by, (tally2.get(m.excluded_by) ?? 0) + 1);
-  const top = [...tally2.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (!top) return { ask: false };
-  const textOf2 = (key) => lowerFirst(
-    plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key
-  );
-  const namedShare = top[1] / n;
-  const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
-  const what = excluded > top[1] ? `${textOf2(top[0])} and other kinds of places` : textOf2(top[0]);
-  let dropTerm = null;
-  if (plan.terms.length > 1) {
-    const statOf = (term) => {
-      const of = members.filter((m) => m.term === term);
-      return {
-        count: of.length,
-        excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0
-      };
-    };
-    for (const term of plan.terms) {
-      const s = statOf(term);
-      if (s.count < 5 || s.excludedShare < 2 / 3) continue;
-      const anotherWorks = plan.terms.some(
-        (other) => other !== term && (() => {
-          const o = statOf(other);
-          return o.count >= 5 && o.excludedShare < 2 / 3;
-        })()
-      );
-      if (anotherWorks) {
-        dropTerm = term;
-        break;
-      }
-    }
-  }
-  const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
-  return {
-    ask: true,
-    sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
-    criterionKey: top[0],
-    dropTerm
-  };
 }
 var LEAD_PLATFORM_HOSTS = /* @__PURE__ */ (() => [
   ...BOOKING_PLATFORM_HOSTS,
@@ -4932,6 +4816,18 @@ function stateCode(raw) {
   const up = s.toUpperCase();
   if (up.length === 2 && US_CODES2.has(up)) return up;
   return US_STATES2[s.toLowerCase()] ?? null;
+}
+var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
+function endingOfRound(x) {
+  if (x.counted >= x.target) return "target_reached";
+  if (x.paused) return "paused";
+  if (x.stopped) return "stopped";
+  if (x.sourceFailed) return "source_failed";
+  if (x.unanswered) return "question_unanswered";
+  if (x.allowanceLeft <= 0) return "month_leads_used";
+  if (x.budgetLeftUsd <= 0) return "budget_used";
+  if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
+  return "few_new_matches";
 }
 var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
 var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
@@ -5324,6 +5220,60 @@ var WriteRules2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   (p.closures ?? []).forEach((c, n) => checkClosure2(c, n, ctx));
 });
 var TenantConfigWriteSchema2 = z62.unknown().superRefine((raw, ctx) => refuseUnknownFields2(TenantConfigSchema2, raw, ctx)).pipe(WriteRules2);
+var LEAD_KIND_KEY = "kind";
+var LEAD_UNREACHABLE_KEY = "unreachable";
+function leadPhoneState(phone) {
+  if (!phone) return "none";
+  return phoneDialable(phone) ? "ok" : "invalid";
+}
+function classify(plan, answer, facts, emailState, inArea2, phoneState) {
+  if (facts.phone_matches_site === null && facts.emails.length === 0)
+    return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
+  const reasons = [];
+  const rubric = [
+    { key: LEAD_KIND_KEY, standard: "likely", required: true },
+    ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely", required: true })),
+    ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required }))
+  ];
+  let excludedBy = null;
+  let softFail = false;
+  let unknown = false;
+  for (const r22 of rubric) {
+    const a = answer.criteria.find((x) => x.key === r22.key);
+    const verdict = a?.answer ?? "unknown";
+    const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
+    if (verdict === "fail") {
+      if (r22.required) {
+        excludedBy = excludedBy ?? r22.key;
+        reasons.push(`fail:${r22.key}`);
+      } else {
+        softFail = true;
+      }
+    } else if (verdict === "unknown") {
+      if (r22.required) {
+        unknown = true;
+        reasons.push(`unknown:${r22.key}`);
+      } else {
+        softFail = true;
+      }
+    } else if (r22.standard === "seen" && readOnly) {
+      if (r22.required) {
+        unknown = true;
+        reasons.push(`inferred:${r22.key}`);
+      } else {
+        softFail = true;
+      }
+    }
+  }
+  if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
+  if (!inArea2) reasons.push("out_of_area");
+  if (phoneState !== "ok" && emailState !== "ok") {
+    if (emailState !== "none") reasons.push(`email:${emailState}`);
+    else reasons.push(`phone:${phoneState}`);
+  }
+  const fit = softFail ? "long" : unknown ? "look" : "strong";
+  return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
+}
 var LEAD_FIRST_DAY_TITLE2 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB2 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT2 = "Claude finds businesses, not people at home.";
@@ -7923,6 +7873,56 @@ function domainDailyCap(sentDays) {
   for (const step2 of DOMAIN_RAMP) if (sentDays >= step2.days) cap2 = step2.perDay;
   return cap2;
 }
+function questionAfterProbe(plan, members) {
+  const n = members.length;
+  if (n < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
+  const excluded = members.filter((m) => m.class === "excluded").length;
+  if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
+  const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
+  const tally2 = /* @__PURE__ */ new Map();
+  for (const m of members)
+    if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by))
+      tally2.set(m.excluded_by, (tally2.get(m.excluded_by) ?? 0) + 1);
+  const top = [...tally2.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (!top) return { ask: false };
+  const textOf2 = (key) => lowerFirst(
+    plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key
+  );
+  const namedShare = top[1] / n;
+  const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
+  const what = excluded > top[1] ? `${textOf2(top[0])} and other kinds of places` : textOf2(top[0]);
+  let dropTerm = null;
+  if (plan.terms.length > 1) {
+    const statOf = (term) => {
+      const of = members.filter((m) => m.term === term);
+      return {
+        count: of.length,
+        excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0
+      };
+    };
+    for (const term of plan.terms) {
+      const s = statOf(term);
+      if (s.count < 5 || s.excludedShare < 2 / 3) continue;
+      const anotherWorks = plan.terms.some(
+        (other) => other !== term && (() => {
+          const o = statOf(other);
+          return o.count >= 5 && o.excludedShare < 2 / 3;
+        })()
+      );
+      if (anotherWorks) {
+        dropTerm = term;
+        break;
+      }
+    }
+  }
+  const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
+  return {
+    ask: true,
+    sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`,
+    criterionKey: top[0],
+    dropTerm
+  };
+}
 var FORWARDING_TEST_WINDOW_MS2 = 30 * MIN_MS2;
 var TRY_QUIET_AFTER_MS2 = 3 * MIN_MS2;
 var FIRST_RUN_PHONE_WORDS2 = {
@@ -9235,9 +9235,9 @@ var PartnerSecondFactorResetSchema2 = z192.object({
 import { z as z21 } from "zod";
 import { z as z103 } from "zod";
 import { z as z53 } from "zod";
+import { z as z23 } from "zod";
 import { z as z43 } from "zod";
 import { z as z33 } from "zod";
-import { z as z23 } from "zod";
 import { z as z63 } from "zod";
 import { z as z83 } from "zod";
 import { z as z73 } from "zod";
@@ -9252,162 +9252,11 @@ import { z as z173 } from "zod";
 import { z as z183 } from "zod";
 import { z as z193 } from "zod";
 z21.config({ jitless: true });
-var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
-var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
-var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
-var TIME3 = z23.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema3 = z23.object({ open: TIME3, close: TIME3 });
-var HoursSchema3 = z23.object({
-  /** "09:00". Absent or null = closed that day, which is a real answer. */
-  open: TIME3.nullable().optional(),
-  close: TIME3.nullable().optional(),
-  /**
-   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-   * actually keeps. Additive: a day that has always been one stretch keeps
-   * saying so with open/close, and no stored config is rewritten.
-   */
-  intervals: z23.array(IntervalSchema3).optional()
-}).strip();
-var DATE3 = z23.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema3 = z23.object({
-  date: DATE3,
-  until: DATE3.optional(),
-  note: z23.string().max(200).optional()
-});
-var DAYS3 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema3 = z23.object({
-  name: z23.string().min(1).max(80),
-  /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z23.number().int().min(1).max(1440).optional(),
-  /**
-   * Free text, not a number, and deliberately so: "from $45", "quoted at
-   * consult", "varies by length". A price the business cannot state flatly
-   * must not be forced into a field that looks like it can.
-   */
-  price_note: z23.string().max(120).optional()
-}).strip();
-var GuardrailsSchema3 = z23.object({
-  never_quote_prices: z23.boolean().optional(),
-  never_confirm_booking: z23.boolean().optional(),
-  disclose_ai: z23.boolean().optional(),
-  /**
-   * OPT-IN, unlike the three above. Those default on because absent means
-   * "the safe reading"; this one arrived after prompts were live, and a
-   * rule that defaulted on would have changed every composed prompt in
-   * production the moment it deployed.
-   */
-  no_health_advice: z23.boolean().optional()
-}).strip();
-var NoteSchema3 = z23.object({
-  title: z23.string().min(1).max(80),
-  text: z23.string().min(1).max(1200)
-}).strip();
-var BookingRulesSchema3 = z23.object({
-  /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z23.number().int().min(0).max(168).optional(),
-  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z23.number().int().min(0).max(120).optional(),
-  /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z23.number().int().min(1).max(90).optional(),
-  /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z23.number().int().min(15).max(240).optional(),
-  /** Services that need a consultation before they can be booked. */
-  consult_first: z23.array(z23.string().min(1).max(80)).max(20).optional(),
-  party_max: z23.number().int().min(1).max(20).optional(),
-  /**
-   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
-   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
-   */
-  ask_email: z23.boolean().optional(),
-  /** Anything else about booking, one short line each. */
-  notes: z23.array(z23.string().min(1).max(200)).max(10).optional()
-}).strip();
-var E1643 = /^\+[1-9]\d{6,14}$/;
-var INSTRUCTIONS_MAX3 = 2e4;
-var BusinessProfileSchema3 = z23.object({
-  address: z23.string().max(300).optional(),
-  hours: z23.partialRecord(z23.enum(DAYS3), HoursSchema3).optional(),
-  /** Dates the business is shut regardless of the weekly grid. */
-  closures: z23.array(ClosureSchema3).optional(),
-  services: z23.array(ServiceSchema3).max(60).optional(),
-  languages: z23.array(z23.string().min(2).max(40)).max(8).optional(),
-  guardrails: GuardrailsSchema3.optional(),
-  /** What must reach a person. One short line each. */
-  escalate_when: z23.array(z23.string().min(1).max(200)).max(20).optional(),
-  tone: z23.string().max(200).optional(),
-  /**
-   * The line a PERSON answers. The phone receptionist warm-transfers here
-   * during opening hours; absent, it takes a message instead. Never the
-   * receptionist's own line — that would ring itself.
-   */
-  handoff_number: z23.string().regex(E1643, "E.164, like +12125550143").optional(),
-  website: z23.string().url().max(500).optional(),
-  notes: z23.array(NoteSchema3).max(10).optional(),
-  booking_rules: BookingRulesSchema3.optional(),
-  /**
-   * Anything the owner wants said that no field covers.
-   *
-   * The escape hatch that keeps this model honest — without it, structuring
-   * the facts would mean losing whatever did not fit, and the first migration
-   * would be a downgrade.
-   *
-   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
-   * the form carries that prompt into it.
-   */
-  extra_instructions: z23.string().max(INSTRUCTIONS_MAX3).optional()
-}).strip();
-var BrainConfigSchema3 = z33.object({
-  business_name: z33.string().min(1).max(120),
-  /**
-   * The number the receptionist tells customers to call — an OVERRIDE, and
-   * optional because it should almost never be set.
-   *
-   * It was required, free text, and named the same as the line the
-   * receptionist answers, so every workspace typed something into it and
-   * nothing checked what. On the first live salon that produced a
-   * receptionist publishing the number it transfers to: customers who rang
-   * it reached a person's mobile and never the receptionist standing by,
-   * and the same string went to Google.
-   *
-   * Absent is now the right answer and the default: resolveFacts falls back
-   * to the provisioned voice line, formatted for speech, so the number
-   * published is the number answered by construction. A value here means a
-   * business deliberately publishes something else — a tracking line, a
-   * shopfront — and the pane says so in those words.
-   */
-  phone_display: z33.string().min(3).max(40).optional(),
-  /**
-   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
-   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
-   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
-   */
-  booking_link: z33.string().url().max(500).optional(),
-  /** The complete system prompt the model receives — the "AI memory" pane's
-   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z33.string().min(40).max(INSTRUCTIONS_MAX3),
-  /**
-   * The business's facts, as fields.
-   *
-   * Optional: every config written before this existed stays valid, and
-   * nothing composes until a workspace actually fills it in. When present
-   * it REPLACES system_prompt as the source the prompt is built from.
-   */
-  profile: BusinessProfileSchema3.optional(),
-  fallbacks: z33.object({
-    /** Sent when no model key is configured. */
-    greeting: z33.string().min(1).max(2e3),
-    /** Sent when the model call failed. */
-    error: z33.string().min(1).max(2e3),
-    /** Sent for voice notes / photos before escalating. */
-    non_text: z33.string().min(1).max(2e3)
-  }).strip()
-}).strip();
 var MIN_MS3 = 6e4;
 var HOUR_MS3 = 36e5;
 var DAY_MS3 = 864e5;
 var WEEK_MS3 = 7 * DAY_MS3;
 var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES3 = 1e3;
 var LEAD_QUESTION_WAIT_MS3 = 24 * HOUR_MS3;
 var US_STATES3 = {
@@ -9466,38 +9315,38 @@ var US_STATES3 = {
 var US_CODES3 = new Set(Object.values(US_STATES3));
 var KEY3 = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe3 = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words3 = (min, max) => z43.string().transform((s) => stripUnsafe3(s).trim()).pipe(z43.string().min(min).max(max));
-var LeadSearchPlanSchema3 = z43.object({
-  version: z43.number().int().min(1),
-  card: z43.literal("local_businesses"),
+var words3 = (min, max) => z23.string().transform((s) => stripUnsafe3(s).trim()).pipe(z23.string().min(min).max(max));
+var LeadSearchPlanSchema3 = z23.object({
+  version: z23.number().int().min(1),
+  card: z23.literal("local_businesses"),
   name: words3(2, 80),
   asked: words3(1, 400),
-  terms: z43.array(words3(2, 60)).min(1).max(5),
-  area: z43.object({
-    kind: z43.enum(["zip", "city", "radius"]),
+  terms: z23.array(words3(2, 60)).min(1).max(5),
+  area: z23.object({
+    kind: z23.enum(["zip", "city", "radius"]),
     label: words3(2, 80),
-    state: z43.string().regex(/^[A-Z]{2}$/),
-    center: z43.object({ lat: z43.number().min(-90).max(90), lng: z43.number().min(-180).max(180) }).nullable(),
-    radius_m: z43.number().int().min(500).max(2e5),
-    zip: z43.string().regex(/^\d{5}$/).optional(),
+    state: z23.string().regex(/^[A-Z]{2}$/),
+    center: z23.object({ lat: z23.number().min(-90).max(90), lng: z23.number().min(-180).max(180) }).nullable(),
+    radius_m: z23.number().int().min(500).max(2e5),
+    zip: z23.string().regex(/^\d{5}$/).optional(),
     query: words3(2, 120)
   }),
-  count: z43.number().int().min(1).max(LEAD_MAX_PLACES3),
-  contact: z43.enum(["phone", "email"]),
-  criteria: z43.array(
-    z43.object({
-      key: z43.string().regex(KEY3),
+  count: z23.number().int().min(1).max(LEAD_MAX_PLACES3),
+  contact: z23.enum(["phone", "email"]),
+  criteria: z23.array(
+    z23.object({
+      key: z23.string().regex(KEY3),
       text: words3(2, 120),
-      standard: z43.enum(["likely", "seen"]),
-      required: z43.boolean()
+      standard: z23.enum(["likely", "seen"]),
+      required: z23.boolean()
     })
   ).max(8),
-  exclusions: z43.array(
-    z43.object({
-      key: z43.string().regex(KEY3),
+  exclusions: z23.array(
+    z23.object({
+      key: z23.string().regex(KEY3),
       text: words3(2, 80),
-      origin: z43.enum(["claude", "you_said"]),
-      category_key: z43.string().regex(KEY3).optional()
+      origin: z23.enum(["claude", "you_said"]),
+      category_key: z23.string().regex(KEY3).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -9525,6 +9374,157 @@ var LeadSearchPlanSchema3 = z43.object({
 var US_NAMES3 = Object.fromEntries(
   Object.entries(US_STATES3).map(([name, code2]) => [code2, name])
 );
+var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
+var TIME3 = z33.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema3 = z33.object({ open: TIME3, close: TIME3 });
+var HoursSchema3 = z33.object({
+  /** "09:00". Absent or null = closed that day, which is a real answer. */
+  open: TIME3.nullable().optional(),
+  close: TIME3.nullable().optional(),
+  /**
+   * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
+   * actually keeps. Additive: a day that has always been one stretch keeps
+   * saying so with open/close, and no stored config is rewritten.
+   */
+  intervals: z33.array(IntervalSchema3).optional()
+}).strip();
+var DATE3 = z33.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema3 = z33.object({
+  date: DATE3,
+  until: DATE3.optional(),
+  note: z33.string().max(200).optional()
+});
+var DAYS3 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+var ServiceSchema3 = z33.object({
+  name: z33.string().min(1).max(80),
+  /** Minutes. The receptionist is asked "how long does it take" constantly. */
+  duration_min: z33.number().int().min(1).max(1440).optional(),
+  /**
+   * Free text, not a number, and deliberately so: "from $45", "quoted at
+   * consult", "varies by length". A price the business cannot state flatly
+   * must not be forced into a field that looks like it can.
+   */
+  price_note: z33.string().max(120).optional()
+}).strip();
+var GuardrailsSchema3 = z33.object({
+  never_quote_prices: z33.boolean().optional(),
+  never_confirm_booking: z33.boolean().optional(),
+  disclose_ai: z33.boolean().optional(),
+  /**
+   * OPT-IN, unlike the three above. Those default on because absent means
+   * "the safe reading"; this one arrived after prompts were live, and a
+   * rule that defaulted on would have changed every composed prompt in
+   * production the moment it deployed.
+   */
+  no_health_advice: z33.boolean().optional()
+}).strip();
+var NoteSchema3 = z33.object({
+  title: z33.string().min(1).max(80),
+  text: z33.string().min(1).max(1200)
+}).strip();
+var BookingRulesSchema3 = z33.object({
+  /** Least notice for a slot, in hours. Absent = 2. */
+  lead_hours: z33.number().int().min(0).max(168).optional(),
+  /** Gap kept around each existing appointment, in minutes. Absent = 0. */
+  buffer_min: z33.number().int().min(0).max(120).optional(),
+  /** How far ahead open times are offered, in days. Absent = 14. */
+  max_days_ahead: z33.number().int().min(1).max(90).optional(),
+  /** The shortest window worth naming, in minutes. Absent = 30. */
+  slot_min: z33.number().int().min(15).max(240).optional(),
+  /** Services that need a consultation before they can be booked. */
+  consult_first: z33.array(z33.string().min(1).max(80)).max(20).optional(),
+  party_max: z33.number().int().min(1).max(20).optional(),
+  /**
+   * Ask, once, for an email when sending the booking link -- for the confirmation, and for the campaigns that follow
+   * (Part 0 of the campaigns-on-every-channel spec). Absent = no.
+   */
+  ask_email: z33.boolean().optional(),
+  /** Anything else about booking, one short line each. */
+  notes: z33.array(z33.string().min(1).max(200)).max(10).optional()
+}).strip();
+var E1643 = /^\+[1-9]\d{6,14}$/;
+var INSTRUCTIONS_MAX3 = 2e4;
+var BusinessProfileSchema3 = z33.object({
+  address: z33.string().max(300).optional(),
+  hours: z33.partialRecord(z33.enum(DAYS3), HoursSchema3).optional(),
+  /** Dates the business is shut regardless of the weekly grid. */
+  closures: z33.array(ClosureSchema3).optional(),
+  services: z33.array(ServiceSchema3).max(60).optional(),
+  languages: z33.array(z33.string().min(2).max(40)).max(8).optional(),
+  guardrails: GuardrailsSchema3.optional(),
+  /** What must reach a person. One short line each. */
+  escalate_when: z33.array(z33.string().min(1).max(200)).max(20).optional(),
+  tone: z33.string().max(200).optional(),
+  /**
+   * The line a PERSON answers. The phone receptionist warm-transfers here
+   * during opening hours; absent, it takes a message instead. Never the
+   * receptionist's own line — that would ring itself.
+   */
+  handoff_number: z33.string().regex(E1643, "E.164, like +12125550143").optional(),
+  website: z33.string().url().max(500).optional(),
+  notes: z33.array(NoteSchema3).max(10).optional(),
+  booking_rules: BookingRulesSchema3.optional(),
+  /**
+   * Anything the owner wants said that no field covers.
+   *
+   * The escape hatch that keeps this model honest — without it, structuring
+   * the facts would mean losing whatever did not fit, and the first migration
+   * would be a downgrade.
+   *
+   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
+   * the form carries that prompt into it.
+   */
+  extra_instructions: z33.string().max(INSTRUCTIONS_MAX3).optional()
+}).strip();
+var BrainConfigSchema3 = z43.object({
+  business_name: z43.string().min(1).max(120),
+  /**
+   * The number the receptionist tells customers to call — an OVERRIDE, and
+   * optional because it should almost never be set.
+   *
+   * It was required, free text, and named the same as the line the
+   * receptionist answers, so every workspace typed something into it and
+   * nothing checked what. On the first live salon that produced a
+   * receptionist publishing the number it transfers to: customers who rang
+   * it reached a person's mobile and never the receptionist standing by,
+   * and the same string went to Google.
+   *
+   * Absent is now the right answer and the default: resolveFacts falls back
+   * to the provisioned voice line, formatted for speech, so the number
+   * published is the number answered by construction. A value here means a
+   * business deliberately publishes something else — a tracking line, a
+   * shopfront — and the pane says so in those words.
+   */
+  phone_display: z43.string().min(3).max(40).optional(),
+  /**
+   * Where a customer books. Optional since the first run's decision 2 (24 Sep 2026): a business that quotes each
+   * job has none, and its receptionist takes the customer's details instead (no-booking-link.ts). Who is asked for
+   * one is the pages' question, by how customers buy (deals.ts bookingLinkOptional): the config cannot see it.
+   */
+  booking_link: z43.string().url().max(500).optional(),
+  /** The complete system prompt the model receives — the "AI memory" pane's
+   *  one hard promise is that what it shows is EXACTLY this, nothing more. */
+  system_prompt: z43.string().min(40).max(INSTRUCTIONS_MAX3),
+  /**
+   * The business's facts, as fields.
+   *
+   * Optional: every config written before this existed stays valid, and
+   * nothing composes until a workspace actually fills it in. When present
+   * it REPLACES system_prompt as the source the prompt is built from.
+   */
+  profile: BusinessProfileSchema3.optional(),
+  fallbacks: z43.object({
+    /** Sent when no model key is configured. */
+    greeting: z43.string().min(1).max(2e3),
+    /** Sent when the model call failed. */
+    error: z43.string().min(1).max(2e3),
+    /** Sent for voice notes / photos before escalating. */
+    non_text: z43.string().min(1).max(2e3)
+  }).strip()
+}).strip();
+var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
 var LEAD_CLASSES3 = LEAD_MEMBER_CLASSES3;
 var LEAD_LISTS3 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
 var LEAD_SORTS3 = ["fit", "found", "distance", "business", "rating", "stage"];
