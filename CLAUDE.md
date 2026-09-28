@@ -130,6 +130,7 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
 | A test of a verb                              | `tooling/scripts/tests/conversations/core-thread-verbs.test.mjs`                                                                   | Fakes for the ports                                                                                                                              |
 | A ratchet                                     | `tooling/scripts/tests/repo/code-health-ratchets.test.mjs`, `tooling/scripts/tests/_ratchet.mjs`, `tooling/scripts/tests/_ast.mjs` | Measure the syntax tree, never the text; the baseline may only fall; a row in `docs/debt.md`                                                     |
 | A database test                               | `tooling/scripts/tests/<domain>/*.db.test.mjs`                                                                                     | Runs against the replayed stack in CI when database paths change; skips without credentials                                                      |
+| A type test                                   | `packages/contracts/src/shared/identity.type-test.ts`                                                                              | Positives are `Holds<Exactly<…>>`; a negative is one line under `// @ts-expect-error <why>`                                                      |
 | A design that changes the shape of the system | `docs/decisions/0002-appointments-record.md`                                                                                       | Written against a named commit, steps shippable in either deploy order                                                                           |
 
 ## Where new code goes
@@ -155,6 +156,10 @@ the repository's root, and `tooling/scripts/tests/docs/docs-paths.test.mjs` fail
   `packages/contracts/src/mobile/app-bridge.ts`.
 - A test: `tooling/scripts/tests/<domain>/`, named for what it proves; a world or helper it
   shares stays at the root as `tooling/scripts/tests/_<name>.mjs`.
+- A promise only the compiler can check (a brand, a closed set, a route's shape): a type test beside the module it
+  proves, named for it, as `packages/contracts/src/shared/identity.type-test.ts` is for
+  `packages/contracts/src/shared/identity.ts`. Its project's `tsc --noEmit` compiles it; nothing compiles
+  TypeScript under `tooling/scripts/tests/`, so one written there could never fail.
 - A journey through the running app in a browser: a Playwright spec in `e2e/<domain>/` (`e2e/people/people.spec.ts`),
   signed in by `e2e/session.ts` and run nightly against production in the suite's own workspace; the helpers stay at
   the root, and so does a domain's only spec until its second.

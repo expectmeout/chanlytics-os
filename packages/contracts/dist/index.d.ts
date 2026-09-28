@@ -9240,8 +9240,11 @@ declare const LEAD_SUPPRESSION_WHATS: readonly ["email_opt_out", "customer", "er
 type SchemaSetKey = keyof typeof SCHEMA_SETS;
 /** The values one column's CHECK allows, e.g. SchemaSet<"lines.voice_state">. */
 type SchemaSet<K extends SchemaSetKey> = (typeof SCHEMA_SETS)[K][number];
-/** true when A and B are the same set of literals. */
-type Exactly<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+/**
+ * true when A and B are the same set of literals. `any` is no set: it reads as every one, so a side that is `any` is
+ * never exactly anything (`0 extends 1 & T` holds only for `any`).
+ */
+type Exactly<A, B> = 0 extends 1 & A ? false : 0 extends 1 & B ? false : [A] extends [B] ? [B] extends [A] ? true : false : false;
 /** true when every literal in A is also in B. */
 type Within<A, B> = [A] extends [B] ? true : false;
 /** Compiles only when T is true, so the failing line names the pair that drifted. */
