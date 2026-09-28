@@ -878,7 +878,7 @@ const askWorld = (threads = [], messages = []) => ({
   ask_messages: messages,
 });
 
-test("a thread past thirty turns reads its newest sixty rows (MESSAGES_CAP): GET ask/threads/[id] draws them oldest first, the newest last, a tie in the clock broken by the id; and a follow-up is asked with the newest turns, never the first", async () => {
+test("a thread past thirty turns reads its newest sixty rows (MESSAGES_CAP): GET ask/threads/[id] draws them oldest first, the newest last, a tie in the clock broken by the id; and a follow-up is asked with the newest twelve turns, from a question, never the first", async () => {
   const rows = longThread(70);
   // The newest turn's question and answer in one millisecond: the id puts them in order, the same way every read.
   rows[69].created_at = rows[68].created_at;
@@ -900,6 +900,11 @@ test("a thread past thirty turns reads its newest sixty rows (MESSAGES_CAP): GET
     await linesOf(await ask.POST.run(send("POST", { text: "And after that?", thread_id: T1 }, inA), ctxFor(tables)));
     const history = requests[0].messages.slice(0, -1).map((m) => [m.role, m.content]);
     assert.deepEqual(history.at(-1), ["assistant", "Answer 69."], "the model reads the thread up to its newest turn");
+    assert.deepEqual(
+      history,
+      rows.slice(46, 70).map((r) => [r.role, r.content.text]),
+      "the newest twelve turns, twenty-four messages from Question 46: twelve turns, counted as turns",
+    );
     assert.equal(lastUser(requests[0]), "And after that?");
   } finally {
     setAskPorts(null);

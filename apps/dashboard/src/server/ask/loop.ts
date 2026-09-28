@@ -72,7 +72,11 @@ import { finishTurn, type TurnEnd } from "./memory";
 // but the edge clamped every round to 2000, so 2000 was the real ceiling; it is
 // one number now, 4000 since the lead plan's card was cut at 2000 (D10). A cap
 // is not a spend, only a ceiling on what may be generated.
-const MAX_HISTORY = 12;
+/**
+ * The earlier turns a question is asked with, as words: counted as turns -- a person's message and what follows it
+ * until the next -- never as messages (the Phase 5 plan, D3's fallback until the replay). Twelve messages were six.
+ */
+const HISTORY_TURNS = 12;
 const HISTORY_CHARS = 1200;
 /** Say is sent at most this often while it is written (spec 7.4). */
 const SAY_EVERY_MS = 50;
@@ -197,13 +201,17 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
 }
 
 /**
- * The thread's prior turns, folded so no two neighbours share a role, starting with the person. The history is words;
- * the question may be blocks (the page's data, then the words): two neighbours of one role are joined as words, or, where
- * either is blocks, as one list of blocks with the words first.
+ * The thread's prior turns, folded so no two neighbours share a role, starting with the person: the last HISTORY_TURNS
+ * turns, from the question that starts the first of them, so an answer whose question the read cut off (readThread keeps
+ * the newest sixty rows) is left out. The history is words; the question may be blocks (the page's data, then the
+ * words): two neighbours of one role are joined as words, or, where either is blocks, as one list of blocks with the
+ * words first.
  */
 export function foldHistory(history: TurnInput["history"], last: string | unknown[]): Msg[] {
+  const questions = history.flatMap((h, i) => (h.role === "user" ? [i] : []));
+  const from = questions[Math.max(0, questions.length - HISTORY_TURNS)] ?? history.length;
   const messages: Msg[] = [
-    ...history.slice(-MAX_HISTORY).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
+    ...history.slice(from).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
     { role: "user", content: last },
   ];
   const asBlocks = (c: unknown): unknown[] => (Array.isArray(c) ? c : [{ type: "text", text: String(c) }]);
@@ -217,7 +225,6 @@ export function foldHistory(history: TurnInput["history"], last: string | unknow
       messages.splice(i + 1, 1);
     }
   }
-  if (messages[0]?.role !== "user") messages.shift();
   return messages;
 }
 
