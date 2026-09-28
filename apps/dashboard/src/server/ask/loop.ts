@@ -300,12 +300,13 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     now,
   };
   // Whether the question still carries the data blocks: a request the API refuses for them is asked once more without
-  // them (D14), and the words stop pointing at them.
+  // them (D14), and the words stop pointing at them. A live turn's words also say what happened since (D8).
   let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
-  const sayWords = () => ({
+  const sayWords = (live: boolean) => ({
     type: "text",
     text: turnWords({
       ...wordsFacts,
+      since: live ? input.chain?.since : undefined,
       context: !dataDropped && (built?.blocks.length ?? 0) > 0,
       crossPage: !dataDropped && crossBlocks.length > 0,
       scopeRead: !dataDropped && !!scopedRow,
@@ -341,11 +342,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // warm, round one on the same model and prefix and within the bound (bpR where the last request ended); else words,
   // the question after them (bp3 on the page's last block).
   const cold = () => {
-    const words = sayWords();
+    const words = sayWords(false);
     const data = dataDropped ? [] : [...pageBlocks, ...crossBlocks];
     return { messages: foldHistory(input.history, [...data, words, question]), anchor: pageBlocks.at(-1), words };
   };
-  const asked = { data: [...pageBlocks, ...crossBlocks], words: sayWords(), question };
+  const asked = { data: [...pageBlocks, ...crossBlocks], words: sayWords(true), question };
   const replayed = replayFor(input.chain, asked, (msgs, at) => requestOf(msgs, at, false));
   const { messages, anchor, words } = replayed ?? cold();
   const live = !!replayed;
@@ -510,7 +511,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
             if (drop === "context") {
               dataDropped = true;
               reads -= (pageRead ? 1 : 0) + prefetched.length + (scopedRow ? 1 : 0);
-              const bare = sayWords();
+              const bare = sayWords(live);
               messages[questionAt] = {
                 role: "user",
                 content: (messages[questionAt].content as Array<{ type?: string }>)

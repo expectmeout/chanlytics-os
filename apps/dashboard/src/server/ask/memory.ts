@@ -22,7 +22,7 @@ import {
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
 import { calledName, type ToolRun } from "./tools";
-import { titleFromQuestion, titleFromSearch, type SearchAnswering } from "./prompt";
+import { titleFromQuestion, titleFromSearch, type CardOutcome, type SearchAnswering } from "./prompt";
 import { createThread, readRaws, readThread } from "./store";
 import type { BuiltContext, SearchResultBlock } from "./context";
 import { replayBlocks, resultBlocks, type CallOutcome, type RoundBlock, type RoundResult } from "./round";
@@ -62,7 +62,17 @@ export interface Chain {
   prefix: string;
   /** The answer row the replay ends on: the next turn's `after`. */
   after: string;
+  /**
+   * What happened since (D8): each outcome recorded on the chain's cards that no turn of it told, oldest first -- told
+   * by what each live turn kept (`told`), never by the tab's clock, so one recorded while a turn ran is told next.
+   */
+  since: CardOutcome[];
 }
+
+/** An outcome as a live turn keeps what it told: the card and what became of it. */
+const toldOf = (o: { id: string; state: string }): string => `${o.id}:${o.state}`;
+/** What a live turn keeps of the chain it replayed (RawTurn): where it ended, and what the turn told. */
+const chainEnd = (chain: Chain) => ({ after: chain.after, told: chain.since.map(toldOf) });
 
 /**
  * The thread's prior turns, folded so no two neighbours share a role, starting with the person: the last HISTORY_TURNS
@@ -165,13 +175,9 @@ async function chainFor(
     console.error("ask_replay_unread", JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
     return null;
   });
-  return raws
-    ? chainOf(
-        ids.map((id) => keptOf(raws.get(id))),
-        ids,
-        now,
-      )
-    : null;
+  if (!raws) return null;
+  const kept = ids.map((id) => keptOf(raws.get(id)));
+  return chainOf(kept, ids, now, rows);
 }
 
 /**
@@ -199,6 +205,7 @@ interface Kept {
   model: string;
   prefix: string;
   after: string | null;
+  told: string[];
   base: Msg[] | null;
   question: unknown[];
   rounds: Msg[];
@@ -215,6 +222,8 @@ function keptOf(v: unknown): Kept | null {
   const { at, model, prefix, blocks, after } = raw;
   if (typeof at !== "number" || typeof model !== "string" || typeof prefix !== "string" || typeof blocks !== "string")
     return null;
+  const told = raw.told ?? [];
+  if (!Array.isArray(told) || !told.every((t) => typeof t === "string")) return null;
   let b: Record<string, unknown>;
   try {
     const parsed: unknown = JSON.parse(blocks);
@@ -227,7 +236,8 @@ function keptOf(v: unknown): Kept | null {
   const { question, final, results } = b;
   if ((b.base !== undefined && !base) || !rounds || !Array.isArray(question) || !Array.isArray(final)) return null;
   if (!Array.isArray(results)) return null;
-  return { at, model, prefix, after: typeof after === "string" ? after : null, base, question, rounds, final, results };
+  const link = typeof after === "string" ? after : null;
+  return { at, model, prefix, after: link, told, base, question, rounds, final, results };
 }
 
 /**
@@ -235,9 +245,9 @@ function keptOf(v: unknown): Kept | null {
  * begun under 4½ minutes ago, each live one naming the answer before it (`after`: two tabs interleaving, or a row
  * scrubbed mid-chain, break it), the oldest a base, which keeps the words history it was asked with. Put back together
  * oldest first -- the base's history, then each turn's question, rounds and final -- with every marker a request carried
- * taken off, and held to LIVE_MESSAGES.
+ * taken off, and held to LIVE_MESSAGES. What happened since is read off the chain's cards, on `rows`.
  */
-function chainOf(kept: Array<Kept | null>, ids: string[], now: number): Chain | null {
+function chainOf(kept: Array<Kept | null>, ids: string[], now: number, rows: AskMessageVM[]): Chain | null {
   const turns = kept.filter((k): k is Kept => !!k);
   const [newest] = turns;
   const base = turns.at(-1)?.base;
@@ -250,7 +260,15 @@ function chainOf(kept: Array<Kept | null>, ids: string[], now: number): Chain | 
   const messages = sent.map(unmarked);
   const asked = [...messages].reverse().find((m) => m.role === "user")?.content;
   const anchor = Array.isArray(asked) ? asked.at(-1) : undefined;
-  return { messages, anchor, results: newest.results, model: newest.model, prefix: newest.prefix, after: ids[0] };
+  const told = new Set(turns.flatMap((t) => t.told));
+  const cards = [...ids].reverse().flatMap((id) => rows.find((r) => r.id === id)?.proposals ?? []);
+  const since = cards.flatMap(({ id, title, outcome }) =>
+    outcome && !told.has(toldOf({ id, state: outcome.state }))
+      ? [{ id, title, state: outcome.state, receipt: outcome.receipt }]
+      : [],
+  );
+  const { results, model, prefix } = newest;
+  return { messages, anchor, results, model, prefix, after: ids[0], since };
 }
 
 /**
@@ -336,6 +354,8 @@ export interface RawTurn {
   prefix: string;
   /** A live turn's: the answer row whose turn it replayed last (Chain.after), the link the next replay follows. */
   after?: string;
+  /** A live turn's: the outcomes it told (Chain.since, `<card id>:<state>`), which no later turn of the chain tells. */
+  told?: string[];
 }
 
 /**
@@ -386,13 +406,17 @@ const unmarked = (m: Msg): Msg => (Array.isArray(m.content) ? { ...m, content: m
 
 /**
  * The turn as it was sent, from the round it ended on and where the question sits in that round's request; a live
- * turn's (`after`, the answer its chain ended on) keeps no base.
+ * turn's (`live`: the answer its chain ended on, what it told) keeps no base.
  */
-function rawTurn({ request, blocks, outcomes, roundAt }: LastRound, questionAt: number, after: string | null): RawTurn {
+function rawTurn(
+  { request, blocks, outcomes, roundAt }: LastRound,
+  questionAt: number,
+  live: { after: string; told: string[] } | null,
+): RawTurn {
   const { model } = request;
   const messages = request.messages.map(unmarked);
   return {
-    ...(after ? {} : { base: messages.slice(0, questionAt) }),
+    ...(live ? {} : { base: messages.slice(0, questionAt) }),
     question: messages[questionAt].content,
     rounds: messages.slice(questionAt + 1),
     final: replayBlocks(blocks),
@@ -400,7 +424,7 @@ function rawTurn({ request, blocks, outcomes, roundAt }: LastRound, questionAt: 
     at: roundAt,
     model,
     prefix: prefixOf(request),
-    ...(after ? { after } : {}),
+    ...live,
   };
 }
 
@@ -413,13 +437,13 @@ function rawTurn({ request, blocks, outcomes, roundAt }: LastRound, questionAt: 
  */
 export function storedRaw(
   raw: RawTurn | null,
-): { at: number; model: AskModelId; prefix: string; blocks: string; after?: string } | null {
+): { at: number; model: AskModelId; prefix: string; blocks: string; after?: string; told?: string[] } | null {
   if (!raw) return null;
-  const { base, question, rounds, final, results, at, model, prefix, after } = raw;
+  const { base, question, rounds, final, results, at, model, prefix, after, told } = raw;
   const blocks = JSON.stringify(
     base ? { base, question, rounds, final, results } : { question, rounds, final, results },
   );
-  return { at, model, prefix, blocks, ...(after ? { after } : {}) };
+  return { at, model, prefix, blocks, ...(after ? { after, told } : {}) };
 }
 
 /**
@@ -540,7 +564,7 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     shape,
     raw:
       lastRound && !lastRound.streamError
-        ? rawTurn(lastRound, soFar.questionAt, live ? (input.chain?.after ?? null) : null)
+        ? rawTurn(lastRound, soFar.questionAt, live && input.chain ? chainEnd(input.chain) : null)
         : null,
   };
 }

@@ -61,7 +61,7 @@ const { runTool, newToolContext, buildProposal, toApiTools, ACT_TOOL_NAMES, READ
 const READ_TOOLS = toApiTools("owner", true).filter((t) => !ACT_TOOL_NAMES.has(t.name));
 const ACT_TOOLS = toApiTools("owner", true).filter((t) => ACT_TOOL_NAMES.has(t.name));
 const { scopedRead } = await import(at("apps/dashboard/src/server/ask/cross-page.ts"));
-const { workspaceFacts, stableSystem, ASK_RULES, ASK_EXAMPLES } = await import(
+const { workspaceFacts, stableSystem, turnWords, ASK_RULES, ASK_EXAMPLES } = await import(
   at("apps/dashboard/src/server/ask/prompt.ts")
 );
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
@@ -5824,8 +5824,18 @@ test("a follow-up inside the window replays its thread as the model was sent it 
   ]);
   sameBytes(unmark(second.messages.slice(0, n + 2)), unmark(first.messages), "round two only appends");
   assert.equal(r.shape.replay, "live");
-  assert.deepEqual(Object.keys(r.raw), ["question", "rounds", "final", "results", "at", "model", "prefix", "after"]);
-  assert.equal(r.raw.after, answered, "the answer it replayed last");
+  assert.deepEqual(Object.keys(r.raw), [
+    "question",
+    "rounds",
+    "final",
+    "results",
+    "at",
+    "model",
+    "prefix",
+    "after",
+    "told",
+  ]);
+  assert.deepEqual([r.raw.after, r.raw.told], [answered, []], "the answer it replayed last; nothing to tell");
   sameBytes(r.raw.question, unmark(first.messages)[n + 1].content, "its question, as the request carried it");
   sameBytes(
     [{ role: "user", content: r.raw.question }, ...r.raw.rounds],
@@ -5953,6 +5963,7 @@ test("cold, each on its own (the Phase 5 plan, D1-D3): the previous round's star
   for (const [why, keeping] of [
     ["a raw that does not read", { raw: { blocks: "{not json" } }],
     ["a raw with a key missing", { raw: { at: undefined } }],
+    ["a raw whose told is no list", { raw: { told: "p-1:done" } }],
     ["no raw: a stream that broke", { over: { raw: null } }],
   ])
     assert.equal((await twoTurns({ keeping })).r.shape.replay, "rebuilt", why);
@@ -6109,4 +6120,105 @@ test("the bound (the Phase 5 plan, D3, corrected): a replay of 48 messages is li
     !JSON.stringify(over.s.requests[0].messages).includes("x".repeat(100)),
     "its words history, not the replay",
   );
+});
+
+test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, in one line of its words after the clock, each outcome recorded on its chain's cards that no turn of the chain told -- the card's title, its id, what the person did and the receipt -- and keeps what it told; the next live turn does not tell it again; an outcome recorded while a turn ran is told by the next; a changed one is told anew; a cold turn tells nothing", async () => {
+  const { setProposalOutcome } = await import(at("apps/dashboard/src/server/ask/store.ts"));
+  const { ctx } = threadWorld();
+  const act = tool("propose_autonomy", { class: "reply", mode: "ask" });
+  const card = {
+    id: "p-1",
+    kind: "policy",
+    needs: "operator",
+    title: "Autonomy: reply",
+    summary: "Ask first.",
+    payload: {},
+    undo: null,
+  };
+  const propose = async () => ({
+    proposal: card,
+    result: JSON.stringify({ proposed: true, id: card.id }),
+    isError: false,
+  });
+  const r1 = await runAskTurn(
+    turn(ctx).input,
+    ports(sentAs([ROUND([act, answer("I proposed asking you first.")])]).round, { propose }),
+  );
+  const first = await keep(ctx, "Who needs me?", r1);
+  const said = (s) => s.requests[0].messages.at(-1).content.find((b) => b.text?.includes("You are speaking with")).text;
+  const SINCE = "Since the last answer, the person acted on cards from earlier in this thread:";
+
+  const t2 = await nextTurn(ctx, [ROUND([answer("Waiting on you.")])]);
+  assert.equal(t2.r.shape.replay, "live");
+  assert.ok(!said(t2.s).includes(SINCE), "nothing recorded yet: nothing to tell");
+  assert.deepEqual(t2.r.raw.told, []);
+  await keep(ctx, "And tomorrow?", t2.r);
+
+  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Replies now ask first", atMs: 0 });
+  const t3 = await nextTurn(ctx, [ROUND([answer("Noted.")])]);
+  const lines = said(t3.s).split("\n");
+  assert.equal(lines[1], `${SINCE} “Autonomy: reply” (p-1) was approved: Replies now ask first.`, "after the clock");
+  assert.deepEqual(t3.r.raw.told, ["p-1:done"], "what it told, kept");
+  await keep(ctx, "And now?", t3.r);
+  const t4 = await nextTurn(ctx, [ROUND([answer("Fine.")])]);
+  assert.ok(!said(t4.s).includes(SINCE), "told once, never again");
+  await keep(ctx, "And now?", t4.r);
+
+  // Undone while a turn ran: the turn had read its chain first, so it did not tell it, and the next does.
+  const running = await threadForTurn(ctx, {
+    tenantId: A,
+    threadId: T9,
+    text: "And?",
+    scope: undefined,
+    answering: null,
+  });
+  await setProposalOutcome(ctx, first, "p-1", { state: "undone", receipt: "Replies back to auto", atMs: 0 });
+  const s5 = sentAs([ROUND([answer("Fine.")])]);
+  const r5 = await runAskTurn(
+    turn(ctx, { text: "And?", history: running.history, chain: running.chain }).input,
+    ports(s5.round),
+  );
+  assert.ok(!said(s5).includes(SINCE) && r5.shape.replay === "live");
+  await keep(ctx, "And?", r5);
+  const t6 = await nextTurn(ctx, [ROUND([answer("Fine.")])]);
+  assert.equal(said(t6.s).split("\n")[1], `${SINCE} “Autonomy: reply” (p-1) was undone: Replies back to auto.`);
+  assert.deepEqual(t6.r.raw.told, ["p-1:undone"]);
+  await keep(ctx, "And?", t6.r);
+
+  // Dismissed, and asked cold (another role): the chain had it to tell, but a rebuilt turn tells nothing (the rebuild's
+  // own lines carry outcomes, PR 5.5), and keeps no `told`.
+  await setProposalOutcome(ctx, first, "p-1", { state: "dismissed", receipt: "Not now", atMs: 0 });
+  const cold = await nextTurn(ctx, [ROUND([answer("Fine.")])], {
+    role: "owner",
+    personLabel: "ada@example.com (owner)",
+  });
+  assert.deepEqual(
+    cold.found.chain.since.map((o) => [o.id, o.state]),
+    [["p-1", "dismissed"]],
+    "the chain had it to tell",
+  );
+  assert.equal(cold.r.shape.replay, "rebuilt");
+  assert.ok(!said(cold.s).includes(SINCE), "a cold turn tells nothing");
+  assert.equal("told" in cold.r.raw, false);
+
+  // The line, as turnWords says it, for each thing a person does with a card.
+  const facts = {
+    role: "operator",
+    personLabel: "ada",
+    scope: null,
+    surface: null,
+    language: "en",
+    timezone: TZ,
+    closures: [],
+    now: NOW,
+  };
+  const since = [
+    { id: "p-1", title: "Reply to Rosa", state: "dismissed", receipt: "Not now" },
+    { id: "p-2", title: "Invite Sam", state: "failed", receipt: "" },
+  ];
+  assert.equal(
+    turnWords({ ...facts, since }).split("\n")[1],
+    `${SINCE} “Reply to Rosa” (p-1) was dismissed: Not now; “Invite Sam” (p-2) failed.`,
+  );
+  assert.ok(!turnWords({ ...facts, since: [] }).includes(SINCE), "none: no line");
 });

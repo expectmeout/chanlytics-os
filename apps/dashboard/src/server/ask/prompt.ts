@@ -11,7 +11,7 @@ import {
   type TenantConfig,
 } from "@chanlytics/contracts";
 import type { MembershipRole } from "@chanlytics/contracts";
-import type { AskScope } from "@chanlytics/contracts";
+import type { AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
 
 /**
  * What the assistant is told, and in what order.
@@ -269,6 +269,16 @@ export function stableSystem(f: WorkspaceFacts): string {
   ].join("\n");
 }
 
+/** A card from earlier in the thread, and what the person did with it (the Phase 5 plan, D8). */
+export type CardOutcome = Pick<AskProposal, "id" | "title"> & Pick<AskProposalOutcome, "state" | "receipt">;
+/** What a person's doing with a card is called, in the Line's words: a card done was approved. */
+const DID: Record<AskProposalOutcome["state"], string> = {
+  done: "was approved",
+  dismissed: "was dismissed",
+  failed: "failed",
+  undone: "was undone",
+};
+
 export interface TurnFacts {
   role: MembershipRole;
   personLabel: string;
@@ -284,17 +294,26 @@ export interface TurnFacts {
   crossPage?: boolean;
   /** The scope's row was read for this question and rode in before these words (cross-page.ts scopedRead). */
   scopeRead?: boolean;
+  /**
+   * On a live turn, what the person did with the chain's cards that no turn of it told yet (memory.ts, D8): said after
+   * the clock, in this question's words, never by an edit of an earlier message.
+   */
+  since?: CardOutcome[];
 }
 
 /**
  * This turn's words, in the user's message after the page's data and before
- * the question: the clock, who is asking, where they are, the language, and
- * that the data before them needs no second read. Never cached; they sit
- * after the context's breakpoint so its cache holds.
+ * the question: the clock, on a live turn what happened since, who is asking,
+ * where they are, the language, and that the data before them needs no second
+ * read. Never cached; they sit after the context's breakpoint so its cache holds.
  */
 export function turnWords(t: TurnFacts): string {
   const lines: string[] = [];
   lines.push(describeNow(t.timezone, t.now ?? new Date(), t.closures));
+  if (t.since?.length) {
+    const did = t.since.map((o) => `“${o.title}” (${o.id}) ${DID[o.state]}${o.receipt ? `: ${o.receipt}` : ""}`);
+    lines.push(`Since the last answer, the person acted on cards from earlier in this thread: ${did.join("; ")}.`);
+  }
   if (t.context)
     lines.push(
       "The page they are on is in the search results before these words (page:// its figures, then its rows in the page's order): answer from it, and read only for what it does not hold.",

@@ -1284,6 +1284,68 @@ test("through the route a thread stays live turn after turn (the Phase 5 plan, P
   }
 });
 
+test("what happened since, through the route (the Phase 5 plan, D8): a card approved between two turns is said in the next live turn's words, after the clock -- its title, its id, approved, its receipt -- that turn keeps what it told, and the turn after it says it no more", async () => {
+  const tables = askWorld();
+  const requests = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      requests.push(JSON.parse(JSON.stringify(call.request)));
+      onText(answered);
+      const card = {
+        type: "tool_use",
+        id: "t-card",
+        name: "propose_autonomy",
+        text: "",
+        json: '{"class":"reply","mode":"ask"}',
+      };
+      return {
+        blocks: [
+          ...(requests.length === 1 ? [card] : []),
+          { type: "text", id: "", name: "", text: answered, json: "" },
+        ],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+    propose: async () => ({ proposal: CARD, result: JSON.stringify({ proposed: true, id: CARD.id }), isError: false }),
+  });
+  const SINCE = "Since the last answer, the person acted on cards from earlier in this thread:";
+  /** The words of a request's question: the text block that says who is asking, line by line. */
+  const wordsOf = (req) =>
+    req.messages
+      .at(-1)
+      .content.find((b) => b.type === "text" && b.text.includes("You are speaking with"))
+      .text.split("\n");
+  try {
+    const [opened] = await linesOf(
+      await ask.POST.run(send("POST", { text: "Ask me before every reply" }, inA), asJsonb(tables)),
+    );
+    const card = tables.ask_messages.find((m) => m.role === "assistant");
+    const outcome = asJsonb(tables, { id: card.id, pid: CARD.id });
+    await proposals.POST.run(send("POST", { state: "done", receipt: "Replies now ask first", atMs: 0 }), outcome);
+    for (const text of ["And the reminders?", "And tomorrow?"])
+      await linesOf(await ask.POST.run(send("POST", { text, thread_id: opened.id }, inA), asJsonb(tables)));
+
+    const answers = tables.ask_messages.filter((m) => m.role === "assistant");
+    assert.deepEqual(
+      answers.map((m) => m.content.shape.replay),
+      ["none", "live", "live"],
+    );
+    assert.equal(
+      wordsOf(requests[1])[1],
+      `${SINCE} “${CARD.title}” (${CARD.id}) was approved: Replies now ask first.`,
+      "the second turn says it, after the clock",
+    );
+    assert.deepEqual(answers[1].content.raw.told, [`${CARD.id}:done`], "and keeps what it told");
+    assert.ok(!wordsOf(requests[2]).some((l) => l.startsWith(SINCE)), "the third turn says it no more");
+    assert.deepEqual(answers[2].content.raw.told, []);
+    assert.ok(!wordsOf(requests[0]).some((l) => l.startsWith(SINCE)), "a first turn has nothing to say");
+  } finally {
+    setAskPorts(null);
+  }
+});
+
 test("the database in memory keeps a column named jsonb as jsonb keeps it: what is written comes back with every object's keys, at every depth, shortest first, then by their bytes -- a call's input and a card's reordered -- and a string as it went; a column not named keeps the writer's order", async () => {
   const world = { t: [] };
   const db = fakeDb(world, {}, {}, { jsonb: ["t.content"] });
