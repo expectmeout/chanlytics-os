@@ -15145,6 +15145,14 @@ var LEAD_PLATFORM_HOSTS = /* @__PURE__ */ (() => [
   "google.com",
   "g.page"
 ])();
+function isSiteRoot(url) {
+  try {
+    const w = (url ?? "").trim();
+    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
+  } catch {
+    return false;
+  }
+}
 function siteHost(url) {
   if (!url) return null;
   let host;
@@ -17382,20 +17390,12 @@ function rereadAt(unread2, done, receivedAt, now) {
   const at2 = (unread2 === "model_failed" || unread2 === "no_model") && done === 0 ? now + HOUR_MS22 : nextDay;
   return at2 > receivedAt + REPLY_REREAD_DAYS * DAY_MS22 ? null : at2;
 }
-function ownedDomainOf(address, website) {
+function ownedDomainOf(address, website, root = null) {
   const a = normalizeEmail(address);
   const host = siteHost(website);
-  if (!a || !host || !isSiteRoot(website)) return null;
+  if (!a || !host || root === false || !isSiteRoot(website)) return null;
   const domain = a.slice(a.lastIndexOf("@") + 1);
   return domain === host ? domain : null;
-}
-function isSiteRoot(website) {
-  try {
-    const w = (website ?? "").trim();
-    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
-  } catch {
-    return false;
-  }
 }
 var NO_EFFECT = {
   stops: false,
@@ -17469,7 +17469,7 @@ function readingPlan(reading, c2) {
         ...stopped,
         saidNo: true,
         suppressFrom: writer,
-        suppressDomain: ownedDomainOf(c2.leadAddress, c2.leadWebsite) ?? ownedDomainOf(c2.replyFrom, c2.leadWebsite)
+        suppressDomain: ownedDomainOf(c2.leadAddress, c2.leadWebsite, c2.leadWebsiteRoot) ?? ownedDomainOf(c2.replyFrom, c2.leadWebsite, c2.leadWebsiteRoot)
       };
     case "wrong_person": {
       const readDay = zoneDayKey(c2.readAt, c2.tz);
@@ -21691,6 +21691,7 @@ async function readReply(ports, cmd) {
       business: facts.business,
       leadAddress: facts.leadAddress,
       leadWebsite: facts.leadWebsite,
+      leadWebsiteRoot: facts.leadWebsiteRoot ?? null,
       replyFrom: facts.from,
       reread: n2 > 0,
       readAt: now
@@ -24930,6 +24931,7 @@ async function reachOutReplyOf(db, p) {
     lead_contact_id: textOf(o2.lead_contact_id),
     lead_email: textOf(o2.lead_email),
     lead_website: textOf(o2.lead_website),
+    lead_website_root: typeof o2.lead_website_root === "boolean" ? o2.lead_website_root : null,
     answered_message_id: textOf(o2.answered_message_id),
     answered_text: textOf(o2.answered_text),
     business: textOf(o2.business) ?? "",
@@ -25275,6 +25277,7 @@ function replyFactsOf(r6) {
     business: r6.business,
     leadAddress: r6.lead_email,
     leadWebsite: r6.lead_website,
+    leadWebsiteRoot: r6.lead_website_root,
     signedBy: r6.signed_by,
     tz: r6.tz ?? DEFAULT_TIMEZONE
   };

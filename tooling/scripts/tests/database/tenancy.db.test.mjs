@@ -879,3 +879,38 @@ test(
     assert.deepEqual(offences, [], "the other tables keep their scope");
   },
 );
+
+test(
+  "a person reads their Ask threads only while they belong to the workspace (00236): an answer keeps what the model read of the workspace's customers, so a person removed reads none of their threads or turns there, and one added back reads them again",
+  { skip },
+  async () => {
+    const leaver = await memberClient("viewer", A);
+    const thread = await seed("ask_threads", { tenant_id: A, user_id: leaver.userId });
+    await seed("ask_messages", {
+      tenant_id: A,
+      thread_id: thread,
+      user_id: leaver.userId,
+      role: "assistant",
+      content: { text: "Robin asked about Saturday.", raw: { blocks: '{"base":[]}' } },
+    });
+    const read = async () => [
+      await seen(leaver.client, "ask_threads", [["id", thread]]),
+      await seen(leaver.client, "ask_messages", [["thread_id", thread]]),
+    ];
+    assert.deepEqual(await read(), [1, 1], "a member reads their own thread and its turn");
+
+    const out = await db.from("memberships").delete().eq("user_id", leaver.userId).eq("tenant_id", A);
+    assert.equal(out.error, null, out.error?.message);
+    const [threads, turns] = await read();
+    assert.ok(
+      nothing(threads) && nothing(turns),
+      `removed from the workspace, they read ${threads} thread(s) and ${turns} turn(s)`,
+    );
+    const kept = await db.from("ask_messages").select("id", { count: "exact", head: true }).eq("thread_id", thread);
+    assert.equal(kept.count, 1, "nothing is deleted: the rows wait for the purge");
+
+    const back = await db.from("memberships").insert({ tenant_id: A, user_id: leaver.userId, role: "viewer" });
+    assert.equal(back.error, null, back.error?.message);
+    assert.deepEqual(await read(), [1, 1], "added back, they read them again");
+  },
+);

@@ -3545,6 +3545,7 @@ async function reachOutReplyOf(db, p) {
     lead_contact_id: textOf(o.lead_contact_id),
     lead_email: textOf(o.lead_email),
     lead_website: textOf(o.lead_website),
+    lead_website_root: typeof o.lead_website_root === "boolean" ? o.lead_website_root : null,
     answered_message_id: textOf(o.answered_message_id),
     answered_text: textOf(o.answered_text),
     business: textOf(o.business) ?? "",

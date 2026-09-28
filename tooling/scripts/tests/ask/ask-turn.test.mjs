@@ -11,15 +11,18 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../_fake-db.mjs";
 import {
   ASK_ANSWER_FORMAT,
+  ASK_CAPS,
   ASK_CITATION_KINDS,
   ASK_MAX_ROUNDS,
   ASK_ROW_WORDS,
   ASK_MAX_TOKENS,
+  ASK_TURN_BUDGET_MS,
   ASK_MODEL,
   ASK_MODEL_PROFILES,
   answerForCards,
@@ -5189,5 +5192,472 @@ test("the history folds a question of blocks: words joined with words, and words
       { role: "assistant", content: "b" },
       { role: "user", content: q },
     ],
+  );
+});
+
+/* ------------------------------------------- the turn as the model was sent it (the Phase 5 plan, PR 5.3) -- */
+
+/**
+ * The model, scripted, keeping each request as it was sent: its bytes, read back. `scripted` keeps the request itself,
+ * whose messages the loop goes on appending to after it was sent.
+ */
+function sentAs(rounds) {
+  const requests = [];
+  const round = async (c, onText) => {
+    requests.push(JSON.parse(JSON.stringify(c.request)));
+    const r = rounds.shift();
+    if (!r) throw new Error("the loop asked for a round the script does not have");
+    return typeof r === "function" ? r(c, onText) : r;
+  };
+  return { round, requests };
+}
+const sha256 = (s) => createHash("sha256").update(s).digest("hex");
+/**
+ * The prefix a request says (the Phase 5 plan, D2): the sha256 of what it sent besides its messages that a replay needs
+ * unchanged -- system and tools as sent, the tool choice, and the output config (the effort and the answer's format).
+ */
+const prefixOf = (request) =>
+  sha256(
+    JSON.stringify({
+      system: request.system,
+      tools: request.tools,
+      tool_choice: request.tool_choice,
+      output_config: request.output_config,
+    }),
+  );
+/**
+ * The raw turn as a turn's requests say it: the last request's messages before the question, the question, and after
+ * it -- the question is the first request's last message, and a later round only appends -- its model and its prefix.
+ */
+function rawOf(requests) {
+  const last = requests.at(-1);
+  const at = requests[0].messages.length - 1;
+  return {
+    base: last.messages.slice(0, at),
+    question: last.messages[at].content,
+    rounds: last.messages.slice(at + 1),
+    model: last.model,
+    prefix: prefixOf(last),
+  };
+}
+/** The same bytes: what JSON would store, key for key and in order. */
+const sameBytes = (a, b, why) => assert.equal(JSON.stringify(a), JSON.stringify(b), why);
+/** A raw turn's messages put back together: the last request's, byte for byte, when the raw is what was sent. */
+const messagesOf = (raw) => [...raw.base, { role: "user", content: raw.question }, ...raw.rounds];
+const thinking = (signature, words = "") => ({
+  type: "thinking",
+  id: "",
+  name: "",
+  text: "",
+  json: "",
+  thinking: words,
+  signature,
+});
+const redacted = (data) => ({ type: "redacted_thinking", id: "", name: "", text: "", json: "", data });
+
+test("the turn as the model was sent it (the Phase 5 plan, D2, D11): a one-round answer's raw is its request's messages -- the words history before the question, none on a thread's first, the question as the request carried it (the page's data, the turn's words, the question, an earlier question the fold joined in), nothing after it -- and its round as a request would carry it back, a thinking block and a redacted one byte for byte; the round's start, the model, the prefix's hash; no results", async () => {
+  const final = [
+    thinking("sig-final-EmwKAhgB", "Two threads wait."),
+    redacted("EmwKAhgBEgw="),
+    answer("Rosa needs you."),
+  ];
+  const s = sentAs([ROUND(final)]);
+  const before = Date.now();
+  const r = await runAskTurn(turn(ctxFor(), { context: PAGE }).input, ports(s.round));
+  const after = Date.now();
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.ok(r.raw, "the turn returns the turn as it was sent");
+  assert.deepEqual(Object.keys(r.raw), ["base", "question", "rounds", "final", "results", "at", "model", "prefix"]);
+  const want = rawOf(s.requests);
+  assert.deepEqual(
+    want.question.map((b) => b.type),
+    ["search_result", "text", "text"],
+    "the page's data, the turn's words, the question",
+  );
+  sameBytes(messagesOf(r.raw), s.requests.at(-1).messages, "the request's messages, byte for byte");
+  assert.deepEqual(r.raw.base, [], "a thread's first turn: nothing before the question");
+  sameBytes(r.raw.question, want.question, "the question as the request carried it");
+  assert.deepEqual(r.raw.rounds, [], "one round: nothing after the question");
+  assert.deepEqual(r.raw.final, [
+    { type: "thinking", thinking: "Two threads wait.", signature: "sig-final-EmwKAhgB" },
+    { type: "redacted_thinking", data: "EmwKAhgBEgw=" },
+    { type: "text", text: answerJson("Rosa needs you.") },
+  ]);
+  sameBytes(r.raw.final, replayBlocks(final), "the round as a request would carry it back");
+  assert.deepEqual(r.raw.results, [], "no call waits on a result");
+  assert.ok(r.raw.at >= before && r.raw.at <= after, "when the round started, epoch ms");
+  assert.deepEqual([r.raw.model, r.raw.prefix], [ASK_MODEL, want.prefix], "the model the request named, its prefix");
+  assert.equal(want.model, ASK_MODEL);
+
+  // A follow-up: the thread's earlier turns as the request carried them, words, are the raw's base.
+  const history = [
+    { role: "user", text: "Who called today?" },
+    { role: "assistant", text: "Two people called." },
+  ];
+  const follow = sentAs([ROUND([answer("Rosa needs you.")])]);
+  const f = await runAskTurn(turn(ctxFor(), { context: PAGE, history }).input, ports(follow.round));
+  sameBytes(messagesOf(f.raw), follow.requests.at(-1).messages, "the follow-up's messages, byte for byte");
+  sameBytes(f.raw.base, rawOf(follow.requests).base);
+  assert.deepEqual(f.raw.base, [
+    { role: "user", content: "Who called today?" },
+    { role: "assistant", content: "Two people called." },
+  ]);
+
+  // A question the thread left unanswered is joined into this one (foldHistory): the raw's question carries it.
+  const joined = sentAs([ROUND([answer("Nobody is waiting.")])]);
+  const j = await runAskTurn(
+    turn(ctxFor(), { context: PAGE, history: [{ role: "user", text: "Earlier, unanswered?" }] }).input,
+    ports(joined.round),
+  );
+  sameBytes(messagesOf(j.raw), joined.requests.at(-1).messages);
+  assert.deepEqual(j.raw.base, [], "the unanswered question is no longer before this one");
+  assert.deepEqual(j.raw.question[0], { type: "text", text: "Earlier, unanswered?" }, "the earlier question first");
+});
+
+test("a read, then the answer: the read's round -- its thinking whole, its call -- and the results sent back for it, with the words the loop added when the time for reads ran out, are the raw's rounds as the last request carried them; the raw's start is the answering round's, not the turn's", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: 1_000_000 });
+  const read = [thinking("sig-read"), tool("inbox", { action: "list", filter: "recent" })];
+  const final = [thinking("sig-final"), redacted("EmwKAhgB"), answer("Nobody is waiting on you.")];
+  const s = sentAs([
+    () => {
+      // The read's round took the time another read would need: the loop says so beside its results.
+      t.mock.timers.tick(ASK_TURN_BUDGET_MS - 7_000);
+      return ROUND(read);
+    },
+    () => {
+      // The answering round takes its time too: the raw's start is when it began, not when it ended.
+      t.mock.timers.tick(30_000);
+      return ROUND(final);
+    },
+  ]);
+  const r = await runAskTurn(turn(ctxFor(), { context: PAGE }).input, ports(s.round));
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.deepEqual(
+    s.requests.map((q) => q.tool_choice.type),
+    ["auto", "none"],
+    "the answering round was the last",
+  );
+  const want = rawOf(s.requests);
+  sameBytes(messagesOf(r.raw), s.requests.at(-1).messages, "the last request's messages, byte for byte");
+  sameBytes(r.raw.question, want.question, "the question as the last request carried it");
+  sameBytes(r.raw.rounds, want.rounds, "every message after the question, as the last request carried it");
+  assert.deepEqual(
+    r.raw.rounds.map((m) => m.role),
+    ["assistant", "user"],
+  );
+  assert.deepEqual(
+    r.raw.rounds[0].content,
+    [
+      { type: "thinking", thinking: "", signature: "sig-read" },
+      { type: "tool_use", id: "t-inbox.list", name: "inbox", input: { action: "list", filter: "recent" } },
+    ],
+    "the read's round, its thinking byte for byte",
+  );
+  assert.deepEqual(
+    r.raw.rounds[1].content.map((b) => [b.type, b.tool_use_id ?? b.text]),
+    [
+      ["tool_result", "t-inbox.list"],
+      ["text", "Time is up for reads. Answer now with what you have."],
+    ],
+    "the read's result, then the loop's words",
+  );
+  sameBytes(r.raw.final, replayBlocks(final), "the answering round as a request would carry it back");
+  assert.deepEqual(r.raw.results, []);
+  assert.equal(r.raw.at, 1_000_000 + ASK_TURN_BUDGET_MS - 7_000, "the answering round's start");
+  assert.deepEqual([r.raw.model, r.raw.prefix], [want.model, want.prefix]);
+});
+
+test("cards alone, and an answer beside its cards: the round is the raw's final, and the results of its cards -- which no request carried -- are the blocks the next request would carry, byte for byte: those a round that goes on sends back for the same call", async () => {
+  const act = tool("propose_autonomy", { class: "reply", mode: "ask" });
+  // One card, the same bytes every turn: the builder's own id moves with the clock.
+  const card = {
+    id: "p-1",
+    kind: "policy",
+    needs: "operator",
+    title: "Autonomy: reply",
+    summary: "Ask first on every reply.",
+    payload: { class: "reply", mode: "ask" },
+    undo: null,
+  };
+  const propose = async () => ({
+    proposal: card,
+    result: JSON.stringify({ proposed: true, id: card.id, card: card.title }),
+    isError: false,
+  });
+  // The card beside a read: the round goes on, and the next request carries the card's result.
+  const on = sentAs([ROUND([tool("inbox", { action: "list", filter: "recent" }), act]), ROUND([answer("Proposed.")])]);
+  await runAskTurn(turn(ctxFor()).input, ports(on.round, { propose }));
+  const carried = on.requests[1].messages.at(-1).content.filter((b) => b.tool_use_id === act.id);
+  assert.deepEqual(
+    carried.map((b) => [b.type, b.is_error]),
+    [["tool_result", false]],
+  );
+
+  const alone = sentAs([ROUND([thinking("sig-card"), act])]);
+  const a = await runAskTurn(turn(ctxFor()).input, ports(alone.round, { propose }));
+  assert.deepEqual([a.failed, a.rounds, a.proposals.length], [false, 1, 1], "cards alone: one round");
+  sameBytes(a.raw.results, carried, "cards alone: the card's result, as the next request would carry it");
+  assert.deepEqual(a.raw.final, [
+    { type: "thinking", thinking: "", signature: "sig-card" },
+    { type: "tool_use", id: act.id, name: "propose_autonomy", input: { class: "reply", mode: "ask" } },
+  ]);
+  sameBytes(messagesOf(a.raw), alone.requests.at(-1).messages, "cards alone: the request's messages");
+  assert.deepEqual(a.raw.rounds, []);
+
+  const beside = [thinking("sig-both"), act, answer("I proposed asking you first on every reply.")];
+  const both = sentAs([ROUND(beside)]);
+  const b = await runAskTurn(turn(ctxFor()).input, ports(both.round, { propose }));
+  assert.deepEqual([b.failed, b.rounds, b.text], [false, 1, "I proposed asking you first on every reply."]);
+  sameBytes(b.raw.results, carried, "an answer beside its card: the card's result, as the next request would carry it");
+  assert.deepEqual(
+    b.raw.final.map((x) => x.type),
+    ["thinking", "tool_use", "text"],
+    "the round whole: its thinking, the card's call and the answer",
+  );
+  sameBytes(b.raw.final, replayBlocks(beside));
+  sameBytes(messagesOf(b.raw), both.requests.at(-1).messages, "an answer beside its card: the request's messages");
+});
+
+test("the prefix (the Phase 5 plan, D2): the sha256 of what the last request sent besides its messages -- system and tools as sent, the tool choice and the output config -- the same on another page, for another question, for another person of the role and on round two; another for another role, shape of the workspace, setting, note, hour or autonomy mode, once the examples or the format are refused, and on the last round, which may call no tool; the page's data a refusal drops is dropped from the raw's question too; a turn that fails keeps no raw", async () => {
+  const ask = async (over = {}, refusals = [], extra = {}) => {
+    const requests = [];
+    const round = async (c) => {
+      requests.push(JSON.parse(JSON.stringify(c.request)));
+      const message = refusals.shift();
+      if (message) throw new GatewayRefused({ kind: "bad_request", message });
+      return ROUND([answer("2 people need you.")]);
+    };
+    const { result: r } = await logged(
+      "ask_",
+      async () => await runAskTurn(turn(ctxFor(), { context: PAGE, ...over }).input, ports(round, extra)),
+    );
+    assert.equal(r.failed, false, r.failure ?? "");
+    assert.equal(r.raw.prefix, rawOf(requests).prefix, "the last request's own");
+    return { r, requests };
+  };
+  const plain = await ask();
+  for (const over of [
+    { surface: "inbox", context: { ...PAGE, surface: "inbox", route: "inbox" } },
+    { text: "And tomorrow?" },
+    { personLabel: "sam@example.com (operator)" },
+  ])
+    assert.equal((await ask(over)).r.raw.prefix, plain.r.raw.prefix, JSON.stringify(over));
+  // The workspace's settings as the route reads them, one thing changed at a time.
+  const config = tables().tenant_config[0].config;
+  const profile = config.brain.profile;
+  const facts = (brain = {}, policies = []) =>
+    workspaceFacts("Harbor", TZ, { ...config, brain: { ...config.brain, ...brain } }, policies);
+  const set = await ask({ facts: facts() });
+  const changed = {
+    role: await ask({ role: "owner", personLabel: "ada@example.com (owner)" }),
+    shape: await ask({}, [], { shape: async () => "The workspace: Harbor · zone America/Chicago" }),
+    setting: await ask({ facts: facts({ business_name: "Harbor Movers" }) }),
+    note: await ask({ facts: facts({ profile: { ...profile, notes: [{ title: "Parking", text: "Street only." }] } }) }),
+    hour: await ask({ facts: facts({ profile: { ...profile, hours: { mon: { open: "09:00", close: "18:00" } } } }) }),
+    autonomy: await ask({ facts: facts({}, [{ class: "reply", mode: "ask" }]) }),
+    examples: await ask({}, ["400 tools.3.input_examples.0: does not match the tool's input_schema"]),
+    format: await ask({}, ["400 output_config.format.schema: too many properties"]),
+  };
+  // The round a turn ended on: round two asks as round one does, with tool_choice auto; the last, which may call no
+  // tool, asks with none -- a turn that used every round.
+  const endedOn = async (reads) => {
+    const s = sentAs([
+      ...Array.from({ length: reads }, () => ROUND([tool("inbox", { action: "list", filter: "recent" })])),
+      ROUND([answer("2 people need you.")]),
+    ]);
+    const r = await runAskTurn(turn(ctxFor(), { context: PAGE }).input, ports(s.round));
+    assert.equal(r.failed, false, r.failure ?? "");
+    assert.equal(r.raw.prefix, rawOf(s.requests).prefix, "the last request's own");
+    return { r, requests: s.requests };
+  };
+  const second = await endedOn(1);
+  assert.equal(second.r.raw.prefix, plain.r.raw.prefix, "round two asks as round one does");
+  changed.last = await endedOn(ASK_MAX_ROUNDS - 1);
+  assert.deepEqual(changed.last.requests.at(-1).tool_choice, { type: "none" });
+  const prefixes = [plain, set, ...Object.values(changed)].map((x) => x.r.raw.prefix);
+  assert.equal(new Set(prefixes).size, prefixes.length, "each change, its own prefix");
+  assert.equal(changed.examples.requests.length, 2, "asked again without the examples");
+  assert.equal(changed.format.r.shape.format, false, "and without the format");
+
+  // The page's data refused: asked again without it, and the raw's question is the retry's, the words bare.
+  const dropped = await ask({}, ["400 messages.0.content.0: search_result is not supported here"]);
+  assert.ok(JSON.stringify(dropped.requests[0].messages.at(-1)).includes("search_result"), "refused with the page");
+  sameBytes(dropped.r.raw.question, rawOf(dropped.requests).question, "the retry's question");
+  sameBytes(messagesOf(dropped.r.raw), dropped.requests.at(-1).messages, "the retry's messages");
+  assert.ok(!JSON.stringify(dropped.r.raw.question).includes("search_result"), "without the page's data");
+  assert.ok(!JSON.stringify(dropped.r.raw.question).includes("search results before these words"), "the words bare");
+  assert.equal(dropped.r.raw.prefix, plain.r.raw.prefix, "the data rode in the messages: the same prefix");
+
+  // A turn that fails keeps nothing to replay (D2 never replays one).
+  const failing = async (round) =>
+    (await logged("ask_", () => runAskTurn(turn(ctxFor(), { context: PAGE }).input, ports(round)))).result;
+  const readEveryRound = Array.from({ length: ASK_MAX_ROUNDS }, () =>
+    ROUND([tool("inbox", { action: "list", filter: "recent" })]),
+  );
+  for (const [round, failure] of [
+    [
+      async () => {
+        throw new GatewayRefused({ kind: "budget", used: 1, cap: 1 });
+      },
+      "budget",
+    ],
+    [scripted([ROUND([])]).round, "no_tool_no_text"],
+    [scripted(readEveryRound).round, "rounds_exhausted"],
+  ]) {
+    const r = await failing(round);
+    assert.deepEqual([r.failed, r.failure, r.raw], [true, failure, null], failure);
+  }
+});
+
+test("a turn whose last stream broke keeps no raw: an answer that arrived whole before the break, and words the format's refusal let through cut off mid-word, still answer the person, and neither is kept to replay; the same words whole are", async () => {
+  const late = await runAskTurn(
+    turn(ctxFor(), { context: PAGE }).input,
+    ports(async () => ROUND([thinking("sig-late"), answer("Nothing waiting.")], { streamError: "socket hang up" })),
+  );
+  assert.deepEqual([late.text, late.failed, late.raw], ["Nothing waiting.", false, null], "an answer before the break");
+  // The format refused, the words come as prose, and the stream breaks in the middle of one.
+  const said = async (streamError) => {
+    const refusals = ["400 output_config.format.schema: too many properties"];
+    const round = async () => {
+      const message = refusals.shift();
+      if (message) throw new GatewayRefused({ kind: "bad_request", message });
+      return ROUND([prose("Rosa asked about Satur")], { streamError, stopReason: streamError ? null : "end_turn" });
+    };
+    const turned = turn(ctxFor(), { context: PAGE }).input;
+    return (await logged("ask_", () => runAskTurn(turned, ports(round)))).result;
+  };
+  const cut = await said("terminated");
+  assert.deepEqual([cut.text, cut.failed, cut.shape.format], ["Rosa asked about Satur", false, false]);
+  assert.equal(cut.raw, null, "words cut off are the answer, never a turn to replay");
+  const whole = await said(null);
+  assert.deepEqual(whole.raw.final, [{ type: "text", text: "Rosa asked about Satur" }], "the same words, whole, are");
+});
+
+test("the raw at the caps (a number for the pull request, not a limit: the Phase 5 plan's D3 bounds the replay): the page at CONTEXT_CAPS, two cross-page reads, the scope's thread, and two rounds of four reads in parallel, each at its tool's cap, before the answering round; the raw is still the last request from the question on, byte for byte", async (t) => {
+  const { CONTEXT_CAPS } = await import(at("apps/dashboard/src/server/ask/context/rows.ts"));
+  const { storedRaw } = await import(at("apps/dashboard/src/server/ask/memory.ts"));
+  const FILL = "the customer asked again about the move date, the truck, the stairs at both ends and the deposit; ";
+  const words = (n, lead) => `${lead} ${FILL.repeat(Math.ceil(n / FILL.length))}`.slice(0, n);
+  const hex = (i) => String(i).padStart(12, "0");
+  // Twenty-four threads of a hundred messages at a message's cap, the newest a held draft; thirty calls, each with fifty
+  // turns said at the same length (a call's transcript is never cut by length: 600 is this test's choice).
+  const threads = Array.from({ length: 24 }, (_, i) => `cccccccc-cccc-4ccc-8ccc-${hex(100 + i)}`);
+  const calls = Array.from({ length: 30 }, (_, i) => `cccccccc-cccc-4ccc-8ccc-${hex(200 + i)}`);
+  const world = tables({
+    conversations: threads.map((id, i) => conversation(id, { last_message_at: iso(NOW.getTime() - i * 60_000) })),
+    messages: threads.flatMap((c, i) =>
+      Array.from({ length: 100 }, (_, j) =>
+        message(`eeeeeeee-${String(i).padStart(4, "0")}-4eee-8eee-${hex(j)}`, c, {
+          body: words(600, `Message ${j}.`),
+          created_at: iso(NOW.getTime() - (100 - j) * 60_000),
+          ...(j === 99
+            ? { direction: "outbound", sender: "ai", status: "queued" }
+            : j % 2
+              ? { direction: "outbound", sender: "ai" }
+              : {}),
+        }),
+      ),
+    ),
+    calls: calls.map((id, i) =>
+      call(id, {
+        retell_call_id: `r${i}`,
+        started_at: iso(NOW.getTime() - (i + 1) * 3_600_000),
+        summary: words(400, `Call ${i}.`),
+        transcript_object: Array.from({ length: 50 }, (_, k) => ({
+          role: k % 2 ? "agent" : "user",
+          content: words(600, `Turn ${k}.`),
+        })),
+        conversation_id: threads[i % threads.length],
+      }),
+    ),
+  });
+  // The page at its caps (context.ts): the aggregate at 1,200, then forty rows, titles at 80, every block at 8,000.
+  const block = (source, title, text) => ({
+    type: "search_result",
+    source,
+    title,
+    content: [{ type: "text", text }],
+    citations: { enabled: false },
+  });
+  const aggregate = block("page://people", "People", words(CONTEXT_CAPS.aggregate, "People:"));
+  const counted = (b) => b.source.length + b.title.length + b.content[0].text.length;
+  const rowId = (i) => `abababab-abab-4aba-8aba-${hex(i)}`;
+  const rowText = Math.floor((CONTEXT_CAPS.total - counted(aggregate)) / CONTEXT_CAPS.rows) - 45 - CONTEXT_CAPS.title;
+  const rows = Array.from({ length: CONTEXT_CAPS.rows }, (_, i) =>
+    block(`person://${rowId(i)}`, words(CONTEXT_CAPS.title, `Person ${i}`), words(rowText, "Row:")),
+  );
+  const page = {
+    blocks: [aggregate, ...rows],
+    refs: [{ kind: "page", id: "people", route: "people", label: "People" }],
+    rows: rows.length,
+    chars: [aggregate, ...rows].reduce((n, b) => n + counted(b), 0),
+    stamp: 1,
+    failed: false,
+    warm: "hit",
+  };
+  assert.ok(page.chars <= CONTEXT_CAPS.total && page.chars > CONTEXT_CAPS.total - CONTEXT_CAPS.rows, page.chars);
+  // A signature's size is not documented (the code map, section 3): 4,000 characters each here.
+  const signature = "EmwKAhgB".repeat(500);
+  const readRound = (k) =>
+    ROUND([
+      thinking(signature),
+      tool("inbox", { action: "thread", conversation_id: threads[2 * k + 1], more: true }, `t-${k}-1`),
+      tool("inbox", { action: "thread", conversation_id: threads[2 * k + 2], more: true }, `t-${k}-2`),
+      tool("calls", { action: "get", call_id: calls[2 * k + 1] }, `t-${k}-3`),
+      tool("calls", { action: "get", call_id: calls[2 * k + 2] }, `t-${k}-4`),
+    ]);
+  const items = threads.slice(0, 6).map((id, i) => ({
+    title: `Thread ${i}`,
+    meta: "WhatsApp",
+    line: words(140, "Held:"),
+    source: { kind: "thread", id, label: "Rosa" },
+  }));
+  const final = [thinking(signature), answer(words(160, "Six drafts are held."), { show: { items } })];
+  const s = sentAs([readRound(0), readRound(1), ROUND(final)]);
+  const { input } = turn(ctxFor(world), {
+    surface: "people",
+    scope: { kind: "thread", id: threads[0], label: "Rosa" },
+    text: "Which calls came in, and which drafts are held?",
+    context: { ...PAGE, surface: "people", route: "people" },
+  });
+  const r = await runAskTurn(input, ports(s.round, { context: async () => page }));
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.equal(r.rounds, ASK_MAX_ROUNDS, "two rounds of reads, then the last, which may call none");
+
+  // Every read at its cap, as the model was sent it.
+  const want = rawOf(s.requests);
+  const riding = (source) => JSON.parse(want.question.find((b) => b.source === source).content[0].text);
+  assert.equal(riding("read://calls.list").calls.length, ASK_CAPS.calls, "a cross-page read: the calls");
+  assert.equal(riding("read://inbox.list").threads.length, ASK_CAPS.threads, "a cross-page read: the held drafts");
+  assert.equal(riding("read://inbox.thread").messages.length, ASK_CAPS.messages, "the scope's thread");
+  const results = want.rounds
+    .filter((m) => m.role === "user")
+    .flatMap((m) => m.content)
+    .map((b) => JSON.parse(b.content));
+  const [thread, transcript] = [ASK_CAPS.messagesMore, ASK_CAPS.transcript];
+  assert.deepEqual(
+    results.map((x) => (x.messages ?? x.transcript).length),
+    [thread, thread, transcript, transcript, thread, thread, transcript, transcript],
+    "each round's four reads at their caps",
+  );
+  assert.ok(
+    results.every((x) => (x.messages ?? []).every((m) => m.text.length === 600)),
+    "every message at its cap",
+  );
+
+  // The raw at that size is still the request, byte for byte.
+  sameBytes(messagesOf(r.raw), s.requests.at(-1).messages, "the last request's messages");
+  sameBytes(r.raw.question, want.question, "the question");
+  sameBytes(r.raw.rounds, want.rounds, "the rounds");
+  sameBytes(r.raw.final, replayBlocks(final), "the answering round");
+  assert.deepEqual(r.raw.results, []);
+  const size = (x) => JSON.stringify(x).length;
+  const stored = storedRaw(r.raw);
+  assert.equal(JSON.stringify(messagesOf(JSON.parse(stored.blocks))), JSON.stringify(s.requests.at(-1).messages));
+  t.diagnostic(
+    `the raw at the caps: ${size(r.raw)} characters -- base ${size(r.raw.base)}, question ${size(r.raw.question)}, ` +
+      `rounds ${size(r.raw.rounds)} (${r.raw.rounds.length} messages), final ${size(r.raw.final)}, results ` +
+      `${size(r.raw.results)}; as the row keeps it ${size(stored)}, its blocks string ${stored.blocks.length}; the ` +
+      `last request ${size(s.requests.at(-1))}`,
   );
 });

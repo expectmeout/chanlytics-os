@@ -439,15 +439,38 @@ test("THE LOST RECEIPT: a number bought without its SID saved is found, not boug
   assert.equal(await provider.ownedNumber(acct, "+13055550999"), null);
 });
 
-test("a read that FAILS must not be reported as 'we do not own it'", () => {
+test("a read that FAILS must not be reported as 'we do not own it'", async () => {
   // That answer sends the saga on to buy a second number. So the Twilio
   // implementation throws on a non-200 rather than returning null, and the step
   // retries instead of spending.
-  const impl = readCode("packages/channels/src/lines-twilio.ts");
-  const body = impl.slice(impl.indexOf("async ownedNumber("), impl.indexOf("async releaseNumber("));
-  assert.match(body, /if \(a\.status === 404\) return null;/, "a 404 is a real 'no'");
-  assert.match(body, /need\(a, "list owned numbers"\)/, "and anything else throws");
-  assert.ok(!/catch/.test(body), "REGRESSION: swallowing the read turns a failure into a purchase");
+  const { twilioProvider, TwilioError } = await import(
+    pathToFileURL(path.join(here, "../../../../packages/channels/src/lines-twilio.ts")).href
+  );
+  const acct = { sid: "ACsub", token: "t" };
+  const owned = (answer) => twilioProvider(async () => answer).ownedNumber(acct, "+13055550100");
+  assert.equal(await owned({ status: 404, body: { code: 20404, message: "not found" } }), null, "a 404 is a real 'no'");
+  assert.equal(await owned({ status: 200, body: { incoming_phone_numbers: [] } }), null, "and so is an empty list");
+  for (const [status, body] of [
+    [200, null],
+    [400, { code: 21421, message: "PhoneNumber is invalid" }],
+    [401, { code: 20003, message: "Authenticate" }],
+    [429, { code: 20429, message: "Too Many Requests" }],
+    [500, { code: 20500, message: "internal error" }],
+  ]) {
+    await assert.rejects(
+      owned({ status, body }),
+      (e) => e instanceof TwilioError && e.status === status && e.message.startsWith("list owned numbers: "),
+      `and anything else throws (${status})`,
+    );
+  }
+  const down = new Error("socket hang up");
+  await assert.rejects(
+    twilioProvider(async () => {
+      throw down;
+    }).ownedNumber(acct, "+13055550100"),
+    (e) => e === down,
+    "REGRESSION: swallowing the read turns a failure into a purchase",
+  );
 });
 
 // `release` giving back a number the row lost the receipt for is run in

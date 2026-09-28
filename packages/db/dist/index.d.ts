@@ -2801,6 +2801,7 @@ type Database = {
                     tiktok_url: string | null;
                     version: number;
                     website_host: string | null;
+                    website_root: boolean | null;
                 };
                 Insert: {
                     about?: string | null;
@@ -2853,6 +2854,7 @@ type Database = {
                     tiktok_url?: string | null;
                     version?: number;
                     website_host?: string | null;
+                    website_root?: boolean | null;
                 };
                 Update: {
                     about?: string | null;
@@ -2905,6 +2907,7 @@ type Database = {
                     tiktok_url?: string | null;
                     version?: number;
                     website_host?: string | null;
+                    website_root?: boolean | null;
                 };
                 Relationships: [
                     {
@@ -7765,6 +7768,8 @@ interface ReachOutReplyOf {
     /** The address the reach-out wrote to, as stored; the lead's website host. */
     lead_email: string | null;
     lead_website: string | null;
+    /** Whether the finder saw that website as its host's root (00237); null when it was not kept, or before 00237. */
+    lead_website_root: boolean | null;
     answered_message_id: string | null;
     /** The first 600 characters of the email it answers. */
     answered_text: string | null;
@@ -9490,7 +9495,7 @@ declare function getPartnerInviteMail(db: Db$1, tenantId: string): Promise<Partn
 
 type Db = SupabaseClient<Database>;
 type LeadsRow = Database["public"]["Tables"]["leads"]["Row"];
-type LeadOneLead = Omit<LeadsRow, "country" | "logo_url" | "resume_at">;
+type LeadOneLead = Omit<LeadsRow, "country" | "logo_url" | "resume_at" | "website_root">;
 /** The membership lead_member_of answers, the columns leads_page answers of it. */
 interface LeadOneMember {
     id: string;
