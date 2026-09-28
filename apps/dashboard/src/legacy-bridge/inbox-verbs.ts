@@ -4,17 +4,13 @@
  * the overrides re-apply (fresh globals + surface events), and the caller's
  * toast reports honestly. Business logic stays server-side — this is a courier.
  */
-import {
-  conversationsOverride,
-  inboxOverride,
-  liveOverride,
-  settingsOverride,
-  todayOverride,
-  type SurfaceOverride,
-  reportsOverride,
-  setReportDays,
-  paintHeldReports,
-} from "./surface-data";
+import { conversationsOverride } from "./surfaces/conversations";
+import { inboxOverride } from "./surfaces/inbox";
+import { liveOverride } from "./surfaces/live";
+import { settingsOverride } from "./surfaces/settings";
+import { todayOverride } from "./surfaces/today";
+import type { SurfaceOverride } from "./surface-data";
+import { reportsOverride, setReportDays, paintHeldReports } from "./surfaces/reports";
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiOptions, ApiResult, Params, RouteKey } from "../client/api";

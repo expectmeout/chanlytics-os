@@ -6,7 +6,15 @@
  * a miss, and nothing the tab says about a row is believed.
  */
 import { z } from "zod";
-import { ASK_SCOPE_KINDS, ASK_SURFACES, type AskScope, type AskSurface } from "./ask";
+import {
+  ASK_SCOPE_KINDS,
+  ASK_SURFACES,
+  type AskMessageVM,
+  type AskScope,
+  type AskScopeKind,
+  type AskSurface,
+} from "./ask";
+import { answerFromV1 } from "./ask-answer";
 
 /** The rows a context may carry: what one screen shows, and what one turn's context can afford (the plan, D11). */
 export const ASK_CONTEXT_MAX_ROWS = 40;
@@ -65,3 +73,25 @@ export const PageContextSchema = z
     askedAt: z.number().int().nonnegative(),
   })
   .strict();
+
+/** A kind of row a focus may be: a scope's, the page aside. */
+const isRowFocus = (k: string): k is AskScopeKind => k !== "page" && (ASK_SCOPE_KINDS as readonly string[]).includes(k);
+
+/**
+ * The row an answer's n-th item names, as a focus (the Phase 5 plan, D7): "open the second", asked in an open thread,
+ * is its last answer's second item, in the answer's order -- an answer made before the Line has the rows it cited
+ * (answerFromV1). A broadcast is the run its page spells; a thread, a conversation, a call, a person, a lead and a
+ * search are as they are. Null for an item of any other kind (a deal, a list, a playbook, a template, a domain, a page):
+ * the words point at no row a focus may be, and never at the page's row at that place. Undefined when the answer has
+ * fewer items: then the page's rows are asked. The tab's context and the eval's both read the words by it.
+ */
+export function itemFocus(
+  m: Pick<AskMessageVM, "text" | "citations" | "navigate" | "followups" | "language" | "answer">,
+  n: number,
+): AskScope | null | undefined {
+  const item = (m.answer ?? answerFromV1(m)).show.items[n - 1];
+  if (!item) return undefined;
+  const { kind: cited, id, label } = item.source;
+  const kind = cited === "broadcast" ? "run" : cited;
+  return isRowFocus(kind) ? { kind, id, label: label.slice(0, 80) || `this ${kind}` } : null;
+}

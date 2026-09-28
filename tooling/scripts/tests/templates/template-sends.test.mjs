@@ -195,7 +195,7 @@ const json = (status, body) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 const quiet = console.error;
 console.error = () => {};
-const { settingsOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+const { settingsOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
 const { clockDate } = await import("@chanlytics/contracts");
 console.error = quiet;
 
