@@ -276,7 +276,7 @@ and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 | Billing                                | `apps/edge/lib/billing/`, `apps/edge/api/stripe-webhook.ts`                                                                                              |
 | The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/leads.ts`, migration `00140`                                         |
 | Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/ask.ts`                                                                                   |
-| The calendar                           | `apps/dashboard/src/server/calendar/calendar.ts`, `packages/contracts/src/calendar/availability.ts`, `apps/edge/api/cron/calendar.ts`                    |
+| The calendar                           | `apps/dashboard/src/server/calendar/`, `packages/contracts/src/calendar/availability.ts`, `apps/edge/api/cron/calendar.ts`                               |
 | Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `a2p*.ts`, `apps/edge/lib/lines/`                                                                                     |
 | Email                                  | `packages/channels/src/email*.ts`, `apps/edge/lib/email/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                  |
 | Voice                                  | `packages/channels/src/voice-*.ts`, the four `retell-*` doors                                                                                            |
