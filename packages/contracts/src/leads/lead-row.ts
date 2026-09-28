@@ -22,7 +22,7 @@ import {
   type LeadStage,
 } from "./lead-words";
 import { agoShort, agoWords } from "../shared/time";
-import { initialsOf } from "../conversations/viewmodels";
+import { initialsOf } from "../conversations/thread-contact";
 
 /* ------------------------------------------------ what the page is given -- */
 

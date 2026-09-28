@@ -7,14 +7,8 @@
  * Its own module because it reads Google's facts (google.ts), whose imports reach back to the first run's view model
  * (first-run.ts, through the leads): kept here, nothing it imports imports it.
  */
-import {
-  BrainConfigSchema,
-  BusinessProfileSchema,
-  DAYS,
-  newReceptionistDefaults,
-  type BrainConfig,
-  type BusinessProfile,
-} from "./config";
+import { BrainConfigSchema, newReceptionistDefaults, type BrainConfig } from "./workspace-config/brain-config";
+import { BusinessProfileSchema, DAYS, type BusinessProfile } from "./workspace-config/business-profile";
 import { resolveFacts } from "./facts";
 import { hoursFromGoogle, type GoogleListingFacts } from "../google/google";
 

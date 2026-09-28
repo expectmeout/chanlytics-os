@@ -766,134 +766,11 @@ declare function callMoodTone(sentiment: string): "" | "ok" | "danger";
 declare function toReportVM(dto: ReportDto): ReportVM;
 
 /**
- * Control plane types (PRD E1/E3/E4) — the single source every boundary
- * imports: the Settings form, the /v1 routes, and the edge runtime all parse
- * the same schemas, so an option that exists in the UI exists in the runtime
- * by construction (anti-junk rule R1).
+ * The business's facts as fields (E4): the profile's schema and its parts (hours, closures, services, guardrails,
+ * notes, booking rules), with the guardrails' defaults. The brain that holds the profile is brain-config.ts; the
+ * prompt composed from it is compose.ts.
  */
 
-declare const ROLES: readonly ["owner", "operator", "partner", "viewer"];
-type Role = (typeof ROLES)[number];
-/**
- * The roles Team hands out: an invite, a change of role. A partner is not one
- * of them. That role arrives with the workspace, written by the attribution
- * when the workspace is made through a partner's link (decision 0012), and
- * Team can only take it away.
- */
-declare const TEAM_ROLES: readonly ["owner", "operator", "viewer"];
-/** What each role may do. Mirrors the mockup's ST_PERMS exactly — the client
- *  gate() chips read this shape; the server re-checks via requireRole. */
-declare const ROLE_PERMS: Record<Role, {
-    approve: boolean;
-    autonomy: boolean;
-    disconnect: boolean;
-    billing: boolean;
-    team: boolean;
-    settings: boolean;
-    export: boolean;
-    find: boolean;
-}>;
-declare const POLICY_CLASSES: readonly ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money", "follow_up", "outreach"];
-type PolicyClass = (typeof POLICY_CLASSES)[number];
-/**
- * The words for each class, said once. The Autonomy matrix rows, a playbook's
- * "runs under" chip and the assistant's proposals all read these; three maps
- * used to name the same row three ways ("Campaigns" on a playbook for the row
- * the matrix called "Standing offers").
- */
-declare const POLICY_CLASS_WORDS: Record<PolicyClass, {
-    name: string;
-    short: string;
-    note: string;
-}>;
-/** The four modes. 'veto' is honoured where there is something to hold: a
- *  reply waits in the hold window as a draft, a playbook run waits thirty
- *  minutes; POLICY_CLASS_MODES says which classes offer it. The runtime
- *  treats an unexpected mode as 'ask' (fail safe). */
-declare const POLICY_MODES: readonly ["auto", "veto", "ask", "never"];
-type PolicyMode = (typeof POLICY_MODES)[number];
-/**
- * What each mode DOES, in the owner's words — the matrix's column headings, the
- * name a phone puts over each dot, and the words a policy chip says after the
- * dot.
- *
- * The stored values stay `auto | veto | ask | never`: those are filing words. A
- * salon owner does not say "veto", and the plain sentence for each mode existed
- * only as a hover tip on the column heading — which a phone has no way to
- * trigger and a mouse has no reason to look for. The heading says it instead.
- *
- * `head` is verb-first with the receptionist as its subject, `sub` is the one
- * clause that tells it apart from its neighbour, `chip` is the same fact small
- * enough for a pill, `does` is the whole sentence for a control's title. No
- * heading names a duration: how long a hold lasts belongs to the class (a reply
- * waits the workspace's hold window, a playbook run waits thirty minutes), and a
- * heading that said "30s" would be wrong on four of the six rows.
- */
-declare const POLICY_MODE_WORDS: Record<PolicyMode, {
-    head: string;
-    sub: string;
-    chip: string;
-    does: string;
-}>;
-/**
- * The modes each class can honour — a switch nothing enforces is a switch
- * that lies. Replies can wait (veto), wait for a person (ask) or stay silent
- * (never). Booking and service questions are answered by the receptionist
- * or by a person: there is no "never" for a salon that takes bookings, and
- * no draft to hold for review. The playbook classes run, wait, wait for a
- * person, or do not run. Reviews are answered, drafted for a person, or
- * left alone — there is no draft to hold on a countdown. Money is the
- * charter's.
- */
-declare const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]>;
-/** The class a customer's intent falls under, when the Autonomy pane has a row for it. */
-declare function policyClassOfIntent(intent: string | null | undefined): "booking" | "faq" | null;
-/** The class that is set to "ask" and that this intent falls under, or null. An unknown mode counts as ask, fail safe. */
-declare function policyAskClass(policy: Record<string, {
-    mode: string;
-}> | null | undefined, intent: string | null | undefined): "booking" | "faq" | null;
-/**
- * The Autonomy tab's Booking row holds the booking link back: it is not on
- * "auto", so a person confirms instead. An unknown mode counts, fail safe, as it
- * does in policyAskClass.
- *
- * The edge asks this question inline, through policyAskClass, and this must keep
- * agreeing with every place it does: apps/edge/api/retell-fn.ts (its
- * `bookingHeld`, which outbound-gate.ts refuses as booking_needs_a_person),
- * apps/edge/api/retell-availability.ts (which then offers a caller no times) and
- * apps/edge/lib/whatsapp/steps.ts layerTwo (which takes the link back out of a
- * chat reply classed as a booking -- a price or services reply still carries it).
- * Stated here so the Business tab reads the rule instead of keeping a copy of it.
- */
-declare function bookingHeld(policy: Record<string, {
-    mode: string;
-}> | null | undefined): boolean;
-/**
- * What the Booking and FAQ rows say in the prompt, per channel. "auto" says
- * nothing — the profile already tells the receptionist how to book and what
- * it offers. "ask" hands the matter to a person, in words the customer can
- * hear on the phone and read on WhatsApp.
- */
-declare function policyRules(policy: Record<string, {
-    mode: string;
-}> | null | undefined, channel: "whatsapp" | "voice"): string[];
-declare const PolicyLimitsSchema: z.ZodObject<{
-    max_replies_day: z.ZodOptional<z.ZodNumber>;
-    pause_hours: z.ZodOptional<z.ZodNumber>;
-    reply_delay_ms: z.ZodOptional<z.ZodNumber>;
-    min_confidence: z.ZodOptional<z.ZodNumber>;
-    max_llm_tokens_day: z.ZodOptional<z.ZodNumber>;
-}, z.core.$strict>;
-type PolicyLimits = z.infer<typeof PolicyLimitsSchema>;
-interface PolicyRow {
-    id: string;
-    class: PolicyClass;
-    mode: PolicyMode;
-    subject_type: SchemaSet<"policies.subject_type"> | null;
-    subject_id: string | null;
-    limits: PolicyLimits;
-    updated_at: string;
-}
 /**
  * One stretch of the day the doors are open.
  *
@@ -1064,635 +941,6 @@ type Hours = z.infer<typeof HoursSchema>;
 type Service = z.infer<typeof ServiceSchema>;
 type Interval = z.infer<typeof IntervalSchema>;
 type Closure = z.infer<typeof ClosureSchema>;
-declare const BrainConfigSchema: z.ZodObject<{
-    business_name: z.ZodString;
-    phone_display: z.ZodOptional<z.ZodString>;
-    booking_link: z.ZodOptional<z.ZodString>;
-    system_prompt: z.ZodString;
-    profile: z.ZodOptional<z.ZodObject<{
-        address: z.ZodOptional<z.ZodString>;
-        hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-            mon: "mon";
-            tue: "tue";
-            wed: "wed";
-            thu: "thu";
-            fri: "fri";
-            sat: "sat";
-            sun: "sun";
-        }> & z.core.$partial, z.ZodObject<{
-            open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                open: z.ZodString;
-                close: z.ZodString;
-            }, z.core.$strip>>>;
-        }, z.core.$strip>>>;
-        closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
-            date: z.ZodString;
-            until: z.ZodOptional<z.ZodString>;
-            note: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>>>;
-        services: z.ZodOptional<z.ZodArray<z.ZodObject<{
-            name: z.ZodString;
-            duration_min: z.ZodOptional<z.ZodNumber>;
-            price_note: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>>>;
-        languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
-        guardrails: z.ZodOptional<z.ZodObject<{
-            never_quote_prices: z.ZodOptional<z.ZodBoolean>;
-            never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
-            disclose_ai: z.ZodOptional<z.ZodBoolean>;
-            no_health_advice: z.ZodOptional<z.ZodBoolean>;
-        }, z.core.$strip>>;
-        escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
-        tone: z.ZodOptional<z.ZodString>;
-        handoff_number: z.ZodOptional<z.ZodString>;
-        website: z.ZodOptional<z.ZodString>;
-        notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
-            title: z.ZodString;
-            text: z.ZodString;
-        }, z.core.$strip>>>;
-        booking_rules: z.ZodOptional<z.ZodObject<{
-            lead_hours: z.ZodOptional<z.ZodNumber>;
-            buffer_min: z.ZodOptional<z.ZodNumber>;
-            max_days_ahead: z.ZodOptional<z.ZodNumber>;
-            slot_min: z.ZodOptional<z.ZodNumber>;
-            consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            party_max: z.ZodOptional<z.ZodNumber>;
-            ask_email: z.ZodOptional<z.ZodBoolean>;
-            notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-        }, z.core.$strip>>;
-        extra_instructions: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>>;
-    fallbacks: z.ZodObject<{
-        greeting: z.ZodString;
-        error: z.ZodString;
-        non_text: z.ZodString;
-    }, z.core.$strip>;
-}, z.core.$strip>;
-type BrainConfig = z.infer<typeof BrainConfigSchema>;
-/**
- * The parts of a brand-new receptionist nobody should have to write.
- *
- * BrainConfigSchema requires a system_prompt and three fallback messages, and
- * until this existed there was no way to produce them from inside the product:
- * provisioning inserts an empty tenant_config row and the settings form only
- * ever edited the profile ON an existing brain. Onboarding a business meant
- * hand-writing its config into the database.
- *
- * It lives HERE, beside the schema it has to satisfy, because a default that
- * drifts out of spec does not fail in review — it fails for the next business
- * that tries to set itself up.
- *
- * The prompt states no facts on purpose. The address, hours and services are
- * composed from the profile; a baseline that repeated them would be a second
- * copy of every one, free to go stale the moment the owner edits a field.
- */
-declare function newReceptionistDefaults(businessName: string): Pick<BrainConfig, "system_prompt" | "fallbacks">;
-/** The product's own opening lines, whatever business name they were written with -- words no owner wrote. */
-declare function isBaselinePrompt(text: string): boolean;
-/**
- * What the Business form's instructions box opens with (S4).
- *
- * The owner's own instructions when they have written some. Otherwise the
- * prompt a profile carries in their place, shown so nothing the receptionist
- * follows is out of sight and marked `carried` so the form can say where it
- * came from -- unless it is the product's baseline, which no owner wrote. A
- * save then keeps what the box holds as the owner's and puts the baseline back
- * as the prompt: the text is stored once, and an emptied box stays empty
- * instead of filling itself again from the copy left behind.
- *
- * ONE rule with the prompt view: whoseWords (plan Task 3.8, shipped 22 Sep).
- * Own words open as the owner's; a prompt standing in the owner's place (carried
- * or a workspace's own, whichever the resolver does with it) opens marked
- * carried; the product's own opening lines and nothing to read open an empty box.
- * Kept exactly as stored, spaces and all, so a save writes back what was there.
- *
- * Phase 1 left the two disagreeing on one case, knowingly: the baseline stored
- * in the OWNER'S own field, where a save before S4 copied it. The box opened it
- * as the owner's words because routing it here made it open EMPTY and the live
- * form's next Save deleted the field -- and a workspace whose only composed
- * field was that copy fell from a composed prompt to the bare baseline, losing
- * its hand-off and every rule line. That save is gone: the fold that replaced
- * the form sends nothing at all when its box is left as it opened
- * (business-tab-folds.jsx, holdsChanges), so an empty box deletes nothing by
- * being looked at. What a save with something typed in it should do with that
- * copy is open, and nothing in production has it (the count under plan Task 3.8).
- */
-declare function instructionsDraft(brain: {
-    system_prompt?: string | null;
-    profile?: {
-        extra_instructions?: string | null;
-    } | null;
-} | null | undefined): {
-    text: string;
-    carried: boolean;
-};
-declare const NotificationsConfigSchema: z.ZodObject<{
-    escalation_emails: z.ZodArray<z.ZodString>;
-    from: z.ZodOptional<z.ZodString>;
-}, z.core.$strip>;
-type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
-/**
- * The whole tenant_config.config column. Sections are optional — a tenant with
- * no brain section is a tenant whose receptionist does not speak (persist +
- * escalate only). Safe-by-default beats a leaked persona.
- *
- * NOTHING ON THE READ PATH IS `.strict()`, at the top level or in a section.
- *
- * The edge and the dashboard are separate Vercel projects that deploy
- * independently. With a strict read, the first dashboard deploy to write a new
- * section or field — `guardrails`, a per-tenant allowlist, anything — would be
- * rejected in its entirety by the older edge still running beside it. The
- * receptionist would go completely silent on a live line, and it would be
- * logged identically to "no brain profile configured": a total mute that reads
- * as a configuration absence. (The sections stayed strict until 27 Sep 2026.)
- *
- * So an older edge leaves out a key it has never heard of, at any depth, keeps
- * answering with the persona it does understand, and says what it left out
- * (parseTenantConfigResult's `ignored`). Strictness stays where it catches real
- * mistakes: on the way IN (TenantConfigWriteSchema), where a typo inside a
- * section is refused by name, not saved as a field the runtime never applies.
- */
-/**
- * The calendar the receptionist may READ. An iCal address — what any booking
- * tool that syncs to Google, Apple or Outlook produces — never credentials to
- * write with. Nothing is ever booked from here; the booking link does that,
- * whichever tool is behind it.
- */
-declare const CalendarConfigSchema: z.ZodObject<{
-    ical_url: z.ZodString;
-}, z.core.$strip>;
-type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
-/**
- * Opt-in abilities, off unless the workspace turns them on.
- *
- * `vision`: the receptionist looks at photos customers send over WhatsApp and
- * answers them like words, under every rule it already follows. Off, a photo
- * is acknowledged and handed to a person, as before.
- */
-declare const FeaturesConfigSchema: z.ZodObject<{
-    vision: z.ZodOptional<z.ZodBoolean>;
-}, z.core.$strip>;
-type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
-declare const TenantConfigSchema: z.ZodObject<{
-    brain: z.ZodOptional<z.ZodObject<{
-        business_name: z.ZodString;
-        phone_display: z.ZodOptional<z.ZodString>;
-        booking_link: z.ZodOptional<z.ZodString>;
-        system_prompt: z.ZodString;
-        profile: z.ZodOptional<z.ZodObject<{
-            address: z.ZodOptional<z.ZodString>;
-            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-                mon: "mon";
-                tue: "tue";
-                wed: "wed";
-                thu: "thu";
-                fri: "fri";
-                sat: "sat";
-                sun: "sun";
-            }> & z.core.$partial, z.ZodObject<{
-                open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                    open: z.ZodString;
-                    close: z.ZodString;
-                }, z.core.$strip>>>;
-            }, z.core.$strip>>>;
-            closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                date: z.ZodString;
-                until: z.ZodOptional<z.ZodString>;
-                note: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>>>;
-            services: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                name: z.ZodString;
-                duration_min: z.ZodOptional<z.ZodNumber>;
-                price_note: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>>>;
-            languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            guardrails: z.ZodOptional<z.ZodObject<{
-                never_quote_prices: z.ZodOptional<z.ZodBoolean>;
-                never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
-                disclose_ai: z.ZodOptional<z.ZodBoolean>;
-                no_health_advice: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strip>>;
-            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            tone: z.ZodOptional<z.ZodString>;
-            handoff_number: z.ZodOptional<z.ZodString>;
-            website: z.ZodOptional<z.ZodString>;
-            notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                title: z.ZodString;
-                text: z.ZodString;
-            }, z.core.$strip>>>;
-            booking_rules: z.ZodOptional<z.ZodObject<{
-                lead_hours: z.ZodOptional<z.ZodNumber>;
-                buffer_min: z.ZodOptional<z.ZodNumber>;
-                max_days_ahead: z.ZodOptional<z.ZodNumber>;
-                slot_min: z.ZodOptional<z.ZodNumber>;
-                consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
-                party_max: z.ZodOptional<z.ZodNumber>;
-                ask_email: z.ZodOptional<z.ZodBoolean>;
-                notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            }, z.core.$strip>>;
-            extra_instructions: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>>;
-        fallbacks: z.ZodObject<{
-            greeting: z.ZodString;
-            error: z.ZodString;
-            non_text: z.ZodString;
-        }, z.core.$strip>;
-    }, z.core.$strip>>;
-    notifications: z.ZodOptional<z.ZodObject<{
-        escalation_emails: z.ZodArray<z.ZodString>;
-        from: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>>;
-    calendar: z.ZodOptional<z.ZodObject<{
-        ical_url: z.ZodString;
-    }, z.core.$strip>>;
-    features: z.ZodOptional<z.ZodObject<{
-        vision: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strip>>;
-}, z.core.$strip>;
-type TenantConfig = z.infer<typeof TenantConfigSchema>;
-/** The most shifts one day may be split into. Must match the editor's cap. */
-declare const MAX_INTERVALS_PER_DAY = 4;
-/** As many closures as the composer will state — there is no render cap. */
-declare const MAX_CLOSURES = 60;
-/** Does this string name a real day? "2026-11-31" does not. */
-declare function isRealDate(key: string): boolean;
-/** A day of the week by its whole name, the one table: the write rules', the composer's and the first run's. */
-declare const DAY_NAMES: Record<(typeof DAYS)[number], string>;
-/**
- * What is wrong with one day of the week, in the owner's words, each with where in the day it is. The write rules'
- * day check (checkDay) and anything that builds a day from elsewhere (google.ts hoursFromGoogle) ask this, so a day
- * is judged by one set of rules wherever it comes from. Empty when the day is one the record holds.
- */
-declare function dayProblems(h: Hours, day: string): Array<{
-    path: Array<string | number>;
-    message: string;
-}>;
-/**
- * The same config, with the rules that only apply on the way IN, and none of
- * the fields inside a section that the read would leave out (unknown-keys.ts).
- *
- * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
- * lenience stay defined in exactly one place and this can only ever be
- * stricter.
- */
-declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
-    brain: z.ZodOptional<z.ZodObject<{
-        business_name: z.ZodString;
-        phone_display: z.ZodOptional<z.ZodString>;
-        booking_link: z.ZodOptional<z.ZodString>;
-        system_prompt: z.ZodString;
-        profile: z.ZodOptional<z.ZodObject<{
-            address: z.ZodOptional<z.ZodString>;
-            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
-                mon: "mon";
-                tue: "tue";
-                wed: "wed";
-                thu: "thu";
-                fri: "fri";
-                sat: "sat";
-                sun: "sun";
-            }> & z.core.$partial, z.ZodObject<{
-                open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                    open: z.ZodString;
-                    close: z.ZodString;
-                }, z.core.$strip>>>;
-            }, z.core.$strip>>>;
-            closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                date: z.ZodString;
-                until: z.ZodOptional<z.ZodString>;
-                note: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>>>;
-            services: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                name: z.ZodString;
-                duration_min: z.ZodOptional<z.ZodNumber>;
-                price_note: z.ZodOptional<z.ZodString>;
-            }, z.core.$strip>>>;
-            languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            guardrails: z.ZodOptional<z.ZodObject<{
-                never_quote_prices: z.ZodOptional<z.ZodBoolean>;
-                never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
-                disclose_ai: z.ZodOptional<z.ZodBoolean>;
-                no_health_advice: z.ZodOptional<z.ZodBoolean>;
-            }, z.core.$strip>>;
-            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            tone: z.ZodOptional<z.ZodString>;
-            handoff_number: z.ZodOptional<z.ZodString>;
-            website: z.ZodOptional<z.ZodString>;
-            notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
-                title: z.ZodString;
-                text: z.ZodString;
-            }, z.core.$strip>>>;
-            booking_rules: z.ZodOptional<z.ZodObject<{
-                lead_hours: z.ZodOptional<z.ZodNumber>;
-                buffer_min: z.ZodOptional<z.ZodNumber>;
-                max_days_ahead: z.ZodOptional<z.ZodNumber>;
-                slot_min: z.ZodOptional<z.ZodNumber>;
-                consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
-                party_max: z.ZodOptional<z.ZodNumber>;
-                ask_email: z.ZodOptional<z.ZodBoolean>;
-                notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
-            }, z.core.$strip>>;
-            extra_instructions: z.ZodOptional<z.ZodString>;
-        }, z.core.$strip>>;
-        fallbacks: z.ZodObject<{
-            greeting: z.ZodString;
-            error: z.ZodString;
-            non_text: z.ZodString;
-        }, z.core.$strip>;
-    }, z.core.$strip>>;
-    notifications: z.ZodOptional<z.ZodObject<{
-        escalation_emails: z.ZodArray<z.ZodString>;
-        from: z.ZodOptional<z.ZodString>;
-    }, z.core.$strip>>;
-    calendar: z.ZodOptional<z.ZodObject<{
-        ical_url: z.ZodString;
-    }, z.core.$strip>>;
-    features: z.ZodOptional<z.ZodObject<{
-        vision: z.ZodOptional<z.ZodBoolean>;
-    }, z.core.$strip>>;
-}, z.core.$strip>>;
-/** A config as read, with the keys it left out (`ignored`, dotted paths); or why it could not be read at all. */
-type TenantConfigParse = {
-    ok: true;
-    config: TenantConfig;
-    ignored: string[];
-} | {
-    ok: false;
-    issues: string[];
-};
-/**
- * Parse unknown JSONB into TenantConfig.
- *
- * Returns the ISSUES rather than a bare null, because the runtime needs to tell
- * "this tenant has not been configured" from "this tenant's configuration is
- * broken". Both end in silence, but only one of them is somebody's mistake, and
- * collapsing them meant an operator reading "no brain profile configured" while
- * a perfectly good persona sat in the database behind one bad field.
- */
-declare function parseTenantConfigResult(raw: unknown): TenantConfigParse;
-/** Whether a workspace's receptionist is set up: none yet, set up, or a config the parser refused. */
-type ReceptionistState = "none" | "set" | "broken";
-/**
- * The one test of whether a receptionist is set up, for Setup's read, the first run's Check and the first
- * receptionist's route alike: a config the parser refuses is its own state, since only Chanlytics repairs one, and a
- * parsed config holds a receptionist when it holds a brain. No config at all reads as none.
- */
-declare function receptionistOf(parsed: TenantConfigParse | null): ReceptionistState;
-/** Convenience for callers that genuinely cannot act on the difference. */
-declare function parseTenantConfig(raw: unknown): TenantConfig | null;
-/**
- * A new workspace's first alert address: its creator's. Without one, the edge's
- * chooseAddressing (lib/ops/notify.ts) sends every "a customer needs you" to the
- * platform, redacted, and the owner is never told.
- *
- * Returns the config to save, or null when there is nothing to do: a config that
- * already names its addresses, one that will not parse, or an address the write
- * schema refuses -- saved, a refused address would make the whole config
- * unreadable, and the receptionist silent.
- */
-declare function withFirstAlertAddress(config: unknown, email: string | null | undefined): TenantConfig | null;
-/** "Monday–Friday 9:00–18:00" style lines, collapsing identical runs. */
-/** One stretch of consecutive days that share the same hours. */
-interface HoursRun {
-    /** Day key the run starts on, e.g. "mon". */
-    from: string;
-    /** Day key it ends on. Equal to `from` for a single day. */
-    to: string;
-    /** "09:30–18:00", or "Closed". */
-    text: string;
-}
-declare function hoursRuns(hours: Record<string, Hours> | undefined): HoursRun[];
-/**
- * What a record whose details compose nothing is told, in ONE sentence.
- *
- * Two places on the Business tab say it: the rules fold, where the rules block would be
- * (business-tab.ts RULES_WITHOUT_FIELDS_WORDS), and the prompt view, over the stored prompt the
- * resolver hands such a record back (prompt-blocks.ts). They were two sentences saying the same
- * thing in two spellings, which is two sentences to keep true; both are built from this one now,
- * so an owner reading the page twice reads the same words. `hasProfile`, below, is what decides
- * whether either is said.
- */
-declare const NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
-/** True when a profile carries anything worth composing from. */
-declare function hasProfile(p: BusinessProfile | undefined | null): boolean;
-/**
- * The current moment, in the business's own timezone.
- *
- * Deliberately NOT part of composeSystemPrompt. That output is cached with the
- * request; this changes every minute, and folding it in would evict the whole
- * business profile from the prompt cache on every single message. It belongs
- * in its own uncached block, next to the lead note that changes per contact.
- *
- * The timezone is `tenants.timezone` — the one the metrics RPCs and the Today
- * surface already use. There is no second copy of it on the profile.
- */
-declare function describeNow(tz: string | null | undefined, now?: Date, 
-/**
- * The workspace's closures, so a shut day is stated HERE.
- *
- * It matters that it is here and not only in the composed block above. This
- * is the last thing the model reads, and on a closure day the weekly grid
- * says open while the closure list says shut. Leaving the tie to block order
- * would decide the single highest-stakes question — "are you open today?" —
- * by accident.
- */
-closures?: Closure[]): string;
-/**
- * How each part of the composed prompt opens, said once.
- *
- * Every value is the start of a line the composer writes: a section's heading,
- * the first words of a paragraph Chanlytics writes for every workspace, or one
- * of the two lines that can sit above the owner's own words. The composer
- * writes them from here, and the Business tab's prompt view (prompt-blocks.ts)
- * cuts the prompt on them from here. They were literal copies in two files, and
- * a copy that drifted folded one block into its neighbour without failing
- * anything: a closure list into the hours, the medium line into the owner's own
- * words.
- *
- * These are words the live receptionist reads. Changing one changes its prompt.
- */
-declare const PROMPT_OPENINGS: {
-    readonly hours: "Opening hours";
-    readonly closures: "Closed on these dates";
-    readonly services: "Services:";
-    readonly notes: "Other things to know:";
-    readonly bookingRules: "Booking rules:";
-    readonly handoffChat: "Handing the conversation to a person:";
-    readonly handoffCall: "Handing the caller to a person:";
-    /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
-    readonly callTools: "Open times: use check_availability";
-    readonly callMedium: "You are speaking aloud.";
-    readonly chatMedium: "Keep replies short enough to read on a phone.";
-    readonly openTimes: "If open times are listed after these instructions";
-    /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
-    readonly rules: "Rules you must follow:";
-    /** Above the owner's own words, when there are details above for them to disagree with. */
-    readonly ownWordsUnderDetails: "Further instructions from the business.";
-    /** Above the owner's own words on a call, alone or after the line above. */
-    readonly ownWordsOnACall: "Some of it was written for text conversations";
-};
-declare function composeSystemPrompt(
-/** `booking_link` null for a business that quotes each job: the prompt then says what the receptionist takes instead. */
-base: {
-    business_name: string;
-    phone_display?: string | null;
-    booking_link: string | null;
-}, profile: BusinessProfile, channel?: "whatsapp" | "voice", 
-/** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
-tz?: string | null, 
-/**
- * Only used to drop closures that have already passed.
- *
- * No cron, no nightly prune: the composer already runs per message and
- * already knows the zone, so "has this gone by?" is a string comparison.
- * Rows that have passed stay in the config and simply stop being said.
- */
-now?: Date, 
-/** The workspace's Autonomy rows (class → mode): Booking and FAQ under "ask" become rules here. */
-policy?: Record<string, {
-    mode: string;
-}> | null): string;
-/**
- * The instructions this workspace's receptionist should actually receive.
- *
- * ONE resolver, so no caller has to remember the precedence. A workspace that
- * has filled in its profile gets a prompt composed from those facts; one that
- * has not keeps the prompt it already had, byte for byte.
- *
- * That fallback is the whole reason this can ship: the pilot's hand-written
- * prompt is live and answering real customers, and a migration that changed
- * what its receptionist says the moment the code deployed would be a
- * behaviour change nobody asked for.
- */
-declare function resolveSystemPrompt(brain: BrainConfig, channel?: "whatsapp" | "voice", 
-/** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
-tz?: string | null, 
-/** Only used to drop closures that have already passed. */
-now?: Date, 
-/** The workspace's Autonomy rows, so Booking and FAQ under "ask" reach a hand-written prompt too. */
-policy?: Record<string, {
-    mode: string;
-}> | null, 
-/**
- * What the platform knows independently of what was typed: the channel rows
- * it provisioned, the Google listing it verified.
- *
- * The prompt is the one place these facts are SPOKEN, so it is the one place
- * they have to be resolved rather than read raw. Typed still wins — see
- * facts.ts for why silently overriding a live receptionist's words would be
- * the worse bug — but a workspace that never typed a number now says the line
- * it actually answers instead of nothing, and the disagreement is nameable
- * everywhere else because it is computed here.
- */
-known?: KnownFacts | null): string;
-/**
- * The owner's own words, as the receptionist is given them.
- *
- * What they have written into the form, once there is anything in it. Until
- * then the workspace's prompt stands in their place: carried whole when the
- * profile composes, so filling in one field loses nothing, and read as it
- * stands when it does not. The one statement of that rule. resolveSystemPrompt
- * composes with it, and anything that has to find those words in what the
- * resolver returned looks for them with it, rather than with a copy that can
- * drift.
- */
-declare function ownWordsOf(brain: {
-    system_prompt?: string | null;
-    profile?: {
-        extra_instructions?: string | null;
-    } | null;
-} | null | undefined): string | null;
-/** Whose words stand in the owner's place: see whoseWords. */
-type WhoseWords = {
-    kind: "own" | "carried" | "prompt" | "baseline";
-    text: string;
-} | {
-    kind: "none";
-    text: null;
-};
-/**
- * Whose words the receptionist is given in the owner's place, decided once.
- *
- * The words are ownWordsOf's, the resolver's own rule. This says whose they are,
- * for the prompt view (promptBlocks) and for the instructions box, which asks
- * here too (instructionsDraft): the two read the owner's field by one rule, so
- * the box can never open as the owner's what the view charges to the platform.
- *
- *   baseline  the product's own opening lines. In the stored prompt that is
- *             isBaselinePrompt, which reads only the opening and the closing:
- *             only the product writes that prompt. In the OWNER'S field it is
- *             stricter (isBaselineInOwnersField), because there an owner may
- *             have typed their own sentences where the business's name goes,
- *             and calling those the platform's would disown words they wrote.
- *   own       what the owner wrote into the profile's own field.
- *   carried   the profile composes, but its own field is blank, so the stored
- *             prompt stands in: the resolver carries it into the owner's place.
- *   prompt    nothing composes, so the stored prompt is simply the workspace's
- *             prompt, read as it stands. "Composes" is the resolver's own test
- *             (hasProfile): no profile at all, or one holding nothing the
- *             resolver composes from, and the resolver hands the prompt back.
- *   none      nothing to read.
- */
-declare function whoseWords(brain: {
-    system_prompt?: string | null;
-    profile?: {
-        extra_instructions?: string | null;
-    } | null;
-} | null | undefined): WhoseWords;
-/** The details a message sent in the business's name may name, as the owner writes them. */
-declare const FALLBACK_DETAILS: readonly ["business", "booking link", "phone"];
-type FallbackDetail = (typeof FALLBACK_DETAILS)[number];
-/**
- * The product's own wording for the three messages, naming the details rather
- * than copying them, so they follow the business's details from the first day
- * and a customer is never sent "call us at ." before a line exists.
- *
- * Each sentence stands without the one naming the link, which a business that
- * quotes does not have (the first run's decision 2): fillDetails leaves out a
- * sentence naming a detail the workspace lacks, and what is left must still be
- * a whole message.
- */
-declare const FALLBACK_DEFAULTS: BrainConfig["fallbacks"];
-/**
- * The product's wording before 24 Sep 2026, still the product's. Two of its
- * sentences leaned on the one naming the link ("Or reply here", "— or a member
- * of our team will reply"), so with no link they read as half a message.
- * Workspaces set up with it keep it, since a stored message is theirs to change:
- * it is never said to be their own words, or offered the default wording back.
- */
-declare const EARLIER_FALLBACK_DEFAULTS: BrainConfig["fallbacks"];
-/**
- * Whether a message is in the product's wording, today's or the earlier one: the one test the Business tab's line
- * (business-tab.ts fallbacksWords) and each message's "Use the default wording" ask.
- */
-declare function isProductFallback(key: keyof BrainConfig["fallbacks"], text: string | null | undefined): boolean;
-/**
- * The three messages sent in the business's name when the receptionist cannot
- * answer, with its details as they are now (the wiring audit's S5).
- *
- * They were written once, from what the form held that day, with the number
- * and the booking link baked in, and nothing wrote them again: a changed link
- * or a new line left customers the old one. A message may now name
- * {business}, {booking link} and {phone}, filled here as it goes out from the
- * facts the prompt speaks (resolveFacts): the number is the one the owner
- * typed or the line the receptionist answers, formatted for a person. A
- * sentence naming a detail the workspace does not have is left out rather
- * than sent with a hole in it; a message naming none goes out exactly as
- * written; one that would leave nothing says the default instead.
- */
-declare function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null): BrainConfig["fallbacks"];
-/**
- * The names in a message that nothing fills in -- "{bookinglink}", "{phone
- * number}" -- which a customer would read exactly as written. The Business
- * form says so under the message before it is saved (S5).
- */
-declare function unknownDetails(text: string): string[];
 
 /**
  * Google — a business's listing on Google Maps, as facts.
@@ -2722,6 +1970,276 @@ interface EmailSetupDto {
 declare const EMAIL_NOT_ANSWERED_SENTENCE = "The receptionist does not answer email yet: every email waits for you in the Inbox.";
 /** The one thing the product cannot see, said where the owner sets email up (the plan's §9). */
 declare const EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";
+
+declare const NotificationsConfigSchema: z.ZodObject<{
+    escalation_emails: z.ZodArray<z.ZodString>;
+    from: z.ZodOptional<z.ZodString>;
+}, z.core.$strip>;
+type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
+/**
+ * The whole tenant_config.config column. Sections are optional — a tenant with
+ * no brain section is a tenant whose receptionist does not speak (persist +
+ * escalate only). Safe-by-default beats a leaked persona.
+ *
+ * NOTHING ON THE READ PATH IS `.strict()`, at the top level or in a section.
+ *
+ * The edge and the dashboard are separate Vercel projects that deploy
+ * independently. With a strict read, the first dashboard deploy to write a new
+ * section or field — `guardrails`, a per-tenant allowlist, anything — would be
+ * rejected in its entirety by the older edge still running beside it. The
+ * receptionist would go completely silent on a live line, and it would be
+ * logged identically to "no brain profile configured": a total mute that reads
+ * as a configuration absence. (The sections stayed strict until 27 Sep 2026.)
+ *
+ * So an older edge leaves out a key it has never heard of, at any depth, keeps
+ * answering with the persona it does understand, and says what it left out
+ * (parseTenantConfigResult's `ignored`). Strictness stays where it catches real
+ * mistakes: on the way IN (TenantConfigWriteSchema), where a typo inside a
+ * section is refused by name, not saved as a field the runtime never applies.
+ */
+/**
+ * The calendar the receptionist may READ. An iCal address — what any booking
+ * tool that syncs to Google, Apple or Outlook produces — never credentials to
+ * write with. Nothing is ever booked from here; the booking link does that,
+ * whichever tool is behind it.
+ */
+declare const CalendarConfigSchema: z.ZodObject<{
+    ical_url: z.ZodString;
+}, z.core.$strip>;
+type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
+/**
+ * Opt-in abilities, off unless the workspace turns them on.
+ *
+ * `vision`: the receptionist looks at photos customers send over WhatsApp and
+ * answers them like words, under every rule it already follows. Off, a photo
+ * is acknowledged and handed to a person, as before.
+ */
+declare const FeaturesConfigSchema: z.ZodObject<{
+    vision: z.ZodOptional<z.ZodBoolean>;
+}, z.core.$strip>;
+type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
+declare const TenantConfigSchema: z.ZodObject<{
+    brain: z.ZodOptional<z.ZodObject<{
+        business_name: z.ZodString;
+        phone_display: z.ZodOptional<z.ZodString>;
+        booking_link: z.ZodOptional<z.ZodString>;
+        system_prompt: z.ZodString;
+        profile: z.ZodOptional<z.ZodObject<{
+            address: z.ZodOptional<z.ZodString>;
+            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+                mon: "mon";
+                tue: "tue";
+                wed: "wed";
+                thu: "thu";
+                fri: "fri";
+                sat: "sat";
+                sun: "sun";
+            }> & z.core.$partial, z.ZodObject<{
+                open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    open: z.ZodString;
+                    close: z.ZodString;
+                }, z.core.$strip>>>;
+            }, z.core.$strip>>>;
+            closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                date: z.ZodString;
+                until: z.ZodOptional<z.ZodString>;
+                note: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>>>;
+            services: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                duration_min: z.ZodOptional<z.ZodNumber>;
+                price_note: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>>>;
+            languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            guardrails: z.ZodOptional<z.ZodObject<{
+                never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+                never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+                disclose_ai: z.ZodOptional<z.ZodBoolean>;
+                no_health_advice: z.ZodOptional<z.ZodBoolean>;
+            }, z.core.$strip>>;
+            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            tone: z.ZodOptional<z.ZodString>;
+            handoff_number: z.ZodOptional<z.ZodString>;
+            website: z.ZodOptional<z.ZodString>;
+            notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                title: z.ZodString;
+                text: z.ZodString;
+            }, z.core.$strip>>>;
+            booking_rules: z.ZodOptional<z.ZodObject<{
+                lead_hours: z.ZodOptional<z.ZodNumber>;
+                buffer_min: z.ZodOptional<z.ZodNumber>;
+                max_days_ahead: z.ZodOptional<z.ZodNumber>;
+                slot_min: z.ZodOptional<z.ZodNumber>;
+                consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                party_max: z.ZodOptional<z.ZodNumber>;
+                ask_email: z.ZodOptional<z.ZodBoolean>;
+                notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            }, z.core.$strip>>;
+            extra_instructions: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>>;
+        fallbacks: z.ZodObject<{
+            greeting: z.ZodString;
+            error: z.ZodString;
+            non_text: z.ZodString;
+        }, z.core.$strip>;
+    }, z.core.$strip>>;
+    notifications: z.ZodOptional<z.ZodObject<{
+        escalation_emails: z.ZodArray<z.ZodString>;
+        from: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>>;
+    calendar: z.ZodOptional<z.ZodObject<{
+        ical_url: z.ZodString;
+    }, z.core.$strip>>;
+    features: z.ZodOptional<z.ZodObject<{
+        vision: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+type TenantConfig = z.infer<typeof TenantConfigSchema>;
+/** The most shifts one day may be split into. Must match the editor's cap. */
+declare const MAX_INTERVALS_PER_DAY = 4;
+/** As many closures as the composer will state — there is no render cap. */
+declare const MAX_CLOSURES = 60;
+/** Does this string name a real day? "2026-11-31" does not. */
+declare function isRealDate(key: string): boolean;
+/** A day of the week by its whole name, the one table: the write rules', the composer's and the first run's. */
+declare const DAY_NAMES: Record<(typeof DAYS)[number], string>;
+/**
+ * What is wrong with one day of the week, in the owner's words, each with where in the day it is. The write rules'
+ * day check (checkDay) and anything that builds a day from elsewhere (google.ts hoursFromGoogle) ask this, so a day
+ * is judged by one set of rules wherever it comes from. Empty when the day is one the record holds.
+ */
+declare function dayProblems(h: Hours, day: string): Array<{
+    path: Array<string | number>;
+    message: string;
+}>;
+/**
+ * The same config, with the rules that only apply on the way IN, and none of
+ * the fields inside a section that the read would leave out (unknown-keys.ts).
+ *
+ * Wrapping TenantConfigSchema rather than replacing it, so the shape and the
+ * lenience stay defined in exactly one place and this can only ever be
+ * stricter.
+ */
+declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
+    brain: z.ZodOptional<z.ZodObject<{
+        business_name: z.ZodString;
+        phone_display: z.ZodOptional<z.ZodString>;
+        booking_link: z.ZodOptional<z.ZodString>;
+        system_prompt: z.ZodString;
+        profile: z.ZodOptional<z.ZodObject<{
+            address: z.ZodOptional<z.ZodString>;
+            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+                mon: "mon";
+                tue: "tue";
+                wed: "wed";
+                thu: "thu";
+                fri: "fri";
+                sat: "sat";
+                sun: "sun";
+            }> & z.core.$partial, z.ZodObject<{
+                open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+                intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                    open: z.ZodString;
+                    close: z.ZodString;
+                }, z.core.$strip>>>;
+            }, z.core.$strip>>>;
+            closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                date: z.ZodString;
+                until: z.ZodOptional<z.ZodString>;
+                note: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>>>;
+            services: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                duration_min: z.ZodOptional<z.ZodNumber>;
+                price_note: z.ZodOptional<z.ZodString>;
+            }, z.core.$strip>>>;
+            languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            guardrails: z.ZodOptional<z.ZodObject<{
+                never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+                never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+                disclose_ai: z.ZodOptional<z.ZodBoolean>;
+                no_health_advice: z.ZodOptional<z.ZodBoolean>;
+            }, z.core.$strip>>;
+            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            tone: z.ZodOptional<z.ZodString>;
+            handoff_number: z.ZodOptional<z.ZodString>;
+            website: z.ZodOptional<z.ZodString>;
+            notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                title: z.ZodString;
+                text: z.ZodString;
+            }, z.core.$strip>>>;
+            booking_rules: z.ZodOptional<z.ZodObject<{
+                lead_hours: z.ZodOptional<z.ZodNumber>;
+                buffer_min: z.ZodOptional<z.ZodNumber>;
+                max_days_ahead: z.ZodOptional<z.ZodNumber>;
+                slot_min: z.ZodOptional<z.ZodNumber>;
+                consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
+                party_max: z.ZodOptional<z.ZodNumber>;
+                ask_email: z.ZodOptional<z.ZodBoolean>;
+                notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            }, z.core.$strip>>;
+            extra_instructions: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>>;
+        fallbacks: z.ZodObject<{
+            greeting: z.ZodString;
+            error: z.ZodString;
+            non_text: z.ZodString;
+        }, z.core.$strip>;
+    }, z.core.$strip>>;
+    notifications: z.ZodOptional<z.ZodObject<{
+        escalation_emails: z.ZodArray<z.ZodString>;
+        from: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>>;
+    calendar: z.ZodOptional<z.ZodObject<{
+        ical_url: z.ZodString;
+    }, z.core.$strip>>;
+    features: z.ZodOptional<z.ZodObject<{
+        vision: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strip>>;
+}, z.core.$strip>>;
+/** A config as read, with the keys it left out (`ignored`, dotted paths); or why it could not be read at all. */
+type TenantConfigParse = {
+    ok: true;
+    config: TenantConfig;
+    ignored: string[];
+} | {
+    ok: false;
+    issues: string[];
+};
+/**
+ * Parse unknown JSONB into TenantConfig.
+ *
+ * Returns the ISSUES rather than a bare null, because the runtime needs to tell
+ * "this tenant has not been configured" from "this tenant's configuration is
+ * broken". Both end in silence, but only one of them is somebody's mistake, and
+ * collapsing them meant an operator reading "no brain profile configured" while
+ * a perfectly good persona sat in the database behind one bad field.
+ */
+declare function parseTenantConfigResult(raw: unknown): TenantConfigParse;
+/** Whether a workspace's receptionist is set up: none yet, set up, or a config the parser refused. */
+type ReceptionistState = "none" | "set" | "broken";
+/**
+ * The one test of whether a receptionist is set up, for Setup's read, the first run's Check and the first
+ * receptionist's route alike: a config the parser refuses is its own state, since only Chanlytics repairs one, and a
+ * parsed config holds a receptionist when it holds a brain. No config at all reads as none.
+ */
+declare function receptionistOf(parsed: TenantConfigParse | null): ReceptionistState;
+/** Convenience for callers that genuinely cannot act on the difference. */
+declare function parseTenantConfig(raw: unknown): TenantConfig | null;
+/**
+ * A new workspace's first alert address: its creator's. Without one, the edge's
+ * chooseAddressing (lib/ops/notify.ts) sends every "a customer needs you" to the
+ * platform, redacted, and the owner is never told.
+ *
+ * Returns the config to save, or null when there is nothing to do: a config that
+ * already names its addresses, one that will not parse, or an address the write
+ * schema refuses -- saved, a refused address would make the whole config
+ * unreadable, and the receptionist silent.
+ */
+declare function withFirstAlertAddress(config: unknown, email: string | null | undefined): TenantConfig | null;
 
 /**
  * A failure at the vault that keeps a line's credentials, told from a
@@ -7909,582 +7427,9 @@ declare function todayStepsDue<T extends {
 };
 
 /**
- * What the receptionist says back, as a record and not just a string.
- *
- * The brain used to return text with a handoff token hidden in it, and
- * nothing else: no reading of what the customer wanted, no sense of how sure
- * it was, no trace of which fact it leaned on. Every "why did it say that?"
- * had to be guessed from the words. This is the shape it answers in now,
- * constrained by the API (output_config.format), validated here, carried on
- * the message row's meta, and read by the Inbox.
- *
- * Kept to what a salon owner can act on: the intent names the class of
- * question, the confidence drives the hold-for-review dial, the reason is one
- * sentence for the rail, the facts are what to check when the answer is
- * wrong.
+ * A call on the wire: the call DTO, whether an inbound caller left with nothing (`abandonedCall`), and why a
+ * call ended, in the owner's words. The call's row is call-vm.ts; Live and Today read these too.
  */
-
-declare const BRAIN_INTENTS: readonly ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
-type BrainIntent = (typeof BRAIN_INTENTS)[number];
-declare const INTENT_LABELS: Record<BrainIntent, string>;
-declare const BRAIN_LANGUAGES: readonly ["en", "es", "other"];
-/**
- * The JSON Schema the API constrains decoding to. Only what the API supports:
- * no numeric ranges, no length limits, no nullable unions — those are checked
- * by the zod schema below after the fact, and clamped rather than refused.
- */
-declare const BRAIN_OUTPUT_JSON_SCHEMA: {
-    readonly type: "object";
-    readonly properties: {
-        readonly reply: {
-            readonly type: "string";
-            readonly description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here.";
-        };
-        readonly intent: {
-            readonly type: "string";
-            readonly enum: readonly ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
-            readonly description: "What the customer is after.";
-        };
-        readonly escalate: {
-            readonly type: "boolean";
-            readonly description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so.";
-        };
-        readonly reason: {
-            readonly type: "string";
-            readonly description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies.";
-        };
-        readonly confidence: {
-            readonly type: "number";
-            readonly description: "How sure you are that this reply is right and complete for this customer, from 0 to 1.";
-        };
-        readonly facts_used: {
-            readonly type: "array";
-            readonly items: {
-                readonly type: "string";
-            };
-            readonly description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none.";
-        };
-        readonly language: {
-            readonly type: "string";
-            readonly enum: readonly ["en", "es", "other"];
-            readonly description: "The language the reply is written in.";
-        };
-    };
-    readonly required: readonly ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"];
-    readonly additionalProperties: false;
-};
-/** The read side: tolerant of what a model might still do, strict about shape. */
-declare const BrainOutputSchema: z.ZodObject<{
-    reply: z.ZodString;
-    intent: z.ZodCatch<z.ZodEnum<{
-        other: "other";
-        booking: "booking";
-        complaint: "complaint";
-        location: "location";
-        pricing: "pricing";
-        services: "services";
-        hours: "hours";
-        smalltalk: "smalltalk";
-    }>>;
-    escalate: z.ZodCatch<z.ZodBoolean>;
-    reason: z.ZodPipe<z.ZodCatch<z.ZodString>, z.ZodTransform<string, string>>;
-    confidence: z.ZodPipe<z.ZodCatch<z.ZodNumber>, z.ZodTransform<number, number>>;
-    facts_used: z.ZodPipe<z.ZodCatch<z.ZodArray<z.ZodString>>, z.ZodTransform<string[], string[]>>;
-    language: z.ZodCatch<z.ZodEnum<{
-        other: "other";
-        en: "en";
-        es: "es";
-    }>>;
-}, z.core.$strip>;
-type BrainOutput = z.infer<typeof BrainOutputSchema>;
-/**
- * Parse what the model returned. With constrained decoding the JSON is well
- * formed unless the answer was cut off by max_tokens; a truncated document
- * fails here and the caller falls back to the holding reply, as it always
- * did for a capped answer.
- */
-declare function parseBrainOutput(raw: string): {
-    ok: true;
-    value: BrainOutput;
-} | {
-    ok: false;
-    error: string;
-};
-/**
- * What a message row remembers about its own reasoning. Written by the edge
- * beside source/delay_ms; read back by the Inbox through the meta the DTO
- * already carries.
- */
-interface BrainMeta {
-    intent: BrainIntent;
-    confidence: number;
-    reason: string;
-    facts_used: string[];
-    language: (typeof BRAIN_LANGUAGES)[number];
-    model: string;
-}
-declare function brainMetaOf(out: BrainOutput, model: string): BrainMeta;
-/** The rail beside a reply: why it said what it said. */
-interface ReplyWhyVM {
-    intent: BrainIntent;
-    intentLabel: string;
-    /** 0–100, or null when the row predates this. */
-    confidence: number | null;
-    reason: string | null;
-    facts: string[];
-    /** Why the draft is waiting, when it is. */
-    heldFor: "low_confidence" | "veto_window" | null;
-    /** One line for a chip: "Pricing question · 62% sure". */
-    summary: string;
-}
-/** From a message row's meta; null when the row carries no reasoning. */
-declare function replyWhy(meta: Record<string, unknown> | null | undefined): ReplyWhyVM | null;
-/** The confidence dial, as the Autonomy pane offers it. 0 means off. */
-declare const CONFIDENCE_STEPS: readonly [0, 0.6, 0.75, 0.9];
-
-/**
- * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
- * DTOs into the exact shapes the mockup surfaces render. Fed fields only —
- * nothing invented: summaries are factual lines, never fabricated analysis.
- */
-interface MessageDto {
-    id: string;
-    direction: "inbound" | "outbound";
-    sender: "customer" | "ai" | "human" | "system";
-    /** The wire it travelled — whatsapp · sms · voice; absent from older readers. */
-    channel?: string;
-    type: string;
-    body: string | null;
-    /** The attachment facts a browser may see; the bytes are behind
-     *  /api/v1/messages/:id/media. Absent for words. */
-    media: {
-        mime_type?: string | null;
-        fetch_state?: string;
-        filename?: string | null;
-        caption?: string | null;
-    } | null;
-    meta: Record<string, unknown> | null;
-    status?: string;
-    created_at: string;
-    /**
-     * When the event actually happened on its channel, as the provider reported
-     * it — Meta's message timestamp, or the moment a call started.
-     *
-     * `created_at` is when WE wrote the row, which is the same thing for a live
-     * WhatsApp message and emphatically not for a call: three calls placed at
-     * 20:59, 21:01 and 23:39 were imported in one batch and rendered as three
-     * rows one second apart, all reading "1:59 AM". The true time was already in
-     * this column; nothing selected it.
-     */
-    channel_ts?: string | null;
-}
-/** When a message happened, preferring the channel's own clock over ours. */
-declare function messageAt(m: MessageDto): string;
-interface ConversationDto {
-    id: string;
-    state: "open" | "needs_human" | "snoozed" | "archived";
-    paused_until: string | null;
-    snooze_until?: string | null;
-    assignee_user_id?: string | null;
-    assignee_is_me?: boolean;
-    last_wa_inbound_at?: string | null;
-    last_message_at: string | null;
-    contact: {
-        id: string;
-        display_name: string | null;
-        wa_profile_name: string | null;
-        phone_e164: string | null;
-        /** As stored (00125). Absent on payloads read without it. */
-        email?: string | null;
-        /** The owner's proposal link (00154). Absent on payloads read without it. */
-        proposal_url?: string | null;
-        /** 'unknown' | 'opted_in' | 'opted_out'. Absent on payloads written before
-         *  opt-out was enforced, which is why every reader treats it as optional
-         *  and only 'opted_out'/dnc blocks — never the absence of a value. */
-        consent?: string | null;
-        dnc?: boolean | null;
-        /** Yes to OFFERS: a promotional template goes only to someone who said it (the reply route's rule). */
-        marketing_consent?: string | null;
-    };
-    messages: MessageDto[];
-}
-/** The customer asked not to be contacted. Delegates to the one predicate in
- *  ./consent so the view model and every send path cannot disagree. */
-declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
-interface ConversationMessageVM {
-    from: "client" | "agent";
-    /** Where it happened. A call note is not a WhatsApp bubble, and the
-     *  viewer must not draw it as one -- and neither is a text or an email. */
-    channel: "whatsapp" | "sms" | "email" | "phone";
-    at: string;
-    text: string;
-    /** The attachment, when the message is one. */
-    media?: MediaVM;
-    /** Why the receptionist said it, when the row remembers. */
-    why?: ReplyWhyVM;
-    /** Who sent it, for our messages: "the receptionist", "your team", "a broadcast (Spring offer)",
-     *  "the Win-back playbook" (messageAuthor). Absent for the customer's words and a call note. */
-    by?: string;
-    /** "Canceled before sending", "Sending…" — absent when there is nothing to
-     *  say, which for an ordinary sent message is the honest answer. */
-    statusLabel?: string;
-    /** False when these words never reached the customer. The bubble must not
-     *  read as part of the conversation, because it was not. */
-    reachedCustomer?: boolean;
-}
-/**
- * What happened to a message we tried to send, in the operator's words.
- *
- * ONE vocabulary. The Inbox had its own ternary and the Conversations pane had
- * nothing at all, so the same message read as "Canceled before sending" on one
- * screen and as an ordinary delivered reply on the other — and Conversations is
- * the screen whose entire job is "what is my receptionist saying to people".
- */
-declare function messageStatusLabel(status: string | undefined): string | undefined;
-/** Did the customer actually receive these words? */
-declare function reachedCustomer(status: string | undefined): boolean;
-interface ConversationVM {
-    id: string;
-    who: string;
-    /** First name, or the whole thing when it is a number. */
-    whoShort: string;
-    initials: string;
-    clientId: string | null;
-    /** The Inbox thread this chat is: `th-` and the conversation's id, the id the Inbox routes by. */
-    threadId: string;
-    /** Who sent the last message that reached them, when it was ours; null when they wrote last. */
-    answeredBy: MessageAuthor["kind"] | null;
-    /** The wire this conversation's words travelled: the last written one, or the phone when that is all there is. */
-    channel: "whatsapp" | "sms" | "email" | "phone";
-    agent: {
-        glyph: string;
-        name: string;
-    };
-    at: string;
-    outcome: "escalated" | "handled" | "open";
-    snippet: string;
-    summary: {
-        headline: string;
-        bullets: string[];
-    };
-    messages: ConversationMessageVM[];
-    /** Epoch ms of the previewed message — the SORT key. Rows were being
-     *  ordered by localeCompare on display strings ("Aug 26" vs "3:22 AM"),
-     *  which is not an ordering at all. */
-    ts: number;
-    live?: boolean;
-    /** False when the customer has only ever phoned. Their calls already have
-     *  their own rows, so a chat row with nothing to preview is pure duplication. */
-    hasChat: boolean;
-}
-
-declare function agentFor(channel: "whatsapp" | "sms" | "email" | "phone"): {
-    glyph: string;
-    name: string;
-};
-/**
- * A time in a thread or a call, by the business's clock (clock.ts). The two
- * formatters here were built without a zone, so a message read in the browser's
- * zone and "the same day" meant the browser's day: one call read as two times
- * (the 12 September audit's D5). The formatters are built once per zone there,
- * which keeps what these hoisted ones were for: these mappers run twice per
- * refresh over every message, and constructing a formatter per call froze the
- * page when a message arrived.
- */
-declare function shortTime(iso: string | null, tz: string, now: Date): string;
-/** The display name for a contact, without building a whole thread viewmodel
- *  to read one field (Today was doing exactly that per open escalation). */
-declare function contactName(dto: ConversationDto): string;
-/** The wire a written message travelled, as a thread names it. Anything unnamed is WhatsApp, which is what every row was before the column said. */
-declare function writtenChannelOf(channel: string | null | undefined): "whatsapp" | "sms" | "email";
-/**
- * The wire a thread's written words LAST travelled; "phone" when it has none.
- *
- * One derivation, because three surfaces were each answering it their own way
- * and two of them answered "WhatsApp" whatever the row said. Today hard-coded
- * the word onto every escalation, so an email arriving read "WhatsApp \u00b7 waited
- * 12m"; the conversation row derived it properly only after the same defect
- * was found there. A row that names the wrong wire is worse than one that
- * names none: the owner replies in the wrong place, or does not recognise the
- * thread they are being asked about.
- */
-declare function threadChannelOf(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "whatsapp" | "sms" | "email" | "phone";
-/** The same question, in the words a row shows. */
-declare function threadChannelWords(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "WhatsApp" | "Text" | "Email" | "Phone";
-/**
- * What an email carried that the thread does not show. The intake keeps the
- * names of an email's files and never the files, and a bounded amount of its
- * words (core email-ingest.ts); an owner reading "see the attached floor plan"
- * above nothing at all would take the email for the whole of it. Said in one
- * line under the words, and only when something was left out.
- */
-declare function emailLeftOutOf(meta: unknown): string | null;
-/**
- * A name that is an identifier, a number or an address, has no first name to
- * shorten to: "+1" as a speaker label is nobody, and neither is "ana@".
- */
-declare function isIdentifierName(name: string): boolean;
-/** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
-declare function contactMeta(dto: ConversationDto, channel?: "WhatsApp" | "Phone" | "Text" | "Email"): string;
-declare function initialsOf(name: string): string;
-/**
- * A reply the receptionist has WRITTEN but not sent — it is sitting out its veto
- * window, and until that expires a human can withdraw or replace it.
- *
- * The distinction matters most in the UI: rendered as an ordinary agent bubble a
- * held draft looks exactly like a message the customer has already read, so an
- * operator would either ignore it or apologise for something that never went out.
- */
-declare function isHeldDraft(m: MessageDto): boolean;
-/** When a held draft is due to send, in epoch ms. */
-declare function draftSendsAtMs(m: MessageDto): number;
-/** An attachment as the thread draws it. */
-interface MediaVM {
-    messageId: string;
-    kind: "image" | "audio" | "video" | "document" | "other";
-    mime: string | null;
-    filename: string | null;
-    caption: string | null;
-    /** Stored and servable; false while it is fetching or after a failed fetch. */
-    available: boolean;
-}
-/** What kind of thing an attachment is: from its mime, else from WhatsApp's own word for it. */
-declare function mediaKind(mime: string | null | undefined, raw?: string | null): MediaVM["kind"];
-/** The attachment on a message, as the thread draws it; null for words. */
-declare function mediaVM(m: MessageDto): MediaVM | null;
-/** An email's own words, and the chain it quoted back at us. `quoted` is null when there is none. */
-declare function splitQuotedReply(body: string): {
-    text: string;
-    quoted: string | null;
-};
-declare function messageWords(m: MessageDto): string;
-declare function messageText(m: MessageDto): string;
-interface EscalationDto {
-    id: string;
-    reason: string;
-    details: string | null;
-    state: "open" | "resolved";
-    created_at: string;
-}
-declare const ESCALATION_REASON_LABELS: Record<string, string>;
-/** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
- *  brief, and "561 min" is not a number anyone reads as half a day. */
-/** A wait, in the one family every surface reads (time.ts): "1m" at the least, "3h", "2d". */
-declare function formatWaited(ms: number): string;
-interface InboxThreadVM {
-    id: string;
-    real: true;
-    conversationId: string;
-    /** The contact behind the thread — where "Open client" goes now that People is real. */
-    clientId: string | null;
-    escalationId: string | null;
-    windowOpen: boolean;
-    /** The customer asked to stop receiving messages. Stronger than a closed
-     *  24h window: an approved template can't reach them either. */
-    optedOut: boolean;
-    /** They said yes to offers, so a promotional template may go to them: the composer offers only what can send (I4). */
-    offersOk: boolean;
-    /** The owner's proposal link for this person (00154), or null: the header's Actions put it in the reply. */
-    proposalUrl: string | null;
-    who: string;
-    whoMeta: string;
-    avatar: string;
-    state: "escalated" | "snoozed" | "done";
-    takenOver: boolean;
-    /** A teammate has this thread: the page names them and offers no take-over. */
-    claimedByOther: boolean;
-    /** Who has it, when someone does -- the page names them from the team. */
-    assigneeUserId: string | null;
-    /**
-     * The customer's own words beside the decision: what they last wrote, quoted,
-     * or what the call left behind for a call back. Null when nothing is being decided.
-     * `kind` says which: a call back's is the thread's own sentence (`summary`), so the
-     * band does not say it again beneath; the row and its search still read `text`.
-     */
-    ask: {
-        kind: "call" | "wrote" | "sent";
-        label: string;
-        text: string;
-        quoted: boolean;
-    } | null;
-    /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
-    archived: boolean;
-    /**
-     * A quiet thread's one line: who had the last word, in the words Conversations uses, and whether a reply
-     * didn't send. Null unless the thread is Handled and not archived. Every quiet thread read "Answered by the
-     * receptionist — no one asked for you", over a customer who wrote last and a reply that never left (I1).
-     */
-    lastWord: {
-        text: string;
-        tone: "ok" | "plain" | "warn" | "danger";
-        short: string | null;
-    } | null;
-    /**
-     * This thread is waiting on a human, and no human has it yet.
-     *
-     * THE definition of "needs you", emitted once. It was previously re-derived
-     * in the Inbox JSX and separately approximated by /metrics' escalations_open,
-     * which Today then dispatched over the top of the Inbox's number to "correct"
-     * it — two rules that disagree whenever an escalation is open on a thread
-     * someone has already claimed, racing to write the same badge.
-     */
-    needsYou: boolean;
-    /**
-     * The receptionist's reply, written and waiting out its veto window.
-     *
-     * Lifted to the thread so the pane can offer the controls without scanning
-     * the timeline for them — and so "is there still something I can stop?" is a
-     * single truthy check rather than a search that could miss.
-     */
-    heldDraft: {
-        messageId: string;
-        body: string;
-        sendsAtMs: number;
-    } | null;
-    /**
-     * The SAME shape the mockup's VetoBar and Composer already read.
-     *
-     * The design for this existed before the backend did — a countdown, Edit /
-     * Hold / Take over, and a composer pre-filled with the draft. Mapping the
-     * real held reply onto it means the feature arrives as the product was
-     * drawn, rather than as a second control that looks nothing like it.
-     *
-     * `endsAtMs` is the SERVER's deadline. The mockup runs its own countdown in
-     * VW_STORE and fabricates the send at zero; on a real thread the job fires
-     * server-side and the UI only reports what is already true.
-     */
-    veto?: {
-        window: number;
-        draft: string;
-        endsAtMs: number;
-        messageId: string;
-        why?: ReplyWhyVM;
-    };
-    /** The channels the thread has actually used: "whatsapp", "phone", or both. */
-    channels: string[];
-    primaryChannel: "whatsapp" | "phone" | "sms" | "email";
-    /** That channel in the words a reply box names it by: "WhatsApp", "Text", "Email". One map, so a new wire is one entry and not a ternary per screen. */
-    replyVia: string;
-    /** A WhatsApp thread exists. False for a caller who has only ever phoned: no reply window, phone verbs. */
-    hasChat: boolean;
-    /** The number to call back, E.164, when known. */
-    phone: string | null;
-    /** That number as people read it, "+1 (917) 555-0106": the composer said "+19175550106" under a header that did not (I4). */
-    phoneDisplay: string | null;
-    /** How long the request has waited, in the one family every surface reads ("57m", "2h"). */
-    waited?: string;
-    /** Who answers, by name and glyph -- and nothing it was never given: an autonomy line and a voice were written into every thread, and the rail said them. */
-    agent: {
-        name: string;
-        glyph: string;
-    };
-    /** Why a person is needed, as the list's row says it: the reason's label, or empty when nobody is. */
-    subject: string;
-    /** The last thing that happened: the newest message that came in or reached them, never a draft. */
-    preview: string;
-    summary: string;
-    lastAt: string;
-    lastAtFull: string;
-    /** Absolute times, epoch ms, for anything that must not drift with the
-     *  clock — the bell keys its read state on them. */
-    lastAtMs: number;
-    escalatedAtMs?: number;
-    unread: boolean;
-    pinned: false;
-    value?: number;
-    tags: string[];
-    confidence?: number;
-    priority: "P2";
-    waitingMin?: number;
-    wake?: string;
-    timeline: Array<{
-        type: "msg";
-        from: "client" | "agent";
-        channel: string;
-        at: string;
-        body: string;
-        /** An email's subject line; absent on every other wire. */
-        subject?: string;
-        /** The chain an email quoted back at us, when it did: kept, and shown on a tap. */
-        quoted?: string;
-        /** What an email carried that is not shown: files whose names alone were kept, words past the bound (emailLeftOutOf). */
-        leftOut?: string;
-        /** The attachment, when the message is one. */
-        media?: MediaVM;
-        /** Why the receptionist said it, when the row remembers. */
-        why?: ReplyWhyVM;
-        byYou?: boolean;
-        /** Who sent it, when a person or a run did, in the words Conversations uses: "your team", "a broadcast (…)". */
-        byWords?: string;
-        /** Sent by a broadcast, not typed: the name the owner gave it. */
-        via?: {
-            kind: "broadcast" | "playbook";
-            name: string;
-        };
-        status?: string;
-        /** "Didn't send", "Canceled before sending", "Read" (messageStatusLabel). */
-        statusLabel?: string;
-        /** False when these words never reached the customer: the page dashes them, as Conversations does. */
-        reachedCustomer?: boolean;
-        /** The message's own id, on every bubble: a call's note finds its call by it, and a link opens the thread there. */
-        messageId?: string;
-        /** Written but NOT sent — sitting out its veto window. */
-        pending?: true;
-        /** When it fires, epoch ms. Drives the countdown. */
-        sendsAtMs?: number;
-        /** Per-bubble attribution — a phone summary is not the WhatsApp agent. */
-        agentName?: string;
-        agentGlyph?: string;
-    } | {
-        type: "event";
-        kind: string;
-        at: string;
-        body: string;
-    }>;
-}
-/**
- * Where a thread sits and who owes it work — the single implementation.
- *
- * Exported so the sidebar badge and Today's brief can agree without either one
- * re-deriving it. /metrics' `escalations_open` is NOT this number: it counts
- * open escalations, including ones a teammate has already claimed, so it reads
- * high exactly when someone is doing the work.
- */
-declare function threadStanding(dto: ConversationDto, escalation: EscalationDto | null, now?: Date): {
-    state: InboxThreadVM["state"];
-    takenOver: boolean;
-    needsYou: boolean;
-    claimedByOther: boolean;
-};
-declare function toInboxThreadVM(dto: ConversationDto, escalation: EscalationDto | null, 
-/** The workspace's zone: every time in the thread is said by its clock. */
-tz: string, now?: Date): InboxThreadVM;
-interface MessageAuthor {
-    kind: "receptionist" | "team" | "broadcast" | "playbook";
-    /** How a bubble names them: "the receptionist", "your team", "a broadcast (Spring offer)". */
-    words: string;
-}
-/**
- * Which run sent one of our messages, read off the row the send wrote (core messages/broadcast.ts): a playbook's run,
- * named for its playbook, or a broadcast someone sent, named for itself. Null for every other message. The thread's
- * bubble, `messageAuthor` and a person's page read it here, and nowhere else reads the meta.
- */
-declare function messageVia(m: Pick<MessageDto, "meta">): {
-    kind: "broadcast" | "playbook";
-    name: string;
-} | null;
-/**
- * Who sent one of our messages, in the words the Inbox and Conversations both use.
- *
- * A person's reply is the team's: the row does not record which member sent
- * it, and the Inbox said "by you" for all of them. A broadcast or a playbook
- * run is named from the run. The customer's words and a call note have no
- * author here.
- */
-declare function messageAuthor(m: MessageDto): MessageAuthor | null;
-/** Words cut after a whole word, with an ellipsis, when they run past `max`; whole when they fit. */
-declare function clipAtWord(text: string, max: number): string;
-declare function toConversationVM(dto: ConversationDto, tz: string, now?: Date): ConversationVM;
 interface CallDto {
     id: string;
     retell_call_id: string;
@@ -8572,60 +7517,71 @@ declare const ABANDONED_MS = 15000;
 declare function abandonedCall(dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail">): boolean;
 /** Why the call ended, in words a salon owner uses. */
 declare const DISCONNECTION_LABELS: Record<string, string>;
-interface CallVM {
+
+interface MessageDto {
     id: string;
-    real: true;
-    callId: string;
-    who: string;
-    whoShort: string;
-    initials: string;
-    clientId: string | null;
-    channel: "phone";
-    agent: {
-        glyph: string;
-        name: string;
-    };
-    at: string;
-    duration?: string;
-    ts: number;
-    /** live: in progress under the heartbeat rule · missed: the dial never
-     *  connected (Retell's not_connected) · handled: everything else. */
-    outcome: "live" | "handled" | "missed" | "callback" | "abandoned";
-    live?: boolean;
-    snippet: string;
-    summary: {
-        headline: string;
-        bullets: string[];
-    };
-    /** Each line with its moment in the call, in seconds: where it starts and where it ends (null for a whisper, which
-     *  is not a sound in the recording). The thread plays from a line and lights the one being said by these. */
-    transcript: Array<{
-        t: string;
-        speaker: "agent" | "client" | "whisper";
-        text: string;
-        start: number | null;
-        end: number | null;
-    }>;
-    /** The call's length in seconds: the player's track before the audio says its own. */
-    durationSec: number | null;
-    recordingState: "ready" | "pending" | "failed" | "purged" | "none";
-    recordingUrl?: string;
-    threadId?: string;
-    /** The note this call left on its thread (a call_summary message): the thread draws the call there. */
-    messageId?: string;
     direction: "inbound" | "outbound";
-    /** It never connected. */
-    missed: boolean;
-    /** What the call was about: what the caller wanted, in the analysis's plain words, or the provider's first sentence.
-     *  Null when it never connected or nothing was said about it -- never a sentence saying there is no sentence. */
-    about: string | null;
-    /** How it went, a few words each: how the caller sounded, how it ended, why there is no recording to play. The call
-     *  card's one quiet line. */
-    facts: string[];
+    sender: "customer" | "ai" | "human" | "system";
+    /** The wire it travelled — whatsapp · sms · voice; absent from older readers. */
+    channel?: string;
+    type: string;
+    body: string | null;
+    /** The attachment facts a browser may see; the bytes are behind
+     *  /api/v1/messages/:id/media. Absent for words. */
+    media: {
+        mime_type?: string | null;
+        fetch_state?: string;
+        filename?: string | null;
+        caption?: string | null;
+    } | null;
+    meta: Record<string, unknown> | null;
+    status?: string;
+    created_at: string;
+    /**
+     * When the event actually happened on its channel, as the provider reported
+     * it — Meta's message timestamp, or the moment a call started.
+     *
+     * `created_at` is when WE wrote the row, which is the same thing for a live
+     * WhatsApp message and emphatically not for a call: three calls placed at
+     * 20:59, 21:01 and 23:39 were imported in one batch and rendered as three
+     * rows one second apart, all reading "1:59 AM". The true time was already in
+     * this column; nothing selected it.
+     */
+    channel_ts?: string | null;
 }
-/** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
-declare function spokenDuration(ms: number | null): string;
-declare function toCallVM(dto: CallDto, tz: string, now?: Date): CallVM;
+/** When a message happened, preferring the channel's own clock over ours. */
+declare function messageAt(m: MessageDto): string;
+interface ConversationDto {
+    id: string;
+    state: "open" | "needs_human" | "snoozed" | "archived";
+    paused_until: string | null;
+    snooze_until?: string | null;
+    assignee_user_id?: string | null;
+    assignee_is_me?: boolean;
+    last_wa_inbound_at?: string | null;
+    last_message_at: string | null;
+    contact: {
+        id: string;
+        display_name: string | null;
+        wa_profile_name: string | null;
+        phone_e164: string | null;
+        /** As stored (00125). Absent on payloads read without it. */
+        email?: string | null;
+        /** The owner's proposal link (00154). Absent on payloads read without it. */
+        proposal_url?: string | null;
+        /** 'unknown' | 'opted_in' | 'opted_out'. Absent on payloads written before
+         *  opt-out was enforced, which is why every reader treats it as optional
+         *  and only 'opted_out'/dnc blocks — never the absence of a value. */
+        consent?: string | null;
+        dnc?: boolean | null;
+        /** Yes to OFFERS: a promotional template goes only to someone who said it (the reply route's rule). */
+        marketing_consent?: string | null;
+    };
+    messages: MessageDto[];
+}
+/** The customer asked not to be contacted. Delegates to the one predicate in
+ *  ./consent so the view model and every send path cannot disagree. */
+declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
 
 /**
  * What a person said yes or no to, and who may send them what: the consent sources, the refusals, and the three
@@ -10182,6 +9138,114 @@ declare function callOutcomeWords(v: unknown): string | null;
  * that opens any other way is kept as it is.
  */
 declare function tidyCallSummary(text: string | null | undefined): string | null;
+
+/**
+ * The Autonomy tab's classes and modes (E3): what each class is called, which modes it honours, what the Booking
+ * and FAQ rows write into a prompt, and the limits a row stores. The reply window and the caps the edge applies
+ * are ../policy.ts.
+ */
+
+declare const POLICY_CLASSES: readonly ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money", "follow_up", "outreach"];
+type PolicyClass = (typeof POLICY_CLASSES)[number];
+/**
+ * The words for each class, said once. The Autonomy matrix rows, a playbook's
+ * "runs under" chip and the assistant's proposals all read these; three maps
+ * used to name the same row three ways ("Campaigns" on a playbook for the row
+ * the matrix called "Standing offers").
+ */
+declare const POLICY_CLASS_WORDS: Record<PolicyClass, {
+    name: string;
+    short: string;
+    note: string;
+}>;
+/** The four modes. 'veto' is honoured where there is something to hold: a
+ *  reply waits in the hold window as a draft, a playbook run waits thirty
+ *  minutes; POLICY_CLASS_MODES says which classes offer it. The runtime
+ *  treats an unexpected mode as 'ask' (fail safe). */
+declare const POLICY_MODES: readonly ["auto", "veto", "ask", "never"];
+type PolicyMode = (typeof POLICY_MODES)[number];
+/**
+ * What each mode DOES, in the owner's words — the matrix's column headings, the
+ * name a phone puts over each dot, and the words a policy chip says after the
+ * dot.
+ *
+ * The stored values stay `auto | veto | ask | never`: those are filing words. A
+ * salon owner does not say "veto", and the plain sentence for each mode existed
+ * only as a hover tip on the column heading — which a phone has no way to
+ * trigger and a mouse has no reason to look for. The heading says it instead.
+ *
+ * `head` is verb-first with the receptionist as its subject, `sub` is the one
+ * clause that tells it apart from its neighbour, `chip` is the same fact small
+ * enough for a pill, `does` is the whole sentence for a control's title. No
+ * heading names a duration: how long a hold lasts belongs to the class (a reply
+ * waits the workspace's hold window, a playbook run waits thirty minutes), and a
+ * heading that said "30s" would be wrong on four of the six rows.
+ */
+declare const POLICY_MODE_WORDS: Record<PolicyMode, {
+    head: string;
+    sub: string;
+    chip: string;
+    does: string;
+}>;
+/**
+ * The modes each class can honour — a switch nothing enforces is a switch
+ * that lies. Replies can wait (veto), wait for a person (ask) or stay silent
+ * (never). Booking and service questions are answered by the receptionist
+ * or by a person: there is no "never" for a salon that takes bookings, and
+ * no draft to hold for review. The playbook classes run, wait, wait for a
+ * person, or do not run. Reviews are answered, drafted for a person, or
+ * left alone — there is no draft to hold on a countdown. Money is the
+ * charter's.
+ */
+declare const POLICY_CLASS_MODES: Record<PolicyClass, readonly PolicyMode[]>;
+/** The class a customer's intent falls under, when the Autonomy pane has a row for it. */
+declare function policyClassOfIntent(intent: string | null | undefined): "booking" | "faq" | null;
+/** The class that is set to "ask" and that this intent falls under, or null. An unknown mode counts as ask, fail safe. */
+declare function policyAskClass(policy: Record<string, {
+    mode: string;
+}> | null | undefined, intent: string | null | undefined): "booking" | "faq" | null;
+/**
+ * The Autonomy tab's Booking row holds the booking link back: it is not on
+ * "auto", so a person confirms instead. An unknown mode counts, fail safe, as it
+ * does in policyAskClass.
+ *
+ * The edge asks this question inline, through policyAskClass, and this must keep
+ * agreeing with every place it does: apps/edge/api/retell-fn.ts (its
+ * `bookingHeld`, which outbound-gate.ts refuses as booking_needs_a_person),
+ * apps/edge/api/retell-availability.ts (which then offers a caller no times) and
+ * apps/edge/lib/whatsapp/steps.ts layerTwo (which takes the link back out of a
+ * chat reply classed as a booking -- a price or services reply still carries it).
+ * Stated here so the Business tab reads the rule instead of keeping a copy of it.
+ */
+declare function bookingHeld(policy: Record<string, {
+    mode: string;
+}> | null | undefined): boolean;
+/**
+ * What the Booking and FAQ rows say in the prompt, per channel. "auto" says
+ * nothing — the profile already tells the receptionist how to book and what
+ * it offers. "ask" hands the matter to a person, in words the customer can
+ * hear on the phone and read on WhatsApp.
+ */
+declare function policyRules(policy: Record<string, {
+    mode: string;
+}> | null | undefined, channel: "whatsapp" | "voice"): string[];
+declare const PolicyLimitsSchema: z.ZodObject<{
+    max_replies_day: z.ZodOptional<z.ZodNumber>;
+    pause_hours: z.ZodOptional<z.ZodNumber>;
+    reply_delay_ms: z.ZodOptional<z.ZodNumber>;
+    min_confidence: z.ZodOptional<z.ZodNumber>;
+    max_llm_tokens_day: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strict>;
+type PolicyLimits = z.infer<typeof PolicyLimitsSchema>;
+interface PolicyRow {
+    id: string;
+    class: PolicyClass;
+    mode: PolicyMode;
+    subject_type: SchemaSet<"policies.subject_type"> | null;
+    subject_id: string | null;
+    limits: PolicyLimits;
+    updated_at: string;
+}
 
 /**
  * The bell: what needs the owner, from what the browser already holds.
@@ -12221,10 +11285,10 @@ declare const PageContextSchema: z.ZodObject<{
         other: "other";
         people: "people";
         calendar: "calendar";
-        settings: "settings";
         today: "today";
         start: "start";
         conversations: "conversations";
+        settings: "settings";
         live: "live";
         leads: "leads";
         inbox: "inbox";
@@ -13025,46 +12089,409 @@ declare function replyDelayMs(mode: string | null | undefined, limits?: {
     reply_delay_ms?: number;
 } | null): number;
 
+declare const ROLES: readonly ["owner", "operator", "partner", "viewer"];
+type Role = (typeof ROLES)[number];
 /**
- * What a receptionist with no booking link does where it would have sent one.
- *
- * A business that quotes each job -- a mover, a caterer, a contractor -- has no booking link (the first run's
- * decision 2, 24 Sep 2026): the price comes before anyone books, so its receptionist takes what the team needs to
- * follow up. Where it would have sent the link for someone to book, it asks for this one list instead: the prompt on
- * both channels (config.ts), the openings it offers and a price correction on a call (availability.ts, whisper.ts),
- * and the phone's two tools (apps/edge/api/retell-fn.ts, retell-availability.ts). However the receptionist comes to
- * it, it asks for the same things. Where the link was one offer among others -- a call back, a professional's advice,
- * a change to an appointment already booked -- the others stand alone.
- *
- * A receptionist with no link is read and saved. Who is asked for one is the pages' question, by how customers buy
- * (deals.ts bookingLinkOptional), since the config cannot see the answer.
+ * The roles Team hands out: an invite, a change of role. A partner is not one
+ * of them. That role arrives with the workspace, written by the attribution
+ * when the workspace is made through a partner's link (decision 0012), and
+ * Team can only take it away.
  */
-declare const NO_LINK_DETAILS = "their name, what they need, and where and when";
-/**
- * Whether what the receptionist is told offers the booking link: yes, unless its config is known to hold none. With no
- * receptionist config at all nothing is known, and a call is then told the voice shell's FACTS_UNAVAILABLE, which
- * offers the link -- so the openings, a caller's appointments and a correction said beside it offer it too.
- */
-declare function offersBookingLink(brain: {
-    booking_link?: string | null;
-} | null | undefined): boolean;
-/** What follows "a price is not mine to confirm", in the prompt's rule and a call's correction alike. */
-declare function priceNextStep(hasBookingLink: boolean): string;
+declare const TEAM_ROLES: readonly ["owner", "operator", "viewer"];
+/** What each role may do. Mirrors the mockup's ST_PERMS exactly — the client
+ *  gate() chips read this shape; the server re-checks via requireRole. */
+declare const ROLE_PERMS: Record<Role, {
+    approve: boolean;
+    autonomy: boolean;
+    disconnect: boolean;
+    billing: boolean;
+    team: boolean;
+    settings: boolean;
+    export: boolean;
+    find: boolean;
+}>;
 
 /**
- * What the Business tab says, as view models.
- *
- * Named apart from `business-page.ts` (the public /b/<slug> page) and
- * `business-record.ts` (the carrier record). This one is the operator's own tab.
- *
- * Every sentence with a number or a judgement in it is composed here rather
- * than in the page, for the reason Today and Reports already hold to: a
- * sentence written in JSX cannot be tested, and the same sentence written
- * twice is one that will be edited once.
- *
- * The prompt view, which cuts what the receptionist reads into the blocks that
- * wrote it, is `prompt-blocks.ts`.
+ * The brain section: the receptionist's name, booking link, stored prompt, profile and fallback messages, and what
+ * a new receptionist starts with, beside the schema it has to satisfy. Whose words stand in the owner's place is
+ * resolve.ts; the messages' wording is fallbacks.ts.
  */
+
+declare const BrainConfigSchema: z.ZodObject<{
+    business_name: z.ZodString;
+    phone_display: z.ZodOptional<z.ZodString>;
+    booking_link: z.ZodOptional<z.ZodString>;
+    system_prompt: z.ZodString;
+    profile: z.ZodOptional<z.ZodObject<{
+        address: z.ZodOptional<z.ZodString>;
+        hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+            mon: "mon";
+            tue: "tue";
+            wed: "wed";
+            thu: "thu";
+            fri: "fri";
+            sat: "sat";
+            sun: "sun";
+        }> & z.core.$partial, z.ZodObject<{
+            open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+            intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
+                open: z.ZodString;
+                close: z.ZodString;
+            }, z.core.$strip>>>;
+        }, z.core.$strip>>>;
+        closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            date: z.ZodString;
+            until: z.ZodOptional<z.ZodString>;
+            note: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>>>;
+        services: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            name: z.ZodString;
+            duration_min: z.ZodOptional<z.ZodNumber>;
+            price_note: z.ZodOptional<z.ZodString>;
+        }, z.core.$strip>>>;
+        languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        guardrails: z.ZodOptional<z.ZodObject<{
+            never_quote_prices: z.ZodOptional<z.ZodBoolean>;
+            never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
+            disclose_ai: z.ZodOptional<z.ZodBoolean>;
+            no_health_advice: z.ZodOptional<z.ZodBoolean>;
+        }, z.core.$strip>>;
+        escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        tone: z.ZodOptional<z.ZodString>;
+        handoff_number: z.ZodOptional<z.ZodString>;
+        website: z.ZodOptional<z.ZodString>;
+        notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            title: z.ZodString;
+            text: z.ZodString;
+        }, z.core.$strip>>>;
+        booking_rules: z.ZodOptional<z.ZodObject<{
+            lead_hours: z.ZodOptional<z.ZodNumber>;
+            buffer_min: z.ZodOptional<z.ZodNumber>;
+            max_days_ahead: z.ZodOptional<z.ZodNumber>;
+            slot_min: z.ZodOptional<z.ZodNumber>;
+            consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            party_max: z.ZodOptional<z.ZodNumber>;
+            ask_email: z.ZodOptional<z.ZodBoolean>;
+            notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        }, z.core.$strip>>;
+        extra_instructions: z.ZodOptional<z.ZodString>;
+    }, z.core.$strip>>;
+    fallbacks: z.ZodObject<{
+        greeting: z.ZodString;
+        error: z.ZodString;
+        non_text: z.ZodString;
+    }, z.core.$strip>;
+}, z.core.$strip>;
+type BrainConfig = z.infer<typeof BrainConfigSchema>;
+/**
+ * The parts of a brand-new receptionist nobody should have to write.
+ *
+ * BrainConfigSchema requires a system_prompt and three fallback messages, and
+ * until this existed there was no way to produce them from inside the product:
+ * provisioning inserts an empty tenant_config row and the settings form only
+ * ever edited the profile ON an existing brain. Onboarding a business meant
+ * hand-writing its config into the database.
+ *
+ * It lives HERE, beside the schema it has to satisfy, because a default that
+ * drifts out of spec does not fail in review — it fails for the next business
+ * that tries to set itself up.
+ *
+ * The prompt states no facts on purpose. The address, hours and services are
+ * composed from the profile; a baseline that repeated them would be a second
+ * copy of every one, free to go stale the moment the owner edits a field.
+ */
+declare function newReceptionistDefaults(businessName: string): Pick<BrainConfig, "system_prompt" | "fallbacks">;
+/** The product's own opening lines, whatever business name they were written with -- words no owner wrote. */
+declare function isBaselinePrompt(text: string): boolean;
+
+/** "Monday–Friday 9:00–18:00" style lines, collapsing identical runs. */
+/** One stretch of consecutive days that share the same hours. */
+interface HoursRun {
+    /** Day key the run starts on, e.g. "mon". */
+    from: string;
+    /** Day key it ends on. Equal to `from` for a single day. */
+    to: string;
+    /** "09:30–18:00", or "Closed". */
+    text: string;
+}
+declare function hoursRuns(hours: Record<string, Hours> | undefined): HoursRun[];
+
+/**
+ * The current moment, in the business's own timezone.
+ *
+ * Deliberately NOT part of composeSystemPrompt. That output is cached with the
+ * request; this changes every minute, and folding it in would evict the whole
+ * business profile from the prompt cache on every single message. It belongs
+ * in its own uncached block, next to the lead note that changes per contact.
+ *
+ * The timezone is `tenants.timezone` — the one the metrics RPCs and the Today
+ * surface already use. There is no second copy of it on the profile.
+ */
+declare function describeNow(tz: string | null | undefined, now?: Date, 
+/**
+ * The workspace's closures, so a shut day is stated HERE.
+ *
+ * It matters that it is here and not only in the composed block above. This
+ * is the last thing the model reads, and on a closure day the weekly grid
+ * says open while the closure list says shut. Leaving the tie to block order
+ * would decide the single highest-stakes question — "are you open today?" —
+ * by accident.
+ */
+closures?: Closure[]): string;
+/**
+ * How each part of the composed prompt opens, said once.
+ *
+ * Every value is the start of a line the composer writes: a section's heading,
+ * the first words of a paragraph Chanlytics writes for every workspace, or one
+ * of the two lines that can sit above the owner's own words. The composer
+ * writes them from here, and the Business tab's prompt view (prompt-blocks.ts)
+ * cuts the prompt on them from here. They were literal copies in two files, and
+ * a copy that drifted folded one block into its neighbour without failing
+ * anything: a closure list into the hours, the medium line into the owner's own
+ * words.
+ *
+ * These are words the live receptionist reads. Changing one changes its prompt.
+ */
+declare const PROMPT_OPENINGS: {
+    readonly hours: "Opening hours";
+    readonly closures: "Closed on these dates";
+    readonly services: "Services:";
+    readonly notes: "Other things to know:";
+    readonly bookingRules: "Booking rules:";
+    readonly handoffChat: "Handing the conversation to a person:";
+    readonly handoffCall: "Handing the caller to a person:";
+    /** The call's tool mechanics: check_availability, send_booking_link, end_call. */
+    readonly callTools: "Open times: use check_availability";
+    readonly callMedium: "You are speaking aloud.";
+    readonly chatMedium: "Keep replies short enough to read on a phone.";
+    readonly openTimes: "If open times are listed after these instructions";
+    /** The rules, last: the guardrails in a composed prompt, Autonomy's alone after a prompt nothing composed. */
+    readonly rules: "Rules you must follow:";
+    /** Above the owner's own words, when there are details above for them to disagree with. */
+    readonly ownWordsUnderDetails: "Further instructions from the business.";
+    /** Above the owner's own words on a call, alone or after the line above. */
+    readonly ownWordsOnACall: "Some of it was written for text conversations";
+};
+declare function composeSystemPrompt(
+/** `booking_link` null for a business that quotes each job: the prompt then says what the receptionist takes instead. */
+base: {
+    business_name: string;
+    phone_display?: string | null;
+    booking_link: string | null;
+}, profile: BusinessProfile, channel?: "whatsapp" | "voice", 
+/** IANA zone from `tenants.timezone`, so stated hours are unambiguous. */
+tz?: string | null, 
+/**
+ * Only used to drop closures that have already passed.
+ *
+ * No cron, no nightly prune: the composer already runs per message and
+ * already knows the zone, so "has this gone by?" is a string comparison.
+ * Rows that have passed stay in the config and simply stop being said.
+ */
+now?: Date, 
+/** The workspace's Autonomy rows (class → mode): Booking and FAQ under "ask" become rules here. */
+policy?: Record<string, {
+    mode: string;
+}> | null): string;
+
+/**
+ * Which instructions a workspace's receptionist is given: a prompt composed from its profile when the profile
+ * holds anything to compose (hasProfile), its stored prompt when not (resolveSystemPrompt), and whose words stand
+ * in the owner's place (whoseWords), which the Business tab's instructions box opens with (instructionsDraft).
+ */
+
+/**
+ * What the Business form's instructions box opens with (S4).
+ *
+ * The owner's own instructions when they have written some. Otherwise the
+ * prompt a profile carries in their place, shown so nothing the receptionist
+ * follows is out of sight and marked `carried` so the form can say where it
+ * came from -- unless it is the product's baseline, which no owner wrote. A
+ * save then keeps what the box holds as the owner's and puts the baseline back
+ * as the prompt: the text is stored once, and an emptied box stays empty
+ * instead of filling itself again from the copy left behind.
+ *
+ * ONE rule with the prompt view: whoseWords (plan Task 3.8, shipped 22 Sep).
+ * Own words open as the owner's; a prompt standing in the owner's place (carried
+ * or a workspace's own, whichever the resolver does with it) opens marked
+ * carried; the product's own opening lines and nothing to read open an empty box.
+ * Kept exactly as stored, spaces and all, so a save writes back what was there.
+ *
+ * Phase 1 left the two disagreeing on one case, knowingly: the baseline stored
+ * in the OWNER'S own field, where a save before S4 copied it. The box opened it
+ * as the owner's words because routing it here made it open EMPTY and the live
+ * form's next Save deleted the field -- and a workspace whose only composed
+ * field was that copy fell from a composed prompt to the bare baseline, losing
+ * its hand-off and every rule line. That save is gone: the fold that replaced
+ * the form sends nothing at all when its box is left as it opened
+ * (business-tab-folds.jsx, holdsChanges), so an empty box deletes nothing by
+ * being looked at. What a save with something typed in it should do with that
+ * copy is open, and nothing in production has it (the count under plan Task 3.8).
+ */
+declare function instructionsDraft(brain: {
+    system_prompt?: string | null;
+    profile?: {
+        extra_instructions?: string | null;
+    } | null;
+} | null | undefined): {
+    text: string;
+    carried: boolean;
+};
+/**
+ * What a record whose details compose nothing is told, in ONE sentence.
+ *
+ * Two places on the Business tab say it: the rules fold, where the rules block would be
+ * (business-tab.ts RULES_WITHOUT_FIELDS_WORDS), and the prompt view, over the stored prompt the
+ * resolver hands such a record back (prompt-blocks.ts). They were two sentences saying the same
+ * thing in two spellings, which is two sentences to keep true; both are built from this one now,
+ * so an owner reading the page twice reads the same words. `hasProfile`, below, is what decides
+ * whether either is said.
+ */
+declare const NO_FIELDS_COMPOSED_WORDS = "None of the details on this page are composed into what it reads yet.";
+/** True when a profile carries anything worth composing from. */
+declare function hasProfile(p: BusinessProfile | undefined | null): boolean;
+/**
+ * The instructions this workspace's receptionist should actually receive.
+ *
+ * ONE resolver, so no caller has to remember the precedence. A workspace that
+ * has filled in its profile gets a prompt composed from those facts; one that
+ * has not keeps the prompt it already had, byte for byte.
+ *
+ * That fallback is the whole reason this can ship: the pilot's hand-written
+ * prompt is live and answering real customers, and a migration that changed
+ * what its receptionist says the moment the code deployed would be a
+ * behaviour change nobody asked for.
+ */
+declare function resolveSystemPrompt(brain: BrainConfig, channel?: "whatsapp" | "voice", 
+/** IANA zone from `tenants.timezone`. Labels the hours; never a second copy. */
+tz?: string | null, 
+/** Only used to drop closures that have already passed. */
+now?: Date, 
+/** The workspace's Autonomy rows, so Booking and FAQ under "ask" reach a hand-written prompt too. */
+policy?: Record<string, {
+    mode: string;
+}> | null, 
+/**
+ * What the platform knows independently of what was typed: the channel rows
+ * it provisioned, the Google listing it verified.
+ *
+ * The prompt is the one place these facts are SPOKEN, so it is the one place
+ * they have to be resolved rather than read raw. Typed still wins — see
+ * facts.ts for why silently overriding a live receptionist's words would be
+ * the worse bug — but a workspace that never typed a number now says the line
+ * it actually answers instead of nothing, and the disagreement is nameable
+ * everywhere else because it is computed here.
+ */
+known?: KnownFacts | null): string;
+/**
+ * The owner's own words, as the receptionist is given them.
+ *
+ * What they have written into the form, once there is anything in it. Until
+ * then the workspace's prompt stands in their place: carried whole when the
+ * profile composes, so filling in one field loses nothing, and read as it
+ * stands when it does not. The one statement of that rule. resolveSystemPrompt
+ * composes with it, and anything that has to find those words in what the
+ * resolver returned looks for them with it, rather than with a copy that can
+ * drift.
+ */
+declare function ownWordsOf(brain: {
+    system_prompt?: string | null;
+    profile?: {
+        extra_instructions?: string | null;
+    } | null;
+} | null | undefined): string | null;
+/** Whose words stand in the owner's place: see whoseWords. */
+type WhoseWords = {
+    kind: "own" | "carried" | "prompt" | "baseline";
+    text: string;
+} | {
+    kind: "none";
+    text: null;
+};
+/**
+ * Whose words the receptionist is given in the owner's place, decided once.
+ *
+ * The words are ownWordsOf's, the resolver's own rule. This says whose they are,
+ * for the prompt view (promptBlocks) and for the instructions box, which asks
+ * here too (instructionsDraft): the two read the owner's field by one rule, so
+ * the box can never open as the owner's what the view charges to the platform.
+ *
+ *   baseline  the product's own opening lines. In the stored prompt that is
+ *             isBaselinePrompt, which reads only the opening and the closing:
+ *             only the product writes that prompt. In the OWNER'S field it is
+ *             stricter (isBaselineInOwnersField), because there an owner may
+ *             have typed their own sentences where the business's name goes,
+ *             and calling those the platform's would disown words they wrote.
+ *   own       what the owner wrote into the profile's own field.
+ *   carried   the profile composes, but its own field is blank, so the stored
+ *             prompt stands in: the resolver carries it into the owner's place.
+ *   prompt    nothing composes, so the stored prompt is simply the workspace's
+ *             prompt, read as it stands. "Composes" is the resolver's own test
+ *             (hasProfile): no profile at all, or one holding nothing the
+ *             resolver composes from, and the resolver hands the prompt back.
+ *   none      nothing to read.
+ */
+declare function whoseWords(brain: {
+    system_prompt?: string | null;
+    profile?: {
+        extra_instructions?: string | null;
+    } | null;
+} | null | undefined): WhoseWords;
+
+/**
+ * The three messages sent in the business's name when the receptionist cannot answer: the product's wording,
+ * today's and the earlier one, each filled with the business's details as it goes out (fallbackMessages).
+ */
+
+/** The details a message sent in the business's name may name, as the owner writes them. */
+declare const FALLBACK_DETAILS: readonly ["business", "booking link", "phone"];
+type FallbackDetail = (typeof FALLBACK_DETAILS)[number];
+/**
+ * The product's own wording for the three messages, naming the details rather
+ * than copying them, so they follow the business's details from the first day
+ * and a customer is never sent "call us at ." before a line exists.
+ *
+ * Each sentence stands without the one naming the link, which a business that
+ * quotes does not have (the first run's decision 2): fillDetails leaves out a
+ * sentence naming a detail the workspace lacks, and what is left must still be
+ * a whole message.
+ */
+declare const FALLBACK_DEFAULTS: BrainConfig["fallbacks"];
+/**
+ * The product's wording before 24 Sep 2026, still the product's. Two of its
+ * sentences leaned on the one naming the link ("Or reply here", "— or a member
+ * of our team will reply"), so with no link they read as half a message.
+ * Workspaces set up with it keep it, since a stored message is theirs to change:
+ * it is never said to be their own words, or offered the default wording back.
+ */
+declare const EARLIER_FALLBACK_DEFAULTS: BrainConfig["fallbacks"];
+/**
+ * Whether a message is in the product's wording, today's or the earlier one: the one test the Business tab's line
+ * (business-tab.ts fallbacksWords) and each message's "Use the default wording" ask.
+ */
+declare function isProductFallback(key: keyof BrainConfig["fallbacks"], text: string | null | undefined): boolean;
+/**
+ * The three messages sent in the business's name when the receptionist cannot
+ * answer, with its details as they are now (the wiring audit's S5).
+ *
+ * They were written once, from what the form held that day, with the number
+ * and the booking link baked in, and nothing wrote them again: a changed link
+ * or a new line left customers the old one. A message may now name
+ * {business}, {booking link} and {phone}, filled here as it goes out from the
+ * facts the prompt speaks (resolveFacts): the number is the one the owner
+ * typed or the line the receptionist answers, formatted for a person. A
+ * sentence naming a detail the workspace does not have is left out rather
+ * than sent with a hole in it; a message naming none goes out exactly as
+ * written; one that would leave nothing says the default instead.
+ */
+declare function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null): BrainConfig["fallbacks"];
+/**
+ * The names in a message that nothing fills in -- "{bookinglink}", "{phone
+ * number}" -- which a customer would read exactly as written. The Business
+ * form says so under the message before it is saved (S5).
+ */
+declare function unknownDetails(text: string): string[];
 
 /**
  * The guardrail keys the profile stores, read off the schema rather than copied
@@ -13164,6 +12591,16 @@ interface RulesKeptInputs {
  * to say it had gone.
  */
 declare function rulesKept(i: RulesKeptInputs): string[];
+declare const RULES_WITHOUT_FIELDS_WORDS: string;
+/**
+ * RULES_WITHOUT_FIELDS_WORDS for the record it is said of. A receptionist with no booking link is told what to do
+ * instead, first among the rules after its stored prompt (config.ts resolveSystemPrompt), so the sentence names that
+ * rule too, by the resolver's own test (offersBookingLink).
+ */
+declare function rulesWithoutFieldsWords(brain: {
+    booking_link?: string | null;
+} | null | undefined): string;
+
 /**
  * What the booking link's row says with nothing in it, and the hint under its box, by how the workspace's customers buy
  * (deals.ts bookingLinkOptional): a business that quotes has none by right, and its receptionist takes their details
@@ -13207,6 +12644,12 @@ interface BusinessGap {
  * bookingLinkOptional), and one left out would be told its missing link is the gap to fix.
  */
 declare function businessGap(i: StandingInputs, sellsBy: string | null): BusinessGap | null;
+
+/**
+ * When you're open: the line under the card's title, whose clock the hours being edited are on, and the closed
+ * days still ahead, each counted on the business's own day.
+ */
+
 /**
  * The line under the card's title: how much of the week is open, and whose clock the times are on. "Six days a week,
  * in New York time".
@@ -13238,6 +12681,19 @@ interface ClosuresAheadVM {
  * UTC, the clock's own rule (clock.ts), so the row is never lost to one.
  */
 declare function closuresAheadWords(closures: readonly Closure[] | null | undefined, tz: string, now: Date): ClosuresAheadVM;
+
+/**
+ * How many chips a row of the record draws at rest, and how the rest of them are said.
+ *
+ * One number and one spelling for every list of chips on the page -- the services, the notes, the rules -- because
+ * three of them with their own caps is three rows that wrap to different depths on the same phone. Three (24 Sep):
+ * the chips are words on the row's own line now (record.css .rec-chips), and three names with "+N" after the count is
+ * one line at a desktop's width and two at a phone's; four was two and three.
+ */
+declare const CHIPS_SHOWN = 3;
+/** "+30": the rest of a list of chips, said once, wherever a row cuts one. It said "+30 more"; the "more" is the plus. */
+declare function chipsMoreWords(n: number): string;
+
 /** A service as the settings read hands one over (contracts ServiceSchema), read defensively: the page is untyped. */
 interface ServiceWordsInput {
     name?: string | null;
@@ -13258,17 +12714,6 @@ interface ServicesWordsVM {
     more: string | null;
 }
 /**
- * How many chips a row of the record draws at rest, and how the rest of them are said.
- *
- * One number and one spelling for every list of chips on the page -- the services, the notes, the rules -- because
- * three of them with their own caps is three rows that wrap to different depths on the same phone. Three (24 Sep):
- * the chips are words on the row's own line now (record.css .rec-chips), and three names with "+N" after the count is
- * one line at a desktop's width and two at a phone's; four was two and three.
- */
-declare const CHIPS_SHOWN = 3;
-/** "+30": the rest of a list of chips, said once, wherever a row cuts one. It said "+30 more"; the "more" is the plus. */
-declare function chipsMoreWords(n: number): string;
-/**
  * The services row at rest: how many are on record, and the first few by name with how long each takes.
  *
  * It said how they were priced too, in a sentence of its own under the names ("None names a price.", judged by the
@@ -13277,6 +12722,30 @@ declare function chipsMoreWords(n: number): string;
  * row nobody finished, which no save writes, and is not counted.
  */
 declare function servicesWords(services: readonly ServiceWordsInput[] | null | undefined): ServicesWordsVM;
+/**
+ * What the services sheet's foot says it will be told: "33 services, 1,190 characters — a quarter of everything it
+ * reads." (the canvas's Edit-Sheet), from the services the save would write, its block's characters and the whole
+ * prompt's length. With none it says what that costs, in the gap line's own words for it (CANNOT_SAY_SERVICES).
+ */
+declare function servicesToldWords(i: {
+    count: number;
+    chars: number | null;
+    total: number | null;
+}): string;
+/**
+ * The name of the Undo left where a service was taken out of the sheet, as a screen reader hears it: what it puts back,
+ * "Undo removing Balayage". Each was named only "Undo", and two waiting side by side could not be told apart.
+ */
+declare function serviceUndoName(name: string | null | undefined): string;
+/**
+ * What the services sheet's search has left in sight, said politely to a screen reader as it narrows: "11 of 33
+ * services". A search that leaves none says so as the sheet's own note does ("No service is called that."), and a list
+ * with no rows says it has none. With no search the page says nothing: every row is in sight, which the list shows.
+ */
+declare function servicesFoundWords(shown: number, total: number): string;
+/** The sheet's Save, named for what it saves: "Save 33 services". */
+declare function servicesSaveWords(n: number): string;
+
 /**
  * How much of everything the receptionist reads one block of its prompt is: "a quarter of everything it reads". `chars`
  * is the block's own share of the prompt (PromptBlockVM.chars) and `total` the whole prompt's length, on one channel.
@@ -13322,29 +12791,7 @@ declare const PROMPT_NOW: {
         readonly voice: "Shown separately because it is sent separately — folding a value that changes every minute into the block above would throw away the prompt cache on every call.";
     };
 };
-/**
- * What the services sheet's foot says it will be told: "33 services, 1,190 characters — a quarter of everything it
- * reads." (the canvas's Edit-Sheet), from the services the save would write, its block's characters and the whole
- * prompt's length. With none it says what that costs, in the gap line's own words for it (CANNOT_SAY_SERVICES).
- */
-declare function servicesToldWords(i: {
-    count: number;
-    chars: number | null;
-    total: number | null;
-}): string;
-/**
- * The name of the Undo left where a service was taken out of the sheet, as a screen reader hears it: what it puts back,
- * "Undo removing Balayage". Each was named only "Undo", and two waiting side by side could not be told apart.
- */
-declare function serviceUndoName(name: string | null | undefined): string;
-/**
- * What the services sheet's search has left in sight, said politely to a screen reader as it narrows: "11 of 33
- * services". A search that leaves none says so as the sheet's own note does ("No service is called that."), and a list
- * with no rows says it has none. With no search the page says nothing: every row is in sight, which the list shows.
- */
-declare function servicesFoundWords(shown: number, total: number): string;
-/** The sheet's Save, named for what it saves: "Save 33 services". */
-declare function servicesSaveWords(n: number): string;
+
 /** The booking rules the row states (contracts BookingRulesSchema), read defensively: the page is untyped. */
 interface BookingRulesWordsInput {
     lead_hours?: number | null;
@@ -13397,6 +12844,7 @@ declare function bookingRuleRefusal(key: BookingRuleKey): string;
  * keep this in the four dists that bundle contracts and never use it.
  */
 declare const BOOKING_RULE_HINTS: Readonly<Record<"lead_hours" | "slot_min" | "buffer_min" | "max_days_ahead" | "party_max", string | null>>;
+
 /**
  * What a save says when it crosses the line the resolver draws between a record it composes from and one it answers
  * with the stored prompt (config.ts `hasProfile`).
@@ -13414,6 +12862,38 @@ declare const PROFILE_CROSSING_WORDS: {
 };
 type ProfileCrossing = keyof typeof PROFILE_CROSSING_WORDS;
 /**
+ * The most of each thing a fold of the tab may hold, read off the schema that would refuse the save.
+ *
+ * Every one of these was a literal in the page (`BT_LIMITS`, pages/business-tab-folds.jsx) beside a sentence carrying
+ * the same number a second time, so a cap widened in the schema left the page offering less than the save would take
+ * and the sentence naming a number neither of them used. Read here, the schema is the one place a number lives, and
+ * `profileRefusal` below writes the sentence from this table -- the way `bookingRuleRefusal` writes the five booking
+ * rules' from `BookingRulesSchema`'s own bounds.
+ *
+ * `closures` and `shifts` are the two the save's own checks already published (`MAX_CLOSURES`,
+ * `MAX_INTERVALS_PER_DAY`); they are here so a fold asks one table rather than two.
+ *
+ * Built inside a call marked pure, as GUARDRAIL_KEYS is: a top-level call is a side effect to the bundler, which
+ * would keep this in the four dists that bundle contracts and never use it.
+ */
+declare const PROFILE_LIMITS: Readonly<Record<ProfileLimitKey, number>>;
+/** Everything `PROFILE_LIMITS` holds a number for; `profileRefusal` says what each one refuses in. */
+type ProfileLimitKey = "tone" | "services" | "serviceName" | "serviceMinutes" | "servicePrice" | "languages" | "languageMin" | "languageMax" | "reasons" | "reason" | "consultFirst" | "consultFirstLine" | "ruleNotes" | "ruleNote" | "notes" | "noteTitle" | "noteText" | "closures" | "closureNote" | "shifts" | "instructions" | "message";
+/** What `profileRefusal` will say a sentence for: the caps a fold refuses AT, and the one range a language sits in. */
+type ProfileRefusalKey = "tone" | "services" | "serviceName" | "serviceMinutes" | "servicePrice" | "languages" | "language" | "reasons" | "reason" | "consultFirst" | "consultFirstLine" | "ruleNotes" | "ruleNote" | "notes" | "noteTitle" | "noteText" | "closures" | "closureNote" | "shifts" | "instructions" | "message";
+/**
+ * What a fold says under the box when what is typed is more than the save would take.
+ *
+ * Each sentence names the same unit as the limit it is written from, and the limit is the schema's, so the two cannot
+ * disagree: the page said "At most 2,000 characters" beside a check reading `t.length > 2000`, the one number written
+ * twice in one line. `seen` is what was measured -- characters, rows, a day's shifts -- and is said back where the
+ * sentence has a place for it; `of` names what it was measured on, a day for `shifts` and the word itself for
+ * `language`. A key that is not one of these is a TypeError, since the page is untyped.
+ */
+declare function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: string): string;
+declare function writtenOutDetail(text: string | null | undefined, bookingLink: string | null | undefined): "link" | "number" | null;
+
+/**
  * The languages offered rather than typed, the commonest first: the Business tab's languages box
  * (business-tab-answers.jsx) and the first run's chips (check-chips.ts) offer this one list. A comma-separated box asks
  * someone to guess both the spelling and the separator, and "Espanol" and "Spanish" would then be two different
@@ -13429,47 +12909,6 @@ declare const TONE_PRESETS: readonly {
     label: string;
     tone: string;
 }[];
-/**
- * What happens when a WhatsApp customer is handed over, checked against the edge: the composer teaches the model to end
- * its reply with the [[HUMAN]] token (config.ts, the chat hand-off block), and a reply carrying it is sent with the token
- * taken out; then the thread is paused for the Autonomy reply row's pause_hours (whatsapp/inbound.ts, a day when
- * nothing is stored), an escalation is opened, which is what turns the thread Needs you in the Inbox, and the alert goes
- * to the addresses the Notifications tab sets (notify.ts chooseAddressing: notifications.escalation_emails). After the
- * pause it answers the next message itself. The canvas said "It stops answering, marks the thread Needs you and emails
- * your staff": the email goes to whoever is on that list, which may be nobody, and the pause ends.
- *
- * The ability card's hand-off row and the hand-off row's fold both say it, so it is written once, here. `pauseHours` is
- * that row's stored pause_hours as it is stored, read the way the Autonomy pane reads it (hardLimitsWords).
- */
-declare function handoffChatWords(i: {
-    hasEscalateWhen: boolean;
-    pauseHours: unknown;
-}): string;
-/**
- * The hand-off on a call, under the hand-off row's reasons: what a transfer does, and that the reasons count there too.
- * They do: the composer writes them under the call's hand-off heading as it writes them under the chat's ("and
- * whenever:"). The canvas said the phone agent's own transfer kept the reasons from reaching it, which was not true.
- */
-declare function handoffCallWords(i: {
-    hasHandoffNumber: boolean;
-    hasEscalateWhen: boolean;
-}): string;
-/** The hand-off row at rest, and what a call does, which its fold says under Phone. */
-interface HandoffWordsVM {
-    /** One line: "For 2 reasons · on a call, transfers to +1 (212) 555-0142"; with no reasons, when it hands over anyway. */
-    line: string;
-    /** "transfers to +1 (212) 555-0142", or "takes a message" with no number. */
-    phone: string;
-}
-/**
- * The hand-off row at rest: how many reasons the owner gave, and what a call does, on one line. It quoted the opening
- * of the reasons too, under a WhatsApp word, with the call's words under a Phone word ("on 2 reasons — They ask for a
- * person, for the owner · They are upset, or have a…"), which was two lines and an ellipsis on a row that states one
- * fact (24 Sep); the fold holds the reasons whole. `transfer` is the transfer number as the page shows it (the settings
- * read's resolved fact, written for people); the row only states it, and the Who you are row is where it is changed.
- * A stored list that is not one (a hand-edited record) is no reasons, never a throw: the page draws this as it draws.
- */
-declare function handoffWords(reasons: readonly string[] | null | undefined, transfer: string | null | undefined): HandoffWordsVM;
 /** The notes row at rest: the first titles as chips, and how many more. */
 interface NotesWordsVM {
     count: number;
@@ -13521,15 +12960,54 @@ interface FallbacksWordsVM {
  * stores none.
  */
 declare function fallbacksWords(fallbacks: Partial<Record<keyof typeof FALLBACK_DEFAULTS, string | null>> | null | undefined): FallbacksWordsVM;
-declare const RULES_WITHOUT_FIELDS_WORDS: string;
+
 /**
- * RULES_WITHOUT_FIELDS_WORDS for the record it is said of. A receptionist with no booking link is told what to do
- * instead, first among the rules after its stored prompt (config.ts resolveSystemPrompt), so the sentence names that
- * rule too, by the resolver's own test (offersBookingLink).
+ * What happens when a WhatsApp customer is handed over, checked against the edge: the composer teaches the model to end
+ * its reply with the [[HUMAN]] token (config.ts, the chat hand-off block), and a reply carrying it is sent with the token
+ * taken out; then the thread is paused for the Autonomy reply row's pause_hours (whatsapp/inbound.ts, a day when
+ * nothing is stored), an escalation is opened, which is what turns the thread Needs you in the Inbox, and the alert goes
+ * to the addresses the Notifications tab sets (notify.ts chooseAddressing: notifications.escalation_emails). After the
+ * pause it answers the next message itself. The canvas said "It stops answering, marks the thread Needs you and emails
+ * your staff": the email goes to whoever is on that list, which may be nobody, and the pause ends.
+ *
+ * The ability card's hand-off row and the hand-off row's fold both say it, so it is written once, here. `pauseHours` is
+ * that row's stored pause_hours as it is stored, read the way the Autonomy pane reads it (hardLimitsWords).
  */
-declare function rulesWithoutFieldsWords(brain: {
-    booking_link?: string | null;
-} | null | undefined): string;
+declare function handoffChatWords(i: {
+    hasEscalateWhen: boolean;
+    pauseHours: unknown;
+}): string;
+/**
+ * The hand-off on a call, under the hand-off row's reasons: what a transfer does, and that the reasons count there too.
+ * They do: the composer writes them under the call's hand-off heading as it writes them under the chat's ("and
+ * whenever:"). The canvas said the phone agent's own transfer kept the reasons from reaching it, which was not true.
+ */
+declare function handoffCallWords(i: {
+    hasHandoffNumber: boolean;
+    hasEscalateWhen: boolean;
+}): string;
+/** The hand-off row at rest, and what a call does, which its fold says under Phone. */
+interface HandoffWordsVM {
+    /** One line: "For 2 reasons · on a call, transfers to +1 (212) 555-0142"; with no reasons, when it hands over anyway. */
+    line: string;
+    /** "transfers to +1 (212) 555-0142", or "takes a message" with no number. */
+    phone: string;
+}
+/**
+ * The hand-off row at rest: how many reasons the owner gave, and what a call does, on one line. It quoted the opening
+ * of the reasons too, under a WhatsApp word, with the call's words under a Phone word ("on 2 reasons — They ask for a
+ * person, for the owner · They are upset, or have a…"), which was two lines and an ellipsis on a row that states one
+ * fact (24 Sep); the fold holds the reasons whole. `transfer` is the transfer number as the page shows it (the settings
+ * read's resolved fact, written for people); the row only states it, and the Who you are row is where it is changed.
+ * A stored list that is not one (a hand-edited record) is no reasons, never a throw: the page draws this as it draws.
+ */
+declare function handoffWords(reasons: readonly string[] | null | undefined, transfer: string | null | undefined): HandoffWordsVM;
+
+/**
+ * What the receptionist can do, and what it cannot: the abilities card's rows and what holds the whole card back,
+ * computed from what the records show, and the things no switch turns on (cannotRows).
+ */
+
 /**
  * What the receptionist can do, and what it cannot.
  *
@@ -13668,37 +13146,166 @@ declare function cannotRows(i: {
     smsLive: boolean;
     hasBookingLink: boolean;
 }): CannotRowVM[];
+
 /**
- * The most of each thing a fold of the tab may hold, read off the schema that would refuse the save.
+ * What a receptionist with no booking link does where it would have sent one.
  *
- * Every one of these was a literal in the page (`BT_LIMITS`, pages/business-tab-folds.jsx) beside a sentence carrying
- * the same number a second time, so a cap widened in the schema left the page offering less than the save would take
- * and the sentence naming a number neither of them used. Read here, the schema is the one place a number lives, and
- * `profileRefusal` below writes the sentence from this table -- the way `bookingRuleRefusal` writes the five booking
- * rules' from `BookingRulesSchema`'s own bounds.
+ * A business that quotes each job -- a mover, a caterer, a contractor -- has no booking link (the first run's
+ * decision 2, 24 Sep 2026): the price comes before anyone books, so its receptionist takes what the team needs to
+ * follow up. Where it would have sent the link for someone to book, it asks for this one list instead: the prompt on
+ * both channels (config.ts), the openings it offers and a price correction on a call (availability.ts, whisper.ts),
+ * and the phone's two tools (apps/edge/api/retell-fn.ts, retell-availability.ts). However the receptionist comes to
+ * it, it asks for the same things. Where the link was one offer among others -- a call back, a professional's advice,
+ * a change to an appointment already booked -- the others stand alone.
  *
- * `closures` and `shifts` are the two the save's own checks already published (`MAX_CLOSURES`,
- * `MAX_INTERVALS_PER_DAY`); they are here so a fold asks one table rather than two.
- *
- * Built inside a call marked pure, as GUARDRAIL_KEYS is: a top-level call is a side effect to the bundler, which
- * would keep this in the four dists that bundle contracts and never use it.
+ * A receptionist with no link is read and saved. Who is asked for one is the pages' question, by how customers buy
+ * (deals.ts bookingLinkOptional), since the config cannot see the answer.
  */
-declare const PROFILE_LIMITS: Readonly<Record<ProfileLimitKey, number>>;
-/** Everything `PROFILE_LIMITS` holds a number for; `profileRefusal` says what each one refuses in. */
-type ProfileLimitKey = "tone" | "services" | "serviceName" | "serviceMinutes" | "servicePrice" | "languages" | "languageMin" | "languageMax" | "reasons" | "reason" | "consultFirst" | "consultFirstLine" | "ruleNotes" | "ruleNote" | "notes" | "noteTitle" | "noteText" | "closures" | "closureNote" | "shifts" | "instructions" | "message";
-/** What `profileRefusal` will say a sentence for: the caps a fold refuses AT, and the one range a language sits in. */
-type ProfileRefusalKey = "tone" | "services" | "serviceName" | "serviceMinutes" | "servicePrice" | "languages" | "language" | "reasons" | "reason" | "consultFirst" | "consultFirstLine" | "ruleNotes" | "ruleNote" | "notes" | "noteTitle" | "noteText" | "closures" | "closureNote" | "shifts" | "instructions" | "message";
+declare const NO_LINK_DETAILS = "their name, what they need, and where and when";
 /**
- * What a fold says under the box when what is typed is more than the save would take.
- *
- * Each sentence names the same unit as the limit it is written from, and the limit is the schema's, so the two cannot
- * disagree: the page said "At most 2,000 characters" beside a check reading `t.length > 2000`, the one number written
- * twice in one line. `seen` is what was measured -- characters, rows, a day's shifts -- and is said back where the
- * sentence has a place for it; `of` names what it was measured on, a day for `shifts` and the word itself for
- * `language`. A key that is not one of these is a TypeError, since the page is untyped.
+ * Whether what the receptionist is told offers the booking link: yes, unless its config is known to hold none. With no
+ * receptionist config at all nothing is known, and a call is then told the voice shell's FACTS_UNAVAILABLE, which
+ * offers the link -- so the openings, a caller's appointments and a correction said beside it offer it too.
  */
-declare function profileRefusal(key: ProfileRefusalKey, seen?: number, of?: string): string;
-declare function writtenOutDetail(text: string | null | undefined, bookingLink: string | null | undefined): "link" | "number" | null;
+declare function offersBookingLink(brain: {
+    booking_link?: string | null;
+} | null | undefined): boolean;
+/** What follows "a price is not mine to confirm", in the prompt's rule and a call's correction alike. */
+declare function priceNextStep(hasBookingLink: boolean): string;
+
+/**
+ * What the receptionist says back, as a record and not just a string.
+ *
+ * The brain used to return text with a handoff token hidden in it, and
+ * nothing else: no reading of what the customer wanted, no sense of how sure
+ * it was, no trace of which fact it leaned on. Every "why did it say that?"
+ * had to be guessed from the words. This is the shape it answers in now,
+ * constrained by the API (output_config.format), validated here, carried on
+ * the message row's meta, and read by the Inbox.
+ *
+ * Kept to what a salon owner can act on: the intent names the class of
+ * question, the confidence drives the hold-for-review dial, the reason is one
+ * sentence for the rail, the facts are what to check when the answer is
+ * wrong.
+ */
+
+declare const BRAIN_INTENTS: readonly ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+type BrainIntent = (typeof BRAIN_INTENTS)[number];
+declare const INTENT_LABELS: Record<BrainIntent, string>;
+declare const BRAIN_LANGUAGES: readonly ["en", "es", "other"];
+/**
+ * The JSON Schema the API constrains decoding to. Only what the API supports:
+ * no numeric ranges, no length limits, no nullable unions — those are checked
+ * by the zod schema below after the fact, and clamped rather than refused.
+ */
+declare const BRAIN_OUTPUT_JSON_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly reply: {
+            readonly type: "string";
+            readonly description: "Exactly what the customer receives, in their language, in the receptionist's voice. Nothing else goes here.";
+        };
+        readonly intent: {
+            readonly type: "string";
+            readonly enum: readonly ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
+            readonly description: "What the customer is after.";
+        };
+        readonly escalate: {
+            readonly type: "boolean";
+            readonly description: "True when a person should take over now: they asked for one, you cannot help, or a rule you were given says so.";
+        };
+        readonly reason: {
+            readonly type: "string";
+            readonly description: "One short sentence: why a person is needed, or why this answer might be wrong. Empty when neither applies.";
+        };
+        readonly confidence: {
+            readonly type: "number";
+            readonly description: "How sure you are that this reply is right and complete for this customer, from 0 to 1.";
+        };
+        readonly facts_used: {
+            readonly type: "array";
+            readonly items: {
+                readonly type: "string";
+            };
+            readonly description: "The business facts this reply relied on, each in a few words (an hour, a service, a note). Empty when none.";
+        };
+        readonly language: {
+            readonly type: "string";
+            readonly enum: readonly ["en", "es", "other"];
+            readonly description: "The language the reply is written in.";
+        };
+    };
+    readonly required: readonly ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"];
+    readonly additionalProperties: false;
+};
+/** The read side: tolerant of what a model might still do, strict about shape. */
+declare const BrainOutputSchema: z.ZodObject<{
+    reply: z.ZodString;
+    intent: z.ZodCatch<z.ZodEnum<{
+        other: "other";
+        booking: "booking";
+        complaint: "complaint";
+        hours: "hours";
+        services: "services";
+        location: "location";
+        pricing: "pricing";
+        smalltalk: "smalltalk";
+    }>>;
+    escalate: z.ZodCatch<z.ZodBoolean>;
+    reason: z.ZodPipe<z.ZodCatch<z.ZodString>, z.ZodTransform<string, string>>;
+    confidence: z.ZodPipe<z.ZodCatch<z.ZodNumber>, z.ZodTransform<number, number>>;
+    facts_used: z.ZodPipe<z.ZodCatch<z.ZodArray<z.ZodString>>, z.ZodTransform<string[], string[]>>;
+    language: z.ZodCatch<z.ZodEnum<{
+        other: "other";
+        en: "en";
+        es: "es";
+    }>>;
+}, z.core.$strip>;
+type BrainOutput = z.infer<typeof BrainOutputSchema>;
+/**
+ * Parse what the model returned. With constrained decoding the JSON is well
+ * formed unless the answer was cut off by max_tokens; a truncated document
+ * fails here and the caller falls back to the holding reply, as it always
+ * did for a capped answer.
+ */
+declare function parseBrainOutput(raw: string): {
+    ok: true;
+    value: BrainOutput;
+} | {
+    ok: false;
+    error: string;
+};
+/**
+ * What a message row remembers about its own reasoning. Written by the edge
+ * beside source/delay_ms; read back by the Inbox through the meta the DTO
+ * already carries.
+ */
+interface BrainMeta {
+    intent: BrainIntent;
+    confidence: number;
+    reason: string;
+    facts_used: string[];
+    language: (typeof BRAIN_LANGUAGES)[number];
+    model: string;
+}
+declare function brainMetaOf(out: BrainOutput, model: string): BrainMeta;
+/** The rail beside a reply: why it said what it said. */
+interface ReplyWhyVM {
+    intent: BrainIntent;
+    intentLabel: string;
+    /** 0–100, or null when the row predates this. */
+    confidence: number | null;
+    reason: string | null;
+    facts: string[];
+    /** Why the draft is waiting, when it is. */
+    heldFor: "low_confidence" | "veto_window" | null;
+    /** One line for a chip: "Pricing question · 62% sure". */
+    summary: string;
+}
+/** From a message row's meta; null when the row carries no reasoning. */
+declare function replyWhy(meta: Record<string, unknown> | null | undefined): ReplyWhyVM | null;
+/** The confidence dial, as the Autonomy pane offers it. 0 means off. */
+declare const CONFIDENCE_STEPS: readonly [0, 0.6, 0.75, 0.9];
 
 /**
  * The Business tab's prompt view: the composed prompt, cut into the blocks that
@@ -14245,6 +13852,492 @@ interface DeskSignVM {
 declare function deskSignVM(f: ConsentPageFacts): DeskSignVM;
 /** The desk sign's tab: the sheet it is and whose it is, or Not found. Never indexed, like the page it prints from. */
 declare function deskSignMetadata(f: ConsentPageFacts | null): PublicPageMetadata;
+
+/**
+ * Which wire a thread's words travelled, and who answers on it: the channel of a message and of a thread, and
+ * that channel in the words a row shows. The Inbox (inbox-thread.ts) and Conversations (conversation-vm.ts)
+ * both read it here.
+ */
+
+declare function agentFor(channel: "whatsapp" | "sms" | "email" | "phone"): {
+    glyph: string;
+    name: string;
+};
+/** The wire a written message travelled, as a thread names it. Anything unnamed is WhatsApp, which is what every row was before the column said. */
+declare function writtenChannelOf(channel: string | null | undefined): "whatsapp" | "sms" | "email";
+/**
+ * The wire a thread's written words LAST travelled; "phone" when it has none.
+ *
+ * One derivation, because three surfaces were each answering it their own way
+ * and two of them answered "WhatsApp" whatever the row said. Today hard-coded
+ * the word onto every escalation, so an email arriving read "WhatsApp \u00b7 waited
+ * 12m"; the conversation row derived it properly only after the same defect
+ * was found there. A row that names the wrong wire is worse than one that
+ * names none: the owner replies in the wrong place, or does not recognise the
+ * thread they are being asked about.
+ */
+declare function threadChannelOf(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "whatsapp" | "sms" | "email" | "phone";
+/** The same question, in the words a row shows. */
+declare function threadChannelWords(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "WhatsApp" | "Text" | "Email" | "Phone";
+
+/** The display name for a contact, without building a whole thread viewmodel
+ *  to read one field (Today was doing exactly that per open escalation). */
+declare function contactName(dto: ConversationDto): string;
+/**
+ * A name that is an identifier, a number or an address, has no first name to
+ * shorten to: "+1" as a speaker label is nobody, and neither is "ana@".
+ */
+declare function isIdentifierName(name: string): boolean;
+/** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
+declare function contactMeta(dto: ConversationDto, channel?: "WhatsApp" | "Phone" | "Text" | "Email"): string;
+declare function initialsOf(name: string): string;
+
+/**
+ * A time in a thread or a call, by the business's clock (clock.ts). The two
+ * formatters here were built without a zone, so a message read in the browser's
+ * zone and "the same day" meant the browser's day: one call read as two times
+ * (the 12 September audit's D5). The formatters are built once per zone there,
+ * which keeps what these hoisted ones were for: these mappers run twice per
+ * refresh over every message, and constructing a formatter per call froze the
+ * page when a message arrived.
+ */
+declare function shortTime(iso: string | null, tz: string, now: Date): string;
+/** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
+ *  brief, and "561 min" is not a number anyone reads as half a day. */
+/** A wait, in the one family every surface reads (time.ts): "1m" at the least, "3h", "2d". */
+declare function formatWaited(ms: number): string;
+
+/**
+ * A message's attachment: what kind of thing it is, and the shape the thread draws it in. message-words.ts
+ * names it in words; the view models (inbox-thread.ts, conversation-vm.ts) carry it on the bubble.
+ */
+
+/** An attachment as the thread draws it. */
+interface MediaVM {
+    messageId: string;
+    kind: "image" | "audio" | "video" | "document" | "other";
+    mime: string | null;
+    filename: string | null;
+    caption: string | null;
+    /** Stored and servable; false while it is fetching or after a failed fetch. */
+    available: boolean;
+}
+/** What kind of thing an attachment is: from its mime, else from WhatsApp's own word for it. */
+declare function mediaKind(mime: string | null | undefined, raw?: string | null): MediaVM["kind"];
+/** The attachment on a message, as the thread draws it; null for words. */
+declare function mediaVM(m: MessageDto): MediaVM | null;
+
+/**
+ * What an email carries beyond its own words: its subject, what the intake left out, and the chain it quoted
+ * back at us. message-words.ts says an email's words with it; the Inbox's thread (inbox-thread.ts) shows the rest.
+ */
+
+/**
+ * What an email carried that the thread does not show. The intake keeps the
+ * names of an email's files and never the files, and a bounded amount of its
+ * words (core email-ingest.ts); an owner reading "see the attached floor plan"
+ * above nothing at all would take the email for the whole of it. Said in one
+ * line under the words, and only when something was left out.
+ */
+declare function emailLeftOutOf(meta: unknown): string | null;
+/** An email's own words, and the chain it quoted back at us. `quoted` is null when there is none. */
+declare function splitQuotedReply(body: string): {
+    text: string;
+    quoted: string | null;
+};
+
+/**
+ * What a message says and what became of it: its words wherever they are shown, its send status in the
+ * operator's words, whether it reached the customer, whether it is a held draft, and words clipped at a whole
+ * word. Its attachment is message-media.ts, an email's quoted chain message-email.ts, its sender message-author.ts.
+ */
+
+/**
+ * What happened to a message we tried to send, in the operator's words.
+ *
+ * ONE vocabulary. The Inbox had its own ternary and the Conversations pane had
+ * nothing at all, so the same message read as "Canceled before sending" on one
+ * screen and as an ordinary delivered reply on the other — and Conversations is
+ * the screen whose entire job is "what is my receptionist saying to people".
+ */
+declare function messageStatusLabel(status: string | undefined): string | undefined;
+/** Did the customer actually receive these words? */
+declare function reachedCustomer(status: string | undefined): boolean;
+/**
+ * A reply the receptionist has WRITTEN but not sent — it is sitting out its veto
+ * window, and until that expires a human can withdraw or replace it.
+ *
+ * The distinction matters most in the UI: rendered as an ordinary agent bubble a
+ * held draft looks exactly like a message the customer has already read, so an
+ * operator would either ignore it or apologise for something that never went out.
+ */
+declare function isHeldDraft(m: MessageDto): boolean;
+/** When a held draft is due to send, in epoch ms. */
+declare function draftSendsAtMs(m: MessageDto): number;
+declare function messageWords(m: MessageDto): string;
+declare function messageText(m: MessageDto): string;
+/** Words cut after a whole word, with an ellipsis, when they run past `max`; whole when they fit. */
+declare function clipAtWord(text: string, max: number): string;
+
+/**
+ * Who sent one of our messages: the receptionist, the team, or the broadcast or playbook run that sent it, and
+ * a chat row's line saying who had the last word. The Inbox (inbox-thread.ts) and Conversations
+ * (conversation-vm.ts) say it in these words.
+ */
+
+interface MessageAuthor {
+    kind: "receptionist" | "team" | "broadcast" | "playbook";
+    /** How a bubble names them: "the receptionist", "your team", "a broadcast (Spring offer)". */
+    words: string;
+}
+/**
+ * Which run sent one of our messages, read off the row the send wrote (core messages/broadcast.ts): a playbook's run,
+ * named for its playbook, or a broadcast someone sent, named for itself. Null for every other message. The thread's
+ * bubble, `messageAuthor` and a person's page read it here, and nowhere else reads the meta.
+ */
+declare function messageVia(m: Pick<MessageDto, "meta">): {
+    kind: "broadcast" | "playbook";
+    name: string;
+} | null;
+/**
+ * Who sent one of our messages, in the words the Inbox and Conversations both use.
+ *
+ * A person's reply is the team's: the row does not record which member sent
+ * it, and the Inbox said "by you" for all of them. A broadcast or a playbook
+ * run is named from the run. The customer's words and a call note have no
+ * author here.
+ */
+declare function messageAuthor(m: MessageDto): MessageAuthor | null;
+
+/**
+ * Why a person is needed on a thread: the escalation as the wire gives it, each reason's label for a row, and
+ * the sentence the operator reads first. The Inbox's thread (inbox-thread.ts) and Today read them here.
+ */
+interface EscalationDto {
+    id: string;
+    reason: string;
+    details: string | null;
+    state: "open" | "resolved";
+    created_at: string;
+}
+declare const ESCALATION_REASON_LABELS: Record<string, string>;
+
+/**
+ * The Inbox's thread view model: the shape the thread and its row draw (`InboxThreadVM`). Types only; the
+ * mapping that builds it is inbox-thread.ts.
+ */
+
+interface InboxThreadVM {
+    id: string;
+    real: true;
+    conversationId: string;
+    /** The contact behind the thread — where "Open client" goes now that People is real. */
+    clientId: string | null;
+    escalationId: string | null;
+    windowOpen: boolean;
+    /** The customer asked to stop receiving messages. Stronger than a closed
+     *  24h window: an approved template can't reach them either. */
+    optedOut: boolean;
+    /** They said yes to offers, so a promotional template may go to them: the composer offers only what can send (I4). */
+    offersOk: boolean;
+    /** The owner's proposal link for this person (00154), or null: the header's Actions put it in the reply. */
+    proposalUrl: string | null;
+    who: string;
+    whoMeta: string;
+    avatar: string;
+    state: "escalated" | "snoozed" | "done";
+    takenOver: boolean;
+    /** A teammate has this thread: the page names them and offers no take-over. */
+    claimedByOther: boolean;
+    /** Who has it, when someone does -- the page names them from the team. */
+    assigneeUserId: string | null;
+    /**
+     * The customer's own words beside the decision: what they last wrote, quoted,
+     * or what the call left behind for a call back. Null when nothing is being decided.
+     * `kind` says which: a call back's is the thread's own sentence (`summary`), so the
+     * band does not say it again beneath; the row and its search still read `text`.
+     */
+    ask: {
+        kind: "call" | "wrote" | "sent";
+        label: string;
+        text: string;
+        quoted: boolean;
+    } | null;
+    /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
+    archived: boolean;
+    /**
+     * A quiet thread's one line: who had the last word, in the words Conversations uses, and whether a reply
+     * didn't send. Null unless the thread is Handled and not archived. Every quiet thread read "Answered by the
+     * receptionist — no one asked for you", over a customer who wrote last and a reply that never left (I1).
+     */
+    lastWord: {
+        text: string;
+        tone: "ok" | "plain" | "warn" | "danger";
+        short: string | null;
+    } | null;
+    /**
+     * This thread is waiting on a human, and no human has it yet.
+     *
+     * THE definition of "needs you", emitted once. It was previously re-derived
+     * in the Inbox JSX and separately approximated by /metrics' escalations_open,
+     * which Today then dispatched over the top of the Inbox's number to "correct"
+     * it — two rules that disagree whenever an escalation is open on a thread
+     * someone has already claimed, racing to write the same badge.
+     */
+    needsYou: boolean;
+    /**
+     * The receptionist's reply, written and waiting out its veto window.
+     *
+     * Lifted to the thread so the pane can offer the controls without scanning
+     * the timeline for them — and so "is there still something I can stop?" is a
+     * single truthy check rather than a search that could miss.
+     */
+    heldDraft: {
+        messageId: string;
+        body: string;
+        sendsAtMs: number;
+    } | null;
+    /**
+     * The SAME shape the mockup's VetoBar and Composer already read.
+     *
+     * The design for this existed before the backend did — a countdown, Edit /
+     * Hold / Take over, and a composer pre-filled with the draft. Mapping the
+     * real held reply onto it means the feature arrives as the product was
+     * drawn, rather than as a second control that looks nothing like it.
+     *
+     * `endsAtMs` is the SERVER's deadline. The mockup runs its own countdown in
+     * VW_STORE and fabricates the send at zero; on a real thread the job fires
+     * server-side and the UI only reports what is already true.
+     */
+    veto?: {
+        window: number;
+        draft: string;
+        endsAtMs: number;
+        messageId: string;
+        why?: ReplyWhyVM;
+    };
+    /** The channels the thread has actually used: "whatsapp", "phone", or both. */
+    channels: string[];
+    primaryChannel: "whatsapp" | "phone" | "sms" | "email";
+    /** That channel in the words a reply box names it by: "WhatsApp", "Text", "Email". One map, so a new wire is one entry and not a ternary per screen. */
+    replyVia: string;
+    /** A WhatsApp thread exists. False for a caller who has only ever phoned: no reply window, phone verbs. */
+    hasChat: boolean;
+    /** The number to call back, E.164, when known. */
+    phone: string | null;
+    /** That number as people read it, "+1 (917) 555-0106": the composer said "+19175550106" under a header that did not (I4). */
+    phoneDisplay: string | null;
+    /** How long the request has waited, in the one family every surface reads ("57m", "2h"). */
+    waited?: string;
+    /** Who answers, by name and glyph -- and nothing it was never given: an autonomy line and a voice were written into every thread, and the rail said them. */
+    agent: {
+        name: string;
+        glyph: string;
+    };
+    /** Why a person is needed, as the list's row says it: the reason's label, or empty when nobody is. */
+    subject: string;
+    /** The last thing that happened: the newest message that came in or reached them, never a draft. */
+    preview: string;
+    summary: string;
+    lastAt: string;
+    lastAtFull: string;
+    /** Absolute times, epoch ms, for anything that must not drift with the
+     *  clock — the bell keys its read state on them. */
+    lastAtMs: number;
+    escalatedAtMs?: number;
+    unread: boolean;
+    pinned: false;
+    value?: number;
+    tags: string[];
+    confidence?: number;
+    priority: "P2";
+    waitingMin?: number;
+    wake?: string;
+    timeline: Array<{
+        type: "msg";
+        from: "client" | "agent";
+        channel: string;
+        at: string;
+        body: string;
+        /** An email's subject line; absent on every other wire. */
+        subject?: string;
+        /** The chain an email quoted back at us, when it did: kept, and shown on a tap. */
+        quoted?: string;
+        /** What an email carried that is not shown: files whose names alone were kept, words past the bound (emailLeftOutOf). */
+        leftOut?: string;
+        /** The attachment, when the message is one. */
+        media?: MediaVM;
+        /** Why the receptionist said it, when the row remembers. */
+        why?: ReplyWhyVM;
+        byYou?: boolean;
+        /** Who sent it, when a person or a run did, in the words Conversations uses: "your team", "a broadcast (…)". */
+        byWords?: string;
+        /** Sent by a broadcast, not typed: the name the owner gave it. */
+        via?: {
+            kind: "broadcast" | "playbook";
+            name: string;
+        };
+        status?: string;
+        /** "Didn't send", "Canceled before sending", "Read" (messageStatusLabel). */
+        statusLabel?: string;
+        /** False when these words never reached the customer: the page dashes them, as Conversations does. */
+        reachedCustomer?: boolean;
+        /** The message's own id, on every bubble: a call's note finds its call by it, and a link opens the thread there. */
+        messageId?: string;
+        /** Written but NOT sent — sitting out its veto window. */
+        pending?: true;
+        /** When it fires, epoch ms. Drives the countdown. */
+        sendsAtMs?: number;
+        /** Per-bubble attribution — a phone summary is not the WhatsApp agent. */
+        agentName?: string;
+        agentGlyph?: string;
+    } | {
+        type: "event";
+        kind: string;
+        at: string;
+        body: string;
+    }>;
+}
+
+/**
+ * Where a thread sits and who owes it work — the single implementation.
+ *
+ * Exported so the sidebar badge and Today's brief can agree without either one
+ * re-deriving it. /metrics' `escalations_open` is NOT this number: it counts
+ * open escalations, including ones a teammate has already claimed, so it reads
+ * high exactly when someone is doing the work.
+ */
+declare function threadStanding(dto: ConversationDto, escalation: EscalationDto | null, now?: Date): {
+    state: InboxThreadVM["state"];
+    takenOver: boolean;
+    needsYou: boolean;
+    claimedByOther: boolean;
+};
+declare function toInboxThreadVM(dto: ConversationDto, escalation: EscalationDto | null, 
+/** The workspace's zone: every time in the thread is said by its clock. */
+tz: string, now?: Date): InboxThreadVM;
+
+/**
+ * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
+ * DTOs into the exact shapes the mockup surfaces render. Fed fields only —
+ * nothing invented: summaries are factual lines, never fabricated analysis.
+ *
+ * This module is the Conversations page's row and transcript (`toConversationVM`). The Inbox's thread is
+ * inbox-thread.ts and a call's row call-vm.ts; the wire they read is thread-dto.ts, and the words they share
+ * are the thread-* and message-* modules beside them.
+ */
+
+interface ConversationMessageVM {
+    from: "client" | "agent";
+    /** Where it happened. A call note is not a WhatsApp bubble, and the
+     *  viewer must not draw it as one -- and neither is a text or an email. */
+    channel: "whatsapp" | "sms" | "email" | "phone";
+    at: string;
+    text: string;
+    /** The attachment, when the message is one. */
+    media?: MediaVM;
+    /** Why the receptionist said it, when the row remembers. */
+    why?: ReplyWhyVM;
+    /** Who sent it, for our messages: "the receptionist", "your team", "a broadcast (Spring offer)",
+     *  "the Win-back playbook" (messageAuthor). Absent for the customer's words and a call note. */
+    by?: string;
+    /** "Canceled before sending", "Sending…" — absent when there is nothing to
+     *  say, which for an ordinary sent message is the honest answer. */
+    statusLabel?: string;
+    /** False when these words never reached the customer. The bubble must not
+     *  read as part of the conversation, because it was not. */
+    reachedCustomer?: boolean;
+}
+interface ConversationVM {
+    id: string;
+    who: string;
+    /** First name, or the whole thing when it is a number. */
+    whoShort: string;
+    initials: string;
+    clientId: string | null;
+    /** The Inbox thread this chat is: `th-` and the conversation's id, the id the Inbox routes by. */
+    threadId: string;
+    /** Who sent the last message that reached them, when it was ours; null when they wrote last. */
+    answeredBy: MessageAuthor["kind"] | null;
+    /** The wire this conversation's words travelled: the last written one, or the phone when that is all there is. */
+    channel: "whatsapp" | "sms" | "email" | "phone";
+    agent: {
+        glyph: string;
+        name: string;
+    };
+    at: string;
+    outcome: "escalated" | "handled" | "open";
+    snippet: string;
+    summary: {
+        headline: string;
+        bullets: string[];
+    };
+    messages: ConversationMessageVM[];
+    /** Epoch ms of the previewed message — the SORT key. Rows were being
+     *  ordered by localeCompare on display strings ("Aug 26" vs "3:22 AM"),
+     *  which is not an ordering at all. */
+    ts: number;
+    live?: boolean;
+    /** False when the customer has only ever phoned. Their calls already have
+     *  their own rows, so a chat row with nothing to preview is pure duplication. */
+    hasChat: boolean;
+}
+declare function toConversationVM(dto: ConversationDto, tz: string, now?: Date): ConversationVM;
+
+interface CallVM {
+    id: string;
+    real: true;
+    callId: string;
+    who: string;
+    whoShort: string;
+    initials: string;
+    clientId: string | null;
+    channel: "phone";
+    agent: {
+        glyph: string;
+        name: string;
+    };
+    at: string;
+    duration?: string;
+    ts: number;
+    /** live: in progress under the heartbeat rule · missed: the dial never
+     *  connected (Retell's not_connected) · handled: everything else. */
+    outcome: "live" | "handled" | "missed" | "callback" | "abandoned";
+    live?: boolean;
+    snippet: string;
+    summary: {
+        headline: string;
+        bullets: string[];
+    };
+    /** Each line with its moment in the call, in seconds: where it starts and where it ends (null for a whisper, which
+     *  is not a sound in the recording). The thread plays from a line and lights the one being said by these. */
+    transcript: Array<{
+        t: string;
+        speaker: "agent" | "client" | "whisper";
+        text: string;
+        start: number | null;
+        end: number | null;
+    }>;
+    /** The call's length in seconds: the player's track before the audio says its own. */
+    durationSec: number | null;
+    recordingState: "ready" | "pending" | "failed" | "purged" | "none";
+    recordingUrl?: string;
+    threadId?: string;
+    /** The note this call left on its thread (a call_summary message): the thread draws the call there. */
+    messageId?: string;
+    direction: "inbound" | "outbound";
+    /** It never connected. */
+    missed: boolean;
+    /** What the call was about: what the caller wanted, in the analysis's plain words, or the provider's first sentence.
+     *  Null when it never connected or nothing was said about it -- never a sentence saying there is no sentence. */
+    about: string | null;
+    /** How it went, a few words each: how the caller sounded, how it ended, why there is no recording to play. The call
+     *  card's one quiet line. */
+    facts: string[];
+}
+/** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
+declare function spokenDuration(ms: number | null): string;
+declare function toCallVM(dto: CallDto, tz: string, now?: Date): CallVM;
 
 /**
  * How long a workspace's yeses take (0004, 0008 amended): the one rule Reports' median and the workspace's pace both
@@ -17018,7 +17111,7 @@ interface ChannelVM {
  *
  * Three maps look like this one and answer different questions, deliberately:
  * `REPORT_CHANNELS` (reports.ts) labels a MEASUREMENT ("Calls", not "Phone
- * line"); `THREAD_CHANNEL_WORDS` (viewmodels.ts) and `PERSON_CHANNEL_WORDS`
+ * line"); `THREAD_CHANNEL_WORDS` (thread-channel.ts) and `PERSON_CHANNEL_WORDS`
  * (people.ts) label what a MESSAGE arrived on; the Connections titles name the
  * product ("WhatsApp Business"). This one names the wire.
  */

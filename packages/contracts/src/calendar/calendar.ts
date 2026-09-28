@@ -16,7 +16,8 @@ import { agoWords, timezoneCity } from "../shared/time";
  * closures ahead, the booking rules, the services and how long they take.
  * Pure; tests feed fixtures.
  */
-import { DAYS, hoursRuns, type BookingRules, type Closure, type Hours } from "../config/config";
+import { DAYS, type BookingRules, type Closure, type Hours } from "../config/workspace-config/business-profile";
+import { hoursRuns } from "../config/workspace-config/prompt-hours";
 import { waWindow } from "../config/policy";
 import {
   BOOKING_DEFAULTS,
