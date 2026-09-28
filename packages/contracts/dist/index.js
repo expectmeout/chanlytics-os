@@ -8096,8 +8096,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z22] = m;
-  if (z22) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z23] = m;
+  if (z23) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -9632,6 +9632,11 @@ var EVENT_KINDS = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -21384,6 +21389,21 @@ function bellActionOf(row2, readings) {
   return r2 && !r2.undone && drafted(r2) ? "Read the draft" : row2.action;
 }
 
+// src/reach-out/reach-out-booked.ts
+var BOOKED_SEEN_CAP = 500;
+function bookedSeenOf(items, own) {
+  const out = [];
+  const byStart = [...items].sort((a, b) => a.start - b.start);
+  for (const it of byStart) {
+    const c = extractContacts(it, own);
+    const start = new Date(it.start).toISOString();
+    for (const email of c.emails) out.push({ email, start });
+    for (const phone of c.phones) out.push({ phone, start });
+    if (out.length >= BOOKED_SEEN_CAP) break;
+  }
+  return out.slice(0, BOOKED_SEEN_CAP);
+}
+
 // src/reports/campaign-report.ts
 var sum2 = (xs) => xs.reduce((a, b) => a + b, 0);
 var pct2 = (n, d) => d ? Math.round(n / d * 100) : null;
@@ -23446,7 +23466,7 @@ var SCHEMA_SETS = {
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
   "partner_reversals_waiting.kind": ["refund", "dispute", "dispute_won"],
-  "partner_tenants.origin": ["link", "handover"],
+  "partner_tenants.origin": ["link", "handover", "invite"],
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],
@@ -23518,6 +23538,7 @@ var ROUTE_KEYS = [
   "DELETE segments/[id]",
   "DELETE sending-domains/[id]",
   "DELETE team/[id]",
+  "DELETE team/partner",
   "DELETE templates/[id]",
   "GET activity",
   "GET ask/openings",
@@ -23557,6 +23578,7 @@ var ROUTE_KEYS = [
   "GET metrics",
   "GET notifications",
   "GET partner",
+  "GET partner/invitations",
   "GET partner/workspaces",
   "GET platform/overview",
   "GET platform/tenants/[id]",
@@ -23572,6 +23594,7 @@ var ROUTE_KEYS = [
   "GET settings",
   "GET setup",
   "GET team",
+  "GET team/partner",
   "GET templates",
   "GET today",
   "GET views",
@@ -23643,6 +23666,8 @@ var ROUTE_KEYS = [
   "POST messages/[id]/cancel-send",
   "POST messages/[id]/steer",
   "POST partner",
+  "POST partner/invitations/[id]/accept",
+  "POST partner/invitations/[id]/decline",
   "POST partner/workspaces",
   "POST partner/workspaces/[id]/resend",
   "POST platform/lines/refile",
@@ -23668,6 +23693,7 @@ var ROUTE_KEYS = [
   "POST settings/receptionist",
   "POST setup/request",
   "POST team/invite",
+  "POST team/partner",
   "POST templates",
   "POST templates/draft",
   "POST templates/starter",
@@ -26978,10 +27004,10 @@ var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -27000,7 +27026,7 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -27018,9 +27044,9 @@ function shareWords(shareBp) {
   return `${shown}% of what it pays for its plan`;
 }
 function broughtWords(count2) {
-  if (count2 <= 0) return "No workspace has come through your link yet.";
-  if (count2 === 1) return "1 workspace came through your link.";
-  return `${count2} workspaces came through your link.`;
+  if (count2 <= 0) return "No workspace has you as its partner yet.";
+  if (count2 === 1) return "1 workspace has you as its partner.";
+  return `${count2} workspaces have you as their partner.`;
 }
 var dayWords2 = (at2) => new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 function sumWords(rows, state) {
@@ -27118,7 +27144,7 @@ function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "act
   const needs = rows.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
   const parts2 = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
   if (needs) parts2.push(`${needs} need${needs === 1 ? "s" : ""} you`);
-  return { rows, summary: total ? parts2.join(" \xB7 ") : "No workspace has come through your link yet." };
+  return { rows, summary: total ? parts2.join(" \xB7 ") : broughtWords(0) };
 }
 var PARTNER_STANDING_VERBS = {
   qualified: "Qualify",
@@ -27196,12 +27222,22 @@ var STANDING_LABELS = {
   review: "Under review",
   disqualified: "Disqualified"
 };
+var DECIDED_BY_WORDS = {
+  person: " (decided by a person)",
+  sweep: " (the nightly check)",
+  joining: " (as the partner joined)"
+};
+var BY_ORIGIN = {
+  link: (code2) => `Brought by ${code2}`,
+  handover: (code2) => `Set up and handed over by ${code2}`,
+  invite: (code2) => `${code2}, asked in by its owner`
+};
 function platformPartnerStanding(w) {
   const label = w.standing ? STANDING_LABELS[w.standing] ?? w.standing : "Not judged yet";
-  const whose = w.decided_by === "person" ? " (decided by a person)" : w.decided_by === "sweep" ? " (the nightly check)" : "";
+  const whose = (w.decided_by && DECIDED_BY_WORDS[w.decided_by]) ?? "";
   const why = w.standing ? w.standing_why ? `: ${w.standing_why}` : "" : ": judged once it has paid";
   return {
-    by: `Brought by ${w.code}`,
+    by: (BY_ORIGIN[w.origin ?? "link"] ?? BY_ORIGIN.link)(w.code),
     standing: `${label}${whose}${why}`,
     tone: w.standing === "review" ? "warn" : w.standing === "disqualified" ? "danger" : w.standing === "qualified" ? "ok" : "plain",
     choices: partnerStandingChoices(w.standing).map((s) => ({ standing: s, label: PARTNER_STANDING_VERBS[s] }))
@@ -27510,6 +27546,99 @@ var PartnerSecondFactorResetSchema = z21.object({
 function secondFactorResetWords(code2, removed) {
   return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
 }
+
+// src/workspace/partner-invite.ts
+import { z as z22 } from "zod";
+var PARTNER_INVITE_DAYS = 14;
+var CODE_IN_LINK = /\/p\/([a-z0-9-]+)/i;
+var AROUND_A_CODE = /^[^a-z0-9]+|[^a-z0-9]+$/gi;
+function partnerCodeFrom(raw) {
+  const typed = raw.trim();
+  const inLink = CODE_IN_LINK.exec(typed);
+  return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
+}
+var PartnerInviteSchema = z22.object({
+  code: z22.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
+var ORIGIN_WORDS = {
+  link: "came to you through their link",
+  handover: "set this workspace up for you",
+  invite: "joined at your invitation"
+};
+function workspacePartnerVM(dto, nowMs = Date.now()) {
+  const p = dto.partner;
+  if (p)
+    return {
+      state: "partner",
+      sentence: p.seated ? `${p.code} is your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}. Remove them in the team above at any time.` : `${p.code} was your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}, and are no longer on your team. A workspace has one partner.`,
+      canInvite: false,
+      canWithdraw: false
+    };
+  const i = dto.invitation;
+  if (!i) return { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+  if (i.declinedAt)
+    return {
+      state: "declined",
+      sentence: `${i.code} declined on ${dayWords2(i.declinedAt)}.`,
+      canInvite: true,
+      canWithdraw: false
+    };
+  if (Date.parse(i.expiresAt) <= nowMs)
+    return {
+      state: "expired",
+      sentence: `Your invitation to ${i.code} expired on ${dayWords2(i.expiresAt)}.`,
+      canInvite: true,
+      canWithdraw: false
+    };
+  return {
+    state: "waiting",
+    sentence: `Waiting for ${i.code} to accept: asked on ${dayWords2(i.sentAt)}, open until ${dayWords2(i.expiresAt)}.`,
+    canInvite: false,
+    canWithdraw: true
+  };
+}
+var partnerInvitationWords = (i) => `${i.workspace.trim() || "A workspace"} asks you to be its partner. Open until ${dayWords2(i.expiresAt)}.`;
+function partnerJoinedWords(workspace, earns) {
+  const name = workspace.trim() || "The workspace";
+  return earns ? `You're ${name}'s partner. When it pays for its plan, your share is written as for a workspace you brought.` : `You're ${name}'s partner. It was already paying when you joined, so it earns you no share; the owner's team is yours to help run.`;
+}
+function partnerInviteEmail(i) {
+  const workspace = i.workspace.trim() || "A workspace";
+  return {
+    subject: `${workspace} asks you to be its partner on Chanlytics`,
+    body: [
+      `${workspace} asked you to join its team as its partner: you'd set up and run its receptionist with its owner, and never touch its billing or its team.`,
+      "",
+      "A workspace that has not paid for a plan yet earns you your share once it does, as one you brought. One that was already paying earns you none.",
+      "",
+      `Sign in and open Settings \u203A Partner to join or decline: ${i.signInUrl}`,
+      "",
+      `Open until ${dayWords2(i.expiresAt)}. If you weren't expecting this, you can ignore it: nothing changes unless you join.`
+    ].join("\n")
+  };
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -27556,6 +27685,7 @@ export {
   BILLING_STATUSES,
   BILLING_TEST_MODE_CLAUSE,
   BILLING_TRIAL_DAYS,
+  BOOKED_SEEN_CAP,
   BOOKING_DEFAULTS,
   BOOKING_LINK_NEEDED,
   BOOKING_PLATFORM_HOSTS,
@@ -27927,6 +28057,8 @@ export {
   PARTNER_EARNING_KINDS,
   PARTNER_EARNING_STATES,
   PARTNER_HOLD_DAYS,
+  PARTNER_INVITE_DAYS,
+  PARTNER_INVITE_WORDS,
   PARTNER_REVERSAL_KINDS,
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_STANDINGS,
@@ -27999,6 +28131,7 @@ export {
   PUSH_TOKEN_MAX,
   PageContextSchema,
   PartnerBecomeSchema,
+  PartnerInviteSchema,
   PartnerLetterNewsSchema,
   PartnerLettersSchema,
   PartnerSecondFactorResetSchema,
@@ -28242,6 +28375,7 @@ export {
   billingPill,
   blockShareWords,
   bookedAfterAsk,
+  bookedSeenOf,
   bookingHeld,
   bookingLinkAction,
   bookingLinkOptional,
@@ -28782,9 +28916,13 @@ export {
   parseTenantConfigResult,
   parseTodayWidgetSnapshot,
   partialSay,
+  partnerCodeFrom,
   partnerCodeFromCookie,
   partnerEarningsWords,
   partnerHandoverVM,
+  partnerInvitationWords,
+  partnerInviteEmail,
+  partnerJoinedWords,
   partnerLetter,
   partnerLinkFor,
   partnerPaneUrl,
@@ -29228,6 +29366,7 @@ export {
   wordsIssueWords,
   wordsNeedOpening,
   workspaceHotkey,
+  workspacePartnerVM,
   writtenChannelOf,
   writtenOutDetail,
   yesWaitWords,

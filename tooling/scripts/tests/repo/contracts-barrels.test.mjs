@@ -19,6 +19,12 @@
  * under it) re-exports by name, so a new export is a line in a review and a name a module stops exporting is a build
  * error at the barrel, not a quiet change to the package's surface. The one `export *` a barrel may write is a
  * package root's re-export of a domain folder whose own barrel names its exports (contracts' and core's roots).
+ *
+ * And a module that is not called index.ts is held the same, since a module that re-exports its neighbours acts as a
+ * barrel whatever its name (the plan's "no export * outside a domain barrel"): `export *` appears nowhere in a
+ * package's or an app's source but at those roots, and in the edge's stand-in for each package
+ * (`apps/edge/lib/packages/<p>.ts`, the package's built entry under a relative path). A module names what is read
+ * through it, and nothing else.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -189,5 +195,60 @@ test("a package barrel names what it re-exports; its one export * is a root's re
     [],
     'name each export (export { a } from "./x", export type { T } from "./x"): an export * adds whatever the module ' +
       "exports next to the package's surface, unseen. A root may re-export a domain folder whose own index names its exports.",
+  );
+});
+
+/* ---- Every module, barrel or not ---- */
+
+/** Every package's and app's source, generated modules included: all but what is built, installed or served as is. */
+const everySource = repoFiles(["apps", "packages"], {
+  drop: /(^|\/)(dist|node_modules|\.next)\/|^apps\/[^/]+\/public\//,
+}).filter((f) => f.startsWith("apps/") || /^packages\/[^/]+\/src\//.test(f));
+
+/**
+ * The edge's stand-in for a package, `apps/edge/lib/packages/<p>.ts`, re-exports that package's built entry whole:
+ * the edge imports a package by relative path because Vercel's function bundler does not follow pnpm's workspace
+ * links (db.ts says so; docs/debt.md, "Committed dist"). It is the package itself under another path, and the
+ * package's own barrels name every export, so it is the one other `export *` there is.
+ */
+const PACKAGE_STAND_IN = /^apps\/edge\/lib\/packages\/([a-z0-9-]+)\.ts$/;
+const isPackageStandIn = (f, spec) => {
+  const m = PACKAGE_STAND_IN.exec(f);
+  return Boolean(
+    m && spec === `../../../../packages/${m[1]}/dist/index.js` && inPackages.has(`packages/${m[1]}/src/index.ts`),
+  );
+};
+
+test("the measure sees every package's and app's source, the shell and the phone app included", () => {
+  for (const tree of ["apps/dashboard/src/legacy/", "apps/dashboard/app/", "apps/edge/api/", "apps/mobile/"])
+    assert.ok(
+      everySource.some((f) => f.startsWith(tree)),
+      `${tree} is read`,
+    );
+  assert.ok(
+    everySource.includes(ROOT_INDEX) && everySource.includes("packages/core/src/index.ts"),
+    "the roots are read",
+  );
+  for (const p of packageNames)
+    assert.ok(everySource.includes(`apps/edge/lib/packages/${p}.ts`), `the edge's stand-in for ${p} is read`);
+});
+
+test("export * is written nowhere in a package's or an app's source but a root's for a domain folder and the edge's for a package", () => {
+  const bad = [];
+  for (const f of everySource) {
+    for (const s of parse(f).statements) {
+      if (!ts.isExportDeclaration(s) || !s.moduleSpecifier) continue;
+      if (s.exportClause && !ts.isNamespaceExport(s.exportClause)) continue;
+      const spec = s.moduleSpecifier.text;
+      if (!s.exportClause && isPackageRoot(f) && isDomainFolder(f, spec)) continue;
+      if (!s.exportClause && isPackageStandIn(f, spec)) continue;
+      bad.push(`${f}: ${s.exportClause ? `export * as ${s.exportClause.name.text}` : "export *"} from "${spec}"`);
+    }
+  }
+  assert.deepEqual(
+    bad,
+    [],
+    "a module that re-exports another is a barrel whatever its name: name what is read through it " +
+      '(export { a } from "./x", export type { T } from "./x"), and leave out what nobody reads there.',
   );
 });
