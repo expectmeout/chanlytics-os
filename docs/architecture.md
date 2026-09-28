@@ -304,7 +304,7 @@ They live under `src/legacy/demo/`, with the seeded twin of each real page
 Lists and the seed data only they read, and a real workspace never downloads
 them: `src/legacy-bridge/manifest-demo.ts` lists them, and `manifest.ts` asks
 for it, after its own files, only in a declared demo session. The shell's route names
-and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
+and the API's nouns do not all agree yet; `docs/glossary.md` lists them.
 
 ## What is where
 
@@ -500,5 +500,5 @@ four not built that change the shape of the system: a channel-neutral inbound
 pipeline (0001), an appointment as a first-class record (0002), assignment for
 a team (0003), and the shell leaving surface by surface (0015, proposed). A deal
 as a record (0004) is built. Smaller and known: the shell's hash routes and the
-five route names, and `contracts` carrying view models that belong to the
-dashboard.
+API's old nouns (`docs/glossary.md` lists them), and `contracts` carrying view
+models that belong to the dashboard.
