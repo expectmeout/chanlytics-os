@@ -7,7 +7,7 @@
  * name). A template Meta no longer has is deleted here anyway — the row was
  * the stale one. Sends that named it fail from now on, which is the point.
  */
-import { json } from "../../../lib/http.js";
+import { json, refuse } from "../../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
@@ -27,9 +27,9 @@ export async function POST(request: Request): Promise<Response> {
   if (body) body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body?.tenant_id === "string" ? body.tenant_id : "";
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
-  if (!UUID.test(tenantId) || !UUID.test(templateId)) return json(400, { ok: false, error: "bad_request" });
+  if (!UUID.test(tenantId) || !UUID.test(templateId)) return refuse(400, "bad_request");
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_db" });
+  if (!db) return refuse(503, "no_database");
 
   const { data: row } = await db
     .from("templates")
@@ -38,7 +38,7 @@ export async function POST(request: Request): Promise<Response> {
     .eq("tenant_id", tenantId)
     .eq("channel", "whatsapp")
     .maybeSingle();
-  if (!row) return json(404, { ok: false, error: "not_found" });
+  if (!row) return refuse(404, "not_found");
 
   const { data: ch } = await db
     .from("tenant_channels")
@@ -48,9 +48,9 @@ export async function POST(request: Request): Promise<Response> {
     .eq("status", "active")
     .limit(1)
     .maybeSingle();
-  if (!ch?.waba_id) return json(409, { ok: false, error: "no_waba" });
+  if (!ch?.waba_id) return refuse(409, "no_waba");
   const creds = await waCredentialsForTenant(db, tenantId);
-  if (!creds?.accessToken) return json(503, { ok: false, error: "no_token" });
+  if (!creds?.accessToken) return refuse(503, "no_token");
 
   // Meta's delete takes a name, and the template's own id NARROWS it to one
   // language. WITHOUT the id it removes every language of that name and locks
@@ -63,7 +63,12 @@ export async function POST(request: Request): Promise<Response> {
   // id for a template Meta never had.
   const gone = row.meta_id
     ? await deleteTemplate(creds.accessToken, ch.waba_id, row.name, row.meta_id)
-    : ({ ok: false, status: 404, error: "not synced: no template id on file, so Meta was not asked" } as const);
+    : ({
+        ok: false,
+        status: 404,
+        error: "not_found",
+        detail: "not synced: no template id on file, so Meta was not asked",
+      } as const);
   if (!row.meta_id)
     L.warn("wa_template_delete_unsynced", { tenant_id: tenantId, name: row.name, language: row.language });
   // Not found at Meta is a delete that already happened.
@@ -74,10 +79,10 @@ export async function POST(request: Request): Promise<Response> {
       status: gone.status,
       error: gone.error.slice(0, 300),
     });
-    return json(502, { ok: false, error: "meta_refused", detail: gone.error });
+    return refuse(502, "meta_refused", gone.error);
   }
   const { error } = await db.from("templates").delete().eq("id", row.id);
-  if (error) return json(500, { ok: false, error: "write_failed", detail: error.message });
+  if (error) return refuse(500, "write_failed", error.message);
   L.info("wa_template_deleted", { tenant_id: tenantId, name: row.name, language: row.language, at_meta: gone.ok });
   return json(200, { ok: true, id: row.id, name: row.name, at_meta: gone.ok });
 }

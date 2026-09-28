@@ -21,7 +21,7 @@
  * success body (which echoes the webhook URL) is never echoed.
  * Diagnostic-key only.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { edgeFnUrl } from "../../lib/lines/lines.js";
 import { pg } from "../../lib/pg.js";
@@ -76,14 +76,37 @@ function requestOf(body: Body): VoiceProvisionRequest {
   };
 }
 
+/**
+ * A step that failed: which, the status it was answered with, and what it was told (the provider's body, as text), with
+ * the plan and what was made so far. A step at the provider is `provider_refused`; the channel row, written last, is
+ * `write_failed`.
+ */
+function failedStep(
+  out: Record<string, unknown>,
+  result: Record<string, unknown>,
+  step: string,
+  status: number,
+  detail: unknown,
+): Response {
+  return json(status >= 500 ? 503 : 502, {
+    ...out,
+    ok: false,
+    error: step === "channel" ? "write_failed" : "provider_refused",
+    step,
+    status,
+    detail: typeof detail === "string" ? detail : JSON.stringify(detail),
+    result,
+  });
+}
+
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/voice-provision");
   if (!auth.ok) return auth.response;
   const apiKey = env.RETELL_API_KEY;
   const fnSecret = env.RETELL_FN_SECRET;
-  if (!apiKey || !fnSecret) return json(503, { ok: false, error: !apiKey ? "no_provider_key" : "no_fn_secret" });
+  if (!apiKey || !fnSecret) return refuse(503, !apiKey ? "no_provider_key" : "no_fn_secret");
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
 
   let body: Body = {};
   try {
@@ -97,12 +120,12 @@ export async function POST(request: Request): Promise<Response> {
   body.tenant_id = ws.tenantId ?? undefined;
   const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) {
-    return json(400, { ok: false, error: "tenant_id (a workspace id) is required" });
+    return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
   }
 
   const tenant = await db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle();
-  if (tenant.error) return json(503, { ok: false, error: tenant.error.message });
-  if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
+  if (tenant.error) return refuse(503, "read_failed", tenant.error.message);
+  if (!tenant.data) return refuse(404, "not_found", "no such workspace");
   const existing = await db
     .from("tenant_channels")
     .select("id, status, external_id, number_e164")
@@ -111,7 +134,7 @@ export async function POST(request: Request): Promise<Response> {
     .order("created_at")
     .limit(1)
     .maybeSingle();
-  if (existing.error) return json(503, { ok: false, error: existing.error.message });
+  if (existing.error) return refuse(503, "read_failed", existing.error.message);
 
   const req = requestOf(body);
   const plan = planVoiceProvision({
@@ -154,8 +177,7 @@ export async function POST(request: Request): Promise<Response> {
   const cfg = { apiKey };
   const secrets = { fnSecret };
   const result: Record<string, unknown> = {};
-  const fail = (step: string, status: number, detail: unknown) =>
-    json(status >= 500 ? 503 : 502, { ...out, ok: false, error: { step, status, detail }, result });
+  const fail = (step: string, status: number, detail: unknown) => failedStep(out, result, step, status, detail);
 
   // 1–3. The LLM, the agent, the first version published — created, reused, or adopted.
   const made = await createVoiceAgent(cfg, secrets, {

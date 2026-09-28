@@ -114,7 +114,7 @@ test("a mock brand cannot be deleted, so the messaging profile is what changes",
   const chan = readCode("packages/channels/src/a2p/brand-campaign.ts");
   assert.ok(chan.includes('Compliance/Usa2p/${campaignSid}`, method: "DELETE"'));
   assert.ok(
-    lib.includes("if (!gone) return { ok: false, error:"),
+    /if \(!gone\)\s*return \{\s*ok: false,\s*error: "provider_refused",/.test(lib),
     "a campaign that will not come off stops the refile",
   );
 });

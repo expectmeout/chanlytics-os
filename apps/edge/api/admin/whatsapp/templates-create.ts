@@ -9,7 +9,7 @@
  * reason) as the row's status, and hands Meta's own words back when it says
  * no, so the person can fix the message rather than guess.
  */
-import { json } from "../../../lib/http.js";
+import { json, refuse } from "../../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { waCredentialsForTenant } from "../../../lib/tenant-runtime.js";
@@ -59,12 +59,12 @@ export async function POST(request: Request): Promise<Response> {
           .slice(0, 40),
       )
     : [];
-  if (!UUID.test(tenantId)) return json(400, { ok: false, error: "bad_tenant" });
+  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant");
   if (!NAME.test(name) || !language || !["MARKETING", "UTILITY"].includes(category) || !components || !text) {
-    return json(400, { ok: false, error: "bad_template" });
+    return refuse(400, "bad_template");
   }
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_db" });
+  if (!db) return refuse(503, "no_database");
 
   const { data: ch } = await db
     .from("tenant_channels")
@@ -74,10 +74,10 @@ export async function POST(request: Request): Promise<Response> {
     .eq("status", "active")
     .limit(1)
     .maybeSingle();
-  if (!ch) return json(409, { ok: false, error: "no_channel" });
-  if (!ch.waba_id) return json(409, { ok: false, error: "no_waba" });
+  if (!ch) return refuse(409, "no_channel");
+  if (!ch.waba_id) return refuse(409, "no_waba");
   const creds = await waCredentialsForTenant(db, tenantId);
-  if (!creds?.accessToken) return json(503, { ok: false, error: "no_token" });
+  if (!creds?.accessToken) return refuse(503, "no_token");
 
   const made = await createTemplate(creds.accessToken, ch.waba_id, { name, language, category, components });
   if (!made.ok) {
@@ -87,7 +87,7 @@ export async function POST(request: Request): Promise<Response> {
       status: made.status,
       error: made.error.slice(0, 300),
     });
-    return json(502, { ok: false, error: "meta_refused", detail: made.error });
+    return refuse(502, "meta_refused", made.error);
   }
 
   const status = mapStatus(made.data.status);
@@ -118,7 +118,7 @@ export async function POST(request: Request): Promise<Response> {
     .upsert(row, { onConflict: "tenant_id,channel,name,language" })
     .select("id")
     .single();
-  if (error || !saved) return json(500, { ok: false, error: "write_failed", detail: error?.message });
+  if (error || !saved) return refuse(500, "write_failed", error?.message);
   L.info("wa_template_created", { tenant_id: tenantId, name, language, status, meta_id: made.data.id });
   return json(200, { ok: true, id: saved.id, meta_id: made.data.id, meta_status: status });
 }

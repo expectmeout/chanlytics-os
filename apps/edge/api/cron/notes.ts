@@ -10,7 +10,7 @@
  * NOTE_SUGGESTIONS=off stops it without a deploy of the database: the clock still asks, and this answers that it is
  * off. Auth: the shared cron secret, as every sweep (lib/cron-auth.ts).
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { env } from "../../lib/env.js";
@@ -22,7 +22,7 @@ export async function POST(request: Request): Promise<Response> {
   const db = pg();
   if (!db) {
     L.error("notes_no_db");
-    return json(503, { ok: false, error: "no_database" });
+    return refuse(503, "no_database");
   }
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;

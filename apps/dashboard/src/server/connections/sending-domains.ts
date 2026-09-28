@@ -5,7 +5,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
-import { AppError, sendingDomainDtoOf, type SendingDomainDto } from "@chanlytics/contracts";
+import { AppError, sendingDomainDtoOf, type EdgeErrorCode, type SendingDomainDto } from "@chanlytics/contracts";
 import { edgeConfigured, edgeHeaders, edgeUrl, READY_TTL_MS } from "../edge";
 import { deployment } from "../deployment";
 import type { EdgeAnswer } from "./lines";
@@ -72,7 +72,11 @@ export function forgetDomainsReadiness(): void {
   readyCache = null;
 }
 
-/** The edge's refusals, in the owner's words; the door's own sentence when it gave one. */
+/**
+ * The edge's refusals, in the owner's words; the door's own sentence when it gave one. Each case the edge answers is
+ * one of its codes (contracts' EdgeErrorCode), so a code it renames or drops stops this compiling; `preview` is this
+ * module's own (edgeDomains).
+ */
 function refusal(a: EdgeAnswer, doing: string): AppError {
   const b = a.body ?? {};
   const error = typeof b.error === "string" ? b.error : "failed";
@@ -81,20 +85,20 @@ function refusal(a: EdgeAnswer, doing: string): AppError {
     // Not the domain typed: the mail account behind it is not here. Its own code, so a form says it in a toast.
     case "preview":
       return new AppError("upstream_email", "Domains can't be added or checked from a preview.", 503);
-    case "no_cold_key":
+    case "no_cold_key" satisfies EdgeErrorCode:
       return new AppError("upstream_email", "Sending from your own domain isn't switched on here yet.", 503);
-    case "invalid":
+    case "invalid" satisfies EdgeErrorCode:
       return new AppError("validation", said ?? "That can't be a domain to send from.", 400);
     // Resume's three (00176) are conflicts too: a hold the records lift, a domain not held, a row that moved; and a hold
     // that is the platform's to lift, or a domain removed while so held (D16).
-    case "too_many":
-    case "host_taken":
-    case "dns_hold":
-    case "not_held":
-    case "moved":
-    case "platform_hold":
+    case "too_many" satisfies EdgeErrorCode:
+    case "host_taken" satisfies EdgeErrorCode:
+    case "dns_hold" satisfies EdgeErrorCode:
+    case "not_held" satisfies EdgeErrorCode:
+    case "moved" satisfies EdgeErrorCode:
+    case "platform_hold" satisfies EdgeErrorCode:
       return new AppError("conflict", said ?? "That domain can't be added.", 409);
-    case "not_found":
+    case "not_found" satisfies EdgeErrorCode:
       return new AppError("not_found", "That domain isn't this workspace's.", 404);
     default:
       return new AppError("internal", said ?? `The domain could not be ${doing}. Try again in a minute.`, 502);

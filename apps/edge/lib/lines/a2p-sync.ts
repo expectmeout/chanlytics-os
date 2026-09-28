@@ -6,7 +6,7 @@
  * a2p-register.ts.
  */
 import { smsStateFor, registrationVerdict, refusalWords, type CampaignError } from "../packages/channels.js";
-import { formatPhoneDisplay } from "../packages/contracts.js";
+import { formatPhoneDisplay, type EdgeErrorCode } from "../packages/contracts.js";
 import { emitEvent } from "../packages/db.js";
 import { recordNotification } from "../ops/notify.js";
 import { lineProviderFromEnv } from "./lines.js";
@@ -15,11 +15,19 @@ import type { Db, LineRow } from "./a2p-register.js";
 
 const SYNC_READ_MS = 15000;
 
+/** Where the carriers stand, as the sync read it; a sync that could not ask says why in `error`, and how in `detail`. */
+export type RegistrationSync = {
+  ok: boolean;
+  smsState: string;
+  brand?: string;
+  campaign?: string;
+  error?: EdgeErrorCode;
+  detail?: string;
+  told?: boolean;
+};
+
 /** Ask Twilio where the brand and the campaign stand, and write it to the row. */
-export async function syncRegistration(
-  db: Db,
-  line: LineRow,
-): Promise<{ ok: boolean; smsState: string; brand?: string; campaign?: string; error?: string; told?: boolean }> {
+export async function syncRegistration(db: Db, line: LineRow): Promise<RegistrationSync> {
   const choice = lineProviderFromEnv();
   if (!choice || choice.name !== "twilio") return { ok: false, smsState: line.sms_state, error: "no_provider" };
   const basic = (a: { sid: string; token: string }) => `Basic ${Buffer.from(`${a.sid}:${a.token}`).toString("base64")}`;
@@ -68,14 +76,12 @@ export async function syncRegistration(
   let answers = await ask(sub);
   if (refused(answers)) {
     const fresh = await refreshLineToken(db, line);
-    if (!fresh.ok || !fresh.account) {
+    if (!fresh.ok) {
       await db
         .from("lines")
-        .update({
-          last_error: `could not read the registration: ${fresh.error ?? "the provider refused our credentials"}`,
-        })
+        .update({ last_error: `could not read the registration: ${fresh.detail ?? fresh.error}` })
         .eq("id", line.id);
-      return { ok: false, smsState: line.sms_state, error: fresh.error ?? "provider_unauthorized" };
+      return { ok: false, smsState: line.sms_state, error: fresh.error, detail: fresh.detail };
     }
     answers = await ask(fresh.account);
     if (refused(answers)) {

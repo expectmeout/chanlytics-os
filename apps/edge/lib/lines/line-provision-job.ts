@@ -31,7 +31,10 @@ import { env } from "../env.js";
 interface LineProvisionOutcome {
   ok: boolean;
   step?: string;
+  /** A code where this run stopped it (no provider, no workspace, the resumes spent); the saga's own words otherwise. */
   error?: string;
+  /** What a coded stop says, for the ledger (api/jobs/tick.ts hands it to core as the stop's words). */
+  detail?: string;
   /** The run stopped at its deadline with steps left: the job hands the rest to the next one. */
   more?: boolean;
   /** What the run did, for the log: ran, resumed, nothing (and why). */
@@ -79,7 +82,8 @@ export async function provisionLineJob(
 
   const tenant = await db.from("tenants").select("id, name").eq("id", line.tenant_id).maybeSingle();
   if (tenant.error) throw new Error(`line_provision: ${tenant.error.message}`);
-  if (!tenant.data) return { ok: false, error: "no such workspace", did: "nothing", why: "no workspace" };
+  if (!tenant.data)
+    return { ok: false, error: "not_found", detail: "no such workspace", did: "nothing", why: "no workspace" };
 
   let did: LineProvisionOutcome["did"] = "ran";
   if (line.voice_state === "failed") {
@@ -90,7 +94,8 @@ export async function provisionLineJob(
       return {
         ok: false,
         step: line.step ?? undefined,
-        error: "automatic resumes exhausted; a person retries it from Setup",
+        error: "line_resumes_exhausted",
+        detail: "automatic resumes exhausted; a person retries it from Setup",
         did: "nothing",
         why: "exhausted",
       };
@@ -108,7 +113,8 @@ export async function provisionLineJob(
       return {
         ok: false,
         step: taken.step ?? undefined,
-        error: `counting the automatic resume: ${counted.error}`,
+        error: "write_failed",
+        detail: `counting the automatic resume: ${counted.error}`,
         did: "nothing",
         why: "count unwritten",
       };

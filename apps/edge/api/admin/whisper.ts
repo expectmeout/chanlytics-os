@@ -12,7 +12,7 @@
  * role door has been checked there. The provider key lives here, so this is
  * where the provider is spoken to. Body: { call_id, text, trigger }.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { updateLiveCall } from "../../lib/packages/channels.js";
 import { frameWhisper } from "../../lib/packages/contracts.js";
@@ -27,7 +27,7 @@ const MAX_CHARS = 500;
 export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/whisper");
   if (!auth.ok) return auth.response;
-  if (!env.RETELL_API_KEY) return json(503, { ok: false, error: "no_provider_key" });
+  if (!env.RETELL_API_KEY) return refuse(503, "no_provider_key");
 
   let body: { call_id?: string; text?: string; trigger?: boolean } = {};
   try {
@@ -38,7 +38,7 @@ export async function POST(request: Request): Promise<Response> {
   const callId = String(body.call_id || "");
   const text = String(body.text || "").trim();
   if (!/^call_[A-Za-z0-9]{8,}$/.test(callId) || !text || text.length > MAX_CHARS) {
-    return json(400, { ok: false, error: "call_id + text (1-500 chars) required" });
+    return refuse(400, "bad_request", "call_id + text (1-500 chars) required");
   }
 
   const r = await updateLiveCall(

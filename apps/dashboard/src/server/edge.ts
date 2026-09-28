@@ -35,6 +35,16 @@ export function edgeConfigured(): boolean {
   return !!(process.env.EDGE_CALL_SECRET || process.env.DIAG_KEY);
 }
 
+/**
+ * What an edge refusal says, for a route that shows it as it is: its words (`detail`) when it carries them, else its
+ * code (`error`), else null. The edge's `error` is a code (contracts' EDGE_ERROR_CODES) and the sentence a person or
+ * support reads rides in `detail`; an edge from before that answered the sentence in `error`, which this reads too.
+ */
+export function edgeRefusalWords(body: Record<string, unknown> | null | undefined): string | null {
+  if (typeof body?.detail === "string") return body.detail;
+  return typeof body?.error === "string" ? body.error : null;
+}
+
 /** The headers a call to the door at `aud` carries. */
 export function edgeHeaders(
   aud: string,
