@@ -46,6 +46,32 @@ function cell(row, col) {
   return row[col];
 }
 
+/**
+ * A select that names a JSON path the way PostgREST spells one there -- `alias:column->key`, or `column->key`, named
+ * for its key -- answers with exactly the columns it names: a path's value under its name, null where the row holds no
+ * such key, as `->` answers. Modelled for Ask's thread read (store.ts readThread), which reads each key of a turn it
+ * draws and never the turn as the model was sent it (content.raw). A select that names no path answers whole rows, as
+ * it always has here; any other spelling beside a path is refused by name. Null when the select names no path.
+ */
+function projectionOf(columns) {
+  if (typeof columns !== "string" || !columns.includes("->")) return null;
+  const picks = columns
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .map((spec) => {
+      const m = /^(?:(\w+):)?(\w+)(?:->(\w+))?$/.exec(spec);
+      if (!m) throw new Error(`fakeDb: select(${spec}) is not modelled`);
+      const [, alias, column, key] = m;
+      if (key === undefined) return [alias ?? column, (row) => row[column]];
+      return [
+        alias ?? key,
+        (row) => (row[column] && typeof row[column] === "object" ? (row[column][key] ?? null) : null),
+      ];
+    });
+  return (row) => Object.fromEntries(picks.map(([name, read]) => [name, read(row)]));
+}
+
 /** jsonb's order for an object's keys: the shorter first, then by their bytes. */
 const byJsonbKey = (a, b) =>
   Buffer.byteLength(a) - Buffer.byteLength(b) || Buffer.compare(Buffer.from(a), Buffer.from(b));
@@ -414,8 +440,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
         // limit and its range, whatever it asked for. The Inbox asked for 4,000 messages and got 1,000, silently.
         if (opts.maxRows != null) out = out.slice(0, opts.maxRows);
         // Deliberately a copy: the sweep must not be able to mutate the ledger
-        // by holding on to a row it read.
-        return { data: out.map((r) => ({ ...r })), error: null, count: q.counted ? matched : null };
+        // by holding on to a row it read. A select that names a JSON path answers
+        // the columns it names (projectionOf).
+        const project = projectionOf(q.columns) ?? ((r) => ({ ...r }));
+        return { data: out.map(project), error: null, count: q.counted ? matched : null };
       }
 
       // A delete removes what matches, in place, and counts it when asked:

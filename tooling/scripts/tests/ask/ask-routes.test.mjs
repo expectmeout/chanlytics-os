@@ -1170,3 +1170,131 @@ test("the database in memory keeps a column named jsonb as jsonb keeps it: what 
     .eq("id", "b");
   assert.equal(world.t[0].content.a, JSON.stringify(input), "a string comes back as it went");
 });
+
+/**
+ * Every read of a turn's rows `ctx` made: none of the whole content and none of the raw turn, each key of a turn it
+ * reads by its JSON path (PostgREST's alias:column->key).
+ */
+function readByPath(ctx) {
+  const reads = ctx.supabase.seen.filter((q) => q.table === "ask_messages" && q.op === "select");
+  assert.ok(reads.length > 0, "the turns were read");
+  for (const { columns } of reads) {
+    const cols = columns.split(",").map((c) => c.trim());
+    assert.ok(!cols.includes("content") && !cols.includes("*"), `never the whole content: ${columns}`);
+    assert.ok(!columns.includes("raw"), `never the raw turn: ${columns}`);
+    assert.ok(
+      cols.filter((c) => c.includes("content")).every((c) => /^\w+:content->\w+$/.test(c)),
+      `each key by its path: ${columns}`,
+    );
+  }
+}
+
+test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET ask/threads/[id] and the history a follow-up is asked with read each key of a turn they read by its JSON path, never the whole content, and answer what the whole rows give, byte for byte; a card's outcome recorded later writes the row back whole, the raw turn beside it", async () => {
+  const { toMessageVM, modelTurnOf } = await import(at("apps/dashboard/src/server/ask/store.ts"));
+  const raw = {
+    at: Date.parse("2026-09-10T00:00:01Z"),
+    model: ASK_MODEL,
+    prefix: "0".repeat(64),
+    blocks: JSON.stringify({
+      base: [],
+      question: [{ type: "text", text: "Which drafts are held?" }],
+      rounds: [],
+      final: [{ type: "thinking", thinking: "", signature: SIGNATURE }],
+      results: [],
+    }),
+  };
+  // Every key the Line (toMessageVM) and the history (modelTurnOf) read, each away from its default, beside the raw turn.
+  const asked = turn(M1, T1, A, "user", {
+    text: "Include the franchise ones too",
+    answering: {
+      search_id: SEARCH,
+      name: "Pilates studios · Denver",
+      question: "Most of the first 25 are franchises, which I'm leaving out. Is that what you meant?",
+      asked: "Pilates studios in Denver, no franchises",
+      leaving_out: ["Franchises"],
+    },
+  });
+  const answer = {
+    ...turn("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2", T1, A, "assistant", {
+      v: 2,
+      answer: {
+        v: 2,
+        form: "structured",
+        say: { headline: "Dos borradores esperan.", detail: "Desde el mediodía." },
+        show: { figures: [], items: [], breakdown: null },
+        do: { open: null, next: [] },
+        language: "es",
+      },
+      text: "Dos borradores esperan.",
+      citations: [{ kind: "thread", id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1", label: "Rosa", to: "" }],
+      followups: ["¿Y mañana?"],
+      navigate: { to: "inbox", label: "Inbox", now: false },
+      proposals: [CARD],
+      language: "es",
+      ungrounded: true,
+      tools: ["inbox.list"],
+      latency_ms: 1234,
+      rounds: 2,
+      failed: true,
+      failure: "cap",
+      model: ASK_MODEL,
+      shape: { v: 1 },
+      raw,
+    }),
+    created_at: "2026-09-10T00:00:02Z",
+  };
+  const tables = askWorld([threadRow(T1, A)], [asked, answer]);
+  const whole = [asked, answer].map((r) => structuredClone(r));
+
+  const reader = asJsonb(tables, { id: T1 });
+  const read = await thread.GET.run(get(inA), reader);
+  assert.equal(
+    JSON.stringify(read.messages),
+    JSON.stringify(whole.map(toMessageVM)),
+    "the thread as the Line draws it: byte for byte what the whole rows give",
+  );
+  assert.ok(!JSON.stringify(read).includes('"raw"') && !JSON.stringify(read).includes(SIGNATURE), "no raw in its JSON");
+  readByPath(reader);
+
+  const requests = wordsOnly();
+  try {
+    const asker = asJsonb(tables);
+    await linesOf(await ask.POST.run(send("POST", { text: "And tomorrow?", thread_id: T1 }, inA), asker));
+    assert.deepEqual(
+      requests[0].messages.slice(0, -1).map((m) => [m.role, m.content]),
+      whole.map(modelTurnOf).map((t) => [t.role, t.text.slice(0, 1200)]),
+      "the history a follow-up is asked with: what the whole rows give",
+    );
+    assert.ok(requests[0].messages[0].content.includes("Pilates studios · Denver"), "the search an answer answered");
+    readByPath(asker);
+  } finally {
+    setAskPorts(null);
+  }
+
+  // A card's outcome, recorded later: the row is read and written back whole, so the raw turn stays beside it.
+  const outcome = asJsonb(tables, { id: answer.id, pid: CARD.id });
+  const done = await proposals.POST.run(send("POST", { state: "done", receipt: "Set", atMs: 0 }), outcome);
+  assert.equal(done.proposal.outcome.receipt, "Set");
+  const row = tables.ask_messages.find((m) => m.id === answer.id);
+  assert.equal(row.content.proposals[0].outcome.receipt, "Set");
+  assert.deepEqual(row.content.raw, raw, "the raw turn kept");
+  assert.equal(row.content.raw.blocks, raw.blocks, "its blocks byte for byte");
+  const [write] = outcome.supabase.seen.filter((q) => q.table === "ask_messages" && q.op === "update");
+  assert.deepEqual(write.values.content.raw, raw, "written back whole");
+});
+
+test("the database in memory answers a select that names a JSON path as PostgREST does: the columns it names and no other, each path under its name, null where the row holds no such key; a select with no path still answers whole rows, as it always has here; a spelling it does not model is refused by name", async () => {
+  const db = fakeDb({ t: [{ id: "a", content: { x: 1, y: { z: [2] }, n: null }, other: "o" }] });
+  const one = (columns) => db.from("t").select(columns).eq("id", "a").maybeSingle();
+  assert.deepEqual((await one("id, v:content->x, y:content->y, n:content->n, gone:content->w")).data, {
+    id: "a",
+    v: 1,
+    y: { z: [2] },
+    n: null,
+    gone: null,
+  });
+  assert.deepEqual((await one("id, content->x")).data, { id: "a", x: 1 }, "a path with no alias is named by its key");
+  assert.deepEqual((await one("id")).data, { id: "a", content: { x: 1, y: { z: [2] }, n: null }, other: "o" });
+  for (const columns of ["id, x:content->>x", "id, z:content->y->z", "id, contacts(name), x:content->x"])
+    await assert.rejects(one(columns), /fakeDb: .* is not modelled/, columns);
+});
