@@ -325,28 +325,28 @@ var EntityDecoder = class {
    * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  write(str2, offset) {
+  write(str, offset) {
     switch (this.state) {
       case EntityDecoderState.EntityStart: {
-        if (str2.charCodeAt(offset) === CharCodes.NUM) {
+        if (str.charCodeAt(offset) === CharCodes.NUM) {
           this.state = EntityDecoderState.NumericStart;
           this.consumed += 1;
-          return this.stateNumericStart(str2, offset + 1);
+          return this.stateNumericStart(str, offset + 1);
         }
         this.state = EntityDecoderState.NamedEntity;
-        return this.stateNamedEntity(str2, offset);
+        return this.stateNamedEntity(str, offset);
       }
       case EntityDecoderState.NumericStart: {
-        return this.stateNumericStart(str2, offset);
+        return this.stateNumericStart(str, offset);
       }
       case EntityDecoderState.NumericDecimal: {
-        return this.stateNumericDecimal(str2, offset);
+        return this.stateNumericDecimal(str, offset);
       }
       case EntityDecoderState.NumericHex: {
-        return this.stateNumericHex(str2, offset);
+        return this.stateNumericHex(str, offset);
       }
       case EntityDecoderState.NamedEntity: {
-        return this.stateNamedEntity(str2, offset);
+        return this.stateNamedEntity(str, offset);
       }
     }
   }
@@ -359,22 +359,22 @@ var EntityDecoder = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericStart(str2, offset) {
-    if (offset >= str2.length) {
+  stateNumericStart(str, offset) {
+    if (offset >= str.length) {
       return -1;
     }
-    if ((str2.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+    if ((str.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
       this.state = EntityDecoderState.NumericHex;
       this.consumed += 1;
-      return this.stateNumericHex(str2, offset + 1);
+      return this.stateNumericHex(str, offset + 1);
     }
     this.state = EntityDecoderState.NumericDecimal;
-    return this.stateNumericDecimal(str2, offset);
+    return this.stateNumericDecimal(str, offset);
   }
-  addToNumericResult(str2, start, end, base) {
+  addToNumericResult(str, start, end, base) {
     if (start !== end) {
       const digitCount = end - start;
-      this.result = this.result * Math.pow(base, digitCount) + parseInt(str2.substr(start, digitCount), base);
+      this.result = this.result * Math.pow(base, digitCount) + parseInt(str.substr(start, digitCount), base);
       this.consumed += digitCount;
     }
   }
@@ -387,18 +387,18 @@ var EntityDecoder = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericHex(str2, offset) {
+  stateNumericHex(str, offset) {
     const startIdx = offset;
-    while (offset < str2.length) {
-      const char = str2.charCodeAt(offset);
+    while (offset < str.length) {
+      const char = str.charCodeAt(offset);
       if (isNumber(char) || isHexadecimalCharacter(char)) {
         offset += 1;
       } else {
-        this.addToNumericResult(str2, startIdx, offset, 16);
+        this.addToNumericResult(str, startIdx, offset, 16);
         return this.emitNumericEntity(char, 3);
       }
     }
-    this.addToNumericResult(str2, startIdx, offset, 16);
+    this.addToNumericResult(str, startIdx, offset, 16);
     return -1;
   }
   /**
@@ -410,18 +410,18 @@ var EntityDecoder = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericDecimal(str2, offset) {
+  stateNumericDecimal(str, offset) {
     const startIdx = offset;
-    while (offset < str2.length) {
-      const char = str2.charCodeAt(offset);
+    while (offset < str.length) {
+      const char = str.charCodeAt(offset);
       if (isNumber(char)) {
         offset += 1;
       } else {
-        this.addToNumericResult(str2, startIdx, offset, 10);
+        this.addToNumericResult(str, startIdx, offset, 10);
         return this.emitNumericEntity(char, 2);
       }
     }
-    this.addToNumericResult(str2, startIdx, offset, 10);
+    this.addToNumericResult(str, startIdx, offset, 10);
     return -1;
   }
   /**
@@ -466,12 +466,12 @@ var EntityDecoder = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNamedEntity(str2, offset) {
+  stateNamedEntity(str, offset) {
     const { decodeTree } = this;
     let current = decodeTree[this.treeIndex];
     let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
-    for (; offset < str2.length; offset++, this.excess++) {
-      const char = str2.charCodeAt(offset);
+    for (; offset < str.length; offset++, this.excess++) {
+      const char = str.charCodeAt(offset);
       this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
       if (this.treeIndex < 0) {
         return this.result === 0 || // If we are parsing an attribute
@@ -556,15 +556,15 @@ var EntityDecoder = class {
 };
 function getDecoder(decodeTree) {
   let ret = "";
-  const decoder = new EntityDecoder(decodeTree, (str2) => ret += fromCodePoint(str2));
-  return function decodeWithTrie(str2, decodeMode) {
+  const decoder = new EntityDecoder(decodeTree, (str) => ret += fromCodePoint(str));
+  return function decodeWithTrie(str, decodeMode) {
     let lastIndex = 0;
     let offset = 0;
-    while ((offset = str2.indexOf("&", offset)) >= 0) {
-      ret += str2.slice(lastIndex, offset);
+    while ((offset = str.indexOf("&", offset)) >= 0) {
+      ret += str.slice(lastIndex, offset);
       decoder.startEntity(decodeMode);
       const len = decoder.write(
-        str2,
+        str,
         // Skip the "&"
         offset + 1
       );
@@ -575,7 +575,7 @@ function getDecoder(decodeTree) {
       lastIndex = offset + len;
       offset = len === 0 ? lastIndex + 1 : lastIndex;
     }
-    const result = ret + str2.slice(lastIndex);
+    const result = ret + str.slice(lastIndex);
     ret = "";
     return result;
   };
@@ -707,7 +707,7 @@ var xmlCodeMap = /* @__PURE__ */ new Map([
 ]);
 var getCodePoint = (
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  String.prototype.codePointAt != null ? (str2, index) => str2.codePointAt(index) : (
+  String.prototype.codePointAt != null ? (str, index) => str.codePointAt(index) : (
     // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
     (c, index) => (c.charCodeAt(index) & 64512) === 55296 ? (c.charCodeAt(index) - 55296) * 1024 + c.charCodeAt(index + 1) - 56320 + 65536 : c.charCodeAt(index)
   )
@@ -3542,6 +3542,7 @@ var REACH_OUT_SHEET_PARTS = {
   repliesLine: "Replies"
 };
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var utf8Encoder = new TextEncoder();
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
@@ -3856,7 +3857,6 @@ var SMS_OPTED_OUT_CODE = 21610;
 function smsRefusalOf(r22) {
   return !r22.ok && r22.code === SMS_OPTED_OUT_CODE ? "opted_out" : null;
 }
-var enc = new TextEncoder();
 var oneLine = (s) => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
 function addressOf(header) {
   const s = oneLine(header ?? "");
@@ -3990,7 +3990,6 @@ var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var RESEND_DOMAINS = `${RESEND_API}/domains`;
 var FRESH_SLACK_MS = 2 * DAY_MS;
 var STATE_TTL_MS = 10 * MIN_MS;
-var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
 var APIFY_RUN_END_EVENTS = [
@@ -6571,8 +6570,8 @@ function templateTitle(name, title) {
   if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
   const s = starterByName(name);
   if (s) return s.title;
-  const words4 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  return words4 ? words4[0].toUpperCase() + words4.slice(1) : String(name ?? "");
+  const words32 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words32 ? words32[0].toUpperCase() + words32.slice(1) : String(name ?? "");
 }
 function playbookName(trigger, tpl) {
   return starterForTrigger(trigger.id)?.name === tpl.name ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
@@ -7721,9 +7720,9 @@ function clipAtWord(text, max) {
 }
 var HAND_KINDS2 = ["call", "note"];
 var HAND_WORDS_MAX2 = 280;
-function handStepWords(kind, business, words4) {
+function handStepWords(kind, business, words32) {
   const who = business.trim() || "This business";
-  return kind === "call" ? `Call ${who}: ${words4.trim()}` : `${who}: ${words4.trim()}`;
+  return kind === "call" ? `Call ${who}: ${words32.trim()}` : `${who}: ${words32.trim()}`;
 }
 var REACH_OUT_SUBJECT_MAX2 = 80;
 var REACH_OUT_BODY_MAX2 = 1200;
@@ -7875,11 +7874,11 @@ var NUMBER_IN_TEXT = /\+?\(?\d[\d\s().-]{5,}\d/g;
 var numberRun = (run) => run.replace(/\D/g, "").length >= 7 && !/^\d{4}-\d{2}-\d{2}$/.test(run.trim());
 function firstWords(text, n) {
   const kept = [];
-  let words4 = 0;
+  let words32 = 0;
   for (const token2 of text.split(" ")) {
     const isWord = wordCount(token2) > 0;
-    if (isWord && words4 === n) break;
-    if (isWord) words4++;
+    if (isWord && words32 === n) break;
+    if (isWord) words32++;
     kept.push(token2);
   }
   return kept.join(" ");
@@ -7894,8 +7893,8 @@ var REFERRAL_SUMMARY = "They say to write to someone else.";
 var NOT_A_NAME = /* @__PURE__ */ new Set(["the", "a", "an", "our", "their", "my", "your", "please"]);
 var referralNames = (referTo) => [...referTo.replace(ADDRESS_IN_TEXT, " ").matchAll(/\p{Lu}\p{L}+/gu)].map((m) => m[0].toLowerCase()).filter((w) => !NOT_A_NAME.has(w));
 var saysAny = (summary, names2) => {
-  const words4 = new Set(summary.toLowerCase().split(/\P{L}+/u));
-  return names2.some((n) => words4.has(n));
+  const words32 = new Set(summary.toLowerCase().split(/\P{L}+/u));
+  return names2.some((n) => words32.has(n));
 };
 var intentOf = (v) => {
   if (typeof v !== "string") return null;
@@ -8004,15 +8003,15 @@ function otherWriter(leadAddress, replyFrom) {
 }
 function replyStepWords(reading, p) {
   const b = p.business.trim() || "The business";
-  let words4;
+  let words32;
   if (reading.intent === "not_now")
-    words4 = `Write to ${b} again: they said not now${reading.summary ? ` ("${reading.summary}")` : ""}.`;
+    words32 = `Write to ${b} again: they said not now${reading.summary ? ` ("${reading.summary}")` : ""}.`;
   else if (reading.intent === "wrong_person") {
     const who = reading.referTo ?? "someone else";
-    words4 = p.automatic ? `${b}'s automatic reply says to write to ${who}.` : `${b} said to write to ${who} instead.`;
-  } else if (reading.intent === "away") words4 = `${b} is back today: write to them.`;
+    words32 = p.automatic ? `${b}'s automatic reply says to write to ${who}.` : `${b} said to write to ${who} instead.`;
+  } else if (reading.intent === "away") words32 = `${b} is back today: write to them.`;
   else return null;
-  return withinChars(p.writer ? `${words4} (${p.writer} wrote it.)` : words4, STEP_WORDS_MAX);
+  return withinChars(p.writer ? `${words32} (${p.writer} wrote it.)` : words32, STEP_WORDS_MAX);
 }
 function automaticPlan(r22, c, today) {
   if (r22.intent === "away")
@@ -8879,8 +8878,8 @@ function rangeOf(s) {
   const to = to0 === 0 ? 24 * 60 : to0 <= from ? to0 + 24 * 60 : to0;
   return { from, to };
 }
-function dayOf(words4) {
-  const w = words4.replace(/\([^)]*\)/g, "").trim().toLowerCase();
+function dayOf(words32) {
+  const w = words32.replace(/\([^)]*\)/g, "").trim().toLowerCase();
   if (w === "closed") return [];
   if (w === "open 24 hours" || w === "24 hours") return [{ from: 0, to: 24 * 60 }];
   const ranges = w.split(/\s*,\s*/).map(rangeOf);
@@ -9141,6 +9140,11 @@ var DEFAULT_STATUS = {
   upstream_auth: 503,
   internal: 500
 };
+var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
+var utf8Encoder2 = new TextEncoder();
+var hexOf = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
@@ -11988,6 +11992,7 @@ var REACH_OUT_SHEET_PARTS3 = {
   repliesLine: "Replies"
 };
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var utf8Encoder3 = new TextEncoder();
 var LIVE_STALE_MS3 = 5 * MIN_MS3;
 var LIVE_OVERLONG_MS3 = 30 * MIN_MS3;
 var ANALYSIS_GRACE_MS3 = 10 * MIN_MS3;
@@ -13941,10 +13946,8 @@ async function checkPlaybook(ports, body) {
 }
 
 // src/uuid-v5.ts
-var enc3 = new TextEncoder();
-var hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 async function uuidV5(name) {
-  const h = hex(await crypto.subtle.digest("SHA-1", enc3.encode(name)));
+  const h = hexOf(await crypto.subtle.digest("SHA-1", utf8Encoder2.encode(name)));
   const v = `${h.slice(0, 12)}5${h.slice(13, 16)}${(parseInt(h.slice(16, 17), 16) & 3 | 8).toString(16)}${h.slice(17, 32)}`;
   return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
 }
@@ -47333,10 +47336,7 @@ var CHECKER_FIELDS = ["email", "status", "is_catch_all"];
 var MAPS_CAP_FLOOR_USD = 0.5;
 var MAPS_RUN_TIMEOUT_SECS = 45 * 60;
 var CHECKER_RUN_TIMEOUT_SECS = 15 * 60;
-var obj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var str = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
-var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
-var strs = (v) => Array.isArray(v) ? v.map(str).filter((s) => !!s) : [];
+var strs = (v) => Array.isArray(v) ? v.map(trimmedOrNull).filter((s) => !!s) : [];
 function areaCenter(plan) {
   if (plan.area.center) return plan.area.center;
   if (plan.area.kind === "zip" && plan.area.zip) return zctaCenter(plan.area.zip);
@@ -47368,40 +47368,43 @@ var CARDS = {
       };
     },
     mapItem(item) {
-      const o = obj(item);
-      const title = str(o?.title);
-      const placeId = str(o?.placeId);
+      const o = recordOrNull(item);
+      const title = trimmedOrNull(o?.title);
+      const placeId = trimmedOrNull(o?.placeId);
       if (!o || !title || !placeId) return null;
-      const loc = obj(o.location);
-      const lat = num(loc?.lat);
-      const lng = num(loc?.lng);
+      const loc = recordOrNull(o.location);
+      const lat = finiteOrNull(loc?.lat);
+      const lng = finiteOrNull(loc?.lng);
       return {
         placeId,
         title: title.slice(0, 120),
-        category: str(o.categoryName),
-        neighborhood: str(o.neighborhood),
-        street: str(o.street),
-        city: str(o.city),
-        state: str(o.state),
-        postalCode: str(o.postalCode),
-        countryCode: str(o.countryCode),
-        phoneRaw: str(o.phoneUnformatted) ?? str(o.phone),
+        category: trimmedOrNull(o.categoryName),
+        neighborhood: trimmedOrNull(o.neighborhood),
+        street: trimmedOrNull(o.street),
+        city: trimmedOrNull(o.city),
+        state: trimmedOrNull(o.state),
+        postalCode: trimmedOrNull(o.postalCode),
+        countryCode: trimmedOrNull(o.countryCode),
+        phoneRaw: trimmedOrNull(o.phoneUnformatted) ?? trimmedOrNull(o.phone),
         sitePhones: strs(o.phones),
-        website: str(o.website),
+        website: trimmedOrNull(o.website),
         emails: strs(o.emails),
         // Only the first: the business's own account; later ones can be staff members' (Appendix B).
         instagram: strs(o.instagrams)[0] ?? null,
-        rating: num(o.totalScore),
-        reviews: num(o.reviewsCount),
+        rating: finiteOrNull(o.totalScore),
+        reviews: finiteOrNull(o.reviewsCount),
         closed: o.permanentlyClosed === true || o.temporarilyClosed === true,
         location: lat !== null && lng !== null ? { lat, lng } : null,
-        about: (str(o.description) ?? str(o.ownerDescription))?.replace(/[\p{Cc}\p{Cf}]/gu, "").slice(0, 600) ?? null,
-        hours: (Array.isArray(o.openingHours) ? o.openingHours : []).map((h) => ({ day: str(obj(h)?.day) ?? "", hours: str(obj(h)?.hours) ?? "" })).filter((h) => h.day && h.hours).slice(0, 7),
-        imageUrl: str(o.imageUrl),
+        about: (trimmedOrNull(o.description) ?? trimmedOrNull(o.ownerDescription))?.replace(/[\p{Cc}\p{Cf}]/gu, "").slice(0, 600) ?? null,
+        hours: (Array.isArray(o.openingHours) ? o.openingHours : []).map((h) => ({
+          day: trimmedOrNull(recordOrNull(h)?.day) ?? "",
+          hours: trimmedOrNull(recordOrNull(h)?.hours) ?? ""
+        })).filter((h) => h.day && h.hours).slice(0, 7),
+        imageUrl: trimmedOrNull(o.imageUrl),
         reviewsDist: (() => {
-          const d = obj(o.reviewsDistribution);
+          const d = recordOrNull(o.reviewsDistribution);
           if (!d) return null;
-          const n = (k) => num(d[k]) ?? 0;
+          const n = (k) => finiteOrNull(d[k]) ?? 0;
           return {
             one: n("oneStar"),
             two: n("twoStar"),
@@ -47410,13 +47413,13 @@ var CARDS = {
             five: n("fiveStar")
           };
         })(),
-        price: str(o.price)?.slice(0, 8) ?? null,
+        price: trimmedOrNull(o.price)?.slice(0, 8) ?? null,
         facebook: strs(o.facebooks)[0] ?? null,
         linkedin: strs(o.linkedIns)[0] ?? null,
         tiktok: strs(o.tiktoks)[0] ?? null,
         claimed: o.claimThisBusiness === true ? false : o.claimThisBusiness === false ? true : null,
-        rank: num(o.rank),
-        mapsUrl: str(o.url)
+        rank: finiteOrNull(o.rank),
+        mapsUrl: trimmedOrNull(o.url)
       };
     },
     checker: {
@@ -47427,10 +47430,10 @@ var CARDS = {
         return { emails, skipInvalidSyntax: true };
       },
       mapItem(item) {
-        const o = obj(item);
-        const email = str(o?.email)?.toLowerCase() ?? null;
+        const o = recordOrNull(item);
+        const email = trimmedOrNull(o?.email)?.toLowerCase() ?? null;
         if (!o || !email) return null;
-        const status = (str(o.status) ?? "").toLowerCase();
+        const status = (trimmedOrNull(o.status) ?? "").toLowerCase();
         const state = o.is_catch_all === true || status === "risky" ? "catch_all" : status === "valid" ? "ok" : status === "invalid" ? "invalid" : "unknown";
         return { email, state };
       }
@@ -47528,10 +47531,8 @@ function identityOf(p, held, suppressedPlaceIds, shares) {
 }
 
 // src/leads/ids.ts
-var enc4 = new TextEncoder();
-var hex2 = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 async function sha256Hex2(s) {
-  return hex2(await crypto.subtle.digest("SHA-256", enc4.encode(s)));
+  return hexOf(await crypto.subtle.digest("SHA-256", utf8Encoder2.encode(s)));
 }
 async function runIdFor(roundId, phase, term) {
   return uuidV5(`lead_run:${roundId}:${phase}:${term}`);

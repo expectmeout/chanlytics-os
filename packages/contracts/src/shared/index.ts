@@ -1,6 +1,6 @@
 /**
  * The plumbing every domain uses: time and the clock, the three normalizers, what an id looks like, the small words,
- * HTML escaping, CSV, the envelope and its errors, the closed sets.
+ * HTML escaping, CSV, reading a value from outside, bytes and sums, the envelope and its errors, the closed sets.
  */
 export { ok, err } from "./envelope";
 export type { Ok, Err, Envelope } from "./envelope";
@@ -111,6 +111,9 @@ export { UUID, isUuid, asTenantId, asContactId } from "./identity";
 export type { TenantId, ContactId } from "./identity";
 export { plural } from "./words";
 export { escapeHtml } from "./html";
+export { finiteOrNull, finiteOrZero, trimmedOrNull, nonBlankOrNull, recordOrNull, lineOrNull } from "./unknown";
+export { utf8Encoder, hexOf } from "./bytes";
+export { sumOf } from "./numbers";
 export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts } from "./csv";
 export type { CsvCell, ImportColumns, ImportRow } from "./csv";
 export { SCHEMA_SETS } from "../schema-sets.generated";

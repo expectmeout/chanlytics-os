@@ -201,7 +201,7 @@ export interface VoiceConvergencePlan {
   unknownTools: string[];
 }
 
-const norm = (s: string | null | undefined) => (s ?? "").replace(/\r\n/g, "\n").trim();
+const normalizedText = (s: string | null | undefined) => (s ?? "").replace(/\r\n/g, "\n").trim();
 
 /** Deterministic JSON for comparing the fields WE set on a tool. */
 function stableJson(v: unknown): string {
@@ -249,17 +249,17 @@ export function planVoiceConvergence(live: LiveVoiceLlm, desired: VoiceShellTarg
   const drift: string[] = [];
   const patch: Partial<VoiceShellTarget> = {};
 
-  if (norm(live.general_prompt) !== norm(desired.general_prompt)) {
-    const has = (v: string) => norm(live.general_prompt).includes(v);
+  if (normalizedText(live.general_prompt) !== normalizedText(desired.general_prompt)) {
+    const has = (v: string) => normalizedText(live.general_prompt).includes(v);
     drift.push(
-      `general_prompt differs (${norm(live.general_prompt).length} chars live; ` +
+      `general_prompt differs (${normalizedText(live.general_prompt).length} chars live; ` +
         `reads {{business_facts}}: ${has("{{business_facts}}")}, {{caller_context}}: ${has("{{caller_context}}")})`,
     );
     patch.general_prompt = desired.general_prompt;
   }
-  if (norm(live.begin_message) !== norm(desired.begin_message)) {
+  if (normalizedText(live.begin_message) !== normalizedText(desired.begin_message)) {
     drift.push(
-      `begin_message is typed in (${JSON.stringify(norm(live.begin_message).slice(0, 60))}…), not ${desired.begin_message}`,
+      `begin_message is typed in (${JSON.stringify(normalizedText(live.begin_message).slice(0, 60))}…), not ${desired.begin_message}`,
     );
     patch.begin_message = desired.begin_message;
   }

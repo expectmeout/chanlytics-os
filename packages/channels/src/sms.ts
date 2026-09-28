@@ -12,7 +12,7 @@
  * exact URL plus every POST field sorted by name with its value appended,
  * keyed with the auth token of the account the number belongs to, base64.
  */
-import { SMS_OPT_OUT_PATTERN } from "@chanlytics/contracts";
+import { SMS_OPT_OUT_PATTERN, utf8Encoder } from "@chanlytics/contracts";
 import type { NormalizedInbound, WaRawMessage } from "./whatsapp";
 
 /** Twilio's inbound message, the fields the product reads. */
@@ -233,14 +233,16 @@ export function twilioSignedString(url: string, form: Record<string, string>): s
   );
 }
 
-const enc = new TextEncoder();
-
 /** HMAC-SHA1 of the signed string with the auth token, base64 — the value of X-Twilio-Signature. */
 export async function twilioSignature(authToken: string, url: string, form: Record<string, string>): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", enc.encode(authToken), { name: "HMAC", hash: "SHA-1" }, false, [
-    "sign",
-  ]);
-  const mac = await crypto.subtle.sign("HMAC", key, enc.encode(twilioSignedString(url, form)));
+  const key = await crypto.subtle.importKey(
+    "raw",
+    utf8Encoder.encode(authToken),
+    { name: "HMAC", hash: "SHA-1" },
+    false,
+    ["sign"],
+  );
+  const mac = await crypto.subtle.sign("HMAC", key, utf8Encoder.encode(twilioSignedString(url, form)));
   return btoa(String.fromCharCode(...new Uint8Array(mac)));
 }
 

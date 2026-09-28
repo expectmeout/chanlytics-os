@@ -29,22 +29,22 @@ export interface LeadOneMember {
   judgment: Json;
 }
 
-const str = (v: Json | undefined): string | null => (typeof v === "string" ? v : null);
+const jsonString = (v: Json | undefined): string | null => (typeof v === "string" ? v : null);
 
 /** lead_member_of's jsonb, narrowed: a shape it does not answer is no membership. */
 function memberOf(data: Json | null): LeadOneMember | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const id = str(data.id);
-  const searchId = str(data.search_id);
-  const cls = str(data.class);
+  const id = jsonString(data.id);
+  const searchId = jsonString(data.search_id);
+  const cls = jsonString(data.class);
   if (!id || !searchId || !cls) return null;
   return {
     id,
     search_id: searchId,
     class: cls,
-    excluded_by: str(data.excluded_by),
-    fit: str(data.fit),
-    reason: str(data.reason) ?? "",
+    excluded_by: jsonString(data.excluded_by),
+    fit: jsonString(data.fit),
+    reason: jsonString(data.reason) ?? "",
     distance_m: typeof data.distance_m === "number" ? data.distance_m : null,
     counted: data.counted === true,
     judgment: data.judgment ?? null,

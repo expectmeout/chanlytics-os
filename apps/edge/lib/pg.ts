@@ -13,12 +13,12 @@ import type { Database } from "./packages/db.js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { env } from "./env.js";
 
-let client: SupabaseClient<Database> | null = null;
-let injected: SupabaseClient<Database> | null = null;
+let dbClient: SupabaseClient<Database> | null = null;
+let injectedDb: SupabaseClient<Database> | null = null;
 
 /** Tests: a database handed in, so a handler runs over a fake without env or a network. Null restores the real one. */
 export function setPg(c: SupabaseClient<Database> | null): void {
-  injected = c;
+  injectedDb = c;
 }
 
 function pgEnabled(): boolean {
@@ -26,11 +26,11 @@ function pgEnabled(): boolean {
 }
 
 export function pg(): SupabaseClient<Database> | null {
-  if (injected) return injected;
+  if (injectedDb) return injectedDb;
   if (!pgEnabled()) return null;
-  client ??= createServiceClient({
+  dbClient ??= createServiceClient({
     url: env.SUPABASE_URL!,
     serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY!,
   });
-  return client;
+  return dbClient;
 }

@@ -5,12 +5,10 @@
  * second insert meets the first (E1: the row is made once, then claimed once).
  */
 import { uuidV5 } from "../uuid-v5";
-
-const enc = new TextEncoder();
-const hex = (buf: ArrayBuffer): string => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+import { utf8Encoder, hexOf } from "@chanlytics/contracts";
 
 export async function sha256Hex(s: string): Promise<string> {
-  return hex(await crypto.subtle.digest("SHA-256", enc.encode(s)));
+  return hexOf(await crypto.subtle.digest("SHA-256", utf8Encoder.encode(s)));
 }
 
 /** A uuid, version 5-shaped, from its parts (uuid-v5.ts): stable across invocations, unique across rounds. */
