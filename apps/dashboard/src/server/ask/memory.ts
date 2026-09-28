@@ -1,4 +1,10 @@
 import "server-only";
+
+/**
+ * What a turn keeps of its thread: the thread it continues and the history it is asked with, before the model is asked
+ * (threadForTurn, the ask route's), and the turn as it ends, measured (finishTurn, runAskTurn's).
+ */
+
 import {
   AppError,
   answerText,
@@ -16,24 +22,20 @@ import { createThread, readThread } from "./store";
 import type { BuiltContext, SearchResultBlock } from "./context";
 import type { TurnInput, TurnResult } from "./loop";
 
-/**
- * What a turn keeps of its thread: the thread it continues and the history it is asked with, before the model is asked
- * (threadForTurn, the ask route's), and the turn as it ends, measured (finishTurn, runAskTurn's).
- */
-
 /** The question as the route read it, and the search it answers, if any. */
 interface Asked {
   tenantId: string;
   threadId: string | null;
   text: string;
-  scope: AskScope | null;
+  /** The question's scope: a scope, none (`null`, which clears the thread's), or no opinion (undefined: the thread's). */
+  scope: AskScope | null | undefined;
   answering: SearchAnswering | null;
 }
 
 /**
- * The thread a turn lands in: the caller's own when the question names one, else a new one, titled and scoped once.
- * A thread that is not the caller's is a 404, except for an answer to a search's question, which starts one of the
- * caller's own. The scope is the question's, else the thread's.
+ * The thread a turn lands in: the caller's own when the question names one, else a new one, titled once. A thread
+ * that is not the caller's is a 404, except for an answer to a search's question, which starts one of the caller's
+ * own. The scope is the question's, none when it said none, else the thread's (the Phase 5 plan, D9).
  */
 export async function threadForTurn(
   ctx: RouteContext,
@@ -55,21 +57,21 @@ export async function threadForTurn(
     if (found && found.tenantId === tenantId) {
       thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
       history = found.turns;
-      // The thread's previous turn, before this question is appended: how long the person waited to ask again. A
-      // read that came back full holds the oldest turns, not the newest, so its last is not the previous turn.
+      // The thread's previous turn, before this question is appended: how long the person waited to ask again. The
+      // read holds the newest rows (readThread), so its last is the previous turn however long the thread is.
       const lastAt = found.messages.at(-1)?.atMs;
-      sinceLastMs = !found.truncated && lastAt ? Math.max(0, Date.now() - lastAt) : null;
-      if (!scope) scope = found.thread.scope;
+      sinceLastMs = lastAt ? Math.max(0, Date.now() - lastAt) : null;
+      if (scope === undefined) scope = found.thread.scope;
     } else if (!answering) throw new AppError("not_found", "That thread is not yours.", 404);
   }
   if (!thread) {
-    // A thread keeps its first question as its title (D9); an answer's is the search's name, never the sentence
-    // the model is given.
+    // A thread keeps its first question as its title (the Line's spec, D9); an answer's is the search's name, never
+    // the sentence the model is given.
     const title = answering ? titleFromSearch(answering.name) : titleFromQuestion(text);
-    const created = await createThread(ctx, tenantId, title, scope);
-    thread = { id: created.id, title: created.title, scope };
+    const created = await createThread(ctx, tenantId, title, scope ?? null);
+    thread = { id: created.id, title: created.title, scope: scope ?? null };
   }
-  return { thread, history, sinceLastMs, scope };
+  return { thread, history, sinceLastMs, scope: scope ?? null };
 }
 
 /** How a turn ended, as each of runAskTurn's ends says it. */
@@ -105,9 +107,10 @@ interface TurnSoFar {
 }
 
 /** The turn as it returns: its end, with where the time went and what the model was fed (AskTurnShape), logged. */
-export function finishTurn(r: TurnEnd, so: TurnSoFar): TurnResult {
-  const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan } = so;
-  const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits, format, toolsUsed, proposals } = so;
+export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
+  const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan } = soFar;
+  const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits, format, toolsUsed, proposals } =
+    soFar;
   const shape: AskTurnShape = {
     v: 1,
     model: model.id,

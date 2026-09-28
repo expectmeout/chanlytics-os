@@ -45,7 +45,7 @@
   "apps/dashboard/src/legacy-bridge/whatsapp-connect.ts": 2,
   "apps/dashboard/src/legacy-bridge/zone.ts": 1,
   "apps/dashboard/src/server/ask/loop.ts": 1,
-  "apps/dashboard/src/server/ask/store.ts": 2,
+  "apps/dashboard/src/server/ask/store.ts": 1,
   "apps/dashboard/src/server/campaigns/broadcasts.ts": 4,
   "apps/dashboard/src/server/campaigns/playbooks.ts": 5,
   "apps/dashboard/src/server/connections/email.ts": 1,

@@ -39,7 +39,7 @@ directories over 20 modules           7
 window globals                      200   names
 window publishers                   446   sites in 153 files
 copies                              152   of 38 names
-as unknown as                       222
+as unknown as                       221
 table names outside packages/db     533
 unnamed durations                    78   in 35 files
 dead exports, types and modules     165
