@@ -29,11 +29,6 @@
     "branches": 32,
     "depth": 2
   },
-  "apps/dashboard/app/login/page.tsx::LoginPage#1": {
-    "lines": 225,
-    "branches": 11,
-    "depth": 0
-  },
   "apps/dashboard/app/privacy/page.tsx::PrivacyPage#1": {
     "lines": 174,
     "branches": 1,
