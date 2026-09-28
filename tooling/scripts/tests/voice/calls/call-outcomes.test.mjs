@@ -351,7 +351,7 @@ test("a caller who needs a call back lands on Needs you: the reason exists every
   assert.ok(enums.includes('"callback",'), "the reason is declared");
   assert.ok(readRaw("supabase/migrations/00062_callback_reason.sql").includes("'callback'"), "and the CHECK admits it");
   assert.ok(
-    readCode("packages/contracts/src/people/people.ts").includes('callback: "needs a call back",'),
+    readCode("packages/contracts/src/people/person-row-facts.ts").includes('callback: "needs a call back",'),
     "the strip's words",
   );
   const vm = readCode("packages/contracts/src/conversations/escalations.ts");

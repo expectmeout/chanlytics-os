@@ -9,15 +9,10 @@ import { plural } from "../shared/words";
 import { DEAL_ACT_WORDS } from "../deals/deal-words";
 import type { DealVM } from "../deals/deal-vm";
 import { dealPaceOf, type DealPaceVM } from "../deals/deal-waits";
-import {
-  mayReach,
-  type PersonCampaignVM,
-  type PersonDetailDto,
-  type PersonMode,
-  type PersonProposalVM,
-  type PersonRowVM,
-  proposalAction,
-} from "./people";
+import type { PersonCampaignVM, PersonDetailDto } from "./person-dto";
+import type { PersonMode } from "./person-receptionist";
+import { mayReach, type PersonProposalVM, proposalAction } from "./person-reach";
+import type { PersonRowVM } from "./person-row";
 import { ts } from "./person-helpers";
 import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "../notes/person-notes";
 import { PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";

@@ -13,23 +13,12 @@ import { leadsRoute } from "../leads/leads";
 import { linkHost } from "../shared/link";
 import { listRuleWhy } from "./list-rules";
 import { PEOPLE_LISTS } from "./lists";
-import {
-  ago,
-  asPersonMode,
-  bookingLinkAction,
-  isOwned,
-  PERSON_MODE_WORDS,
-  type PersonDetailDto,
-  type PersonMode,
-  type PersonProposalVM,
-  type PersonRowDto,
-  type PersonRowVM,
-  reasonShort,
-  type ReceptionistTone,
-  repliesWords,
-  toPersonRowVM,
-  visitTitleFor,
-} from "./people";
+import type { PersonDetailDto, PersonRowDto } from "./person-dto";
+import { asPersonMode, PERSON_MODE_WORDS, type PersonMode, type ReceptionistTone } from "./person-receptionist";
+import { ago, reasonShort } from "./person-row-facts";
+import { isOwned } from "./person-state";
+import { bookingLinkAction, type PersonProposalVM, repliesWords } from "./person-reach";
+import { toPersonRowVM, type PersonRowVM, visitTitleFor } from "./person-row";
 import { addedBy, proposalSending, proposalSent, replyChannelOfThreads, ts } from "./person-helpers";
 import { capitalize } from "../shared/words";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";

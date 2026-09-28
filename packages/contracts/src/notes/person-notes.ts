@@ -1,6 +1,6 @@
 /**
  * A person's notes: what a note is, the words the notes panel says, and the notes as the page shows them. Moved
- * whole from people.ts (Reach out Part 2.5), which re-exports it.
+ * whole from people.ts (Reach out Part 2.5); people/index.ts names it.
  */
 import { clockDateYear, clockShort, clockTime } from "../shared/clock";
 import { forWords, stepDayOf, type StepDayVM, type StepDue } from "./steps";

@@ -809,7 +809,7 @@
     "branches": 51,
     "depth": 0
   },
-  "packages/contracts/src/ask/ask.ts::buildAskSuggestions#1": {
+  "packages/contracts/src/ask/ask-suggestions.ts::buildAskSuggestions#1": {
     "lines": 85,
     "branches": 49,
     "depth": 3
@@ -824,15 +824,15 @@
     "branches": 55,
     "depth": 1
   },
-  "packages/contracts/src/calendar/availability.ts::parseIcs#1": {
-    "lines": 134,
-    "branches": 79,
-    "depth": 4
-  },
   "packages/contracts/src/calendar/calendar.ts::toCalendarVM#1": {
     "lines": 186,
     "branches": 53,
     "depth": 3
+  },
+  "packages/contracts/src/calendar/feed.ts::parseIcs#1": {
+    "lines": 134,
+    "branches": 79,
+    "depth": 4
   },
   "packages/contracts/src/config/business-tab/abilities.ts::abilityRows#1": {
     "lines": 162,
@@ -884,7 +884,7 @@
     "branches": 49,
     "depth": 1
   },
-  "packages/contracts/src/people/people.ts::toPersonRowVM#1": {
+  "packages/contracts/src/people/person-row.ts::toPersonRowVM#1": {
     "lines": 144,
     "branches": 84,
     "depth": 0

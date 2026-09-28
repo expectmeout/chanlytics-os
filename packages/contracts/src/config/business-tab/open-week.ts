@@ -4,7 +4,7 @@
  */
 import { DAYS, type Closure, type Hours } from "../workspace-config/business-profile";
 import { dayIntervals } from "../../calendar/availability";
-import { closureDatesLabel, closuresFrom } from "../../calendar/calendar";
+import { closureDatesLabel, closuresFrom } from "../../calendar/calendar-words";
 import { zoneDayKey } from "../../shared/clock";
 import { timezoneCity } from "../../shared/time";
 

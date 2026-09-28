@@ -25,7 +25,7 @@ import {
 } from "../deal-words";
 import { amountWords } from "../deal-amount";
 import type { DealVM } from "../deal-vm";
-import { proposalMessage } from "../../people/people";
+import { proposalMessage } from "../../people/person-reach";
 import { consultedService, dealSendOf, type DealPerson, type DealSend, type DealSheetMode } from "./deal-acts";
 
 /* --------------------------------------------- the sheet ---------------------------------------------------- */
