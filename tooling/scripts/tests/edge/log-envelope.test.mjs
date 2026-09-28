@@ -20,10 +20,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../../..");
 const EDGE = path.join(ROOT, "apps/edge");
-// The message path moved into packages/core as a verb over ports; the
-// envelope it logs through did not. The lines below are read where they
-// live now, and prove exactly what they proved on the edge.
-const ANSWER = path.join(ROOT, "packages/core/src/inbound/answer.ts");
+// The message path moved into packages/core as a verb over ports, answer.ts's
+// order and the phase modules beside it; the envelope it logs through did not.
+// The lines below are read where they live now, and prove exactly what they
+// proved on the edge.
+const PATH = ["answer", "context", "ingest", "gates", "unreadable", "reply-gates", "model-turn", "dispatch"].map((m) =>
+  path.join(ROOT, `packages/core/src/inbound/${m}.ts`),
+);
+const pathSrc = () => PATH.map((p) => fs.readFileSync(p, "utf8")).join("\n");
 const { logger, errField } = await import(pathToFileURL(path.join(EDGE, "lib/log.ts")).href);
 
 /** Capture what a logger writes, without touching the real console. */
@@ -134,7 +138,7 @@ test("the message path's event names are unchanged by the conversion", () => {
   // atomic is_new claim — `wa_skip_pg_dupe`, still here — is the dedupe. With
   // the store gone there is no second gate left for it to name.
   // The message path and the webhook: the names span both files now.
-  const src = fs.readFileSync(ANSWER, "utf8") + fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
+  const src = pathSrc() + fs.readFileSync(path.join(EDGE, "api/whatsapp.ts"), "utf8");
   const required = [
     "wa_replied",
     "wa_skip_pg_dupe",
@@ -160,7 +164,7 @@ test("the converted message-path lines carry the tenant", () => {
   // known; if that binding is removed or the calls revert to bare console,
   // the tenant silently stops appearing. The factory is a port now (the verb
   // may not import the edge), and the edge hands in this same logger.
-  const src = fs.readFileSync(ANSWER, "utf8");
+  const src = pathSrc();
   assert.match(
     src,
     /const L = ports\.log\(\{ tenant_id: tenantId, wamid: raw\.id, from_tail: phoneTail\(from\), type: raw\.type \}\)/,

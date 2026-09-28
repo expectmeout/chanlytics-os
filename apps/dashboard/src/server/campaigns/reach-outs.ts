@@ -10,6 +10,7 @@ import {
   REACH_OUT_REFUSALS,
   chainIssueWords,
   isReachOutHold,
+  handOf,
   isReachOutRefusal,
   isReachOutRun,
   localDate,
@@ -128,6 +129,7 @@ export async function chainsOf(ctx: RouteContext, tenantId: string): Promise<Rea
         subject: n === 0 ? (w?.subject ?? null) : null,
         body: w?.body ?? "",
         template_id: s.template_id,
+        hand: handOf(s.hand),
         state: s.state === "running" ? "running" : "paused",
       };
     });
@@ -213,7 +215,9 @@ export async function saveChain(
     const said = issues.map((i) => ({ ...i, words: chainIssueWords(i) }));
     throw new AppError("validation", said[0]!.words, 422, { issues: said });
   }
-  const { data, error } = await saveReachOut(member.tenantId, ctx.userId, { ...input, root_id: rootId });
+  // An email carries no hand key at all: the door reads a step with one as a call or a note (00228).
+  const steps = input.steps.map(({ hand, ...s }) => (hand ? { ...s, hand } : s));
+  const { data, error } = await saveReachOut(member.tenantId, ctx.userId, { ...input, steps, root_id: rootId });
   if (error) throw reachOutRefusal(error);
   const saved = data as { root_id: string; step_ids: string[]; rechecked: number };
   if (rootId) return { root_id: saved.root_id, step_ids: saved.step_ids, rechecked: saved.rechecked ?? 0, start: null };

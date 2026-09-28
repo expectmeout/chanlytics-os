@@ -1,6 +1,7 @@
 /**
  * The named steps of the receptionist: decisions with no side effects, so
- * each one is a truth table a test can run. answer.ts orchestrates them;
+ * each one is a truth table a test can run. The phases beside answer.ts
+ * call them, in its order;
  * nothing here reads the database, the store or the clock unless it is
  * handed one.
  */

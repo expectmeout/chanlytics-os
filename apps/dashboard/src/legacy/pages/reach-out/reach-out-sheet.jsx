@@ -118,9 +118,23 @@ const RoWhat = ({ W, draft, issues, onEdit, onFocus, onSlot, onSigned, from }) =
   );
 };
 
+/** A call's or a note's words: what to do when each business comes up on your Today (Part 5, G20). */
+const RoHandWords = ({ W, step, n, issues, onHand }) => {
+  const S = W.REACH_OUT_SHEET_WORDS;
+  return (
+    <label className="ro-field" data-testid={`ro-hand-${n}`}>
+      <span className="ro-field-k">{S.handWords}</span>
+      <textarea className="ro-body" rows={2} maxLength={W.HAND_WORDS_MAX} value={step.hand.words} placeholder={S.handPlaceholder} onChange={(e) => onHand(n, e.target.value)} data-testid={`ro-hand-words-${n}`} />
+      <span className="dim">{S.handHint}</span>
+      <RoIssues lines={issues.body} testid={`ro-body-issues-${n}`} />
+    </label>
+  );
+};
+
 /** Then: the chain as steps, each later one after its days with nothing back, up to five; the last may be taken off. */
-const RoThen = ({ W, draft, issues, onEdit, onFocus, onSlot, onAfter, onAdd, onDrop }) => {
+const RoThen = ({ W, draft, issues, onEdit, onFocus, onSlot, onAfter, onAdd, onAddHand, onHand, onDrop }) => {
   const P = W.REACH_OUT_SHEET_PARTS;
+  const S = W.REACH_OUT_SHEET_WORDS;
   const days = W.reachOutAfterDayChoices().map((n) => ({ v: n, t: `${n} days` }));
   return (
     <section className="pb-sec" data-testid="ro-then">
@@ -131,15 +145,21 @@ const RoThen = ({ W, draft, issues, onEdit, onFocus, onSlot, onAfter, onAdd, onD
           const n = i + 1;
           return (
             <div key={n} className="pb-chain-row" data-testid={`ro-step-${n}`}>
-              <span className="pb-chain-k">{W.stepLabel(n)}</span>
+              <span className="pb-chain-k">{W.stepLabelOf({ n, hand: s.hand })}</span>
               <span>{P.after} <window.PbTok value={s.after_days} options={days} onChange={(v) => onAfter(n, Number(v))} label={`${P.after} how many days`} testid={`ro-after-${n}`} /> {P.afterTail}</span>
-              <RoStepWords W={W} step={s} n={n} issues={issues.steps[n]} onEdit={onEdit} onFocus={onFocus} />
-              <RoSlots W={W} onSlot={onSlot} testid={`ro-slots-${n}`} />
+              {s.hand ? <RoHandWords W={W} step={s} n={n} issues={issues.steps[n]} onHand={onHand} /> : <>
+                <RoStepWords W={W} step={s} n={n} issues={issues.steps[n]} onEdit={onEdit} onFocus={onFocus} />
+                <RoSlots W={W} onSlot={onSlot} testid={`ro-slots-${n}`} />
+              </>}
               {n === draft.steps.length - 1 && <button type="button" className="cl-bucket-link" onClick={onDrop} data-testid="ro-remove">{P.remove}</button>}
             </div>
           );
         })}
-        {W.reachOutMayAddStep(draft) && <button type="button" className="pb-chain-add" onClick={onAdd} data-testid="ro-add"><Icon name="plus" size={12} /> {W.REACH_OUT_SHEET_WORDS.anotherStep} <span className="dim">{W.REACH_OUT_SHEET_WORDS.anotherStepHint}</span></button>}
+        {W.reachOutMayAddStep(draft) && <>
+          <button type="button" className="pb-chain-add" onClick={onAdd} data-testid="ro-add"><Icon name="plus" size={12} /> {S.anotherStep} <span className="dim">{S.anotherStepHint}</span></button>
+          <button type="button" className="pb-chain-add" onClick={() => onAddHand("call")} data-testid="ro-add-call"><Icon name="plus" size={12} /> {S.anotherCall}</button>
+          <button type="button" className="pb-chain-add" onClick={() => onAddHand("note")} data-testid="ro-add-note"><Icon name="plus" size={12} /> {S.anotherNote}</button>
+        </>}
       </div>
       <p className="pb-note">{W.REACH_OUT_SHEET_WORDS.stops}</p>
     </section>
@@ -347,7 +367,7 @@ const ReachOutSheet = ({ search, chain = null, includeUnconfirmed = false, onClo
       <div className="pb-compose ro-compose">
         <RoWho W={W} search={search} reach={st.reach} include={draft.include_unconfirmed} onInclude={(v) => setDraft((d) => ({ ...d, include_unconfirmed: v }))} />
         <RoWhat W={W} draft={draft} issues={issues} onEdit={st.editStep} onFocus={st.focus} onSlot={st.slot} onSigned={(v) => setDraft((d) => ({ ...d, signed_by: v }))} from={first ? `${first.from_name} · ${first.address}` : null} />
-        <RoThen W={W} draft={draft} issues={issues} onEdit={st.editStep} onFocus={st.focus} onSlot={st.slot} onAfter={(n, v) => st.editStep(n, { after_days: v })} onAdd={() => setDraft(W.reachOutAddStep)} onDrop={() => setDraft(W.reachOutDropStep)} />
+        <RoThen W={W} draft={draft} issues={issues} onEdit={st.editStep} onFocus={st.focus} onSlot={st.slot} onAfter={(n, v) => st.editStep(n, { after_days: v })} onAdd={() => setDraft(W.reachOutAddStep)} onAddHand={(kind) => setDraft((d) => W.reachOutAddHandStep(d, kind))} onHand={(n, v) => setDraft((d) => W.reachOutSetHandWords(d, n, v))} onDrop={() => setDraft(W.reachOutDropStep)} />
         <RoPace W={W} pace={pace} gap={draft.gap_minutes} onGap={(v) => setDraft((d) => ({ ...d, gap_minutes: v }))} />
         <RoFrom W={W} domains={domains} unread={reads.domains === "in" ? null : unread} draft={draft} onPick={(ids) => setDraft((d) => ({ ...d, domain_ids: ids }))} />
         <RoBefore W={W} ask={ask} of={W.reachOutPreviewOf(reachN)} stale={{ key: JSON.stringify([body.steps[0], body.signed_by, draft.include_unconfirmed]) }} />

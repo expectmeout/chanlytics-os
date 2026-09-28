@@ -12,6 +12,5 @@
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx": 1753,
   "apps/dashboard/src/legacy/pages/inbox.jsx": 976,
   "apps/dashboard/src/legacy/pages/people.jsx": 3255,
-  "apps/dashboard/src/legacy/pages/settings.jsx": 1912,
-  "packages/core/src/inbound/answer.ts": 1007
+  "apps/dashboard/src/legacy/pages/settings.jsx": 1912
 }

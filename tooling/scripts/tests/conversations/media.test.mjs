@@ -179,7 +179,8 @@ test("vision: only small real images, and the words beside the picture restate t
 });
 
 test("the handler looks only when the workspace, the mode and the moment allow, and never fetches twice", () => {
-  const wa = readCode("packages/core/src/inbound/answer.ts");
+  // The decision and the bytes (unreadable.ts), and what the model is shown (model-turn.ts).
+  const wa = ["unreadable", "model-turn"].map((m) => readCode(`packages/core/src/inbound/${m}.ts`)).join("\n");
   assert.ok(
     /const maySee =\s*n\.type === "media" &&\s*!!n\.media &&\s*!!rt\?\.features\?\.vision &&\s*isVisionMime\(n\.media\.mime_type\)/.test(
       wa,
@@ -198,14 +199,12 @@ test("the handler looks only when the workspace, the mode and the moment allow, 
   );
   // The DECISION is made where the routing needs it; the DOWNLOAD waits until
   // the cap, the budget, the billing pause and the mode have all agreed there
-  // will be a reply, so none of them pays 25MB for bytes it throws away.
+  // will be a reply, so none of them pays 25MB for bytes it throws away: RUN in
+  // whatsapp/inbound-executed.test.mjs ("a workspace that will not answer never
+  // pays to download the photo").
   assert.ok(
     wa.indexOf("const photo: { mime: string; base64: string } | null = null;") < 0,
     "the bytes are fetched, not declared and filled from two places",
-  );
-  assert.ok(
-    wa.indexOf("if (maySee) {\n    const got = await sink.media(n);") > wa.indexOf("if (rt?.paused) {"),
-    "the download sits below every gate that would discard it",
   );
   assert.ok(
     (wa.match(/sink\.media\(n\)/g) ?? []).length === 2,

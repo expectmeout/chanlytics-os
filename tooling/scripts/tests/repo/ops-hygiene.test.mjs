@@ -148,8 +148,11 @@ test("a log line on the message path carries a phone tail, never the number or t
     "apps/edge/lib/voice/call-start.ts",
     "apps/edge/lib/whatsapp/inbound.ts",
     // The message path itself: a verb over ports, logging through the
-    // factory the edge hands it. Same lines, same rule, new home.
-    "packages/core/src/inbound/answer.ts",
+    // factory the edge hands it. Same lines, same rule, new home: answer.ts's
+    // order and the phase modules beside it.
+    ...["answer", "context", "ingest", "gates", "unreadable", "reply-gates", "model-turn", "dispatch"].map(
+      (m) => `packages/core/src/inbound/${m}.ts`,
+    ),
     "apps/edge/lib/whatsapp/persist.ts",
     "apps/edge/lib/sms/sms.ts",
   ];

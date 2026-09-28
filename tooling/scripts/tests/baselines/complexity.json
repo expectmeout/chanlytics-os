@@ -634,11 +634,6 @@
     "branches": 50,
     "depth": 1
   },
-  "apps/dashboard/src/server/workspace/setup.ts::setupDtoFor#1": {
-    "lines": 272,
-    "branches": 83,
-    "depth": 1
-  },
   "apps/edge/api/admin/eval.ts::POST#1": {
     "lines": 100,
     "branches": 36,
@@ -675,7 +670,7 @@
     "depth": 1
   },
   "apps/edge/api/cron/calendar.ts::POST#1": {
-    "lines": 80,
+    "lines": 81,
     "branches": 32,
     "depth": 3
   },
@@ -834,11 +829,6 @@
     "branches": 40,
     "depth": 1
   },
-  "packages/contracts/src/config/workspace-config/compose.ts::composeSystemPromptWith#1": {
-    "lines": 254,
-    "branches": 66,
-    "depth": 2
-  },
   "packages/contracts/src/conversations/call-vm.ts::toCallVM#1": {
     "lines": 140,
     "branches": 69,
@@ -893,16 +883,6 @@
     "lines": 66,
     "branches": 36,
     "depth": 3
-  },
-  "packages/contracts/src/setup/connections.ts::connectionRows#1": {
-    "lines": 394,
-    "branches": 67,
-    "depth": 1
-  },
-  "packages/contracts/src/setup/first-run-phone.ts::firstRunPhoneOf#1": {
-    "lines": 302,
-    "branches": 125,
-    "depth": 2
   },
   "packages/contracts/src/setup/first-run-try.ts::firstRunTryOf#1": {
     "lines": 127,
@@ -988,11 +968,6 @@
     "lines": 160,
     "branches": 31,
     "depth": 2
-  },
-  "packages/core/src/inbound/answer.ts::answerInbound#1": {
-    "lines": 920,
-    "branches": 184,
-    "depth": 5
   },
   "packages/core/src/leads/runner/collect.ts::collectHeld#1": {
     "lines": 175,
