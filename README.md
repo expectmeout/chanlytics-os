@@ -28,11 +28,12 @@ not for salons, and `tooling/scripts/tests/repo/trade-neutral.test.mjs` fails a
 build that puts one trade's words in front of a customer of another.
 
 **Read next.** `CLAUDE.md` for the rules and the canonical example of each
-thing, `docs/glossary.md` for the words (and the one rule about _tenant_
-versus _workspace_), `docs/architecture.md` for how it is put together,
-`docs/runbook.md` to run, deploy and roll back, `docs/system-prd.md` for the
-as-built reference sheet by sheet, `docs/decisions/` for what is decided and
-not yet built, `docs/takeover.md` for the codebase quality checklist, scored.
+thing, `docs/glossary.md` for the words (and its two rules, _tenant_ versus
+_workspace_ and _contact_ versus _person_), `docs/naming.md` for how a name is
+built, `docs/architecture.md` for how it is put together, `docs/runbook.md` to
+run, deploy and roll back, `docs/system-prd.md` for the as-built reference
+sheet by sheet, `docs/decisions/` for what is decided and not yet built,
+`docs/takeover.md` for the codebase quality checklist, scored.
 
 ---
 

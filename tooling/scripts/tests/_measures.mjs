@@ -327,9 +327,11 @@ function namesIn(checker, type, at, out, depth = 0, seen = new Map()) {
 }
 
 /**
- * What each route in a registry takes and answers, by name: `{ [route]: { takes, answers } }`, each list sorted, or
- * null for a handler that carries no shape. The registry is a module whose `Routes` type names each handler; a
- * handler's module the checker could not resolve reads as `any`, which has no shape, so it cannot read as clean.
+ * What each route in a registry takes and answers, by name: `{ [route]: { takes, answers, hidden } }`, each list
+ * sorted, or null for a handler that carries no shape. `hidden` says which side, `takes` or `answers`, is `any` or
+ * `unknown` as a whole, so has no names the walk can read. The registry is a module whose `Routes` type names each
+ * handler; a handler's module the checker could not resolve reads as `any`, which has no shape, so it cannot read as
+ * clean.
  */
 export function wireShapes(program, registry) {
   const checker = program.getTypeChecker();
@@ -337,16 +339,29 @@ export function wireShapes(program, registry) {
     .getSourceFile(registry)
     ?.statements.find((s) => ts.isTypeAliasDeclaration(s) && s.name.text === "Routes");
   if (!alias) throw new Error(`${registry} has no Routes type for the checker to read`);
-  const side = (io, name) => {
+  const typeOf = (io, name) => {
     const s = io.getProperty(name);
-    return [...namesIn(checker, s && checker.getTypeOfSymbolAtLocation(s, alias), alias, new Set())].sort();
+    return s && checker.getTypeOfSymbolAtLocation(s, alias);
   };
+  const side = (io, name) => [...namesIn(checker, typeOf(io, name), alias, new Set())].sort();
+  const opaque = (io, name) => Boolean(typeOf(io, name)?.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown));
   const out = {};
   for (const route of checker.getPropertiesOfType(checker.getTypeAtLocation(alias.name))) {
     const handler = checker.getTypeOfSymbolAtLocation(route, alias);
     const shape = checker.getPropertiesOfType(handler).find((p) => p.getName().startsWith("__@shape"));
     const io = shape && checker.getNonNullableType(checker.getTypeOfSymbolAtLocation(shape, alias));
-    out[route.getName()] = io ? { takes: side(io, "input"), answers: side(io, "output") } : null;
+    out[route.getName()] = io
+      ? {
+          takes: side(io, "input"),
+          answers: side(io, "output"),
+          hidden: [
+            ["takes", "input"],
+            ["answers", "output"],
+          ]
+            .filter(([, name]) => opaque(io, name))
+            .map(([said]) => said),
+        }
+      : null;
   }
   return out;
 }

@@ -39,14 +39,15 @@ function statusOf(text) {
 
 /**
  * The state a status says, one of four: proposed; decided, not built; built, in part or whole; or decided, with
- * nothing built, or nothing to build. "Not built" is read from the first sentence, which says the note's own state;
- * "built" from the first two, since a note decided first says next what of it is built ("decided. M1 and M2 built",
- * 0013). What comes after is the note's provenance, which may name other notes' states.
+ * nothing built, or nothing to build. "Not built" ("not yet built", "nothing built yet") is read from the first
+ * sentence, which says the note's own state; "built" from the first two, since a note decided first says next what of
+ * it is built ("decided. M1 and M2 built", 0013). What comes after is the note's provenance, which may name other
+ * notes' states.
  */
 function stateOf(status) {
   const [first = "", second = ""] = status.split(/(?<=\.)\s+/);
   if (/^proposed\b/i.test(first)) return "proposed";
-  if (/\bnot built\b/i.test(first)) return "decided, not built";
+  if (/\b(not|nothing) (yet )?built\b/i.test(first)) return "decided, not built";
   if (/\b(built|merged)\b/i.test(`${first} ${second}`)) return "built";
   return "decided";
 }
@@ -95,16 +96,21 @@ test("a status's state, as the notes write it", () => {
       "decided, not built",
     ],
     ["Decided, not built (Reach out Part 5's PR 5 builds it)", "decided, not built"],
+    // Not built yet, however the sentence says it: the word "built" in it is no step built.
+    ["decided, not yet built. Written against commit `4bc3e49a7`.", "decided, not built"],
+    ["decided; nothing built yet (its first pull request builds step 1).", "decided, not built"],
     ["proposed, not built; Ruben's to accept. Written against commit `519724e9c`.", "proposed"],
+    // A proposal stays one when a step of it is built: whose word it waits on comes first.
+    [
+      "proposed by the naming review (its D1), taken with the plan's Phase 1; Ruben's confirmation is owed. Step 1 is built with this note.",
+      "proposed",
+    ],
     ["decided. M1 and M2 built (00217, #1192); M3 built (00218, #1195) on `76d28c6d`.", "built"],
     ["decided; P1 (the role) and P3 (the ledger) merged (#1151). Written against commit `b6f2216`.", "built"],
     ["Built with the note (00209, #1165)", "built"],
     // A later sentence naming another note's state is not this note's.
     ["built, steps 1 to 4 (#892). Step 5's items are their own notes: 0005 is decided and not built.", "built"],
-    [
-      "decided, and held from this change. Written against `4bc3e49a7`. Numbered 0022: notes merged took 0018.",
-      "decided",
-    ],
+    ["decided, and held from the change that wrote it. Written against `4bc3e49a7`.", "decided"],
   ];
   for (const [status, state] of cases) assert.equal(stateOf(status), state, status);
 });

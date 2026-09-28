@@ -1,9 +1,10 @@
 # 0022 · The wire says snake_case
 
-**Status:** decided by Ruben on 28 September 2026 (the naming review's D1), and held from the change this note ships
-with. Written against `4bc3e49a7` (main, 28 September 2026, after #1263); where this note and the code disagree, the
-code wins. Numbered 0022 because 0018 to 0021 are held by notes merged or in open pull requests (#1205, #1244, #1206,
-#1253).
+**Status:** proposed by the naming review (its D1) and taken with the Road to Ten plan's Phase 1 on 28 September
+2026; Ruben's confirmation is owed. Step 1 is built with this note: the rule, `routes/wire-casing.test.mjs` and its
+bank, and `PUT /api/v1/policies`' body; steps 2 to 5 are to come. Written against `4bc3e49a7` (main, 28 September
+2026, after #1263); where this note and the code disagree, the code wins. Numbered 0022 because 0018 to 0021 are held
+by notes merged or in open pull requests (#1205, #1244, #1206, #1253).
 
 ## Context
 
@@ -11,8 +12,8 @@ code wins. Numbered 0022 because 0018 to 0021 are held by notes merged or in ope
   `Shape<I, O>` (`apps/dashboard/src/server/route.ts`), and the typed client's registry names each one
   (`apps/dashboard/src/client/routes.generated.ts`). So a route's JSON names are its types' property names, which the
   type checker can list.
-- **It is snake_case almost everywhere.** Read that way at `4bc3e49a7`, the 196 routes take and answer 1,046 distinct
-  names, and 992 are snake_case (a single word included). The other 54 are camelCase, in 26 routes: 53 in answers
+- **It is snake_case almost everywhere.** Read that way at `4bc3e49a7`, the 196 routes take and answer 1,041 distinct
+  names, and 987 are snake_case (a single word included). The other 54 are camelCase, in 26 routes: 53 in answers
   (`GET team` answers `isMe` and `userId`, `GET broadcasts` answers `heardAny`, `GET setup` answers `bookingLink`) and
   one in a body (`POST ask/warm` takes `askedAt`). Sixteen routes answer both casings in one payload.
 - **Everything the wire meets is snake_case too.** The database, Stripe, Meta and Retell. No generic converter exists:
@@ -81,16 +82,27 @@ code wins. Numbered 0022 because 0018 to 0021 are held by notes merged or in ope
 ## Tests
 
 - `routes/wire-casing.test.mjs`: the ratchet over the registry; every handler in the registry carries a shape the
-  checker can read, so one it cannot resolve does not read as clean; the walk on a registry written for it (a union's
-  names, an array's, a record's values and never its keys, six levels and no further, a brand, a `Date` and a
-  `Response` passed over); what snake_case is.
+  checker can read, so one it cannot resolve does not read as clean, and none takes or answers `any` or `unknown` as
+  a whole, which would hide every name it has; the walk on a registry written for it (a union's names, an array's, a
+  record's values and never its keys, six levels and no further, a brand, a `Date` and a `Response` passed over, a
+  whole `any` or `unknown` said); what snake_case is.
 - `workspace/settings-routes.test.mjs`: `PUT /api/v1/policies` with the new names, with the old ones, with both (the
   new one read), and a refusal in its dial's words under either name.
 
 ## Risks
 
-- **A name below six levels is not read.** At `4bc3e49a7` four sit deeper (`label`, `value`, `priority` in Setup's
-  checklist, `warn` in an Ask thread), all snake_case; a route that nests deeper than that raises the depth.
+- **A name below six levels is not read.** At `4bc3e49a7` four sit deeper, all snake_case: `label`, `value` and
+  `priority`, a sending domain's DNS records (`.setup.email.sending.domains[].records[]` in `GET setup` and
+  `GET platform/tenants/[id]`), and `warn` in an Ask thread's answer. A route that nests deeper than that raises the
+  depth.
+- **A field typed `unknown`, `Json` or `any` hides its names.** At `4bc3e49a7` 22 routes carry one, each a stored
+  JSON column or an answer relayed from the edge: a message's `meta` (`GET conversations`, `GET conversations/[id]`,
+  `GET contacts/[id]`), what a member's pages remember (`GET views`, `PUT views/[page]`, whose `sortBy` and `sortDir`
+  the walk cannot see), the four `POST platform/lines/*` routes' `result`, `POST lines/search`'s `numbers` (typed
+  `any`), a policy's `limits` (`GET` and `PUT policies`), an Ask proposal's `payload`, a list's `rule` (the segments
+  routes and the broadcasts'), a search's `plan`, a partner workspace's `checks`, and the `thread_id`
+  `POST lead-searches` takes. The walk reads none of them; the test fails a route whose whole body or answer is `any`
+  or `unknown`, and none is. A column given its own type comes under the rule.
 - **A rename the compiler passes can break a page.** The shell reads JSON the compiler never sees: search
   `apps/dashboard/src/legacy` for every old name before it goes.
 - **A hand-read body hides its names** until it declares its `input`.

@@ -27,9 +27,11 @@ import { WIRE_CASING, WIRE_REGISTRY, dashboardWire, isSnakeCase, offTheWire, wir
 ratchet(WIRE_CASING);
 
 // The measure the ratchet rests on, kept honest: a handler whose module the checker could not resolve reads as
-// `any`, and a walk that stopped at the top would see a clean wire, so either would pass the ratchet and bank the
-// names away. These say so instead.
-test("the measure reads every handler in the registry, and the names below each route's top level", async () => {
+// `any`, a handler that takes or answers `any` or `unknown` as a whole shows no names, and a walk that stopped at the
+// top would see a clean wire, so each would pass the ratchet and bank the names away. These say so instead. A field
+// typed `unknown` below the top (a stored JSON column, an answer relayed from the edge) still hides the names under
+// it: decision 0022 lists them.
+test("the measure reads every handler in the registry, none hidden whole, and the names below each route's top level", async () => {
   const { ROUTES } = await import(pathToFileURL(path.join(ROOT, WIRE_REGISTRY)).href);
   const shapes = dashboardWire();
   assert.deepEqual(Object.keys(shapes).sort(), Object.keys(ROUTES).sort(), "one handler per key the client names");
@@ -37,6 +39,11 @@ test("the measure reads every handler in the registry, and the names below each 
     Object.keys(shapes).filter((k) => !shapes[k]),
     [],
     "every handler carries a shape the checker can read",
+  );
+  assert.deepEqual(
+    Object.keys(shapes).filter((k) => shapes[k].hidden.length),
+    [],
+    "no handler takes or answers `any` or `unknown` as a whole: its names would never reach the bank",
   );
   const names = new Set(Object.values(shapes).flatMap((io) => [...io.takes, ...io.answers]));
   assert.ok(
@@ -46,7 +53,7 @@ test("the measure reads every handler in the registry, and the names below each 
 });
 
 // The walk, on a registry written for it: what counts as a name, how deep it looks, and what it passes over.
-test("the walk reads a union's and an array's names and a record's values, to six levels, and nothing JSON cannot carry", () => {
+test("the walk reads a union's and an array's names and a record's values, to six levels, nothing JSON cannot carry, and says a side it cannot see into", () => {
   const file = "/fixture/routes.ts";
   const text = [
     "declare const shape: unique symbol;",
@@ -59,6 +66,7 @@ test("the walk reads a union's and an array's names and a record's values, to si
     '  "GET rows": Shape<{ page?: number }, { rows: Row[]; byWorkspace: Record<string, { lastSeen: string }>; nested: Deep }>;',
     '  "POST rows": Shape<{ askedAt: string } | { asked_at: string }, { saved: [{ savedAt: string }] }>;',
     '  "GET export": Shape<undefined, Response>;',
+    '  "PUT relay": Shape<unknown, any>;',
     '  "GET bare": { run: () => void };',
     "};",
   ].join("\n");
@@ -71,7 +79,13 @@ test("the walk reads a union's and an array's names and a record's values, to si
   const shapes = wireShapes(ts.createProgram({ rootNames: [file], options, host }), file);
 
   assert.deepEqual(shapes["GET bare"], null, "a handler with no shape is null, never clean");
-  assert.deepEqual(shapes["GET export"], { takes: [], answers: [] }, "a Response is no JSON names");
+  assert.deepEqual(shapes["GET export"], { takes: [], answers: [], hidden: [] }, "a Response is no JSON names");
+  assert.deepEqual(
+    shapes["PUT relay"],
+    { takes: [], answers: [], hidden: ["takes", "answers"] },
+    "a body or an answer that is `any` or `unknown` as a whole is said, never read as clean",
+  );
+  assert.deepEqual(shapes["GET rows"].hidden, []);
   assert.deepEqual(shapes["GET rows"].takes, ["page"]);
   assert.ok(shapes["GET rows"].answers.includes("deepName"), "six levels below the answer");
   assert.ok(!shapes["GET rows"].answers.includes("tooDeep"), "and no further");

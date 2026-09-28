@@ -23,7 +23,7 @@ once it is built: it is the record of why the code has that shape.
 | [0016](0016-a-partner-sets-up-a-workspace-and-hands-it-over.md) | A partner sets up a workspace and hands it to its owner    | Built with the note (00214, #1177)                                                                                                                                |
 | [0017](0017-a-lead-reply-is-drafted-on-its-reading.md)          | A lead's reply is drafted on its reading                   | Built, steps 1 and 2 (Reach out Part 5's PRs 1 and 5); step 3 waits on 0001's step 6                                                                              |
 | [0020](0020-an-existing-workspace-brings-in-a-partner.md)       | An existing workspace brings in a partner                  | Built with the note (00225)                                                                                                                                       |
-| [0022](0022-the-wire-says-snake-case.md)                        | The wire says snake_case                                   | Decided, and held from the change that wrote it by `routes/wire-casing.test.mjs`, whose bank may only fall                                                        |
+| [0022](0022-the-wire-says-snake-case.md)                        | The wire says snake_case                                   | Proposed (the naming review's D1), taken with Road to Ten's Phase 1; Ruben's confirmation owed. Step 1 built with it: the test, its bank, PUT policies' body      |
 
 Open pull request #1039, the pricing note, is written as 0011, which the bearer token has held since #1149: it
 takes the next free number when it lands. A number never changes once it is on `main`.

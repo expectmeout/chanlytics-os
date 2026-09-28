@@ -101,7 +101,7 @@ table names outside packages/db     534
 unnamed durations                    78   in 39 files
 wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     161
-source-text reads in tests          827
+source-text reads in tests          826
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      972   the shell included
 workspace route CSS, KB gzipped     123

@@ -516,11 +516,12 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
   );
   // The confidence dial and the day's budget, through the same door: each
   // alone, the mode and the other limits kept, each refusal in its words.
-  const dial = await policies.PUT.run(send("PUT", { class: "reply", min_confidence: 0.75 }, inB), ctxFor(tables));
+  // The dial is kept to two places: 0.754 is stored as 0.75.
+  const dial = await policies.PUT.run(send("PUT", { class: "reply", min_confidence: 0.754 }, inB), ctxFor(tables));
   assert.deepEqual(
     [dial.policy.mode, dial.policy.limits.min_confidence, dial.policy.limits.reply_delay_ms],
     ["ask", 0.75, 45000],
-    "the dial set, the mode and the delay kept",
+    "the dial set to two places, the mode and the delay kept",
   );
   await refused(
     policies.PUT.run(send("PUT", { class: "reply", min_confidence: 2 }, inB), ctxFor(tables)),
