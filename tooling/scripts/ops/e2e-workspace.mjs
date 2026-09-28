@@ -20,7 +20,7 @@
  *   - the config has no calendar, and one notification address: Resend's test
  *     inbox, delivered@resend.dev, which Resend documents as an address that
  *     simulates a delivery, so what is sent to it reaches nobody. It is there
- *     because e2e/thread.spec.ts sends a reply this channel cannot carry: the
+ *     because e2e/conversations/thread.spec.ts sends a reply this channel cannot carry: the
  *     failure opens an escalation and alerts the owner, and for a workspace with
  *     no address chooseAddressing (apps/edge/lib/ops/notify.ts) answers `redacted`,
  *     which mails the platform's own mailbox -- a real person -- every night,
@@ -374,7 +374,7 @@ export const ALL_LEAD_PLACES = [...LEADS.map((l) => l.place_id), ...WAITING_LEAD
 /**
  * Every person's two answers, in force after each run: a yes to messages, taken
  * in person a week before the run, and nothing yet about offers. The specs
- * (e2e/owner-signals.spec.ts) read this state and nothing else; verify() below
+ * (e2e/today/owner-signals.spec.ts) read this state and nothing else; verify() below
  * refuses a workspace that drifted from it.
  */
 export const SAID_YES_TO_MESSAGES = "opted_in";

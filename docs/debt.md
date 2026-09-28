@@ -95,7 +95,7 @@ fails when this block and the baselines disagree.
 ```text
 functions over the limit            198   of which over 200 lines: 56
 files over 800 lines                 13
-directories over 20 modules           6
+directories over 20 modules           5
 window globals                      200   names
 window publishers                   446   sites in 164 files
 copies                               52   of 14 names

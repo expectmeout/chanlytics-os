@@ -12,7 +12,7 @@
  *              at all, which is what makes it the record the committed spec must pass on -- every list is empty and
  *              every fold opens on nothing.
  *   pipeline -- a studio that sends proposals (deals on, 0008) with People REAL over it: eight people across the
- *              Pipeline's four groups, in people_list's row shape and the person read's own, so e2e/people.spec.ts's
+ *              Pipeline's four groups, in people_list's row shape and the person read's own, so e2e/people/people.spec.ts's
  *              Pipeline walk runs here -- the list, the peek, the person's page. Fictional, as the salon is.
  *   salon    -- a fuller record, for the branches the nightly's data cannot reach: a week of hours, closures AT the
  *              cap, services, and one language short of the cap so a single Add fills it. A FICTIONAL business: this

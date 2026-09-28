@@ -66,7 +66,7 @@ test("the thread menu on a real workspace offers only verbs that act", () => {
 test("no diagnostics page in production, and the unloaded mockup files are gone", () => {
   assert.ok(!fs.existsSync(path.join(ROOT, "apps/dashboard/app/(os)/foundation")), "app/(os)/foundation still exists");
   assert.ok(!readCode("apps/dashboard/app/(os)/error.tsx").includes("/foundation"), "the error page still links to it");
-  assert.ok(!readRaw("e2e/auth-gate.spec.ts").includes('"/foundation"'), "the e2e still probes it");
+  assert.ok(!readRaw("e2e/auth/auth-gate.spec.ts").includes('"/foundation"'), "the e2e still probes it");
   for (const rel of ["apps/dashboard/src/legacy/design-canvas.jsx", "apps/dashboard/src/legacy/tweaks-panel.jsx"]) {
     assert.ok(!fs.existsSync(path.join(ROOT, rel)), `${rel} still in the tree`);
   }
