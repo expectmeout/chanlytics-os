@@ -3,7 +3,7 @@
  * of them, and the standing's headline, in the page's own words, as of a moment. Derived from the Today view model
  * the page already holds, so the widget can never say a number the page would not.
  */
-import type { TodayVM } from "../today/today";
+import type { TodayVM } from "../today/today-vm";
 
 export interface TodayWidgetSnapshot {
   /** The standing's headline: what Today says first. */

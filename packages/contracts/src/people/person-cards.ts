@@ -34,7 +34,10 @@ import { addedBy, proposalSending, proposalSent, replyChannelOfThreads, ts } fro
 import { capitalize } from "../shared/words";
 import { PERSON_CHANNEL_WORDS, REPLY_VIA } from "./person-words";
 import { replyWindow } from "../config/policy";
-import { messageAt, type MessageDto, messageText, shortTime, writtenChannelOf } from "../conversations/viewmodels";
+import { messageAt, type MessageDto } from "../conversations/thread-dto";
+import { messageText } from "../conversations/message-words";
+import { shortTime } from "../conversations/thread-clock";
+import { writtenChannelOf } from "../conversations/thread-channel";
 import { HOUR_MS } from "../shared/time";
 
 export interface PersonRightNow {

@@ -590,7 +590,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   for (const id of ["bc-number", "bc-number-refusal", "bc-over-limit"])
     assert.ok(p.includes(`data-testid="${id}"`), id);
   assert.ok(p.includes("&& numberOk && !overLimit;"), "the button follows the number too");
-  const vm = readCode("packages/contracts/src/conversations/viewmodels.ts");
+  const vm = readCode("packages/contracts/src/conversations/message-author.ts");
   assert.ok(
     vm.includes('{ kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") }') &&
       vm.includes('{ kind: "playbook", name: String(m.meta.playbook_name) }'),
@@ -619,7 +619,7 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
   assert.equal(optInLink(null), null);
   assert.equal(optInLink("12"), null);
   assert.ok(
-    readCode("packages/contracts/src/config/config.ts").includes(
+    readCode("packages/contracts/src/config/workspace-config/compose.ts").includes(
       "If a message is only the words YES OFFERS or SI OFERTAS",
     ),
     "the receptionist thanks them and asks nothing else",

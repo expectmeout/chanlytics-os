@@ -458,6 +458,17 @@ keeps its first question as its title and updates its scope on each turn. Thread
 scrubbed on erasure; a name becomes a needle for the scrub as well as an id, since a turn that only names a person is
 the one that survives today.
 
+_Amended by the Phase 5 plan (27 Sep 2026):_ "verbatim" includes the person's side of every earlier turn (the page's
+blocks, the `read://` blocks, the turn's words with its clock, the question), the final round and the results of acts
+that ended a turn, since a thinking block's signature and the cache are bound to `system`, `tools` and every earlier
+message; all of it is stored on the answer row, and none of it is today. Warm is the five-minute cache measured from
+the previous turn's last round's start (under 4½ minutes), on the same model, `system` and tools; anything else is
+cold, because a replayed block on another prefix is refused. The twelve-turn bound is met by a cold rebuild — a sliding
+window is an edit — and so are 48 messages or 400,000 characters of replay. "Approve that one" points at the card by
+its title and never presses (Ask proposes, §7); "open the second" is the answer's item, and the rows earlier turns cited
+join the read set. The name needle is bounded to the person's own threads and scrubs their titles and scopes too; that
+is a replaced SQL function, the one migration of the phase.
+
 ### 5.7 Grounding (fix)
 
 The read set becomes a map from kind to a map from id to the RowRef the reader returned, so a source's route is looked
@@ -809,9 +820,39 @@ closed. An owner is offered twenty tools. **Proof:** each new action answers wha
 same reader; a case per new action and card in the eval set; a db test that the index answers under RLS as the person;
 the wiring map's Ask column re-read.
 
-**Phase 5 · Memory.** Raw turn blocks stored for a warm verbatim replay; the compact rebuild with cards, outcomes and
-cited ids for a cold reopen; replay bounded to twelve turns; newest-sixty; scope updated per turn; a name as a scrub
-needle. No migration. **Proof:** two-turn eval cases; a db test for the scrub.
+**Phase 4, landed** (27 Sep 2026). PR 4.1 (#1185), PR 4.2 (#1189), PR 4.3 (#1202), PR 4.4 (#1203), PR 4.5 (#1220),
+PR 4.6 (#1209) and PR 4.7 (#1228), each merged on green (D15); 4.4's migration went to production on Ruben's yes before
+its merge (D7), as `00219` — `00217` and `00218` had gone to other branches by then. What landed beyond the plan: 4.3
+keeps money out of the activity by each row's own category (a partner's commission is filed as billing without a
+`billing.` kind) and parses a call as the role's own tool, so no error names an action the role is not offered; 4.4's
+function is `strict`, parses the words once per statement, and its header says truly that the planner may walk a
+workspace's newest rows rather than read the index (at today's sizes it always does; the indexes are capacity);
+4.5's hits say who wrote each and what became of a reply — a held, canceled or failed draft never reached the customer
+— as `inbox.thread` says it, name a caller as the Calls page does, and do not search a person's notes (they are
+`person_notes`, read by `people.get`); 4.6 found the details door setting a name before an address it could refuse,
+and now sets the address first, and a person card, like `propose_deal`, reads only the workspace's people; 4.7 reads a
+list's rule strictly (the drafter's lenient read is held by its structured output; Ask's tools are not strict), and a
+reach-out run is refused as approved on its own sheet, not on Leads as D11 said. Outside Ask, #1218 pinned the clock of
+a broadcast test that had turned main red at 21:00 UTC. The set: nine reads (twenty-five actions) and eleven acts,
+sixteen card kinds, thirteen citation names, offered per action (viewer 9 tools, operator 17, partner 19, owner 20;
+the tools block with examples 22,952 / 42,499 / 47,805 / 50,153 characters). The eval set is 80 cases (≈ $0.96 a pass);
+Ruben's re-run follows. The wiring map's Ask parts were re-read at `c04092974` with 4.7's branch and republished
+(the 25 Sep artifact is gone): https://claude.ai/artifact/SQXx5jKuC111AD2iATuX9B — four Ask defects closed, seven open
+loops narrowed, and six rows added for what Phases 5–7 and three follow-ups own (a broadcast's copies crowding
+`inbox.search`; the person and deal cards naming people by a rule of their own rather than `personName`;
+`campaigns.audiences` offering a template the Broadcasts composer withholds).
+
+**Phase 5 · Memory** (eight PRs; plan `2026-09-27-ask-rewired-5-memory.md`). PR 5.0 makes room in the loop and the
+route as a pure move. PR 5.1: the newest sixty, the scope of each turn kept (an explicit clear honoured), twelve turns
+counted as turns. PR 5.2: two-turn eval cases and their baseline. PR 5.3: the raw turn stored on the answer row — the
+person's side and the model's, the final round, the results of acts that ended the turn, the last round's start and a
+hash of the prefix — never shipped to the browser. PR 5.4: the live replay while the previous turn's last round started
+under 4½ minutes ago on the same model, `system` and tools, with a fourth, moving cache breakpoint. PR 5.5: the cold
+rebuild, one frozen line per turn; earlier cited rows citable; "approve that one" points at the card, never presses.
+PR 5.6: the scrub bounded to the person's own threads, by name as well, with titles and scopes — a replaced function,
+the one migration, held for Ruben. PR 5.7: Phase 5 closed. **Proof:** two-turn harness tests byte for byte against
+the previous turn's request; two-turn eval cases; a real two-turn run with no 400 and the first turn read from the
+cache; the first db test that runs the scrub.
 
 **Phase 6 · The gateway and the budget.** `ask_tokens_day` in SQL; the gateway sums by it; `diagnostics.previous_message_id`
 through the gateway in development; the hop timestamp; the nightly hit-ratio check with its issue. Migration: one

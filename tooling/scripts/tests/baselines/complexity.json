@@ -834,22 +834,22 @@
     "branches": 53,
     "depth": 3
   },
-  "packages/contracts/src/config/business-tab.ts::abilityRows#1": {
+  "packages/contracts/src/config/business-tab/abilities.ts::abilityRows#1": {
     "lines": 162,
     "branches": 40,
     "depth": 1
   },
-  "packages/contracts/src/config/config.ts::composeSystemPromptWith#1": {
+  "packages/contracts/src/config/workspace-config/compose.ts::composeSystemPromptWith#1": {
     "lines": 254,
     "branches": 66,
     "depth": 2
   },
-  "packages/contracts/src/conversations/viewmodels.ts::toCallVM#1": {
+  "packages/contracts/src/conversations/call-vm.ts::toCallVM#1": {
     "lines": 140,
     "branches": 69,
     "depth": 1
   },
-  "packages/contracts/src/conversations/viewmodels.ts::toInboxThreadVM#1": {
+  "packages/contracts/src/conversations/inbox-thread.ts::toInboxThreadVM#1": {
     "lines": 219,
     "branches": 53,
     "depth": 2
@@ -939,12 +939,12 @@
     "branches": 33,
     "depth": 2
   },
-  "packages/contracts/src/today/today.ts::figuresOf#1": {
+  "packages/contracts/src/today/today-figures.ts::figuresOf#1": {
     "lines": 200,
     "branches": 55,
     "depth": 2
   },
-  "packages/contracts/src/today/today.ts::todayLeaks#1": {
+  "packages/contracts/src/today/today-leaks.ts::todayLeaks#1": {
     "lines": 207,
     "branches": 66,
     "depth": 1
@@ -955,8 +955,8 @@
     "depth": 2
   },
   "packages/contracts/src/workspace/activity.ts::activityWords#1": {
-    "lines": 159,
-    "branches": 76,
+    "lines": 154,
+    "branches": 75,
     "depth": 3
   },
   "packages/contracts/src/workspace/billing.ts::toBillingVM#1": {

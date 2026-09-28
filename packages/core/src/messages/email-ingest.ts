@@ -88,6 +88,13 @@ export interface EmailIngestPorts {
       claim: EmailClaim;
     },
   ): Promise<void>;
+  /**
+   * Is this kept message a reply to one of the workspace's reach-outs (00222 reach_out_reply_of)? Throws when it cannot
+   * be asked: a reply taken for nobody's would never be read, and a no in it would be missed.
+   */
+  reachOutReply(tenantId: string, messageId: string): Promise<boolean>;
+  /** Hand the reply to the reading (a reply_read job), at most once per message however often this runs. */
+  readReply(tenantId: string, messageId: string): Promise<void>;
   markProcessed(tenantId: string, messageId: string): Promise<void>;
   received(mailboxId: string, at: string): Promise<void>;
   now(): number;
@@ -95,6 +102,7 @@ export interface EmailIngestPorts {
 
 export type EmailIngestOutcome =
   | "kept_for_a_person"
+  | "kept_for_the_reading"
   | "kept_quietly"
   | "already_handled"
   | "not_a_conversation"
@@ -107,11 +115,14 @@ export type EmailIngestOutcome =
 export const EMAIL_BODY_MAX = 20_000;
 
 /** What the person who opens the thread is told, by what the email claimed to be. */
-export const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automated">, string> = {
+export const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automated"> | "reach_out", string> = {
   person:
     "An email arrived. The receptionist does not answer email yet, so nothing was sent: read it and reply from here.",
   automated:
     "An automated email arrived (a form, a notification or a list). Nothing answers those: read it, and reply from here if a person is waiting behind it.",
+  // A reply to a reach-out (Reach out Part 5): the reading tells the owner what it meant, so this flag says only where.
+  reach_out:
+    "They wrote back to your reach-out. Nothing is sent without you: read it here, with the receptionist's draft when it wrote one.",
 };
 
 export async function ingestEmail(
@@ -152,39 +163,63 @@ export async function ingestEmail(
   });
   if (!kept.is_new && kept.processed) return "already_handled";
 
-  if (claim !== "auto_reply") {
-    const flagged = await ports.escalate(
-      mailbox.tenant_id,
-      kept.conversation_id,
-      "email_review",
-      EMAIL_REVIEW_WORDS[claim],
-    );
-    // Kept and not flagged is an email nobody will be shown: the job fails and
-    // the next try, finding the row unhandled, flags it.
-    if (flagged === "failed")
-      throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
-    // Once per hold, not once per email: a second email on a thread already
-    // waiting for the same reason refreshes the flag quietly. But a thread
-    // waiting for something ELSE -- the carriers, an opt-out, a failed send --
-    // has just had that reason replaced by this one, and an email nobody is
-    // told about is an email nobody answers. A hold that now means something
-    // different is a different hold.
-    if (flagged === "opened" || flagged === "changed") {
-      await ports.tell(mailbox.tenant_id, {
-        conversationId: kept.conversation_id,
-        from: address,
-        fromName: email.from?.name ?? null,
-        subject: email.subject,
-        preview: bodyOf(email)?.slice(0, 280) ?? null,
-        claim,
-      });
-    }
-  }
+  // A reply to a reach-out is read for what it means (reply_read), whatever it claims: an automatic reply may still
+  // say no (B1). The reading tells the owner, so the intake does not tell them twice. Asked before anything is marked,
+  // so a failed read or a failed schedule is the job's to try again, and the next try finds the reading scheduled.
+  const reachOut = await ports.reachOutReply(mailbox.tenant_id, kept.message_id);
+  if (reachOut) await ports.readReply(mailbox.tenant_id, kept.message_id);
+
+  if (claim !== "auto_reply")
+    await flagForAPerson(ports, email, {
+      tenantId: mailbox.tenant_id,
+      conversationId: kept.conversation_id,
+      address,
+      claim,
+      reachOut,
+    });
   // Last, and only once the flag a person acts on is durable: a run that dies
   // above leaves the row unhandled, and the next try finishes it.
   await ports.markProcessed(mailbox.tenant_id, kept.message_id);
   await ports.received(mailbox.id, at);
+  if (reachOut) return "kept_for_the_reading";
   return claim === "auto_reply" ? "kept_quietly" : "kept_for_a_person";
+}
+
+/**
+ * Flag the thread for a person, and tell them unless the reading will (a reach-out's reply). Every claim but an
+ * automatic reply is flagged.
+ */
+async function flagForAPerson(
+  ports: EmailIngestPorts,
+  email: IncomingEmail,
+  p: { tenantId: string; conversationId: string; address: string; claim: "person" | "automated"; reachOut: boolean },
+): Promise<void> {
+  const { tenantId, conversationId, claim, reachOut } = p;
+  const flagged = await ports.escalate(
+    tenantId,
+    conversationId,
+    "email_review",
+    reachOut ? EMAIL_REVIEW_WORDS.reach_out : EMAIL_REVIEW_WORDS[claim],
+  );
+  // Kept and not flagged is an email nobody will be shown: the job fails and
+  // the next try, finding the row unhandled, flags it.
+  if (flagged === "failed")
+    throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
+  // Once per hold, not once per email: a second email on a thread already
+  // waiting for the same reason refreshes the flag quietly. But a thread
+  // waiting for something ELSE -- the carriers, an opt-out, a failed send --
+  // has just had that reason replaced by this one, and an email nobody is
+  // told about is an email nobody answers. A hold that now means something
+  // different is a different hold.
+  if (reachOut || (flagged !== "opened" && flagged !== "changed")) return;
+  await ports.tell(tenantId, {
+    conversationId,
+    from: p.address,
+    fromName: email.from?.name ?? null,
+    subject: email.subject,
+    preview: bodyOf(email)?.slice(0, 280) ?? null,
+    claim,
+  });
 }
 
 /** The words, bounded. */

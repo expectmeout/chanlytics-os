@@ -11,7 +11,7 @@
 import { foldName } from "../calendar/availability";
 import { visitDay } from "../calendar/calendar-people";
 import { clockDate, wallClockAt, zoneDayKey } from "../shared/clock";
-import { isRealDate } from "../config/config";
+import { isRealDate } from "../config/workspace-config/config-schema";
 import {
   DEAL_ACT_WORDS,
   DEAL_LINE_NONE,

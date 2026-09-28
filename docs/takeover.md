@@ -34,14 +34,14 @@ rows (`docs/debt.md`).
 
 ```text
 functions over the limit            207   of which over 200 lines: 65
-files over 800 lines                 34
+files over 800 lines                 30
 directories over 20 modules           7
 window globals                      198   names
 window publishers                   442   sites in 151 files
 copies                              152   of 38 names
 as unknown as                       222
 table names outside packages/db     533
-unnamed durations                    78   in 34 files
+unnamed durations                    78   in 35 files
 dead exports, types and modules     167
 source-text reads in tests          829
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
@@ -88,7 +88,7 @@ keeps its twenty-five rows so each re-scoring compares with the last.
 ## The takeover test, answered
 
 1. **Authentication**: `apps/dashboard/proxy.ts` (the gate and the pinned public list), `src/lib/supabase/server.ts`, `src/server/auth-cookies.ts`, `app/auth/*`.
-2. **Authorization**: `src/server/route.ts` (`role` and `scope`), `ROLE_PERMS` in `packages/contracts/src/config/config.ts`, RLS in `supabase/migrations`, SECURITY DEFINER doors.
+2. **Authorization**: `src/server/route.ts` (`role` and `scope`), `ROLE_PERMS` in `packages/contracts/src/config/workspace-config/role-perms.ts`, RLS in `supabase/migrations`, SECURITY DEFINER doors.
 3. **Database client**: the session client in `src/lib/supabase`; the service role in `packages/db/src/service-client.ts` and the dashboard's `src/server/service-db.ts`; the edge's `apps/edge/lib/pg.ts`.
 4. **API calls**: a page calls the bridge (`src/legacy-bridge/api.ts`), which calls the typed client (`src/client/api.ts` over `routes.generated.ts`), which calls `app/api/v1`. The dashboard reaches the edge through `src/server/edge.ts` with a per-call token.
 5. **Business logic**: `packages/core` verbs; the receptionist's decisions in `apps/edge/lib`; privileged writes in SQL doors. Booking logic lives nowhere, by charter: the receptionist never books.
@@ -102,7 +102,7 @@ keeps its twenty-five rows so each re-scoring compares with the last.
 13. **Multi-tenancy**: `docs/architecture.md`, Tenancy; `docs/glossary.md` for the tenant and workspace rule.
 14. **Integrations**: `packages/channels` adapters; doors under `apps/edge/api`; Stripe in `apps/edge/lib/billing/billing.ts`.
 15. **Background jobs**: `packages/jobs`, `apps/edge/api/jobs/tick.ts`, the sweeps under `apps/edge/api/cron`.
-16. **AI**: one receptionist (`apps/edge/lib/receptionist/brain.ts`, the composer in `packages/contracts/src/config/config.ts`, the structured answer in `contracts/config/brain.ts`); Ask under `src/server/ask`; the lead judge in `packages/channels/src/lead-judge.ts` and `core/leads`. The mockup's agent fleet is not built, by decision.
+16. **AI**: one receptionist (`apps/edge/lib/receptionist/brain.ts`, the composer in `packages/contracts/src/config/workspace-config/compose.ts`, the structured answer in `contracts/config/brain.ts`); Ask under `src/server/ask`; the lead judge in `packages/channels/src/lead-judge.ts` and `core/leads`. The mockup's agent fleet is not built, by decision.
 17. **Adding a feature**: `CLAUDE.md`, Where new code goes, and the canonical example table.
 18. **Reusing a component**: `src/legacy/components`, and the `btn`, `set-input`, `record-*` classes the pages already use.
 19. **A new endpoint**: copy the snooze route; add its row to `route-policy.json` (the test prints what it expects); run `gen-route-types`.
