@@ -2,38 +2,35 @@ import "server-only";
 
 /**
  * What a turn keeps of its thread: the thread it continues and the history it is asked with, before the model is asked
- * (threadForTurn, the ask route's), and the turn as it ends, measured and as the model was sent it (finishTurn,
- * runAskTurn's).
+ * (threadForTurn, the ask route's), and the turn as the model was sent it (rawTurn), which the turn's end keeps
+ * (turn-end.ts finishTurn, runAskTurn's).
  */
 
 import { createHash } from "node:crypto";
 import {
   AppError,
   MIN_MS,
-  answerText,
-  cacheHitOf,
   type AskAnswer,
   type AskMessageVM,
   type AskModelId,
-  type AskModelProfile,
-  type AskProposal,
+  type AskRowRef,
   type AskScope,
   type AskTurnShape,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "../with-route";
-import { calledName, type ToolRun } from "./tools";
-import { titleFromQuestion, titleFromSearch, type CardOutcome, type SearchAnswering } from "./prompt";
+import { answerLine, titleFromQuestion, titleFromSearch, type CardOutcome, type SearchAnswering } from "./prompt";
 import { createThread, readRaws, readThread } from "./store";
-import type { BuiltContext, SearchResultBlock } from "./context";
-import { replayBlocks, resultBlocks, type CallOutcome, type RoundBlock, type RoundResult } from "./round";
-import type { Msg, TurnInput, TurnResult } from "./loop";
+import { replayBlocks, resultBlocks, type CallOutcome, type RoundBlock } from "./round";
+import type { Msg, TurnInput } from "./loop";
 
 /**
- * The earlier turns a question is asked with, as words: counted as turns -- a person's message and what follows it
- * until the next -- never as messages (the Phase 5 plan, D3's fallback until the replay). Twelve messages were six.
+ * The earlier turns a cold question is asked with: counted as turns -- a person's message and what follows it until the
+ * next -- never as messages (the Phase 5 plan, D3), each cut at HISTORY_CHARS, and about HISTORY_BASE_CHARS in all as
+ * sent (D4: some four thousand tokens), the oldest turns going whole past it (rebuiltHistory).
  */
 const HISTORY_TURNS = 12;
 const HISTORY_CHARS = 1200;
+const HISTORY_BASE_CHARS = 16_000;
 
 /** A warm thread (the Phase 5 plan, D1): the previous turn's last round began under 4½ minutes ago, in the cache's five. */
 const LIVE_WINDOW_MS = 4.5 * MIN_MS;
@@ -66,8 +63,9 @@ export interface Chain {
   /** The answer row the replay ends on: the next turn's `after`. */
   after: string;
   /**
-   * What happened since (D8): each outcome recorded on the chain's cards that no turn of it told, oldest first -- told
-   * by what each live turn kept (`told`), never by the tab's clock, so one recorded while a turn ran is told next.
+   * What happened since (D8): each outcome recorded on the chain's cards -- every card of the thread's after a rebuild
+   * that kept what its lines told (chainFrom) -- that no turn of it told, oldest first: told by what each turn kept
+   * (`told`), never by the tab's clock, so one recorded while a turn ran is told next.
    */
   since: CardOutcome[];
 }
@@ -79,7 +77,31 @@ export interface Chain {
  */
 const toldOf = (o: { id: string; state: string; atMs: number }): string => `${o.id}:${o.state}:${o.atMs}`;
 /** What a live turn keeps of the chain it replayed (RawTurn): where it ended, and what the turn told. */
-const chainEnd = (chain: Chain) => ({ after: chain.after, told: chain.since.map(toldOf) });
+export const chainEnd = (chain: Chain) => ({ after: chain.after, told: chain.since.map(toldOf) });
+/**
+ * What a rebuilt history's lines already said of the thread's cards (the Phase 5 plan, PR 5.5): every outcome on a card
+ * of the rows the turn read, as a live turn keeps what it told. Every row read, not only those the lines kept: a card
+ * older than the lines, its outcome recorded before this turn, is no news to a turn after it.
+ */
+const toldIn = (rows: AskMessageVM[]): string[] =>
+  rows.flatMap((r) =>
+    r.proposals.flatMap((p) => (p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, atMs: p.outcome.atMs })] : [])),
+  );
+
+/**
+ * The rows the thread's answers cited, where each opened them (the Phase 5 plan, D5): their items' sources and their
+ * citations, the newest answer's last, each row once -- never a page, which needs no read, nor a row that opened
+ * nowhere. The turn's read set starts with them, so a row an earlier answer named is cited and opened without a read;
+ * every row the read holds is a superset of what the model was shown, and it cites a row only by the exact id it saw.
+ */
+function citedIn(rows: AskMessageVM[]): AskRowRef[] {
+  const refs = new Map<string, AskRowRef>();
+  for (const m of rows)
+    for (const s of [...(m.answer?.show.items.map((i) => i.source) ?? []), ...m.citations])
+      if (s.kind !== "page" && s.to)
+        refs.set(`${s.kind}:${s.id}`, { kind: s.kind, id: s.id, route: s.to, label: s.label });
+  return [...refs.values()];
+}
 
 /**
  * The thread's prior turns, folded so no two neighbours share a role, starting with the person: the last HISTORY_TURNS
@@ -89,7 +111,7 @@ const chainEnd = (chain: Chain) => ({ after: chain.after, told: chain.since.map(
  * words first. A cold turn's history (a live one replays its chain instead: replayFor).
  */
 export function foldHistory(history: TurnInput["history"], last: string | unknown[]): Msg[] {
-  const questions = history.flatMap((h, i) => (h.role === "user" ? [i] : []));
+  const questions = questionsOf(history);
   const from = questions[Math.max(0, questions.length - HISTORY_TURNS)] ?? history.length;
   const messages: Msg[] = [
     ...history.slice(from).map((h) => ({ role: h.role, content: h.text.slice(0, HISTORY_CHARS) })),
@@ -107,6 +129,31 @@ export function foldHistory(history: TurnInput["history"], last: string | unknow
     }
   }
   return messages;
+}
+
+/** Where each turn of a history starts: a person's message, and what follows it until the next. */
+const questionsOf = (history: TurnInput["history"]): number[] =>
+  history.flatMap((h, i) => (h.role === "user" ? [i] : []));
+
+/**
+ * The thread's earlier turns as a cold turn is asked with them (the Phase 5 plan, D4): each question in the person's
+ * words as the model has always read them (readThread's `turns`, askTurnText), each answer one line (answerLine: its
+ * headline, its cards and what became of them, the rows it named) -- the last HISTORY_TURNS turns from a question, as
+ * foldHistory keeps them, and about HISTORY_BASE_CHARS as it sends them: the oldest turns go whole, the newest stays.
+ * About: each entry is counted as it stands, cut at HISTORY_CHARS, before foldHistory joins two neighbours of one role
+ * with a new line (a question left unanswered, two answers in a row), so a history runs a character over per join. The
+ * turn keeps what it sent as its base (rawTurn), and a live turn after it replays that base as it was sent, so a line
+ * is frozen on the turn that made it.
+ */
+function rebuiltHistory(messages: AskMessageVM[], turns: TurnInput["history"]): TurnInput["history"] {
+  const history = messages.map((m, i) =>
+    m.role === "assistant" ? { role: "assistant" as const, text: answerLine(m, HISTORY_CHARS) } : turns[i],
+  );
+  const questions = questionsOf(history);
+  const sent = (from: number) => history.slice(from).reduce((n, h) => n + Math.min(h.text.length, HISTORY_CHARS), 0);
+  let k = Math.max(0, questions.length - HISTORY_TURNS);
+  while (k < questions.length - 1 && sent(questions[k]) > HISTORY_BASE_CHARS) k++;
+  return history.slice(questions[k] ?? history.length);
 }
 
 /** The question as the route read it, and the search it answers, if any. */
@@ -129,12 +176,19 @@ export async function threadForTurn(
   asked: Asked,
 ): Promise<{
   thread: { id: string; title: string; scope: AskScope | null };
-  /** The thread's turns as the model reads them, oldest first. */
+  /** The thread's earlier turns as a cold turn is asked with them (rebuiltHistory), oldest first. */
   history: Array<{ role: "user" | "assistant"; text: string }>;
   sinceLastMs: number | null;
   scope: AskScope | null;
   /** The thread's warm turns as the model was sent them, for a live replay (the Phase 5 plan, D1–D3); null, cold. */
   chain: Chain | null;
+  /**
+   * What the history's lines already said of the thread's cards (toldIn): a cold turn keeps it beside its base, so a
+   * live turn after it tells only what is newer (Chain.since). Null with no history.
+   */
+  told: string[] | null;
+  /** The rows the thread's answers cited (citedIn): this turn's read set starts with them (D5). */
+  cited: AskRowRef[];
 }> {
   const { tenantId, threadId, text, answering } = asked;
   let { scope } = asked;
@@ -142,11 +196,15 @@ export async function threadForTurn(
   let sinceLastMs: number | null = null;
   let thread: { id: string; title: string; scope: AskScope | null } | null = null;
   let chain: Chain | null = null;
+  let told: string[] | null = null;
+  let cited: AskRowRef[] = [];
   if (threadId) {
     const found = await readThread(ctx, threadId);
     if (found && found.tenantId === tenantId) {
       thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
-      history = found.turns;
+      history = rebuiltHistory(found.messages, found.turns);
+      told = history.length ? toldIn(found.messages) : null;
+      cited = citedIn(found.messages);
       // The thread's previous turn, before this question is appended: how long the person waited to ask again. The
       // read holds the newest rows (readThread), so its last is the previous turn however long the thread is.
       const lastAt = found.messages.at(-1)?.atMs;
@@ -162,7 +220,7 @@ export async function threadForTurn(
     const created = await createThread(ctx, tenantId, title, scope ?? null);
     thread = { id: created.id, title: created.title, scope: scope ?? null };
   }
-  return { thread, history, sinceLastMs, scope: scope ?? null, chain };
+  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told, cited };
 }
 
 /**
@@ -214,13 +272,16 @@ function chainIds(rows: AskMessageVM[], replays: Array<AskTurnShape["replay"] | 
   return null;
 }
 
-/** A stored raw turn read back as storedRaw keeps it: a live turn's has no base, and names the answer it followed. */
+/**
+ * A stored raw turn read back as storedRaw keeps it: a live turn's has no base, and names the answer it followed; what
+ * it told is null where it kept none (a base from before PR 5.5).
+ */
 interface Kept {
   at: number;
   model: string;
   prefix: string;
   after: string | null;
-  told: string[];
+  told: string[] | null;
   base: Msg[] | null;
   question: unknown[];
   rounds: Msg[];
@@ -237,8 +298,8 @@ function keptOf(v: unknown): Kept | null {
   const { at, model, prefix, blocks, after } = raw;
   if (typeof at !== "number" || typeof model !== "string" || typeof prefix !== "string" || typeof blocks !== "string")
     return null;
-  const told = raw.told ?? [];
-  if (!Array.isArray(told) || !told.every((t) => typeof t === "string")) return null;
+  const told = raw.told ?? null;
+  if (told !== null && (!Array.isArray(told) || !told.every((t) => typeof t === "string"))) return null;
   let b: Record<string, unknown>;
   try {
     const parsed: unknown = JSON.parse(blocks);
@@ -258,14 +319,17 @@ function keptOf(v: unknown): Kept | null {
 /**
  * The chain as the model was sent it (D1–D3), from the raws of `ids`, newest first, as read: each one whole, the newest
  * begun under 4½ minutes ago, each live one naming the answer before it (`after`: two tabs interleaving, or a row
- * scrubbed mid-chain, break it), the oldest a base, which keeps the words history it was asked with. Put back together
+ * scrubbed mid-chain, break it), the oldest a base, which keeps the history it was asked with. Put back together
  * oldest first -- the base's history, then each turn's question, rounds and final -- with every marker a request carried
- * taken off, and held to LIVE_MESSAGES. What happened since is read off the chain's cards, on `rows`.
+ * taken off, and held to LIVE_MESSAGES. What happened since is read off the cards on `rows`: every row's when the base
+ * is a rebuild that kept what its lines said of them (`told`, PR 5.5), else the chain's own -- a words base from before
+ * kept nothing, and every old outcome would be news.
  */
 function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: AskMessageVM[]): Chain | null {
   const turns = kept.filter((k): k is Kept => !!k);
   const [newest] = turns;
-  const base = turns.at(-1)?.base;
+  const oldest = turns.at(-1);
+  const base = oldest?.base;
   if (turns.length !== ids.length || !newest || !base || now - newest.at >= LIVE_WINDOW_MS) return null;
   if (turns.slice(0, -1).some((t, i) => t.base || t.after !== ids[i + 1])) return null;
   const sent = [...base];
@@ -275,8 +339,9 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   const messages = sent.map(unmarked);
   const asked = [...messages].reverse().find((m) => m.role === "user")?.content;
   const anchor = Array.isArray(asked) ? asked.at(-1) : undefined;
-  const told = new Set(turns.flatMap((t) => t.told));
-  const cards = [...ids].reverse().flatMap((id) => rows.find((r) => r.id === id)?.proposals ?? []);
+  const told = new Set(turns.flatMap((t) => t.told ?? []));
+  const own = [...ids].reverse().flatMap((id) => rows.filter((r) => r.id === id));
+  const cards = (oldest?.told ? rows : own).flatMap((r) => r.proposals);
   const since = cards
     .flatMap(({ id, title, outcome }) =>
       outcome ? [{ id, title, state: outcome.state, receipt: outcome.receipt, atMs: outcome.atMs }] : [],
@@ -369,7 +434,11 @@ export interface RawTurn {
   prefix: string;
   /** A live turn's: the answer row whose turn it replayed last (Chain.after), the link the next replay follows. */
   after?: string;
-  /** A live turn's: the outcomes it told (Chain.since, `<card id>:<state>:<atMs>`), which no later turn tells again. */
+  /**
+   * What the turn told of the thread's cards (`<card id>:<state>:<atMs>`), which no later turn of its chain tells again:
+   * a live turn's, the outcomes it said happened since (Chain.since); a rebuilt turn's, every outcome its history's
+   * lines said (threadForTurn's `told`). A thread's first turn keeps none.
+   */
   told?: string[];
 }
 
@@ -420,18 +489,18 @@ function unmarkedBlock(b: unknown): unknown {
 const unmarked = (m: Msg): Msg => (Array.isArray(m.content) ? { ...m, content: m.content.map(unmarkedBlock) } : m);
 
 /**
- * The turn as it was sent, from the round it ended on and where the question sits in that round's request; a live
- * turn's (`live`: the answer its chain ended on, what it told) keeps no base.
+ * The turn as it was sent, from the round it ended on and where the question sits in that round's request, and what it
+ * keeps beside: a live turn's link and what it told (`after`, chainEnd), which keeps no base; a rebuilt turn's `told`.
  */
-function rawTurn(
+export function rawTurn(
   { request, blocks, outcomes, roundAt }: LastRound,
   questionAt: number,
-  live: { after: string; told: string[] } | null,
+  kept: { after?: string; told?: string[] },
 ): RawTurn {
   const { model } = request;
   const messages = request.messages.map(unmarked);
   return {
-    ...(live ? {} : { base: messages.slice(0, questionAt) }),
+    ...(kept.after ? {} : { base: messages.slice(0, questionAt) }),
     question: messages[questionAt].content,
     rounds: messages.slice(questionAt + 1),
     final: replayBlocks(blocks),
@@ -439,7 +508,7 @@ function rawTurn(
     at: roundAt,
     model,
     prefix: prefixOf(request),
-    ...live,
+    ...kept,
   };
 }
 
@@ -458,128 +527,5 @@ export function storedRaw(
   const blocks = JSON.stringify(
     base ? { base, question, rounds, final, results } : { question, rounds, final, results },
   );
-  return { at, model, prefix, blocks, ...(after ? { after, told } : {}) };
-}
-
-/**
- * Where the time went and what the model was fed (AskTurnShape), as a turn measures it from `t0`, its start: the first
- * byte of the model's stream, its first text token, the first Say the person saw, each round's time, each tool's, the
- * tokens by cache or not, and the rounds that stopped at the cap. Only the loop sees all of it; finishTurn reads it.
- */
-export function turnMeter(t0: number) {
-  const meter = {
-    firstByteMs: null as number | null,
-    firstTextMs: null as number | null,
-    firstSayMs: null as number | null,
-    roundsMs: [] as number[],
-    toolsMs: [] as Array<{ name: string; ms: number }>,
-    tokens: { input: 0, cache_read: 0, cache_creation: 0, output: 0 },
-    capHits: 0,
-    /** A round that came back, begun at `roundAt`: its time, and its stream's first byte and text from the turn's start. */
-    round(r: RoundResult, roundAt: number): void {
-      meter.roundsMs.push(r.timing?.totalMs ?? Date.now() - roundAt);
-      if (r.timing) {
-        if (meter.firstByteMs === null && r.timing.firstEventMs !== null)
-          meter.firstByteMs = roundAt - t0 + r.timing.firstEventMs;
-        if (meter.firstTextMs === null && r.timing.firstTextMs !== null)
-          meter.firstTextMs = roundAt - t0 + r.timing.firstTextMs;
-      }
-      if (r.usage) {
-        meter.tokens.input += r.usage.inputTokens;
-        meter.tokens.cache_read += r.usage.cacheReadTokens;
-        meter.tokens.cache_creation += r.usage.cacheCreationTokens;
-        meter.tokens.output += r.usage.outputTokens ?? 0;
-      }
-    },
-    /** A Say the person saw: the first one's time, from the turn's start. */
-    said(): void {
-      if (meter.firstSayMs === null) meter.firstSayMs = Date.now() - t0;
-    },
-  };
-  return meter;
-}
-
-/** What the turn read, measured and made up to its end: runAskTurn's own, as they stand when it ends. */
-interface TurnSoFar {
-  input: TurnInput;
-  model: AskModelProfile;
-  t0: number;
-  built: BuiltContext | null;
-  contextMs: number;
-  dataDropped: boolean;
-  pageBlocks: SearchResultBlock[];
-  crossBlocks: SearchResultBlock[];
-  plan: ToolRun[];
-  meter: ReturnType<typeof turnMeter>;
-  format: boolean;
-  toolsUsed: string[];
-  proposals: AskProposal[];
-  /** Where the question sits in every request of the turn: a later round only appends. */
-  questionAt: number;
-  /** Whether the turn replayed its thread's chain (replayFor), as its last request did. */
-  live: boolean;
-}
-
-/**
- * The turn as it returns: its end, with where the time went and what the model was fed (AskTurnShape), logged, and the
- * turn as the model was sent it (RawTurn), which no log line carries.
- */
-export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
-  const { lastRound, ...end } = r;
-  const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan, format, toolsUsed } = soFar;
-  const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits } = soFar.meter;
-  const { proposals, live } = soFar;
-  const shape: AskTurnShape = {
-    v: 1,
-    model: model.id,
-    effort: model.effort,
-    surface: input.surface,
-    scope_kind: input.scope?.kind ?? null,
-    follow_up: input.history.length > 0,
-    since_last_ms: input.sinceLastMs ?? null,
-    replay: live ? "live" : input.history.length > 0 ? "rebuilt" : "none",
-    opened_ms: input.openedMs ?? null,
-    context_rows: built ? built.rows : null,
-    context_chars: built ? built.chars : null,
-    warm: built ? (built.failed ? "failed" : built.warm) : input.context ? "failed" : "none",
-    context_ms: contextMs,
-    context_dropped: dataDropped && (pageBlocks.length > 0 || crossBlocks.length > 0),
-    cross_page: plan.map((p) => calledName(p.name, p.input)),
-    rounds: r.rounds,
-    rounds_ms: roundsMs,
-    tools_ms: toolsMs,
-    first_byte_ms: firstByteMs,
-    first_text_ms: firstTextMs,
-    first_say_ms: firstSayMs,
-    final_ms: Date.now() - t0,
-    tokens,
-    cache_hit: cacheHitOf(tokens),
-    cap_hits: capHits,
-    format,
-    failed: r.failed,
-  };
-  console.log(
-    JSON.stringify({
-      level: "info",
-      event: "ask_turn_shape",
-      tenant: input.tenantId,
-      ...shape,
-      tools: toolsUsed,
-      form: r.answer.form,
-    }),
-  );
-  return {
-    ungrounded: false,
-    tools: toolsUsed,
-    proposals,
-    latencyMs: Date.now() - t0,
-    ...end,
-    text: answerText(r.answer),
-    model: model.id,
-    shape,
-    raw:
-      lastRound && !lastRound.streamError
-        ? rawTurn(lastRound, soFar.questionAt, live && input.chain ? chainEnd(input.chain) : null)
-        : null,
-  };
+  return { at, model, prefix, blocks, ...(after ? { after } : {}), ...(told ? { told } : {}) };
 }

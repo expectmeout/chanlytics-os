@@ -13,9 +13,9 @@ const route = (hash) => {
   const [page, ...rest] = hash.split("/");
   return { page, param: rest.length ? rest.join("/") : null };
 };
-/** A context for a page, over `globals`; checked against the one schema the route reads it with. */
-const ctx = (globals, hash, words) => {
-  const c = pageContext(globals, route(hash), words);
+/** A context for a page, over `globals`, asked in `thread`; checked against the one schema the route reads it with. */
+const ctx = (globals, hash, words, thread) => {
+  const c = pageContext(globals, route(hash), words, thread);
   const read = PageContextSchema.safeParse(c);
   assert.ok(read.success, `a context the route takes: ${JSON.stringify(read.error?.issues ?? [])}`);
   return c;
@@ -219,8 +219,85 @@ test("the row the words name: by its place, in English or Spanish, or by its nam
     null,
     "a name under three letters never",
   );
-  // Through the page: the words name a row, over the route's own.
+  // Through the page, asked in no thread: the words name a row, over the route's own.
   const g = { __askOnScreen: { key: "inbox", ids: [U(1), U(2)], labels: ["Rosa Díaz", "Ana"] } };
   assert.deepEqual(ctx(g, `inbox/th-${U(1)}`, "and the second one?").focus, { kind: "thread", id: U(2), label: "Ana" });
   assert.deepEqual(ctx(g, `inbox/th-${U(1)}`, "what now?").focus, { kind: "thread", id: U(1), label: "this thread" });
+});
+
+test("in an open thread a row by its place is the last answer's item at that place (the Phase 5 plan, D7), in the answer's order: a broadcast as the run its page spells, an answer from before the Line by the rows it cited; an item of a kind no focus has names none -- never the page's row at that place; past the answer's items, the page's rows; a name is the page's; no thread, the page's as ever", () => {
+  const g = { __askOnScreen: { key: "inbox", ids: [U(1), U(2), U(3)], labels: ["Rosa Díaz", "Ana", "Luis"] } };
+  const item = (kind, id, label) => ({
+    title: label,
+    meta: "",
+    line: "",
+    source: { kind, id, label, to: "", door: true },
+  });
+  const answered = (items) => ({
+    id: "a-1",
+    role: "assistant",
+    text: "Here they are.",
+    citations: [],
+    followups: [],
+    proposals: [],
+    answer: {
+      v: 2,
+      form: "structured",
+      say: { headline: "Here they are.", detail: "" },
+      show: { figures: [], items, breakdown: null },
+      do: { open: null, next: [] },
+      language: "en",
+    },
+  });
+  const asked = { id: "u-1", role: "user", text: "Who wrote?", citations: [], followups: [], proposals: [] };
+  const thread = [asked, answered([item("thread", U(7), "Nora"), item("person", U(9), "Sam Ortiz")])];
+  const focus = (hash, words, th) => ctx(g, hash, words, th).focus;
+  assert.deepEqual(
+    focus("inbox", "and the second one?", thread),
+    { kind: "person", id: U(9), label: "Sam Ortiz" },
+    "the answer's second item, not the page's second row (Ana)",
+  );
+  assert.deepEqual(focus("inbox", "open the first", thread), { kind: "thread", id: U(7), label: "Nora" });
+  assert.deepEqual(focus("inbox", "#2", thread), { kind: "person", id: U(9), label: "Sam Ortiz" });
+  assert.deepEqual(
+    focus("inbox", "the third", thread),
+    { kind: "thread", id: U(3), label: "Luis" },
+    "past the answer's two items: the page's third row",
+  );
+  assert.deepEqual(
+    focus("inbox", "what did Ana say?", thread),
+    { kind: "thread", id: U(2), label: "Ana" },
+    "a name is the page's",
+  );
+  assert.deepEqual(focus("inbox", "and the second one?"), { kind: "thread", id: U(2), label: "Ana" }, "no thread");
+  // The newest answer's items: an earlier one's are not what "the second" points at.
+  const older = [asked, answered([item("thread", U(4), "Old")]), asked, answered([item("call", U(8), "Luis's call")])];
+  assert.deepEqual(focus("inbox", "the first one", older), { kind: "call", id: U(8), label: "Luis's call" });
+  // A broadcast is the run its page spells; a deal, a list, a playbook, a template or a domain is no focus a scope may
+  // be, and the page's row at that place is not what the words meant: none, or the row the route opens.
+  const kinds = [asked, answered([item("broadcast", U(5), "Monday"), item("deal", U(6), "Rosa's move")])];
+  assert.deepEqual(focus("inbox", "the first", kinds), { kind: "run", id: U(5), label: "Monday" });
+  assert.equal(focus("inbox", "the second", kinds), null, "a deal: none, never Ana");
+  assert.deepEqual(
+    focus(`inbox/th-${U(3)}`, "the second", kinds),
+    { kind: "thread", id: U(3), label: "this thread" },
+    "the row open, never the page's second",
+  );
+  // An answer from before the Line: its items are the rows it cited, pages aside (answerFromV1).
+  const v1 = {
+    id: "a-0",
+    role: "assistant",
+    text: "Two called.",
+    citations: [
+      { kind: "page", id: "reports", label: "Reports", to: "reports" },
+      { kind: "call", id: U(8), label: "Luis's call", to: `conversations/cv-${U(8)}` },
+      { kind: "person", id: U(9), label: "Sam Ortiz", to: `clients/${U(9)}` },
+    ],
+    followups: [],
+    proposals: [],
+  };
+  assert.deepEqual(focus("inbox", "the second", [asked, v1]), { kind: "person", id: U(9), label: "Sam Ortiz" });
+  // A thread with no answer yet, or messages in no shape a thread has: the page's, never a throw.
+  assert.deepEqual(focus("inbox", "the second", [asked]), { kind: "thread", id: U(2), label: "Ana" });
+  assert.deepEqual(focus("inbox", "the second", [{ role: "assistant", answer: { v: 2 } }]).id, U(2));
 });

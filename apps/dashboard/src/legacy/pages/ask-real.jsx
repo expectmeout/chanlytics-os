@@ -492,10 +492,10 @@ const arSubmitter = (ln) => {
     const mine = ++turnSeq.current;
     setLive({ q, text: "", say: null, traces: [] });
     const turn = { mine, threadId: thread.id, final: null, spoke: false, said: 0 };
-    // The page, as it is now: the rows on screen and the row the words name, if they name one (legacy-bridge/ask/context.ts).
+    // The page, as it is now: the rows on screen and the row the words name, if they name one -- in the thread it joins, by its last answer's items first (legacy-bridge/ask/context.ts).
     // A page that cannot say what it holds sends none: the question still goes.
     let context = null;
-    try { context = A.context ? A.context(arRoute(), q) : null; } catch (e) { context = null; }
+    try { context = A.context ? A.context(arRoute(), q, base && base.messages) : null; } catch (e) { context = null; }
     await A.send({ text: q, threadId: turn.threadId, scope: thread.scope, surface, openedMs: openedAt.current ? Date.now() - openedAt.current : null, context }, (ev) => arTurnHeard(ln, turn, ev));
     arTurnLanded(ln, turn);
   };

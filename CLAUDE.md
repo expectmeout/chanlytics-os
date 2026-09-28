@@ -88,12 +88,14 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   branches or 5 levels; files over 800 lines; directories over 20 modules; window globals and
   publishers; a helper declared in three files; `as unknown as`; a table name outside `packages/db`;
   dead exports; a duration written as a bare number (name it from `contracts/shared/time.ts`, or
-  give it a constant); lint warnings. A new offender is a red build. `UPDATE_BASELINES=1` banks only
-  what fell (knip, the lint and the bundle budget: their `--update`); a number that must rise is
-  raised with `UPDATE_BASELINES=raise` (theirs: `--raise`) in the same diff as its row under "Rises"
-  in `docs/debt.md`, with the reason in the pull request. Where a tree's functions are all under the
-  limits, the limits are lint errors (`LIMITED_TREES` in `eslint.config.mjs`): the change that banks
-  a tree's last entry adds the tree there.
+  give it a constant); lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
+  instead of reading a token; a button, chip, tab, card, sheet, field or face class of a page's own;
+  a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`). A new offender is a red
+  build. `UPDATE_BASELINES=1` banks only what fell (knip, the lint and the bundle budget: their
+  `--update`); a number that must rise is raised with `UPDATE_BASELINES=raise` (theirs: `--raise`) in
+  the same diff as its row under "Rises" in `docs/debt.md`, with the reason in the pull request. Where
+  a tree's functions are all under the limits, the limits are lint errors (`LIMITED_TREES` in
+  `eslint.config.mjs`): the change that banks a tree's last entry adds the tree there.
 - **Production scripts** are dry-run by default, write a backup first, and take `--apply`.
 - **The layers hold apart.** Browser code (`legacy-bridge`, `client`, `yes`, `auth`) never imports
   `src/server` or `@chanlytics/core|jobs|channels`; server code never imports the shell, the bridge

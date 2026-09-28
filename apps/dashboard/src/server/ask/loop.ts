@@ -18,6 +18,8 @@ import {
   type AskMessageVM,
   type AskModelId,
   type AskProposal,
+  type AskReadSet,
+  type AskRowRef,
   type AskScope,
   type AskTurnShape,
   type PageContext,
@@ -44,16 +46,8 @@ import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
 import { replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
-import {
-  finishTurn,
-  foldHistory,
-  replayFor,
-  turnMeter,
-  withMarkers,
-  type Chain,
-  type RawTurn,
-  type TurnEnd,
-} from "./memory";
+import { foldHistory, replayFor, withMarkers, type Chain, type RawTurn, type TurnEnd } from "./memory";
+import { finishTurn, turnMeter } from "./turn-end";
 
 /**
  * One turn of the assistant.
@@ -105,10 +99,20 @@ export interface TurnInput {
   language: AskLanguage;
   scope: AskScope | null;
   surface: string | null;
-  /** Prior turns of this thread, oldest first, as plain text. */
+  /** Prior turns of this thread, oldest first, as a cold turn is asked with them: each answer one line (memory.ts). */
   history: Array<{ role: "user" | "assistant"; text: string }>;
   /** The thread's warm turns as the model was sent them (memory.ts threadForTurn); none or null, the turn is cold. */
   chain?: Chain | null;
+  /**
+   * What the history's lines already said of the thread's cards (memory.ts threadForTurn): a cold turn keeps it beside
+   * its base, so a live turn after it tells only what is newer. None with no history.
+   */
+  told?: string[] | null;
+  /**
+   * The rows the thread's earlier answers cited, where each opened (memory.ts threadForTurn): the turn's read set starts
+   * with them, so one is named, cited and opened without a read (the Phase 5 plan, D5); a fact about it is read again.
+   */
+  cited?: AskRowRef[];
   text: string;
   /** From the palette opening to the question being sent, as the tab measured it; null from an older tab or a script. */
   openedMs?: number | null;
@@ -212,16 +216,65 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
   }
 }
 
+/**
+ * What the turn's tools run with, as the person, its read set starting with the rows the thread's earlier answers cited
+ * (the Phase 5 plan, D5): one of them is cited and opened without a read, and any read this turn makes of one -- the
+ * page's, another page's, a tool's -- replaces its ref with the fresh one.
+ */
+function toolContextOf(input: TurnInput, now: Date): ToolContext {
+  const tc = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now, input.rc);
+  noteRows(tc.read, input.cited ?? []);
+  return tc;
+}
+
+/**
+ * This turn's words, as the text block before the question (prompt.ts turnWords): who is asking, where, when, the row
+ * their words point at and whether the read set holds it, and -- while the question still carries it (`dataDropped`
+ * false) -- that the data before them is read already: the page's, the reads made for another page, the scope's row.
+ * A live turn's also say what happened since (D8). Made once the read set holds every read before the model's.
+ */
+function wordsBlock(
+  input: TurnInput,
+  now: Date,
+  rode: { built: BuiltContext | null; crossBlocks: SearchResultBlock[]; scopedRow: unknown; read: AskReadSet },
+) {
+  const focus = input.context?.focus;
+  // A focus is a scope: a run is cited, and so read, as its broadcast; a page is never a row.
+  const kind = focus?.kind === "run" ? "broadcast" : focus?.kind;
+  const facts = {
+    role: input.role,
+    personLabel: input.personLabel,
+    scope: input.scope,
+    surface: input.surface,
+    language: input.language,
+    timezone: input.timezone,
+    closures: input.facts.closures,
+    focus,
+    focusRead: !!focus && !!kind && kind !== "page" && rode.read[kind].has(focus.id),
+    now,
+  };
+  return (live: boolean, dataDropped: boolean) => ({
+    type: "text",
+    text: turnWords({
+      ...facts,
+      since: live ? input.chain?.since : undefined,
+      context: !dataDropped && (rode.built?.blocks.length ?? 0) > 0,
+      crossPage: !dataDropped && rode.crossBlocks.length > 0,
+      scopeRead: !dataDropped && !!rode.scopedRow,
+    }),
+  });
+}
+
 export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts()): Promise<TurnResult> {
   const t0 = Date.now();
   const model = askModel();
   const now = input.now ?? new Date();
   const es = input.language === "es";
-  const tc: ToolContext = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now, input.rc);
+  const tc = toolContextOf(input, now);
   const toolsUsed: string[] = [];
   const proposals: AskProposal[] = [];
   let reads = 0;
-  // Where the time went and what the model was fed (AskTurnShape, memory.ts): only the loop sees all of it.
+  // Where the time went and what the model was fed (AskTurnShape, turn-end.ts): only the loop sees all of it.
   const meter = turnMeter(t0);
 
   // Before the model is asked, in parallel (the Phase 2 plan, PR 2.4): the page the person is on (context.ts: the
@@ -289,29 +342,10 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     ...(scopedRow ? [readBlock(scopedRow.run, scopedRow.out.result)] : []),
   ];
   const crossBlocks = prefetched.map((p) => readBlock(p.run, p.out.result));
-  const wordsFacts = {
-    role: input.role,
-    personLabel: input.personLabel,
-    scope: input.scope,
-    surface: input.surface,
-    language: input.language,
-    timezone: input.timezone,
-    closures: input.facts.closures,
-    now,
-  };
   // Whether the question still carries the data blocks: a request the API refuses for them is asked once more without
-  // them (D14), and the words stop pointing at them. A live turn's words also say what happened since (D8).
+  // them (D14), and the words stop pointing at them (wordsBlock).
   let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
-  const sayWords = (live: boolean) => ({
-    type: "text",
-    text: turnWords({
-      ...wordsFacts,
-      since: live ? input.chain?.since : undefined,
-      context: !dataDropped && (built?.blocks.length ?? 0) > 0,
-      crossPage: !dataDropped && crossBlocks.length > 0,
-      scopeRead: !dataDropped && !!scopedRow,
-    }),
-  });
+  const sayWords = wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read });
   const question = { type: "text", text: input.text };
   // The tools as the API takes them (registry.ts): the same bytes every round, until the API refuses their examples.
   let examples = true;
@@ -338,15 +372,15 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         }
       : { effort: model.effort },
   });
-  // The earlier turns (memory.ts, the Phase 5 plan, D1–D3): replayed as the model was sent them while the thread is
-  // warm, round one on the same model and prefix and within the bound (bpR where the last request ended); else words,
-  // the question after them (bp3 on the page's last block).
+  // The earlier turns (memory.ts, the Phase 5 plan, D1–D4): replayed as the model was sent them while the thread is
+  // warm, round one on the same model and prefix and within the bound (bpR where the last request ended); else the
+  // rebuilt history, each answer one line, the question after it (bp3 on the page's last block).
   const cold = () => {
-    const words = sayWords(false);
+    const words = sayWords(false, dataDropped);
     const data = dataDropped ? [] : [...pageBlocks, ...crossBlocks];
     return { messages: foldHistory(input.history, [...data, words, question]), anchor: pageBlocks.at(-1), words };
   };
-  const asked = { data: [...pageBlocks, ...crossBlocks], words: sayWords(true), question };
+  const asked = { data: [...pageBlocks, ...crossBlocks], words: sayWords(true, dataDropped), question };
   const replayed = replayFor(input.chain, asked, (msgs, at) => requestOf(msgs, at, false));
   let { messages, anchor, words } = replayed ?? cold();
   // A replay the API refuses (D12) is asked again cold, once: the turn then keeps its words history, the next base.
@@ -516,7 +550,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
             } else if (drop === "context") {
               dataDropped = true;
               reads -= (pageRead ? 1 : 0) + prefetched.length + (scopedRow ? 1 : 0);
-              const bare = sayWords(live);
+              const bare = sayWords(live, dataDropped);
               messages[questionAt] = {
                 role: "user",
                 content: (messages[questionAt].content as Array<{ type?: string }>)

@@ -23,7 +23,7 @@ import { apiFor } from "./api";
 import { commitProposal, editReply, undoProposal, type CommitResult } from "./ask/commit";
 import { askPalette, quickAnswer } from "./ask/palette";
 import { askSpeech } from "./ask/speech";
-import { pageContext } from "./ask/context";
+import { pageContext, type ThreadMessage } from "./ask/context";
 
 export type { SendEvent, CommitResult };
 export { jumpIndexFrom, surfaceFor, waitingFrom, quickAnswer } from "./ask/palette";
@@ -46,8 +46,15 @@ export type AskApi = ReturnType<typeof askPalette> &
     answerText: typeof answerText;
     /** Where a card's Open goes, or null. */
     cardOpenRoute: typeof cardOpenRoute;
-    /** The page, as Ask is sent it: the rows on screen and the row open or named (ask/context.ts). */
-    context(route: { page: string; param: string | null }, words?: string): PageContext;
+    /**
+     * The page, as Ask is sent it: the rows on screen and the row open or named (ask/context.ts) -- asked in an open
+     * thread (its messages as the Line holds them), a row by its place is the last answer's item first.
+     */
+    context(
+      route: { page: string; param: string | null },
+      words?: string,
+      thread?: ReadonlyArray<ThreadMessage> | null,
+    ): PageContext;
   };
 
 export function installAsk(win: Window = window, storage: Storage | null = safeStorage()): AskApi {
@@ -70,7 +77,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     quick: quickAnswer(palette, api.openings),
     answerText,
     cardOpenRoute,
-    context: (route, words) => pageContext(win, route, words),
+    context: (route, words, thread) => pageContext(win, route, words, thread),
   };
   (win as unknown as { __ask?: AskApi; PROPOSAL_GATE?: typeof PROPOSAL_GATE }).__ask = ask;
   (win as unknown as { PROPOSAL_GATE?: typeof PROPOSAL_GATE }).PROPOSAL_GATE = PROPOSAL_GATE;
