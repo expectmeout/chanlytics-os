@@ -626,7 +626,11 @@ test("the profile: a Next visit fact and About rows when the calendar is connect
 });
 
 test("the wiring: the board and the profile read one match; both receptionists are told; the panel says who it is for and where it comes from", async () => {
-  const svc = readCode("apps/dashboard/src/server/calendar/calendar.ts");
+  // The board (calendar-week.ts) and the profile (person-visits.ts), and the lookup that names the calendar for the
+  // profile (calendar-settings.ts).
+  const svc = ["calendar-settings", "calendar-week", "person-visits"]
+    .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
+    .join("\n");
   assert.ok(
     svc.includes("export async function personVisits(") &&
       svc.includes("const v = visitsIn(index, person, now.getTime());"),
@@ -824,7 +828,7 @@ test("one refused number costs one person, never everyone behind them", () => {
   assert.equal(afterPersonRefused(null), "stop");
   assert.equal(afterPersonRefused(""), "stop");
 
-  const svc = readCode("apps/dashboard/src/server/calendar/calendar.ts");
+  const svc = readCode("apps/dashboard/src/server/calendar/people-seen.ts");
   assert.ok(
     svc.includes('if (afterPersonRefused(error.code) === "skip") {') && svc.includes("continue;"),
     "the read must ASK the rule rather than deciding inline",
@@ -873,7 +877,10 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
     "get-or-create with the service role, an event for each person created",
   );
   assert.ok(lib.includes('.is("display_name", null)'), "a name fills only an empty one");
-  const svc = readCode("apps/dashboard/src/server/calendar/calendar.ts");
+  // An owner's read (calendar-week.ts calendarWeek) and the door it adds through (people-seen.ts addPeopleSeen).
+  const svc = ["calendar-week", "people-seen"]
+    .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
+    .join("\n");
   assert.ok(
     /if \(opts\.canAct\)\s*people\.push\(\s*\.\.\.\(await addPeopleSeen\(/.test(svc) &&
       /ctx\.supabase\.rpc\("create_person", \{\s*p_tenant_id: tenantId,\s*p_phone_e164: r\.phone,\s*p_display_name: r\.name \?\? "",\s*p_source: "calendar",\s*p_title: r\.title,?\s*\}\)/.test(
@@ -1131,7 +1138,10 @@ test("asked, then booked: the report's one conversion line, in words that say wh
 });
 
 test("the wiring: the list and the assistant carry appointments from one parsed feed; the report carries the line; Leads and the Deal board retire into People", async () => {
-  const svc = readCode("apps/dashboard/src/server/calendar/calendar.ts");
+  // One parse (parsed-feed.ts); everyone's visits and the report's line (people-visits.ts).
+  const svc = ["parsed-feed", "people-visits"]
+    .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
+    .join("\n");
   assert.ok(
     svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") &&
       svc.includes("export async function peopleVisits(") &&
@@ -1567,7 +1577,7 @@ test("asked means they reached out: the call they placed counts, a call the owne
     "a drop loses the grants; they are re-stated",
   );
   assert.ok(
-    readCode("apps/dashboard/src/server/calendar/calendar.ts").includes(
+    readCode("apps/dashboard/src/server/calendar/people-visits.ts").includes(
       "const cands = [r.last_inbound_at, r.last_inbound_call_at ?? null]",
     ),
     "the report counts the same way",
@@ -1746,7 +1756,7 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   }
   assert.ok(
     /const all = allVisitsIn\(index, person\)\s*\.map\(\(x\) => toVisitDto\(x\) as VisitDto\)\s*\.slice\(-60\);/.test(
-      readCode("apps/dashboard/src/server/calendar/calendar.ts"),
+      readCode("apps/dashboard/src/server/calendar/person-visits.ts"),
     ),
   );
 });
@@ -1810,7 +1820,10 @@ test("the table: identity that says who, Offers where First contact was, Visits 
       css.includes('grid-template-areas: "sel name state" "sel last visits" "sel offers offers";'),
     "a header that sticks; cards under 900px",
   );
-  const svc = readCode("apps/dashboard/src/server/calendar/calendar.ts");
+  // The link as the settings hold it (calendar-settings.ts calendarOf), on the list's envelope (people-visits.ts).
+  const svc = ["calendar-settings", "people-visits"]
+    .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
+    .join("\n");
   assert.ok(
     svc.includes("booking_link: pv.bookingLink,") &&
       svc.includes("const bookingLink = cfg?.brain?.booking_link?.trim() || null;"),
@@ -1988,7 +2001,7 @@ test("the Calendar never labels an appointment as the owner's, and still finds t
 });
 
 test("a visit's title drops the person's own name at its end, and nothing else: on Tom's page it is Consultation", async () => {
-  const { visitTitleFor } = await import("../../../../packages/contracts/src/people/people.ts");
+  const { visitTitleFor } = await import("../../../../packages/contracts/src/people/person-row.ts");
   assert.equal(visitTitleFor("Consultation · Tom Baker", "Tom Baker"), "Consultation", "a booking app's title");
   assert.equal(visitTitleFor("Color treatment - tom baker", "Tom Baker"), "Color treatment", "any case, any dash");
   assert.equal(visitTitleFor("Consultation · Tom", "Tom Baker"), "Consultation · Tom", "not a part of the name");

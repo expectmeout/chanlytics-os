@@ -13,7 +13,7 @@
  */
 import { z } from "zod";
 import { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, type PersonCameFrom, type PersonChannel } from "./person-words";
-import type { PersonRowVM } from "./people";
+import type { PersonRowVM } from "./person-row";
 import { plural } from "../shared/words";
 
 /**

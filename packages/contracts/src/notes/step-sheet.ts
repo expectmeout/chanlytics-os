@@ -3,7 +3,7 @@
  * card's "Set a next step" and its Change, and every surface that shows a step after it. What it says, what it opens
  * with, the days it offers, and the body the notes route takes; the page composes (components/step-sheet.jsx).
  */
-import { NOTE_MAX, NOTE_REFUSALS, type PersonNoteTeamDto, type PersonNoteVM } from "../people/people";
+import { NOTE_MAX, NOTE_REFUSALS, type PersonNoteTeamDto, type PersonNoteVM } from "./person-notes";
 import { stepDays, type StepDayChoice } from "./steps";
 import { isRealDate } from "../config/workspace-config/config-schema";
 

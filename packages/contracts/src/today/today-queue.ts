@@ -10,7 +10,7 @@ import { formatWaited } from "../conversations/thread-clock";
 import { contactName, initialsOf } from "../conversations/thread-contact";
 import type { ConversationDto } from "../conversations/thread-dto";
 import { waWindow } from "../config/policy";
-import { reasonShort } from "../people/people";
+import { reasonShort } from "../people/person-row-facts";
 import { leadQuestionRoute, type LeadSearchDto } from "../leads/leads";
 import { MIN_MS, HOUR_MS } from "../shared/time";
 import { tzClock } from "./today-clock";

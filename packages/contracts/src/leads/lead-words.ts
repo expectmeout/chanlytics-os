@@ -7,14 +7,14 @@ import type { LeadCheckKey } from "./lead-dtos";
 import {
   LEAD_CLOSED_REASONS,
   LEAD_EMAIL_STATES,
-  LEAD_ENDING_WORDS,
   LEAD_FITS,
   LEAD_MEMBER_CLASSES,
   LEAD_STAGES,
   type LeadEmailState,
   type LeadMemberClass,
   type LeadRoundEnding,
-} from "./lead-search";
+} from "./search/sets";
+import { LEAD_ENDING_WORDS } from "./search/endings";
 import type { Tone } from "../shell/tone";
 import { plural } from "../shared/words";
 
@@ -157,7 +157,7 @@ export const LEAD_CLASS_WORDS: Record<LeadMemberClass, string> = {
   excluded: LEAD_LEFT_OUT_WORD,
 };
 
-/** The Excluded chip for a place with no phone and no email (lead-search.ts LEAD_UNREACHABLE_KEY). */
+/** The Excluded chip for a place with no phone and no email (search/class.ts LEAD_UNREACHABLE_KEY). */
 export const LEAD_UNREACHABLE_WORD = "No way to reach them";
 
 export const LEAD_CHECK_UNSURE = "Couldn't tell";
@@ -166,7 +166,7 @@ export const LEAD_CHECK_UNSURE = "Couldn't tell";
 // seven are four seen and three read. Nothing here declares them again.
 /**
  * One label per check and answer; the particulars are the check's own reason. The seven, and `kind`: the engine's own
- * first criterion, on every plan (lead-search.ts LEAD_KIND_KEY), which the judge answers for every place. A read check
+ * first criterion, on every plan (search/class.ts LEAD_KIND_KEY), which the judge answers for every place. A read check
  * under any other key is the plan's, and `leadCheckWord` (lead-facts.ts) says it in the plan's words.
  */
 export const LEAD_CHECK_WORDS: Record<LeadCheckKey | "kind", Record<"yes" | "no" | "unknown", string>> = {

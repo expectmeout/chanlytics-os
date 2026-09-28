@@ -9,14 +9,14 @@
  *   ReachOutChainSchema,     a chain as the sheet saves it: its name, its search, its steps and their days, its pace,
  *   validateReachOutChain    its domains, and what its words ask the workspace to have
  *   checkOpening             an opening as the writer wrote it, read by code (F2)
- *   chainOf, customerDomainOf    the check's two code holds (F4, F6); a business's own site is lead-search's siteHost
+ *   chainOf, customerDomainOf    the check's two code holds (F4, F6); a business's own site is the lead cleaner's siteHost
  *   holdWords, holdDoors     what a held send says, and what its owner can do about it (F3)
  */
 import { z } from "zod";
 import { isFreeMail } from "../email/free-mail";
 import { posesAsReply } from "../email/email-subject";
 import { languageName } from "../templates/template-languages";
-import { siteHost } from "../leads/lead-search";
+import { siteHost } from "../leads/search/clean";
 import { violatesNoPrices } from "../config/policy";
 import { normalizeEmail } from "../shared/email-address";
 

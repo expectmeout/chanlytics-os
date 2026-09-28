@@ -634,8 +634,8 @@ const answered = JSON.stringify({
   do: { open: { source: nothing, label: "", now: false }, next: [] },
   language: "en",
 });
-/** The model, scripted: every round answers in words; what it was sent each round is kept. */
-function wordsOnly() {
+/** The model, scripted: every round answers in words; what it was sent each round is kept. `ports` adds to the ports. */
+function wordsOnly(ports = {}) {
   const requests = [];
   setAskPorts({
     round: async (call, onText) => {
@@ -648,6 +648,7 @@ function wordsOnly() {
       };
     },
     shape: async () => "",
+    ...ports,
   });
   return requests;
 }
@@ -849,6 +850,136 @@ test("a new search's card carries the thread it was planned in, for the commit t
     const again = { text: "Include them", thread_id: made, answering: { search_id: SEARCH } };
     const answer = (await linesOf(await ask.POST.run(send("POST", again, inA), ctxFor(tables)))).at(-1).message;
     assert.equal("thread_id" in answer.proposals[0].payload, false, "an answer's card starts no search");
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+/* ------------------------------------------------ a long thread, and the scope of each turn (Phase 5, 5.1) -- */
+
+/** A stored thread of `n` rows, a question and its answer in turn, a minute apart, the first at `from`. */
+const longThread = (n, from = Date.parse("2026-09-20T12:00:00Z")) =>
+  Array.from({ length: n }, (_, i) => ({
+    ...turn(
+      `eeeeeeee-eeee-4eee-8eee-${String(i).padStart(12, "0")}`,
+      T1,
+      A,
+      i % 2 ? "assistant" : "user",
+      i % 2 ? { v: 2, text: `Answer ${i}.` } : { text: `Question ${i}?` },
+    ),
+    created_at: new Date(from + i * 60_000).toISOString(),
+  }));
+const askWorld = (threads = [], messages = []) => ({
+  memberships: both("owner", "viewer"),
+  tenants: [{ id: A, name: "Harbor", timezone: "America/New_York" }],
+  tenant_config: [{ tenant_id: A, config: {}, version: 1 }],
+  policies: [],
+  ask_threads: threads,
+  ask_messages: messages,
+});
+
+test("a thread past thirty turns reads its newest sixty rows (MESSAGES_CAP): GET ask/threads/[id] draws them oldest first, the newest last, a tie in the clock broken by the id; and a follow-up is asked with the newest twelve turns, from a question, never the first", async () => {
+  const rows = longThread(70);
+  // The newest turn's question and answer in one millisecond: the id puts them in order, the same way every read.
+  rows[69].created_at = rows[68].created_at;
+  const tables = askWorld([threadRow(T1, A)], rows);
+  const read = await thread.GET.run(get(inA), ctxFor(tables, { id: T1 }));
+  assert.equal(read.messages.length, 60, "the read's sixty");
+  assert.deepEqual(
+    [read.messages[0].text, read.messages.at(-2).text, read.messages.at(-1).text],
+    ["Question 10?", "Question 68?", "Answer 69."],
+    "REGRESSION: a thread past thirty turns reopened on its first thirty and dropped the newest",
+  );
+  assert.deepEqual(
+    read.messages.map((m) => m.text),
+    rows.slice(10).map((r) => r.content.text),
+    "in the order they were written",
+  );
+  const requests = wordsOnly();
+  try {
+    await linesOf(await ask.POST.run(send("POST", { text: "And after that?", thread_id: T1 }, inA), ctxFor(tables)));
+    const history = requests[0].messages.slice(0, -1).map((m) => [m.role, m.content]);
+    assert.deepEqual(history.at(-1), ["assistant", "Answer 69."], "the model reads the thread up to its newest turn");
+    assert.deepEqual(
+      history,
+      rows.slice(46, 70).map((r) => [r.role, r.content.text]),
+      "the newest twelve turns, twenty-four messages from Question 46: twelve turns, counted as turns",
+    );
+    assert.equal(lastUser(requests[0]), "And after that?");
+  } finally {
+    setAskPorts(null);
+  }
+});
+
+test("the scope is each turn's (the Phase 5 plan, D9): a follow-up asked on another row is asked about that row -- the scope line in its words and the row read before the model -- and the thread keeps it; no scope sent is the thread's own, unchanged, and so is one not in the palette's shape; null is none, and clears the thread's", async () => {
+  const ROSA = { kind: "person", id: "cccccccc-cccc-4ccc-8ccc-cccccccccc01", label: "Rosa" };
+  const NORA = { kind: "person", id: "cccccccc-cccc-4ccc-8ccc-cccccccccc02", label: "Nora" };
+  const tables = askWorld();
+  // The scope's row is read before the model is asked (cross-page.ts scopedRead): answered at once here.
+  const requests = wordsOnly({
+    tool: async (tc, run) => ({ result: JSON.stringify({ read: run.input }), isError: false }),
+  });
+  /** What a turn was asked about: the scope line in its words, and the rows read for it before the model. */
+  const aboutOf = (req) => {
+    const q = req.messages.at(-1).content;
+    const blocks = Array.isArray(q) ? q : [];
+    const words = blocks
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("\n");
+    return {
+      line: /They are looking at (.+?) \((\w+) ([^)]+)\)/.exec(words)?.slice(1, 4) ?? null,
+      read: blocks.filter((b) => b.type === "search_result" && b.source === "read://people.get").map((b) => b.title),
+    };
+  };
+  const about = (s) => ({ line: [s.label, s.kind, s.id], read: [`people {"action":"get","contact_id":"${s.id}"}`] });
+  const NONE = { line: null, read: [] };
+  const asked = async (body) => linesOf(await ask.POST.run(send("POST", body, inA), ctxFor(tables)));
+  try {
+    const id = (await asked({ text: "What did she ask for?", scope: ROSA, surface: "people" }))[0].id;
+    const stored = () => tables.ask_threads.find((t) => t.id === id).scope;
+    assert.deepEqual(
+      aboutOf(requests.at(-1)),
+      about(ROSA),
+      "the first turn: about Rosa, her row read before the model",
+    );
+    assert.deepEqual(stored(), ROSA, "a new thread is made with its question's scope");
+    await asked({ text: "And Nora?", thread_id: id, scope: NORA, surface: "people" });
+    assert.deepEqual(
+      aboutOf(requests.at(-1)),
+      about(NORA),
+      "a follow-up asked on Nora's row: about Nora, her row read",
+    );
+    assert.deepEqual(
+      stored(),
+      NORA,
+      "REGRESSION: the thread kept its first scope, so the next question sent with none was asked about Rosa again",
+    );
+    for (const [scope, why] of [
+      [undefined, "no scope sent"],
+      ["Nora", "a scope that is a string"],
+      [{ kind: "person", id: "", label: "Nora" }, "a scope with no id"],
+      [{ kind: "shelf", id: NORA.id, label: "Nora" }, "a kind the palette never sends"],
+    ]) {
+      await asked({ text: "And then?", thread_id: id, ...(scope === undefined ? {} : { scope }) });
+      assert.deepEqual(aboutOf(requests.at(-1)), about(NORA), `${why}: the thread's own, Nora`);
+      assert.deepEqual(stored(), NORA, `${why}: the thread's scope unchanged`);
+    }
+    await asked({ text: "Anything else?", thread_id: id, scope: null });
+    assert.deepEqual(aboutOf(requests.at(-1)), NONE, "null: this turn has none -- no scope line, no row read for it");
+    assert.equal(stored(), null, "and the thread's is cleared");
+    await asked({ text: "And now?", thread_id: id });
+    assert.deepEqual(aboutOf(requests.at(-1)), NONE, "no scope sent after it was cleared: the thread's own, none");
+    assert.equal(stored(), null);
+    assert.deepEqual(
+      tables.ask_messages.filter((m) => m.role === "assistant").map((m) => m.content.shape.scope_kind),
+      ["person", "person", "person", "person", "person", "person", null, null],
+      "each turn's shape says the scope it ran with",
+    );
+    // A new thread asked with none is made with none.
+    const bare = (await asked({ text: "Who is new this week?", scope: null }))[0].id;
+    assert.equal(tables.ask_threads.find((t) => t.id === bare).scope, null);
+    assert.deepEqual(aboutOf(requests.at(-1)), NONE);
   } finally {
     setAskPorts(null);
   }

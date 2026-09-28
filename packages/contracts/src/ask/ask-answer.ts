@@ -4,17 +4,10 @@
  * band, the answers that need no model, and the model's own, which it writes as structured output (ASK_ANSWER_FORMAT,
  * answer-format.ts) and the server reads back through normalizeAnswer -- and one rule for the doors it offers. Pure.
  */
-import {
-  ASK_CAPS,
-  FOLLOWUP_ECHO,
-  cleanAnswer,
-  navigateLabel,
-  sameQuestion,
-  type AskLanguage,
-  type AskMessageVM,
-  type AskProposal,
-  type FastCall,
-} from "./ask";
+import { ASK_CAPS, type AskMessageVM, type AskProposal } from "./ask";
+import { FOLLOWUP_ECHO, cleanAnswer, navigateLabel, sameQuestion } from "./answer-text";
+import type { AskLanguage } from "./ask-language";
+import type { FastCall } from "./ask-fast-paths";
 import {
   ASK_CITATION_KINDS,
   citationRoute,

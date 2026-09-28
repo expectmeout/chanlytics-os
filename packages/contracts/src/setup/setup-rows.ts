@@ -9,14 +9,14 @@
  * the member's own (their saved view, on every device): it puts an optional
  * row off Today's card, and nothing else.
  */
-import { CALENDAR_FEED_WORDS } from "../calendar/calendar";
+import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";
 import { agoWords } from "../shared/time";
 import { plural } from "../shared/words";
 import { bookingPageOffered, listingLine } from "../google/google";
 import { dayWords, trialWords, TRIAL_COVERS, billingDoorOpen, BILLING_TEST_MODE_CLAUSE } from "../workspace/billing";
 import { capabilityStatus } from "./capabilities";
 import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
-import { GET_YES_ROUTE, NO_NUMBER_REACH } from "../people/people";
+import { GET_YES_ROUTE, NO_NUMBER_REACH } from "../people/people-lists";
 import { FIRST_RUN_FIND_ROUTE } from "./first-run-route";
 import {
   activationWords,

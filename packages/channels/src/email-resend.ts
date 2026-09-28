@@ -1,7 +1,7 @@
 /**
  * Email over Resend: the one function with a network in it.
  *
- * It sends a request that was built and frozen elsewhere (email.ts) and says
+ * It sends a request that was built and frozen elsewhere (email/request.ts) and says
  * what happened. Like every send adapter here it RETURNS a result and never
  * throws, and it is bounded: a hung connection must not take the worker's
  * whole run with it (whatsapp.ts postGraph says why).
@@ -23,14 +23,9 @@
  * this instance sends meets an open second rather than a 429.
  */
 import type { SendResult } from "./whatsapp";
-import {
-  mailDomainsFrom,
-  receivedEmailFrom,
-  resendLimitOf,
-  type EmailRequest,
-  type MailDomainFacts,
-  type ReceivedEmail,
-} from "./email";
+import { receivedEmailFrom, type ReceivedEmail } from "./email/intake";
+import { mailDomainsFrom, resendLimitOf, type MailDomainFacts } from "./email/provider-answers";
+import type { EmailRequest } from "./email/request";
 
 export interface ResendConfig {
   apiKey: string;

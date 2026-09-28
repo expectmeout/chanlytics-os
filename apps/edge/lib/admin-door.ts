@@ -30,10 +30,16 @@ export const stop = (response: Response): Refused => ({ ok: false, response });
 /** An error's words: an Error's message, anything else that was thrown as a string. */
 export const errorMessage = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-/** The body as sent; not JSON is an empty body, validated by the door like any other. */
+/**
+ * The body as sent when it is a JSON object; anything else -- not JSON, or JSON that is not an object (null, an array,
+ * a number, a string, a boolean) -- is an empty body, validated by the door like any other. A door reads `body.op` and
+ * writes the workspace back onto the body, and both threw on null or a primitive: a 500 where its validation answers
+ * 400.
+ */
 export async function readBody<T extends object>(request: Request): Promise<Partial<T>> {
   try {
-    return JSON.parse(await request.text());
+    const body = JSON.parse(await request.text());
+    return typeof body === "object" && body !== null && !Array.isArray(body) ? body : {};
   } catch {
     return {};
   }

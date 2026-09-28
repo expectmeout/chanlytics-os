@@ -5,7 +5,7 @@
  * email of the reach-out left. The extraction is the one People's import runs (extractContacts), here for every item,
  * not only those with one number.
  */
-import type { FeedItem } from "../calendar/availability";
+import type { FeedItem } from "../calendar/feed";
 import { extractContacts, type OwnAddresses } from "../calendar/calendar-people";
 
 /** One address or number an appointment carries, and when it starts (ISO). A type, not an interface, so it is JSON to the rpc. */

@@ -1059,9 +1059,13 @@ test("REGRESSION: a reopened card whose undo has expired offers none, and undoin
   };
   cells = [];
   frames.begin();
+  // A send's undo says Undo, its words its title (the spec 2026-09-27-ask-chat-on-a-phone, D16): neither may stand.
   assert.ok(
-    !buttons(globalThis.window.AskCard({ p: old, messageId: "x", t, onNav() {} })).some((b) =>
-      textOf(b).includes("Cancel within"),
+    !buttons(globalThis.window.AskCard({ p: old, messageId: "x", t, onNav() {} })).some(
+      (b) =>
+        textOf(b) === t.undo ||
+        textOf(b).includes("Cancel within") ||
+        String(b.props.title || "").includes("Cancel within"),
     ),
     "REGRESSION: the undo outlived the send",
   );

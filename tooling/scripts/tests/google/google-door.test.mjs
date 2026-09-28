@@ -20,7 +20,7 @@
  * without a throw and left on the row for the owner to see; and what each op
  * leaves behind: the rows, the bell, the ledger, Vault, and the requests.
  *
- * ORDER OF SETUP MATTERS: lib/google.ts binds `const http = placesFetch()`
+ * ORDER OF SETUP MATTERS: lib/google/places.ts binds `const http = placesFetch()`
  * at module scope, which captures `fetch` as it is at that moment, so the
  * wire is installed before the door is imported.
  */
