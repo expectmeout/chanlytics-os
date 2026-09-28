@@ -33,6 +33,9 @@ import {
   unknownCasts,
   tableNames,
   durationsIn,
+  mediaPreludes,
+  mediaWidths,
+  stringsIn,
   SOURCE,
 } from "./_ast.mjs";
 import { bank } from "./_ratchet.mjs";
@@ -61,6 +64,24 @@ const TIMED = SRC.filter(
       f,
     ) && f !== "packages/contracts/src/shared/time.ts",
 );
+
+/** The dashboard's design tokens, where its one set of breakpoints is written (`--bp-phone`, `--bp-narrow`). */
+const TOKENS_CSS = "apps/dashboard/src/legacy/styles/tokens.css";
+/** Where the dashboard's layout changes: its stylesheets' @media rules, and the queries its scripts ask. */
+const DASHBOARD_CSS = repoFiles(["apps/dashboard"], { keep: /\.css$/ });
+const DASHBOARD_SRC = SRC.filter((f) => f.startsWith("apps/dashboard/"));
+const readText = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
+
+/**
+ * The widths the set holds, read from the tokens themselves, so the set is written once. A token file that writes
+ * none leaves the ratchet nothing to hold a width to, and says so rather than count every width a stray.
+ */
+export function breakpointSet() {
+  const css = readText(TOKENS_CSS).replace(/\/\*[\s\S]*?\*\//g, "");
+  const set = [...css.matchAll(/--bp-[a-z-]+\s*:\s*(\d+)px\s*;/g)].map((m) => Number(m[1]));
+  if (!set.length) throw new Error(`${TOKENS_CSS} writes no --bp- token: the breakpoints ratchet has no set`);
+  return new Set(set);
+}
 
 /** `{ file: n }` for each of `files` whose syntax tree `count` puts over `floor`. */
 const perFile = (files, count, floor = 0) =>
@@ -160,6 +181,24 @@ export const MEASURES = [
     },
     advice:
       "Name the length of time: a whole minute, hour or day from contracts' shared/time.ts (5 * MIN_MS, DAY_MS), anything else a constant in its module that says what it is (const RETRY_MS = 800; const LEASE_MS = 5 * MIN_MS). A value that is not a time says its unit in its name (RADIUS_MAX_M, TAB_TOTAL_CHARS).",
+  },
+  {
+    name: "breakpoints outside the set",
+    file: "breakpoints.json",
+    // `file::width`: where the width is and where it splits the screens (_ast.mjs mediaWidths), so a page cannot trade
+    // one stray for another; its count, how many conditions split there.
+    measure: () => {
+      const set = breakpointSet();
+      const out = {};
+      const hold = (file, widths) => {
+        for (const w of widths) if (!set.has(w)) out[`${file}::${w}`] = (out[`${file}::${w}`] ?? 0) + 1;
+      };
+      for (const f of DASHBOARD_CSS) hold(f, mediaPreludes(readText(f)).flatMap(mediaWidths));
+      for (const f of DASHBOARD_SRC) hold(f, stringsIn(parse(f)).flatMap(mediaWidths));
+      return out;
+    },
+    advice:
+      "Change the layout at one of tokens.css's breakpoints, from either side: (max-width: 720px) or (min-width: 721px), (max-width: 900px) or (width > 900px). A page that needs a width of its own says why in its row of docs/debt.md, and a new width for the whole product is a new --bp- token.",
   },
 ];
 

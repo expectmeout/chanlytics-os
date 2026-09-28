@@ -14,8 +14,17 @@ import ts from "typescript";
 import { Linter } from "eslint";
 import tseslint from "typescript-eslint";
 import { bank, compare } from "../_ratchet.mjs";
-import { functionsIn, windowUse, unknownCasts, copiesAmong, repoFiles } from "../_ast.mjs";
-import { bankedSourceScan } from "../_measures.mjs";
+import {
+  functionsIn,
+  windowUse,
+  unknownCasts,
+  copiesAmong,
+  repoFiles,
+  mediaWidths,
+  mediaPreludes,
+  stringsIn,
+} from "../_ast.mjs";
+import { bankedSourceScan, breakpointSet } from "../_measures.mjs";
 import { knipCommand } from "../../check-dead-exports.mjs";
 import { bankWarnings } from "../../checks/lint.mjs";
 
@@ -341,6 +350,67 @@ test("a short name declared in three files is a copy like any other", () => {
     source(`const num = (v) => Number(v); function plural(n) { return n; } const ${f}Only = 1;`, `${f}.ts`),
   );
   assert.deepEqual(copiesAmong(files, 3), { num: 3, plural: 3 });
+});
+
+/* ---- Breakpoints ---- */
+
+test("a width condition is read as where it splits the screens, from either side and however it is spelt", () => {
+  // Both sides of 720, in every spelling a media query takes: each splits the screens at 720.
+  for (const q of [
+    "(max-width: 720px)",
+    "(max-width:720px)",
+    "(min-width: 721px)",
+    "(width <= 720px)",
+    "(width < 721px)",
+    "(width > 720px)",
+    "(width >= 721px)",
+    "(720px < width)",
+    "(721px <= width)",
+    "(721px > width)",
+    "(720px >= width)",
+  ])
+    assert.deepEqual(mediaWidths(q), [720], q);
+  // A pixel off is another width: (min-width: 900px) and (max-width: 900px) both hold at exactly 900px.
+  assert.deepEqual(mediaWidths("(min-width: 900px)"), [899]);
+  // Two in one pair of brackets, and a width among other features, in the order they are written.
+  assert.deepEqual(mediaWidths("(721px <= width <= 900px)"), [720, 900]);
+  assert.deepEqual(mediaWidths("(hover: hover) and (pointer: fine) and (min-width: 761px)"), [760]);
+  assert.deepEqual(mediaWidths("(max-width: 900px) and (max-height: 700px)"), [900], "a height is not a width");
+  assert.deepEqual(mediaWidths("(prefers-reduced-motion: reduce)"), []);
+  // What no set of pixels can hold is kept as it is written.
+  assert.deepEqual(mediaWidths("(max-width: 45em)"), ["45em"]);
+  assert.deepEqual(mediaWidths("(max-width: 720.5px)"), ["720.5px"]);
+});
+
+test("a stylesheet's @media rules are read with its comments aside, and a script's queries wherever its strings are", () => {
+  const css = [
+    "/* @media (max-width: 1px) { } */",
+    "@media (max-width: 640px) { .a { color: red } }",
+    ".b { max-width: 100px }",
+    "@media print, (min-width: 761px) { .c { color: blue } }",
+  ].join("\n");
+  assert.deepEqual(mediaPreludes(css).flatMap(mediaWidths), [640, 760]);
+  const sf = ts.createSourceFile(
+    "q.jsx",
+    [
+      'const Q = "(max-width: 760px)";',
+      // A width a template computes is not read; what it writes out whole is.
+      "const t = `(max-width: ${n}px) and (min-width: 721px)`;",
+      'const el = <source media="(max-width: 640px)" />;',
+      'window.matchMedia("(max-width: 720px)");',
+    ].join("\n"),
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.JSX,
+  );
+  assert.deepEqual(stringsIn(sf).flatMap(mediaWidths), [760, 720, 640, 720]);
+});
+
+test("the set is the one tokens.css writes: a phone's width and a narrow screen's", () => {
+  assert.deepEqual(
+    [...breakpointSet()].sort((a, b) => a - b),
+    [720, 900],
+  );
 });
 
 /* ---- knip without pnpm ---- */

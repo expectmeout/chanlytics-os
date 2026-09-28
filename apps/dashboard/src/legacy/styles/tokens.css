@@ -83,6 +83,23 @@
   --rail-nav: 220px;
   --rail-list: 340px;
 
+  /* ---------- Breakpoints (the widths the layout changes at) ----------
+     Ten widths were in use for where a layout changes: 360, 400, 640, 700,
+     720, 760, 900, 1100, 1140 and 1180. Two of them are the real kinds --
+
+       phone  -- one pane at a time (the Inbox's list or its thread), the tab bar
+       narrow -- the sidebar becomes a drawer, a list takes the phone's row
+
+     -- and a layout changes at one of them, from either side: (max-width:
+     720px), or (min-width: 721px) and (width > 720px). A media query cannot
+     read a variable, so each writes its number; these are where the numbers
+     are written, and the build holds every width in the dashboard's
+     stylesheets and scripts to them (tooling/scripts/tests/baselines/
+     breakpoints.json). A width it holds as it was is a design call on its
+     page, not a rename: it waits there until its page comes to one of these. */
+  --bp-phone: 720px;
+  --bp-narrow: 900px;
+
   /* ---------- A list row on a phone (900px and under) ----------
      Four lists show a person, a lead, a conversation and a call, and each had
      invented its own row. Measured on production at 375px, 22 Sep: People 84px

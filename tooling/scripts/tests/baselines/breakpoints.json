@@ -1,0 +1,19 @@
+{
+  "apps/dashboard/app/globals.css::899": 1,
+  "apps/dashboard/src/legacy/components/record-fold.jsx::760": 1,
+  "apps/dashboard/src/legacy/pages/reports-sections.jsx::760": 1,
+  "apps/dashboard/src/legacy/pages/settings.jsx::640": 1,
+  "apps/dashboard/src/legacy/styles/components.css::760": 4,
+  "apps/dashboard/src/legacy/styles/conversations.css::360": 1,
+  "apps/dashboard/src/legacy/styles/dashboard-a-v2.css::1180": 1,
+  "apps/dashboard/src/legacy/styles/dashboard-a-v2.css::699": 1,
+  "apps/dashboard/src/legacy/styles/record.css::1139": 1,
+  "apps/dashboard/src/legacy/styles/record.css::760": 2,
+  "apps/dashboard/src/legacy/styles/reports.css::1100": 1,
+  "apps/dashboard/src/legacy/styles/reports.css::1180": 1,
+  "apps/dashboard/src/legacy/styles/reports.css::640": 1,
+  "apps/dashboard/src/legacy/styles/reports.css::760": 1,
+  "apps/dashboard/src/legacy/styles/settings.css::400": 1,
+  "apps/dashboard/src/legacy/styles/settings.css::640": 13,
+  "apps/dashboard/src/legacy/styles/settings.css::760": 2
+}

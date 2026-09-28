@@ -52,6 +52,8 @@ const baselineFiles = fs
 
 const total = (o) => Object.values(o ?? {}).reduce((a, v) => a + (typeof v === "number" ? v : 1), 0);
 const keys = (o) => Object.keys(o ?? {}).length;
+/** How many files a `file::…` baseline names, each counted once however many of its keys it holds. */
+const files = (o) => new Set(Object.keys(o ?? {}).map((k) => k.split("::")[0])).size;
 
 /** The block, from a map of baseline file → its numbers, and the source-scan counts. */
 function blockFrom(by, scanCounts) {
@@ -73,6 +75,7 @@ function blockFrom(by, scanCounts) {
     ["as unknown as", total(by["casts.json"]), ""],
     ["table names outside packages/db", total(by["tables.json"]), ""],
     ["unnamed durations", total(by["durations.json"]), `in ${keys(by["durations.json"])} files`],
+    ["breakpoints outside the set", total(by["breakpoints.json"]), `in ${files(by["breakpoints.json"])} files`],
     ["dead exports, types and modules", total(readBaseline("dead-exports.json")), ""],
     ["source-text reads in tests", total(scanCounts), ""],
     [

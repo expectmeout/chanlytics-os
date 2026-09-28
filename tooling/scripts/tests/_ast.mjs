@@ -634,3 +634,60 @@ export function durationsIn(sf) {
   visit(sf);
   return out;
 }
+
+/* ---- The widths a layout changes at (the breakpoints ratchet) ---- */
+
+/** A number and its unit in a media query: `720px`, `45em`. */
+const WIDTH = String.raw`(\d+(?:\.\d+)?)(px|em|rem)`;
+/** `(max-width: 720px)`, `(min-width: 721px)`. */
+const MIN_MAX = new RegExp(String.raw`\(\s*(min|max)-width\s*:\s*${WIDTH}\s*\)`, "g");
+/** `(width > 900px)`, and the same condition written the other way round, `(900px < width)`. */
+const RANGE = new RegExp(String.raw`\(\s*width\s*(<=|>=|<|>)\s*${WIDTH}\s*\)`, "g");
+const RANGE_REVERSED = new RegExp(String.raw`\(\s*${WIDTH}\s*(<=|>=|<|>)\s*width\s*\)`, "g");
+/** `(721px <= width <= 900px)`: two conditions in one pair of brackets. */
+const RANGE_BOTH = new RegExp(String.raw`\(\s*${WIDTH}\s*(<=|<)\s*width\s*(<=|<)\s*${WIDTH}\s*\)`, "g");
+
+/**
+ * Where a width condition splits the screens: the widest width still on its narrow side. `(max-width: 720px)`,
+ * `(width <= 720px)`, `(min-width: 721px)` and `(width > 720px)` all split at 720, so a rule and its other side read as
+ * the one breakpoint they are; `(min-width: 900px)` splits at 899, a pixel off `(max-width: 900px)`, and reads so. A
+ * width in another unit, or a fraction of a pixel, is kept as written (`45em`): no set of pixels can hold it.
+ */
+const splitAt = (value, unit, narrowSideIncludesIt) => {
+  if (unit !== "px") return `${value}${unit}`;
+  const n = Number(value);
+  if (!Number.isInteger(n)) return value + unit;
+  return narrowSideIncludesIt ? n : n - 1;
+};
+
+/** Each width condition `text` holds, as where it splits the screens (splitAt), in the order they are written. */
+export function mediaWidths(text) {
+  const out = [];
+  for (const m of text.matchAll(MIN_MAX)) out.push({ at: m.index, w: splitAt(m[2], m[3], m[1] === "max") });
+  for (const m of text.matchAll(RANGE))
+    out.push({ at: m.index, w: splitAt(m[2], m[3], m[1] === "<=" || m[1] === ">") });
+  for (const m of text.matchAll(RANGE_REVERSED))
+    out.push({ at: m.index, w: splitAt(m[1], m[2], m[3] === ">=" || m[3] === "<") });
+  for (const m of text.matchAll(RANGE_BOTH)) {
+    out.push({ at: m.index, w: splitAt(m[1], m[2], m[3] === "<") });
+    out.push({ at: m.index + 1, w: splitAt(m[5], m[6], m[4] === "<=") });
+  }
+  return out.sort((a, b) => a.at - b.at).map((x) => x.w);
+}
+
+/** What each @media rule of a stylesheet asks, as written, its comments aside. */
+export function mediaPreludes(css) {
+  return [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/@media\b([^{;]*)\{/g)].map((m) => m[1]);
+}
+
+/** Every string a script writes out whole: its literals, and the fixed parts of its templates. */
+export function stringsIn(sf) {
+  const out = [];
+  const visit = (n) => {
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) out.push(n.text);
+    else if (ts.isTemplateExpression(n)) out.push(n.head.text, ...n.templateSpans.map((s) => s.literal.text));
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}

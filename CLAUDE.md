@@ -88,7 +88,8 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   branches or 5 levels; files over 800 lines; directories over 20 modules; window globals and
   publishers; a helper declared in three files; `as unknown as`; a table name outside `packages/db`;
   dead exports; a duration written as a bare number (name it from `contracts/shared/time.ts`, or
-  give it a constant); lint warnings. A new offender is a red build. `UPDATE_BASELINES=1` banks only
+  give it a constant); a width the layout changes at that is not one of `tokens.css`'s breakpoints;
+  lint warnings. A new offender is a red build. `UPDATE_BASELINES=1` banks only
   what fell (knip, the lint and the bundle budget: their `--update`); a number that must rise is
   raised with `UPDATE_BASELINES=raise` (theirs: `--raise`) in the same diff as its row under "Rises"
   in `docs/debt.md`, with the reason in the pull request. Where a tree's functions are all under the
