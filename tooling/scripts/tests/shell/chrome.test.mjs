@@ -147,21 +147,22 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
         "publishShellStatus(shellStatusOf(getSurfaceStatuses(), getConnection(), staleRef.current, SURFACE_LABELS));",
       ),
   );
-  assert.ok(
-    app.includes("const theme = resolveTheme(prefs.theme, systemDark);") &&
-      app.includes('document.documentElement.setAttribute("data-theme", theme);'),
-    "the page paints the resolved theme",
-  );
-  assert.ok(
-    app.includes("sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar"),
-    "the rail is a device preference",
-  );
-  assert.ok(
-    app.includes("look: lookPrefOf(p.look),") &&
-      app.includes('document.documentElement.setAttribute("data-look", look);') &&
-      app.includes('onLook={(v) => setPref("look", lookPrefOf(v))}'),
-    "the look is a device preference beside the theme: kept, stamped on the page and changed through the shell's prop",
-  );
+  // What the device's preferences are, what a press keeps and what the page wears are device-prefs.ts's, run by
+  // theme-boot.test.mjs against the head's script. The component only holds them: these are its calls.
+  for (const pin of [
+    "const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(browserStorage));",
+    "const { theme, look } = documentStamps(prefs, systemDark);",
+    "useDocumentStamps(theme, look);",
+    'document.documentElement.setAttribute("data-theme", theme);',
+    'document.documentElement.setAttribute("data-look", look);',
+    "setPrefs((p) => choosePref(browserStorage, p, key, v))",
+    'onTheme={(v) => choose("theme", v)}',
+    'onLook={(v) => choose("look", v)}',
+    'onSidebar={(v) => choose("sidebar", v)}',
+    "theme={theme}",
+    "look={look}",
+  ])
+    assert.ok(app.includes(pin), `the page wears and keeps what device-prefs.ts says: ${pin}`);
   assert.ok(
     !readRaw("apps/dashboard/src/legacy-bridge/legacy.css").includes(".bridge-pill"),
     "the pill's styles are gone",
@@ -269,11 +270,17 @@ test("the account menu offers the look only once contracts does: none while it i
   installLegacyReact({ usePPToast: () => [null, () => {}] });
   await import("../../../../apps/dashboard/src/legacy/components/sidebar.jsx");
   const picked = [];
+  const themed = [];
   const accountMenu = (lookOffered) => {
     globalThis.window.__chrome = { themes: THEME_OPTIONS, looks: LOOK_OPTIONS, lookOffered };
     fresh();
     const sidebar = () =>
-      globalThis.React.createElement(globalThis.window.Sidebar, { look: "classic", onLook: (v) => picked.push(v) });
+      globalThis.React.createElement(globalThis.window.Sidebar, {
+        themePref: "dark",
+        onTheme: (v) => themed.push(v),
+        look: "classic",
+        onLook: (v) => picked.push(v),
+      });
     press(byTestId(again(sidebar), "sb-account"));
     return byTestId(again(sidebar), "sb-account-menu");
   };
@@ -297,4 +304,5 @@ test("the account menu offers the look only once contracts does: none while it i
   );
   press(looks[1]);
   assert.deepEqual(picked, ["glass"], "a press hands the look to the shell, as the theme's does");
+  assert.deepEqual(themed, [], "and leaves the theme as it was");
 });

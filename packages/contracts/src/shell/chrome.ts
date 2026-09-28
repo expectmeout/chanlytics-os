@@ -51,7 +51,8 @@ export const themePrefOf = (stored: unknown): ThemePref => (isThemePref(stored) 
  * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.1 and §3.2). Classic is the app as it is drawn today;
  * Glass is the canvases'. It travels as the theme does: kept on this device in the same stored object, stamped as
  * `data-look` beside `data-theme` before first paint (themeBootScript) and on every change, and chosen in the account
- * menu. Nothing resolves it from the device, so the preference is the look.
+ * menu. It is kept only once chosen, so a device that never chose follows DEFAULT_LOOK_PREF wherever the default goes;
+ * nothing resolves it from the device, so the look in force is lookPrefOf of what is kept.
  */
 export type LookPref = "classic" | "glass";
 
@@ -74,7 +75,7 @@ export const lookPrefOf = (stored: unknown): LookPref => (isLookPref(stored) ? s
  */
 export const LOOK_OFFERED: boolean = false;
 
-/** Where this device keeps its preferences, the theme and the look among them (LegacyApp.tsx loadPrefs). */
+/** Where this device keeps its preferences, the theme and the look among them (legacy-bridge/device-prefs.ts). */
 export const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 
 /**

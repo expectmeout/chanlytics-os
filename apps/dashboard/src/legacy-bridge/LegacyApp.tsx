@@ -10,25 +10,12 @@
  * sign-out, and flags stale deployments (version heartbeat).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  resolveTheme,
-  themePrefOf,
-  DEFAULT_THEME_PREF,
-  lookPrefOf,
-  DEFAULT_LOOK_PREF,
-  DEVICE_PREFS_STORAGE,
-  isSidebarPref,
-  FIRST_RUN_ROUTE,
-  type PendingWorkspace,
-  type Theme,
-  type ThemePref,
-  type LookPref,
-  type SidebarPref,
-} from "@chanlytics/contracts";
+import { FIRST_RUN_ROUTE, type PendingWorkspace, type Theme, type LookPref } from "@chanlytics/contracts";
 import { subscribeMessagesInserts } from "@chanlytics/db";
 import { authErrorInHash } from "@/auth/hash-error";
 import { createClient } from "@/lib/supabase/client";
 import { paintThemeColor } from "./theme-color";
+import { loadPrefs, choosePref, documentStamps, type Prefs, type ChosenPref } from "./device-prefs";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
@@ -253,38 +240,12 @@ installAuthHashScrub();
 // during its FIRST render, so the classification must exist before React does.
 installSurfaceRegistry();
 
-interface Prefs {
-  theme: ThemePref;
-  look: LookPref;
-  sidebar: SidebarPref;
-  inboxDensity: "compact" | "medium" | "rich";
-  showInboxAgentRail: boolean;
-}
-const PREF_DEFAULTS: Prefs = {
-  theme: DEFAULT_THEME_PREF,
-  look: DEFAULT_LOOK_PREF,
-  sidebar: "open",
-  inboxDensity: "medium",
-  showInboxAgentRail: false,
-};
-// The document's head reads the theme and the look from the same place before first paint (contracts themeBootScript).
-const PREFS_KEY = DEVICE_PREFS_STORAGE;
-
-/** This device's preferences, with anything unknown or stale replaced by the default. */
-function loadPrefs(): Prefs {
-  try {
-    const stored = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as Partial<Prefs>;
-    const p = { ...PREF_DEFAULTS, ...stored };
-    return {
-      ...p,
-      theme: themePrefOf(p.theme),
-      look: lookPrefOf(p.look),
-      sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar,
-    };
-  } catch {
-    return PREF_DEFAULTS;
-  }
-}
+/**
+ * This browser's storage, where this device's preferences are kept (device-prefs.ts), looked up at each read and
+ * write so that a blocked site's throwing getter is caught there. The document's head reads the same place before
+ * first paint (contracts themeBootScript).
+ */
+const browserStorage = () => localStorage;
 
 /** Whether the device prefers dark, kept current while the app is open. */
 function useSystemDark(): boolean {
@@ -302,9 +263,10 @@ function useSystemDark(): boolean {
 }
 
 /**
- * The theme and the look on the document, each stamped again whenever it changes: what the head's script stamped
- * before first paint (contracts themeBootScript). The browser's own bars go with the theme, so switching it moves them
- * with the page instead of leaving the phone's address bar in the other one's paper.
+ * The theme and the look on the document, as device-prefs.ts works them out (documentStamps), each stamped again
+ * whenever it changes: what the head's script stamped before first paint (contracts themeBootScript). The browser's
+ * own bars go with the theme, so switching it moves them with the page instead of leaving the phone's address bar in
+ * the other one's paper.
  */
 function useDocumentStamps(theme: Theme, look: LookPref): void {
   useEffect(() => {
@@ -329,7 +291,7 @@ type ChanlyticsAppComponent = React.ComponentType<{
 }>;
 
 export default function LegacyApp() {
-  const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
+  const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs(browserStorage));
   // Another workspace, asked for from the workspace menu (shell.createWorkspace).
   const [creating, setCreating] = useState(false);
   useEffect(() => {
@@ -338,7 +300,7 @@ export default function LegacyApp() {
     return () => window.removeEventListener("shell:create-workspace", on);
   }, []);
   const systemDark = useSystemDark();
-  const theme = resolveTheme(prefs.theme, systemDark);
+  const { theme, look } = documentStamps(prefs, systemDark);
   const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>(
     () => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [],
   );
@@ -356,19 +318,13 @@ export default function LegacyApp() {
 
   const missing = useMemo(() => REQUIRED.filter((k) => !(window as unknown as Record<string, unknown>)[k]), []);
 
-  const setPref = useCallback(<K extends keyof Prefs>(key: K, value: Prefs[K]) => {
-    setPrefs((p) => {
-      const next = { ...p, [key]: value };
-      try {
-        localStorage.setItem(PREFS_KEY, JSON.stringify(next));
-      } catch {
-        /* private mode etc. — prefs just don't persist */
-      }
-      return next;
-    });
-  }, []);
+  // A press on the theme, the look or the rail: device-prefs.ts checks it and keeps it, and this holds the result.
+  const choose = useCallback(
+    (key: ChosenPref, v: string) => setPrefs((p) => choosePref(browserStorage, p, key, v)),
+    [],
+  );
 
-  useDocumentStamps(theme, prefs.look);
+  useDocumentStamps(theme, look);
   // Viewport scoping, exactly what the inline boot script did.
   useEffect(() => {
     document.documentElement.classList.add("legacy-on");
@@ -495,11 +451,11 @@ export default function LegacyApp() {
       <ChanlyticsApp
         theme={theme}
         themePref={prefs.theme}
-        onTheme={(v) => setPref("theme", themePrefOf(v))}
-        look={prefs.look}
-        onLook={(v) => setPref("look", lookPrefOf(v))}
+        onTheme={(v) => choose("theme", v)}
+        look={look}
+        onLook={(v) => choose("look", v)}
         sidebar={prefs.sidebar}
-        onSidebar={(v) => setPref("sidebar", isSidebarPref(v) ? v : PREF_DEFAULTS.sidebar)}
+        onSidebar={(v) => choose("sidebar", v)}
         inboxDensity={prefs.inboxDensity}
         showInboxAgentRail={prefs.showInboxAgentRail}
       />

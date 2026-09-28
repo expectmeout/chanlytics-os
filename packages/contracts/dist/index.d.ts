@@ -12837,7 +12837,8 @@ declare const themePrefOf: (stored: unknown) => ThemePref;
  * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.1 and §3.2). Classic is the app as it is drawn today;
  * Glass is the canvases'. It travels as the theme does: kept on this device in the same stored object, stamped as
  * `data-look` beside `data-theme` before first paint (themeBootScript) and on every change, and chosen in the account
- * menu. Nothing resolves it from the device, so the preference is the look.
+ * menu. It is kept only once chosen, so a device that never chose follows DEFAULT_LOOK_PREF wherever the default goes;
+ * nothing resolves it from the device, so the look in force is lookPrefOf of what is kept.
  */
 type LookPref = "classic" | "glass";
 declare const LOOK_OPTIONS: ReadonlyArray<{
@@ -12854,7 +12855,7 @@ declare const lookPrefOf: (stored: unknown) => LookPref;
  * plan's step 5.5), and a device paints the look it keeps, which is the default unless it was set by hand.
  */
 declare const LOOK_OFFERED: boolean;
-/** Where this device keeps its preferences, the theme and the look among them (LegacyApp.tsx loadPrefs). */
+/** Where this device keeps its preferences, the theme and the look among them (legacy-bridge/device-prefs.ts). */
 declare const DEVICE_PREFS_STORAGE = "chanlytics-os-prefs";
 /**
  * What the browser paints its own bars with, per theme: each one's paper (tokens.css --bg, as sRGB). The phone's

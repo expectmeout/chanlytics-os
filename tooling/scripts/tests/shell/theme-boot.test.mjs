@@ -4,8 +4,9 @@
  * The document came down with data-theme="dark" hard-coded and was corrected in an effect after the bundle (2.7 MB)
  * had mounted, so a light-theme workspace opened dark and flipped on every refresh. A script inline in the head
  * stamps the theme the app will resolve, from the same preference the app reads, before anything paints. It is
- * contracts' own text, and this runs it against contracts' own rule -- the stored preference as themePrefOf reads
- * it (what LegacyApp's loadPrefs keeps), then resolveTheme -- for everything a device could hold and both settings.
+ * contracts' own text, and this runs it against the app's own reading of the same bytes -- legacy-bridge/
+ * device-prefs.ts, which LegacyApp holds: its loadPrefs, then the stamps it works out -- for everything a device could
+ * hold and both settings.
  *
  * The bars above and below the page had the same bug for longer: theme-color was a pair of metas keyed off
  * (prefers-color-scheme), so they followed the PHONE while the page followed the member's preference, and the two
@@ -13,9 +14,10 @@
  * repaints them on every change; both run here, against the one colour per theme contracts keeps.
  *
  * The look travels as the theme does (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.2): the same
- * stored object's `look`, stamped as data-look by the same script before first paint, as lookPrefOf reads it (what
- * loadPrefs keeps), so a `[data-look]` rule never flips after mount. Both attributes are run here, for every pairing
- * a device could hold.
+ * stored object's `look`, stamped as data-look by the same script before first paint, as lookPrefOf reads it, so a
+ * `[data-look]` rule never flips after mount. Both attributes are run here, for every pairing a device could hold. A
+ * device keeps a look only once it has chosen one, so a device that never chose follows the default wherever it goes:
+ * the presses that save the theme and the rail are run here too.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -30,6 +32,7 @@ import {
   THEME_COLORS,
 } from "../../../../packages/contracts/src/shell/chrome.ts";
 import { paintThemeColor } from "../../../../apps/dashboard/src/legacy-bridge/theme-color.ts";
+import { loadPrefs, choosePref, documentStamps } from "../../../../apps/dashboard/src/legacy-bridge/device-prefs.ts";
 import * as manifestModule from "../../../../apps/dashboard/app/manifest.ts";
 
 // TypeScript loaded through tsx, which may hand its default export back wrapped once more.
@@ -102,26 +105,24 @@ const boot = ({ stored, systemDark, storageThrows = false, noMatchMedia = false,
   return { theme, look, bars: bars(), metas: contents(), threw };
 };
 
-/** What the app paints once mounted, from the same bytes: loadPrefs' parse, then the one rule. */
-const app = (stored, systemDark) => {
-  let pref;
-  try {
-    pref = { theme: DEFAULT_THEME_PREF, ...JSON.parse(stored || "{}") }.theme;
-  } catch {
-    pref = DEFAULT_THEME_PREF;
-  }
-  return resolveTheme(themePrefOf(pref), systemDark);
+/** A browser's storage holding `stored` under the app's name (null: nothing), read and written as the app does. */
+const deviceStorage = (stored) => {
+  const kept = new Map(stored === null ? [] : [[DEVICE_PREFS_STORAGE, stored]]);
+  return {
+    getItem: (k) => (kept.has(k) ? kept.get(k) : null),
+    setItem: (k, v) => void kept.set(k, String(v)),
+    /** What the device holds under the app's name now. */
+    held: () => kept.get(DEVICE_PREFS_STORAGE) ?? null,
+  };
 };
 
-/** The look the app keeps once mounted, from the same bytes: loadPrefs' parse, then lookPrefOf. */
-const appLook = (stored) => {
-  let pref;
-  try {
-    pref = { look: DEFAULT_LOOK_PREF, ...JSON.parse(stored || "{}") }.look;
-  } catch {
-    pref = DEFAULT_LOOK_PREF;
-  }
-  return lookPrefOf(pref);
+/** What the app paints once mounted, from the same bytes: its own read (device-prefs.ts), then its own stamps. */
+const app = (stored, systemDark) => {
+  const storage = deviceStorage(stored);
+  return documentStamps(
+    loadPrefs(() => storage),
+    systemDark,
+  );
 };
 
 /**
@@ -152,8 +153,7 @@ test("the script stamps the theme and the look the app will paint, for everythin
       const where = `${stored} on a ${systemDark ? "dark" : "light"} device`;
       const { theme, look, threw } = boot({ stored, systemDark });
       assert.equal(threw, null, `${where} throws nothing`);
-      assert.equal(theme, app(stored, systemDark), `${where}: the theme`);
-      assert.equal(look, appLook(stored), `${where}: the look`);
+      assert.deepEqual({ theme, look }, app(stored, systemDark), `${where}: the theme and the look`);
     }
   }
 });
@@ -212,6 +212,56 @@ test("a storage that refuses, or a window with no matchMedia, still stamps a the
       threw: null,
     },
     "no matchMedia reads as a light device, as the app's own useSystemDark does, and the look it keeps stands",
+  );
+  // The app reads the same from a storage whose very getter refuses (a blocked site), and a press still holds for the tab.
+  const refused = () => {
+    throw new Error("blocked");
+  };
+  assert.deepEqual(documentStamps(loadPrefs(refused), true), { theme: dark, look: DEFAULT_LOOK_PREF });
+  assert.equal(choosePref(refused, loadPrefs(refused), "look", "glass").look, "glass");
+});
+
+test("a device keeps only the look it chose: a theme press and a ⌘B fold save none, so the default can move under it; a Look press keeps the one pressed, and an unknown one changes nothing", () => {
+  const storage = deviceStorage('{"theme":"light"}');
+  const kept = () => storage;
+  const saved = () => JSON.parse(storage.held());
+  let prefs = loadPrefs(kept);
+  prefs = choosePref(kept, prefs, "theme", "dark");
+  prefs = choosePref(kept, prefs, "sidebar", "rail");
+  assert.deepEqual([saved().theme, saved().sidebar], ["dark", "rail"], "the theme press and the fold are kept");
+  assert.equal(loadPrefs(kept).sidebar, "rail", "and the fold outlives a reload: the rail is a device preference");
+  assert.equal("look" in saved(), false, "REGRESSION: every save wrote the default look down as if it were chosen");
+  assert.equal(
+    boot({ stored: storage.held(), systemDark: false }).look,
+    DEFAULT_LOOK_PREF,
+    "the next page opens in the default",
+  );
+  assert.equal(documentStamps(loadPrefs(kept), false).look, DEFAULT_LOOK_PREF, "and the app stamps the same");
+
+  const before = storage.held();
+  assert.equal(choosePref(kept, prefs, "look", "neon"), prefs, "a look this build does not know changes nothing");
+  assert.equal(storage.held(), before, "and writes nothing");
+
+  assert.equal(choosePref(kept, prefs, "look", "glass").look, "glass", "a Look press is the look in the app's hands");
+  assert.deepEqual(
+    saved(),
+    { ...JSON.parse(before), look: "glass" },
+    "a Look press keeps the one pressed, and only that",
+  );
+  assert.equal(boot({ stored: storage.held(), systemDark: false }).look, "glass", "the next page opens in it");
+  assert.deepEqual(documentStamps(loadPrefs(kept), false), { theme: "dark", look: "glass" }, "and the app stamps it");
+
+  const stale = deviceStorage('{"theme":"light","look":"neon"}');
+  choosePref(
+    () => stale,
+    loadPrefs(() => stale),
+    "theme",
+    "dark",
+  );
+  assert.equal(
+    "look" in JSON.parse(stale.held()),
+    false,
+    "a look this build does not know is dropped at the next save",
   );
 });
 
@@ -311,7 +361,7 @@ test("the app paints the bars the boot script would have, so hydration changes n
     for (const stored of ['{"theme":"dark"}', '{"theme":"light"}', '{"theme":"system"}', null]) {
       const booted = boot({ stored, systemDark });
       const { doc, bars } = fakeDoc();
-      paintThemeColor(doc, app(stored, systemDark));
+      paintThemeColor(doc, app(stored, systemDark).theme);
       assert.equal(bars(), booted.bars, `${stored} on a ${systemDark ? "dark" : "light"} device`);
     }
   }

@@ -306,6 +306,7 @@ const UserMenu = ({ who, themePref, onTheme, look, onLook, onNavigate, close, fl
       {looks.length > 0 && (
         <>
           <div className="more-header">Look</div>
+          {/* .sb-theme-seg is the theme's three columns: step 5.5, which offers the look, sizes it for two. */}
           <div className="sb-theme-seg" role="radiogroup" aria-label="Look">
             {looks.map((l) => (
               <button key={l.id} role="radio" aria-checked={look === l.id} className={`sb-theme-opt ${look === l.id ? "active" : ""}`} onClick={() => onLook(l.id)} data-testid={`sb-look-${l.id}`}>
@@ -334,7 +335,8 @@ const Sidebar = ({
   badges = {},
   collapsed = false,
   onToggleCollapse = () => {},
-  themePref = "dark", onTheme = () => {},
+  themePref = "dark",
+  onTheme = () => {},
   look, onLook,
 }) => {
   const [, setTick] = React.useState(0);
