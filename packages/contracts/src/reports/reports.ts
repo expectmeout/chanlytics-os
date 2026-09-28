@@ -14,6 +14,7 @@
  * page composes no sentence of its own.
  */
 import { reasonShort } from "../people/person-row-facts";
+import { sumOf } from "../shared/numbers";
 import { DATE_FMT } from "../shared/time";
 import { capitalize } from "../shared/words";
 
@@ -312,8 +313,6 @@ function bars(entries: [string, string, number][]): ReportBarVM[] {
   return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
 }
 
-const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
-
 /**
  * The period before, day for day beside the current one: the n days before them, newest last, and null where the
  * series has no day that far back (a workspace younger than two periods).
@@ -509,23 +508,23 @@ function periodFactsOf(dto: ReportDto) {
     newPeople: d.new_contacts,
   }));
   const tot = {
-    in: sum(current.map((d) => d.messages_in)),
-    ai: sum(current.map((d) => d.answered_ai)),
-    you: sum(current.map((d) => d.answered_you)),
-    none: sum(current.map((d) => d.unanswered)),
-    escalations: sum(current.map((d) => d.escalations)),
-    calls: sum(current.map((d) => d.calls)),
-    callSeconds: sum(current.map((d) => d.call_seconds)),
-    newPeople: sum(current.map((d) => d.new_contacts)),
+    in: sumOf(current.map((d) => d.messages_in)),
+    ai: sumOf(current.map((d) => d.answered_ai)),
+    you: sumOf(current.map((d) => d.answered_you)),
+    none: sumOf(current.map((d) => d.unanswered)),
+    escalations: sumOf(current.map((d) => d.escalations)),
+    calls: sumOf(current.map((d) => d.calls)),
+    callSeconds: sumOf(current.map((d) => d.call_seconds)),
+    newPeople: sumOf(current.map((d) => d.new_contacts)),
   };
   const prev = {
-    in: sum(previous.map((d) => d.messages_in)),
-    ai: sum(previous.map((d) => d.answered_ai)),
-    you: sum(previous.map((d) => d.answered_you)),
-    none: sum(previous.map((d) => d.unanswered)),
-    escalations: sum(previous.map((d) => d.escalations)),
-    calls: sum(previous.map((d) => d.calls)),
-    newPeople: sum(previous.map((d) => d.new_contacts)),
+    in: sumOf(previous.map((d) => d.messages_in)),
+    ai: sumOf(previous.map((d) => d.answered_ai)),
+    you: sumOf(previous.map((d) => d.answered_you)),
+    none: sumOf(previous.map((d) => d.unanswered)),
+    escalations: sumOf(previous.map((d) => d.escalations)),
+    calls: sumOf(previous.map((d) => d.calls)),
+    newPeople: sumOf(previous.map((d) => d.new_contacts)),
   };
   const noun = `${days} days`;
   const answeredTotal = tot.ai + tot.you + tot.none;

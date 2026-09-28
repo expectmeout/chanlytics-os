@@ -11431,6 +11431,9 @@ function reviewReplyWords(mode, canReply) {
   return "";
 }
 
+// src/shared/numbers.ts
+var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
+
 // src/reports/reports.ts
 var REPORT_CHANNELS = [
   { key: "whatsapp", label: "WhatsApp" },
@@ -11496,7 +11499,6 @@ function bars(entries) {
   const max = Math.max(1, ...entries.map((e) => e[2]));
   return entries.map(([id, label, value]) => ({ id, label, value, share: value / max }));
 }
-var sum = (xs) => xs.reduce((a, b) => a + b, 0);
 function priorOf(n, previous, pick) {
   return Array.from({ length: n }, (_, i) => {
     const j = previous.length - n + i;
@@ -11632,23 +11634,23 @@ function periodFactsOf(dto) {
     newPeople: d.new_contacts
   }));
   const tot = {
-    in: sum(current.map((d) => d.messages_in)),
-    ai: sum(current.map((d) => d.answered_ai)),
-    you: sum(current.map((d) => d.answered_you)),
-    none: sum(current.map((d) => d.unanswered)),
-    escalations: sum(current.map((d) => d.escalations)),
-    calls: sum(current.map((d) => d.calls)),
-    callSeconds: sum(current.map((d) => d.call_seconds)),
-    newPeople: sum(current.map((d) => d.new_contacts))
+    in: sumOf(current.map((d) => d.messages_in)),
+    ai: sumOf(current.map((d) => d.answered_ai)),
+    you: sumOf(current.map((d) => d.answered_you)),
+    none: sumOf(current.map((d) => d.unanswered)),
+    escalations: sumOf(current.map((d) => d.escalations)),
+    calls: sumOf(current.map((d) => d.calls)),
+    callSeconds: sumOf(current.map((d) => d.call_seconds)),
+    newPeople: sumOf(current.map((d) => d.new_contacts))
   };
   const prev = {
-    in: sum(previous.map((d) => d.messages_in)),
-    ai: sum(previous.map((d) => d.answered_ai)),
-    you: sum(previous.map((d) => d.answered_you)),
-    none: sum(previous.map((d) => d.unanswered)),
-    escalations: sum(previous.map((d) => d.escalations)),
-    calls: sum(previous.map((d) => d.calls)),
-    newPeople: sum(previous.map((d) => d.new_contacts))
+    in: sumOf(previous.map((d) => d.messages_in)),
+    ai: sumOf(previous.map((d) => d.answered_ai)),
+    you: sumOf(previous.map((d) => d.answered_you)),
+    none: sumOf(previous.map((d) => d.unanswered)),
+    escalations: sumOf(previous.map((d) => d.escalations)),
+    calls: sumOf(previous.map((d) => d.calls)),
+    newPeople: sumOf(previous.map((d) => d.new_contacts))
   };
   const noun = `${days} days`;
   const answeredTotal = tot.ai + tot.you + tot.none;
@@ -21274,13 +21276,13 @@ function reportRowOf(s, step2) {
   ];
 }
 function chainReportWordsOf(c, report, reach, p) {
-  const sum2 = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
-  const written = sum2("written");
-  const wroteBack = sum2("wrote_back");
-  const saidNo = sum2("said_no");
-  const bounced = sum2("bounced");
-  const held = sum2("held");
-  const handed = sum2("handed");
+  const sum = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
+  const written = sum("written");
+  const wroteBack = sum("wrote_back");
+  const saidNo = sum("said_no");
+  const bounced = sum("bounced");
+  const held = sum("held");
+  const handed = sum("handed");
   const clauses = [`${written} written`];
   if (handed > 0) clauses.push(`${handed} handed to you`);
   if (wroteBack > 0) clauses.push(`${wroteBack} wrote back`);
@@ -21695,9 +21697,6 @@ function bookedSeenOf(items, own) {
   }
   return out.slice(0, BOOKED_SEEN_CAP);
 }
-
-// src/shared/numbers.ts
-var sumOf = (xs) => xs.reduce((a, b) => a + b, 0);
 
 // src/reports/campaign-report.ts
 var pct2 = (n, d) => d ? Math.round(n / d * 100) : null;
