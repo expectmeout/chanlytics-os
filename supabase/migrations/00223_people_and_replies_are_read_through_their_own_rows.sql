@@ -38,10 +38,15 @@
 -- 0.75 s with the look-up, the same rows. PGlite plans with the call's values,
 -- so it never showed the loop.
 --
+-- first_replies runs with jit off, as 00232 sets it: its plan is estimated
+-- past the cost at which Postgres compiles a plan on every call, and compiling
+-- cost more than the read. The setting is in this copy too, so that whichever
+-- file is applied last, it holds.
+--
 -- Each function is copied as it stands from its latest migration with only
--- these changes. Only the bodies change, so `create or replace` takes them:
--- nothing is dropped, and the grants and the comment stand; they are restated
--- so this file reads on its own.
+-- these changes. Only the bodies and that setting change, so `create or
+-- replace` takes them: nothing is dropped, and the grants and the comment
+-- stand; they are restated so this file reads on its own.
 
 create or replace function public.people_list(p_tenant_id uuid, p_contact_id uuid default null, p_query text default null, p_limit integer default 1000, p_offset integer default 0)
 returns table (
@@ -320,6 +325,7 @@ language sql
 stable
 security invoker
 set search_path = public
+set jit = off
 as $$
   with real_msgs as not materialized (
     select * from messages
