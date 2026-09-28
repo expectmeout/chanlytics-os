@@ -18,7 +18,7 @@ on one line — `const channel: "whatsapp" | "sms" = carrier?.channel ??
 "whatsapp"` (`inbound.ts:66`) — so a null carrier means WhatsApp.
 
 SMS gets in by being reshaped. `smsAsWaMessage`
-(`packages/channels/src/sms.ts:66`) turns Twilio's form fields into a
+(`packages/channels/src/lines/sms.ts:66`) turns Twilio's form fields into a
 `WaRawMessage` whose `from` is bare digits, "so one person is one thread across
 both channels" (`sms.ts:63-64`). `apps/edge/api/inbound-sms.ts:76` then calls
 `handleInbound(smsAsWaMessage(inbound), {}, ...)` — an **empty**
@@ -184,7 +184,7 @@ already, minus the channel and with `waId`/`phoneDigits` in place of
 ```
 packages/channels/src/inbound.ts   InboundMessage, InboundChannel, MediaRef
 packages/channels/src/whatsapp.ts  + inboundFromWhatsapp(m, value)
-packages/channels/src/sms.ts       + inboundFromSms(s, nowMs)  (replaces smsAsWaMessage)
+packages/channels/src/lines/sms.ts + inboundFromSms(s, nowMs)  (replaces smsAsWaMessage)
 packages/channels/src/email.ts     + inboundFromEmail(e)       (IncomingEmail -> InboundMessage)
 packages/channels/src/meta-dm.ts   + inboundFromMetaDm(m)      (later)
 

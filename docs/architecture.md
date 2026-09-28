@@ -393,8 +393,12 @@ apps/mobile/src/
   shell/
   widgets/
 packages/channels/src/
-  a2p/
   email/
+  google/
+  leads/
+  lines/
+  tokens/
+  voice/
 packages/contracts/src/
   ask/
   ask-proposals/
@@ -469,9 +473,9 @@ Every path is from the repository's root, and
 | The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/leads.ts`, `supabase/migrations/00140_the_lead_finder_engine.sql`                                                                              |
 | Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/{ask,ask-answer}.ts`                                                                                                                                                |
 | The calendar                           | `apps/dashboard/src/server/calendar/`, `packages/contracts/src/calendar/{feed,availability}.ts`, `apps/edge/api/cron/calendar.ts`                                                                                                  |
-| Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `packages/channels/src/a2p*.ts`, `packages/channels/src/a2p/`, `apps/edge/lib/lines/`                                                                                                           |
-| Email                                  | `packages/channels/src/email*.ts`, `packages/channels/src/email/`, `apps/edge/lib/email/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                                                            |
-| Voice                                  | `packages/channels/src/voice-*.ts`, the four doors `apps/edge/api/retell-*.ts`                                                                                                                                                     |
+| Phone numbers and carrier registration | `packages/channels/src/lines/` (the A2P wire under `packages/channels/src/lines/a2p/`), `apps/edge/lib/lines/`                                                                                                                     |
+| Email                                  | `packages/channels/src/email/`, `apps/edge/lib/email/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                                                                                               |
+| Voice                                  | `packages/channels/src/voice/`, the four doors `apps/edge/api/retell-*.ts`                                                                                                                                                         |
 
 ## Tests
 

@@ -3,7 +3,7 @@
 **Status:** the SHELL pipeline is built (2026-09-04); the settings pane below is
 still a design note.
 
-**Built:** `packages/channels/src/voice-shell.ts` defines the agent's prompt
+**Built:** `packages/channels/src/voice/voice-shell.ts` defines the agent's prompt
 shell (`{{business_facts}}` + `{{caller_context}}`, greeting `{{greeting}}`,
 warm transfer to `{{handoff_number}}`, spoken defaults for every variable).
 The inbound-call webhook fills the variables per call from the same profile
