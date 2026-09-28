@@ -64,8 +64,8 @@ export async function POST(request: Request): Promise<Response> {
     try {
       const r = await syncRegistration(db, line);
       if (!r.ok) {
-        // Credentials refused, the platform's or the line's. Both are codes now; the refresh's refusal used to be a
-        // sentence this found by the word "credentials".
+        // We could not ask: the provider refused the credentials (the platform's, or the line's after a refresh), or
+        // the line has none on file.
         if (r.error === "provider_unauthorized" || r.error === "no_line_credentials") {
           unreadable++;
           L.error("registration_unreadable", { line_id: line.id, error: r.error, detail: r.detail });

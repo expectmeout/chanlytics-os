@@ -19,6 +19,9 @@ import { emailDomainOf } from "../lib/packages/contracts.js";
 
 const META_APP_ID = metaAppId();
 
+/** The report: a key per part, and no `error` of its own (a part that cannot read says so under its own key). */
+type Report = { [part: string]: unknown; error?: never };
+
 export async function GET(request: Request): Promise<Response> {
   // Header only. The WhatsApp verify token used to open this door from the
   // query string — a value Meta also carries in its own verification URL,
@@ -28,7 +31,7 @@ export async function GET(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/diag", { platformKey: true });
   if (!auth.ok) return auth.response;
 
-  const out: Record<string, unknown> = {
+  const out: Report = {
     // Where the bot's MEMORY comes from. Postgres, and nothing else: the
     // credentials below are what decide whether it can be read at all, and a
     // thread it cannot read is handed to a person.

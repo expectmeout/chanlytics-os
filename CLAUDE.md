@@ -102,6 +102,10 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
 - **The edge reads the environment through `lib/env.ts` and logs through `lib/log.ts`.** A
   `process.env` read or a `console` call anywhere else on the edge is a lint error. Event names
   never change; they are what alerting greps for.
+- **A refusal on the edge is a code.** `refuse(status, code, detail?)` from `apps/edge/lib/http.ts`, the code one of
+  `EDGE_ERROR_CODES` (`packages/contracts/src/shared/edge-errors.ts`), reused before one is added; the words for a
+  person or for support go in `detail`. tsc refuses any other `error` at `json` and `refuse`, and
+  `tooling/scripts/tests/edge/error-codes.test.mjs` holds the set both ways.
 - **Prettier owns formatting.** The hook formats what you stage; CI runs `format:check`. Never
   argue with it in a review.
 

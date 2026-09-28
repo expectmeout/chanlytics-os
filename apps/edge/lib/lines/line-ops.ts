@@ -616,8 +616,17 @@ export function takeOffVerdict(off: RefileOutcome, takeOff: "replace" | "unfile"
     };
   }
   if (!off.ok || !off.row) {
-    const error = off.error ?? (takeOff === "replace" ? "replace_failed" : "unfile_failed");
-    return { kind: "refuse", answer: { status: 503, body: { ok: false, error, detail: off.detail } } };
+    return {
+      kind: "refuse",
+      answer: {
+        status: 503,
+        body: {
+          ok: false,
+          error: off.error ?? (takeOff === "replace" ? "replace_failed" : "unfile_failed"),
+          detail: off.detail,
+        },
+      },
+    };
   }
   return { kind: "ready", row: off.row };
 }

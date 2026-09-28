@@ -23122,7 +23122,6 @@ var EDGE_ERROR_CODES = [
   "line_exists",
   "line_failed_retry",
   "line_not_retryable",
-  "line_resumes_exhausted",
   "line_retry_taken",
   "listing_read_failed",
   "listing_write_failed",

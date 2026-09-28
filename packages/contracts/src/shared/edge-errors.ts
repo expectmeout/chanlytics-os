@@ -3,15 +3,15 @@
  *
  * The code is what a caller compares -- the dashboard's routes, the platform's pages, a script -- so it is a word a
  * caller can switch on, never a sentence, and it never changes once a caller reads it. The words for a person or for
- * support ride beside it in `detail`. Until this list the codes were spelled only at their doors: one refusal had
- * three spellings ("no database" was `no_database`, `no_db` and `database_unavailable`), and doors wrote sentences, and
- * the database's own words, where a caller expected a code.
+ * support ride beside it in `detail`. One refusal has one spelling (no database is `no_database`), and neither a
+ * sentence nor the database's own words stand where a caller expects a code.
  *
  * The edge's `json` and `refuse` (apps/edge/lib/http.ts) take a body whose `error` is an `EdgeErrorCode`, so a code
  * outside the list is a type error wherever a door answers; tooling/scripts/tests/edge/error-codes.test.mjs holds the
- * list to the edge both ways, over the syntax tree: a code answered and not here, a code here that nothing answers, a
- * sentence in an `error`. Sorted, so two changes that add a code each land in different places. A new code is
- * snake_case and names its domain first (`line_retry_taken`); reuse one that says it before adding one.
+ * list to the edge both ways, over the syntax tree: a code a refusal answers and not here, a code here that no refusal
+ * answers, a refusal whose code is a value handed on and not named in its register, a sentence in an `error`. Sorted,
+ * so two changes that add a code each land in different places. A new code is snake_case and names its domain first
+ * (`line_retry_taken`); reuse one that says it before adding one.
  *
  * Not the app plane's envelope: /api/v1 answers `{ ok: false, error: { code, message } }` with ERROR_CODES
  * (errors.ts). This is the edge's, one level down, which the dashboard reads and translates into that one.
@@ -56,7 +56,6 @@ export const EDGE_ERROR_CODES = [
   "line_exists",
   "line_failed_retry",
   "line_not_retryable",
-  "line_resumes_exhausted",
   "line_retry_taken",
   "listing_read_failed",
   "listing_write_failed",

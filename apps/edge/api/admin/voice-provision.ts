@@ -27,7 +27,7 @@ import { edgeFnUrl } from "../../lib/lines/lines.js";
 import { pg } from "../../lib/pg.js";
 import { recordNotification } from "../../lib/ops/notify.js";
 import { emitEvent } from "../../lib/packages/db.js";
-import { formatPhoneDisplay } from "../../lib/packages/contracts.js";
+import { formatPhoneDisplay, type EdgeErrorCode } from "../../lib/packages/contracts.js";
 import { createVoiceAgent } from "../../lib/voice/voice-agent.js";
 import {
   planVoiceProvision,
@@ -43,6 +43,7 @@ import {
   planAgentSettings,
   voiceShellDrift,
   type LiveAgentSettings,
+  type VoiceProvisionPlan,
   type VoiceProvisionRequest,
 } from "../../lib/packages/channels.js";
 import { env } from "../../lib/env.js";
@@ -77,12 +78,26 @@ function requestOf(body: Body): VoiceProvisionRequest {
 }
 
 /**
+ * What the door answers about the plan: whose line, what the plan would do, what the apply would create. A request the
+ * plan cannot make is `bad_request`, its problems in `detail` and in `plan.errors`.
+ */
+interface PlanAnswer {
+  ok: boolean;
+  error?: EdgeErrorCode;
+  detail?: string;
+  apply: boolean;
+  tenant: { id: string; slug: string; name: string };
+  plan: VoiceProvisionPlan;
+  preview: Record<string, string | number>;
+}
+
+/**
  * A step that failed: which, the status it was answered with, and what it was told (the provider's body, as text), with
  * the plan and what was made so far. A step at the provider is `provider_refused`; the channel row, written last, is
  * `write_failed`.
  */
 function failedStep(
-  out: Record<string, unknown>,
+  out: PlanAnswer,
   result: Record<string, unknown>,
   step: string,
   status: number,
@@ -150,7 +165,7 @@ export async function POST(request: Request): Promise<Response> {
     request: req,
   });
   const ends = voiceEndpoints(edgeFnUrl());
-  const out: Record<string, unknown> = {
+  const out: PlanAnswer = {
     ok: plan.ok,
     apply,
     tenant: { id: tenant.data.id, slug: tenant.data.slug, name: tenant.data.name },
@@ -168,7 +183,7 @@ export async function POST(request: Request): Promise<Response> {
       tools_url: ends.fn,
     },
   };
-  if (!plan.ok) return json(400, out);
+  if (!plan.ok) return json(400, { ...out, error: "bad_request", detail: plan.errors.join("; ") });
   if (!apply || plan.nothing) return json(200, out);
 
   // Apply, in the plan's order. Every step reads its own effect before it

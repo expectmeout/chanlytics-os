@@ -34,7 +34,7 @@ export const POST = write({
       const reason = typeof b.error === "string" ? b.error : "failed";
       throw new AppError(
         reason === "no_places_key" ? "conflict" : "internal",
-        SAID[reason] ?? `The listing could not be linked (${reason}).`,
+        SAID[reason] ?? `The listing could not be linked (${edgeRefusalWords(b) ?? reason}).`,
         reason === "no_places_key" ? 409 : 502,
       );
     }

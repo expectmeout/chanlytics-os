@@ -235,8 +235,7 @@ test("at the ceiling the ledger stops resuming and hands the line to a person", 
   assert.equal(r.ok, false);
   assert.equal(r.did, "nothing");
   assert.equal(r.why, "exhausted");
-  assert.equal(r.error, "line_resumes_exhausted");
-  assert.match(r.detail, /a person retries it from Setup/);
+  assert.match(r.error, /a person retries it from Setup/);
 });
 
 test("(C1) the edge's port hands the saga the deadline and says `more` when it stopped for time", async () => {

@@ -84,7 +84,7 @@ export const POST = write({
       const reason = typeof b.error === "string" ? b.error : "failed";
       throw new AppError(
         a.status === 404 ? "not_found" : "internal",
-        SAID[reason] ?? `The location could not be chosen (${reason}).`,
+        SAID[reason] ?? `The location could not be chosen (${edgeRefusalWords(b) ?? reason}).`,
         a.status === 404 ? 404 : 502,
       );
     }

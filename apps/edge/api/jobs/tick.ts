@@ -99,11 +99,7 @@ export async function POST(request: Request): Promise<Response> {
               page: (key, subject, body) => pageOperator({ db }, key, subject, body),
               // The phones, through Expo's push service: no per-tenant credential, one transport for all.
               push: expoPush(),
-              // Core writes a stopped run's `error` into the ledger's message; a stop the job coded keeps its words there.
-              provisionLine: async (lineId, by, until) => {
-                const r = await provisionLineJob(db, lineId, by, undefined, until);
-                return r.detail ? { ...r, error: r.detail } : r;
-              },
+              provisionLine: (lineId, by, until) => provisionLineJob(db, lineId, by, undefined, until),
               ...(intake ? { email: intake } : {}),
               ...(leads ? { leads } : {}),
               // The reading of a reach-out's reply: the model, the spend and the notice. With no model key it
