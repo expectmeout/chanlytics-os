@@ -125,7 +125,7 @@ test("the index matches how the reader actually filters", () => {
   const { readCode } = await import("../_source.mjs");
   const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
-  const seam = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const seam = readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts");
 
   test("invite, role change and remove call the API on a real roster", () => {
     // They mutated ST_STORE and toasted success on a pane fed by live data:

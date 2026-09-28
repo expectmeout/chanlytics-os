@@ -169,7 +169,7 @@ export const POST = write({
     // The thread, before anything else: a question that could not be saved is
     // not answered, so a person never sees an answer they cannot find again.
     const kept = await threadForTurn(ctx, { tenantId, threadId, text, scope: askedScope, answering });
-    // The thread's earlier turns: their words, the time since the last, and while it is warm the turns as sent.
+    // The thread's earlier turns: their lines, what they told and cited, the time since, and the chain while warm.
     const { thread: turn, scope, ...earlier } = kept;
     await appendMessage(ctx, turn.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
 

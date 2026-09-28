@@ -373,7 +373,7 @@ const realConsoleError = console.error;
 console.error = (...a) => {
   errors.push(a.map(String).join(" "));
 };
-const { reportsOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+const { reportsOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/reports.ts");
 console.error = realConsoleError;
 
 test("REGRESSION (D9): a campaigns read that fails leaves the report standing with campaigns null -- it used to fail the whole surface, and the page went blank", async () => {

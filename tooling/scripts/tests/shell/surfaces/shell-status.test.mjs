@@ -725,7 +725,7 @@ test("REGRESSION (A7): a link to a chat opens that chat -- the shell handed the 
 test("REGRESSION: a real workspace's WhatsApp and Email tabs filter the list -- the shell knew only the mockup's three, so it opened 'whatsapp' as a conversation nobody could find", async () => {
   shell.installShell(win);
   globalThis.ConversationsPage = "ConversationsPage";
-  const { conversationTabs } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { conversationTabs } = await importSrc("apps/dashboard/src/legacy-bridge/surfaces/conversations.ts");
   // The strip the bridge draws for a workspace on the phone, WhatsApp, texts and email.
   win.CONVERSATIONS_DATA = {
     CONVERSATIONS: [{ id: "c-9", who: "Rosa Díaz" }],

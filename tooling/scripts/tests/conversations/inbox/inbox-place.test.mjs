@@ -108,7 +108,9 @@ const quiet = async (fn) => {
 
 /* ------------------- the templates read, and what it leaves ------------------- */
 
-const { inboxOverride } = await quiet(() => import("../../../../../apps/dashboard/src/legacy-bridge/surface-data.ts"));
+const { inboxOverride } = await quiet(
+  () => import("../../../../../apps/dashboard/src/legacy-bridge/surfaces/inbox.ts"),
+);
 
 test("REGRESSION (A15): a templates read that fails leaves null -- 'could not read' -- where it left [], 'none approved'", async () => {
   globalThis.window.fetch = async (url) => {

@@ -18,7 +18,7 @@ installLegacyReact();
 const W = globalThis.window;
 const SRC = "../../../../../apps/dashboard/src";
 const { startSurfaces } = await import(`${SRC}/legacy-bridge/surface-runner.ts`);
-const { settingsOverride } = await import(`${SRC}/legacy-bridge/surface-data.ts`);
+const { settingsOverride } = await import(`${SRC}/legacy-bridge/surfaces/settings.ts`);
 const { AFTER } = await import(`${SRC}/legacy-bridge/refresh-map.ts`);
 const { installIdentity } = await import(`${SRC}/legacy-bridge/identity.ts`);
 const { installBusinessTab } = await import(`${SRC}/legacy-bridge/business-tab.ts`);
