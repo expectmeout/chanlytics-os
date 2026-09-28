@@ -12,6 +12,7 @@
     "check:dist": "node tooling/scripts/checks/dist.mjs",
     "check:dead-exports": "node tooling/scripts/checks/dead-exports.mjs",
     "check:bundle": "node tooling/scripts/checks/bundle-budget.mjs",
+    "check:style-equality": "node tooling/scripts/checks/style-equality.mjs",
     "lint": "node tooling/scripts/checks/lint.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
