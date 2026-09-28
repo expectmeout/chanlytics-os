@@ -15,12 +15,17 @@ import {
   announcement,
   contextFails,
   contextProblems,
+  followUpFails,
   fromContext,
+  jsonLines,
   neededGets,
+  notAsked,
   ordinal,
   pageProblems,
   parseRows,
   resolveContext,
+  secondScope,
+  secondTurn,
 } from "../../eval-ask-context.mjs";
 
 const { surfaceFor } = await import("../../../../apps/dashboard/src/legacy-bridge/ask/palette.ts");
@@ -240,6 +245,150 @@ test("a case's page asks of the answer: never the foreign row, and the row the w
   assert.match(contextFails(named, { text: "Nobody." }, { focus: null, rows: [] })[0], /drew none there/);
 });
 
+/* ---- a case's second turn (the Phase 5 plan, PR 5.2) ---- */
+
+const PEOPLE_PAGE = { surface: "people", route: "clients", rows: "GET contacts:40" };
+const TWO_TURNS = {
+  id: "x",
+  surface: "people",
+  must_never: true,
+  text: "list the people on this page in alphabetical order",
+  context: PEOPLE_PAGE,
+  expect: { no_write: true },
+  then: { text: "open the second", expect: { no_write: true } },
+};
+const T1 = U(71);
+/** An item of an answer, as the Line draws it: a row, grounded, with the route its reader gave it. */
+const item = (id, label, to = `clients/${id}`) => ({
+  title: label,
+  meta: "",
+  line: "",
+  source: { kind: "person", id, label, to, door: true },
+});
+/** A final message as the route streams it, with the answer's items and the turn's cards. */
+const final = ({ text = "Here they are.", items = [], proposals = [], navigate = null } = {}) => ({
+  id: U(81),
+  text,
+  citations: items.map((i) => ({ kind: i.source.kind, id: i.source.id, label: i.source.label, to: i.source.to })),
+  navigate,
+  proposals,
+  answer: {
+    v: 2,
+    form: "structured",
+    say: { headline: text, detail: "" },
+    show: { figures: [], items, breakdown: null },
+    do: { open: navigate ? { to: navigate.to, label: navigate.label ?? "", now: !!navigate.now } : null, next: [] },
+    language: "en",
+  },
+});
+
+test("a second turn is asked in the first's thread: its page the case's, its own or none, its surface its page's, and its page warmed again only when it differs", () => {
+  assert.equal(secondTurn({ id: "y", text: "a", expect: {} }), null, "a case of one turn");
+  assert.deepEqual(secondTurn(TWO_TURNS), {
+    id: "x",
+    text: "open the second",
+    expect: { no_write: true },
+    context: PEOPLE_PAGE,
+    surface: "people",
+    must_never: true,
+    warm: false,
+  });
+  const focus = { ...PEOPLE_PAGE, focus: "2" };
+  const own = secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, context: focus } });
+  assert.deepEqual([own.context, own.surface, own.warm], [focus, "people", true], "its own page, warmed again");
+  assert.equal(
+    secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, context: { ...PEOPLE_PAGE } } }).warm,
+    false,
+    "a page of its own that is turn 1's is not warmed again",
+  );
+  const none = secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, context: null } });
+  assert.deepEqual([none.context, none.surface, none.warm], [null, "people", false], "no page: asked where turn 1 was");
+  assert.equal(
+    secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, context: null, surface: "today" } }).surface,
+    "today",
+  );
+  assert.equal(
+    secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, context: { surface: "inbox", route: "inbox" } } }).surface,
+    "inbox",
+    "a page of its own says where it is asked",
+  );
+});
+
+test("turn 2 is sent the row its page opens, else turn 1's scope, and the key is always sent", () => {
+  const robin = { kind: "person", id: U(11), label: "Robin Example" };
+  const opened = resolveContext({ surface: "people", route: "clients/<row:2>", rows: "GET contacts" }, ANSWERS);
+  assert.deepEqual(secondScope(opened, robin), { kind: "person", id: U(12), label: "Casey Example" });
+  const list = resolveContext({ ...PEOPLE_PAGE, focus: "2" }, ANSWERS);
+  assert.deepEqual(secondScope(list, robin), robin, "a list opens no row: turn 1's scope");
+  assert.deepEqual(secondScope(null, robin), robin, "no page: turn 1's scope");
+  assert.equal(secondScope(list, null), null, "neither: null, and sent as null");
+});
+
+test("a second turn the runner cannot ask is said before anything is read, and its page's GETs are read with the rest", () => {
+  const said = (then) => pageProblems([{ ...TWO_TURNS, then }]).join("; ");
+  assert.deepEqual(pageProblems([TWO_TURNS]), []);
+  assert.match(said({ text: "b", expect: {}, scope: "1" }), /^x: a field the second turn does not know: then\.scope$/);
+  assert.match(said({ expect: {} }), /x: a second turn says its words \(then\.text\)/);
+  assert.match(said({ text: " ", expect: {} }), /says its words/);
+  assert.match(said({ text: "b" }), /x: a second turn says what it expects \(then\.expect\)/);
+  assert.match(said("b"), /^x: a second turn \(then\) is an object$/);
+  assert.match(said({ text: "b", expect: {}, surface: "moon" }), /then: no surface "moon"/);
+  assert.match(
+    said({ text: "b", expect: {}, context: { surface: "people", route: "clients", focus: "2" } }),
+    /x: then\.context: a focus by its place needs rows to count/,
+  );
+  assert.match(
+    said({ text: "b", expect: {}, surface: "today" }),
+    /x: its second turn is asked on today, its page is people/,
+  );
+  assert.equal(said({ text: "b", expect: {}, context: null, surface: "today" }), "", "no page: asked where it says");
+  assert.deepEqual(
+    neededGets([
+      {
+        id: "x",
+        then: { text: "b", expect: {}, context: { surface: "leads", route: "clients/leads", rows: "GET leads" } },
+      },
+    ]),
+    ["leads"],
+  );
+  assert.deepEqual(neededGets([TWO_TURNS]).sort(), ["contacts"], "an inherited page is read once");
+});
+
+test("turn 2 is not asked when turn 1 left it nothing to ask in, and a turn 2 answered in a new thread fails", () => {
+  const m = final();
+  assert.equal(notAsked({ expect: {} }, { final: null, threadId: null }), "turn 1 has no answer");
+  assert.equal(notAsked({ expect: {} }, { final: m, threadId: null }), "turn 1 named no thread");
+  assert.equal(notAsked({ expect: {} }, { final: m, threadId: T1 }), null);
+  assert.equal(notAsked({ expect: { names_card: true } }, { final: m, threadId: T1 }), "turn 1 made no card to name");
+  const one = final({ items: [item(U(12), "Casey Example")] });
+  assert.equal(
+    notAsked({ expect: { opens_item: 2 } }, { final: one, threadId: T1 }),
+    "turn 1's answer shows 1 item(s), and turn 2 opens item 2",
+  );
+  assert.equal(notAsked({ expect: { opens_item: 1 } }, { final: one, threadId: T1 }), null);
+  assert.deepEqual(followUpFails({}, { threadId: T1 }, { threadId: T1 }), []);
+  assert.deepEqual(followUpFails({}, { threadId: U(72) }, { threadId: T1 }), [
+    `answered in a new thread: ${U(72)}, where turn 1's was ${T1}`,
+  ]);
+});
+
+test("a turn's lines are read across chunks as the bridge reads them, and a torn line is skipped, not the turn", () => {
+  const got = [];
+  const lines = jsonLines((e) => got.push(e));
+  lines.push(`{"t":"thread","id":"${T1}","title":"a"}\n{"t":"sa`);
+  lines.push('y","headline":"H","detail":""}\nnot json at all\n\n{"t":"final","mess');
+  lines.end();
+  assert.deepEqual(got, [
+    { t: "thread", id: T1, title: "a" },
+    { t: "say", headline: "H", detail: "" },
+  ]);
+  const whole = [];
+  const last = jsonLines((e) => whole.push(e));
+  last.push('{"t":"final","message":{"text":"ok"}}');
+  last.end();
+  assert.deepEqual(whole, [{ t: "final", message: { text: "ok" } }], "a last line with no newline is read");
+});
+
 const CASES = JSON.parse(readFileSync(path.join(ROOT, "tooling/evals/ask-cases.json"), "utf8"));
 const SURFACES = [
   "inbox",
@@ -273,6 +422,18 @@ test("the case set: unique ids, every page built over the GETs' answers and plac
     const [page, ...rest] = context.route.split("/");
     assert.equal(surfaceFor(page, rest.length ? rest.join("/") : null), c.surface, `${c.id}: #/${context.route}`);
     for (const k of Object.keys(ROW_KINDS[c.surface] ?? {})) assert.ok(k in ANSWERS);
+  }
+  // A second turn's page, the case's or its own, is built and placed the same way.
+  for (const two of CASES.map(secondTurn).filter((t) => t?.context)) {
+    const { context } = resolveContext(two.context, ANSWERS);
+    accepted(context);
+    assert.equal(two.surface, two.context.surface, `${two.id} (then)`);
+    const [page, ...rest] = context.route.split("/");
+    assert.equal(
+      surfaceFor(page, rest.length ? rest.join("/") : null),
+      two.surface,
+      `${two.id} (then): #/${context.route}`,
+    );
   }
 });
 

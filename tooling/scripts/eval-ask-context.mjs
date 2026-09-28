@@ -16,11 +16,20 @@
  *
  * Everything here is pure over the GETs' answers, so a test can build every case's context from fixtures and hold it
  * to the schema the route reads it with; the runner fetches the answers once before a turn is spent.
+ *
+ * A case may carry a second turn (the Phase 5 plan, PR 5.2), asked in the first turn's thread:
+ *
+ *   "then": { "text": "open the second", "expect": { … }, "context": { …, "focus": "2" } }
+ *
+ * Its page is the case's own unless `then.context` names one of its own, or none (`null`); `then.surface` says where
+ * a turn with no page is asked. It is judged as a case of its own, under the case's id, and against the turn before it
+ * (followUpFails). Only new cases carry one: the cases before PR 5.2 stay one turn, so their results stay comparable.
  */
 import {
   ASK_CONTEXT_MAX_ROWS,
   ASK_SURFACES,
   PageContextSchema,
+  answerFromV1,
   personName,
   scopeFromRoute,
 } from "@chanlytics/contracts";
@@ -144,13 +153,14 @@ export function contextProblems(spec) {
   return out;
 }
 
-/** The GET keys a set of cases needs answered, each once. */
+/** The GET keys a set of cases needs answered, each once: the pages of their first turns and of their second. */
 export function neededGets(cases) {
   const keys = new Set();
-  for (const c of cases) {
-    const p = c.context && !Array.isArray(c.context.rows) ? parseRows(c.context.rows) : null;
-    for (const k of p?.keys ?? []) keys.add(k);
-  }
+  for (const c of cases)
+    for (const spec of [c.context, secondTurn(c)?.context]) {
+      const p = spec && !Array.isArray(spec.rows) ? parseRows(spec.rows) : null;
+      for (const k of p?.keys ?? []) keys.add(k);
+    }
   return [...keys];
 }
 
@@ -212,18 +222,77 @@ export function resolveContext(spec, answers = {}, now = Date.now()) {
   return { context: read.data, scope };
 }
 
-/** Every case whose page cannot be built, in words: said before anything is read or spent. */
+/* ---- a case's second turn ---- */
+
+/** What a second turn may say: its words, what they must do, its page and its surface. */
+const THEN_KEYS = ["text", "expect", "context", "surface"];
+
+const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+
+/**
+ * A case's second turn, as the runner asks it, or null for a case of one turn: its words and what they must do; its
+ * page -- the case's own, unless `then.context` names one of its own (an object) or none (null); its surface --
+ * `then.surface`, else its page's, else the case's; and whether its page is warmed again, which it is only when it is
+ * a page of its own that differs from turn 1's (the palette warms as the page under it changes). Judged under the
+ * case's id and its must-never, so pass^k holds a case to both of its turns.
+ */
+export function secondTurn(c) {
+  const t = c?.then;
+  if (!t) return null;
+  const own = t.context !== undefined;
+  const context = own ? t.context : (c.context ?? null);
+  return {
+    id: c.id,
+    text: t.text,
+    expect: t.expect ?? {},
+    context,
+    surface: t.surface ?? context?.surface ?? c.surface ?? "today",
+    must_never: c.must_never === true,
+    warm: !!context && own && JSON.stringify(context) !== JSON.stringify(c.context ?? null),
+  };
+}
+
+/**
+ * The scope turn 2 is sent with, as the palette sends it once PR 5.1 is in (the chip first, else the thread's): the row
+ * turn 2's page opens (resolveContext's scope, contracts scopeFromRoute), else turn 1's. The key is always sent, null
+ * when neither is; before 5.1 the route falls back to the thread's scope on a null either way.
+ */
+export function secondScope(page, first) {
+  return page?.scope ?? first ?? null;
+}
+
+/** What is wrong with a case's second turn, in words; [] for a case of one turn, or a second turn the runner can ask. */
+function secondTurnProblems(c) {
+  const t = c.then;
+  if (t === undefined) return [];
+  if (!isObject(t)) return ["a second turn (then) is an object"];
+  const out = [];
+  for (const k of Object.keys(t))
+    if (!THEN_KEYS.includes(k)) out.push(`a field the second turn does not know: then.${k}`);
+  if (typeof t.text !== "string" || !t.text.trim()) out.push("a second turn says its words (then.text)");
+  if (!isObject(t.expect)) out.push("a second turn says what it expects (then.expect)");
+  if (t.surface !== undefined && !ASK_SURFACES.includes(t.surface)) out.push(`then: no surface "${t.surface}"`);
+  if (t.context !== undefined && t.context !== null)
+    out.push(...contextProblems(t.context).map((p) => `then.context: ${p}`));
+  const page = secondTurn(c).context;
+  if (t.surface !== undefined && page && page.surface !== t.surface)
+    out.push(`its second turn is asked on ${t.surface}, its page is ${page.surface}`);
+  return out;
+}
+
+/** Every case whose page, or whose second turn, cannot be built, in words: said before anything is read or spent. */
 export function pageProblems(cases) {
-  return cases.flatMap((c) =>
-    c.context
+  return cases.flatMap((c) => [
+    ...(c.context
       ? [
           ...contextProblems(c.context).map((p) => `${c.id}: ${p}`),
           ...(c.surface && c.context.surface !== c.surface
             ? [`${c.id}: asked on ${c.surface}, its page is ${c.context.surface}`]
             : []),
         ]
-      : [],
-  );
+      : []),
+    ...secondTurnProblems(c).map((p) => `${c.id}: ${p}`),
+  ]);
 }
 
 /**
@@ -298,4 +367,71 @@ export function contextFails(c, m, sent) {
       fails.push(`the answer does not name ${label}, the row the words pointed at`);
   }
   return fails;
+}
+
+/* ---- what turn 1 asks of turn 2 ---- */
+
+/** An answer's items as the Line draws them: its own, or for an answer made before the Line, answerFromV1's. */
+const itemsOf = (m) => (m ? (m.answer ?? answerFromV1(m)).show.items : []);
+
+/**
+ * Why turn 2 cannot be asked, or null. `first` is turn 1 as it ended: `{ final, threadId, scope }`. Turn 2 needs an
+ * answer, the thread that answer landed in, a card when it is to name one, and as many items as the one it opens;
+ * without them it is a failing row that asked nothing, and no refusal.
+ */
+export function notAsked(two, first) {
+  const m = first?.final;
+  if (!m) return "turn 1 has no answer";
+  if (!first.threadId) return "turn 1 named no thread";
+  const e = two.expect ?? {};
+  if (e.names_card && !(m.proposals ?? []).length) return "turn 1 made no card to name";
+  const shown = itemsOf(m).length;
+  if (e.opens_item && shown < e.opens_item)
+    return `turn 1's answer shows ${shown} item(s), and turn 2 opens item ${e.opens_item}`;
+  return null;
+}
+
+/**
+ * What turn 1 asks of turn 2, beside what turn 2's own case asks: that it was answered in turn 1's thread -- the
+ * thread line its answer opened with names turn 1's -- and the checks only a second turn has. `e` is turn 2's expect,
+ * `r` its result, `first` turn 1 as it ended.
+ */
+export function followUpFails(e, r, first) {
+  const fails = [];
+  if (r.threadId !== first.threadId)
+    fails.push(`answered in a new thread: ${r.threadId ?? "none"}, where turn 1's was ${first.threadId}`);
+  return fails;
+}
+
+/* ---- a turn's stream ---- */
+
+/**
+ * A turn's JSON lines, read across chunk boundaries as the bridge reads them (legacy-bridge/ask/api.ts): a line that
+ * does not parse -- the torn end of a stream that broke -- is skipped, never the whole turn's failure. `push` each
+ * decoded chunk, then `end`.
+ */
+export function jsonLines(on) {
+  let carry = "";
+  const take = (line) => {
+    if (!line.trim()) return;
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      return;
+    }
+    on(event);
+  };
+  return {
+    push(text) {
+      carry += text;
+      const lines = carry.split("\n");
+      carry = lines.pop() ?? "";
+      for (const l of lines) take(l);
+    },
+    end() {
+      take(carry);
+      carry = "";
+    },
+  };
 }
