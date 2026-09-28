@@ -44,7 +44,7 @@ import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
 import { replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
-import { finishTurn, type RawTurn, type TurnEnd } from "./memory";
+import { finishTurn, turnMeter, type RawTurn, type TurnEnd } from "./memory";
 
 /**
  * One turn of the assistant.
@@ -244,17 +244,8 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const toolsUsed: string[] = [];
   const proposals: AskProposal[] = [];
   let reads = 0;
-  // Where the time went (AskTurnShape): the first byte of the model's stream,
-  // its first text token, the first Say the person sees, each round's time,
-  // each tool's, and what the model was fed by cache or not. Measured here
-  // because only the loop sees all of it; the route stores it on the turn.
-  let firstByteMs: number | null = null;
-  let firstTextMs: number | null = null;
-  let firstSayMs: number | null = null;
-  const roundsMs: number[] = [];
-  const toolsMs: Array<{ name: string; ms: number }> = [];
-  const tokens = { input: 0, cache_read: 0, cache_creation: 0, output: 0 };
-  let capHits = 0;
+  // Where the time went and what the model was fed (AskTurnShape, memory.ts): only the loop sees all of it.
+  const meter = turnMeter(t0);
 
   // Before the model is asked, in parallel (the Phase 2 plan, PR 2.4): the page the person is on (context.ts: the
   // warm's build if it is kept, else a build now), the shape of the workspace, the reads the question names of another
@@ -374,13 +365,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       pageBlocks,
       crossBlocks,
       plan,
-      roundsMs,
-      toolsMs,
-      firstByteMs,
-      firstTextMs,
-      firstSayMs,
-      tokens,
-      capHits,
+      meter,
       format,
       toolsUsed,
       proposals,
@@ -419,7 +404,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     if (key === said || at - saidAt < SAY_EVERY_MS) return;
     said = key;
     saidAt = at;
-    if (firstSayMs === null) firstSayMs = Date.now() - t0;
+    meter.said();
     input.emit({ t: "say", headline: say.headline, detail: say.detail });
   };
   /** An answer set aside after its Say was sent: an empty Say takes it back, and the Line shows the reads again. */
@@ -469,7 +454,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     try {
       return await run();
     } finally {
-      toolsMs.push({ name, ms: Date.now() - t });
+      meter.toolsMs.push({ name, ms: Date.now() - t });
     }
   };
 
@@ -524,18 +509,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           onText,
         );
         ({ blocks, stopReason, streamError } = r);
-        roundsMs.push(r.timing?.totalMs ?? Date.now() - roundAt);
-        if (r.timing) {
-          if (firstByteMs === null && r.timing.firstEventMs !== null)
-            firstByteMs = roundAt - t0 + r.timing.firstEventMs;
-          if (firstTextMs === null && r.timing.firstTextMs !== null) firstTextMs = roundAt - t0 + r.timing.firstTextMs;
-        }
-        if (r.usage) {
-          tokens.input += r.usage.inputTokens;
-          tokens.cache_read += r.usage.cacheReadTokens;
-          tokens.cache_creation += r.usage.cacheCreationTokens;
-          tokens.output += r.usage.outputTokens ?? 0;
-        }
+        meter.round(r, roundAt);
       } catch (e) {
         if (e instanceof GatewayRefused) {
           // Something the turn can do without, refused (refusals.ts): the same round is asked again without it, once
@@ -602,7 +576,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // recorded here, because a turn that keeps hitting the cap is a budget
       // that is too small and not a model that keeps changing its mind.
       if (stopReason === "max_tokens") {
-        capHits++;
+        meter.capHits++;
         console.error(
           "ask_round_hit_cap",
           JSON.stringify({
@@ -719,7 +693,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       // round -- the model must say why and what the person can do instead.
       if (acts.length === calls.length && !refused && proposals.length > before) {
         const answer = answerForCards(proposals.slice(before), input.language);
-        if (firstSayMs === null) firstSayMs = Date.now() - t0;
+        meter.said();
         input.emit({ t: "say", headline: answer.say.headline, detail: answer.say.detail });
         return done({ answer, failed: false, failure: null, rounds: round, lastRound });
       }
