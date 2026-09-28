@@ -89,7 +89,7 @@ interface LeadsPageAnswer {
 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
 const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" };
-const PAGE = 500;
+const LEADS_PAGE = 500;
 const SNAPSHOT_ROWS = 100;
 
 /* ------------------------------------------------------ how a call is sent */
@@ -115,13 +115,13 @@ interface LeadCallOptions {
  * on a 401, forgets the reads a write invalidated, and takes what a write
  * leaves stale from `refresh-map.ts` rather than from the caller.
  */
-function call<O>(key: string, opts: LeadCallOptions = {}): Promise<ApiResult<O>> {
+function leadCall<O>(key: string, opts: LeadCallOptions = {}): Promise<ApiResult<O>> {
   return api()(key as RouteKey, opts as never) as unknown as Promise<ApiResult<O>>;
 }
 
 /** A read the runner treats as the surface's own: a refusal throws, the way `api.ts`'s `read` does. */
 async function leadRead<O>(key: string, query?: Record<string, string>): Promise<O> {
-  return unwrap(await call<O>(key, query ? { query } : {}));
+  return unwrap(await leadCall<O>(key, query ? { query } : {}));
 }
 
 /* --------------------------------------------------------- what is loaded */
@@ -167,7 +167,7 @@ function viewKey(v: LeadsView): string {
 }
 
 function queryOf(v: LeadsView, after?: { key: string; id: string } | null): Record<string, string> {
-  const q: Record<string, string> = { list: v.list, sort: v.sort, dir: v.dir, limit: String(PAGE) };
+  const q: Record<string, string> = { list: v.list, sort: v.sort, dir: v.dir, limit: String(LEADS_PAGE) };
   if (v.searchId) q.search = v.searchId;
   if (v.cls) q.class = v.cls;
   for (const [k, val] of Object.entries(v.chips))
@@ -495,7 +495,7 @@ export async function setLeadStage(id: string, input: LeadStageInput) {
   // An Interested call makes a person, so People is stale too: `refresh-map.ts`
   // names both surfaces for this one route.
   return actAtOnce([id], staged(input), () =>
-    call<{ stage: string; contact_id: string | null; op_id: string; version: number; toast: string }>(
+    leadCall<{ stage: string; contact_id: string | null; op_id: string; version: number; toast: string }>(
       "POST leads/[id]/stage",
       { params: { id }, body: input, refresh: "behind" },
     ),
@@ -524,7 +524,7 @@ export async function draftForLead(
   id: string,
   input: { tone: "first" | "shorter" | "warmer"; previous?: { subject: string; body: string } },
 ) {
-  return call<{ to: string; subject: string; body: string; mailto: string }>("POST leads/[id]/draft", {
+  return leadCall<{ to: string; subject: string; body: string; mailto: string }>("POST leads/[id]/draft", {
     params: { id },
     body: input,
     refresh: false,
@@ -536,7 +536,7 @@ export async function draftForLead(
  * erased, until a reload. The counts are the re-read's, behind it.
  */
 export async function eraseLead(id: string) {
-  const r = await call<{ erased: true; already: boolean }>("DELETE leads/[id]", {
+  const r = await leadCall<{ erased: true; already: boolean }>("DELETE leads/[id]", {
     params: { id },
     refresh: "behind",
   });
@@ -551,7 +551,7 @@ export async function eraseLead(id: string) {
 /** The selected ids, or the view for "Select all N that match" (S13). By ids, every row shows it at once; by view nobody knows which rows it reaches, so they wait for the re-read. */
 export async function bulkLeads(body: LeadsBulkInput) {
   return actAtOnce(body.by === "ids" ? body.ids : [], bulked(body.action), () =>
-    call<{ done: number; op_id: string; version: number; toast: string }>("POST leads/bulk", {
+    leadCall<{ done: number; op_id: string; version: number; toast: string }>("POST leads/bulk", {
       body,
       refresh: "behind",
     }),
@@ -559,7 +559,7 @@ export async function bulkLeads(body: LeadsBulkInput) {
 }
 /** Check again (D3): the mailbox check once more for the addresses whose last check did not answer. */
 export async function checkLeadsAgain(ids: string[]) {
-  return call<{ scheduled: number; skipped: number; toast: string }>("POST leads/check-again", { body: { ids } });
+  return leadCall<{ scheduled: number; skipped: number; toast: string }>("POST leads/check-again", { body: { ids } });
 }
 /** Include carries the plan the owner approved; the route sets its version and count (G1). Keep and Stop carry none (§7.2). */
 export async function answerSearch(id: string, answer: "keep" | "include" | "stop", plan?: LeadSearchPlan) {
@@ -573,18 +573,21 @@ export async function stopSearch(id: string) {
 }
 /** The Done strip's Undo (§8.6, Task 4.2's `lead_search_undo`): the untouched leads of the ended round leave and the month is credited. */
 export async function removeRoundLeads(id: string) {
-  return call<{ removed: number; credited: number; op_id: string; version: number }>("POST lead-searches/[id]/undo", {
-    params: { id },
-  });
+  return leadCall<{ removed: number; credited: number; op_id: string; version: number }>(
+    "POST lead-searches/[id]/undo",
+    {
+      params: { id },
+    },
+  );
 }
 export async function renameSearch(id: string, name: string) {
-  return call<{ name: string }>("PATCH lead-searches/[id]", { params: { id }, body: { name } });
+  return leadCall<{ name: string }>("PATCH lead-searches/[id]", { params: { id }, body: { name } });
 }
 export async function removeSearch(id: string) {
-  return call<{ archived: number; kept: number }>("DELETE lead-searches/[id]", { params: { id } });
+  return leadCall<{ archived: number; kept: number }>("DELETE lead-searches/[id]", { params: { id } });
 }
 export async function setBusinessLine(business_line: string) {
-  return call<{ business_line: string }>("PUT lead-suggestions", { body: { business_line } });
+  return leadCall<{ business_line: string }>("PUT lead-suggestions", { body: { business_line } });
 }
 
 /* ------------------------------------------ a lead on no page loaded (PR 9) */
@@ -618,7 +621,7 @@ async function askPeek(id: string, searchId: string | null, again = false): Prom
   const key = peekKey(id, searchId);
   if (peekAsked.has(key) && !again) return;
   peekAsked.add(key);
-  const r = await call<{ row: LeadRowDto }>("GET leads/[id]", {
+  const r = await leadCall<{ row: LeadRowDto }>("GET leads/[id]", {
     params: { id },
     ...(searchId ? { query: { search: searchId } } : {}),
   });

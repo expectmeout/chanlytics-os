@@ -13,7 +13,7 @@
  * run it without a network.
  */
 import type { PlacesRequest } from "./google-places";
-import { MIN_MS } from "@chanlytics/contracts";
+import { MIN_MS, utf8Bytes } from "@chanlytics/contracts";
 
 export const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -122,11 +122,10 @@ export function grantHasScope(grant: Pick<TokenGrant, "scope">, scope: string): 
 
 /* ------------------------------------------------------------ base64url */
 
-const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 export function b64url(bytes: Uint8Array | string): string {
-  const b = typeof bytes === "string" ? enc.encode(bytes) : bytes;
+  const b = typeof bytes === "string" ? utf8Bytes(bytes) : bytes;
   let s = "";
   for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -171,10 +170,10 @@ export interface OAuthState {
 }
 
 async function hmac(secret: string, data: string): Promise<string> {
-  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+  const key = await crypto.subtle.importKey("raw", utf8Bytes(secret), { name: "HMAC", hash: "SHA-256" }, false, [
     "sign",
   ]);
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(data));
+  const sig = await crypto.subtle.sign("HMAC", key, utf8Bytes(data));
   return b64url(new Uint8Array(sig));
 }
 

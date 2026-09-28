@@ -14,6 +14,7 @@ import { emitEvent, type Database, type Json } from "../packages/db.js";
 import { DAY_MS } from "../packages/contracts.js";
 import { MAX_ROWS } from "../paged.js";
 import { logger, errField } from "../log.js";
+import { finiteOrZero } from "@chanlytics/contracts";
 
 /**
  * One model call's usage (usage.llm_tokens), on the conversation it answered: tokens in and out, and the quality
@@ -42,10 +43,6 @@ const SUMMARY_ROW_CAP = 5_000;
 interface UsageRow {
   created_at: string;
   data: Record<string, unknown> | null;
-}
-
-function num(v: unknown): number {
-  return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
 /**
@@ -142,7 +139,7 @@ export async function tokensLast24h(
   try {
     let sum = 0;
     for await (const page of usagePages(db, tenantId, new Date(Date.now() - DAY_MS).toISOString())) {
-      for (const r of page) sum += num(r.data?.input_tokens) + num(r.data?.output_tokens);
+      for (const r of page) sum += finiteOrZero(r.data?.input_tokens) + finiteOrZero(r.data?.output_tokens);
       if (sum >= stopAt) break;
     }
     return sum;
@@ -177,14 +174,14 @@ export async function brainSummary(
   return {
     replies: rows.length,
     with_record: rows.filter((r) => typeof r.data?.intent === "string").length,
-    avg_confidence: avg(withConf.map((r) => num(r.data?.confidence))),
+    avg_confidence: avg(withConf.map((r) => finiteOrZero(r.data?.confidence))),
     avg_latency_ms: withMs.length
-      ? Math.round(withMs.reduce((a, r) => a + num(r.data?.latency_ms), 0) / withMs.length)
+      ? Math.round(withMs.reduce((a, r) => a + finiteOrZero(r.data?.latency_ms), 0) / withMs.length)
       : null,
     held_low_confidence: rows.filter((r) => r.data?.held === "low_confidence").length,
     held_veto: rows.filter((r) => r.data?.held === "veto_window").length,
     escalated: rows.filter((r) => r.data?.escalate === true).length,
-    tokens_in: rows.reduce((s, r) => s + num(r.data?.input_tokens), 0),
-    tokens_out: rows.reduce((s, r) => s + num(r.data?.output_tokens), 0),
+    tokens_in: rows.reduce((s, r) => s + finiteOrZero(r.data?.input_tokens), 0),
+    tokens_out: rows.reduce((s, r) => s + finiteOrZero(r.data?.output_tokens), 0),
   };
 }
