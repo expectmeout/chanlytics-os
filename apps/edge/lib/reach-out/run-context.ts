@@ -7,6 +7,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   domainCapacityOf,
   emitEvent,
+  handRun,
+  leadNamesByIds,
   outreachModeOf,
   reachOutAudience,
   reachOutFollowers,
@@ -14,8 +16,8 @@ import {
   type Database,
   type Json,
 } from "../packages/db.js";
-import type { ReachOutRunPorts, ReachOutStep } from "../packages/core.js";
-import { domainDailyCap, reachOutSendsFrom, type TimetableDomain } from "../packages/contracts.js";
+import type { HandStep, HandStepPorts, ReachOutRunPorts, ReachOutStep } from "../packages/core.js";
+import { domainDailyCap, handOf, reachOutSendsFrom, type TimetableDomain } from "../packages/contracts.js";
 import { notify } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { logger } from "../log.js";
@@ -33,10 +35,11 @@ const firstWords = (tz: string, atMs: number): string =>
   );
 
 /**
- * The step as the verb reads it: its chain's root, and the chain's state (a paused root pauses every step of it).
- * Null when its root cannot be found within a chain's length.
+ * The step as the verb reads it: its chain's root, and the chain's state (a paused root pauses every step of it). A
+ * hand step (00228) has its hand and no template. Null when its root cannot be found within a chain's length, or the
+ * row is neither.
  */
-async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | null> {
+async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | HandStep | null> {
   let root = row;
   for (let i = 0; root.after_playbook_id && i < CHAIN_MAX; i += 1) {
     const { data, error } = await db
@@ -50,7 +53,7 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | null> {
     root = data;
   }
   if (root.after_playbook_id) return null;
-  return {
+  const common: Omit<HandStep, "hand"> = {
     id: row.id,
     root_id: root.id,
     tenant_id: row.tenant_id,
@@ -64,11 +67,31 @@ async function stepOf(db: Db, row: ReachOutRow): Promise<ReachOutStep | null> {
     gap_minutes: row.gap_minutes ?? 0,
     domain_ids: row.domain_ids ?? [],
     cap_per_run: row.cap_per_run,
-    template_id: row.template_id,
-    template_name: row.template_name,
-    template_language: row.template_language,
   };
+  const hand = handOf(row.hand);
+  if (hand) return { ...common, hand };
+  const { template_id, template_name, template_language } = row;
+  return template_id && template_name && template_language
+    ? { ...common, template_id, template_name, template_language }
+    : null;
 }
+
+/**
+ * What a later step reads and writes, an email step's or a hand step's: its followers (the one reach), and for a hand
+ * step the businesses' names and its run, written whole (00228).
+ */
+const laterStepPorts = (db: Db, tenantId: string): HandStepPorts => ({
+  followers: (s) =>
+    reachOutFollowers(db, {
+      tenantId,
+      stepId: s.id,
+      parentId: s.after_playbook_id ?? "",
+      afterDays: s.after_days ?? 0,
+      limit: s.cap_per_run,
+    }),
+  businessNames: (leadIds) => leadNamesByIds(db, tenantId, leadIds),
+  handRun: (p) => handRun(db, { tenantId, ...p }),
+});
 
 /**
  * Everything one step's run reads once: the workspace's zone, its outreach mode, whether it may spend. A read that
@@ -78,7 +101,7 @@ export async function reachOutRunContext(
   db: Db,
   row: ReachOutRow,
   now: Date,
-): Promise<{ step: ReachOutStep; ports: ReachOutRunPorts } | { error: string }> {
+): Promise<{ step: ReachOutStep | HandStep; ports: ReachOutRunPorts & HandStepPorts } | { error: string }> {
   const [tenant, billing, policies, step] = await Promise.all([
     db.from("tenants").select("timezone, status").eq("id", row.tenant_id).maybeSingle(),
     // The one reading of "may this workspace spend on reach-out" (the check asks it too).
@@ -109,7 +132,7 @@ export async function reachOutRunContext(
   const spend = billing.spend;
   const tenantId = row.tenant_id;
 
-  const ports: ReachOutRunPorts = {
+  const ports: ReachOutRunPorts & HandStepPorts = {
     now: () => now.getTime(),
     workspaceZone: tz,
     mode,
@@ -147,14 +170,7 @@ export async function reachOutRunContext(
         limit: s.cap_per_run * 2,
         includeUnconfirmed: s.include_unconfirmed,
       }),
-    followers: (s) =>
-      reachOutFollowers(db, {
-        tenantId,
-        stepId: s.id,
-        parentId: s.after_playbook_id ?? "",
-        afterDays: s.after_days ?? 0,
-        limit: s.cap_per_run,
-      }),
+    ...laterStepPorts(db, tenantId),
     domains: async (s) => {
       let q = db.from("sending_domains").select("id, state, clean_since").eq("tenant_id", tenantId);
       if (s.domain_ids.length > 0) q = q.in("id", s.domain_ids);

@@ -7386,8 +7386,29 @@ function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @
   return composeSystemPromptWith(base, profile, channel, tz, now, policy);
 }
 function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
-  const s = [];
   const link = offersBookingLink(base) ? base.booking_link : null;
+  const hrs = hoursLines(profile.hours);
+  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  const facts = { base, profile, channel, tz, policy, link, hrs, closed };
+  return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
+}
+var PROMPT_SECTIONS = [
+  identitySection,
+  contactSection,
+  hoursSection,
+  closuresSection,
+  servicesSection,
+  notesSection,
+  bookingRulesSection,
+  handoffSection,
+  callToolsSection,
+  ownWordsSection,
+  mediumSection,
+  openTimesSection,
+  rulesSection
+];
+function identitySection({ base, profile, channel }) {
+  const s = [];
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
@@ -7398,19 +7419,29 @@ function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
       (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
     );
   }
+  return s;
+}
+function contactSection({ base, profile, link }) {
+  const s = [];
   if (profile.address) s.push(`
 Address: ${profile.address}`);
   if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
   if (link) s.push(`Booking link: ${link}`);
   if (profile.website) s.push(`Website: ${profile.website}`);
-  const hrs = hoursLines(profile.hours);
+  return s;
+}
+function hoursSection({ tz, hrs }) {
+  const s = [];
   if (hrs.length) {
     const where = tz ? ` (all times ${tz})` : "";
     s.push(`
 ${PROMPT_OPENINGS.hours}${where}:
 ${hrs.map((l) => `- ${l}`).join("\n")}`);
   }
-  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  return s;
+}
+function closuresSection({ closed }) {
+  const s = [];
   if (closed.length) {
     s.push(
       `
@@ -7421,6 +7452,10 @@ ${closed.map((l) => `- ${l}`).join(
 If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
     );
   }
+  return s;
+}
+function servicesSection({ profile }) {
+  const s = [];
   if (profile.services?.length) {
     const lines = profile.services.map((sv) => {
       const bits2 = [sv.name];
@@ -7432,34 +7467,50 @@ If someone asks about one of these dates, say the business is closed that day an
 ${PROMPT_OPENINGS.services}
 ${lines.join("\n")}`);
   }
+  return s;
+}
+function notesSection({ profile }) {
+  const s = [];
   if (profile.notes?.length) {
     s.push(`
 ${PROMPT_OPENINGS.notes}
 ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
+  return s;
+}
+function bookingRulesSection({ profile }) {
+  const s = [];
   const br = profile.booking_rules;
   if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)) {
-    const lines = [];
-    if (br.lead_hours !== void 0) {
-      lines.push(
-        br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
-      );
-    }
-    if (br.consult_first?.length)
-      lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
-    if (br.party_max)
-      lines.push(
-        `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
-      );
-    if (br.ask_email)
-      lines.push(
-        "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
-      );
-    for (const n of br.notes ?? []) lines.push(n);
+    const lines = bookingRuleLines(br);
     s.push(`
 ${PROMPT_OPENINGS.bookingRules}
 ${lines.map((l) => `- ${l}`).join("\n")}`);
   }
+  return s;
+}
+function bookingRuleLines(br) {
+  const lines = [];
+  if (br.lead_hours !== void 0) {
+    lines.push(
+      br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
+    );
+  }
+  if (br.consult_first?.length)
+    lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+  if (br.party_max)
+    lines.push(
+      `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
+    );
+  if (br.ask_email)
+    lines.push(
+      "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
+    );
+  for (const n of br.notes ?? []) lines.push(n);
+  return lines;
+}
+function handoffSection({ profile, channel }) {
+  const s = [];
   if (channel === "whatsapp") {
     const when = profile.escalate_when?.length ? `
 ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
@@ -7479,6 +7530,12 @@ ${PROMPT_OPENINGS.handoffCall}
 ${staffed}
 Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
     );
+  }
+  return s;
+}
+function callToolsSection({ channel, link }) {
+  const s = [];
+  if (channel !== "whatsapp") {
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
@@ -7486,6 +7543,10 @@ ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar
 `) + "Ending: once the caller has said goodbye, use end_call."
     );
   }
+  return s;
+}
+function ownWordsSection({ profile, channel, hrs, closed }) {
+  const s = [];
   if (profile.extra_instructions?.trim()) {
     const above = [
       profile.address ? "address" : "",
@@ -7504,6 +7565,10 @@ ${header}
 ${text}` : `
 ${text}`);
   }
+  return s;
+}
+function mediumSection({ channel, link }) {
+  const s = [];
   const callMedium = link ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
   const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(
@@ -7511,10 +7576,18 @@ ${text}`);
 ${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
 ${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
   );
+  return s;
+}
+function openTimesSection({ link }) {
+  const s = [];
   s.push(
     `
 ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (link ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
   );
+  return s;
+}
+function rulesSection({ profile, channel, policy, link }) {
+  const s = [];
   const g = guardrailsInForce(profile.guardrails);
   const rules = [];
   if (g.never_quote_prices) {
@@ -7544,7 +7617,7 @@ ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants
   if (rules.length) s.push(`
 ${PROMPT_OPENINGS.rules}
 ${rules.map((r22) => `- ${r22}`).join("\n")}`);
-  return s.join("\n");
+  return s;
 }
 function hasProfile(p) {
   if (!p) return false;
@@ -9032,6 +9105,10 @@ var REACH_OUT_SHEET_PARTS2 = {
   footLine: "At the foot",
   repliesLine: "Replies"
 };
+function handStepWords(kind, business, words4) {
+  const who = business.trim() || "This business";
+  return kind === "call" ? `Call ${who}: ${words4.trim()}` : `${who}: ${words4.trim()}`;
+}
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var APP_ERROR = /* @__PURE__ */ Symbol.for("@chanlytics/contracts:AppError");
 var AppError = class extends Error {
@@ -13903,6 +13980,7 @@ async function uuidV5(name) {
 var reachOutRunIdFor = (stepId, runFor) => uuidV5(`reach_out_run:${stepId}:${runFor}`);
 var sendIdFor = (runId, leadId) => uuidV5(`reach_out_send:${runId}:${leadId}`);
 var sendMessageId = (sendId, attempt) => uuidV5(`reach_out_email:${sendId}:${attempt}`);
+var handStepIdFor = (stepId, leadId) => uuidV5(`reach_out_hand:${stepId}:${leadId}`);
 
 // src/campaigns/run-reach-out.ts
 var neverOpen = (week) => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
@@ -14004,6 +14082,32 @@ async function runReachOut(ports, step, cmd) {
     return { outcome: "held", reason: "waiting_for_you", planned: plan.placed.length };
   }
   return { outcome: "sent", planned: plan.placed.length };
+}
+
+// src/campaigns/run-hand-step.ts
+var doorRefuses = (f) => outreachRefusalOf({
+  leadStage: f.facts.lead_stage,
+  suppressed: f.facts.suppressed,
+  wroteBack: f.facts.wrote_back,
+  away: f.facts.away === true
+}) !== null;
+async function runHandStep(ports, step, cmd) {
+  if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
+  const leads = (await ports.followers(step)).filter((f) => !doorRefuses(f)).slice(0, step.cap_per_run);
+  if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
+  const names = await ports.businessNames(leads.map((l) => l.lead_id));
+  const runId = await reachOutRunIdFor(step.id, cmd.runFor);
+  const items = await Promise.all(
+    leads.map(async (l) => ({
+      send_id: await sendIdFor(runId, l.lead_id),
+      lead_id: l.lead_id,
+      contact_id: l.contact_id,
+      words: handStepWords(step.hand.kind, names.get(l.lead_id) ?? "", step.hand.words),
+      source_id: await handStepIdFor(step.id, l.lead_id)
+    }))
+  );
+  const r4 = await ports.handRun({ stepId: step.id, runId, day: cmd.runFor, items });
+  return r4.made > 0 ? { outcome: "sent", planned: r4.made } : { outcome: "empty", reason: "already_ran", planned: 0 };
 }
 
 // src/leads/zcta-centroids.json
@@ -49431,6 +49535,7 @@ export {
   factsOf,
   foldDuplicates,
   handBack,
+  handStepIdFor,
   hasContact,
   haversineM,
   holdCopy,
@@ -49468,6 +49573,7 @@ export {
   resolveConsent,
   resolveEscalation,
   runCaps,
+  runHandStep,
   runIdFor,
   runPlaybook,
   runReachOut,

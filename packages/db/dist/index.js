@@ -3688,6 +3688,24 @@ async function searchNamesByIds(db, tenantId, ids) {
   if (error) throw new Error(`cannot read the searches: ${error.message}`);
   return new Map((data ?? []).map((s) => [s.id, s.name]));
 }
+async function leadNamesByIds(db, tenantId, ids) {
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the leads' names: ${error.message}`);
+  return new Map((data ?? []).map((l) => [l.id, l.business_name]));
+}
+async function handRun(db, p) {
+  const { data, error } = await db.rpc("reach_out_hand_run", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_run_id: p.runId,
+    p_day: p.day,
+    p_items: p.items
+  });
+  if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
+  const r2 = data ?? {};
+  return { made: r2.made ?? 0, already: r2.already ?? 0 };
+}
 async function runsWaitingOf(db, tenantId) {
   const { data, error } = await db.from("broadcasts").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval");
   if (error) throw new Error(`cannot read the runs waiting: ${error.message}`);
@@ -3951,7 +3969,7 @@ async function sendStanding(db, s) {
   const step = s.playbook_id ? (chain.data ?? []).find((p) => p.id === s.playbook_id) : void 0;
   return {
     run: run.data?.state ?? null,
-    step: step ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
+    step: step?.template_id ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
     root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
     signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null
   };
@@ -5347,6 +5365,7 @@ export {
   getPlatformPartners,
   getTenantConfig,
   getWorkspacePartner,
+  handRun,
   heldNoticeDue,
   heldStale,
   ingestCall,
@@ -5357,6 +5376,7 @@ export {
   keepIdempotencyReceipt,
   lastInboundEmail,
   leadAddressBounced,
+  leadNamesByIds,
   leadSlotsOf,
   leadWritten,
   linkCallMessage,

@@ -140,7 +140,7 @@ export const SCHEMA_SETS = {
   "reach_out_replies.draft_state": ["none", "waiting", "written", "not_written"],
   "reach_out_replies.intent": ["interested", "question", "not_now", "no", "wrong_person", "away", "other"],
   "reach_out_replies.unread": ["no_model", "may_not_spend", "day_spent", "model_failed"],
-  "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"],
+  "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed", "handed"],
   "sending_domains.dmarc": ["found", "missing"],
   "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
   "sending_domains.resume_by": ["owner", "platform"],
