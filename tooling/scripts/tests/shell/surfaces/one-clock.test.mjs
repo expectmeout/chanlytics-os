@@ -412,7 +412,9 @@ const pinned = async (ms, fn) => {
     Date.now = real;
   }
 };
-const { inboxOverride } = await quiet(() => import("../../../../../apps/dashboard/src/legacy-bridge/surface-data.ts"));
+const { inboxOverride } = await quiet(
+  () => import("../../../../../apps/dashboard/src/legacy-bridge/surfaces/inbox.ts"),
+);
 
 test("REGRESSION (D5): on a cold load the Inbox waits for the workspace's zone -- it said the minute by the browser's clock", async () => {
   const seen = wire({

@@ -19,7 +19,7 @@ import {
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import type { Output } from "../client/api";
-import { playbooksOverride } from "./surface-data";
+import { playbooksOverride } from "./surfaces/playbooks";
 import { refreshSurfaces } from "./surface-runner";
 
 export interface PlaybookBody {

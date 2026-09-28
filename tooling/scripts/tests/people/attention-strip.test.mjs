@@ -203,7 +203,7 @@ test("the wiring: the door carries the summary, the surface carries the rows, an
       "callSummary: r.last_inbound_call_summary?.trim() || null,",
     ),
   );
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/people.ts");
   assert.ok(
     sd.includes("attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime())])),"),
     "computed once with the surface",
