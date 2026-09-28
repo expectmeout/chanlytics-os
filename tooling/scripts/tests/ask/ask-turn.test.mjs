@@ -402,7 +402,7 @@ test("a model that thinks: its thinking goes back with the tool results exactly 
   );
 });
 
-test("each role is offered its tools, sorted by name: a viewer the reads alone, an operator the acts an operator may approve, a partner the settings and the lead search too, an owner all nineteen (D11, D12); no tool is strict", async () => {
+test("each role is offered its tools, sorted by name: a viewer the reads alone, an operator the acts an operator may approve, a partner the settings and the lead search too, an owner all twenty (D11, D12; the Phase 4 plan, D1); no tool is strict", async () => {
   const offered = {};
   for (const role of ["viewer", "operator", "partner", "owner"]) {
     const s = scripted([ROUND([answer("Nothing waiting.")])]);
@@ -420,6 +420,7 @@ test("each role is offered its tools, sorted by name: a viewer the reads alone, 
     "propose_autonomy",
     "propose_campaign",
     "propose_deal",
+    "propose_list",
     "propose_person",
     "propose_reply",
     "propose_thread_verb",
@@ -901,6 +902,38 @@ test("the history is folded so no two neighbours share a role and the person spe
     ],
   );
   assert.deepEqual(foldHistory([], "d"), [{ role: "user", content: "d" }]);
+});
+
+test("the history the model reads is the last twelve turns, counted as turns -- a person's message and what follows it -- never as messages, and it starts at a question; each text still cut at 1,200 characters", () => {
+  /** `n` turns of a question and its answer, numbered from `from`. */
+  const turns = (n, from = 0) =>
+    Array.from({ length: n }, (_, i) => [
+      { role: "user", text: `Q${from + i}` },
+      { role: "assistant", text: `A${from + i}` },
+    ]).flat();
+  const said = (h) => foldHistory(h, "now").map((m) => m.content);
+  // Thirty turns, a thread's newest sixty rows: the last twelve, twenty-four messages, from the nineteenth question.
+  const read = said(turns(30));
+  assert.equal(read.length, 25, "REGRESSION: twelve messages were six turns");
+  assert.deepEqual([read[0], read[1], read.at(-2), read.at(-1)], ["Q18", "A18", "A29", "now"]);
+  assert.deepEqual(said(turns(12)), [...turns(12).map((h) => h.text), "now"], "twelve turns: all of them");
+  // A read that begins mid-turn (the newest sixty cut its question off): that answer starts no turn and is left out.
+  assert.deepEqual(said([{ role: "assistant", text: "A-1" }, ...turns(2)]), ["Q0", "A0", "Q1", "A1", "now"]);
+  // A question whose answer was never saved is a turn of its own: of thirteen, the first goes.
+  const gap = [...turns(6), { role: "user", text: "Q-unanswered" }, ...turns(6, 6)];
+  const cut = said(gap);
+  assert.deepEqual([cut[0], cut.includes("Q0"), cut.includes("Q-unanswered\nQ6")], ["Q1", false, true]);
+  const long = foldHistory(
+    [
+      { role: "user", text: "x".repeat(2000) },
+      { role: "assistant", text: "y".repeat(2000) },
+    ],
+    "now",
+  );
+  assert.deepEqual(
+    long.slice(0, 2).map((m) => m.content.length),
+    [1200, 1200],
+  );
 });
 
 test("REGRESSION: the assistant's people search says when someone was last in touch -- it handed ago the time since, and said Dec 31, 1969 of everyone", async () => {

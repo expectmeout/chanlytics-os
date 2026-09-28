@@ -617,7 +617,10 @@ test("the bridge: the jump index and Right now come from the surfaces, the quick
 });
 
 test("the turn route: same-origin POST, a rate bucket, the thread saved before the model is asked, JSON lines out, a sixty-second ceiling", () => {
-  const r = readCode("apps/dashboard/app/api/v1/ask/route.ts");
+  // The route, and the thread it keeps (server/ask/memory.ts, moved out of it in PR 5.0): read in the one scan.
+  const [r, memory] = ["app/api/v1/ask/route.ts", "src/server/ask/memory.ts"].map((f) =>
+    readCode(`apps/dashboard/${f}`),
+  );
   assert.ok(r.includes("export const maxDuration = 60;"));
   assert.ok(r.includes('rate: "ask",'));
   assert.ok(
@@ -627,7 +630,10 @@ test("the turn route: same-origin POST, a rate bucket, the thread saved before t
   assert.ok(r.includes('"content-type": "application/x-ndjson; charset=utf-8"'));
   assert.ok(r.includes('"cache-control": "private, no-store"'));
   assert.ok(r.includes("const result = await runAskTurn({"));
-  assert.ok(!r.includes("service"), "the turn runs on the session client, never the service role");
+  assert.ok(
+    ![r, memory].some((code) => code.includes("service")),
+    "the turn and the thread it keeps run on the session client, never the service role",
+  );
   const rate = readCode("apps/dashboard/src/server/rate-limit.ts");
   assert.ok(rate.includes('ask: { limit: 20, windowMs: 60_000, noun: "questions" },'));
 });
@@ -848,6 +854,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     deal: "approve",
     note: "approve",
     person_details: "approve",
+    list: "approve",
+    run: "approve",
   });
   const ok = AskProposalOutcomeSchema.safeParse({
     state: "done",
@@ -857,8 +865,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   });
   assert.ok(ok.success);
   assert.equal(AskProposalOutcomeSchema.safeParse({ state: "sent" }).success, false, "only the four states");
-  // The ten acts as the registry offers them, one per card family, sorted by name, the twelve acts before them their
-  // actions (D11). What this block pinned as text runs in ask-turn.test.mjs, "the proposal builders run against the
+  // The eleven acts as the registry offers them, one per card family, sorted by name, the acts before them their
+  // actions (D11; propose_list and propose_campaign's run since PR 4.7). What this block pinned as text runs in ask-turn.test.mjs, "the proposal builders run against the
   // database in memory": every card's result says nothing has happened yet, a proposal never writes, the money row is
   // refused before it is a card, a person who opted out gets no reply, a reply no longer held has nothing to rewrite, a
   // whisper needs a call in progress.
@@ -866,9 +874,10 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
     ACT_TOOLS.map((t) => [t.name, t.input_schema.properties.action?.enum ?? []]),
     [
       ["propose_autonomy", []],
-      ["propose_campaign", ["broadcast", "playbook"]],
+      ["propose_campaign", ["broadcast", "playbook", "run"]],
       ["propose_deal", []],
       ["propose_lead_search", []],
+      ["propose_list", []],
       ["propose_person", ["mode", "note", "details"]],
       ["propose_reply", ["draft", "steer"]],
       ["propose_settings", []],
@@ -996,7 +1005,7 @@ test("an answer never carries tags: the leak seen on production is cut", () => {
   // fourteen reads run against the database in memory" (each row's `recent`).
 });
 
-test("the eval checks that an Open asked for is followed, and what the words decided on a card: a note's reader, which has no default, and the address a details card sets (card_fields, PR 4.6)", async () => {
+test("the eval checks that an Open asked for is followed, and what the words decided on a card: a note's reader, which has no default, the address a details card sets (card_fields, PR 4.6), a run's verb, which has none either, and a list's rule and what it left out (card_fields and list_card, PR 4.7)", async () => {
   // Open/show/see goes there as the answer lands, and what an answer shows is the contract's: both executed in
   // ask-palette.test.mjs ("open, show or see", "a turn since the Line"); where the browser cannot listen, the field's
   // one button is Send alone, executed there too ("one button at the field's end").
@@ -1004,6 +1013,8 @@ test("the eval checks that an Open asked for is followed, and what the words dec
   assert.ok(judge.includes("e.navigate_now"));
   assert.ok(judge.includes("Object.entries(e.card_fields ?? {})"), "every kind a case names");
   assert.ok(judge.includes("p.payload?.[k] !== v"), "each field of each card of that kind, compared");
+  assert.ok(judge.includes('if (!rule.includes(`"field":"${f}"`))'), "each field a list card's rule must name");
+  assert.ok(judge.includes("!!p.payload?.cannot !== e.list_card.cannot"), "and what it left out, kept or not");
   const { readFile } = await import("node:fs/promises");
   const cases = JSON.parse(await readFile(path.join(here, "../../../evals/ask-cases.json"), "utf8"));
   assert.deepEqual(
@@ -1012,6 +1023,15 @@ test("the eval checks that an Open asked for is followed, and what the words dec
       person_note_team: { note: { team_only: true } },
       person_note_receptionist: { note: { team_only: false } },
       person_details_email: { person_details: { email: "jordan.reyes@example.com" } },
+      run_approve: { run: { verb: "approve" } },
+      run_skip: { run: { verb: "skip" } },
+    },
+  );
+  assert.deepEqual(
+    Object.fromEntries(cases.filter((c) => c.expect?.list_card).map((c) => [c.id, c.expect.list_card])),
+    {
+      list_lapsed: { fields: ["last_visit"] },
+      list_left_out: { fields: ["last_heard"], cannot: true },
     },
   );
 });
@@ -1160,7 +1180,8 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
   const reads = READ_TOOLS.length;
   const acts = ACT_TOOLS.length;
   const total = reads + acts;
-  // Nine reads and ten acts since the consolidation (D11): nineteen, an owner's whole set.
+  // Nine reads and ten acts since the consolidation (D11), eleven since propose_list (the Phase 4 plan, D1): twenty, an
+  // owner's whole set.
   assert.ok(reads >= 9 && acts >= 10, `found ${reads} read and ${acts} act tools in the registry`);
   assert.ok(
     total <= cap - 4,

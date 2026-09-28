@@ -1,8 +1,8 @@
 {
   "apps/dashboard/app/api/v1/ask/route.ts::handle#1": {
-    "lines": 247,
-    "branches": 57,
-    "depth": 3
+    "lines": 215,
+    "branches": 40,
+    "depth": 2
   },
   "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::handle#1": {
     "lines": 52,
@@ -199,12 +199,12 @@
     "branches": 132,
     "depth": 0
   },
-  "apps/dashboard/src/legacy/demo/pages/broadcasts.jsx::BroadcastsPage#1": {
+  "apps/dashboard/src/legacy/demo/pages/broadcasts.jsx::BroadcastsSeed#1": {
     "lines": 353,
     "branches": 22,
     "depth": 0
   },
-  "apps/dashboard/src/legacy/demo/pages/calendar.jsx::CalendarPage#1": {
+  "apps/dashboard/src/legacy/demo/pages/calendar.jsx::CalendarSeed#1": {
     "lines": 340,
     "branches": 23,
     "depth": 1
@@ -224,9 +224,19 @@
     "branches": 25,
     "depth": 0
   },
-  "apps/dashboard/src/legacy/demo/pages/outbound.jsx::OutboundPage#1": {
+  "apps/dashboard/src/legacy/demo/pages/outbound.jsx::OutboundSeed#1": {
     "lines": 198,
     "branches": 3,
+    "depth": 0
+  },
+  "apps/dashboard/src/legacy/demo/pages/segments.jsx::SegmentDetail#1": {
+    "lines": 274,
+    "branches": 37,
+    "depth": 1
+  },
+  "apps/dashboard/src/legacy/demo/pages/segments.jsx::SegmentsPage#1": {
+    "lines": 236,
+    "branches": 14,
     "depth": 0
   },
   "apps/dashboard/src/legacy/demo/pages/tasks.jsx::TasksPage#1": {
@@ -375,13 +385,13 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-list.jsx::InboxList#1": {
-    "lines": 409,
+    "lines": 410,
     "branches": 58,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-list.jsx::InboxList/map(fn)#6": {
-    "lines": 110,
-    "branches": 49,
+    "lines": 111,
+    "branches": 50,
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-rail.jsx::InboxAgentRail#1": {
@@ -395,13 +405,13 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::Composer#1": {
-    "lines": 227,
-    "branches": 36,
+    "lines": 228,
+    "branches": 37,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::InboxThread#1": {
-    "lines": 119,
-    "branches": 54,
+    "lines": 117,
+    "branches": 56,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::TemplateSendButton#1": {
@@ -554,16 +564,6 @@
     "branches": 39,
     "depth": 0
   },
-  "apps/dashboard/src/legacy/pages/segments.jsx::SegmentDetail#1": {
-    "lines": 274,
-    "branches": 37,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/segments.jsx::SegmentsPage#1": {
-    "lines": 236,
-    "branches": 14,
-    "depth": 0
-  },
   "apps/dashboard/src/legacy/pages/settings.jsx::PaneAutonomyReal#1": {
     "lines": 183,
     "branches": 11,
@@ -590,7 +590,7 @@
     "depth": 1
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 558,
+    "lines": 525,
     "branches": 87,
     "depth": 6
   },
@@ -780,7 +780,7 @@
     "depth": 6
   },
   "apps/edge/lib/whatsapp/persist.ts::pgSink#1": {
-    "lines": 202,
+    "lines": 192,
     "branches": 5,
     "depth": 0
   },
@@ -834,22 +834,22 @@
     "branches": 53,
     "depth": 3
   },
-  "packages/contracts/src/config/business-tab.ts::abilityRows#1": {
+  "packages/contracts/src/config/business-tab/abilities.ts::abilityRows#1": {
     "lines": 162,
     "branches": 40,
     "depth": 1
   },
-  "packages/contracts/src/config/config.ts::composeSystemPromptWith#1": {
+  "packages/contracts/src/config/workspace-config/compose.ts::composeSystemPromptWith#1": {
     "lines": 254,
     "branches": 66,
     "depth": 2
   },
-  "packages/contracts/src/conversations/viewmodels.ts::toCallVM#1": {
+  "packages/contracts/src/conversations/call-vm.ts::toCallVM#1": {
     "lines": 140,
     "branches": 69,
     "depth": 1
   },
-  "packages/contracts/src/conversations/viewmodels.ts::toInboxThreadVM#1": {
+  "packages/contracts/src/conversations/inbox-thread.ts::toInboxThreadVM#1": {
     "lines": 219,
     "branches": 53,
     "depth": 2
@@ -939,12 +939,12 @@
     "branches": 33,
     "depth": 2
   },
-  "packages/contracts/src/today/today.ts::figuresOf#1": {
+  "packages/contracts/src/today/today-figures.ts::figuresOf#1": {
     "lines": 200,
     "branches": 55,
     "depth": 2
   },
-  "packages/contracts/src/today/today.ts::todayLeaks#1": {
+  "packages/contracts/src/today/today-leaks.ts::todayLeaks#1": {
     "lines": 207,
     "branches": 66,
     "depth": 1
@@ -955,8 +955,8 @@
     "depth": 2
   },
   "packages/contracts/src/workspace/activity.ts::activityWords#1": {
-    "lines": 159,
-    "branches": 76,
+    "lines": 154,
+    "branches": 75,
     "depth": 3
   },
   "packages/contracts/src/workspace/billing.ts::toBillingVM#1": {
@@ -990,8 +990,8 @@
     "depth": 2
   },
   "packages/core/src/deliver.ts::deliver#1": {
-    "lines": 175,
-    "branches": 38,
+    "lines": 160,
+    "branches": 31,
     "depth": 2
   },
   "packages/core/src/inbound/answer.ts::answerInbound#1": {
@@ -999,17 +999,17 @@
     "branches": 184,
     "depth": 5
   },
-  "packages/core/src/leads/runner.ts::collectHeld#1": {
+  "packages/core/src/leads/runner/collect.ts::collectHeld#1": {
     "lines": 175,
     "branches": 48,
     "depth": 3
   },
-  "packages/core/src/leads/runner.ts::memberOf#1": {
+  "packages/core/src/leads/runner/places.ts::memberOf#1": {
     "lines": 109,
     "branches": 31,
     "depth": 1
   },
-  "packages/core/src/leads/runner.ts::startRound#1": {
+  "packages/core/src/leads/runner/start.ts::startRound#1": {
     "lines": 93,
     "branches": 32,
     "depth": 2

@@ -309,11 +309,16 @@ const CK_BOM = String.fromCharCode(0xfeff);
 const ckSaveCsv = (title, table) => {
   const cell = window.__csvCell;
   const body = [table.columns, ...table.rows].map((r) => r.map((v) => cell(v)).join(",")).join("\r\n");
+  const name = `${String(title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.csv`;
+  // Inside the phone app a WebView cannot save a file made in the page: the app's bridge takes it to the share sheet
+  // and cancels the event (legacy-bridge/app-bridge.ts); anywhere else nothing listens, and the browser saves it.
+  const asked = new CustomEvent("app:file", { cancelable: true, detail: { name, type: "text/csv", text: CK_BOM + body } });
+  if (typeof window.dispatchEvent === "function" && !window.dispatchEvent(asked)) return;
   const blob = new Blob([CK_BOM + body], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${String(title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.csv`;
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();

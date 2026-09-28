@@ -22,7 +22,9 @@ export {
   stampMailboxReceived,
   mailboxOfTenant,
   lastInboundEmail,
+  answeredReachOutEmail,
   stampEmailSent,
+  stampEmailLeftAs,
   sentEmailRequestOf,
   sentEmailOf,
   stampEmailComplaint,
@@ -50,8 +52,22 @@ export {
   deleteSendingDomain,
 } from "./repositories/sending-domains";
 export type { SendingDomainRow, ColdReceiptsOwed, SendingDomainHolder } from "./repositories/sending-domains";
-export { outreachFactsOf, addressesSuppressed } from "./repositories/outreach";
-export type { OutreachFactsRow } from "./repositories/outreach";
+export {
+  outreachFactsOf,
+  addressesSuppressed,
+  reachOutReplyOf,
+  replyReadingOf,
+  takeReplyRead,
+  applyReplyReading,
+  claimReplyTell,
+  markReplyDraft,
+  repliesFor,
+  replyReadingRefOf,
+  replyUndoableOf,
+  undoReplyReading,
+  markReplyTold,
+} from "./repositories/outreach";
+export type { OutreachFactsRow, ReachOutReplyOf, ReplyReadingRow, ReplyListRow } from "./repositories/outreach";
 export {
   domainCapacityOf,
   reachOutAudience,

@@ -63,6 +63,7 @@ export const HELD_REASONS: Record<DeliveryRefusal, string> & Record<string, stri
   outreach_lead_closed: "no longer being written to",
   outreach_suppressed: "on the never-again list",
   outreach_wrote_back: "wrote back or called",
+  outreach_away: "away until the day they're back",
   outreach_without_unsubscribe: "no unsubscribe link",
   outreach_needs_own_domain: "not from your own domain",
   sending_domain_not_ready: "the domain isn't sending",

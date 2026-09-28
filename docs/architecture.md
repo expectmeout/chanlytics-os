@@ -116,7 +116,7 @@ memory by a test.
 | Email    | `apps/edge/api/resend-webhook.ts`                                                                | `apps/edge/lib/email/email-ingress.ts` | An `email_ingest` job fetches the message and `packages/core/src/messages/email-ingest.ts` takes it into the thread. The receptionist does not draft email replies yet |
 
 The receptionist itself: `apps/edge/lib/tenant-runtime.ts` reads the
-workspace's config through one door; `packages/contracts/src/config/config.ts`
+workspace's config through one door; `packages/contracts/src/config/workspace-config/compose.ts`
 composes the system prompt from the business's facts; `apps/edge/lib/receptionist/brain.ts`
 asks the model and reads a structured answer (`packages/contracts/src/config/brain.ts`);
 `packages/core/src/inbound/reply-posture.ts` is the truth table of whether it may speak at
@@ -256,16 +256,17 @@ honest:
 The unbuilt surfaces (agent fleet, store, studio, tasks, content, the retired
 deal board) stay in the tree, hidden from every real workspace, by decision.
 They live under `src/legacy/demo/`, with the seeded twin of each real page
-(`demo/pages/calendar.jsx` beside `pages/calendar.jsx`, and so on) and the seed
-data only they read; the manifest still loads them, at the places they always
-had, until the twins' forks on those seeds are gone. The shell's route names
+(`demo/pages/calendar.jsx` beside `pages/calendar.jsx`, and so on), the seeded
+Lists and the seed data only they read, and a real workspace never downloads
+them: `src/legacy-bridge/manifest-demo.ts` lists them, and `manifest.ts` asks
+for it, after its own files, only in a declared demo session. The shell's route names
 and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 
 ## Where to look
 
 | To change                              | Look in                                                                                                                                                  |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| What the receptionist says             | `packages/contracts/src/config/config.ts` (the composer), `apps/edge/lib/receptionist/brain.ts`, the Business tab in Settings                            |
+| What the receptionist says             | `packages/contracts/src/config/workspace-config/compose.ts` (the composer), `apps/edge/lib/receptionist/brain.ts`, the Business tab in Settings          |
 | Whether it speaks at all               | `packages/core/src/inbound/reply-posture.ts`, `policies` and `packages/contracts/src/config/policy.ts`                                                   |
 | Who may be messaged                    | `packages/contracts/src/consent/consent.ts` (`mayMessageFor`), `packages/core/src/deliver.ts`                                                            |
 | A new channel                          | An adapter in `packages/channels`, a door under `apps/edge/api`, a `tenant_channels.kind`, a wire in `deliver.ts`                                        |

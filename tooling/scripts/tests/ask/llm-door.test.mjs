@@ -84,6 +84,7 @@ const {
   ASK_USAGE_KIND,
   GATEWAY_FALLBACK_MODEL,
   validateGatewayRequest,
+  askTokensLast24h,
 } = await import(at("apps/edge/lib/ask-gateway.ts"));
 const door = await import(at("apps/edge/api/admin/llm.ts"));
 after(() => setPg(null));
@@ -579,6 +580,17 @@ test("a count that cannot be read is zero, never a refusal: the turn goes throug
   assert.deepEqual(
     tables.events.map((e) => [e.tenant_id, e.kind, e.data.input_tokens, e.data.output_tokens]),
     [[ws, ASK_USAGE_KIND, 1200, 42]],
+  );
+});
+
+test("a day past a thousand turns is counted whole: the read pages past PostgREST's 1,000 rows, where .limit(2000) stopped at the thousandth", async () => {
+  const ws = T(6);
+  const events = Array.from({ length: 1500 }, (_, i) => usage(ws, 100, 10, (i % 600) * 60_000));
+  const db = fakeDb({ events }, {}, {}, { maxRows: 1000 });
+  assert.equal(
+    await askTokensLast24h(db, ws),
+    1500 * 110,
+    "REGRESSION: the budget counted the first 1,000 turns and let the platform key spend on",
   );
 });
 

@@ -226,6 +226,8 @@ export const SERVER_NOTIFICATION_KINDS = [
   "leads_question",
   /** A note left for one member (0007, 00158): addressed to them alone. */
   "note_for_you",
+  /** A business wrote back to a reach-out, and what it meant (Reach out Part 5, 00222): told once per reading. */
+  "reach_out_replied",
 ] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
@@ -250,7 +252,7 @@ export type JobNewsKind = Extract<
  * One alert from a job: what it IS, where its button goes, and the words.
  * The verb that raises it decides `kind` and `route`; the sender never
  * re-derives either (the rule waba-events.ts already follows). How it then
- * reads is SERVER_LOOK's, and how it groups is today.ts AWAY_NOUN's.
+ * reads is SERVER_LOOK's, and how it groups is today-away.ts AWAY_NOUN's.
  */
 export interface JobNews {
   kind: JobNewsKind;
@@ -305,6 +307,8 @@ const JOB_WORK: Record<JobKind, { stopped: string; to: string }> = {
   lead_check: { stopped: "Checking a search's emails stopped", to: "clients/leads" },
   push_send: { stopped: "An alert to your phone was not sent", to: "admin/notifications" },
   push_receipts: { stopped: "Checking that your phone was told did not finish", to: "admin/notifications" },
+  // Read, applied or told: the job's last try did not finish one of them, and the thread is where the reply is.
+  reply_read: { stopped: "A reply to your reach-out could not be read or told", to: "inbox" },
 };
 
 /** A job this runner has no words for: said as what it is, on the page that says what happened today. */
@@ -392,6 +396,8 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
     billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
     /** A note a teammate left for you on a person (0007): its row names them and opens their page, where the note is. */
     note_for_you: { icon: "edit", tone: "", action: "Open their page", to: "clients" },
+    /** A business wrote back to a reach-out: its row names the thread, where the reply and what was read are. */
+    reach_out_replied: { icon: "mail", tone: "", action: "Open the thread", to: "inbox", own: true },
     alert: { icon: "bell", tone: "", action: "Open Today", to: "today" },
   };
 

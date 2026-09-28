@@ -3988,21 +3988,168 @@ type Database = {
                 Row: {
                     attempts: number;
                     day: string;
+                    reads: number;
                     tenant_id: string;
                 };
                 Insert: {
                     attempts?: number;
                     day: string;
+                    reads?: number;
                     tenant_id: string;
                 };
                 Update: {
                     attempts?: number;
                     day?: string;
+                    reads?: number;
                     tenant_id?: string;
                 };
                 Relationships: [
                     {
                         foreignKeyName: "reach_out_check_spend_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            reach_out_replies: {
+                Row: {
+                    answered_message_id: string | null;
+                    claim: string;
+                    contact_id: string | null;
+                    conversation_id: string;
+                    draft: string | null;
+                    draft_state: string;
+                    draft_why: string | null;
+                    intent: string;
+                    lead_contact_id: string | null;
+                    lead_id: string | null;
+                    message_id: string;
+                    named_day: string | null;
+                    plan: Json;
+                    read_at: string;
+                    refer_to: string | null;
+                    reread_at: string | null;
+                    rereads: number;
+                    send_id: string | null;
+                    summary: string | null;
+                    tell_claimed_at: string | null;
+                    tenant_id: string;
+                    told_at: string | null;
+                    undone_at: string | null;
+                    undone_by: string | null;
+                    unread: string | null;
+                    until_at: string | null;
+                };
+                Insert: {
+                    answered_message_id?: string | null;
+                    claim: string;
+                    contact_id?: string | null;
+                    conversation_id: string;
+                    draft?: string | null;
+                    draft_state?: string;
+                    draft_why?: string | null;
+                    intent: string;
+                    lead_contact_id?: string | null;
+                    lead_id?: string | null;
+                    message_id: string;
+                    named_day?: string | null;
+                    plan?: Json;
+                    read_at?: string;
+                    refer_to?: string | null;
+                    reread_at?: string | null;
+                    rereads?: number;
+                    send_id?: string | null;
+                    summary?: string | null;
+                    tell_claimed_at?: string | null;
+                    tenant_id: string;
+                    told_at?: string | null;
+                    undone_at?: string | null;
+                    undone_by?: string | null;
+                    unread?: string | null;
+                    until_at?: string | null;
+                };
+                Update: {
+                    answered_message_id?: string | null;
+                    claim?: string;
+                    contact_id?: string | null;
+                    conversation_id?: string;
+                    draft?: string | null;
+                    draft_state?: string;
+                    draft_why?: string | null;
+                    intent?: string;
+                    lead_contact_id?: string | null;
+                    lead_id?: string | null;
+                    message_id?: string;
+                    named_day?: string | null;
+                    plan?: Json;
+                    read_at?: string;
+                    refer_to?: string | null;
+                    reread_at?: string | null;
+                    rereads?: number;
+                    send_id?: string | null;
+                    summary?: string | null;
+                    tell_claimed_at?: string | null;
+                    tenant_id?: string;
+                    told_at?: string | null;
+                    undone_at?: string | null;
+                    undone_by?: string | null;
+                    unread?: string | null;
+                    until_at?: string | null;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "reach_out_replies_answered_message_id_fkey";
+                        columns: ["answered_message_id"];
+                        isOneToOne: false;
+                        referencedRelation: "messages";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_replies_contact_id_fkey";
+                        columns: ["contact_id"];
+                        isOneToOne: false;
+                        referencedRelation: "contacts";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_replies_conversation_id_fkey";
+                        columns: ["conversation_id"];
+                        isOneToOne: false;
+                        referencedRelation: "conversations";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_replies_lead_contact_id_fkey";
+                        columns: ["lead_contact_id"];
+                        isOneToOne: false;
+                        referencedRelation: "contacts";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_replies_lead_id_fkey";
+                        columns: ["lead_id"];
+                        isOneToOne: false;
+                        referencedRelation: "leads";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_replies_message_id_fkey";
+                        columns: ["message_id"];
+                        isOneToOne: true;
+                        referencedRelation: "messages";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_replies_send_id_fkey";
+                        columns: ["send_id"];
+                        isOneToOne: false;
+                        referencedRelation: "reach_out_sends";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "reach_out_replies_tenant_id_fkey";
                         columns: ["tenant_id"];
                         isOneToOne: false;
                         referencedRelation: "tenants";
@@ -6381,6 +6528,14 @@ type Database = {
                 };
                 Returns: Json;
             };
+            reach_out_read_take: {
+                Args: {
+                    p_at?: string;
+                    p_cap: number;
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
+            };
             reach_out_recheck: {
                 Args: {
                     p_from_state?: string;
@@ -6426,6 +6581,63 @@ type Database = {
                     p_tenant_id: string;
                 };
                 Returns: Json;
+            };
+            reach_out_reply_apply: {
+                Args: {
+                    p_days: number;
+                    p_message_id: string;
+                    p_plan: Json;
+                    p_reading: Json;
+                    p_reread: number;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            reach_out_reply_draft: {
+                Args: {
+                    p_draft: string;
+                    p_message_id: string;
+                    p_state: string;
+                    p_tenant_id: string;
+                    p_why: string;
+                };
+                Returns: boolean;
+            };
+            reach_out_reply_of: {
+                Args: {
+                    p_days: number;
+                    p_message_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
+            reach_out_reply_tell_claim: {
+                Args: {
+                    p_message_id: string;
+                    p_stale_before: string;
+                    p_tenant_id: string;
+                };
+                Returns: string;
+            };
+            reach_out_reply_told: {
+                Args: {
+                    p_claimed_at: string;
+                    p_message_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
+            };
+            reach_out_reply_undo: {
+                Args: {
+                    p_message_id: string;
+                };
+                Returns: Json;
+            };
+            reach_out_reply_undoable: {
+                Args: {
+                    p_message_id: string;
+                };
+                Returns: string;
             };
             reach_out_run_recheck: {
                 Args: {
@@ -6706,6 +6918,15 @@ type Database = {
                     p_at: string;
                     p_message_id: string;
                     p_tenant_id: string;
+                };
+                Returns: boolean;
+            };
+            stamp_email_left_as: {
+                Args: {
+                    p_left_as: string;
+                    p_message_id: string;
+                    p_tenant_id: string;
+                    p_why: string;
                 };
                 Returns: boolean;
             };
@@ -7111,6 +7332,20 @@ interface InboundEmailFacts {
  */
 declare function lastInboundEmail(db: Db$h, tenantId: string, conversationId: string): Promise<InboundEmailFacts | null>;
 /**
+ * The reach-out email a person's reply answers (Reach out Part 5, C15), on one thread of one workspace: the latest one
+ * whose Message-ID the reply's References name, else the latest one on the thread. Its From and Reply-To are as its
+ * request was frozen. Null when the thread holds no reach-out email that left: every other email reply.
+ */
+declare function answeredReachOutEmail(db: Db$h, p: {
+    tenantId: string;
+    conversationId: string;
+    references: string[];
+}): Promise<{
+    messageId: string;
+    from: string | null;
+    replyTo: string | null;
+} | null>;
+/**
  * A sent email learns the provider's id and the Message-ID it left with
  * (00128, one statement, so it cannot overwrite a status stamp written beside
  * it), and says where the row stands and which thread it is on. Null when this
@@ -7125,6 +7360,17 @@ declare function stampEmailSent(db: Db$h, p: {
     status: string;
     conversationId: string;
 } | null>;
+/**
+ * How a person's email reply left (00226 stamp_email_left_as): by the own domain it was frozen with, or as the
+ * mailbox's request and why not by its own. Merged into meta.email in one statement, as stampEmailSent merges the
+ * Message-ID. False when there is no such outbound email. A write that fails throws.
+ */
+declare function stampEmailLeftAs(db: Db$h, p: {
+    tenantId: string;
+    messageId: string;
+    leftAs: "own" | "mailbox";
+    why: string | null;
+}): Promise<boolean>;
 /**
  * The request an outbound email was frozen with (its row's meta.email.request), or null when there is no such row or
  * it froze none: what a receipt reads to know whether the email was a reply or a campaign's (channels
@@ -7320,6 +7566,8 @@ interface OutreachFactsRow {
      * answers or cites one sent to them, or a call they made. An out-of-office is not one.
      */
     wrote_back: boolean;
+    /** An automatic out-of-office whose day is still ahead (00226): the chain waits. A database before 00226 says nothing. */
+    away: boolean;
     /**
      * The From host's row as Connections set it up, with the days it has sent on since it was clean (D15, 00184); null
      * when the workspace owns no such domain.
@@ -7353,6 +7601,156 @@ declare function outreachFactsOf(db: Db$f, p: {
  * first.
  */
 declare function addressesSuppressed(db: Db$f, tenantId: string, addresses: string[]): Promise<Set<string>>;
+/** What reach_out_reply_of answers: the reach-out a received email answers, and the reply itself. */
+interface ReachOutReplyOf {
+    send_id: string;
+    lead_id: string;
+    /** The lead's person (leads.contact_id): every step and every consent move lands there (G6). */
+    lead_contact_id: string | null;
+    /** The address the reach-out wrote to, as stored; the lead's website host. */
+    lead_email: string | null;
+    lead_website: string | null;
+    answered_message_id: string | null;
+    /** The first 600 characters of the email it answers. */
+    answered_text: string | null;
+    business: string;
+    chain: string | null;
+    signed_by: string | null;
+    /** The workspace's zone; null when it has none set. */
+    tz: string | null;
+    conversation_id: string;
+    /** Who wrote: the person the intake kept the message under. */
+    contact_id: string | null;
+    claim: "person" | "automated" | "auto_reply";
+    /** The intake's bare sender address (channels addressOf), never a display-name form. */
+    from: string | null;
+    subject: string | null;
+    text: string | null;
+    received_at: string;
+}
+/**
+ * Whose reply a received email is (00222 reach_out_reply_of): the reach-out email it answers or cites, else the latest
+ * one sent to its person, within `days` before it arrived; null when it answers none. A read that fails throws: a reply
+ * taken for nobody's would never be read, and a missed no is the one mistake that must not be made.
+ *
+ * A database before 00222 has no such door, and no reading either: there a reply is nobody's, exactly as before, so
+ * the edge may deploy first.
+ */
+declare function reachOutReplyOf(db: Db$f, p: {
+    tenantId: string;
+    messageId: string;
+    days: number;
+}): Promise<ReachOutReplyOf | null>;
+/** A reading as the job reads it back: what it was read as, whether it was read, re-read, told and undone. */
+interface ReplyReadingRow {
+    intent: string;
+    claim: string;
+    summary: string | null;
+    unread: string | null;
+    rereads: number;
+    plan: Json;
+    told_at: string | null;
+    undone_at: string | null;
+    /** The receptionist's draft (PR 5): its text once written, how far it got, and why there is none. */
+    draft: string | null;
+    draft_state: string;
+    draft_why: string | null;
+}
+/** The reading kept for this message, if any. A read that fails throws. */
+declare function replyReadingOf(db: Db$f, p: {
+    tenantId: string;
+    messageId: string;
+}): Promise<ReplyReadingRow | null>;
+/**
+ * The draft's mark (00222 reach_out_reply_draft): waiting, written with its text, or not written with why. Written only
+ * from none or waiting, so a second stage never writes over the first: true when this call wrote it.
+ */
+declare function markReplyDraft(db: Db$f, p: {
+    tenantId: string;
+    messageId: string;
+    state: "waiting" | "written" | "not_written";
+    draft: string | null;
+    why: string | null;
+}): Promise<boolean>;
+/** One read of the workspace's UTC day, taken if it is under `cap` (00222 reach_out_read_take): true when taken. */
+declare function takeReplyRead(db: Db$f, p: {
+    tenantId: string;
+    cap: number;
+    at: Date;
+}): Promise<boolean>;
+/**
+ * A reading and its plan, applied once (00222 reach_out_reply_apply): true when this call applied it, false when the
+ * reading was already kept (or, for a re-read, already read). `reread` is which re-read this is, 0 for the first read.
+ */
+declare function applyReplyReading(db: Db$f, p: {
+    tenantId: string;
+    messageId: string;
+    reading: Json;
+    plan: Json;
+    reread: number;
+    days: number;
+}): Promise<boolean>;
+/**
+ * The notice's first phase (B2): this call's claim (the moment the row keeps), or null when a live claim holds it or it
+ * was told. A claim older than `staleBefore` is claimed again.
+ */
+declare function claimReplyTell(db: Db$f, p: {
+    tenantId: string;
+    messageId: string;
+    staleBefore: Date;
+}): Promise<string | null>;
+/**
+ * The notice's second phase: marked told, only once the owner was told and only while `claim` still holds it (a re-read
+ * that made the reading due a notice again took it back). A write that fails throws.
+ */
+declare function markReplyTold(db: Db$f, p: {
+    tenantId: string;
+    messageId: string;
+    claim: string;
+}): Promise<void>;
+/** A reading as the dashboard lists it: the row, and the lead, send and step it answers. */
+interface ReplyListRow {
+    message_id: string;
+    conversation_id: string;
+    read_at: string;
+    intent: string;
+    claim: string;
+    summary: string | null;
+    named_day: string | null;
+    refer_to: string | null;
+    unread: string | null;
+    rereads: number;
+    undone_at: string | null;
+    draft: string | null;
+    draft_state: string;
+    draft_why: string | null;
+    /** What the reading did (contracts ReadingPlan, as JSON), and an automatic away's day back. */
+    plan: Json;
+    until_at: string | null;
+    business: string | null;
+    /** The step the reply answers (reach_out_sends.playbook_id), and its chain's first step. */
+    playbook_id: string | null;
+    root_id: string | null;
+}
+/**
+ * A workspace's readings since a moment, newest first and at most `limit`, on the caller's client (RLS decides): with
+ * the business each answers and the step its reach-out email was, read in one batch each.
+ */
+declare function repliesFor(db: Db$f, p: {
+    tenantId: string;
+    since: string;
+    conversationId?: string | null;
+    limit: number;
+}): Promise<ReplyListRow[]>;
+/** A reading by its message, on the caller's client: the row a member's undo acts on. Null when RLS hides it. */
+declare function replyReadingRefOf(db: Db$f, messageId: string): Promise<{
+    id: string;
+    tenant_id: string;
+} | null>;
+/** Whether the caller may undo this reading (00222 reach_out_reply_undoable): null when they may, else why not. */
+declare function replyUndoableOf(db: Db$f, messageId: string): Promise<string | null>;
+/** "Read as no · undo" (00222 reach_out_reply_undo), as the caller. A refusal throws the door's error, its code kept. */
+declare function undoReplyReading(db: Db$f, messageId: string): Promise<Json>;
 
 /**
  * Reach out's sends and the doors they go through (Part 3): the one place `reach_out_sends` is typed, and the doors of
@@ -7426,11 +7824,15 @@ interface FollowerLead {
     region: string | null;
     hours: unknown;
     parent_message_id: string;
-    /** The lead's own facts (outreach_lead_facts, keyed by it): the answer the send door will give about them. */
+    /**
+     * The lead's own facts (outreach_lead_facts, keyed by it): the answer the send door will give about them. `away` is
+     * absent before 00226, and read as not away.
+     */
     facts: {
         lead_stage: string | null;
         suppressed: boolean;
         wrote_back: boolean;
+        away?: boolean;
     };
     /** Any email of the chain to them bounced or failed for good (C4): the chain stops. */
     bounced: boolean;
@@ -8955,4 +9357,4 @@ declare function readAllRows<T>(what: string, page: (from: number, to: number) =
  */
 declare function readAllRowsByKey<T>(what: string, key: (row: T) => string, page: (after: string | null, size: number) => PromiseLike<Page<T>>, cap?: number, onCapped?: (what: string, cap: number) => void): Promise<T[]>;
 
-export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WriteError, type WrittenEmail, type YesRow, acceptHandover, activityTokensOf, addToList, addressesSuppressed, applyDomainCheck, archiveList, assembleHistory, becomePartner, callerNameOf, callersOf, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, messageSenders, monthSent, moveSend, namesOfPeople, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailSent, stampMailboxReceived, stampReachOutStep, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, watchedTables, withdrawEmail, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };
+export { type AudienceLead, CALL_CONTROL_S, type ChannelLookup, type ColdReceiptsOwed, type ControlHolder, type ControlOutcome, DEFAULT_ROW_CAP, type Database, type DomainCapacity, type DueDomain, type FollowerLead, HISTORY_COLUMNS, type HandoverInvite, type HandoverResult, type HandoverSent, type HandoverWorkspace, type HeldNoticeMark, type HeldNoticeRun, IDS_PER_READ, type IdempotencyClaim, type IdempotencyHold, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type LeadOneLead, type LeadOneMember, type ListRow, MAX_ROWS, type MailboxRow, type MessageHit, type MessageInsert, type MessageSender, type NormalizedCallInput, type OpenHandover, type OutboundTarget, type OutreachFactsRow, type OutreachMode, PEOPLE_PAGE, type Page, type ParentEmail, type PartnerBalanceLine, type PartnerHandoverLine, type PartnerOverviewRow, type PartnerPayoutAnswer, type PartnerPublicRow, type PartnerRow, type PartnerTenantRow, type PartnerVerbResult, type PartnerWorkspaceMoneyLine, type PersonForSend, type PgThreadState, type PlatformPartnerBalanceLine, type PlatformPartnerWorkspaceLine, type PolicyRecord, type PutTenantConfigResult, type QueuedOutcome, type ReachOutRecordRow, type ReachOutReplyOf, type ReachOutRunSend, type ReachOutSendInsert, type ReachOutSendRow, type ReachOutStepRow, type ReplyListRow, type ReplyReadingRow, type RoutedChannel, type SavedListRow, type SendStanding, type SendingDomainHolder, type SendingDomainRow, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, type Touch, type TouchIndex, type UncheckedSend, type WriteError, type WrittenEmail, type YesRow, acceptHandover, activityTokensOf, addToList, addressesSuppressed, answeredReachOutEmail, applyDomainCheck, applyReplyReading, archiveList, assembleHistory, becomePartner, callerNameOf, callersOf, claimCallActivity, claimCallNotification, claimControl, claimIdempotencyKey, claimReplyTell, claimSends, closedRunSends, coldReceiptsOwed, contactEmailOf, countSendingDomains, countSentToday, createList, createServiceClient, createWorkspaceForBusiness, declineHandover, deleteList, deleteSendingDomain, deleteSendingDomainAsRead, describeLead, domainCapacityOf, domainHeldSince, dropFromList, dueDomains, dueSendingDomains, emailWordsByTemplate, emailWordsFrom, emailWordsOf, emitEvent, everyoneIn, finishableRuns, followUpTouchesSince, forgetActivityTokens, forgetNotification, getHandoverInvite, getOpenHandovers, getOwnPartner, getPartnerBalance, getPartnerBroughtCount, getPartnerHandovers, getPartnerLetters, getPartnerWorkspaces, getPlatformPartners, getTenantConfig, heldNoticeDue, heldStale, ingestCall, ingestInbound, ingestInboundEmail, insertQueuedEmail, keepIdempotencyReceipt, lastInboundEmail, leadAddressBounced, leadSlotsOf, leadWritten, linkCallMessage, listMemberIds, listPolicies, listRow, mailboxById, mailboxFor, mailboxOfTenant, markHeldNotice, markPartnerPaid, markProcessed, markReplyDraft, markReplyTold, messageSenders, monthSent, moveSend, namesOfPeople, notesForReceptionist, outreachFactsOf, outreachModeOf, parentEmailOf, pauseConversation, peoplePage, personReplyMode, platformHoldStands, playbooksOnList, putTenantConfig, queuedOutcomes, reachOutAudience, reachOutFollowers, reachOutPerson, reachOutRecord, reachOutReplyOf, reachOutRootOf, reachOutRunSendsOf, reachOutSendRefOf, reachOutStepsOf, readAllRows, readAllRowsByKey, readDealForPhone, readLeadContext, readLeadOne, readThreadState, recheckSends, recordCallNote, recordCarrierOptOut, recordCheck, recordEchoAndPause, recordEmailNo, recordEmailStatus, recordOutbound, recordPartnerSecondFactorReset, recordProviderDomain, recordStatusByExternalId, releaseControl, releaseIdempotencyKey, releaseUnavailableHolds, renameList, repliesFor, replyReadingOf, replyReadingRefOf, replyUndoableOf, reputationHoldsSince, resendHandover, reserveSendingDomain, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, runSending, runsWaitingOf, savedListFor, savedListsFor, searchMessages, searchNamesByIds, sendJobScheduled, sendNow, sendStanding, sendingDomainByHost, sendingDomainCounts, sendingDomainOf, sendingDomainsOf, sentEmailOf, sentEmailRequestOf, sentEmailWithMessageId, setCallRecording, setListRule, setPartnerLetters, setPartnerStanding, setPartnerStatus, setPersonReplyMode, setPolicyMode, staleSends, stampEmailComplaint, stampEmailLeftAs, stampEmailSent, stampMailboxReceived, stampReachOutStep, stuckClaims, subscribeMessagesInserts, suppressEmailOf, takeCheckAttempt, takeIdempotencyKey, takeReplyRead, templatesFor, tenantZoneOf, touchIndex, touchSendingDomain, touchesSince, uncheckedSends, uncheckedWaiting, undoReplyReading, watchedTables, withdrawEmail, workspaceAbout, workspaceMaySpend, workspaceNameAndConfig, writtenEmail, writtenEmails, yesesSince };

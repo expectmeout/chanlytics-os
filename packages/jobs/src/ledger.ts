@@ -52,7 +52,7 @@ export const FUNCTION_CEILING_MS = MIN_MS;
  * The deadline a LEAD job is handed, from the tick's start. A broadcast's
  * deadline stops fifteen seconds short of the ceiling so a send in flight can
  * come back; a lead job guards every call it makes with its own margin
- * (core runner.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
+ * (core runner/rules.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
  * ever in flight past its deadline and it needs no room after it. Its
  * deadline sits at the ceiling less the kill margin the runner already keeps.
  *
@@ -157,6 +157,11 @@ export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
   // The receipts of a send (00189): Expo keeps them a day, so a bad minute and
   // then a short outage are affordable waits, each outlasting the lease.
   push_receipts: [5 * MIN_MS, 30 * MIN_MS],
+  // A reply to a reach-out, read (Reach out Part 5, 00222). Every stage is written to be run again: the reading is kept
+  // once per message and a re-read by compare-and-set, the notice is claimed before it is told and marked only after
+  // (its claim goes stale with the lease, before either wait ends). A thrown read or write, or a notice whose mail
+  // failed, lands here: two minutes, then ten, each outlasting the lease.
+  reply_read: [2 * MIN_MS, 10 * MIN_MS],
 };
 
 /** How long a job that just threw waits before it is tried again; null when it is failed now. */

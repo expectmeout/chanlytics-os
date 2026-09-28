@@ -3990,21 +3990,168 @@ export type Database = {
         Row: {
           attempts: number
           day: string
+          reads: number
           tenant_id: string
         }
         Insert: {
           attempts?: number
           day: string
+          reads?: number
           tenant_id: string
         }
         Update: {
           attempts?: number
           day?: string
+          reads?: number
           tenant_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "reach_out_check_spend_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reach_out_replies: {
+        Row: {
+          answered_message_id: string | null
+          claim: string
+          contact_id: string | null
+          conversation_id: string
+          draft: string | null
+          draft_state: string
+          draft_why: string | null
+          intent: string
+          lead_contact_id: string | null
+          lead_id: string | null
+          message_id: string
+          named_day: string | null
+          plan: Json
+          read_at: string
+          refer_to: string | null
+          reread_at: string | null
+          rereads: number
+          send_id: string | null
+          summary: string | null
+          tell_claimed_at: string | null
+          tenant_id: string
+          told_at: string | null
+          undone_at: string | null
+          undone_by: string | null
+          unread: string | null
+          until_at: string | null
+        }
+        Insert: {
+          answered_message_id?: string | null
+          claim: string
+          contact_id?: string | null
+          conversation_id: string
+          draft?: string | null
+          draft_state?: string
+          draft_why?: string | null
+          intent: string
+          lead_contact_id?: string | null
+          lead_id?: string | null
+          message_id: string
+          named_day?: string | null
+          plan?: Json
+          read_at?: string
+          refer_to?: string | null
+          reread_at?: string | null
+          rereads?: number
+          send_id?: string | null
+          summary?: string | null
+          tell_claimed_at?: string | null
+          tenant_id: string
+          told_at?: string | null
+          undone_at?: string | null
+          undone_by?: string | null
+          unread?: string | null
+          until_at?: string | null
+        }
+        Update: {
+          answered_message_id?: string | null
+          claim?: string
+          contact_id?: string | null
+          conversation_id?: string
+          draft?: string | null
+          draft_state?: string
+          draft_why?: string | null
+          intent?: string
+          lead_contact_id?: string | null
+          lead_id?: string | null
+          message_id?: string
+          named_day?: string | null
+          plan?: Json
+          read_at?: string
+          refer_to?: string | null
+          reread_at?: string | null
+          rereads?: number
+          send_id?: string | null
+          summary?: string | null
+          tell_claimed_at?: string | null
+          tenant_id?: string
+          told_at?: string | null
+          undone_at?: string | null
+          undone_by?: string | null
+          unread?: string | null
+          until_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reach_out_replies_answered_message_id_fkey"
+            columns: ["answered_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_replies_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_replies_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_replies_lead_contact_id_fkey"
+            columns: ["lead_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_replies_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_replies_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: true
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_replies_send_id_fkey"
+            columns: ["send_id"]
+            isOneToOne: false
+            referencedRelation: "reach_out_sends"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reach_out_replies_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -5959,6 +6106,10 @@ export type Database = {
         Args: { p_search_id: string; p_tenant_id: string }
         Returns: Json
       }
+      reach_out_read_take: {
+        Args: { p_at?: string; p_cap: number; p_tenant_id: string }
+        Returns: boolean
+      }
       reach_out_recheck: {
         Args: {
           p_from_state?: string
@@ -5994,6 +6145,52 @@ export type Database = {
       reach_out_remove: {
         Args: { p_root_id: string; p_tenant_id: string }
         Returns: Json
+      }
+      reach_out_reply_apply: {
+        Args: {
+          p_days: number
+          p_message_id: string
+          p_plan: Json
+          p_reading: Json
+          p_reread: number
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      reach_out_reply_draft: {
+        Args: {
+          p_draft: string
+          p_message_id: string
+          p_state: string
+          p_tenant_id: string
+          p_why: string
+        }
+        Returns: boolean
+      }
+      reach_out_reply_of: {
+        Args: { p_days: number; p_message_id: string; p_tenant_id: string }
+        Returns: Json
+      }
+      reach_out_reply_tell_claim: {
+        Args: {
+          p_message_id: string
+          p_stale_before: string
+          p_tenant_id: string
+        }
+        Returns: string
+      }
+      reach_out_reply_told: {
+        Args: {
+          p_claimed_at: string
+          p_message_id: string
+          p_tenant_id: string
+        }
+        Returns: boolean
+      }
+      reach_out_reply_undo: { Args: { p_message_id: string }; Returns: Json }
+      reach_out_reply_undoable: {
+        Args: { p_message_id: string }
+        Returns: string
       }
       reach_out_run_recheck: { Args: { p_broadcast_id: string }; Returns: Json }
       reach_out_save: {
@@ -6197,6 +6394,15 @@ export type Database = {
       }
       stamp_email_complaint: {
         Args: { p_at: string; p_message_id: string; p_tenant_id: string }
+        Returns: boolean
+      }
+      stamp_email_left_as: {
+        Args: {
+          p_left_as: string
+          p_message_id: string
+          p_tenant_id: string
+          p_why: string
+        }
         Returns: boolean
       }
       stamp_email_sent: {

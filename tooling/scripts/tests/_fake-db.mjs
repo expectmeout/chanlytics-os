@@ -18,6 +18,21 @@
 import crypto from "node:crypto";
 
 /**
+ * The database's clock, one per world (the `tables` a double is made over): each statement's now(), a millisecond
+ * after the last one's at the least, as two statements' are in Postgres, which counts in microseconds. The wall clock
+ * alone gave a turn's answer and the next question one stamp in 21 of 150 runs, and a read ordered newest first with
+ * the id as the tiebreak (Ask's readThread) then put those two rows in their random ids' order. The rows of one
+ * statement share its stamp, as they share a transaction's now(). Under a frozen or mocked `Date`, each later
+ * statement is still a millisecond on, and a clock mocked backwards does not move a world's stamps back.
+ */
+const clocks = new WeakMap();
+function stampOf(tables) {
+  const at = Math.max(Date.now(), (clocks.get(tables) ?? 0) + 1);
+  clocks.set(tables, at);
+  return new Date(at).toISOString();
+}
+
+/**
  * A column, or a JSON path the way PostgREST spells one: `recording->>fetch_state`
  * reads the key inside the object. Modelled for the recordings purge, whose
  * candidates are "stored" rows -- a state that lives inside a jsonb column.
@@ -137,7 +152,7 @@ function matches(row, filters) {
 }
 
 /**
- * A partial unique index (`opts.uniqueIndexes`: `[{ table, name, columns, where }]`): among the rows `where` admits,
+ * A partial unique index (`opts.uniqueIndexes`: `[{ table, name, columns | key, where }]`): among the rows `where` admits,
  * the `columns` hold each combination once. An insert or an update that would leave two such rows fails as Postgres
  * fails the statement (23505, naming the index, nothing written). Modelled for the one line a workspace holds
  * (lines_one_live_per_tenant_idx, 00195): two buys that crossed both read no line, and it is the database, not the
@@ -147,9 +162,12 @@ function matches(row, filters) {
 function uniqueViolation(indexes, table, candidates, others) {
   for (const ix of indexes.filter((i) => i.table === table)) {
     const held = others.filter((r) => ix.where(r));
+    // An index on expressions (`key`: the row's key, as a string) rather than columns: jobs_reply_read_once is on the
+    // payload's message and stage (00222).
+    const same = ix.key ? (a, b) => ix.key(a) === ix.key(b) : (a, b) => ix.columns.every((c) => a[c] === b[c]);
     for (const row of candidates) {
       if (!ix.where(row)) continue;
-      if (held.some((r) => ix.columns.every((c) => r[c] === row[c])))
+      if (held.some((r) => same(r, row)))
         return { code: "23505", message: `duplicate key value violates unique constraint "${ix.name}"` };
       held.push(row);
     }
@@ -313,9 +331,10 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // none, and answers with them -- `.select()` after an insert reads back
       // what was written, as PostgREST does.
       if (q.op === "insert") {
+        const at = stampOf(tables);
         const made = q.values.map((v) => ({
           id: crypto.randomUUID(),
-          created_at: new Date().toISOString(),
+          created_at: at,
           ...v,
         }));
         // A table named in `opts.unique` holds each id once, as its primary key does: an insert of an id it holds fails
@@ -385,6 +404,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       // saying it twice makes one row.
       if (q.op === "upsert") {
         const made = [];
+        const at = stampOf(tables);
         for (const v of q.values) {
           const existing = rows().find((r) => q.conflict.every((c) => r[c] === v[c]));
           if (existing) {
@@ -396,7 +416,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
             made.push(existing);
             continue;
           }
-          const r = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...v };
+          const r = { id: crypto.randomUUID(), created_at: at, ...v };
           rows().push(r);
           made.push(r);
         }

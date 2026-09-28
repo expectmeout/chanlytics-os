@@ -58,6 +58,7 @@ export function onPageMessage(state: ShellState, raw: string): { state: ShellSta
       return { state, effect: "nothing" };
     case "route":
     case "overlay":
+    case "file":
       return { state, effect: "nothing" };
     case "theme":
       return { state: { ...state, theme: m.theme }, effect: "theme" };
