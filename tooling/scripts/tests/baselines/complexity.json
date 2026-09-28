@@ -829,11 +829,6 @@
     "branches": 40,
     "depth": 1
   },
-  "packages/contracts/src/config/workspace-config/compose.ts::composeSystemPromptWith#1": {
-    "lines": 254,
-    "branches": 66,
-    "depth": 2
-  },
   "packages/contracts/src/conversations/call-vm.ts::toCallVM#1": {
     "lines": 140,
     "branches": 69,
