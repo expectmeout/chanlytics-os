@@ -516,6 +516,47 @@ test("a seed that names a thread opens that thread, its last answer under the li
   await closes();
 });
 
+test("a question asked in an open thread hands the page's context the thread it joins, as the Line holds it, so a place in the words is the last answer's item (the Phase 5 plan, D7); a new conversation hands none", async () => {
+  const calls = ask([TH(1), TH(2)]);
+  const seen = [];
+  globalThis.window.__ask.context = (route, words, thread) => {
+    seen.push({ words, thread });
+    return { v: 1, surface: "today", route: route.page, rows: [], askedAt: 1 };
+  };
+  globalThis.window.__ask.send = async (input, on) => {
+    calls.inputs.push(input);
+    on({ t: "thread", id: input.threadId ?? TH(3).id, title: input.text });
+    on({ t: "final", message: said(`m-${calls.inputs.length}`, `Answer ${calls.inputs.length}.`) });
+  };
+  const asked = async (tree, words) => {
+    typed(tree, words);
+    tree = await later(Palette, OPEN);
+    keyed(tree, "Enter");
+    return later(Palette, OPEN);
+  };
+  try {
+    render(Palette, CLOSED);
+    sent("ask:seed", { thread: TH(2).id });
+    let tree = await asked(await opens(), "and the second one?");
+    const joined = seen.find((s) => s.words === "and the second one?");
+    assert.deepEqual(
+      joined.thread.map((m) => [m.role, m.text]),
+      [
+        ["user", "Question 2"],
+        ["assistant", "The answer to Question 2."],
+      ],
+      "the thread it joins: its messages before this question",
+    );
+    assert.equal(calls.inputs.at(-1).threadId, TH(2).id);
+    press(byTestId(tree, "ask-clear"));
+    tree = await asked(await later(Palette, OPEN), "who is new this week?");
+    assert.equal(seen.find((s) => s.words === "who is new this week?").thread, null, "a new conversation: none");
+  } finally {
+    delete globalThis.window.__ask.context;
+    await closes();
+  }
+});
+
 /* ------------------------------ the Line ------------------------------ */
 
 // Today's queue as the Line reads it: a person waiting and a search waiting, so Right now has its two pills.

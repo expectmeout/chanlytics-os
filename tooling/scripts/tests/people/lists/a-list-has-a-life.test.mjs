@@ -13,6 +13,7 @@
  */
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "../../_fake-db.mjs";
@@ -461,7 +462,12 @@ test("either deploy order: on a database 00169 has not reached, every list reads
 
 test("every table a surface repaints on is one the one subscription listens to -- People's lists named two it never heard", async () => {
   const WATCHED_TABLES = (await import(at("packages/db/src/realtime.ts"))).watchedTables();
-  const surfaces = await import(at("apps/dashboard/src/legacy-bridge/surface-data.ts"));
+  // The seam and each surface's module beside it (legacy-bridge/surfaces/).
+  const SURFACES = "apps/dashboard/src/legacy-bridge/surfaces";
+  const modules = ["apps/dashboard/src/legacy-bridge/surface-data.ts"].concat(
+    fs.readdirSync(path.join(ROOT, SURFACES)).map((f) => `${SURFACES}/${f}`),
+  );
+  const surfaces = Object.assign({}, ...(await Promise.all(modules.map((m) => import(at(m))))));
   const unheard = Object.entries(surfaces).flatMap(([name, o]) =>
     Array.isArray(o?.refreshOnTables)
       ? o.refreshOnTables.filter((t) => !WATCHED_TABLES.includes(t)).map((t) => `${name}: ${t}`)

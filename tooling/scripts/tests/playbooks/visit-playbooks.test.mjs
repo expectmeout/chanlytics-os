@@ -303,7 +303,7 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
     handler.includes('.select("contact_id, facts")'),
     "the row's own words ride the batch; the slots are filled from them (run in core-broadcast.test.mjs)",
   );
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/playbooks.ts");
   assert.ok(
     sd.includes("kind: t.kind") && sd.includes('calendar: pb.calendar ?? "none"'),
     "the page knows which triggers need the calendar, and whether there is one -- from the route that counts the pools",
