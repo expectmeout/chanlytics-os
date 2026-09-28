@@ -20,7 +20,7 @@ import { ts } from "./person-helpers";
 import { personNotesVM, type PersonNoteTeamDto, type PersonNoteVM } from "../notes/person-notes";
 import { PERSON_CHANNEL_WORDS, type PersonChannel } from "./person-words";
 import { HELD_REASONS, isReplyTo } from "../broadcasts/run-words";
-import { messageAt } from "../conversations/viewmodels";
+import { messageAt } from "../conversations/thread-dto";
 import {
   aboutOf,
   personFactsOf,

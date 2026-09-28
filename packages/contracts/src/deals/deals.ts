@@ -12,7 +12,7 @@
  */
 import { foldName, needsConsultation, type ConsultRules } from "../calendar/availability";
 import { clockDate, wallClockAt, zoneDayKey } from "../shared/clock";
-import { isRealDate } from "../config/config";
+import { isRealDate } from "../config/workspace-config/config-schema";
 import { leadAnd } from "../leads/leads";
 import { linkHost } from "../shared/link";
 import { DAY_MS } from "../shared/time";
