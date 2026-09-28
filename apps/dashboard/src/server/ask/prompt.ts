@@ -1,9 +1,12 @@
 import "server-only";
 import {
+  ASK_ANSWER_CAPS,
   ASK_ROW_WORDS,
   DAYS,
   POLICY_CLASSES,
   POLICY_CLASS_WORDS,
+  answerFromV1,
+  clip as answerClip,
   describeNow,
   guardrailsInForce,
   hoursRuns,
@@ -11,7 +14,8 @@ import {
   type TenantConfig,
 } from "@chanlytics/contracts";
 import type { MembershipRole } from "@chanlytics/contracts";
-import type { AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
+import type { AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
+import { oneLine } from "./context/rows";
 
 /**
  * What the assistant is told, and in what order.
@@ -61,7 +65,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
 
 export const ASK_RULES = [
   "You are the workspace assistant inside Chanlytics OS for one small business. You help the owner and their team see what the receptionist (an automated WhatsApp and phone assistant) has been doing, find people and conversations, and understand the workspace's settings and numbers.",
-  "Answer from the tools. Never state a name, a count, a time, a price or a quote you did not read this turn. If a tool returns nothing, say so plainly. If you are not sure, say what you would need to check.",
+  "Answer from the tools. Never state a name, a count, a time, a price or a quote you did not read this turn, but for a row an earlier answer in this thread named: it may be named, cited and opened by the kind, id and name the earlier turns give it, without a read, and anything about it (a count, a time, what was said, where it stands now) is read again. If a tool returns nothing, say so plainly. If you are not sure, say what you would need to check.",
   "Answer in the person's language (Spanish if they wrote Spanish), in plain words: no markdown, lists, headings, tags or emoji in any string. The answer is written in its format, in three parts the page draws in order: say, show and do.",
   'say.headline is the answer itself, in one sentence: the finding first ("6 of 16 customer messages went unanswered"), never a preamble ("Here is your week"). say.detail is empty unless the headline needs a reason or a condition that show cannot hold; it never repeats a number or a row that show has, and it grows only when they asked why, how, for a summary or for detail.',
   `show holds only what the headline rests on: figures for its numbers, items for the rows it names (${ASK_ROW_WORDS}), and a breakdown for one whole in parts whose values add up exactly to its total. Leave a part empty rather than fill it for its own sake.`,
@@ -300,13 +304,23 @@ export interface TurnFacts {
    * the clock, in this question's words, never by an edit of an earlier message.
    */
   since?: CardOutcome[];
+  /**
+   * The row their words point at, as the tab read them (PageContext.focus, the Phase 5 plan, D7): an earlier answer's
+   * item by its place in an open thread, or the page's row by its place or its name; said when it is not the scope.
+   */
+  focus?: AskScope | null;
+  /**
+   * Whether this turn's read set holds the focus's row before the model is asked (loop.ts): only then may it be opened
+   * or named without a read. A page's rows can be cut by its caps, or its build fail, and the words can point past them.
+   */
+  focusRead?: boolean;
 }
 
 /**
  * This turn's words, in the user's message after the page's data and before
  * the question: the clock, on a live turn what happened since, who is asking,
- * where they are, the language, and that the data before them needs no second
- * read. They sit after the page's breakpoint (bp3), so words that change every
+ * where they are and the row their words point at, the language, and that the
+ * data before them needs no second read. They sit after the page's breakpoint (bp3), so words that change every
  * turn never cost the page its cache; a request's last block carries the fourth
  * (bp4), so the turn's later rounds read them from the cache with the rest.
  */
@@ -348,6 +362,14 @@ export function turnWords(t: TurnFacts): string {
     lines.push(
       `They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. ${read}`,
     );
+  // The row their words point at, when it is not the scope: an earlier answer's item (in the read set, D5) or the page's
+  // -- opened or named without a read only when the read set holds it (focusRead), else read first.
+  const f = t.focus;
+  const then = t.focusRead
+    ? "open or name it without a read; read it for anything about it"
+    : "read it first, to open or name it and for anything about it";
+  if (f && (f.kind !== t.scope?.kind || f.id !== t.scope?.id))
+    lines.push(`Their words point at ${f.label} (${f.kind} ${f.id}): ${then}.`);
   if (t.language === "es") lines.push("They wrote in Spanish; answer in Spanish.");
   else if (t.language === "en") lines.push("They wrote in English; answer in English.");
   return lines.join("\n");
@@ -411,6 +433,67 @@ export function askTurnText(words: string, answering: SearchAnswering | null): s
     `I had asked for: “${a.asked}”${leaving}. My answer: ${words}. ` +
     "Propose the same search with my answer applied (propose_lead_search with amends set to that id), and keep everything I did not change."
   );
+}
+
+/** The most a rebuilt line says of an answer (the Phase 5 plan, D4): its cards and rows past these are "and N more". */
+const LINE_CAPS = {
+  cards: 3,
+  title: ASK_ANSWER_CAPS.title,
+  receipt: 80,
+  rows: ASK_ANSWER_CAPS.items,
+  label: ASK_ANSWER_CAPS.label,
+} as const;
+/**
+ * A part of a rebuilt line, cut as an answer's own parts are (contracts clip): one line of words, never a new line, at
+ * most `n` characters, a longer one ending on a whole word with an ellipsis.
+ */
+const linePart = (s: string | null | undefined, n: number): string => answerClip(s, n);
+/** What the person did with a card, as a rebuilt line says it: theirs, and never "done". */
+const DID_WORD: Record<AskProposalOutcome["state"], string> = {
+  done: "approved",
+  dismissed: "dismissed",
+  failed: "failed",
+  undone: "undone",
+};
+function outcomeWords(o: AskProposalOutcome | null | undefined): string {
+  if (!o) return "not pressed yet";
+  const receipt = o.state === "done" || o.state === "failed" ? linePart(o.receipt, LINE_CAPS.receipt) : "";
+  return receipt ? `${DID_WORD[o.state]}: ${receipt}` : DID_WORD[o.state];
+}
+/** A list in a rebuilt line: `<name>: a; b; and N more.`, or nothing for none. */
+const listed = (name: string, parts: string[], more: number): string =>
+  parts.length || more > 0 ? `${name}: ${[...parts, ...(more > 0 ? [`and ${more} more`] : [])].join("; ")}.` : "";
+
+/**
+ * An earlier answer as a cold turn's history says it (the Phase 5 plan, D4): one line, never a new line -- its headline
+ * (a prose answer's first words), then each card it made as `<id> · <kind> · <title> · <what the person did>`, then the
+ * rows it named in the answer's order as `<n>. <kind> <id> <label>`, each part only when there is one; a turn that
+ * failed says so first, and keeps its cards. At most `max` characters, the history's cut for a turn: a row the line has
+ * no room for goes whole into "and N more", so an id is never cut. An answer of words alone, one line of 160 characters
+ * at most, is the words as they were.
+ */
+export function answerLine(m: AskMessageVM, max: number): string {
+  const a = m.answer ?? answerFromV1(m);
+  const cards = m.proposals
+    .slice(0, LINE_CAPS.cards)
+    .map((p) => [oneLine(p.id), p.kind, linePart(p.title, LINE_CAPS.title), outcomeWords(p.outcome)].join(" · "));
+  const head = [
+    m.failed ? "(This turn failed.)" : "",
+    linePart(a.say.headline || a.say.detail, ASK_ANSWER_CAPS.headline),
+    listed("Cards", cards, m.proposals.length - cards.length),
+  ];
+  const rows = a.show.items
+    .slice(0, LINE_CAPS.rows)
+    .map((it, i) =>
+      [`${i + 1}.`, it.source.kind, oneLine(it.source.id), linePart(it.source.label, LINE_CAPS.label)]
+        .filter(Boolean)
+        .join(" "),
+    );
+  const lineWith = (n: number) =>
+    [...head, listed("Rows, in order", rows.slice(0, n), rows.length - n)].filter(Boolean).join(" ");
+  let n = rows.length;
+  while (n > 0 && lineWith(n).length > max) n--;
+  return lineWith(n);
 }
 
 /**

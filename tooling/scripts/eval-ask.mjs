@@ -548,8 +548,9 @@ async function askTurn(q, rep, turn, { warmIt, threadId = null, scopeOf, first =
   let warmed = null;
   let scope = null;
   try {
-    // The page as the palette sends it: warmed as the Line opens, then carried with the question.
-    page = q.context ? resolveContext(q.context, answers) : null;
+    // The page as the palette sends it: warmed as the Line opens, then carried with the question -- a second turn's
+    // place in the words read against turn 1's answer first, as the palette reads it in an open thread.
+    page = q.context ? resolveContext(q.context, answers, Date.now(), first?.final ?? null) : null;
     if (page && warmIt) warmed = await warm(cookie, tenantId, page.context);
     scope = scopeOf(page);
     r = await ask(cookie, { text: q.text, surface: q.surface, page, threadId, scope }, page ? tenantId : null);
