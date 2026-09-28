@@ -15,13 +15,13 @@
  * [zip, lat, lng] triples sorted by zip, coordinates rounded to four decimals
  * (about eleven metres, a center and not a survey). About 33,000 rows.
  *
- *   node tooling/scripts/gen-zcta-centroids.mjs <path/to/2020_Gaz_zcta_national.txt>
+ *   node tooling/scripts/gen/zcta-centroids.mjs <path/to/2020_Gaz_zcta_national.txt>
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 export const OUT = path.join(ROOT, "packages/core/src/leads/zcta-centroids.json");
 
 /** The gazetteer's text to the table. Exported so a test can feed it three rows. */
@@ -50,7 +50,7 @@ export function centroidsOf(text) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const src = process.argv[2];
   if (!src) {
-    console.error("usage: node tooling/scripts/gen-zcta-centroids.mjs <2020_Gaz_zcta_national.txt>");
+    console.error("usage: node tooling/scripts/gen/zcta-centroids.mjs <2020_Gaz_zcta_national.txt>");
     process.exit(2);
   }
   const rows = centroidsOf(fs.readFileSync(src, "utf8"));

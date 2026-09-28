@@ -14,7 +14,7 @@ import { GET_YES_HASH, expectLeaksWellFormed, expectQrInView } from "../signals"
  * yes": the QR for the desk, the phrase, the link for a bio.
  *
  * The nightly's workspace is put in exactly that state before these run
- * (tooling/scripts/e2e-workspace.mjs: three people, a yes to messages, nothing
+ * (tooling/scripts/ops/e2e-workspace.mjs: three people, a yes to messages, nothing
  * to offers; its verify() refuses a workspace that drifted), so every check here
  * reads a known page rather than hoping the workspace happens to show one.
  */

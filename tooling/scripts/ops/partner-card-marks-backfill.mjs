@@ -18,15 +18,15 @@
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, STRIPE_SECRET_KEY
  * Usage:
- *   node --import tsx tooling/scripts/partner-card-marks-backfill.mjs
- *   node --import tsx tooling/scripts/partner-card-marks-backfill.mjs --apply
- *   node --import tsx tooling/scripts/partner-card-marks-backfill.mjs --apply --rejudge
+ *   node --import tsx tooling/scripts/ops/partner-card-marks-backfill.mjs
+ *   node --import tsx tooling/scripts/ops/partner-card-marks-backfill.mjs --apply
+ *   node --import tsx tooling/scripts/ops/partner-card-marks-backfill.mjs --apply --rejudge
  */
 import { createClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { cardFingerprintOf } from "../../apps/edge/lib/partners/earnings.ts";
+import { cardFingerprintOf } from "../../../apps/edge/lib/partners/earnings.ts";
 
 /** The subscriptions to mark: a subscription to read, and no mark kept for its workspace yet. */
 export function planCardMarks(accounts, markedTenantIds) {
@@ -134,7 +134,7 @@ async function main() {
   console.log(`${plan.length} subscriptions with no card mark.${again ? ` ${judged.length} to judge again.` : ""}`);
   if (!plan.length && !judged.length) return;
 
-  const { stripe } = await import("../../apps/edge/lib/billing/billing.ts");
+  const { stripe } = await import("../../../apps/edge/lib/billing/billing.ts");
   const s = stripe();
   if (!s) {
     console.error("Stripe is not configured (STRIPE_SECRET_KEY).");
@@ -151,7 +151,7 @@ async function main() {
     return;
   }
 
-  const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "backups");
+  const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "backups");
   mkdirSync(backupsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupPath = join(backupsDir, `partner-card-marks-backfill-${stamp}.jsonl`);

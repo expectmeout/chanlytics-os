@@ -2,7 +2,7 @@
  * The database's closed sets, and every hand-kept copy held to them.
  *
  * SCHEMA_SETS is generated from the CHECK constraints themselves
- * (schema-sets.generated.ts, written by tooling/scripts/gen-schema-sets.mjs).
+ * (schema-sets.generated.ts, written by tooling/scripts/gen/schema-sets.mjs).
  * The lists written by hand stay where they are, because they carry an order, a
  * comment per value, or a narrower meaning. Each is held here to its column:
  * exactly where it mirrors it, as a subset where it is narrower on purpose. When
