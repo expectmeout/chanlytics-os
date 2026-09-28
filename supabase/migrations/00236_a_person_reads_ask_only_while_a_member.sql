@@ -1,4 +1,4 @@
--- 00235 · A person reads their Ask threads only while they belong to the workspace.
+-- 00236 · A person reads their Ask threads only while they belong to the workspace.
 --
 -- 00040 kept the membership check on the write side only ("a member who has since been removed loses the workspace,
 -- not the memory of asking"): a turn then held the person's own words and the answer's. Since Ask Rewired's PR 5.3,

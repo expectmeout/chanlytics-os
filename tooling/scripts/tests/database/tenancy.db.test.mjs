@@ -877,7 +877,7 @@ test(
 );
 
 test(
-  "a person reads their Ask threads only while they belong to the workspace (00235): an answer keeps what the model read of the workspace's customers, so a person removed reads none of their threads or turns there, and one added back reads them again",
+  "a person reads their Ask threads only while they belong to the workspace (00236): an answer keeps what the model read of the workspace's customers, so a person removed reads none of their threads or turns there, and one added back reads them again",
   { skip },
   async () => {
     const leaver = await memberClient("viewer", A);
