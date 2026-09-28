@@ -12039,7 +12039,7 @@ async function outreachFactsOf(db, p) {
     lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
     suppressed: f.suppressed === true,
     wrote_back: f.wrote_back,
-    // Absent before 00223: not away, as it was.
+    // Absent before 00226: not away, as it was.
     away: f.away === true,
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,

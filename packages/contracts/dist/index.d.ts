@@ -18374,7 +18374,7 @@ interface OutreachLeadFacts {
     leadStage: string | null;
     suppressed: boolean;
     wroteBack: boolean;
-    /** An automatic out-of-office whose day is still ahead (00223, G8): the chain waits for it. */
+    /** An automatic out-of-office whose day is still ahead (00226, G8): the chain waits for it. */
     away: boolean;
 }
 declare function outreachRefusalOf(f: OutreachLeadFacts): DeliveryRefusal | null;

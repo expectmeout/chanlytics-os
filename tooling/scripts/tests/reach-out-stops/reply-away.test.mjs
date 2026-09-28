@@ -1,8 +1,8 @@
 /**
  * An automatic out-of-office pauses a chain (Reach out Part 5, PR 4; G8, N1): the lead's facts say `away` until the day
- * the reply names (00223), and the one mapping the send door and the step both ask refuses them `outreach_away`, after
+ * the reply names (00226), and the one mapping the send door and the step both ask refuses them `outreach_away`, after
  * every refusal that ends the chain. It is no wait: the send is skipped, and the step takes the lead back after the day
- * (00223's followers pass over that skip). The database's side is reply-away.db.test.mjs.
+ * (00226's followers pass over that skip). The database's side is reply-away.db.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -53,7 +53,7 @@ const answering = (data) => ({
 const ask = (db) =>
   outreachFactsOf(db, { tenantId: "t1", contactId: "c1", to: "office@example.com", host: "", since: "2026-09-01" });
 
-test("the facts read away as the database says it, and a database before 00223 as not away", async () => {
+test("the facts read away as the database says it, and a database before 00226 as not away", async () => {
   const base = { lead_stage: "ready", suppressed: false, wrote_back: false, domain: null, sent_since: 0 };
   assert.equal((await ask(answering({ ...base, away: true }))).away, true);
   assert.equal((await ask(answering({ ...base, away: false }))).away, false);

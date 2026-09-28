@@ -1,4 +1,4 @@
--- 00223 · An out-of-office pauses a chain.
+-- 00226 · An out-of-office pauses a chain.
 --
 -- Reach out, Part 5 (docs/superpowers/plans/2026-09-27-reach-out-part-5-replies.md, PR 4; G8 and Ruben's N1). 00222
 -- reads an automatic reply as away and records when the chain may go on (reach_out_replies.until_at), and does nothing
@@ -63,7 +63,7 @@ $$;
 revoke execute on function public.outreach_lead_facts(uuid, uuid, text, uuid) from public, anon, authenticated;
 grant execute on function public.outreach_lead_facts(uuid, uuid, text, uuid) to service_role;
 comment on function public.outreach_lead_facts(uuid, uuid, text, uuid) is
-  'A cold email''s facts about its lead: lead_stage (the send''s own lead when named, else the one still being written to), suppressed, wrote_back (00181), away (an automatic out-of-office whose day is still ahead, 00223). Service role only.';
+  'A cold email''s facts about its lead: lead_stage (the send''s own lead when named, else the one still being written to), suppressed, wrote_back (00181), away (an automatic out-of-office whose day is still ahead, 00226). Service role only.';
 
 /* ------------------------------------------------------ the followers -- */
 

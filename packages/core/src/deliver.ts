@@ -273,7 +273,7 @@ interface OutreachFacts {
    * email sent to them, or phoned it: a conversation now, never cold again (00181).
    */
   wroteBack: boolean;
-  /** An automatic out-of-office whose day is still ahead (00223): the chain waits for it. */
+  /** An automatic out-of-office whose day is still ahead (00226): the chain waits for it. */
   away: boolean;
   /** The request carries RFC 8058's one-click unsubscribe, both headers. */
   unsubscribable: boolean;

@@ -7347,7 +7347,7 @@ declare function stampEmailSent(db: Db$h, p: {
     conversationId: string;
 } | null>;
 /**
- * How a person's email reply left (00223 stamp_email_left_as): by the own domain it was frozen with, or as the
+ * How a person's email reply left (00226 stamp_email_left_as): by the own domain it was frozen with, or as the
  * mailbox's request and why not by its own. Merged into meta.email in one statement, as stampEmailSent merges the
  * Message-ID. False when there is no such outbound email. A write that fails throws.
  */
@@ -7552,7 +7552,7 @@ interface OutreachFactsRow {
      * answers or cites one sent to them, or a call they made. An out-of-office is not one.
      */
     wrote_back: boolean;
-    /** An automatic out-of-office whose day is still ahead (00223): the chain waits. A database before 00223 says nothing. */
+    /** An automatic out-of-office whose day is still ahead (00226): the chain waits. A database before 00226 says nothing. */
     away: boolean;
     /**
      * The From host's row as Connections set it up, with the days it has sent on since it was clean (D15, 00184); null
@@ -7754,7 +7754,7 @@ interface FollowerLead {
     parent_message_id: string;
     /**
      * The lead's own facts (outreach_lead_facts, keyed by it): the answer the send door will give about them. `away` is
-     * absent before 00223, and read as not away.
+     * absent before 00226, and read as not away.
      */
     facts: {
         lead_stage: string | null;

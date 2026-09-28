@@ -1,5 +1,5 @@
 /**
- * 00223 on the database (Reach out Part 5, PR 4; G8, N1, G15): an automatic out-of-office read as away keeps its lead
+ * 00226 on the database (Reach out Part 5, PR 4; G8, N1, G15): an automatic out-of-office read as away keeps its lead
  * out of the chain until the day it names, and a person's reply records how it left.
  *
  *   1. the facts say `away` for an automatic reply whose day is ahead, from the person or answering the lead, and the
@@ -348,14 +348,14 @@ test("only an automatic reply's reading carries a day to wait for (N1)", { skip 
 });
 
 test("the re-created bodies are 00220's and 00185's, but for the away", { skip }, async () => {
-  const src = migration("00223");
-  const facts223 = bodyIn(src, "create or replace function public.outreach_lead_facts(");
-  const awayArm = facts223.slice(
-    facts223.indexOf(",\n    -- An automatic out-of-office"),
-    facts223.lastIndexOf("\n  )"),
+  const src = migration("00226");
+  const facts226 = bodyIn(src, "create or replace function public.outreach_lead_facts(");
+  const awayArm = facts226.slice(
+    facts226.indexOf(",\n    -- An automatic out-of-office"),
+    facts226.lastIndexOf("\n  )"),
   );
   assert.equal(
-    facts223.replace(awayArm, ""),
+    facts226.replace(awayArm, ""),
     bodyIn(migration("00220"), "create or replace function public.outreach_lead_facts("),
   );
   const f223 = bodyIn(src, "create or replace function public.reach_out_followers(");
@@ -365,7 +365,7 @@ test("the re-created bodies are 00220's and 00185's, but for the away", { skip }
     .replace(/\n\s+and not coalesce\(\(f\.facts->>'away'\)::boolean, false\)/, "")
     .replace(/\(select 1 from public\.reach_out_sends x\n\s+where/, "(select 1 from public.reach_out_sends x where");
   assert.equal(back, f185);
-  assert.equal(liveBody("outreach_lead_facts"), facts223, "the database runs 00223's facts");
+  assert.equal(liveBody("outreach_lead_facts"), facts226, "the database runs 00226's facts");
   assert.equal(liveBody("reach_out_followers"), f223, "and its followers");
 });
 

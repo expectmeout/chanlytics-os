@@ -197,7 +197,7 @@ export async function stampEmailSent(
 }
 
 /**
- * How a person's email reply left (00223 stamp_email_left_as): by the own domain it was frozen with, or as the
+ * How a person's email reply left (00226 stamp_email_left_as): by the own domain it was frozen with, or as the
  * mailbox's request and why not by its own. Merged into meta.email in one statement, as stampEmailSent merges the
  * Message-ID. False when there is no such outbound email. A write that fails throws.
  */

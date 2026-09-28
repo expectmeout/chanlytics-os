@@ -135,7 +135,7 @@ export interface FollowerLead {
   parent_message_id: string;
   /**
    * The lead's own facts (outreach_lead_facts, keyed by it): the answer the send door will give about them. `away` is
-   * absent before 00223, and read as not away.
+   * absent before 00226, and read as not away.
    */
   facts: { lead_stage: string | null; suppressed: boolean; wrote_back: boolean; away?: boolean };
   /** Any email of the chain to them bounced or failed for good (C4): the chain stops. */

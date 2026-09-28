@@ -200,7 +200,7 @@ test("a step writes to the leads sent the step before, less anyone the door woul
       f("c", { bounced: true }),
       f("d", { facts: { lead_stage: "archived", suppressed: false, wrote_back: false } }),
       f("e", { facts: { lead_stage: "ready", suppressed: true, wrote_back: false } }),
-      // An automatic out-of-office (00223): skipped outreach_away, which the followers pass over after the day.
+      // An automatic out-of-office (00226): skipped outreach_away, which the followers pass over after the day.
       f("w", { facts: { lead_stage: "ready", suppressed: false, wrote_back: false, away: true } }),
       f("n", { facts: { lead_stage: "nurture", suppressed: false, wrote_back: false } }),
     ],
