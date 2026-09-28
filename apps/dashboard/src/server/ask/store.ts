@@ -7,6 +7,7 @@ import {
   type AskProposalOutcome,
   type AskScope,
   type AskThreadVM,
+  type AskTurnShape,
   citationRoute,
 } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
@@ -98,6 +99,12 @@ export function modelTurnOf(r: MessageRow): { role: "user" | "assistant"; text: 
   return { role: vm.role, text: askTurnText(vm.text, vm.role === "user" ? answeringOf(c.answering) : null) };
 }
 
+/** How a stored turn's earlier turns reached the model (AskTurnShape.replay), or null: a question, or a turn from before. */
+function replayOf(shape: unknown): AskTurnShape["replay"] | null {
+  const kind = shape && typeof shape === "object" ? (shape as { replay?: unknown }).replay : null;
+  return kind === "live" || kind === "rebuilt" || kind === "none" ? kind : null;
+}
+
 export async function readThread(
   ctx: RouteContext,
   id: string,
@@ -106,6 +113,8 @@ export async function readThread(
   messages: AskMessageVM[];
   /** The same turns as the model reads them (modelTurnOf): the history a new turn on this thread is asked with. */
   turns: Array<{ role: "user" | "assistant"; text: string }>;
+  /** Each row's history kind (replayOf), beside `messages`: where a live replay's chain begins (memory.ts). */
+  replays: Array<AskTurnShape["replay"] | null>;
   /** The thread may have more rows than the read returns (MESSAGES_CAP): the oldest would not be here. */
   truncated: boolean;
   tenantId: string;
@@ -122,11 +131,12 @@ export async function readThread(
   // Each row's content is read key by key, by its JSON path: the keys the Line (toMessageVM) and the history
   // (modelTurnOf) read, and never the rest -- an answer's content also holds the turn as the model was sent it
   // (content.raw, the Phase 5 plan, D11), up to sixty of which a whole read would ship on every turn and every reopen.
-  // A key a row does not hold reads as null, which both take as absent.
+  // A key a row does not hold reads as null, which both take as absent. The shape, whole (a nested path would read
+  // each row again), says how each turn's history went: where a live replay's chain begins, before any raw is read.
   const { data: msgs, error: merr } = await ctx.supabase
     .from("ask_messages")
     .select(
-      "id, role, created_at, v:content->v, answer:content->answer, citations:content->citations, text:content->text, followups:content->followups, navigate:content->navigate, proposals:content->proposals, language:content->language, ungrounded:content->ungrounded, tools:content->tools, latency_ms:content->latency_ms, rounds:content->rounds, failed:content->failed, answering:content->answering",
+      "id, role, created_at, v:content->v, answer:content->answer, citations:content->citations, text:content->text, followups:content->followups, navigate:content->navigate, proposals:content->proposals, language:content->language, ungrounded:content->ungrounded, tools:content->tools, latency_ms:content->latency_ms, rounds:content->rounds, failed:content->failed, answering:content->answering, shape:content->shape",
     )
     .eq("thread_id", id)
     .order("created_at", { ascending: false })
@@ -140,9 +150,21 @@ export async function readThread(
     thread: toThreadVM(t),
     messages: rows.map(toMessageVM),
     turns: rows.map(modelTurnOf),
+    replays: rows.map((r) => replayOf(r.content.shape)),
     truncated: rows.length >= MESSAGES_CAP,
     tenantId: t.tenant_id,
   };
+}
+
+/**
+ * The turns as the model was sent them (content.raw, the Phase 5 plan, D11) of the answers a live replay follows, by
+ * id, and nothing else of their rows: the one read of a raw turn, made only once the thread's rows say it is warm
+ * (memory.ts). RLS keeps it to the caller's own; a row it hides, or one gone, is absent.
+ */
+export async function readRaws(ctx: RouteContext, ids: string[]): Promise<Map<string, unknown>> {
+  const { data, error } = await ctx.supabase.from("ask_messages").select("id, raw:content->raw").in("id", ids);
+  if (error) throw new Error(error.message);
+  return new Map((data ?? []).map((r) => [r.id, r.raw]));
 }
 
 /** A scope as the thread's column holds it: its three fields, or none. */

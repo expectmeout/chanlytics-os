@@ -2,18 +2,28 @@ import "server-only";
 import { featureRejected } from "./sse";
 
 /**
- * What a turn gives up when the API refuses its request for it, once each and in this order: the page's data blocks
- * (the Phase 2 plan, D14), the tools' examples (the Phase 3 plan, D9), then the answer's format (D15). The same round
- * is asked again without it; a refusal that names none of them, or one already given up, is the turn's.
+ * What a turn gives up when the API refuses its request for it, once each and in this order: the replay of the
+ * thread's turns as sent (the Phase 5 plan, D12), the page's data blocks (the Phase 2 plan, D14), the tools' examples
+ * (the Phase 3 plan, D9), then the answer's format (D15). The same round is asked again without it; a refusal that
+ * names none of them, or one already given up, is the turn's.
  */
-type Dropped = "context" | "examples" | "format";
+type Dropped = "replay" | "context" | "examples" | "format";
 
 /** The line each drop logs, once a turn. */
 export const DROP_EVENTS: Record<Dropped, string> = {
+  replay: "ask_replay_rejected",
   context: "ask_context_rejected",
   examples: "ask_examples_rejected",
   format: "ask_format_rejected",
 };
+
+/**
+ * A refusal of a replayed thinking block (D12): its signature invalid, or bound to a different conversation -- the
+ * API decides it before any output, so the round is asked again with the words instead.
+ */
+function replayRefused(message: string): boolean {
+  return /^400\b/.test(message) && /signature|bound to a different conversation/i.test(message);
+}
 
 /** A refusal of the request for its search_result blocks, or their cache marks (D14). */
 function blocksRefused(message: string): boolean {
@@ -27,10 +37,12 @@ function examplesRefused(message: string): boolean {
 
 /**
  * What to give up for this refusal, given what the turn still carries. A second examples refusal, with them already
- * gone, is the turn's -- never the format's, whose predicate would match the "input_schema" the real refusal names.
+ * gone, is the turn's -- never the format's, whose predicate would match the "input_schema" the real refusal names. The
+ * replay is given up first, and only while the turn still replays (a live turn's round one).
  */
 export function dropFor(message: string, still: Record<Dropped, boolean>): Dropped | null {
   if (!message) return null;
+  if (still.replay && replayRefused(message)) return "replay";
   if (still.context && blocksRefused(message)) return "context";
   if (examplesRefused(message)) return still.examples ? "examples" : null;
   return still.format && featureRejected(message) ? "format" : null;

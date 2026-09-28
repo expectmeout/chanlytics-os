@@ -79,6 +79,7 @@ argued in its commit message, and takes no row here: nothing is owed that was no
 | Workspace route JS 962.0 → 972.4 KB gzipped (partners, decision 0020, #1206; the CSS stays in its band)                                                            | Main measured 970.1 KB inside the 1% band; #1206 adds 2.3 KB (9.2 KB raw): the owner's partner card, the partner's list of workspaces asking, their bridge verbs and contracts' words. The shell imports every page at once and contracts is one bundle, so no module boundary keeps them off the route                                                         | The shell's exit, one surface at a time (0015), which loads a page's code when it opens        |
 | Tree shape: dashboard `server/readers/` 31 → 32 modules (Ask Rewired 4.5, the Phase 4 plan's D12)                                                                  | `readers/messages.ts`, the message search reader, is Phase 4's one new reader file: the others went into the domain files that exist (one lead into `leads.ts`, one search into `searches.ts`, the pipeline into `people.ts`), and no reader's domain holds what was written and said in every thread and call                                                  | A move splits `server/readers/` (none planned; #1161 kept it whole)                            |
 | `runAskTurn` (dashboard `server/ask/loop.ts`) +1 branch, 86 → 87 (Ask Rewired 4.3, #1202; raised in #1201's merge of main)                                         | The scoped read (`cross-page.ts` `scopedRead`) is handed the page's route, `input.context?.route`, so a lead open on a search's view rides in as that search found it; the `?.` is the branch, the page being null from an older tab or a script. `runAskTurn` is Ask Rewired's; the plan leaves its split to it                                                | Split with Ask Rewired: one of Ask's functions over the limit                                  |
+| Table names outside packages/db: dashboard `server/ask/store.ts` 9 → 10 (Ask Rewired 5.4, the live replay)                                                         | The replay reads the raw turns of a warm thread's chain by id (`readRaws`: `id, raw:content->raw`), a second `.from("ask_messages")`, made only once the thread's rows say it is warm. Sharing `readThread`'s call site would ship up to sixty raw turns, each up to ~400,000 characters at the caps, on every Line read and every reopen                       | Ask's thread reads move into a `packages/db` repository                                        |
 
 ## The numbers
 
@@ -95,9 +96,9 @@ window globals                      200   names
 window publishers                   446   sites in 153 files
 copies                              152   of 38 names
 as unknown as                       221
-table names outside packages/db     533
+table names outside packages/db     534
 unnamed durations                    78   in 39 files
-dead exports, types and modules     165
+dead exports, types and modules     161
 source-text reads in tests          827
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      972   the shell included
