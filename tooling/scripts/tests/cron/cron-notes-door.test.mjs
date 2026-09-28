@@ -1,6 +1,6 @@
 /**
  * The note sweep, run (0007 phase 2): POST /api/cron/notes over a database in memory, and the look loop it runs
- * (lib/notes/suggest.ts) with the model replaced by an answer the test writes.
+ * (lib/notes.ts) with the model replaced by an answer the test writes.
  *
  * Most looks must end with nothing and never reach the model; the few that pass the checks go through the one door
  * and wait for Keep; the day's cap holds across a batch; a failing model costs its look, never the run.
@@ -15,7 +15,7 @@ for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "ANTHROPIC_API_KEY
 
 const { setPg } = await import(at("apps/edge/lib/pg.ts"));
 const { POST } = await import(at("apps/edge/api/cron/notes.ts"));
-const { suggestNotes } = await import(at("apps/edge/lib/notes/suggest.ts"));
+const { suggestNotes } = await import(at("apps/edge/lib/notes.ts"));
 const { NOTE_SUGGEST_LIMITS } = await import("@chanlytics/contracts");
 after(() => setPg(null));
 

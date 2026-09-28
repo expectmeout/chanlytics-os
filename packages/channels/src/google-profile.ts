@@ -9,7 +9,8 @@
  * Vault-held refresh token for one. HTTP is the same port the Places client
  * uses, so the planner beside this runs in tests without a network.
  */
-import { PlacesError, type PlacesHttp, type PlacesRequest } from "./google-places";
+import { PlacesError, type PlacesHttp, type PlacesRequest, refusal } from "./google-places";
+import { nonBlankOrNull, recordOrNull } from "@chanlytics/contracts";
 
 export const GBP_ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts";
 export const GBP_INFO_BASE = "https://mybusinessbusinessinformation.googleapis.com/v1";
@@ -21,8 +22,6 @@ export const GBP_REVIEWS_PAGE = 50;
 export const GBP_REVIEWS_MAX_PAGES = 5;
 
 type Obj = Record<string, unknown>;
-const obj = (v: unknown): Obj | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : null);
-const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 
 function bearer(token: string, v4 = false): Record<string, string> {
   return { Authorization: `Bearer ${token}`, ...(v4 ? { "X-GOOG-API-FORMAT-VERSION": "2" } : {}) };
@@ -106,53 +105,57 @@ export interface GbpReviewsPage {
 }
 
 export function parseAccounts(json: unknown): { accounts: GbpAccount[]; next: string | null } {
-  const o = obj(json);
+  const o = recordOrNull(json);
   const list = Array.isArray(o?.accounts) ? o!.accounts : [];
   const accounts = list
-    .map((a) => obj(a))
+    .map((a) => recordOrNull(a))
     .filter((a): a is Obj => !!a)
     .map((a) => ({
-      name: str(a.name) ?? "",
-      title: str(a.accountName) ?? str(obj(a.organizationInfo)?.registeredDomain) ?? str(a.name) ?? "",
-      type: str(a.type),
+      name: nonBlankOrNull(a.name) ?? "",
+      title:
+        nonBlankOrNull(a.accountName) ??
+        nonBlankOrNull(recordOrNull(a.organizationInfo)?.registeredDomain) ??
+        nonBlankOrNull(a.name) ??
+        "",
+      type: nonBlankOrNull(a.type),
     }))
     .filter((a) => a.name.startsWith("accounts/"));
-  return { accounts, next: str(o?.nextPageToken) };
+  return { accounts, next: nonBlankOrNull(o?.nextPageToken) };
 }
 
 function oneLineAddress(a: unknown): string | null {
-  const o = obj(a);
+  const o = recordOrNull(a);
   if (!o) return null;
   const lines = Array.isArray(o.addressLines)
     ? o.addressLines.filter((l): l is string => typeof l === "string" && !!l.trim())
     : [];
   const parts = [
     ...lines,
-    str(o.locality),
-    [str(o.administrativeArea), str(o.postalCode)].filter(Boolean).join(" "),
+    nonBlankOrNull(o.locality),
+    [nonBlankOrNull(o.administrativeArea), nonBlankOrNull(o.postalCode)].filter(Boolean).join(" "),
   ].filter((p): p is string => !!p);
   return parts.length ? parts.join(", ") : null;
 }
 
 export function parseLocations(json: unknown): { locations: GbpLocation[]; next: string | null } {
-  const o = obj(json);
+  const o = recordOrNull(json);
   const list = Array.isArray(o?.locations) ? o!.locations : [];
   const locations = list
-    .map((l) => obj(l))
+    .map((l) => recordOrNull(l))
     .filter((l): l is Obj => !!l)
     .map((l) => {
-      const meta = obj(l.metadata);
+      const meta = recordOrNull(l.metadata);
       return {
-        name: str(l.name) ?? "",
-        title: str(l.title) ?? "",
+        name: nonBlankOrNull(l.name) ?? "",
+        title: nonBlankOrNull(l.title) ?? "",
         address: oneLineAddress(l.storefrontAddress),
-        place_id: str(meta?.placeId),
-        maps_uri: str(meta?.mapsUri),
-        new_review_uri: str(meta?.newReviewUri),
+        place_id: nonBlankOrNull(meta?.placeId),
+        maps_uri: nonBlankOrNull(meta?.mapsUri),
+        new_review_uri: nonBlankOrNull(meta?.newReviewUri),
       };
     })
     .filter((l) => l.name.startsWith("locations/"));
-  return { locations, next: str(o?.nextPageToken) };
+  return { locations, next: nonBlankOrNull(o?.nextPageToken) };
 }
 
 const STARS: Record<string, number> = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
@@ -163,52 +166,38 @@ export function starRatingNumber(v: unknown): number | null {
 }
 
 export function parseReviewsPage(json: unknown): GbpReviewsPage {
-  const o = obj(json);
+  const o = recordOrNull(json);
   const list = Array.isArray(o?.reviews) ? o!.reviews : [];
   const reviews = list
-    .map((r) => obj(r))
+    .map((r) => recordOrNull(r))
     .filter((r): r is Obj => !!r)
     .map((r): GbpReview | null => {
-      const name = str(r.name);
-      const id = str(r.reviewId) ?? (name ? (name.split("/").pop() ?? null) : null);
+      const name = nonBlankOrNull(r.name);
+      const id = nonBlankOrNull(r.reviewId) ?? (name ? (name.split("/").pop() ?? null) : null);
       if (!name || !id) return null;
-      const who = obj(r.reviewer);
-      const reply = obj(r.reviewReply);
+      const who = recordOrNull(r.reviewer);
+      const reply = recordOrNull(r.reviewReply);
       return {
         name,
         review_id: id,
         rating: starRatingNumber(r.starRating),
-        author: who?.isAnonymous === true ? null : str(who?.displayName),
-        author_photo_uri: str(who?.profilePhotoUrl),
+        author: who?.isAnonymous === true ? null : nonBlankOrNull(who?.displayName),
+        author_photo_uri: nonBlankOrNull(who?.profilePhotoUrl),
         anonymous: who?.isAnonymous === true,
-        text: str(r.comment),
-        created_at: str(r.createTime),
-        updated_at: str(r.updateTime),
-        reply_text: str(reply?.comment),
-        replied_at: str(reply?.updateTime),
+        text: nonBlankOrNull(r.comment),
+        created_at: nonBlankOrNull(r.createTime),
+        updated_at: nonBlankOrNull(r.updateTime),
+        reply_text: nonBlankOrNull(reply?.comment),
+        replied_at: nonBlankOrNull(reply?.updateTime),
       };
     })
     .filter((r): r is GbpReview => r !== null);
   const avg = typeof o?.averageRating === "number" ? o!.averageRating : null;
   const total = typeof o?.totalReviewCount === "number" ? o!.totalReviewCount : null;
-  return { reviews, average_rating: avg, total_count: total, next_page_token: str(o?.nextPageToken) };
+  return { reviews, average_rating: avg, total_count: total, next_page_token: nonBlankOrNull(o?.nextPageToken) };
 }
 
-/** Google's error envelope for both API families: { error: { code, message, status } }. */
-function refusal(status: number, body: string): PlacesError {
-  let message = `Google answered ${status}`;
-  try {
-    const e = obj(obj(JSON.parse(body))?.error);
-    const m = str(e?.message);
-    const s = str(e?.status);
-    if (m) message = s ? `${s}: ${m}` : m;
-  } catch {
-    /* the status is the message */
-  }
-  return new PlacesError(status, message);
-}
-
-async function call(http: PlacesHttp, req: PlacesRequest): Promise<unknown> {
+async function callProfileApi(http: PlacesHttp, req: PlacesRequest): Promise<unknown> {
   const r = await http(req);
   if (r.status < 200 || r.status >= 300) throw refusal(r.status, r.body);
   if (!r.body.trim()) return {};
@@ -223,7 +212,7 @@ export async function listAccounts(http: PlacesHttp, token: string): Promise<Gbp
   const out: GbpAccount[] = [];
   let page: string | null = null;
   for (let i = 0; i < 5; i++) {
-    const r = parseAccounts(await call(http, accountsRequest(token, page)));
+    const r = parseAccounts(await callProfileApi(http, accountsRequest(token, page)));
     out.push(...r.accounts);
     page = r.next;
     if (!page) break;
@@ -235,7 +224,7 @@ export async function listLocations(http: PlacesHttp, token: string, accountName
   const out: GbpLocation[] = [];
   let page: string | null = null;
   for (let i = 0; i < 5; i++) {
-    const r = parseLocations(await call(http, locationsRequest(token, accountName, page)));
+    const r = parseLocations(await callProfileApi(http, locationsRequest(token, accountName, page)));
     out.push(...r.locations);
     page = r.next;
     if (!page) break;
@@ -255,7 +244,7 @@ export async function listReviews(
   let avg: number | null = null;
   let total: number | null = null;
   for (let i = 0; i < Math.max(1, maxPages); i++) {
-    const r = parseReviewsPage(await call(http, reviewsRequest(token, parent, page)));
+    const r = parseReviewsPage(await callProfileApi(http, reviewsRequest(token, parent, page)));
     all.push(...r.reviews);
     if (i === 0) {
       avg = r.average_rating;
@@ -273,8 +262,11 @@ export async function replyToReview(
   reviewName: string,
   comment: string,
 ): Promise<{ reply_text: string | null; replied_at: string | null }> {
-  const o = obj(await call(http, replyRequest(token, reviewName, comment)));
-  return { reply_text: str(o?.comment) ?? comment, replied_at: str(o?.updateTime) ?? new Date().toISOString() };
+  const o = recordOrNull(await callProfileApi(http, replyRequest(token, reviewName, comment)));
+  return {
+    reply_text: nonBlankOrNull(o?.comment) ?? comment,
+    replied_at: nonBlankOrNull(o?.updateTime) ?? new Date().toISOString(),
+  };
 }
 
 /** A reply as Google accepts it: words, at most this many characters. */

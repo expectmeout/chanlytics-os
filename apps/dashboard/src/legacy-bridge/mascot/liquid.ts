@@ -62,7 +62,7 @@ interface Program extends Linking {
   u: Uniforms;
 }
 /** Compiles and links the program, and fills the one triangle, without waiting for the link. */
-function start(gl: WebGL2RenderingContext): Linking | null {
+function linkShaders(gl: WebGL2RenderingContext): Linking | null {
   const shader = (type: number, src: string) => {
     const s = gl.createShader(type);
     if (s) {
@@ -170,7 +170,7 @@ function open(make: () => GlCanvas | null): Shared | null {
     const s: Shared = {
       canvas,
       gl,
-      linking: start(gl),
+      linking: linkShaders(gl),
       program: null,
       parallel: gl.getExtension("KHR_parallel_shader_compile"),
       users: 0,
@@ -190,7 +190,7 @@ function open(make: () => GlCanvas | null): Shared | null {
       if (s.losses >= MAX_LOSSES) giveUp(s);
     });
     canvas.addEventListener?.("webglcontextrestored", () => {
-      if (!givenUp && !s.closing) s.linking = start(gl);
+      if (!givenUp && !s.closing) s.linking = linkShaders(gl);
     });
     shared = s;
     return s;

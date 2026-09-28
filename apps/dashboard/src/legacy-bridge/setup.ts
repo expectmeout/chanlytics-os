@@ -26,7 +26,7 @@ import {
   forwardingDialLabel,
   FORWARDING_MODES,
   CARRIER_WORDS,
-  MODE_WORDS,
+  FORWARDING_MODE_WORDS,
   formatPhoneDisplay,
   agoWords,
 } from "@chanlytics/contracts";
@@ -178,7 +178,7 @@ export function installSetup(win: Window = window): void {
     carriers: CARRIERS,
     modes: FORWARDING_MODES,
     carrierWords: CARRIER_WORDS,
-    modeWords: MODE_WORDS,
+    modeWords: FORWARDING_MODE_WORDS,
     display: formatPhoneDisplay,
     ago: (iso) => agoWords(Date.parse(iso), Date.now()),
   };
