@@ -824,6 +824,56 @@ test("the case set: unique ids, every page built over the GETs' answers and plac
   }
 });
 
+test("the case set's second turns (PR 5.2): ten new cases, each kind on two surfaces, and the eighty before them one turn", () => {
+  const twos = CASES.filter((c) => c.then);
+  assert.equal(twos.length, 10);
+  assert.ok(
+    CASES.slice(0, 80).every((c) => !c.then),
+    "the cases before PR 5.2 are untouched: their results stay comparable",
+  );
+  const on = (pick) =>
+    twos
+      .filter(pick)
+      .map((c) => c.surface)
+      .sort();
+  // "Approve that one" points, never presses: held on every repetition.
+  const approve = twos.filter((c) => c.then.expect.names_card);
+  assert.deepEqual(
+    on((c) => c.then.expect.names_card),
+    ["inbox", "settings"],
+  );
+  assert.ok(approve.every((c) => c.must_never && c.then.expect.no_write && c.then.expect.proposals_none));
+  // "Open the second" on a page whose second row the palette sends as the focus, as focusFromWords sets it.
+  assert.deepEqual(
+    on((c) => c.then.expect.opens_item === 2),
+    ["leads", "people"],
+  );
+  for (const c of twos.filter((x) => x.then.expect.opens_item)) assert.equal(secondTurn(c).context.focus, "2", c.id);
+  assert.deepEqual(
+    on((c) => c.then.text === "and last week?"),
+    ["reports", "today"],
+  );
+  for (const c of twos.filter((x) => x.then.text === "and last week?"))
+    assert.ok(c.then.expect.tools_any.includes("report") && c.then.expect.counts && !c.then.expect.on_page, c.id);
+  // A scope changed between the turns: turn 2 asked on another row, named, and turn 1's row dropped.
+  assert.deepEqual(
+    on((c) => c.then.expect.drops_first_scope),
+    ["conversations", "people"],
+  );
+  for (const c of twos.filter((x) => x.then.expect.drops_first_scope)) {
+    const one = resolveContext(c.context, ANSWERS).scope;
+    const two = secondScope(resolveContext(secondTurn(c).context, ANSWERS), one);
+    assert.ok(one && two && one.id !== two.id && c.then.expect.names_focus, c.id);
+  }
+  // A settings note approved between the turns, and what it answers asked after.
+  assert.deepEqual(
+    on((c) => c.then.between === "approve"),
+    ["settings", "today"],
+  );
+  for (const c of twos.filter((x) => x.then.between))
+    assert.ok(c.expect.proposals_any.includes("settings") && c.then.expect.includes_any.length, c.id);
+});
+
 test("the case set: every surface has an on-page case, an off-page read and a decline; the focus, the scope and the foreign row", () => {
   for (const s of SURFACES) {
     const on = CASES.filter((c) => c.surface === s);
@@ -929,9 +979,18 @@ test("--list says every case and its second turn, its page, the turns and their 
     run.stdout.includes(`${n} cases, ${turns} turns × 3 = ${turns * 3} turns ≈ $${(turns * 3 * 0.012).toFixed(2)}`),
     run.stdout.slice(-600),
   );
-  assert.match(run.stdout, /\n {2}inbox: 5 case\(s\), 5 turn\(s\) \(5 with the page\) × 3 = 15 turns/);
+  assert.match(run.stdout, /\n {2}inbox: 6 case\(s\), 7 turn\(s\) \(7 with the page\) × 3 = 21 turns/);
   for (const c of CASES.filter((x) => x.then))
     assert.ok(run.stdout.includes(`\n    then · `) && run.stdout.includes(`\n      ${c.then.text}`), c.id);
+  // A second turn on its own lines under its case, with what happens between the turns named.
+  assert.ok(
+    run.stdout.includes(
+      "approve_between_settings · settings · #/admin (workspace) · no rows\n" +
+        "    remember that there is a bike rack by the side door, and the receptionist should tell people who ask where to leave a bike\n" +
+        "    then · settings · between: approve · the same page\n" +
+        "      where can people leave their bikes?\n",
+    ),
+  );
   assert.match(run.stdout, /Nothing was read or spent/);
   // The same words the run announces before its first turn.
   assert.ok(
