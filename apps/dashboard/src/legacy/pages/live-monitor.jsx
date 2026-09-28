@@ -17,9 +17,6 @@
 
 const { useState: useLrState, useEffect: useLrEffect, useReducer: useLrReducer, useRef: useLrRef } = React;
 
-// The mockup's page, as it was before this file took the route.
-const LiveMonitorSeed = window.LiveMonitorPage;
-
 const lrClock = (sec) => `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 
 const useLiveSurface = () => {
@@ -580,5 +577,10 @@ const LiveMonitorReal = ({ initialCallId = null }) => {
 };
 
 // The route renders the real page whenever the bridge has written __LIVE; the
-// mockup's console only in a session that never will (the standalone demo).
-window.LiveMonitorPage = (props) => (window.__LIVE === undefined ? <LiveMonitorSeed /> : <LiveMonitorReal {...props} />);
+// mockup's console (demo/pages/live-monitor.jsx, window.LiveMonitorSeed, loaded
+// only in a demo session) only in a session that never will (the standalone demo).
+window.LiveMonitorPage = (props) => {
+  const Seed = window.LiveMonitorSeed;
+  if (window.__LIVE !== undefined) return <LiveMonitorReal {...props} />;
+  return Seed ? <Seed /> : null;
+};

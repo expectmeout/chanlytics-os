@@ -1,4 +1,4 @@
-/* global React, Icon, Inbox, ClientsA, ClientProfile, SegmentsPage, SettingsPage, TasksPage, ReportsPage, CalendarPage, LiveMonitorPage, ConversationsPage, PipelinePage, AgentFleetPage, OutboundPage, MessagesPage, ContentPage, BroadcastsPage, AgentStudioPage, AgentStore, DashboardA */
+/* global React, Icon, Inbox, ClientsA, ClientProfile, SettingsPage, ReportsPage, CalendarPage, LiveMonitorPage, ConversationsPage, OutboundPage, MessagesPage, BroadcastsPage, DashboardA */
 // Chanlytics — The route table
 // One row per route the shell draws (SHELL_ROUTES, at the foot), in the order the shell's router matched them, each
 // naming what it draws (its page component and props), which addresses of its page it takes (`when`: the param's
@@ -14,6 +14,15 @@
 // A real workspace: the bridge is here (it publishes the registry) and the session did not declare itself a demo.
 // Not a gate (the honesty gate is the one gate); which of two real drawings a route gets before its surface lands.
 const realWorkspace = () => !window.__DEMO_MODE && !!window.__surfaceState;
+
+// A page of the mockup's own (legacy/demo/: Agents, Content, the Deal board, the seeded Lists), drawn by its name on
+// the window. Those files load only in a session that declared itself a demo (manifest-demo.ts), so on a real
+// workspace the name was never published: the row draws nothing, where a bare name would throw, and the honesty gate
+// draws the route's landing in its place (routeGated) whatever the row answered.
+const demoPage = (name, props) => {
+  const Page = window[name];
+  return Page ? <Page {...props} /> : null;
+};
 
 // ---- The mockup's landings ---------------------------------------------
 // The mockup surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline;
@@ -239,7 +248,7 @@ const drawSegments = ({ param }) => {
         <Icon name="plus" size={12} /> New segment
       </button>
     ),
-    content: <SegmentsPage initialId={param} />,
+    content: demoPage("SegmentsPage", { initialId: param }),
   };
 };
 
@@ -269,7 +278,7 @@ const drawTasks = () => ({
   activeNav: "tasks",
   crumbs: ["Agents", "Tasks"],
   pane: true,
-  content: <TasksPage />,
+  content: demoPage("TasksPage"),
 });
 
 const drawReports = () => ({
@@ -350,7 +359,7 @@ const drawDealBoard = ({ openAsk }) => ({
       <Icon name="plus" size={12} /> New deal
     </button>
   ),
-  content: <PipelinePage />,
+  content: demoPage("PipelinePage"),
 });
 
 const drawFleet = ({ param, navigate }) => {
@@ -364,7 +373,7 @@ const drawFleet = ({ param, navigate }) => {
         <Icon name="plus" size={12} /> Hire from store
       </button>
     ),
-    content: <AgentFleetPage id={param} onSelect={(id) => navigate(`fleet/${id}`)} />,
+    content: demoPage("AgentFleetPage", { id: param, onSelect: (id) => navigate(`fleet/${id}`) }),
   };
 };
 
@@ -400,7 +409,7 @@ const drawTemplates = () => ({
 const drawContent = () => ({
   activeNav: "content",
   crumbs: ["Campaigns", "Content"],
-  content: <ContentPage />,
+  content: demoPage("ContentPage"),
 });
 
 const drawBroadcasts = ({ param }) => {
@@ -431,13 +440,13 @@ const drawStudio = () => ({
   activeNav: "studio",
   crumbs: ["Agents", "Studio"],
   pane: true,
-  content: <AgentStudioPage />,
+  content: demoPage("AgentStudioPage"),
 });
 
 const drawStore = () => ({
   activeNav: "store",
   crumbs: ["Agents", "Store"],
-  content: <AgentStore />,
+  content: demoPage("AgentStore"),
 });
 
 const drawSoonUnknown = ({ param, navigate }) => ({
