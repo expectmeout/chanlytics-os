@@ -6223,6 +6223,24 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
   assert.ok(!turnWords({ ...facts, since: [] }).includes(SINCE), "none: no line");
 });
 
+test("an earlier card is the person's to press (the Phase 5 plan, D6, moved into PR 5.4 now that earlier cards reach the model in the replay): one rule, in system's cached rules after 'You never act.' -- name it by its title and say it is one press above, never say it was done, propose it again only when it was dismissed or failed", async () => {
+  const s = scripted([ROUND([answer("Fine.")])]);
+  await runAskTurn(turn(ctxFor()).input, ports(s.round));
+  const rules = s.requests[0].system[0].text;
+  const said = ASK_RULES.filter((r) => r.includes("one press above"));
+  assert.equal(said.length, 1, "one rule says it");
+  const [rule] = said;
+  for (const words of [
+    "A card from earlier in this thread is the person's to press",
+    "name it by its title",
+    "never say it was done",
+    "propose it again only when it was dismissed or failed",
+  ])
+    assert.ok(rule.includes(words), words);
+  assert.ok(rules.includes(rule), "in the cached rules");
+  assert.ok(rules.indexOf(rule) > rules.indexOf("You never act."), "after the rule it follows from");
+});
+
 /** The API's refusal of a replayed thinking block bound to another conversation (model-migration.md, the binding). */
 const BOUND =
   '400 messages.1.content.0: Invalid `signature` in `thinking` block. The block is bound to a different conversation. Remove the block, or set `thinking.block_binding.prefix_mismatch_behavior` to "drop_block". That setting requires the `thinking-binding-controls-2026-08-01` value in the `anthropic-beta` header.';
