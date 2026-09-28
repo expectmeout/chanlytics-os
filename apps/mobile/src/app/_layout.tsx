@@ -9,7 +9,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { Appearance, AppState, Platform, StyleSheet, useColorScheme, View } from "react-native";
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from "expo-router";
-import { askForToken, coldStartTap, installForegroundHandler, listen, tabOf, type Tap } from "@/shell/notifications";
+import { askForToken, coldStartTap, installForegroundHandler, listen, type Tap } from "@/shell/notifications";
+import { tabHrefOf } from "@/shell/notifications-pure";
 import { StatusBar } from "expo-status-bar";
 import { useNetworkState } from "expo-network";
 import * as Updates from "expo-updates";
@@ -114,7 +115,7 @@ function RootLayout() {
   useEffect(() => {
     if (session === "out") void signOutNatively();
     const waiting = getState().pendingRoute;
-    if (session === "in" && waiting) router.navigate(`/(tabs)/${tabOf(waiting)}` as never);
+    if (session === "in" && waiting) router.navigate(tabHrefOf(waiting));
   }, [session, router]);
 
   // The phone is told (shell/notifications.ts): the token once, every rotation, and every tap into its tab. While
@@ -123,7 +124,7 @@ function RootLayout() {
   useEffect(() => {
     const open = ({ route, workspace }: Tap) => {
       setState({ pendingRoute: route, pendingWorkspace: workspace });
-      if (getState().session !== "out") router.navigate(`/(tabs)/${tabOf(route)}` as never);
+      if (getState().session !== "out") router.navigate(tabHrefOf(route));
     };
     void coldStartTap().then((tap) => {
       if (tap) open(tap);
