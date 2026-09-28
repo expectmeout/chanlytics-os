@@ -6434,6 +6434,15 @@ export type Database = {
         Args: { p_at: string; p_message_id: string; p_tenant_id: string }
         Returns: boolean
       }
+      stamp_email_left_as: {
+        Args: {
+          p_left_as: string
+          p_message_id: string
+          p_tenant_id: string
+          p_why: string
+        }
+        Returns: boolean
+      }
       stamp_email_sent: {
         Args: {
           p_message_id: string

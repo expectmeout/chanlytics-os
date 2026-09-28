@@ -4538,6 +4538,7 @@ var DELIVERY_REFUSALS = [
   "outreach_lead_closed",
   "outreach_suppressed",
   "outreach_wrote_back",
+  "outreach_away",
   "outreach_without_unsubscribe",
   "outreach_needs_own_domain",
   "sending_domain_not_ready",
@@ -4569,6 +4570,7 @@ var PURPOSE_REFUSALS = {
   outreach_lead_closed: "This business is no longer being written to: it said no, became a customer, or was set aside.",
   outreach_suppressed: "This address is on the never-again list: it unsubscribed, complained, or was erased.",
   outreach_wrote_back: "This business wrote back or called, so it is a conversation now: answer it from the Inbox. No cold email goes to it again.",
+  outreach_away: "Away: their automatic reply says they're out. This email waits, and goes to them after the day they're back.",
   outreach_without_unsubscribe: "This email was built without its unsubscribe link, so it was not sent.",
   outreach_needs_own_domain: "Cold email leaves only from a domain you own. Add one on Connections, under Email.",
   sending_domain_not_ready: "The domain this email was to leave from isn't sending right now. Connections, under Email, says why.",
@@ -7679,6 +7681,7 @@ var HELD_REASONS = {
   outreach_lead_closed: "no longer being written to",
   outreach_suppressed: "on the never-again list",
   outreach_wrote_back: "wrote back or called",
+  outreach_away: "away until the day they're back",
   outreach_without_unsubscribe: "no unsubscribe link",
   outreach_needs_own_domain: "not from your own domain",
   sending_domain_not_ready: "the domain isn't sending",
@@ -12801,6 +12804,15 @@ var ROLE_PERMS = {
     find: false
   }
 };
+
+// src/config/limits.ts
+function tokenCapOf(limits) {
+  return typeof limits.max_llm_tokens_day === "number" ? limits.max_llm_tokens_day : 0;
+}
+function tokenBudgetSpent(limits, used) {
+  const cap2 = tokenCapOf(limits);
+  return cap2 > 0 && used >= cap2;
+}
 
 // src/config/workspace-config/compose.ts
 function dateKeyInZone(tz, at2) {
@@ -20303,6 +20315,7 @@ function outreachRefusalOf(f) {
   if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
   if (f.suppressed) return "outreach_suppressed";
   if (f.wroteBack) return "outreach_wrote_back";
+  if (f.away) return "outreach_away";
   return null;
 }
 var OUTREACH_WAIT_REFUSALS = [
@@ -21106,6 +21119,38 @@ function heldNoticeWords(p) {
   };
 }
 
+// src/reach-out/reach-out-reply-draft.ts
+var DRAFT_WHYS = ["no_receptionist", "off", "budget", "may_not_spend", "not_drafted"];
+var isDraftWhy = (v) => DRAFT_WHYS.includes(v);
+var DRAFT_NEEDS_MS = 25e3;
+var DRAFT_MAX = 4e3;
+var DRAFT_NOTICE_MAX = 240;
+var SILENT_MODE = "never";
+function draftRefusal(f) {
+  if (!f.receptionist) return "no_receptionist";
+  if (f.mode === SILENT_MODE) return "off";
+  if (f.budgetSpent) return "budget";
+  if (!f.maySpend) return "may_not_spend";
+  return null;
+}
+var flatClip = (v, max) => clipAtWord((v ?? "").replace(/\s+/g, " "), max);
+function leadReplyNote(p) {
+  const business = flatClip(p.business, 120) || "a business";
+  const answered = flatClip(p.answered, 600);
+  const signedBy = flatClip(p.signedBy, 60);
+  return [
+    `${business}, a business that wrote back by email to a reach-out this business sent them. You are drafting the email`,
+    `answer for the owner to read, change and send: it is not sent until they do.`,
+    answered ? `The reach-out they answered said: "${answered}"` : null,
+    `Write an email: plain paragraphs, no emoji, no subject line, no markdown.`,
+    signedBy ? `End it signed "${signedBy}".` : `End it signed with the business's name.`,
+    p.kind === "thanks" ? `They said not now. Write one short line thanking them, and nothing else: no offer, no question, no follow-up.` : `Answer what they asked or said from the business's own facts. When a fact is not there, say the owner will follow up.`
+  ].filter((l) => l !== null).join("\n");
+}
+function draftExcerpt(draft) {
+  return flatClip(draft, DRAFT_NOTICE_MAX);
+}
+
 // src/reach-out/reach-out-replies.ts
 var REPLY_INTENTS = ["interested", "question", "not_now", "no", "wrong_person", "away", "other"];
 var isReplyIntent = (v) => REPLY_INTENTS.includes(v);
@@ -21437,7 +21482,7 @@ function replyNoticeWords(p) {
     quote ? `\u201C${withinChars(quote, REPLY_QUOTE_MAX)}\u201D` : null,
     doneWords(intent),
     p.unread ? `It could not be read (${UNREAD_WORDS[p.unread]}), so it is read again later.` : null,
-    p.draft ? "The receptionist drafted an answer. Nothing is sent without you." : null
+    p.draft ? `The receptionist drafted an answer: \u201C${draftExcerpt(p.draft)}\u201D Nothing is sent without you.` : null
   ].filter((l) => l !== null);
   return {
     subject: `${subjectOf({ intent, business, automatic: p.automatic })}${p.reread ? " (read again later)" : ""}`,
@@ -27421,6 +27466,10 @@ export {
   DOMAIN_HOLDS,
   DOMAIN_RAMP,
   DOMAIN_RESUMERS,
+  DRAFT_MAX,
+  DRAFT_NEEDS_MS,
+  DRAFT_NOTICE_MAX,
+  DRAFT_WHYS,
   E164,
   EARLIER_FALLBACK_DEFAULTS,
   EMAIL_ELSEWHERE_SENTENCE,
@@ -28170,7 +28219,9 @@ export {
   domainRecordsIntro,
   domainRegistrarHint,
   domainStatsWords,
+  draftExcerpt,
   draftListRule,
+  draftRefusal,
   draftSendsAtMs,
   dueStepDay,
   durationLabel,
@@ -28312,6 +28363,7 @@ export {
   isDealPer,
   isDealSheetMode,
   isDealStage,
+  isDraftWhy,
   isForwardingMode,
   isFreeMail,
   isHeldDraft,
@@ -28393,6 +28445,7 @@ export {
   leadQuestionTitle,
   leadRail,
   leadReachLine,
+  leadReplyNote,
   leadReviewCosts,
   leadReviewGroups,
   leadSearchWords,
@@ -28910,6 +28963,8 @@ export {
   todayStepsDue,
   todayWidgetSnapshot,
   togglePin,
+  tokenBudgetSpent,
+  tokenCapOf,
   tomorrowAtIn,
   trialOffer,
   trialWords,

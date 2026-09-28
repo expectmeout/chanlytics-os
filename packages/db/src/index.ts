@@ -23,6 +23,7 @@ export {
   mailboxOfTenant,
   lastInboundEmail,
   stampEmailSent,
+  stampEmailLeftAs,
   sentEmailRequestOf,
   sentEmailOf,
   stampEmailComplaint,
@@ -58,6 +59,7 @@ export {
   takeReplyRead,
   applyReplyReading,
   claimReplyTell,
+  markReplyDraft,
   markReplyTold,
 } from "./repositories/outreach";
 export type { OutreachFactsRow, ReachOutReplyOf, ReplyReadingRow } from "./repositories/outreach";

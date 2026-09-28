@@ -1,6 +1,14 @@
 /** Every public name, named: a new export is a line here, never an export * (repo/contracts-barrels.test.mjs). */
 export { normalizeInbound, graphThrottled, sendText, sendTemplate, fetchMediaBytes } from "./whatsapp";
-export type { WaConfig, WaRawMessage, WaChangeValue, WaMediaRef, NormalizedInbound, SendResult } from "./whatsapp";
+export type {
+  WaConfig,
+  WaRawMessage,
+  WaChangeValue,
+  WaMediaRef,
+  NormalizedInbound,
+  SendResult,
+  EmailLeftAsWhy,
+} from "./whatsapp";
 export {
   liveTurns,
   parseTranscriptText,

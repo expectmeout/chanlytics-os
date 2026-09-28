@@ -17412,6 +17412,7 @@ function outreachRefusalOf(f) {
   if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
   if (f.suppressed) return "outreach_suppressed";
   if (f.wroteBack) return "outreach_wrote_back";
+  if (f.away) return "outreach_away";
   return null;
 }
 function isReachOutRun(audience) {
@@ -17506,6 +17507,25 @@ var REACH_OUT_SHEET_PARTS22 = {
   footLine: "At the foot",
   repliesLine: "Replies"
 };
+var DRAFT_NEEDS_MS = 25e3;
+var DRAFT_NOTICE_MAX = 240;
+var flatClip = (v, max) => clipAtWord((v ?? "").replace(/\s+/g, " "), max);
+function leadReplyNote(p) {
+  const business = flatClip(p.business, 120) || "a business";
+  const answered = flatClip(p.answered, 600);
+  const signedBy = flatClip(p.signedBy, 60);
+  return [
+    `${business}, a business that wrote back by email to a reach-out this business sent them. You are drafting the email`,
+    `answer for the owner to read, change and send: it is not sent until they do.`,
+    answered ? `The reach-out they answered said: "${answered}"` : null,
+    `Write an email: plain paragraphs, no emoji, no subject line, no markdown.`,
+    signedBy ? `End it signed "${signedBy}".` : `End it signed with the business's name.`,
+    p.kind === "thanks" ? `They said not now. Write one short line thanking them, and nothing else: no offer, no question, no follow-up.` : `Answer what they asked or said from the business's own facts. When a fact is not there, say the owner will follow up.`
+  ].filter((l2) => l2 !== null).join("\n");
+}
+function draftExcerpt(draft) {
+  return flatClip(draft, DRAFT_NOTICE_MAX);
+}
 var REPLY_INTENTS2 = ["interested", "question", "not_now", "no", "wrong_person", "away", "other"];
 var isReplyIntent2 = (v) => REPLY_INTENTS2.includes(v);
 var REPLY_INTENT_WORDS = {
@@ -17817,7 +17837,7 @@ function replyNoticeWords(p) {
     quote ? `\u201C${withinChars(quote, REPLY_QUOTE_MAX)}\u201D` : null,
     doneWords(intent),
     p.unread ? `It could not be read (${UNREAD_WORDS[p.unread]}), so it is read again later.` : null,
-    p.draft ? "The receptionist drafted an answer. Nothing is sent without you." : null
+    p.draft ? `The receptionist drafted an answer: \u201C${draftExcerpt(p.draft)}\u201D Nothing is sent without you.` : null
   ].filter((l2) => l2 !== null);
   return {
     subject: `${subjectOf({ intent, business, automatic: p.automatic })}${p.reread ? " (read again later)" : ""}`,
@@ -20824,6 +20844,16 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
   });
   if (error) console.error("emit_event_failed", kind, error.message);
 }
+async function stampEmailLeftAs(db, p) {
+  const { data, error } = await db.rpc("stamp_email_left_as", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_left_as: p.leftAs,
+    p_why: p.why
+  });
+  if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
+  return data === true;
+}
 async function outreachFactsOf(db, p) {
   const { data, error } = await db.rpc("outreach_facts", {
     p_tenant_id: p.tenantId,
@@ -20843,6 +20873,8 @@ async function outreachFactsOf(db, p) {
     lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
     suppressed: f.suppressed === true,
     wrote_back: f.wrote_back,
+    // Absent before 00226: not away, as it was.
+    away: f.away === true,
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,
       from_local: String(f.domain.from_local ?? ""),
@@ -20896,6 +20928,7 @@ async function outreachFacts(db, d, f, nowMs) {
       leadStage: null,
       suppressed: false,
       wroteBack: false,
+      away: false,
       unsubscribable,
       domainState: null,
       cleanSince: null,
@@ -20923,6 +20956,7 @@ async function outreachFacts(db, d, f, nowMs) {
     leadStage: facts.lead_stage,
     suppressed: facts.suppressed,
     wroteBack: facts.wrote_back,
+    away: facts.away,
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
@@ -20943,7 +20977,12 @@ function refusalFor(d, f, nowMs, o2) {
   if (!may.ok) return may.reason;
   if (d.purpose === "outreach") {
     if (!o2) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
-    const lead = outreachRefusalOf({ leadStage: o2.leadStage, suppressed: o2.suppressed, wroteBack: o2.wroteBack });
+    const lead = outreachRefusalOf({
+      leadStage: o2.leadStage,
+      suppressed: o2.suppressed,
+      wroteBack: o2.wroteBack,
+      away: o2.away
+    });
     if (lead) return lead;
     if (!o2.unsubscribable) return "outreach_without_unsubscribe";
     if (!o2.domainState) return "outreach_needs_own_domain";
@@ -20982,16 +21021,47 @@ async function stampThread(db, d, nowMs) {
       JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message })
     );
 }
+async function leftAs(db, d, sent) {
+  if (!sent.leftAs) return;
+  const why = sent.leftAsWhy ?? null;
+  await stampEmailLeftAs(db, { tenantId: d.tenantId, messageId: d.messageId, leftAs: sent.leftAs, why }).catch(
+    (e2) => {
+      console.error(
+        "deliver_left_as_failed",
+        JSON.stringify({ tenant: d.tenantId, message: d.messageId, error: e2 instanceof Error ? e2.message : String(e2) })
+      );
+    }
+  );
+}
 async function finalizeQueued(db, d, patch) {
   const { data, error } = await db.from("messages").update(patch).eq("id", d.messageId).eq("status", "queued").select("id");
   if (error) throw new Error(`deliver: cannot finalize message ${d.messageId}: ${error.message}`);
   return !!data && data.length > 0;
 }
+function assertFrozenFor(d) {
+  if (d.channel !== "email") return;
+  const keys = [d.email, d.ownEmail].map((r42) => r42?.idempotency_key ?? d.messageId);
+  if (d.messageId && keys.every((k) => k === d.messageId)) return;
+  throw new Error(
+    `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`
+  );
+}
+async function putOnWire(wire, d) {
+  const send = wire[d.channel];
+  if (send === void 0)
+    return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
+  if (send === null)
+    return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
+  const reply = d.email && kindOf(d) === "reply" ? { reply: true, ownEmail: d.ownEmail } : {};
+  return send(d.to, {
+    body: d.body,
+    template: d.template,
+    ...d.email ? { email: d.email, purpose: d.purpose } : {},
+    ...reply
+  });
+}
 async function deliver(ports, d) {
-  if (d.channel === "email" && (!d.messageId || d.email && d.email.idempotency_key !== d.messageId))
-    throw new Error(
-      `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`
-    );
+  assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
   const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts, nowMs) : null;
@@ -21016,12 +21086,7 @@ async function deliver(ports, d) {
     return { outcome: "refused", reason: why, messageId: d.messageId ?? null };
   };
   if (reason) return refuse(reason);
-  const send = ports.wire[d.channel];
-  const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, {
-    body: d.body,
-    template: d.template,
-    ...d.email ? { email: d.email, purpose: d.purpose } : {}
-  });
+  const sent = await putOnWire(ports.wire, d);
   if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
     if (facts.contactId)
       await recordCarrierOptOut(ports.db, {
@@ -21054,7 +21119,8 @@ async function deliver(ports, d) {
         // A cold email leaves its thread where it was: the Inbox reads the latest hundred threads, and a run of cold
         // sends would push every customer off it. The thread rises when the business writes back.
         d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
-        event(ports.db, d, "message.sent", d.messageId, { sender: d.sender })
+        event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
+        leftAs(ports.db, d, sent)
       ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
     }
@@ -21169,7 +21235,7 @@ async function sendQueued(ports, cmd) {
     body: p.body ?? msg.body ?? "",
     template: p.template,
     // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
-    ...msg.email ? { email: msg.email } : {},
+    ...msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {},
     ...msg.leadId ? { leadId: msg.leadId } : {},
     messageId: p.message_id
   });
@@ -21195,7 +21261,7 @@ async function sendQueued(ports, cmd) {
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
     // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
-    // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
+    // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
     out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
   );
   const receptionist = msg.sender === "ai";
@@ -21313,6 +21379,7 @@ function metaOf(e2) {
     }
   };
 }
+var DRAFT_STAGE = "draft";
 function rereadOf(stage) {
   if (stage === void 0 || stage === null || stage === "read") return 0;
   const m = typeof stage === "string" ? /^reread-([1-3])$/.exec(stage) : null;
@@ -21342,7 +21409,48 @@ async function readNow(ports, cmd, facts) {
   }
   return { reading, unread: reading ? null : "model_failed", now };
 }
+async function draftNow(ports, cmd, facts, kind) {
+  let out;
+  try {
+    out = await ports.draft(cmd.tenantId, {
+      conversationId: facts.conversationId,
+      text: replyTextOf(facts.text),
+      note: leadReplyNote({ business: facts.business, answered: facts.answered, signedBy: facts.signedBy, kind }),
+      deadline: cmd.deadline
+    });
+  } catch {
+    out = { why: "not_drafted" };
+  }
+  const text = "text" in out ? out.text.trim() : "";
+  await ports.markDraft(
+    cmd.tenantId,
+    cmd.messageId,
+    text ? { state: "written", draft: text } : { state: "not_written", why: "why" in out ? out.why : "not_drafted" }
+  );
+}
+async function draftStage(ports, cmd, facts, kept) {
+  if (!kept.draft || kept.draftState !== "none") return kept.draftText;
+  if (cmd.deadline - ports.now() < DRAFT_NEEDS_MS) {
+    await ports.markDraft(cmd.tenantId, cmd.messageId, { state: "waiting" });
+    await ports.scheduleOnce(ports.now(), { message_id: cmd.messageId, stage: DRAFT_STAGE });
+    return null;
+  }
+  await draftNow(ports, cmd, facts, kept.draft);
+  return (await ports.reading(cmd.tenantId, cmd.messageId))?.draftText ?? null;
+}
+async function draftLater(ports, cmd) {
+  const facts = await ports.reply(cmd.tenantId, cmd.messageId);
+  if (!facts) return "not_a_reply";
+  const kept = await ports.reading(cmd.tenantId, cmd.messageId);
+  if (!kept || kept.undone || !kept.draft || kept.draftState !== "none" && kept.draftState !== "waiting")
+    return "already_read";
+  if (cmd.deadline - ports.now() < DRAFT_NEEDS_MS)
+    throw new Error("reply_read: no time left to draft; the ledger tries again");
+  await draftNow(ports, cmd, facts, kept.draft);
+  return "drafted";
+}
 async function readReply(ports, cmd) {
+  if (cmd.stage === DRAFT_STAGE) return draftLater(ports, cmd);
   const n2 = rereadOf(cmd.stage);
   const { tenantId, messageId } = cmd;
   const facts = await ports.reply(tenantId, messageId);
@@ -21370,6 +21478,7 @@ async function readReply(ports, cmd) {
     const at = rereadAt(kept.unread, n2, facts.receivedAt, ports.now());
     if (at !== null) await ports.scheduleOnce(at, { message_id: messageId, stage: `reread-${n2 + 1}` });
   }
+  const draft = await draftStage(ports, cmd, facts, kept);
   if (!kept.tell || kept.told) return "read";
   const claim = await ports.claimTell(tenantId, messageId, ports.now() - cmd.tellStaleMs);
   if (!claim) throw new Error("reply_read: another run holds the notice; tried again once its claim is stale");
@@ -21378,7 +21487,7 @@ async function readReply(ports, cmd) {
     business: facts.business,
     summary: kept.summary ?? "",
     quote: replyTextOf(facts.text),
-    draft: false,
+    draft,
     unread: kept.unread,
     automatic: facts.claim === "auto_reply",
     reread: n2 > 0
@@ -21605,10 +21714,10 @@ var enc32 = new TextEncoder();
 var MAPS_RUN_TIMEOUT_SECS = 45 * 60;
 var CHECKER_RUN_TIMEOUT_SECS = 15 * 60;
 var enc4 = new TextEncoder();
-var UNSAFE_IN_AN_ADDRESS = ` "'<>{}|^` + String.fromCharCode(92, 96, 9, 10, 13);
-var MARK_MAX_BYTES = 512 * 1024;
 var DEADLINE_MARGIN_MS = 8e3;
 var UNKNOWN_START_GRACE_MS = 10 * MIN_MS22;
+var UNSAFE_IN_AN_ADDRESS = ` "'<>{}|^` + String.fromCharCode(92, 96, 9, 10, 13);
+var MARK_MAX_BYTES = 512 * 1024;
 var VISION_MAX_BYTES = 4 * 1024 * 1024;
 var PAUSE_MS = 24 * 3600 * 1e3;
 var STALE_MS = 10 * 60 * 1e3;
@@ -24566,9 +24675,20 @@ async function reachOutReplyOf(db, p) {
   };
 }
 async function replyReadingOf(db, p) {
-  const { data, error } = await db.from("reach_out_replies").select("intent, claim, summary, unread, rereads, plan, told_at, undone_at").eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
+  const { data, error } = await db.from("reach_out_replies").select("intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why").eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
   if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
   return data ?? null;
+}
+async function markReplyDraft(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_draft", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_state: p.state,
+    p_draft: p.draft,
+    p_why: p.why
+  });
+  if (error) throw new Error(`cannot mark the reply's draft: ${error.message}`);
+  return data === true;
 }
 async function applyReplyReading(db, p) {
   const { data, error } = await db.rpc("reach_out_reply_apply", {
@@ -24879,6 +24999,7 @@ function replyFactsOf(r6) {
     business: r6.business,
     leadAddress: r6.lead_email,
     leadWebsite: r6.lead_website,
+    signedBy: r6.signed_by,
     tz: r6.tz ?? DEFAULT_TIMEZONE
   };
 }
@@ -24887,6 +25008,8 @@ function keptReadingOf(row) {
   if (row.unread !== null && !isUnread(row.unread))
     throw new Error(`reply_read: a reading was not read for ${row.unread}`);
   const plan = row.plan && typeof row.plan === "object" && !Array.isArray(row.plan) ? row.plan : {};
+  if (!DRAFT_STATES.includes(row.draft_state))
+    throw new Error(`reply_read: a draft is ${row.draft_state}`);
   return {
     intent: row.intent,
     summary: row.summary,
@@ -24895,8 +25018,18 @@ function keptReadingOf(row) {
     rereads: row.rereads,
     tell: plan.tell === true,
     told: row.told_at !== null,
-    undone: row.undone_at !== null
+    undone: row.undone_at !== null,
+    draft: plan.draft === "answer" || plan.draft === "thanks" ? plan.draft : null,
+    draftState: row.draft_state,
+    // one of DRAFT_STATES, checked above
+    draftText: row.draft
   };
+}
+var DRAFT_STATES = ["none", "waiting", "written", "not_written"];
+function draftMarkOf(m) {
+  if (m.state === "written") return { state: m.state, draft: m.draft, why: null };
+  if (m.state === "not_written") return { state: m.state, draft: null, why: m.why };
+  return { state: m.state, draft: null, why: null };
 }
 async function replyRead(ctx, job) {
   const replies = ctx.replies;
@@ -24932,6 +25065,8 @@ async function replyRead(ctx, job) {
       }),
       claimTell: (tenantId, id, staleBefore) => claimReplyTell(db, { ...where(tenantId, id), staleBefore: new Date(staleBefore) }),
       tell: (tenantId, notice) => replies.tell(tenantId, notice),
+      draft: (tenantId, ask) => replies.draft(tenantId, ask),
+      markDraft: (tenantId, id, mark) => markReplyDraft(db, { ...where(tenantId, id), ...draftMarkOf(mark) }),
       told: (tenantId, id, claim) => markReplyTold(db, { ...where(tenantId, id), claim }),
       scheduleOnce: (at, payload) => ctx.scheduleOnce("reply_read", new Date(at), payload),
       now: Date.now
@@ -24943,7 +25078,8 @@ async function replyRead(ctx, job) {
       tenantId: job.tenant_id,
       messageId,
       stage: job.payload.stage,
-      tellStaleMs: LEASE_SECONDS * 1e3 - FUNCTION_CEILING_MS
+      tellStaleMs: LEASE_SECONDS * 1e3 - FUNCTION_CEILING_MS,
+      deadline: ctx.deadline
     }
   );
   console.log(JSON.stringify({ level: "info", event: "reply_read", tenant: job.tenant_id, job: job.id, outcome }));
@@ -24962,6 +25098,7 @@ async function outboundSend(ctx, job) {
         if (!data) return null;
         const meta = data.meta;
         const request = meta?.email?.request;
+        const own = meta?.email?.own_request;
         const leadId = meta?.reach_out?.lead_id;
         return {
           status: data.status,
@@ -24969,6 +25106,7 @@ async function outboundSend(ctx, job) {
           channel: data.channel,
           sender: data.sender,
           email: isEmailRequest(request) ? request : null,
+          ownEmail: isEmailRequest(own) ? own : void 0,
           leadId: typeof leadId === "string" && leadId ? leadId : null
         };
       },

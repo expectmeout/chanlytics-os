@@ -20,15 +20,10 @@ import { requireUuid } from "@/server/request-guards";
 import { load, readerContext } from "@/server/readers";
 import * as readers from "@/server/readers/facts";
 import { runAskTurn, type TurnEvent } from "@/server/ask/loop";
-import {
-  askTurnText,
-  titleFromQuestion,
-  titleFromSearch,
-  workspaceFacts,
-  type SearchAnswering,
-} from "@/server/ask/prompt";
+import { threadForTurn } from "@/server/ask/memory";
+import { askTurnText, workspaceFacts, type SearchAnswering } from "@/server/ask/prompt";
 import { searchRow } from "@/server/leads/leads";
-import { appendMessage, createThread, readThread, touchThread } from "@/server/ask/store";
+import { appendMessage, touchThread } from "@/server/ask/store";
 
 /**
  * POST /api/v1/ask — one turn of the workspace assistant.
@@ -158,29 +153,9 @@ export const POST = write({
 
     // The thread, before anything else: a question that could not be saved is
     // not answered, so a person never sees an answer they cannot find again.
-    let history: Array<{ role: "user" | "assistant"; text: string }> = [];
-    let sinceLastMs: number | null = null;
-    let thread: { id: string; title: string; scope: AskScope | null } | null = null;
-    if (threadId) {
-      const found = await readThread(ctx, threadId);
-      if (found && found.tenantId === tenantId) {
-        thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
-        history = found.turns;
-        // The thread's previous turn, before this question is appended: how long the person waited to ask again. A
-        // read that came back full holds the oldest turns, not the newest, so its last is not the previous turn.
-        const lastAt = found.messages.at(-1)?.atMs;
-        sinceLastMs = !found.truncated && lastAt ? Math.max(0, Date.now() - lastAt) : null;
-        if (!scope) scope = found.thread.scope;
-      } else if (!answering) throw new AppError("not_found", "That thread is not yours.", 404);
-    }
-    if (!thread) {
-      // A thread keeps its first question as its title (D9); an answer's is the search's name, never the sentence
-      // the model is given.
-      const title = answering ? titleFromSearch(answering.name) : titleFromQuestion(text);
-      const created = await createThread(ctx, tenantId, title, scope);
-      thread = { id: created.id, title: created.title, scope };
-    }
-    const turn = thread;
+    const kept = await threadForTurn(ctx, { tenantId, threadId, text, scope, answering });
+    const { thread: turn, history, sinceLastMs } = kept;
+    scope = kept.scope;
     await appendMessage(ctx, turn.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
 
     // A turn keeps what may be kept across turns (the workspace's name and zone, five minutes): the next question of

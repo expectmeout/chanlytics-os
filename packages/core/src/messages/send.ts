@@ -80,7 +80,7 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     body: p.body ?? msg.body ?? "",
     template: p.template,
     // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
-    ...(msg.email ? { email: msg.email } : {}),
+    ...(msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {}),
     ...(msg.leadId ? { leadId: msg.leadId } : {}),
     messageId: p.message_id,
   });
@@ -90,7 +90,7 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   // /api/diag); the page's own mail rides the same key and cannot leave until the quota resets. "Slow down" is one
   // second's problem, and a try still in flight may yet arrive: neither pages anyone.
   const limit = out.limit ?? null;
-  // Cold email leaves through an account of its own (deliver.ts emailSender), so its limits and its key are paged
+  // Cold email leaves through an account of its own (wire-senders.ts emailSender), so its limits and its key are paged
   // under their own name, and say what they do not stop.
   const outreach = channel === "email" && purpose === "outreach";
   if (limit === "daily" || limit === "monthly") {
@@ -144,7 +144,7 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
               : limit === "in_flight"
                 ? "the mail provider is still sending an earlier try of it; check the thread before sending it again"
                 : // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
-                  // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
+                  // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
                   out.status === 0
                   ? "it never reached the provider"
                   : `HTTP ${out.status}`;

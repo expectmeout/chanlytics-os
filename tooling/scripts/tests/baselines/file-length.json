@@ -27,6 +27,5 @@
   "packages/contracts/src/leads/lead-search.ts": 1036,
   "packages/contracts/src/people/people.ts": 1024,
   "packages/contracts/src/templates/template-library.ts": 1097,
-  "packages/core/src/inbound/answer.ts": 1007,
-  "packages/core/src/leads/runner.ts": 1275
+  "packages/core/src/inbound/answer.ts": 1007
 }

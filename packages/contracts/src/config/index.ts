@@ -35,6 +35,7 @@ export {
   PolicyLimitsSchema,
 } from "./workspace-config/policy-classes";
 export type { PolicyClass, PolicyMode, PolicyLimits, PolicyRow } from "./workspace-config/policy-classes";
+export { tokenCapOf, tokenBudgetSpent } from "./limits";
 export {
   guardrailsInForce,
   IntervalSchema,

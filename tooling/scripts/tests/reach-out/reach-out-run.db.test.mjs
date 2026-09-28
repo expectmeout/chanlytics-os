@@ -321,6 +321,6 @@ test(
       [due],
       "at a limit of one, the one the door would write to, not the oldest",
     );
-    assert.deepEqual(rows[0].facts, { lead_stage: "ready", suppressed: false, wrote_back: false });
+    assert.deepEqual(rows[0].facts, { lead_stage: "ready", suppressed: false, wrote_back: false, away: false });
   },
 );

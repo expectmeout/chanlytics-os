@@ -7534,6 +7534,13 @@ var DECISION_VERBS2 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
+function tokenCapOf(limits) {
+  return typeof limits.max_llm_tokens_day === "number" ? limits.max_llm_tokens_day : 0;
+}
+function tokenBudgetSpent(limits, used) {
+  const cap2 = tokenCapOf(limits);
+  return cap2 > 0 && used >= cap2;
+}
 function dateKeyInZone(tz, at2) {
   try {
     const parts2 = new Intl.DateTimeFormat("en-US", {
@@ -8587,6 +8594,7 @@ function outreachRefusalOf(f) {
   if (f.leadStage !== "ready" && f.leadStage !== "nurture") return "outreach_lead_closed";
   if (f.suppressed) return "outreach_suppressed";
   if (f.wroteBack) return "outreach_wrote_back";
+  if (f.away) return "outreach_away";
   return null;
 }
 function isReachOutRun(audience) {
@@ -8681,6 +8689,25 @@ var REACH_OUT_SHEET_PARTS2 = {
   footLine: "At the foot",
   repliesLine: "Replies"
 };
+var DRAFT_NEEDS_MS = 25e3;
+var DRAFT_NOTICE_MAX = 240;
+var flatClip = (v, max) => clipAtWord((v ?? "").replace(/\s+/g, " "), max);
+function leadReplyNote(p) {
+  const business = flatClip(p.business, 120) || "a business";
+  const answered = flatClip(p.answered, 600);
+  const signedBy = flatClip(p.signedBy, 60);
+  return [
+    `${business}, a business that wrote back by email to a reach-out this business sent them. You are drafting the email`,
+    `answer for the owner to read, change and send: it is not sent until they do.`,
+    answered ? `The reach-out they answered said: "${answered}"` : null,
+    `Write an email: plain paragraphs, no emoji, no subject line, no markdown.`,
+    signedBy ? `End it signed "${signedBy}".` : `End it signed with the business's name.`,
+    p.kind === "thanks" ? `They said not now. Write one short line thanking them, and nothing else: no offer, no question, no follow-up.` : `Answer what they asked or said from the business's own facts. When a fact is not there, say the owner will follow up.`
+  ].filter((l) => l !== null).join("\n");
+}
+function draftExcerpt(draft) {
+  return flatClip(draft, DRAFT_NOTICE_MAX);
+}
 var REPLY_INTENTS = ["interested", "question", "not_now", "no", "wrong_person", "away", "other"];
 var isReplyIntent = (v) => REPLY_INTENTS.includes(v);
 var REPLY_INTENT_WORDS = {
@@ -8992,7 +9019,7 @@ function replyNoticeWords(p) {
     quote ? `\u201C${withinChars(quote, REPLY_QUOTE_MAX)}\u201D` : null,
     doneWords(intent),
     p.unread ? `It could not be read (${UNREAD_WORDS[p.unread]}), so it is read again later.` : null,
-    p.draft ? "The receptionist drafted an answer. Nothing is sent without you." : null
+    p.draft ? `The receptionist drafted an answer: \u201C${draftExcerpt(p.draft)}\u201D Nothing is sent without you.` : null
   ].filter((l) => l !== null);
   return {
     subject: `${subjectOf({ intent, business, automatic: p.automatic })}${p.reread ? " (read again later)" : ""}`,
@@ -12057,6 +12084,16 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
   });
   if (error) console.error("emit_event_failed", kind, error.message);
 }
+async function stampEmailLeftAs(db, p) {
+  const { data, error } = await db.rpc("stamp_email_left_as", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_left_as: p.leftAs,
+    p_why: p.why
+  });
+  if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
+  return data === true;
+}
 async function outreachFactsOf(db, p) {
   const { data, error } = await db.rpc("outreach_facts", {
     p_tenant_id: p.tenantId,
@@ -12076,6 +12113,8 @@ async function outreachFactsOf(db, p) {
     lead_stage: typeof f.lead_stage === "string" ? f.lead_stage : null,
     suppressed: f.suppressed === true,
     wrote_back: f.wrote_back,
+    // Absent before 00226: not away, as it was.
+    away: f.away === true,
     domain: f.domain && typeof f.domain === "object" && typeof f.domain.state === "string" ? {
       state: f.domain.state,
       from_local: String(f.domain.from_local ?? ""),
@@ -12090,26 +12129,6 @@ var POS_TTL_MS = 5 * MIN_MS3;
 var CALL_CONTROL_S = 15 * 60;
 
 // src/deliver.ts
-function whatsappSender(cfg) {
-  if (!cfg) return null;
-  return (to, p) => {
-    const digits = to.replace(/^\+/, "");
-    return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
-  };
-}
-function emailSender(routes) {
-  if (routes.length === 0) return null;
-  const refuse = (errorBody) => Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
-  return (to, p) => {
-    if (!p.email) return refuse("no_frozen_request");
-    if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
-    const from = addressOf(p.email.from)?.address;
-    const lane = p.purpose === "outreach" ? "own" : "hosted";
-    const route = routes.find((r4) => r4.lane === lane && r4.as.address === from);
-    if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
-    return sendEmail(route.cfg, p.email);
-  };
-}
 function kindOf(d) {
   if (d.purpose === "outreach") return "broadcast";
   if (d.kind) return d.kind;
@@ -12151,6 +12170,7 @@ async function outreachFacts(db, d, f, nowMs) {
       leadStage: null,
       suppressed: false,
       wroteBack: false,
+      away: false,
       unsubscribable,
       domainState: null,
       cleanSince: null,
@@ -12178,6 +12198,7 @@ async function outreachFacts(db, d, f, nowMs) {
     leadStage: facts.lead_stage,
     suppressed: facts.suppressed,
     wroteBack: facts.wrote_back,
+    away: facts.away,
     unsubscribable,
     domainState: own?.state ?? null,
     cleanSince: own?.clean_since ?? null,
@@ -12198,7 +12219,12 @@ function refusalFor(d, f, nowMs, o) {
   if (!may.ok) return may.reason;
   if (d.purpose === "outreach") {
     if (!o) throw new Error(`deliver: an outreach email is judged with its facts (conversation ${d.conversationId})`);
-    const lead = outreachRefusalOf({ leadStage: o.leadStage, suppressed: o.suppressed, wroteBack: o.wroteBack });
+    const lead = outreachRefusalOf({
+      leadStage: o.leadStage,
+      suppressed: o.suppressed,
+      wroteBack: o.wroteBack,
+      away: o.away
+    });
     if (lead) return lead;
     if (!o.unsubscribable) return "outreach_without_unsubscribe";
     if (!o.domainState) return "outreach_needs_own_domain";
@@ -12237,16 +12263,47 @@ async function stampThread(db, d, nowMs) {
       JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message })
     );
 }
+async function leftAs(db, d, sent) {
+  if (!sent.leftAs) return;
+  const why = sent.leftAsWhy ?? null;
+  await stampEmailLeftAs(db, { tenantId: d.tenantId, messageId: d.messageId, leftAs: sent.leftAs, why }).catch(
+    (e) => {
+      console.error(
+        "deliver_left_as_failed",
+        JSON.stringify({ tenant: d.tenantId, message: d.messageId, error: e instanceof Error ? e.message : String(e) })
+      );
+    }
+  );
+}
 async function finalizeQueued(db, d, patch) {
   const { data, error } = await db.from("messages").update(patch).eq("id", d.messageId).eq("status", "queued").select("id");
   if (error) throw new Error(`deliver: cannot finalize message ${d.messageId}: ${error.message}`);
   return !!data && data.length > 0;
 }
+function assertFrozenFor(d) {
+  if (d.channel !== "email") return;
+  const keys = [d.email, d.ownEmail].map((r4) => r4?.idempotency_key ?? d.messageId);
+  if (d.messageId && keys.every((k) => k === d.messageId)) return;
+  throw new Error(
+    `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`
+  );
+}
+async function putOnWire(wire, d) {
+  const send = wire[d.channel];
+  if (send === void 0)
+    return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
+  if (send === null)
+    return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
+  const reply = d.email && kindOf(d) === "reply" ? { reply: true, ownEmail: d.ownEmail } : {};
+  return send(d.to, {
+    body: d.body,
+    template: d.template,
+    ...d.email ? { email: d.email, purpose: d.purpose } : {},
+    ...reply
+  });
+}
 async function deliver(ports, d) {
-  if (d.channel === "email" && (!d.messageId || d.email && d.email.idempotency_key !== d.messageId))
-    throw new Error(
-      `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`
-    );
+  assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
   const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts, nowMs) : null;
@@ -12271,12 +12328,7 @@ async function deliver(ports, d) {
     return { outcome: "refused", reason: why, messageId: d.messageId ?? null };
   };
   if (reason) return refuse(reason);
-  const send = ports.wire[d.channel];
-  const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, {
-    body: d.body,
-    template: d.template,
-    ...d.email ? { email: d.email, purpose: d.purpose } : {}
-  });
+  const sent = await putOnWire(ports.wire, d);
   if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
     if (facts.contactId)
       await recordCarrierOptOut(ports.db, {
@@ -12309,7 +12361,8 @@ async function deliver(ports, d) {
         // A cold email leaves its thread where it was: the Inbox reads the latest hundred threads, and a run of cold
         // sends would push every customer off it. The thread rises when the business writes back.
         d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
-        event(ports.db, d, "message.sent", d.messageId, { sender: d.sender })
+        event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
+        leftAs(ports.db, d, sent)
       ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
     }
@@ -12395,6 +12448,40 @@ async function deliverSafely(ports, d) {
     );
     return { outcome: "failed", reason: "wire_unreadable", status: 0, errorBody, messageId: d.messageId ?? null };
   }
+}
+
+// src/wire-senders.ts
+function whatsappSender(cfg) {
+  if (!cfg) return null;
+  return (to, p) => {
+    const digits = to.replace(/^\+/, "");
+    return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
+  };
+}
+function emailSender(routes) {
+  if (routes.length === 0) return null;
+  const refuse = (errorBody) => Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
+  return async (to, p) => {
+    if (!p.email) return refuse("no_frozen_request");
+    if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
+    const own = p.reply && p.ownEmail && p.purpose !== "outreach" ? ownRouteOf(routes, to, p.ownEmail) : null;
+    if (own && "route" in own) return { ...await sendEmail(own.route.cfg, p.ownEmail), leftAs: "own" };
+    const from = addressOf(p.email.from)?.address;
+    const lane = p.purpose === "outreach" ? "own" : "hosted";
+    const route = routes.find((r4) => r4.lane === lane && r4.as.address === from);
+    if (!route || !requestLeavesAs(p.email, route.as)) return refuse("request_leaves_as_another_sender");
+    const sent = await sendEmail(route.cfg, p.email);
+    return own ? { ...sent, leftAs: "mailbox", leftAsWhy: own.why } : sent;
+  };
+}
+function ownRouteOf(routes, to, twin) {
+  const owns = routes.filter((r4) => r4.lane === "own");
+  if (owns.length === 0) return { why: "no_own_route" };
+  if (twin.to.length !== 1 || twin.to[0] !== to) return { why: "twin_names_another_recipient" };
+  const from = addressOf(twin.from)?.address;
+  const route = owns.find((r4) => r4.as.address === from);
+  if (!route) return { why: "domain_has_no_route" };
+  return requestLeavesAs(twin, route.as) ? { route } : { why: "route_refuses_twin" };
 }
 
 // src/conversations/take-over.ts
@@ -12716,7 +12803,7 @@ async function sendQueued(ports, cmd) {
     body: p.body ?? msg.body ?? "",
     template: p.template,
     // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
-    ...msg.email ? { email: msg.email } : {},
+    ...msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {},
     ...msg.leadId ? { leadId: msg.leadId } : {},
     messageId: p.message_id
   });
@@ -12742,7 +12829,7 @@ async function sendQueued(ports, cmd) {
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
     // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
-    // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
+    // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
     out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
   );
   const receptionist = msg.sender === "ai";
@@ -12866,6 +12953,7 @@ function metaOf(e) {
 }
 
 // src/messages/reply-read.ts
+var DRAFT_STAGE = "draft";
 function rereadOf(stage) {
   if (stage === void 0 || stage === null || stage === "read") return 0;
   const m = typeof stage === "string" ? /^reread-([1-3])$/.exec(stage) : null;
@@ -12895,7 +12983,48 @@ async function readNow(ports, cmd, facts) {
   }
   return { reading, unread: reading ? null : "model_failed", now };
 }
+async function draftNow(ports, cmd, facts, kind) {
+  let out;
+  try {
+    out = await ports.draft(cmd.tenantId, {
+      conversationId: facts.conversationId,
+      text: replyTextOf(facts.text),
+      note: leadReplyNote({ business: facts.business, answered: facts.answered, signedBy: facts.signedBy, kind }),
+      deadline: cmd.deadline
+    });
+  } catch {
+    out = { why: "not_drafted" };
+  }
+  const text = "text" in out ? out.text.trim() : "";
+  await ports.markDraft(
+    cmd.tenantId,
+    cmd.messageId,
+    text ? { state: "written", draft: text } : { state: "not_written", why: "why" in out ? out.why : "not_drafted" }
+  );
+}
+async function draftStage(ports, cmd, facts, kept) {
+  if (!kept.draft || kept.draftState !== "none") return kept.draftText;
+  if (cmd.deadline - ports.now() < DRAFT_NEEDS_MS) {
+    await ports.markDraft(cmd.tenantId, cmd.messageId, { state: "waiting" });
+    await ports.scheduleOnce(ports.now(), { message_id: cmd.messageId, stage: DRAFT_STAGE });
+    return null;
+  }
+  await draftNow(ports, cmd, facts, kept.draft);
+  return (await ports.reading(cmd.tenantId, cmd.messageId))?.draftText ?? null;
+}
+async function draftLater(ports, cmd) {
+  const facts = await ports.reply(cmd.tenantId, cmd.messageId);
+  if (!facts) return "not_a_reply";
+  const kept = await ports.reading(cmd.tenantId, cmd.messageId);
+  if (!kept || kept.undone || !kept.draft || kept.draftState !== "none" && kept.draftState !== "waiting")
+    return "already_read";
+  if (cmd.deadline - ports.now() < DRAFT_NEEDS_MS)
+    throw new Error("reply_read: no time left to draft; the ledger tries again");
+  await draftNow(ports, cmd, facts, kept.draft);
+  return "drafted";
+}
 async function readReply(ports, cmd) {
+  if (cmd.stage === DRAFT_STAGE) return draftLater(ports, cmd);
   const n = rereadOf(cmd.stage);
   const { tenantId, messageId } = cmd;
   const facts = await ports.reply(tenantId, messageId);
@@ -12923,6 +13052,7 @@ async function readReply(ports, cmd) {
     const at = rereadAt(kept.unread, n, facts.receivedAt, ports.now());
     if (at !== null) await ports.scheduleOnce(at, { message_id: messageId, stage: `reread-${n + 1}` });
   }
+  const draft = await draftStage(ports, cmd, facts, kept);
   if (!kept.tell || kept.told) return "read";
   const claim = await ports.claimTell(tenantId, messageId, ports.now() - cmd.tellStaleMs);
   if (!claim) throw new Error("reply_read: another run holds the notice; tried again once its claim is stale");
@@ -12931,7 +13061,7 @@ async function readReply(ports, cmd) {
     business: facts.business,
     summary: kept.summary ?? "",
     quote: replyTextOf(facts.text),
-    draft: false,
+    draft,
     unread: kept.unread,
     automatic: facts.claim === "auto_reply",
     reread: n > 0
@@ -13669,7 +13799,8 @@ async function runReachOut(ports, step, cmd) {
       const refused = f.bounced ? "outreach_bounced" : outreachRefusalOf({
         leadStage: f.facts.lead_stage,
         suppressed: f.facts.suppressed,
-        wroteBack: f.facts.wrote_back
+        wroteBack: f.facts.wrote_back,
+        away: f.facts.away === true
       });
       if (refused) skips.push({ lead: f, reason: refused });
       else leads.push(f);
@@ -47335,6 +47466,72 @@ function discoveryEnding(round, runs, x) {
   });
 }
 
+// src/leads/runner/rules.ts
+var LEASE_SECONDS = 90;
+var FIRST_COLLECT_SECONDS = 20;
+var POLL_SECONDS = 15;
+var PAGE_ITEMS = 100;
+var CHECK_BATCH = 500;
+var DEADLINE_MARGIN_MS = 8e3;
+var JUDGE_MARGIN_MS = JUDGE_TIMEOUT_MS;
+var UNKNOWN_START_GRACE_MS = 10 * MIN_MS2;
+var INPUT_MARKER = "chanlyticsRunId";
+var PROVIDER_RUN_PAGE = 100;
+var OUT_OF_AREA_REASON = "outside the area you asked for";
+var NO_LOCATION_REASON = "no location on the listing";
+var CLOSED_REASON = "closed on Google Maps";
+var DUPLICATE_REASON = "the same place, listed twice";
+var LeadRetry = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "LeadRetry";
+  }
+};
+var iso = (d) => d.toISOString();
+var isRefused = (e) => e?.name === "ApifyRefused";
+var isRetryable = (e) => e?.name === "ApifyRetryable";
+var minute = (p) => Math.floor(p.now().getTime() / MIN_MS2);
+var outOfTime = (p, marginMs = DEADLINE_MARGIN_MS) => p.now().getTime() + marginMs > p.deadline;
+var webhookUrl = (p, runRowId, token) => `${p.webhookBase}/api/apify-webhook?run=${encodeURIComponent(runRowId)}&token=${encodeURIComponent(token)}`;
+var targetOf = (round) => round.purpose === "probe" ? round.plan.count : round.target;
+var wasJudged = (m) => {
+  const j = m.judgment;
+  return !!j && typeof j === "object" && j.answer !== null && j.answer !== void 0;
+};
+
+// src/leads/runner/claim.ts
+async function findOurRun(p, actor, row) {
+  const since = new Date(Date.parse(row.claimed_at ?? row.created_at) - 5 * MIN_MS2);
+  const runs = await p.apify.listActorRuns(actor, iso(since));
+  for (const r4 of runs.slice(0, PROVIDER_RUN_PAGE)) {
+    const input = await p.apify.runInput(r4.id);
+    if (input && input[INPUT_MARKER] === row.id) return r4;
+  }
+  return null;
+}
+async function claimOrRecover(p, actor, row, owner) {
+  if (await p.db.runClaim(row.id, owner)) return "mine";
+  if (!(row.claimed_by === owner && row.state === "starting")) return "not_mine";
+  const found = await findOurRun(p, actor, row);
+  if (!found) return "mine";
+  await p.db.runMarkUnknown(row.id, owner);
+  await p.db.runReconcile(row.id, found.id, found.datasetId, runStateOf(found.status));
+  await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, 0);
+  return "recovered";
+}
+async function startFailed(p, row, owner, e) {
+  if (isRefused(e)) {
+    await p.db.runMarkUnknown(row.id, owner);
+    await p.db.runReconcile(row.id, null, null, "failed");
+    return "refused";
+  }
+  if (isRetryable(e) && e.status === null) {
+    await p.db.runMarkUnknown(row.id, owner);
+    return "unknown";
+  }
+  throw e;
+}
+
 // src/html.ts
 function attrsOf(tag) {
   const out = {};
@@ -47530,150 +47727,48 @@ function markImageFrom(bytes) {
   return image;
 }
 
-// src/leads/runner.ts
-var LEASE_SECONDS = 90;
-var FIRST_COLLECT_SECONDS = 20;
-var POLL_SECONDS = 15;
-var PAGE_ITEMS = 100;
-var CHECK_BATCH = 500;
-var DEADLINE_MARGIN_MS = 8e3;
-var JUDGE_MARGIN_MS = JUDGE_TIMEOUT_MS;
-var UNKNOWN_START_GRACE_MS = 10 * MIN_MS2;
-var INPUT_MARKER = "chanlyticsRunId";
-var PROVIDER_RUN_PAGE = 100;
-var OUT_OF_AREA_REASON = "outside the area you asked for";
-var NO_LOCATION_REASON = "no location on the listing";
-var CLOSED_REASON = "closed on Google Maps";
-var DUPLICATE_REASON = "the same place, listed twice";
-var LeadRetry = class extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "LeadRetry";
-  }
-};
-var iso = (d) => d.toISOString();
-var isRefused = (e) => e?.name === "ApifyRefused";
-var isRetryable = (e) => e?.name === "ApifyRetryable";
-var minute = (p) => Math.floor(p.now().getTime() / MIN_MS2);
-var outOfTime = (p, marginMs = DEADLINE_MARGIN_MS) => p.now().getTime() + marginMs > p.deadline;
-var webhookUrl = (p, runRowId, token) => `${p.webhookBase}/api/apify-webhook?run=${encodeURIComponent(runRowId)}&token=${encodeURIComponent(token)}`;
-var targetOf = (round) => round.purpose === "probe" ? round.plan.count : round.target;
-var wasJudged = (m) => {
-  const j = m.judgment;
-  return !!j && typeof j === "object" && j.answer !== null && j.answer !== void 0;
-};
-async function findOurRun(p, actor, row) {
-  const since = new Date(Date.parse(row.claimed_at ?? row.created_at) - 5 * MIN_MS2);
-  const runs = await p.apify.listActorRuns(actor, iso(since));
-  for (const r4 of runs.slice(0, PROVIDER_RUN_PAGE)) {
-    const input = await p.apify.runInput(r4.id);
-    if (input && input[INPUT_MARKER] === row.id) return r4;
-  }
-  return null;
-}
-async function claimOrRecover(p, actor, row, owner) {
-  if (await p.db.runClaim(row.id, owner)) return "mine";
-  if (!(row.claimed_by === owner && row.state === "starting")) return "not_mine";
-  const found = await findOurRun(p, actor, row);
-  if (!found) return "mine";
-  await p.db.runMarkUnknown(row.id, owner);
-  await p.db.runReconcile(row.id, found.id, found.datasetId, runStateOf(found.status));
-  await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, 0);
-  return "recovered";
-}
-async function startFailed(p, row, owner, e) {
-  if (isRefused(e)) {
-    await p.db.runMarkUnknown(row.id, owner);
-    await p.db.runReconcile(row.id, null, null, "failed");
-    return "refused";
-  }
-  if (isRetryable(e) && e.status === null) {
-    await p.db.runMarkUnknown(row.id, owner);
-    return "unknown";
-  }
-  throw e;
-}
-async function startRound(p, roundId, owner, resume = false) {
-  const round = await p.db.round(roundId);
-  if (!round || round.state === "ended") return { kind: "not_open" };
-  if (!await p.db.leadSearchesOn(round.tenant_id)) {
-    await p.db.roundEnd(round.id, "paused");
-    return { kind: "paused" };
-  }
-  const leftUsd = round.cost_reserved_usd - round.cost_usd;
-  if (leftUsd <= 0) {
-    await p.db.roundEnd(round.id, "budget_used");
-    return { kind: "spent" };
-  }
-  const plan = round.plan;
-  const card = CARDS[plan.card];
-  const phase = round.purpose === "probe" && !resume && round.state !== "running" ? "probe" : "main";
-  let ask;
-  if (phase === "probe") {
-    ask = probeAsk(plan);
-  } else {
-    if (resume && round.answered === "include" && round.purpose === "probe") await rejudgeProbe(p, round);
-    const members = await p.db.membersOfRound(round.id);
-    const judged = members.filter(wasJudged);
-    const counted = members.filter((m) => m.counted).length;
-    const y = round.purpose === "probe" ? probeYield(judged) : 0.5;
-    const dropTerm = round.answered === "keep" ? round.question?.dropTerm ?? null : null;
-    ask = mainAsk(plan, targetOf(round) - counted, y, dropTerm);
-  }
-  const caps = runCaps(plan, ask.perTerm, leftUsd);
-  const wanted = [];
-  for (const [i, term] of ask.terms.entries()) {
-    if (ask.perTerm[i] <= 0 || caps[i] <= 0) continue;
-    const id = await runIdFor(round.id, phase, term);
-    wanted.push({ id, term, hash: await sha256Hex2(await p.webhookToken(id)), places: ask.perTerm[i], cap: caps[i] });
-  }
-  if (!wanted.length) return { kind: "started", phase, runs: [] };
-  const rows = await p.db.runsEnsure(
-    wanted.map((w) => ({
-      id: w.id,
-      tenant_id: round.tenant_id,
-      round_id: round.id,
-      purpose: "discover",
-      term: w.term,
-      actor: card.actor,
-      build: card.build,
-      webhook_token_hash: w.hash,
-      cap_usd: w.cap
-    }))
-  );
-  const outcomes = [];
-  for (const w of wanted) {
-    const row = rows.find((r4) => r4.id === w.id);
-    if (!row) throw new Error(`lead_round_start: the run row for ${w.term} was not made`);
-    if (row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner)) {
-      outcomes.push({ term: w.term, kind: "already" });
-      continue;
+// src/leads/runner/mark-places.ts
+var MARK_ALLOWANCE_MS = 8e3;
+var MARK_AT_ONCE = 6;
+var MARK_TRIES = 2;
+var SAYS_SVG = /\.svg(?:[?#]|$)/i;
+async function markPlaces(p, places) {
+  const { fetchText, fetchBytes, storeMark } = p;
+  if (!fetchText) return 0;
+  const want = places.filter((x) => x.member.class !== "excluded" && !!x.place.website_host);
+  const until = Math.min(p.deadline - JUDGE_MARGIN_MS, p.now().getTime() + MARK_ALLOWANCE_MS);
+  const left = () => until - p.now().getTime();
+  let kept = 0;
+  const markOne = async (x) => {
+    const origin = `https://${x.place.website_host}`;
+    const html = await fetchText(origin, left()).catch(() => null);
+    if (!html) return;
+    const marks = leadMarksFrom(html, origin);
+    if (marks.length === 0) return;
+    x.place.logo_url = marks[0];
+    if (!fetchBytes || !storeMark) return;
+    for (const url of marks.filter((u) => !SAYS_SVG.test(u)).slice(0, MARK_TRIES)) {
+      if (left() <= 250) return;
+      const bytes = await fetchBytes(url, left(), MARK_MAX_BYTES).catch(() => null);
+      const image = bytes ? markImageFrom(bytes) : null;
+      if (!bytes || !image) continue;
+      const path = await storeMark(bytes, image).catch(() => null);
+      if (!path) return;
+      x.place.logo_url = url;
+      x.place.mark_path = path;
+      kept += 1;
+      return;
     }
-    if (outOfTime(p)) throw new LeadRetry("out of time before a start: the ledger tries the rest again");
-    const claim = await claimOrRecover(p, card.actor, row, owner);
-    if (claim !== "mine") {
-      outcomes.push({ term: w.term, kind: claim === "recovered" ? "reconciled" : "someone_elses" });
-      continue;
-    }
-    const token = await p.webhookToken(row.id);
-    const input = { ...card.buildInput(plan, w.term, w.places), [INPUT_MARKER]: row.id };
-    try {
-      const started = await p.apify.startRun(card.actor, input, {
-        build: card.build,
-        timeoutSecs: MAPS_RUN_TIMEOUT_SECS,
-        maxTotalChargeUsd: w.cap,
-        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }]
-      });
-      await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, w.cap);
-      await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
-      outcomes.push({ term: w.term, kind: "started" });
-    } catch (e) {
-      outcomes.push({ term: w.term, kind: await startFailed(p, row, owner, e) });
-    }
-  }
-  if (outcomes.length && outcomes.every((o) => o.kind === "refused")) await p.db.roundEnd(round.id, "source_failed");
-  return { kind: "started", phase, runs: outcomes };
+  };
+  let next = 0;
+  const worker = async () => {
+    while (next < want.length && left() > 250) await markOne(want[next++]);
+  };
+  await Promise.all(Array.from({ length: Math.min(MARK_AT_ONCE, want.length) }, worker));
+  return kept;
 }
+
+// src/leads/runner/places.ts
 function centerOf(plan, members) {
   const fixed = areaCenter(plan);
   if (fixed) return { center: fixed, radiusM: plan.area.radius_m };
@@ -47798,6 +47893,363 @@ function takeBatch(card, items, cursor) {
   }
   return { end, prepared };
 }
+
+// src/leads/runner/rejudge.ts
+var versionOf = (m) => {
+  const v = m.judgment?.plan_version;
+  return typeof v === "number" ? v : 1;
+};
+var keysOf = (plan) => [
+  LEAD_KIND_KEY,
+  ...plan.exclusions.map((e) => e.key),
+  ...plan.criteria.map((c) => c.key)
+];
+async function rejudgeProbe(p, round) {
+  const out = { changed: 0, reused: 0, judged: 0, unread: 0 };
+  const plan = round.plan;
+  const card = CARDS[plan.card];
+  const members = await p.db.membersOfRound(round.id);
+  const pending = members.filter(
+    (m) => wasJudged(m) && !m.decided && m.place_id !== null && versionOf(m) < round.plan_version
+  );
+  if (!pending.length) return out;
+  const listed = /* @__PURE__ */ new Map();
+  for (const r4 of await p.db.runsOfRound(round.id)) {
+    if (r4.purpose !== "discover" || r4.term === null || !r4.dataset_id) continue;
+    if (await runIdFor(round.id, "probe", r4.term) !== r4.id) continue;
+    for (let from = 0; ; from += PAGE_ITEMS) {
+      if (outOfTime(p)) throw new LeadRetry("out of time reading the first places again");
+      let items;
+      try {
+        items = (await p.apify.listItems(r4.dataset_id, from, PAGE_ITEMS, [...card.fields])).items;
+      } catch (e) {
+        if (isRefused(e)) break;
+        throw e;
+      }
+      for (const it of items) {
+        const mapped = card.mapItem(it);
+        if (mapped && !listed.has(mapped.placeId))
+          listed.set(mapped.placeId, { clean: cleanPlace(mapped), term: r4.term });
+      }
+      if (items.length < PAGE_ITEMS) break;
+    }
+  }
+  const found = pending.flatMap((m) => {
+    const x = listed.get(m.place_id);
+    if (!x) out.unread += 1;
+    return x ? [{ m, clean: x.clean, term: m.term ?? x.term }] : [];
+  });
+  if (!found.length) return out;
+  const supp = await p.db.suppressed(round.tenant_id, {
+    // Every address, free mail included, as the collect asks (a stop is a person's, whatever their domain).
+    emails: found.flatMap((x) => x.clean.emails),
+    placeIds: found.map((x) => x.clean.raw.placeId)
+  });
+  const geo = { center: areaCenter(plan), radiusM: plan.area.radius_m };
+  const keys = keysOf(plan);
+  const nowAsked = askedOf(plan);
+  const reuse = [];
+  const judge = [];
+  for (const x of found) {
+    if (supp.placeIds.has(x.clean.raw.placeId)) continue;
+    x.clean.emails = x.clean.emails.filter((e) => !supp.emails.has(e));
+    const j = x.m.judgment;
+    const answers = new Set((j.answer?.criteria ?? []).map((c) => c.key));
+    const same = keys.every((k) => answers.has(k) && j.asked?.[k] === nowAsked[k]);
+    (same ? reuse : judge).push(x);
+  }
+  const place = (x, answer, opId, model) => {
+    const rule = geo.center && !inArea(geo.center, geo.radiusM, x.clean.raw.location) ? { class: "review", reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null } : null;
+    const made = memberOf(plan, x.term, x.clean, answer, opId, model, rule, geo, [], null);
+    made.member.judgment = { ...made.member.judgment, plan_version: round.plan_version };
+    return made;
+  };
+  const commit = async (xs, places, judgment) => {
+    await markPlaces(
+      p,
+      places.filter((pl, i) => xs[i].m.class === "excluded" && pl.member.class !== "excluded")
+    );
+    const res = await p.db.roundRejudge(round.id, round.plan_version, places, judgment);
+    if (!res.ok) return false;
+    out.changed += res.changed;
+    return true;
+  };
+  if (reuse.length) {
+    const places = reuse.map((x) => {
+      const j = x.m.judgment;
+      return place(x, j.answer ?? null, j.op_id ?? null, j.model ?? null);
+    });
+    out.reused = reuse.length;
+    if (!await commit(reuse, places, null)) return out;
+  }
+  for (let i = 0; i < judge.length; i += LEAD_JUDGE_BATCH) {
+    const batch = judge.slice(i, i + LEAD_JUDGE_BATCH);
+    if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before judging the first places again");
+    const judged = await judgeBatch(
+      p.judge,
+      plan,
+      batch.map((x, ref) => factsOf(ref, x.clean)),
+      opIdFor(
+        `rejudge:${round.id}:${round.plan_version}:${batch.map((x) => x.clean.raw.placeId).sort().join(",")}`,
+        0,
+        0
+      )
+    );
+    if (judged.refused) continue;
+    const places = batch.map(
+      (x, ref) => place(x, judged.answers.get(ref) ?? null, judged.judgment?.op_id ?? null, judged.model)
+    );
+    out.judged += batch.length;
+    if (!await commit(batch, places, judged.judgment)) return out;
+  }
+  return out;
+}
+
+// src/leads/runner/start.ts
+async function startRound(p, roundId, owner, resume = false) {
+  const round = await p.db.round(roundId);
+  if (!round || round.state === "ended") return { kind: "not_open" };
+  if (!await p.db.leadSearchesOn(round.tenant_id)) {
+    await p.db.roundEnd(round.id, "paused");
+    return { kind: "paused" };
+  }
+  const leftUsd = round.cost_reserved_usd - round.cost_usd;
+  if (leftUsd <= 0) {
+    await p.db.roundEnd(round.id, "budget_used");
+    return { kind: "spent" };
+  }
+  const plan = round.plan;
+  const card = CARDS[plan.card];
+  const phase = round.purpose === "probe" && !resume && round.state !== "running" ? "probe" : "main";
+  let ask;
+  if (phase === "probe") {
+    ask = probeAsk(plan);
+  } else {
+    if (resume && round.answered === "include" && round.purpose === "probe") await rejudgeProbe(p, round);
+    const members = await p.db.membersOfRound(round.id);
+    const judged = members.filter(wasJudged);
+    const counted = members.filter((m) => m.counted).length;
+    const y = round.purpose === "probe" ? probeYield(judged) : 0.5;
+    const dropTerm = round.answered === "keep" ? round.question?.dropTerm ?? null : null;
+    ask = mainAsk(plan, targetOf(round) - counted, y, dropTerm);
+  }
+  const caps = runCaps(plan, ask.perTerm, leftUsd);
+  const wanted = [];
+  for (const [i, term] of ask.terms.entries()) {
+    if (ask.perTerm[i] <= 0 || caps[i] <= 0) continue;
+    const id = await runIdFor(round.id, phase, term);
+    wanted.push({ id, term, hash: await sha256Hex2(await p.webhookToken(id)), places: ask.perTerm[i], cap: caps[i] });
+  }
+  if (!wanted.length) return { kind: "started", phase, runs: [] };
+  const rows = await p.db.runsEnsure(
+    wanted.map((w) => ({
+      id: w.id,
+      tenant_id: round.tenant_id,
+      round_id: round.id,
+      purpose: "discover",
+      term: w.term,
+      actor: card.actor,
+      build: card.build,
+      webhook_token_hash: w.hash,
+      cap_usd: w.cap
+    }))
+  );
+  const outcomes = [];
+  for (const w of wanted) {
+    const row = rows.find((r4) => r4.id === w.id);
+    if (!row) throw new Error(`lead_round_start: the run row for ${w.term} was not made`);
+    if (row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner)) {
+      outcomes.push({ term: w.term, kind: "already" });
+      continue;
+    }
+    if (outOfTime(p)) throw new LeadRetry("out of time before a start: the ledger tries the rest again");
+    const claim = await claimOrRecover(p, card.actor, row, owner);
+    if (claim !== "mine") {
+      outcomes.push({ term: w.term, kind: claim === "recovered" ? "reconciled" : "someone_elses" });
+      continue;
+    }
+    const token = await p.webhookToken(row.id);
+    const input = { ...card.buildInput(plan, w.term, w.places), [INPUT_MARKER]: row.id };
+    try {
+      const started = await p.apify.startRun(card.actor, input, {
+        build: card.build,
+        timeoutSecs: MAPS_RUN_TIMEOUT_SECS,
+        maxTotalChargeUsd: w.cap,
+        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }]
+      });
+      await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, w.cap);
+      await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
+      outcomes.push({ term: w.term, kind: "started" });
+    } catch (e) {
+      outcomes.push({ term: w.term, kind: await startFailed(p, row, owner, e) });
+    }
+  }
+  if (outcomes.length && outcomes.every((o) => o.kind === "refused")) await p.db.roundEnd(round.id, "source_failed");
+  return { kind: "started", phase, runs: outcomes };
+}
+
+// src/leads/runner/check.ts
+var isAgainRun = (run) => run.purpose === "check" && (run.term ?? "").startsWith("again:");
+function checkable(members) {
+  return members.filter((m) => m.email !== null && m.email_state === "checking").sort((a, b) => a.lead_id < b.lead_id ? -1 : a.lead_id > b.lead_id ? 1 : 0);
+}
+async function check(p, roundId, batch, owner, again = null) {
+  const round = await p.db.round(roundId);
+  if (!round || round.state === "ended" && !again) return { kind: "not_open" };
+  const card = CARDS[round.plan.card];
+  const named = again ? new Set(again.leadIds) : null;
+  const all = checkable(await p.db.membersOfRound(round.id)).filter((m) => !named || named.has(m.lead_id));
+  const slice = all.slice(batch * CHECK_BATCH, (batch + 1) * CHECK_BATCH);
+  if (!await p.db.leadSearchesOn(round.tenant_id)) {
+    if (slice.length)
+      await p.db.checkCommit(
+        round.id,
+        null,
+        slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })),
+        0,
+        false
+      );
+    if (!again) await p.db.roundEnd(round.id, "paused");
+    return { kind: "paused" };
+  }
+  if (!slice.length) {
+    if (batch === 0 && round.state === "checking" && !again) await p.db.checkCommit(round.id, null, [], 0, true);
+    return { kind: "nothing_to_check" };
+  }
+  const term = again ? `again:${again.nonce}:${batch}` : `batch:${batch}`;
+  const id = await runIdFor(round.id, "check", term);
+  const token = await p.webhookToken(id);
+  const emails = [...new Set(slice.map((m) => m.email))];
+  const brief = LEAD_CARDS.find((c) => c.id === round.plan.card);
+  const capUsd = Math.max(
+    0.5,
+    Math.round(emails.length * (brief?.checkPerEmailUsd ?? 89e-5) * LEAD_ESTIMATE_MARGIN * 100) / 100
+  );
+  const rows = await p.db.runsEnsure([
+    {
+      id,
+      tenant_id: round.tenant_id,
+      round_id: round.id,
+      purpose: "check",
+      term,
+      actor: card.checker.actor,
+      build: card.checker.build,
+      webhook_token_hash: await sha256Hex2(token),
+      cap_usd: capUsd
+    }
+  ]);
+  const row = rows.find((r4) => r4.id === id);
+  if (!row || row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner))
+    return { kind: "already" };
+  if (outOfTime(p)) throw new LeadRetry("out of time before the checker");
+  const claim = await claimOrRecover(p, card.checker.actor, row, owner);
+  if (claim !== "mine") return { kind: "already" };
+  try {
+    const started = await p.apify.startRun(
+      card.checker.actor,
+      { ...card.checker.buildInput(emails), [INPUT_MARKER]: row.id },
+      {
+        build: card.checker.build,
+        timeoutSecs: CHECKER_RUN_TIMEOUT_SECS,
+        maxTotalChargeUsd: capUsd,
+        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }]
+      }
+    );
+    await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, capUsd);
+    await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
+    const more = all.length > (batch + 1) * CHECK_BATCH;
+    if (more)
+      await p.schedule(
+        "lead_check",
+        { round_id: round.id, batch: batch + 1, ...again ? { again: again.nonce, lead_ids: again.leadIds } : {} },
+        0
+      );
+    return { kind: "started", emails: emails.length, more };
+  } catch (e) {
+    const kind = await startFailed(p, row, owner, e);
+    if (kind === "refused") {
+      await p.db.checkCommit(
+        round.id,
+        row.id,
+        slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })),
+        0,
+        !again && all.length <= (batch + 1) * CHECK_BATCH
+      );
+    }
+    return { kind };
+  }
+}
+
+// src/leads/runner/round-decision.ts
+async function roundDecision(p, round, run, phase, runState, members, itemsSeenNow) {
+  const runs = (await p.db.runsOfRound(round.id)).map(
+    (r4) => r4.id === run.id ? { ...r4, state: runState, items_seen: itemsSeenNow } : r4
+  );
+  const phaseOf = /* @__PURE__ */ new Map();
+  for (const r4 of runs)
+    if (r4.purpose === "discover" && r4.term !== null)
+      phaseOf.set(r4.id, await runIdFor(round.id, "probe", r4.term) === r4.id ? "probe" : "main");
+  const inPhase = runs.filter((r4) => r4.purpose === "discover" && phaseOf.get(r4.id) === phase);
+  if (!inPhase.every((r4) => FINAL_RUN_STATES.has(r4.state))) return null;
+  const countedNow = members.filter((m) => m.counted).length;
+  const countable = members.filter((m) => !m.counted && m.class === "qualified").length;
+  const counted = countedNow + Math.min(countable, Math.max(0, round.allowance_reserved - round.allowance_used));
+  const toChecks = {
+    round: { state: "checking", question: null, ending: null, ending_pending: "target_reached" },
+    next: null,
+    after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0)
+  };
+  if (phase === "probe") {
+    if (round.state !== "queued" && round.state !== "probing") return null;
+    if (counted >= targetOf(round)) return toChecks;
+    const judged = members.filter(wasJudged);
+    const a = afterProbe(
+      round.plan,
+      judged.map((m) => ({ class: m.class, excluded_by: m.excluded_by, term: m.term, phone: m.phone, email: m.email })),
+      p.now()
+    );
+    if (a.kind === "ask")
+      return {
+        round: { state: "waiting_on_owner", question: a.question, ending: null },
+        next: null,
+        // Once the question is committed: it waits a day on a person who may not be looking at the page.
+        after: async () => {
+          await p.tell?.({ kind: "question", roundId: round.id }).catch(() => void 0);
+        }
+      };
+    return {
+      round: { state: "running", question: null, ending: null, target: targetOf(round) },
+      next: null,
+      after: () => p.schedule("lead_round_start", { round_id: round.id, resume: true }, 0)
+    };
+  }
+  const asked = /* @__PURE__ */ new Map();
+  for (const r4 of inPhase) {
+    if (outOfTime(p) || !r4.apify_run_id) continue;
+    const input = await p.apify.runInput(r4.apify_run_id).catch(() => null);
+    asked.set(r4.id, typeof input?.maxCrawledPlacesPerSearch === "number" ? input.maxCrawledPlacesPerSearch : null);
+  }
+  const ending = discoveryEnding(round, runs, {
+    counted,
+    target: targetOf(round),
+    termsShort: termsShortOf(inPhase, (r4) => asked.get(r4.id) ?? null),
+    stopped: false
+  });
+  const nearby = ending === "searched_everything" || ending === "few_new_matches" ? nearbyFor(round.plan, members) : [];
+  return {
+    round: {
+      state: "checking",
+      question: null,
+      ending: null,
+      ending_pending: ending,
+      ...nearby.length ? { nearby } : {}
+    },
+    next: null,
+    after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0)
+  };
+}
+
+// src/leads/runner/collect.ts
 async function collect(p, runId, seq, owner) {
   const run = await p.db.run(runId);
   if (!run) return { kind: "gone" };
@@ -47992,182 +48444,6 @@ function memberRows(places, term) {
     term
   }));
 }
-async function roundDecision(p, round, run, phase, runState, members, itemsSeenNow) {
-  const runs = (await p.db.runsOfRound(round.id)).map(
-    (r4) => r4.id === run.id ? { ...r4, state: runState, items_seen: itemsSeenNow } : r4
-  );
-  const phaseOf = /* @__PURE__ */ new Map();
-  for (const r4 of runs)
-    if (r4.purpose === "discover" && r4.term !== null)
-      phaseOf.set(r4.id, await runIdFor(round.id, "probe", r4.term) === r4.id ? "probe" : "main");
-  const inPhase = runs.filter((r4) => r4.purpose === "discover" && phaseOf.get(r4.id) === phase);
-  if (!inPhase.every((r4) => FINAL_RUN_STATES.has(r4.state))) return null;
-  const countedNow = members.filter((m) => m.counted).length;
-  const countable = members.filter((m) => !m.counted && m.class === "qualified").length;
-  const counted = countedNow + Math.min(countable, Math.max(0, round.allowance_reserved - round.allowance_used));
-  const toChecks = {
-    round: { state: "checking", question: null, ending: null, ending_pending: "target_reached" },
-    next: null,
-    after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0)
-  };
-  if (phase === "probe") {
-    if (round.state !== "queued" && round.state !== "probing") return null;
-    if (counted >= targetOf(round)) return toChecks;
-    const judged = members.filter(wasJudged);
-    const a = afterProbe(
-      round.plan,
-      judged.map((m) => ({ class: m.class, excluded_by: m.excluded_by, term: m.term, phone: m.phone, email: m.email })),
-      p.now()
-    );
-    if (a.kind === "ask")
-      return {
-        round: { state: "waiting_on_owner", question: a.question, ending: null },
-        next: null,
-        // Once the question is committed: it waits a day on a person who may not be looking at the page.
-        after: async () => {
-          await p.tell?.({ kind: "question", roundId: round.id }).catch(() => void 0);
-        }
-      };
-    return {
-      round: { state: "running", question: null, ending: null, target: targetOf(round) },
-      next: null,
-      after: () => p.schedule("lead_round_start", { round_id: round.id, resume: true }, 0)
-    };
-  }
-  const asked = /* @__PURE__ */ new Map();
-  for (const r4 of inPhase) {
-    if (outOfTime(p) || !r4.apify_run_id) continue;
-    const input = await p.apify.runInput(r4.apify_run_id).catch(() => null);
-    asked.set(r4.id, typeof input?.maxCrawledPlacesPerSearch === "number" ? input.maxCrawledPlacesPerSearch : null);
-  }
-  const ending = discoveryEnding(round, runs, {
-    counted,
-    target: targetOf(round),
-    termsShort: termsShortOf(inPhase, (r4) => asked.get(r4.id) ?? null),
-    stopped: false
-  });
-  const nearby = ending === "searched_everything" || ending === "few_new_matches" ? nearbyFor(round.plan, members) : [];
-  return {
-    round: {
-      state: "checking",
-      question: null,
-      ending: null,
-      ending_pending: ending,
-      ...nearby.length ? { nearby } : {}
-    },
-    next: null,
-    after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0)
-  };
-}
-var versionOf = (m) => {
-  const v = m.judgment?.plan_version;
-  return typeof v === "number" ? v : 1;
-};
-var keysOf = (plan) => [
-  LEAD_KIND_KEY,
-  ...plan.exclusions.map((e) => e.key),
-  ...plan.criteria.map((c) => c.key)
-];
-async function rejudgeProbe(p, round) {
-  const out = { changed: 0, reused: 0, judged: 0, unread: 0 };
-  const plan = round.plan;
-  const card = CARDS[plan.card];
-  const members = await p.db.membersOfRound(round.id);
-  const pending = members.filter(
-    (m) => wasJudged(m) && !m.decided && m.place_id !== null && versionOf(m) < round.plan_version
-  );
-  if (!pending.length) return out;
-  const listed = /* @__PURE__ */ new Map();
-  for (const r4 of await p.db.runsOfRound(round.id)) {
-    if (r4.purpose !== "discover" || r4.term === null || !r4.dataset_id) continue;
-    if (await runIdFor(round.id, "probe", r4.term) !== r4.id) continue;
-    for (let from = 0; ; from += PAGE_ITEMS) {
-      if (outOfTime(p)) throw new LeadRetry("out of time reading the first places again");
-      let items;
-      try {
-        items = (await p.apify.listItems(r4.dataset_id, from, PAGE_ITEMS, [...card.fields])).items;
-      } catch (e) {
-        if (isRefused(e)) break;
-        throw e;
-      }
-      for (const it of items) {
-        const mapped = card.mapItem(it);
-        if (mapped && !listed.has(mapped.placeId))
-          listed.set(mapped.placeId, { clean: cleanPlace(mapped), term: r4.term });
-      }
-      if (items.length < PAGE_ITEMS) break;
-    }
-  }
-  const found = pending.flatMap((m) => {
-    const x = listed.get(m.place_id);
-    if (!x) out.unread += 1;
-    return x ? [{ m, clean: x.clean, term: m.term ?? x.term }] : [];
-  });
-  if (!found.length) return out;
-  const supp = await p.db.suppressed(round.tenant_id, {
-    // Every address, free mail included, as the collect asks (a stop is a person's, whatever their domain).
-    emails: found.flatMap((x) => x.clean.emails),
-    placeIds: found.map((x) => x.clean.raw.placeId)
-  });
-  const geo = { center: areaCenter(plan), radiusM: plan.area.radius_m };
-  const keys = keysOf(plan);
-  const nowAsked = askedOf(plan);
-  const reuse = [];
-  const judge = [];
-  for (const x of found) {
-    if (supp.placeIds.has(x.clean.raw.placeId)) continue;
-    x.clean.emails = x.clean.emails.filter((e) => !supp.emails.has(e));
-    const j = x.m.judgment;
-    const answers = new Set((j.answer?.criteria ?? []).map((c) => c.key));
-    const same = keys.every((k) => answers.has(k) && j.asked?.[k] === nowAsked[k]);
-    (same ? reuse : judge).push(x);
-  }
-  const place = (x, answer, opId, model) => {
-    const rule = geo.center && !inArea(geo.center, geo.radiusM, x.clean.raw.location) ? { class: "review", reason: OUT_OF_AREA_REASON, token: "out_of_area", excluded_by: null } : null;
-    const made = memberOf(plan, x.term, x.clean, answer, opId, model, rule, geo, [], null);
-    made.member.judgment = { ...made.member.judgment, plan_version: round.plan_version };
-    return made;
-  };
-  const commit = async (xs, places, judgment) => {
-    await markPlaces(
-      p,
-      places.filter((pl, i) => xs[i].m.class === "excluded" && pl.member.class !== "excluded")
-    );
-    const res = await p.db.roundRejudge(round.id, round.plan_version, places, judgment);
-    if (!res.ok) return false;
-    out.changed += res.changed;
-    return true;
-  };
-  if (reuse.length) {
-    const places = reuse.map((x) => {
-      const j = x.m.judgment;
-      return place(x, j.answer ?? null, j.op_id ?? null, j.model ?? null);
-    });
-    out.reused = reuse.length;
-    if (!await commit(reuse, places, null)) return out;
-  }
-  for (let i = 0; i < judge.length; i += LEAD_JUDGE_BATCH) {
-    const batch = judge.slice(i, i + LEAD_JUDGE_BATCH);
-    if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before judging the first places again");
-    const judged = await judgeBatch(
-      p.judge,
-      plan,
-      batch.map((x, ref) => factsOf(ref, x.clean)),
-      opIdFor(
-        `rejudge:${round.id}:${round.plan_version}:${batch.map((x) => x.clean.raw.placeId).sort().join(",")}`,
-        0,
-        0
-      )
-    );
-    if (judged.refused) continue;
-    const places = batch.map(
-      (x, ref) => place(x, judged.answers.get(ref) ?? null, judged.judgment?.op_id ?? null, judged.model)
-    );
-    out.judged += batch.length;
-    if (!await commit(batch, places, judged.judgment)) return out;
-  }
-  return out;
-}
 async function stopRun(p, round, run, owner) {
   if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id);
   const gen = await p.db.runLease(run.id, owner, LEASE_SECONDS);
@@ -48191,135 +48467,6 @@ async function stopRun(p, round, run, owner) {
     return { kind: "stopped" };
   } finally {
     await p.db.runRelease(run.id, owner, gen);
-  }
-}
-var isAgainRun = (run) => run.purpose === "check" && (run.term ?? "").startsWith("again:");
-var MARK_ALLOWANCE_MS = 8e3;
-var MARK_AT_ONCE = 6;
-var MARK_TRIES = 2;
-var SAYS_SVG = /\.svg(?:[?#]|$)/i;
-async function markPlaces(p, places) {
-  const { fetchText, fetchBytes, storeMark } = p;
-  if (!fetchText) return 0;
-  const want = places.filter((x) => x.member.class !== "excluded" && !!x.place.website_host);
-  const until = Math.min(p.deadline - JUDGE_MARGIN_MS, p.now().getTime() + MARK_ALLOWANCE_MS);
-  const left = () => until - p.now().getTime();
-  let kept = 0;
-  const markOne = async (x) => {
-    const origin = `https://${x.place.website_host}`;
-    const html = await fetchText(origin, left()).catch(() => null);
-    if (!html) return;
-    const marks = leadMarksFrom(html, origin);
-    if (marks.length === 0) return;
-    x.place.logo_url = marks[0];
-    if (!fetchBytes || !storeMark) return;
-    for (const url of marks.filter((u) => !SAYS_SVG.test(u)).slice(0, MARK_TRIES)) {
-      if (left() <= 250) return;
-      const bytes = await fetchBytes(url, left(), MARK_MAX_BYTES).catch(() => null);
-      const image = bytes ? markImageFrom(bytes) : null;
-      if (!bytes || !image) continue;
-      const path = await storeMark(bytes, image).catch(() => null);
-      if (!path) return;
-      x.place.logo_url = url;
-      x.place.mark_path = path;
-      kept += 1;
-      return;
-    }
-  };
-  let next = 0;
-  const worker = async () => {
-    while (next < want.length && left() > 250) await markOne(want[next++]);
-  };
-  await Promise.all(Array.from({ length: Math.min(MARK_AT_ONCE, want.length) }, worker));
-  return kept;
-}
-function checkable(members) {
-  return members.filter((m) => m.email !== null && m.email_state === "checking").sort((a, b) => a.lead_id < b.lead_id ? -1 : a.lead_id > b.lead_id ? 1 : 0);
-}
-async function check(p, roundId, batch, owner, again = null) {
-  const round = await p.db.round(roundId);
-  if (!round || round.state === "ended" && !again) return { kind: "not_open" };
-  const card = CARDS[round.plan.card];
-  const named = again ? new Set(again.leadIds) : null;
-  const all = checkable(await p.db.membersOfRound(round.id)).filter((m) => !named || named.has(m.lead_id));
-  const slice = all.slice(batch * CHECK_BATCH, (batch + 1) * CHECK_BATCH);
-  if (!await p.db.leadSearchesOn(round.tenant_id)) {
-    if (slice.length)
-      await p.db.checkCommit(
-        round.id,
-        null,
-        slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })),
-        0,
-        false
-      );
-    if (!again) await p.db.roundEnd(round.id, "paused");
-    return { kind: "paused" };
-  }
-  if (!slice.length) {
-    if (batch === 0 && round.state === "checking" && !again) await p.db.checkCommit(round.id, null, [], 0, true);
-    return { kind: "nothing_to_check" };
-  }
-  const term = again ? `again:${again.nonce}:${batch}` : `batch:${batch}`;
-  const id = await runIdFor(round.id, "check", term);
-  const token = await p.webhookToken(id);
-  const emails = [...new Set(slice.map((m) => m.email))];
-  const brief = LEAD_CARDS.find((c) => c.id === round.plan.card);
-  const capUsd = Math.max(
-    0.5,
-    Math.round(emails.length * (brief?.checkPerEmailUsd ?? 89e-5) * LEAD_ESTIMATE_MARGIN * 100) / 100
-  );
-  const rows = await p.db.runsEnsure([
-    {
-      id,
-      tenant_id: round.tenant_id,
-      round_id: round.id,
-      purpose: "check",
-      term,
-      actor: card.checker.actor,
-      build: card.checker.build,
-      webhook_token_hash: await sha256Hex2(token),
-      cap_usd: capUsd
-    }
-  ]);
-  const row = rows.find((r4) => r4.id === id);
-  if (!row || row.state !== "claimed" && !(row.state === "starting" && row.claimed_by === owner))
-    return { kind: "already" };
-  if (outOfTime(p)) throw new LeadRetry("out of time before the checker");
-  const claim = await claimOrRecover(p, card.checker.actor, row, owner);
-  if (claim !== "mine") return { kind: "already" };
-  try {
-    const started = await p.apify.startRun(
-      card.checker.actor,
-      { ...card.checker.buildInput(emails), [INPUT_MARKER]: row.id },
-      {
-        build: card.checker.build,
-        timeoutSecs: CHECKER_RUN_TIMEOUT_SECS,
-        maxTotalChargeUsd: capUsd,
-        webhooks: [{ eventTypes: [...APIFY_RUN_END_EVENTS], requestUrl: webhookUrl(p, row.id, token) }]
-      }
-    );
-    await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, capUsd);
-    await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
-    const more = all.length > (batch + 1) * CHECK_BATCH;
-    if (more)
-      await p.schedule(
-        "lead_check",
-        { round_id: round.id, batch: batch + 1, ...again ? { again: again.nonce, lead_ids: again.leadIds } : {} },
-        0
-      );
-    return { kind: "started", emails: emails.length, more };
-  } catch (e) {
-    const kind = await startFailed(p, row, owner, e);
-    if (kind === "refused") {
-      await p.db.checkCommit(
-        round.id,
-        row.id,
-        slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })),
-        0,
-        !again && all.length <= (batch + 1) * CHECK_BATCH
-      );
-    }
-    return { kind };
   }
 }
 async function collectCheck(p, round, run, owner) {
@@ -48385,6 +48532,8 @@ async function collectCheck(p, round, run, owner) {
     await p.db.runRelease(run.id, owner, gen);
   }
 }
+
+// src/leads/runner/sweep.ts
 async function reconcileUnknownRuns(p, unknownRuns) {
   const out = [];
   for (const row of unknownRuns) {
@@ -48786,7 +48935,7 @@ async function answerInbound(input, ports) {
   const tokenCap = typeof replyLimits.max_llm_tokens_day === "number" ? replyLimits.max_llm_tokens_day : 0;
   if (tokenCap > 0 && db && tenantId) {
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
-    if (used >= tokenCap) {
+    if (tokenBudgetSpent(replyLimits, used)) {
       L4.info("wa_skip_budget", { cap: tokenCap, used });
       await Promise.all([
         sink.escalate(
