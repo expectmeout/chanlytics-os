@@ -25661,149 +25661,174 @@ var LEAK_ORDER = [
   "quiet"
 ];
 var askWhy = (text, math) => `${text} ${capitalize(math)}. Why is that?`;
-function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
-  const found = /* @__PURE__ */ new Map();
+function leakFactsOf(reports, people, noReply, nowMs) {
   const list2 = (id) => people ? people.lists.find((l) => l.id === id) ?? null : null;
   const step2 = (id) => {
     const l = list2(id);
     return l && l.action && l.action.enabled && l.count > 0 ? { label: l.action.cta, to: l.action.to } : null;
   };
+  let clock3 = null;
+  const dealsAt = () => {
+    clock3 ??= { at: people && people.fetchedAt || nowMs };
+    return clock3.at;
+  };
+  return { reports, people, noReply, list: list2, step: step2, dealsAt };
+}
+function neverBookedLeak({ reports, list: list2, step: step2 }) {
   const b = reports ? reports.booking : null;
-  if (reports && b && b.present && b.pct !== null && (b.asked ?? 0) >= 5 && b.pct <= 25) {
-    const asked = b.asked ?? 0;
-    const booked = b.booked ?? 0;
-    const never = list2("asked_never_booked");
-    const text = booked === 0 ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.` : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
-    const math = never ? `${b.headline} \xB7 ${never.count} on Asked, never booked` : b.headline;
-    found.set("never-booked", {
-      id: "never-booked",
-      tone: "warn",
-      tag: "Booking gap",
-      icon: "calendar",
-      text,
-      math,
-      people: [],
-      peopleLead: null,
-      ask: askWhy(text, math),
-      cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
-      also: step2("asked_never_booked")
-    });
-  }
+  if (!(reports && b && b.present && b.pct !== null && (b.asked ?? 0) >= 5 && b.pct <= 25)) return null;
+  const asked = b.asked ?? 0;
+  const booked = b.booked ?? 0;
+  const never = list2("asked_never_booked");
+  const text = booked === 0 ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.` : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
+  const math = never ? `${b.headline} \xB7 ${never.count} on Asked, never booked` : b.headline;
+  return {
+    id: "never-booked",
+    tone: "warn",
+    tag: "Booking gap",
+    icon: "calendar",
+    text,
+    math,
+    people: [],
+    peopleLead: null,
+    ask: askWhy(text, math),
+    cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
+    also: step2("asked_never_booked")
+  };
+}
+function unansweredLeak({ reports, noReply }) {
   const a = reports && reports.vm.answered ? reports.vm.answered.totals : null;
-  if (reports && a && a.none >= 2) {
-    const text = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
-    const math = `of ${a.in} in the last ${reports.vm.rangeLabel} \xB7 the receptionist answered ${a.ai}, you answered ${a.you}`;
-    found.set("unanswered", {
-      id: "unanswered",
-      tone: "warn",
-      tag: "No reply",
-      icon: "alert",
-      text,
-      math,
-      people: noReply.slice(0, 2).map((r2) => ({ id: r2.conversationId, name: r2.who, to: r2.to, title: `Open ${r2.who}'s thread` })),
-      peopleLead: "Waiting now",
-      ask: askWhy(text, math),
-      cta: { label: "Open Reports", to: "reports" },
-      also: null
-    });
-  }
-  const dealsAt = people && people.fetchedAt || nowMs;
+  if (!(reports && a && a.none >= 2)) return null;
+  const text = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
+  const math = `of ${a.in} in the last ${reports.vm.rangeLabel} \xB7 the receptionist answered ${a.ai}, you answered ${a.you}`;
+  return {
+    id: "unanswered",
+    tone: "warn",
+    tag: "No reply",
+    icon: "alert",
+    text,
+    math,
+    people: noReply.slice(0, 2).map((r2) => ({ id: r2.conversationId, name: r2.who, to: r2.to, title: `Open ${r2.who}'s thread` })),
+    peopleLead: "Waiting now",
+    ask: askWhy(text, math),
+    cta: { label: "Open Reports", to: "reports" },
+    also: null
+  };
+}
+function consultsWaitingLeak({ people, dealsAt }) {
+  const at2 = dealsAt();
   const consultRows = (people?.rows ?? []).filter(
     (r2) => typeof r2.id === "string" && typeof r2.name === "string" && "deal" in r2 && "consultedMs" in r2
   );
-  const held = consultationsWithoutProposal(consultRows, dealsAt);
-  if (people && people.dealsOn && held.length >= 1) {
-    const n = held.length;
-    const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
-    const math = `${consultsHeldWords(n)} \xB7 on Pipeline`;
-    found.set("consults-waiting", {
-      id: "consults-waiting",
-      tone: "warn",
-      tag: "Next step",
-      icon: "calendar",
-      text,
-      math,
-      people: held.slice(0, 2).map((r2) => ({ id: r2.id, name: r2.name, to: `clients/${r2.id}`, title: `Open ${r2.name} in People` })),
-      peopleLead: "Held with",
-      ask: askWhy(text, math),
-      cta: { label: "See who", to: "clients/pipeline" },
-      also: null
-    });
-  }
-  const dealRows = (people?.rows ?? []).filter(
-    (r2) => "deal" in r2 && "askedMs" in r2
+  const held = consultationsWithoutProposal(consultRows, at2);
+  if (!(people && people.dealsOn && held.length >= 1)) return null;
+  const n = held.length;
+  const text = `${n} consultation${n === 1 ? "" : "s"} in the last week ended with no proposal yet.`;
+  const math = `${consultsHeldWords(n)} \xB7 on Pipeline`;
+  return {
+    id: "consults-waiting",
+    tone: "warn",
+    tag: "Next step",
+    icon: "calendar",
+    text,
+    math,
+    people: held.slice(0, 2).map((r2) => ({ id: r2.id, name: r2.name, to: `clients/${r2.id}`, title: `Open ${r2.name} in People` })),
+    peopleLead: "Held with",
+    ask: askWhy(text, math),
+    cta: { label: "See who", to: "clients/pipeline" },
+    also: null
+  };
+}
+function proposalsWaitingWords(n, pace, po, inHand) {
+  const ago3 = pace ? `${pace.waitDays} days` : "a week";
+  const text = pace?.longerThanUsual ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than ${ago3} ago with nothing back.`;
+  const since = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
+  const counted2 = po ? `${po.count} on Proposal out \xB7 ${since}` : since;
+  const math = inHand ? `${counted2} \xB7 the follow-up has ${inHand} more` : counted2;
+  return { text, math };
+}
+function yoursToFollowUp(waiting) {
+  return waiting.filter((r2) => !isOptedOutContact({ consent: r2.consent.state, dnc: r2.consent.dnc })).slice(0, 2).flatMap(
+    (r2) => r2.id && r2.name ? [{ id: r2.id, name: r2.name, to: `clients/${r2.id}`, title: `Open ${r2.name}` }] : []
   );
+}
+function proposalsWaitingLeak({ people, list: list2, dealsAt }) {
+  const dealRows = (people?.rows ?? []).filter((r2) => "deal" in r2 && "askedMs" in r2);
   const pace = people?.dealPace ?? null;
-  const out = proposalsWaiting(dealRows, dealsAt, pace);
+  const out = proposalsWaiting(dealRows, dealsAt(), pace);
   const inHand = out.filter((r2) => r2.followUp?.kind === "will").length;
   const waiting = out.filter((r2) => r2.followUp?.kind !== "will");
   const po = list2("proposal_out");
-  if (people && people.dealsOn && waiting.length >= 1) {
-    const n = waiting.length;
-    const ago3 = pace ? `${pace.waitDays} days` : "a week";
-    const text = pace?.longerThanUsual ? `${n} proposal${n === 1 ? " has" : "s have"} waited longer than usual with nothing back.` : `${n} proposal${n === 1 ? "" : "s"} went out more than ${ago3} ago with nothing back.`;
-    const since = pace ? `${pace.words.charAt(0).toLowerCase()}${pace.words.slice(1)} \xB7 nothing heard since it went` : "nothing heard since it went";
-    const counted2 = po ? `${po.count} on Proposal out \xB7 ${since}` : since;
-    const math = inHand ? `${counted2} \xB7 the follow-up has ${inHand} more` : counted2;
-    found.set("proposals-waiting", {
-      id: "proposals-waiting",
-      tone: "warn",
-      tag: "Waiting",
-      icon: "clock",
-      text,
-      math,
-      // Never someone who asked to stop: a follow-up is not theirs to be sent, by hand or at all.
-      people: inHand ? waiting.filter((r2) => !isOptedOutContact({ consent: r2.consent.state, dnc: r2.consent.dnc })).slice(0, 2).flatMap(
-        (r2) => r2.id && r2.name ? [{ id: r2.id, name: r2.name, to: `clients/${r2.id}`, title: `Open ${r2.name}` }] : []
-      ) : [],
-      peopleLead: inHand ? "Yours to follow up" : null,
-      ask: askWhy(text, math),
-      cta: {
-        label: "See who",
-        to: inHand ? pipelineRoute({ view: "waiting" }) : po ? `clients/seg:${po.id}` : "clients"
-      },
-      also: null
-    });
-  }
+  if (!(people && people.dealsOn && waiting.length >= 1)) return null;
+  const { text, math } = proposalsWaitingWords(waiting.length, pace, po, inHand);
+  return {
+    id: "proposals-waiting",
+    tone: "warn",
+    tag: "Waiting",
+    icon: "clock",
+    text,
+    math,
+    people: inHand ? yoursToFollowUp(waiting) : [],
+    peopleLead: inHand ? "Yours to follow up" : null,
+    ask: askWhy(text, math),
+    cta: {
+      label: "See who",
+      to: inHand ? pipelineRoute({ view: "waiting" }) : po ? `clients/seg:${po.id}` : "clients"
+    },
+    also: null
+  };
+}
+function unreachableLeak({ people, list: list2 }) {
   const yes = list2("opted_in");
   const offers = list2("offers_ok");
-  if (people && yes && offers && yes.count >= 3 && offers.count === 0) {
-    const noNumber = people.rows.some((r2) => saidYesTo(r2, "marketing"));
-    const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
-    const math = `${noNumber ? NO_NUMBER_REACH : "a broadcast reaches only the second yes"} \xB7 0 can receive one`;
-    found.set("unreachable", {
-      id: "unreachable",
-      tone: "warn",
-      tag: "Reach",
-      icon: "users",
-      text,
-      math,
-      people: [],
-      peopleLead: null,
-      ask: askWhy(text, math),
-      cta: { label: "Open People", to: `clients/seg:${yes.id}` },
-      also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
-    });
-  }
+  if (!(people && yes && offers && yes.count >= 3 && offers.count === 0)) return null;
+  const noNumber = people.rows.some((r2) => saidYesTo(r2, "marketing"));
+  const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but ${noNumber ? "nobody can be sent an offer yet" : "nobody has said yes to offers"}.`;
+  const math = `${noNumber ? NO_NUMBER_REACH : "a broadcast reaches only the second yes"} \xB7 0 can receive one`;
+  return {
+    id: "unreachable",
+    tone: "warn",
+    tag: "Reach",
+    icon: "users",
+    text,
+    math,
+    people: [],
+    peopleLead: null,
+    ask: askWhy(text, math),
+    cta: { label: "Open People", to: `clients/seg:${yes.id}` },
+    also: !noNumber && yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
+  };
+}
+function quietLeak({ people, list: list2, step: step2 }) {
   const quiet = list2("quiet");
-  if (quiet && quiet.count >= 5) {
-    const text = `${quiet.count} people have not heard from you in 30 days.`;
-    const math = people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list";
-    found.set("quiet", {
-      id: "quiet",
-      tone: "info",
-      tag: "Gone quiet",
-      icon: "clock",
-      text,
-      math,
-      people: [],
-      peopleLead: null,
-      ask: askWhy(text, math),
-      cta: { label: "See who", to: `clients/seg:${quiet.id}` },
-      also: step2("quiet")
-    });
-  }
-  const all = LEAK_ORDER.map((id) => found.get(id)).filter((x) => !!x);
+  if (!(quiet && quiet.count >= 5)) return null;
+  const text = `${quiet.count} people have not heard from you in 30 days.`;
+  const math = people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list";
+  return {
+    id: "quiet",
+    tone: "info",
+    tag: "Gone quiet",
+    icon: "clock",
+    text,
+    math,
+    people: [],
+    peopleLead: null,
+    ask: askWhy(text, math),
+    cta: { label: "See who", to: `clients/seg:${quiet.id}` },
+    also: step2("quiet")
+  };
+}
+var LEAK_FINDERS = {
+  "never-booked": neverBookedLeak,
+  unanswered: unansweredLeak,
+  "consults-waiting": consultsWaitingLeak,
+  "proposals-waiting": proposalsWaitingLeak,
+  unreachable: unreachableLeak,
+  quiet: quietLeak
+};
+function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX, nowMs = Date.now()) {
+  const facts = leakFactsOf(reports, people, noReply, nowMs);
+  const all = LEAK_ORDER.map((id) => LEAK_FINDERS[id](facts)).filter((x) => !!x);
   const more = Math.max(0, all.length - max);
   return { rows: all.slice(0, max), more, moreLine: more ? `and ${more} more` : null };
 }
