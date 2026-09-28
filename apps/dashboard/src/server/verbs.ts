@@ -9,13 +9,14 @@ import {
   AppError,
   asTenantId,
   REACH_OUT_REFUSALS,
+  REPLY_UNDO_REFUSALS,
   writtenChannelOf,
   type DecisionVerb,
   type DecisionSubject,
   type TenantId,
   HOUR_MS,
 } from "@chanlytics/contracts";
-import { listRow, reachOutRootOf, reachOutSendRefOf, type Json } from "@chanlytics/db";
+import { listRow, reachOutRootOf, reachOutSendRefOf, replyReadingRefOf, type Json } from "@chanlytics/db";
 import type { RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
 import { row } from "./route";
@@ -428,3 +429,11 @@ async function loadReachOutSend(ctx: RouteContext, id: string) {
   return data;
 }
 export const reachOutSendScope = row((ctx, params) => loadReachOutSend(ctx, String(params.id ?? "")));
+
+/** A reading of a reach-out's reply, by its message, read under RLS: the undo acts where it lives. */
+async function loadReachOutReply(ctx: RouteContext, id: string) {
+  const data = await replyReadingRefOf(ctx.supabase, requireUuid(id, "reply"));
+  if (!data) throw new AppError("not_found", REPLY_UNDO_REFUSALS.not_found, 404);
+  return data;
+}
+export const reachOutReplyScope = row((ctx, params) => loadReachOutReply(ctx, String(params.id ?? "")));
