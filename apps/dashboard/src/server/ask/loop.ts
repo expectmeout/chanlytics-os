@@ -348,10 +348,11 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   };
   const asked = { data: [...pageBlocks, ...crossBlocks], words: sayWords(true), question };
   const replayed = replayFor(input.chain, asked, (msgs, at) => requestOf(msgs, at, false));
-  const { messages, anchor, words } = replayed ?? cold();
-  const live = !!replayed;
+  let { messages, anchor, words } = replayed ?? cold();
+  // A replay the API refuses (D12) is asked again cold, once: the turn then keeps its words history, the next base.
+  let live = !!replayed;
   // Where the question sits in every request of the turn: a later round only appends.
-  const questionAt = messages.length - 1;
+  let questionAt = messages.length - 1;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ASK_TURN_BUDGET_MS);
 
@@ -505,10 +506,14 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
           // each. Without the page's data, their reads leave the count and the words stop pointing at them; without
           // the format, what comes back is read as JSON when it is, else as prose (D15).
           const m = e.refusal.kind === "bad_request" ? e.refusal.message : "";
-          const drop = dropFor(m, { context: !dataDropped, examples, format });
+          const drop = dropFor(m, { replay: live && round === 1, context: !dataDropped, examples, format });
           if (drop) {
             console.error(DROP_EVENTS[drop], JSON.stringify({ error: m.slice(0, 200), tenant: input.tenantId }));
-            if (drop === "context") {
+            if (drop === "replay") {
+              ({ messages, anchor, words } = cold());
+              live = false;
+              questionAt = messages.length - 1;
+            } else if (drop === "context") {
               dataDropped = true;
               reads -= (pageRead ? 1 : 0) + prefetched.length + (scopedRow ? 1 : 0);
               const bare = sayWords(live);

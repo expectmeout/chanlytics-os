@@ -6222,3 +6222,130 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
   );
   assert.ok(!turnWords({ ...facts, since: [] }).includes(SINCE), "none: no line");
 });
+
+/** The API's refusal of a replayed thinking block bound to another conversation (model-migration.md, the binding). */
+const BOUND =
+  '400 messages.1.content.0: Invalid `signature` in `thinking` block. The block is bound to a different conversation. Remove the block, or set `thinking.block_binding.prefix_mismatch_behavior` to "drop_block". That setting requires the `thinking-binding-controls-2026-08-01` value in the `anthropic-beta` header.';
+
+test("a replay the API refuses goes cold once (the Phase 5 plan, D12): round one refused for a thinking block's signature or binding is asked again as the same turn cold -- the words history with bp3, no results, the byte-same request a cold turn sends -- said once (ask_replay_rejected); the turn is rebuilt, and its raw keeps the base the next chain starts from; round one only, and never for the edge's size refusal", async () => {
+  /**
+   * A warm thread: turn 1 kept -- a read, then a card beside its answer -- so a live turn 2 would open with the card's
+   * result, its question four messages in, where the cold turn's is two.
+   */
+  const warm = async () => {
+    const { ctx } = threadWorld();
+    const card = {
+      id: "p-1",
+      kind: "policy",
+      needs: "operator",
+      title: "Autonomy: reply",
+      summary: "",
+      payload: {},
+      undo: null,
+    };
+    const propose = async () => ({ proposal: card, result: JSON.stringify({ proposed: true }), isError: false });
+    const act = tool("propose_autonomy", { class: "reply", mode: "ask" });
+    const rounds = [
+      ROUND([thinking("sig-0"), tool("inbox", { action: "list", filter: "recent" })]),
+      ROUND([thinking("sig-1"), act, answer("I proposed it.")]),
+    ];
+    const r1 = await runAskTurn(turn(ctx, { context: PAGE }).input, ports(sentAs(rounds).round, { propose }));
+    await keep(ctx, "Who needs me?", r1);
+    return ctx;
+  };
+  /** Turn 2 on a warm thread, its rounds answered by `rounds` (a string is a refusal): what it sent and logged. */
+  const second = async (ctx, rounds, over = {}) => {
+    const found = await threadForTurn(ctx, {
+      tenantId: A,
+      threadId: T9,
+      text: "And?",
+      scope: undefined,
+      answering: null,
+    });
+    const requests = [];
+    const round = async (c) => {
+      requests.push(JSON.parse(JSON.stringify(c.request)));
+      const next = rounds.shift();
+      if (typeof next === "string") throw new GatewayRefused({ kind: "bad_request", message: next });
+      return next;
+    };
+    const said = [];
+    const was = console.error;
+    console.error = (name) => {
+      if (typeof name === "string" && /^ask_.*_rejected$/.test(name)) said.push(name);
+    };
+    try {
+      const input = turn(ctx, {
+        context: PAGE,
+        text: "And?",
+        history: found.history,
+        chain: found.chain,
+        ...over,
+      }).input;
+      return { r: await runAskTurn(input, ports(round)), requests, said, found };
+    } finally {
+      console.error = was;
+    }
+  };
+
+  const ctx = await warm();
+  const { r, requests, said, found } = await second(ctx, [BOUND, ROUND([answer("Fine.")])]);
+  assert.ok(found.chain, "the thread was warm");
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.deepEqual(said, ["ask_replay_rejected"], "said once");
+  assert.equal(requests.length, 2, "round one, asked again once");
+  assert.equal(requests[0].messages.at(-1).content[0].type, "tool_result", "the refused request was the replay");
+  // The same turn asked with no chain: what a cold turn sends. The retry is that request, byte for byte.
+  const cold = await second(ctx, [ROUND([answer("Fine.")])], { chain: null });
+  sameBytes(requests[1], cold.requests[0], "the retry is the cold turn's request");
+  assert.deepEqual(
+    requests[1].messages.map((m) => m.role),
+    ["user", "assistant", "user"],
+    "the words history, then the question",
+  );
+  assert.deepEqual(
+    markersOf(requests[1]),
+    ["system.0", "system.1", "messages.2.0", "messages.2.2"],
+    "bp3 on the page's block, bp4 on the question",
+  );
+  assert.ok(!JSON.stringify(requests[1].messages).includes("tool_result"), "no results: the words answer nothing");
+  assert.equal(r.shape.replay, "rebuilt");
+  assert.equal(requests[0].messages.length - 1, 4, "the replay's question was four messages in");
+  assert.ok(r.raw.base && !("after" in r.raw), "its raw keeps its base: the next chain's");
+  sameBytes(r.raw.base, unmark(requests[1].messages).slice(0, -1), "the words history it was asked with");
+  sameBytes(r.raw.question, unmark(requests[1].messages).at(-1).content, "and its question, the cold one");
+
+  // A cards drop on a live turn changes the tools, and the replay is refused for it next: the same round, then cold.
+  const examples = await second(await warm(), [
+    "400 tools.3.input_examples.0: does not match the tool's input_schema",
+    BOUND,
+    ROUND([answer("Fine.")]),
+  ]);
+  assert.deepEqual(examples.said, ["ask_examples_rejected", "ask_replay_rejected"]);
+  assert.deepEqual([examples.r.failed, examples.r.shape.replay, examples.requests.length], [false, "rebuilt", 3]);
+
+  // Not a replay drop: the edge's size refusal, the binding refused past round one, or refused again once cold.
+  for (const [why, rounds] of [
+    ["the edge's size refusal", ["413 too_large"]],
+    ["past round one", [ROUND([tool("inbox", { action: "list", filter: "recent" })]), BOUND]],
+    ["a second time, once cold", [BOUND, BOUND]],
+  ]) {
+    const n = rounds.length;
+    const x = await second(await warm(), rounds);
+    assert.deepEqual([x.r.failed, x.r.failure, x.requests.length], [true, "bad_request", n], why);
+    assert.equal(x.said.filter((s) => s === "ask_replay_rejected").length, why.startsWith("a second") ? 1 : 0, why);
+  }
+
+  // The decision (refusals.ts): only while the turn replays, a 400 naming the signature or the binding.
+  const all = { replay: true, context: true, examples: true, format: true };
+  assert.equal(dropFor(BOUND, all), "replay");
+  assert.equal(
+    dropFor("400 messages.1.content.0: Invalid `signature` in `thinking` block.", all),
+    "replay",
+    "a bad signature",
+  );
+  assert.equal(dropFor(BOUND, { ...all, replay: false }), null, "a cold turn's: the turn's");
+  assert.equal(dropFor("413 too_large", all), null);
+  assert.equal(dropFor("500 bound to a different conversation", all), null, "a 400 only");
+  assert.equal(dropFor("400 messages.0.content.0: search_result is not supported here", all), "context");
+});
