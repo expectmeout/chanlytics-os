@@ -724,17 +724,17 @@
     "branches": 1,
     "depth": 0
   },
-  "apps/edge/lib/lines/a2p.ts::campaignFactsFor#1": {
+  "apps/edge/lib/lines/a2p-campaign-facts.ts::campaignFactsFor#1": {
     "lines": 221,
     "branches": 12,
     "depth": 0
   },
-  "apps/edge/lib/lines/a2p.ts::registerLine#1": {
+  "apps/edge/lib/lines/a2p-register.ts::registerLine#1": {
     "lines": 215,
     "branches": 26,
     "depth": 1
   },
-  "apps/edge/lib/lines/a2p.ts::syncRegistration#1": {
+  "apps/edge/lib/lines/a2p-sync.ts::syncRegistration#1": {
     "lines": 169,
     "branches": 34,
     "depth": 2
