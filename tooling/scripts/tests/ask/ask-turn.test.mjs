@@ -4777,6 +4777,56 @@ const builtWith = (refs = [], rows = []) => ({
   rows: rows.length,
 });
 
+/** Where a request carries the cache's markers (the Phase 5 plan, D10): each marked block's place, in request order. */
+const markersOf = (req) => [
+  ...req.system.flatMap((b, i) => (b.cache_control ? [`system.${i}`] : [])),
+  ...(req.tools ?? []).flatMap((t, i) => (t.cache_control ? [`tools.${i}`] : [])),
+  ...req.messages.flatMap((m, i) =>
+    Array.isArray(m.content) ? m.content.flatMap((b, j) => (b.cache_control ? [`messages.${i}.${j}`] : [])) : [],
+  ),
+];
+/**
+ * A request's messages less the cache's markers it carried (D10): the markers ride on each request's own copy, never on
+ * the turn's messages, so what the turn keeps of a request (its raw) is these.
+ */
+const unmark = (messages) =>
+  messages.map((m) =>
+    Array.isArray(m.content) ? { ...m, content: m.content.map(({ cache_control: _cc, ...b }) => b) } : m,
+  );
+
+test("the cache's markers ride on each request's own copy (the Phase 5 plan, D10): system's two, the page's last block (bp3) and the last block of the request, moving each round (bp4) -- never more than four, never left on a block an earlier request marked, never on the turn as it keeps itself", async () => {
+  const s = scripted([
+    ROUND([tool("inbox", { action: "list", filter: "recent" }, "t-1")]),
+    ROUND([tool("calls", { action: "list" }, "t-2")]),
+    ROUND([answer("Rosa needs you.")]),
+  ]);
+  const built = builtWith([{ kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Rosa" }], [C1]);
+  const r = await runAskTurn(
+    turn(ctxFor(), { context: { ...PAGE, rows: [{ kind: "thread", id: C1 }] } }).input,
+    ports(s.round, { context: async () => built }),
+  );
+  assert.equal(r.failed, false, r.failure ?? "");
+  // The question's message: the page's figures, its row, the turn's words, the question. Then each round and its
+  // results: bp4 on the question, then on each round's last result, never on the one before.
+  assert.deepEqual(s.requests.map(markersOf), [
+    ["system.0", "system.1", "messages.0.1", "messages.0.3"],
+    ["system.0", "system.1", "messages.0.1", "messages.2.0"],
+    ["system.0", "system.1", "messages.0.1", "messages.4.0"],
+  ]);
+  assert.deepEqual(
+    s.requests.map((q) => q.messages.length),
+    [1, 3, 5],
+    "each request its own copy: the first is as it was sent, whatever the rounds after it appended",
+  );
+  assert.deepEqual(s.requests[2].messages[0].content[3], { type: "text", text: "Who needs me?" }, "bp4 moved on");
+  assert.equal(s.requests[1].messages[2].content[0].type, "tool_result", "bp4 on a round's result");
+  assert.ok(!JSON.stringify(r.raw).includes("cache_control"), "the turn as it keeps itself carries no marker");
+  // No page: bp3 has nothing to mark, and the request carries three.
+  const bare = scripted([ROUND([answer("Nothing waiting.")])]);
+  await runAskTurn(turn(ctxFor()).input, ports(bare.round));
+  assert.deepEqual(markersOf(bare.requests[0]), ["system.0", "system.1", "messages.0.1"]);
+});
+
 test("the request: system is two blocks with two breakpoints; the question's message is the page's data, its last block the third breakpoint, then the turn's words, then the question -- and the clock, the person and the page are never in system", async () => {
   const s = scripted([ROUND([answer("Rosa needs you.")])]);
   const built = builtWith([{ kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Rosa" }], [C1]);
@@ -4800,9 +4850,9 @@ test("the request: system is two blocks with two breakpoints; the question's mes
       ["search_result", "page://today", false],
       ["search_result", `thread://${C1}`, true],
       ["text", null, false],
-      ["text", null, false],
+      ["text", null, true],
     ],
-    "the page's figures, its row with the breakpoint, the turn's words, the question",
+    "the page's figures, its row with the breakpoint, the turn's words, the question with the request's last (D10)",
   );
   assert.ok(q.content[2].text.includes("You are speaking with ada@example.com"), "the words say who is asking");
   assert.ok(q.content[2].text.includes("The page they are on is in the search results before these words"));
@@ -5227,19 +5277,23 @@ const prefixOf = (request) =>
   );
 /**
  * The raw turn as a turn's requests say it: the last request's messages before the question, the question, and after
- * it -- the question is the first request's last message, and a later round only appends -- its model and its prefix.
+ * it -- the question is the first request's last message, and a later round only appends -- less the cache's markers
+ * the request carried (D10), its model and its prefix.
  */
 function rawOf(requests) {
   const last = requests.at(-1);
+  const messages = unmark(last.messages);
   const at = requests[0].messages.length - 1;
   return {
-    base: last.messages.slice(0, at),
-    question: last.messages[at].content,
-    rounds: last.messages.slice(at + 1),
+    base: messages.slice(0, at),
+    question: messages[at].content,
+    rounds: messages.slice(at + 1),
     model: last.model,
     prefix: prefixOf(last),
   };
 }
+/** The messages a request was sent, as the turn keeps them: less the cache's markers (D10). */
+const sentOf = (request) => unmark(request.messages);
 /** The same bytes: what JSON would store, key for key and in order. */
 const sameBytes = (a, b, why) => assert.equal(JSON.stringify(a), JSON.stringify(b), why);
 /** A raw turn's messages put back together: the last request's, byte for byte, when the raw is what was sent. */
@@ -5274,7 +5328,7 @@ test("the turn as the model was sent it (the Phase 5 plan, D2, D11): a one-round
     ["search_result", "text", "text"],
     "the page's data, the turn's words, the question",
   );
-  sameBytes(messagesOf(r.raw), s.requests.at(-1).messages, "the request's messages, byte for byte");
+  sameBytes(messagesOf(r.raw), sentOf(s.requests.at(-1)), "the request's messages, byte for byte");
   assert.deepEqual(r.raw.base, [], "a thread's first turn: nothing before the question");
   sameBytes(r.raw.question, want.question, "the question as the request carried it");
   assert.deepEqual(r.raw.rounds, [], "one round: nothing after the question");
@@ -5296,7 +5350,7 @@ test("the turn as the model was sent it (the Phase 5 plan, D2, D11): a one-round
   ];
   const follow = sentAs([ROUND([answer("Rosa needs you.")])]);
   const f = await runAskTurn(turn(ctxFor(), { context: PAGE, history }).input, ports(follow.round));
-  sameBytes(messagesOf(f.raw), follow.requests.at(-1).messages, "the follow-up's messages, byte for byte");
+  sameBytes(messagesOf(f.raw), sentOf(follow.requests.at(-1)), "the follow-up's messages, byte for byte");
   sameBytes(f.raw.base, rawOf(follow.requests).base);
   assert.deepEqual(f.raw.base, [
     { role: "user", content: "Who called today?" },
@@ -5309,7 +5363,7 @@ test("the turn as the model was sent it (the Phase 5 plan, D2, D11): a one-round
     turn(ctxFor(), { context: PAGE, history: [{ role: "user", text: "Earlier, unanswered?" }] }).input,
     ports(joined.round),
   );
-  sameBytes(messagesOf(j.raw), joined.requests.at(-1).messages);
+  sameBytes(messagesOf(j.raw), sentOf(joined.requests.at(-1)));
   assert.deepEqual(j.raw.base, [], "the unanswered question is no longer before this one");
   assert.deepEqual(j.raw.question[0], { type: "text", text: "Earlier, unanswered?" }, "the earlier question first");
 });
@@ -5338,7 +5392,7 @@ test("a read, then the answer: the read's round -- its thinking whole, its call 
     "the answering round was the last",
   );
   const want = rawOf(s.requests);
-  sameBytes(messagesOf(r.raw), s.requests.at(-1).messages, "the last request's messages, byte for byte");
+  sameBytes(messagesOf(r.raw), sentOf(s.requests.at(-1)), "the last request's messages, byte for byte");
   sameBytes(r.raw.question, want.question, "the question as the last request carried it");
   sameBytes(r.raw.rounds, want.rounds, "every message after the question, as the last request carried it");
   assert.deepEqual(
@@ -5387,7 +5441,9 @@ test("cards alone, and an answer beside its cards: the round is the raw's final,
   // The card beside a read: the round goes on, and the next request carries the card's result.
   const on = sentAs([ROUND([tool("inbox", { action: "list", filter: "recent" }), act]), ROUND([answer("Proposed.")])]);
   await runAskTurn(turn(ctxFor()).input, ports(on.round, { propose }));
-  const carried = on.requests[1].messages.at(-1).content.filter((b) => b.tool_use_id === act.id);
+  const carried = sentOf(on.requests[1])
+    .at(-1)
+    .content.filter((b) => b.tool_use_id === act.id);
   assert.deepEqual(
     carried.map((b) => [b.type, b.is_error]),
     [["tool_result", false]],
@@ -5401,7 +5457,7 @@ test("cards alone, and an answer beside its cards: the round is the raw's final,
     { type: "thinking", thinking: "", signature: "sig-card" },
     { type: "tool_use", id: act.id, name: "propose_autonomy", input: { class: "reply", mode: "ask" } },
   ]);
-  sameBytes(messagesOf(a.raw), alone.requests.at(-1).messages, "cards alone: the request's messages");
+  sameBytes(messagesOf(a.raw), sentOf(alone.requests.at(-1)), "cards alone: the request's messages");
   assert.deepEqual(a.raw.rounds, []);
 
   const beside = [thinking("sig-both"), act, answer("I proposed asking you first on every reply.")];
@@ -5415,7 +5471,7 @@ test("cards alone, and an answer beside its cards: the round is the raw's final,
     "the round whole: its thinking, the card's call and the answer",
   );
   sameBytes(b.raw.final, replayBlocks(beside));
-  sameBytes(messagesOf(b.raw), both.requests.at(-1).messages, "an answer beside its card: the request's messages");
+  sameBytes(messagesOf(b.raw), sentOf(both.requests.at(-1)), "an answer beside its card: the request's messages");
 });
 
 test("the prefix (the Phase 5 plan, D2): the sha256 of what the last request sent besides its messages -- system and tools as sent, the tool choice and the output config -- the same on another page, for another question, for another person of the role and on round two; another for another role, shape of the workspace, setting, note, hour or autonomy mode, once the examples or the format are refused, and on the last round, which may call no tool; the page's data a refusal drops is dropped from the raw's question too; a turn that fails keeps no raw", async () => {
@@ -5483,7 +5539,7 @@ test("the prefix (the Phase 5 plan, D2): the sha256 of what the last request sen
   const dropped = await ask({}, ["400 messages.0.content.0: search_result is not supported here"]);
   assert.ok(JSON.stringify(dropped.requests[0].messages.at(-1)).includes("search_result"), "refused with the page");
   sameBytes(dropped.r.raw.question, rawOf(dropped.requests).question, "the retry's question");
-  sameBytes(messagesOf(dropped.r.raw), dropped.requests.at(-1).messages, "the retry's messages");
+  sameBytes(messagesOf(dropped.r.raw), sentOf(dropped.requests.at(-1)), "the retry's messages");
   assert.ok(!JSON.stringify(dropped.r.raw.question).includes("search_result"), "without the page's data");
   assert.ok(!JSON.stringify(dropped.r.raw.question).includes("search results before these words"), "the words bare");
   assert.equal(dropped.r.raw.prefix, plain.r.raw.prefix, "the data rode in the messages: the same prefix");
@@ -5646,14 +5702,14 @@ test("the raw at the caps (a number for the pull request, not a limit: the Phase
   );
 
   // The raw at that size is still the request, byte for byte.
-  sameBytes(messagesOf(r.raw), s.requests.at(-1).messages, "the last request's messages");
+  sameBytes(messagesOf(r.raw), sentOf(s.requests.at(-1)), "the last request's messages");
   sameBytes(r.raw.question, want.question, "the question");
   sameBytes(r.raw.rounds, want.rounds, "the rounds");
   sameBytes(r.raw.final, replayBlocks(final), "the answering round");
   assert.deepEqual(r.raw.results, []);
   const size = (x) => JSON.stringify(x).length;
   const stored = storedRaw(r.raw);
-  assert.equal(JSON.stringify(messagesOf(JSON.parse(stored.blocks))), JSON.stringify(s.requests.at(-1).messages));
+  assert.equal(JSON.stringify(messagesOf(JSON.parse(stored.blocks))), JSON.stringify(sentOf(s.requests.at(-1))));
   t.diagnostic(
     `the raw at the caps: ${size(r.raw)} characters -- base ${size(r.raw.base)}, question ${size(r.raw.question)}, ` +
       `rounds ${size(r.raw.rounds)} (${r.raw.rounds.length} messages), final ${size(r.raw.final)}, results ` +

@@ -151,9 +151,44 @@ function prefixOf(request: LastRound["request"]): string {
   return createHash("sha256").update(JSON.stringify({ system, tools, tool_choice, output_config })).digest("hex");
 }
 
+/** A block that carries the cache's marker (D10); anything that is no block is left as it is. */
+const marked = (b: unknown): unknown =>
+  b && typeof b === "object" ? { ...b, cache_control: { type: "ephemeral" } } : b;
+
+/**
+ * The messages as one request carries them (the Phase 5 plan, D10): a copy, with the cache's markers on copies of the
+ * blocks they mark -- the turn's own messages never carry one, so the turn as it keeps itself (RawTurn) carries none.
+ * Two here, beside system's two: `anchor`, the block where what an earlier request wrote to the cache ends (the page's
+ * last block on a cold turn, bp3), and the request's last block, which moves with each round (bp4), so each request
+ * writes only what it appended. An anchor the request no longer carries marks nothing.
+ */
+export function withMarkers(messages: Msg[], anchor: unknown): Msg[] {
+  const last = messages.length - 1;
+  return messages.map((m, i) => {
+    if (!Array.isArray(m.content)) return m;
+    const blocks: unknown[] = m.content;
+    const at = anchor === undefined ? -1 : blocks.indexOf(anchor);
+    if (at < 0 && i !== last) return m;
+    return {
+      ...m,
+      content: blocks.map((b, j) => (j === at || (i === last && j === blocks.length - 1) ? marked(b) : b)),
+    };
+  });
+}
+
+/** A block less the cache's marker a request carried on it, its other keys in their order. */
+function unmarkedBlock(b: unknown): unknown {
+  if (!b || typeof b !== "object" || !("cache_control" in b)) return b;
+  const { cache_control: _marker, ...rest } = b;
+  return rest;
+}
+/** A message less the cache's markers a request carried on it (D10): the turn as it was sent, whoever marked it. */
+const unmarked = (m: Msg): Msg => (Array.isArray(m.content) ? { ...m, content: m.content.map(unmarkedBlock) } : m);
+
 /** The turn as it was sent, from the round it ended on and where the question sits in that round's request. */
 function rawTurn({ request, blocks, outcomes, roundAt }: LastRound, questionAt: number): RawTurn {
-  const { model, messages } = request;
+  const { model } = request;
+  const messages = request.messages.map(unmarked);
   return {
     base: messages.slice(0, questionAt),
     question: messages[questionAt].content,

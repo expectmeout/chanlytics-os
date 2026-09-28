@@ -44,7 +44,7 @@ import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
 import { replayBlocks, resultBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
-import { finishTurn, turnMeter, type RawTurn, type TurnEnd } from "./memory";
+import { finishTurn, turnMeter, withMarkers, type RawTurn, type TurnEnd } from "./memory";
 
 /**
  * One turn of the assistant.
@@ -302,7 +302,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // turn's later rounds read it from the cache, and so does another first question on the same page within the
   // cache's life. A follow-up does not: its earlier turns come before the page, as text, so its prefix after the
   // shape is new bytes and the page is written to the cache again. The clock, the person and the question come after
-  // the breakpoint, uncached, so the cache holds.
+  // it; the fourth is on each request's last block (withMarkers), so the next round reads all before it.
   const system = [
     { type: "text", text: stableSystem(input.facts), cache_control: { type: "ephemeral" } },
     ...(shape ? [{ type: "text", text: shape, cache_control: { type: "ephemeral" } }] : []),
@@ -311,9 +311,6 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     ...(built?.blocks ?? []),
     ...(scopedRow ? [readBlock(scopedRow.run, scopedRow.out.result)] : []),
   ];
-  const cached = pageBlocks.map((b, i) =>
-    i === pageBlocks.length - 1 ? { ...b, cache_control: { type: "ephemeral" } } : b,
-  );
   const crossBlocks = prefetched.map((p) => readBlock(p.run, p.out.result));
   const wordsFacts = {
     role: input.role,
@@ -335,7 +332,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     }),
   };
   const question = { type: "text", text: input.text };
-  const withData = [...cached, ...crossBlocks, words, question];
+  const withData = [...pageBlocks, ...crossBlocks, words, question];
   const messages = foldHistory(input.history, withData);
   // Where the question sits, and whether it still carries the data blocks: a request the API refuses for them is asked
   // once more without them (D14).
@@ -487,7 +484,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
         model: model.id,
         max_tokens: ASK_MAX_TOKENS,
         system,
-        messages,
+        messages: withMarkers(messages, pageBlocks.at(-1)),
         tools,
         // The last round may call no tool: all that is left is the answer.
         tool_choice: last ? { type: "none" } : { type: "auto" },

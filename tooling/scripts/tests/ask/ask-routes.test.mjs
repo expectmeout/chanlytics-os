@@ -1004,6 +1004,14 @@ const prefixOf = (request) =>
       }),
     )
     .digest("hex");
+/**
+ * A request's messages less the cache's markers it carried (the Phase 5 plan, D10): the markers ride on each request's
+ * own copy, so what the turn keeps of a request is these.
+ */
+const unmark = (messages) =>
+  messages.map((m) =>
+    Array.isArray(m.content) ? { ...m, content: m.content.map(({ cache_control: _cc, ...b }) => b) } : m,
+  );
 /** A card the scripted model proposes, the same bytes every turn. */
 const CARD = {
   id: "p-1",
@@ -1090,9 +1098,10 @@ test("the turn as the model was sent it rides on the answer's row, at content.ra
     assert.deepEqual(Object.keys(blocks), ["base", "question", "rounds", "final", "results"]);
     assert.equal(
       JSON.stringify([...blocks.base, { role: "user", content: blocks.question }, ...blocks.rounds]),
-      JSON.stringify(sent.messages),
-      "read back, the last request's messages, byte for byte",
+      JSON.stringify(unmark(sent.messages)),
+      "read back, the last request's messages, byte for byte, less the cache's markers the request carried",
     );
+    assert.ok(!raw.blocks.includes("cache_control"), "the row keeps no marker");
     assert.deepEqual([blocks.base, blocks.rounds], [[], []], "a thread's first turn, one round");
     assert.deepEqual(blocks.final, [
       { type: "thinking", thinking: "", signature: SIGNATURE },
@@ -1137,7 +1146,7 @@ test("the turn as the model was sent it rides on the answer's row, at content.ra
     ]);
     assert.equal(
       JSON.stringify([...next.base, { role: "user", content: next.question }, ...next.rounds]),
-      JSON.stringify(requests[1].messages),
+      JSON.stringify(unmark(requests[1].messages)),
       "the follow-up's, byte for byte",
     );
 
