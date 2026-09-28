@@ -57,7 +57,7 @@ globalThis.CustomEvent = class CustomEvent {
   }
 };
 const { calendarOverride, getCalendarSpan } =
-  await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
 
 test("a refresh on a day reads the weeks around that day, not today's first", async () => {
   await calendarOverride.apply().catch(() => {});

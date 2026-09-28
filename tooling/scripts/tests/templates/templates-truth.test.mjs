@@ -121,7 +121,7 @@ test("the webhook writes the row Meta changed; Settings shows every template wit
   );
   assert.ok(s.includes("A marketing template can only go to people who said yes to offers."));
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes(
+    readCode("apps/dashboard/src/legacy-bridge/surfaces/settings.ts").includes(
       'read("GET templates", { query: { all: "1" } })',
     ),
   );
