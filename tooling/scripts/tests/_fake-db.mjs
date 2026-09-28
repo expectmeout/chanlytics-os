@@ -400,6 +400,15 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       };
       return { allowance: of("allowance"), budget: of("budget") };
     },
+    // Ask's day (00240): input plus output of the workspace's usage.ask_tokens events of the last 24 hours, a value
+    // that is not a number counting nothing, as the SQL sums them.
+    ask_tokens_day: ({ p_tenant }) => {
+      const since = Date.now() - 24 * 60 * 60 * 1000;
+      const n = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+      return (tables.events ?? [])
+        .filter((e) => e.tenant_id === p_tenant && e.kind === "usage.ask_tokens" && Date.parse(e.created_at) >= since)
+        .reduce((sum, e) => sum + n(e.data?.input_tokens) + n(e.data?.output_tokens), 0);
+    },
     // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
     search_messages: (args) => searchMessagesIn(tables, args),
     // The Inbox's messages (00235), each thread's newest, from the messages the fixture holds: every suite that reads

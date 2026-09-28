@@ -35,15 +35,15 @@
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/clients.css": {
-    "font": 161,
+    "font": 160,
     "radius": 39,
     "shadow": 12,
     "colour": 7,
     "blur": 0
   },
   "apps/dashboard/src/legacy/styles/components.css": {
-    "font": 189,
-    "radius": 80,
+    "font": 183,
+    "radius": 78,
     "shadow": 13,
     "colour": 13,
     "blur": 1

@@ -4865,6 +4865,12 @@ type Database = {
             };
         };
         Functions: {
+            ask_tokens_day: {
+                Args: {
+                    p_tenant: string;
+                };
+                Returns: number;
+            };
             billing_card_mark: {
                 Args: {
                     p_fingerprint: string;
