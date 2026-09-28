@@ -19,7 +19,8 @@ import {
   toCallDto,
   toConversationDto,
 } from "../dto";
-import { personLike, personVisits } from "../calendar/calendar";
+import { personLike } from "../calendar/calendar-week";
+import { personVisits } from "../calendar/person-visits";
 import { personRuns } from "../campaigns/broadcasts";
 import { leadOfPerson } from "../leads/leads";
 import { personNotesRead, stepFor } from "../people/person-notes";

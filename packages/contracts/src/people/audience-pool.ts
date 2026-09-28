@@ -17,7 +17,7 @@ import {
   type PersonVisitsDto,
   type VisitDto,
 } from "../calendar/calendar-people";
-import { isConsultationTitle } from "../deals/deals";
+import { isConsultationTitle } from "../deals/deal-consultations";
 import type { ListContext } from "./lists";
 import { toPersonRowVM, type PersonRowDto, type PersonRowVM } from "./people";
 

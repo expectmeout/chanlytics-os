@@ -7,11 +7,12 @@
  * The judge sees listing facts as quoted data, each capped and stripped of
  * control characters, never a page's text, and it answers each criterion
  * pass, fail or unknown with the fact keys it used. It never returns one
- * verdict for the place: code decides the class (lead-search.ts classify).
+ * verdict for the place: code decides the class (search/class.ts classify).
  */
 import { z } from "zod";
-import type { LeadSearchPlan } from "./lead-search";
-import { LEAD_FACT_MAX, LEAD_KIND_KEY, LEAD_REASON_MAX_WORDS } from "./lead-search";
+import type { LeadSearchPlan } from "./search/plan";
+import { LEAD_FACT_MAX, LEAD_REASON_MAX_WORDS } from "./search/caps";
+import { LEAD_KIND_KEY } from "./search/class";
 
 /* ----------------------------------------------------------- the facts -- */
 

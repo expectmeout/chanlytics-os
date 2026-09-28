@@ -35,13 +35,9 @@ import {
 } from "../../../../../packages/contracts/src/leads/leads.ts";
 import { leadsFirstDayWays } from "../../../../../packages/contracts/src/leads/lead-first-day.ts";
 import { leadMapLegend, leadPinTone, stateOf } from "../../../../../packages/contracts/src/shell/tone.ts";
-import {
-  planArea,
-  planMinutes,
-  planVersionOf,
-  planWhere,
-  planWho,
-} from "../../../../../packages/contracts/src/leads/lead-search.ts";
+import { planArea, planWhere, planWho } from "../../../../../packages/contracts/src/leads/search/sentence.ts";
+import { planMinutes } from "../../../../../packages/contracts/src/leads/search/cards.ts";
+import { planVersionOf } from "../../../../../packages/contracts/src/leads/search/plan.ts";
 import { hookFrames } from "../../_hook-frames.mjs";
 import { pipelineHelpers } from "../../../../../apps/dashboard/src/legacy-bridge/pipeline-helpers.ts";
 

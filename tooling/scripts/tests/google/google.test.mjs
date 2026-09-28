@@ -778,8 +778,10 @@ test("the migration: three tables that hang off the listing, members read, realt
 test("the edge library: the key alone on the edge, one check routine, a failed read that moves no stamp, the manifests", () => {
   // The door -- the knock, status, search, link (a read before a row, the
   // old place's reviews forgotten), unlink, refresh, and the two events --
-  // runs in google-door.test.mjs.
-  const lib = readCode("apps/edge/lib/google/google.ts");
+  // runs in google-door.test.mjs. The library is modules: the key's, the check's and the profile's sync.
+  const lib = ["google-config", "listing-check", "profile-sync"]
+    .map((m) => readCode(`apps/edge/lib/google/${m}.ts`))
+    .join("\n");
   assert.ok(lib.includes("env.GOOGLE_PLACES_API_KEY"));
   assert.ok(
     lib.includes("planListingCheck(") &&

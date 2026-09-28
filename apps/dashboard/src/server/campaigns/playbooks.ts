@@ -39,7 +39,7 @@ import {
 } from "@chanlytics/db";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/campaigns/broadcasts";
-import { peopleVisits, type ZoneAndSettings } from "@/server/calendar/calendar";
+import { peopleVisits, type ZoneAndSettings } from "@/server/calendar/people-visits";
 import { archivedListWords } from "@/server/people/audience";
 import { createBroadcastPorts, templateValuePorts } from "@/server/ports/campaign-ports";
 import { everyone } from "@/server/people/people";

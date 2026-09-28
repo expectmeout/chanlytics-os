@@ -1,26 +1,5 @@
 /** The lead finder and the Leads scope of People: the plan, the judge, the rows, the review, the words. */
 export {
-  leadPhoneState,
-  planWho,
-  planWhere,
-  planArea,
-  planWords,
-  planSaid,
-  planLeavingOut,
-  planSentence,
-  planCeiling,
-  planMinutes,
-  planVersionOf,
-  endingOfRound,
-  estimateRoundUsd,
-  placesToAsk,
-  classify,
-  questionAfterProbe,
-  cleanEmailCandidates,
-  usPhone,
-  siteHost,
-  stateCode,
-  leadMonth,
   LEAD_SEARCH_VIAS,
   LEAD_ROUND_PURPOSES,
   LEAD_ROUND_STATES,
@@ -33,6 +12,17 @@ export {
   LEAD_PREFERENCE_KINDS,
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
+} from "./search/sets";
+export type {
+  LeadSearchVia,
+  LeadRoundPurpose,
+  LeadRoundState,
+  LeadRoundEnding,
+  LeadRoundAnswer,
+  LeadRunState,
+  LeadMemberClass,
+} from "./search/sets";
+export {
   LEAD_MONTHLY_ALLOWANCE,
   LEAD_MONTHLY_BUDGET_USD,
   LEAD_DAY_CAP_USD,
@@ -44,46 +34,56 @@ export {
   LEAD_MAX_PLACES,
   LEAD_FACT_MAX,
   LEAD_REASON_MAX_WORDS,
-  LEAD_KIND_KEY,
-  leadKindWord,
-  LEAD_UNREACHABLE_KEY,
   LEAD_ASSUMED_YIELD,
   LEAD_ESTIMATE_MARGIN,
   LEAD_ASK_MIN_FACTOR,
   LEAD_ASK_MAX_FACTOR,
   LEAD_QUESTION_WAIT_MS,
-  LeadSearchPlanSchema,
-  LEAD_COUNT_CHOICES,
-  LEAD_ENDING_WORDS,
-  LEAD_CARDS,
-  LEAD_EMAIL_REASON,
-  LEAD_PLATFORM_HOSTS,
-  LEAD_JUNK_EMAIL_DOMAINS,
-  LEAD_PLACEHOLDER_LOCALS,
-  LEAD_ROLE_LOCALS,
-} from "./lead-search";
+  leadMonth,
+} from "./search/caps";
+export { LeadSearchPlanSchema, planVersionOf } from "./search/plan";
 export type {
-  LeadSearchVia,
-  LeadRoundPurpose,
-  LeadRoundState,
-  LeadRoundEnding,
-  LeadRoundAnswer,
-  LeadRunState,
-  LeadMemberClass,
   LeadContactStandard,
-  LeadPhoneState,
   LeadCriterionStandard,
   LeadCriterion,
   LeadExclusion,
   LeadArea,
   LeadSearchPlan,
-  LeadPlanWord,
-  LeadCardBrief,
-  LeadClassification,
-  ProbeMember,
-  LeadQuestion,
-  CleanedEmails,
-} from "./lead-search";
+} from "./search/plan";
+export { planWho, planWhere, planArea, planWords, planSaid, planLeavingOut, planSentence } from "./search/sentence";
+export type { LeadPlanWord } from "./search/sentence";
+export {
+  LEAD_CARDS,
+  estimateRoundUsd,
+  placesToAsk,
+  LEAD_COUNT_CHOICES,
+  planCeiling,
+  planMinutes,
+} from "./search/cards";
+export type { LeadCardBrief } from "./search/cards";
+export { LEAD_ENDING_WORDS, endingOfRound } from "./search/endings";
+export {
+  LEAD_KIND_KEY,
+  leadKindWord,
+  LEAD_UNREACHABLE_KEY,
+  leadPhoneState,
+  LEAD_EMAIL_REASON,
+  classify,
+} from "./search/class";
+export type { LeadPhoneState, LeadClassification } from "./search/class";
+export { questionAfterProbe } from "./search/question";
+export type { ProbeMember, LeadQuestion } from "./search/question";
+export {
+  LEAD_PLATFORM_HOSTS,
+  LEAD_JUNK_EMAIL_DOMAINS,
+  LEAD_PLACEHOLDER_LOCALS,
+  LEAD_ROLE_LOCALS,
+  cleanEmailCandidates,
+  usPhone,
+  siteHost,
+  stateCode,
+} from "./search/clean";
+export type { CleanedEmails } from "./search/clean";
 export {
   leadReachLine,
   LEAD_CLOSED_REASONS,

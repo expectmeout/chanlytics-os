@@ -15,7 +15,7 @@
 import { isRealDate } from "../config/workspace-config/config-schema";
 import { mondayOf, shiftKey } from "../calendar/calendar";
 import { clipAtWord } from "../conversations/message-words";
-import { siteHost } from "../leads/lead-search";
+import { siteHost } from "../leads/search/clean";
 import { wallClockAt, zoneDayKey } from "../shared/clock";
 import { DAY_MS, HOUR_MS } from "../shared/time";
 import { normalizeEmail } from "../shared/email-address";

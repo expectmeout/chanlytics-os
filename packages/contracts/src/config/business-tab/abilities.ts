@@ -38,7 +38,7 @@ export interface AbilityInputs {
    * bookingLinkOptional), and with none its receptionist takes their details instead (the first run's decision 2).
    */
   linkOptional: boolean;
-  /** An approved booking-link template: the call sends the link as one (template-library bookingTemplate). */
+  /** An approved booking-link template: the call sends the link as one (template-order bookingTemplate). */
   hasBookingTemplate: boolean;
   hasHandoffNumber: boolean;
   hasEscalateWhen: boolean;

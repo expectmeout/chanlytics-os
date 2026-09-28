@@ -89,7 +89,7 @@ export interface WirePayload {
   template?: TemplateSend;
   /**
    * The request an email leaves as, built and frozen when the message was
-   * queued (channels email.ts). Present on the email wire and nowhere else.
+   * queued (channels email/request.ts). Present on the email wire and nowhere else.
    */
   email?: EmailRequest;
   /** The send's purpose, on the email wire: only outreach may take an own domain's route (emailSender). */
