@@ -7,6 +7,7 @@
 import type { SchemaSet } from "@chanlytics/contracts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "../database.types";
+import { IDS_PER_READ } from "./people";
 
 type Db = SupabaseClient<Database>;
 
@@ -114,6 +115,29 @@ export async function linkCallMessage(db: Db, tenantId: string, callId: string, 
 }
 
 /**
+ * What these calls' lines showed, by id -- the number (from_e164) and what the line handed over raw (from_raw), which
+ * contracts' callerName names a call by -- in one read for a hundred ids or fewer (IDS_PER_READ), under the caller's row
+ * security and the workspace's own filter: a call the caller cannot read is not answered. A read that fails THROWS.
+ */
+export async function callersOf(
+  db: Db,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<Array<{ id: string; from_e164: string | null; from_raw: string | null }>> {
+  const out: Array<{ id: string; from_e164: string | null; from_raw: string | null }> = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db
+      .from("calls")
+      .select("id, from_e164, from_raw")
+      .eq("tenant_id", tenantId)
+      .in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`callersOf: ${error.message}`);
+    out.push(...(data ?? []));
+  }
+  return out;
+}
+
+/**
  * Post-storage-copy state for the recording (private bucket path).
  *
  * Row-counted, and this is the one where it bites: the audio is already in the
@@ -203,4 +227,32 @@ export async function claimCallNotification(db: Db, tenantId: string, callId: st
     .select("id");
   if (error) throw new Error(`claim_call_notification: ${error.message}`);
   return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Claim the one start of a call's Live Activity on the workspace's phones (00221). True for the first delivery of its
+ * call_started; false once claimed, so a redelivered one starts nothing twice. Throws on a database error.
+ */
+export async function claimCallActivity(db: Db, tenantId: string, callId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("calls")
+    .update({ activity_started_at: new Date().toISOString() })
+    .eq("id", callId)
+    .eq("tenant_id", tenantId)
+    .is("activity_started_at", null)
+    .select("id");
+  if (error) throw new Error(`claim_call_activity: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
+/** The caller's name as the Live page gives it (their display name, else their WhatsApp name), or null. */
+export async function callerNameOf(db: Db, tenantId: string, contactId: string): Promise<string | null> {
+  const { data, error } = await db
+    .from("contacts")
+    .select("display_name, wa_profile_name")
+    .eq("tenant_id", tenantId)
+    .eq("id", contactId)
+    .maybeSingle();
+  if (error) throw new Error(`caller_name: ${error.message}`);
+  return (data?.display_name || data?.wa_profile_name || "").trim() || null;
 }

@@ -1,10 +1,11 @@
 /**
  * The three's record: everything the character knows, as one value, with the mark's geometry and the little verbs
- * every reducer uses.
+ * every step uses.
  *
- * createCharacter (character.ts) holds one `Core` and hands it to the reducers: the frame (character-tick.ts), what
- * each state does (character-states.ts) and the gestures (character-moves.ts). Each is `(record, input) → record`,
- * changing the record in place and returning it, so a tick never allocates a second copy of the three. Nothing here
+ * createCharacter (character.ts) holds one `Core` and hands it to the steps: the frame (character-tick.ts), what
+ * each state does (character-states.ts) and the gestures (character-moves.ts). A step is not a reducer: it applies
+ * its input to the record IN PLACE (and some hand the same record back), so a tick never allocates a second copy of
+ * the three, and nothing may keep a record from before a step expecting it unchanged. Nothing here
  * reads a clock, the DOM or Math.random: the one roll is seeded and its state is a field of the record, so a record
  * and a script of inputs give the same frames every time (the tests under tests/shell/mascot rely on it).
  */
@@ -106,17 +107,17 @@ export interface Body {
   y: number;
   vx: number;
   vy: number;
-  sc: number;
-  vsc: number;
+  scale: number;
+  vscale: number;
   rot: number;
   vrot: number;
-  lf: number;
-  vlf: number;
+  lift: number;
+  vlift: number;
   shade: number;
   live: number;
   ox: number;
   oy: number;
-  osc: number;
+  oscale: number;
   orot: number;
   olift: number;
   obreath: number;
@@ -124,7 +125,7 @@ export interface Body {
   /** where it joins the ring, in radians */
   phase: number;
   /** light carried off the ring, fading */
-  ech: number;
+  afterglow: number;
   /** where it was last drawn and how fast it was going there, so it leaves the ring at its own speed */
   pox: number;
   poy: number;
@@ -153,9 +154,12 @@ export interface Move {
   glance: number;
 }
 
-/** Everything the three know: the record every reducer takes and returns. */
+/**
+ * Everything the three know: the record every step changes in place. It is flat: the comments below group the fields
+ * by what they are about and name the fields in each group, and no group is a record of its own.
+ */
 export interface Core {
-  // what it was made with
+  // what it was made with (fidgets to seed)
   readonly fidgets: boolean;
   readonly ownRhythm: boolean;
   readonly calm: boolean;
@@ -163,20 +167,20 @@ export interface Core {
   readonly quietAfter: number;
   /** the roll's state (mulberry32): the seed at birth, then wherever the rolls have taken it */
   seed: number;
-  // where it is
+  // where it is (state to blend)
   state: CharacterState;
   stateAt: number;
   prevLive: number;
   clock: number;
   /** how far into each state it is, eased: the weights the poses blend by */
-  W: Record<CharacterState, number>;
-  // the voice: yours, its own, and the level drawn
+  blend: Record<CharacterState, number>;
+  // about the voice (heard, voiced, voiceLive, level, hist): yours, its own, and the level drawn
   heard: number;
   voiced: number;
   voiceLive: boolean;
   level: number;
   hist: { t: number; v: number }[];
-  // the pose
+  // about the pose (corner to pointerAge): the corners, the spread, the perk and the press, where it looks
   corner: number;
   spreadAdd: number;
   perk: number;
@@ -187,11 +191,11 @@ export interface Core {
   fidgetGaze: [number, number];
   pointer: { g: [number, number]; near: boolean } | null;
   pointerAge: number;
-  // the ring
+  // about the ring (orb, orbPhase, orbBoost): how far the tiles are on it, how far round, and a read's surge
   orb: number;
   orbPhase: number;
   orbBoost: number;
-  // the fidgets and the beats
+  // about the fidgets and the beats (nextFidgetAt to wordAt)
   nextFidgetAt: number;
   autoNextAt: number;
   autoPhraseEnd: number;
@@ -200,17 +204,20 @@ export interface Core {
   quietFor: number;
   lastWordAt: number;
   wordAt: number;
-  // size: one tile in CSS px, and how far a gesture moves at that size (45% at 6px, the whole move from 36px)
+  // about the size (px, sizeGain): one tile in CSS px, and how far a gesture moves at that size (45% at 6px, the
+  // whole move from 36px)
   px: number;
-  g: number;
-  // attention: 1 while someone is near; quiet after quietAfter seconds alone
+  /** gainOf(px): 0 at 6px up to 1 from 36px, which gain() makes the share of a gesture drawn */
+  sizeGain: number;
+  // about attention (attention to settleArmed): 1 while someone is near; quiet after quietAfter seconds alone
   attention: number;
   unattended: number;
   awake: number;
   wasQuiet: boolean;
   settleArmed: boolean;
+  /** how far the tiles may fuse: 0 the exact mark, up to 1 while listening, reading or answering (fuse) */
   liquid: number;
-  // lit at rest (glow): the colour the tiles hold while idle, eased
+  // about lit at rest (lit, litTarget): the colour the tiles hold while idle, eased
   lit: number;
   litTarget: number;
   // the glow going out at rest: the tiles cool as quickly as it came, not with an answer's slow cooling
@@ -222,7 +229,7 @@ export interface Core {
 
 export const gainOf = (side: number): number => smooth((side - 6) / 30);
 /** how far a gesture moves at the size drawn */
-export const gain = (st: Core): number => 0.45 + 0.55 * st.g;
+export const gain = (st: Core): number => 0.45 + 0.55 * st.sizeGain;
 // what comes in from outside is a number or nothing
 export const unit = (v: unknown): number => clamp(Number(v) || 0, 0, 1);
 export const signed = (v: unknown): number => clamp(Number(v) || 0, -1, 1);
@@ -236,23 +243,23 @@ function tileAt(i: number, entering: boolean): Body {
     y,
     vx: 0,
     vy: 0,
-    sc: entering ? 0 : 1,
-    vsc: 0,
+    scale: entering ? 0 : 1,
+    vscale: 0,
     rot: 0,
     vrot: 0,
-    lf: entering ? 0.6 : 0,
-    vlf: 0,
+    lift: entering ? 0.6 : 0,
+    vlift: 0,
     shade: i,
     live: 0,
     ox: 0,
     oy: 0,
-    osc: 0,
+    oscale: 0,
     orot: 0,
     olift: 0,
     obreath: 0,
     ch: 0,
     phase: 0,
-    ech: 0,
+    afterglow: 0,
     pox: x,
     poy: y,
     vox: 0,
@@ -277,7 +284,7 @@ export function createCore(options: CharacterOptions): Core {
     stateAt: 0,
     prevLive: 0,
     clock: 0,
-    W: { idle: 1, listening: 0, thinking: 0, speaking: 0 },
+    blend: { idle: 1, listening: 0, thinking: 0, speaking: 0 },
     heard: 0,
     voiced: 0,
     voiceLive: false,
@@ -305,7 +312,7 @@ export function createCore(options: CharacterOptions): Core {
     lastWordAt: -1e9,
     wordAt: 0,
     px,
-    g: gainOf(px),
+    sizeGain: gainOf(px),
     attention: 1,
     unattended: 0,
     awake: 1,

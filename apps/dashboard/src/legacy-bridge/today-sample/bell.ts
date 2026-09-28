@@ -3,7 +3,7 @@
  * on a busy day, between Ana's row and Kenia's.
  */
 import { agoLabel, SERVER_KEY_PREFIX, NEEDS_KEY_PREFIX, CALL_KEY_PREFIX, MIN_MS } from "@chanlytics/contracts";
-import type { SampleClock } from "./clock";
+import type { SampleClock, SampleDay } from "./clock";
 // The row the popover draws, from the bridge that owns it. `import type` is erased, so notifications.ts's
 // own `./api` import never reaches this browser-only bundle.
 import type { BellRow } from "../notifications";
@@ -114,7 +114,7 @@ function busyBellRows(nowMs: number): BellRow[] {
 }
 
 /** The bell as the topbar would hold it, in the order the edge and this browser would have added its rows. */
-export function sampleBellRows({ nowMs }: SampleClock, busy: boolean): BellRow[] {
+export function sampleBellRows({ nowMs }: SampleClock, day: SampleDay): BellRow[] {
   return [
     bellRow(
       nowMs,
@@ -165,7 +165,7 @@ export function sampleBellRows({ nowMs }: SampleClock, busy: boolean): BellRow[]
       "inbox/th-cv-ana",
       "Open",
     ),
-    ...(busy ? busyBellRows(nowMs) : []),
+    ...(day === "busy" ? busyBellRows(nowMs) : []),
     bellRow(
       nowMs,
       `${NEEDS_KEY_PREFIX}cv-kenia`,

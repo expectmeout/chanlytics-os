@@ -24,6 +24,7 @@ import { pageOperator } from "../../lib/ops/page-operator.js";
 import { provisionLineJob } from "../../lib/lines/line-provision-job.js";
 import { leadPipeline } from "../../lib/leads/lead-pipeline.js";
 import { expoPush } from "../../lib/ops/push.js";
+import { replyReader } from "../../lib/reach-out/reply-read.js";
 import {
   runTick,
   claimNext,
@@ -33,6 +34,7 @@ import {
   settleJob,
   dispatchJob,
   scheduleJob,
+  scheduleJobOnce,
   lateFields,
   CLAIM_FOR_MS,
   YIELD_AT_MS,
@@ -101,11 +103,17 @@ export async function POST(request: Request): Promise<Response> {
               provisionLine: (lineId, by, until) => provisionLineJob(db, lineId, by, undefined, until),
               ...(intake ? { email: intake } : {}),
               ...(leads ? { leads } : {}),
+              // The reading of a reach-out's reply: the model, the spend and the notice. With no model key it
+              // reads nothing and says so (no_model), and the reply is read again later.
+              replies: replyReader(db),
               // A job that continues itself (a broadcast's next batch) is one
               // more row, as this job's tenant.
               schedule: async (kind, dueAt, payload) => {
                 await scheduleJob(db, { tenantId: job.tenant_id, kind, dueAt, payload });
               },
+              // Work the ledger holds once per subject (a reply's reading), as this job's tenant.
+              scheduleOnce: (kind, dueAt, payload) =>
+                scheduleJobOnce(db, { tenantId: job.tenant_id, kind, dueAt, payload }),
               deadline,
             },
             {

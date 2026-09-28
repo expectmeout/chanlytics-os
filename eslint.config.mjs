@@ -117,6 +117,72 @@ const EDGE_MAY_NOT_IMPORT = [
   },
 ];
 
+/**
+ * A function's limits, the complexity ratchet's (tooling/scripts/tests/_measures.mjs, LIMIT): 150 lines, 30
+ * branches, 5 levels. The ratchet holds every function over them by name (baselines/complexity.json), counted as
+ * these rules count (repo/measures.test.mjs), and a listed one may only shrink. Where a tree's last entry has been
+ * banked, the limits become lint errors there: said in the editor as the function is written, and no longer a number
+ * a raise can move. `max-params` has no ratchet; four is where most of the code already is.
+ */
+export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 };
+
+/**
+ * The trees whose complexity baseline is empty: a package's src, an app area, or a domain folder in one. A tree joins
+ * in the change that banks its last entry; a parent replaces its folders once all of it is held. The shell
+ * (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of the programs in flight
+ * (Ask, Reach out, the phone app, partners), which join as those land. repo/lint-boundaries.test.mjs holds each entry
+ * to real source with no entry left in the baseline, and asks ESLint that the limits apply there.
+ */
+export const LIMITED_TREES = [
+  "packages/db/src",
+  "packages/contracts/src/consent",
+  "packages/contracts/src/google",
+  "packages/contracts/src/lines",
+  "packages/contracts/src/notes",
+  "packages/contracts/src/playbooks",
+  "packages/contracts/src/shared",
+  "apps/dashboard/src/auth",
+  "apps/dashboard/src/client",
+  "apps/dashboard/src/lib",
+  "apps/dashboard/src/yes",
+  "apps/dashboard/src/legacy-bridge/today-sample",
+  "apps/dashboard/src/server/auth",
+  "apps/dashboard/src/server/connections",
+  "apps/dashboard/src/server/conversations",
+  "apps/dashboard/src/server/export",
+  "apps/dashboard/src/server/leads",
+  "apps/dashboard/src/server/metrics",
+  "apps/dashboard/src/server/platform",
+  "apps/dashboard/src/server/ports",
+  "apps/dashboard/src/server/public",
+  "apps/dashboard/src/server/receptionist",
+  "apps/edge/api/jobs",
+  "apps/edge/lib/calendar",
+  "apps/edge/lib/email",
+  "apps/edge/lib/notes",
+  "apps/edge/lib/ops",
+  "apps/edge/lib/packages",
+  "apps/edge/lib/sms",
+];
+
+/**
+ * The held trees where a function still takes more than four parameters (measured 27 September 2026: 29 functions,
+ * db's widest at 7 and today-sample's at 11). `max-params` waits in these; a tree leaves this list when its last one
+ * takes an object instead.
+ */
+export const WIDE_PARAMS = [
+  "packages/db/src",
+  "packages/contracts/src/playbooks",
+  "apps/dashboard/src/legacy-bridge/today-sample",
+  "apps/dashboard/src/server/platform",
+  "apps/dashboard/src/server/ports",
+  "apps/dashboard/src/server/receptionist",
+  "apps/edge/lib/calendar",
+  "apps/edge/lib/email",
+];
+
+const treeFiles = (trees) => trees.map((tree) => `${tree}/**/*.{ts,tsx}`);
+
 export default [
   {
     ignores: [
@@ -259,6 +325,21 @@ export default [
     rules: {
       "@typescript-eslint/no-restricted-imports": ["error", { patterns: SERVER_MAY_NOT_IMPORT }],
     },
+  },
+
+  // A function's limits, as errors where the ratchet holds nothing (LIMITED_TREES above). IIFEs count, as they
+  // do to the ratchet.
+  {
+    files: treeFiles(LIMITED_TREES),
+    rules: {
+      complexity: ["error", FUNCTION_LIMITS.branches],
+      "max-lines-per-function": ["error", { max: FUNCTION_LIMITS.lines, IIFEs: true }],
+      "max-depth": ["error", FUNCTION_LIMITS.depth],
+    },
+  },
+  {
+    files: treeFiles(LIMITED_TREES.filter((tree) => !WIDE_PARAMS.includes(tree))),
+    rules: { "max-params": ["error", FUNCTION_LIMITS.params] },
   },
 
   // The ported mockup: hooks correctness only. Its bare names are checked by

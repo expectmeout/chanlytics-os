@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parsePageMessage, parseShellMessage } from "../../../../packages/contracts/src/mobile/app-bridge.ts";
 
-test("a page message is one of four shapes; anything else is null", () => {
+test("a page message is one of its shapes; anything else is null", () => {
   assert.deepEqual(parsePageMessage('{"t":"route","route":"inbox"}'), { t: "route", route: "inbox" });
   assert.deepEqual(parsePageMessage('{"t":"route","route":"clients/abc-123"}'), {
     t: "route",
@@ -48,9 +48,22 @@ test("a page message is one of four shapes; anything else is null", () => {
   assert.deepEqual(parsePageMessage('{"t":"calls","live":2}'), { t: "calls", live: 2 });
   assert.equal(parsePageMessage('{"t":"calls","live":-1}'), null);
   assert.equal(parsePageMessage('{"t":"calls","live":"2"}'), null);
+  // Whether something stands over the page: a yes or a no, never a count or a word.
+  assert.deepEqual(parsePageMessage('{"t":"overlay","open":true}'), { t: "overlay", open: true });
+  assert.deepEqual(parsePageMessage('{"t":"overlay","open":false}'), { t: "overlay", open: false });
+  assert.equal(parsePageMessage('{"t":"overlay","open":1}'), null);
+  assert.equal(parsePageMessage('{"t":"overlay"}'), null);
+  // A file the page made, for the phone's share sheet: words only, a plain name, a size a chart's CSV fits in.
+  const file = (o) =>
+    parsePageMessage(JSON.stringify({ t: "file", name: "calls-by-day.csv", type: "text/csv", text: "a,b", ...o }));
+  assert.deepEqual(file({}), { t: "file", name: "calls-by-day.csv", type: "text/csv", text: "a,b" });
+  assert.equal(file({ name: "../../etc/passwd.csv" }), null, "no path in a name");
+  assert.equal(file({ name: "calls.exe" }), null, "only .csv or .txt");
+  assert.equal(file({ type: "text/html" }), null, "never a page or a script");
+  assert.equal(file({ text: "x".repeat(2_000_001) }), null, "a whole export goes through the server");
 });
 
-test("a shell message is navigate, menu or top; a route is a hash route's name, never a URL", () => {
+test("a shell message is navigate, menu, top or close; a route is a hash route's name, never a URL", () => {
   assert.deepEqual(parseShellMessage({ t: "navigate", route: "clients" }), { t: "navigate", route: "clients" });
   const W = "22222222-2222-4222-8222-222222222222";
   assert.deepEqual(parseShellMessage({ t: "navigate", route: "inbox", workspace: W }), {
@@ -65,6 +78,7 @@ test("a shell message is navigate, menu or top; a route is a hash route's name, 
   );
   assert.deepEqual(parseShellMessage({ t: "menu" }), { t: "menu" });
   assert.deepEqual(parseShellMessage({ t: "top" }), { t: "top" });
+  assert.deepEqual(parseShellMessage({ t: "close", route: "inbox" }), { t: "close" }, "close carries nothing");
   // The native thread's asks went with it: an old app's are nothing the page answers.
   assert.equal(parseShellMessage({ t: "token" }), null);
   assert.equal(parseShellMessage({ t: "back" }), null);

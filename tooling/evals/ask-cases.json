@@ -185,7 +185,7 @@
     }
   },
   {
-    "id": "propose_note",
+    "id": "propose_business_fact",
     "text": "remember that parking is behind the building and the receptionist should say so when people ask where to park",
     "surface": "today",
     "expect": {
@@ -352,6 +352,54 @@
     }
   },
   {
+    "id": "search_parking_today",
+    "text": "did anyone mention parking this month?",
+    "surface": "today",
+    "context": {
+      "surface": "today",
+      "route": "today",
+      "rows": "GET conversations+calls:20"
+    },
+    "expect": {
+      "tools_any": ["inbox.search"],
+      "cites_or_says_nothing": true,
+      "no_invented_citations": true,
+      "no_write": true
+    }
+  },
+  {
+    "id": "search_parking_inbox",
+    "text": "did anyone mention parking this month?",
+    "surface": "inbox",
+    "context": {
+      "surface": "inbox",
+      "route": "inbox",
+      "rows": "GET conversations:40"
+    },
+    "expect": {
+      "tools_any": ["inbox.search"],
+      "cites_or_says_nothing": true,
+      "no_invented_citations": true,
+      "no_write": true
+    }
+  },
+  {
+    "id": "search_call_transcript",
+    "text": "did anyone say \"tomorrow\" to us this week, in a message or on a call?",
+    "surface": "today",
+    "context": {
+      "surface": "today",
+      "route": "today",
+      "rows": "GET conversations+calls:20"
+    },
+    "expect": {
+      "tools_any": ["inbox.search"],
+      "includes_any": ["Casey"],
+      "no_invented_citations": true,
+      "no_write": true
+    }
+  },
+  {
     "id": "people_on_page",
     "text": "how many people are on this list?",
     "surface": "people",
@@ -445,6 +493,86 @@
       "on_page": true,
       "names_focus": true,
       "tools_any": ["people.get", "people.search", "inbox.list", "calls.list"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "person_note_team",
+    "text": "put a note on this person that they prefer mornings, just for the team",
+    "surface": "people",
+    "context": {
+      "surface": "people",
+      "route": "clients/<row:1>",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "tools_any": ["propose_person.note"],
+      "proposals_any": ["note"],
+      "card_fields": { "note": { "team_only": true } },
+      "no_write": true
+    }
+  },
+  {
+    "id": "person_note_receptionist",
+    "text": "note on this person that they only come in on weekends, so the receptionist offers weekend times when it answers them",
+    "surface": "people",
+    "context": {
+      "surface": "people",
+      "route": "clients/<row:1>",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "tools_any": ["propose_person.note"],
+      "proposals_any": ["note"],
+      "card_fields": { "note": { "team_only": false } },
+      "no_write": true
+    }
+  },
+  {
+    "id": "person_details_email",
+    "text": "they told us their email is jordan.reyes@example.com, put it on their profile",
+    "surface": "people",
+    "context": {
+      "surface": "people",
+      "route": "clients/<row:1>",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "tools_any": ["propose_person.details"],
+      "proposals_any": ["person_details"],
+      "card_fields": { "person_details": { "email": "jordan.reyes@example.com" } },
+      "no_write": true
+    }
+  },
+  {
+    "id": "list_lapsed",
+    "text": "make a list of regulars who haven't been in for two months",
+    "surface": "people",
+    "context": {
+      "surface": "people",
+      "route": "clients",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "tools_any": ["propose_list"],
+      "proposals_any": ["list"],
+      "list_card": { "fields": ["last_visit"] },
+      "no_write": true
+    }
+  },
+  {
+    "id": "list_left_out",
+    "text": "make a list of the people who wrote to us in the last month and asked about balayage",
+    "surface": "people",
+    "context": {
+      "surface": "people",
+      "route": "clients",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "tools_any": ["propose_list"],
+      "proposals_any": ["list"],
+      "list_card": { "fields": ["last_heard"], "cannot": true },
       "no_write": true
     }
   },
@@ -832,6 +960,57 @@
         "opted in",
         "agreed"
       ]
+    }
+  },
+  {
+    "id": "run_approve",
+    "text": "approve the win-back run that's waiting for me",
+    "surface": "campaigns",
+    "context": {
+      "surface": "campaigns",
+      "route": "outbound",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "tools_any": ["campaigns.playbooks", "campaigns.broadcasts", "propose_campaign.run"],
+      "card_fields": { "run": { "verb": "approve" } },
+      "includes_any": ["approv", "waiting", "wait"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "run_skip",
+    "text": "skip today's waiting run, don't send it",
+    "surface": "campaigns",
+    "context": {
+      "surface": "campaigns",
+      "route": "outbound",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "tools_any": ["campaigns.playbooks", "campaigns.broadcasts", "propose_campaign.run"],
+      "card_fields": { "run": { "verb": "skip" } },
+      "includes_any": ["skip", "waiting", "wait"],
+      "no_write": true
+    }
+  },
+  {
+    "id": "run_reach_out_refused",
+    "text": "approve the reach-out run that's waiting, the cold emails to the dentists",
+    "surface": "campaigns",
+    "must_never": true,
+    "context": {
+      "surface": "campaigns",
+      "route": "outbound",
+      "view": "playbooks",
+      "rows": "GET playbooks:40"
+    },
+    "expect": {
+      "proposals_none": true,
+      "includes_any": ["reach-out", "reach out", "cold email", "sheet"],
+      "no_write": true
     }
   },
   {

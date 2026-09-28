@@ -20,21 +20,6 @@ const { useState: useShellState, useEffect: useShellEffect, useCallback: useShel
 // `own`: the route's own surface alone, without the bands its first draw waits for beside it (surface-registry ROUTE_WAITS).
 const routeReady = (page, param, own = false) => !window.__surfaceGate || window.__surfaceGate(page, param, own);
 
-/** Surfaces whose own route param is a prop they follow, not a new identity. Live writes the call it opens to the
- *  address (replaced), so each call being its own mount would tear the page down on every click; Conversations writes
- *  the row on its tab (`<tab>:<id>`) the same way. */
-const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts", "live", "conversations", "start"]);
-// What a route is MOUNTED under (the long note where it is used says why that is not the route). Leads follows its
-// address as a prop -- the page reads `leadsRoute` on every draw and its one read is keyed by it -- so every view of
-// Leads, and a lead opened over one, is the page already there. People's own views and a profile keep their whole
-// route: only the leads route itself, not an id that starts with the word.
-const shellMountKey = (page, param) => {
-  if (PARAM_FOLLOWED_AS_PROP.has(page)) return page;
-  if (page === "clients" && param && /^leads(:|$)/.test(param)) return "clients/leads";
-  // The Pipeline follows its address the same way (0008): its views and a person open over one are the page already there.
-  if (page === "clients" && param && /^pipeline(:|$)/.test(param)) return "clients/pipeline";
-  return `${page}/${param || ""}`;
-};
 // A flipped surface whose fetch failed. Painting the mockup here would show
 // invented customers as real, so the shell says so instead.
 const routeFailed = (page, param) => !!window.__surfaceFailed && window.__surfaceFailed(page, param);
@@ -59,7 +44,8 @@ const parseHash = () => {
 
 /**
  * The route an address opens, resolved for the table and the gates: `page` and `param` as drawn, `raw` as written,
- * the soon/ answer, where a retired address lands, the gate's key and the mount key.
+ * the soon/ answer, where a retired address lands and the gate's key. What its view is mounted under is the table's
+ * (app-routes.jsx, a row's `mount`), in drawRoute's answer.
  *
  * soon/<surface> was the landing for a page not built yet, and an old link, a bookmark or a bell row can still name
  * one that has since shipped. The registry decides what it opens, like every other route: a page it lists as real
@@ -77,26 +63,10 @@ const routeAt = (route) => {
     : null;
   const { page, param } = soonState === "real" ? { page: route.param, param: null } : route;
   const retiredTo = (window.__surfaceRetired && window.__surfaceRetired(page, param, !!window.__DEMO_MODE)) || null;
-  // The gate is asked per PANE, so this key must carry the param.
+  // The gate is asked per PANE, so this key must carry the param. What the surface is MOUNTED under is a different
+  // question, the route table's (app-routes.jsx, a row's `mount`).
   const routeKey = `${page}/${param || ""}`;
-  // What the surface is MOUNTED under, which is a different question.
-  //
-  // Both used to be routeKey, so changing a surface's own param tore the whole
-  // surface down and built it again: a second Settings tab, a second Inbox
-  // thread. The visible cost is two 240ms route-in fades compounding -- the
-  // shell's on .route-view and the pane's own -- which reads as a flash; the
-  // invisible cost is the surface's state, its scroll position and its fetches,
-  // thrown away on a navigation that never left the surface.
-  //
-  // A surface joins this list only once it FOLLOWS its param as a prop.
-  // Settings derives its active tab on every render; the Inbox has an effect on
-  // initialThreadId headed "Deep-link follows later navigations too" -- written
-  // for exactly this and defeated by the key. A surface that seeds state from
-  // the param and never looks again would show the wrong entity, so the default
-  // stays remount and this is opt-in: forgetting a surface costs the
-  // improvement, never correctness.
-  const mountKey = shellMountKey(page, param);
-  return { page, param, raw: route, soonState, retiredTo, routeKey, mountKey };
+  return { page, param, raw: route, soonState, retiredTo, routeKey };
 };
 
 // Inbox thread → client profile mapping (identity is consistent across surfaces)
@@ -213,8 +183,8 @@ const PhoneTabs = ({ page, inboxNeeds, onNavigate, onMenu }) => {
 };
 
 // ---- The shell's hooks ----------------------------------------------------
-// Each holds one concern of ChanlyticsApp, called in the order the shell always called these hooks: a hook's state
-// stays where it was, and the effects run in the order they always ran.
+// Each holds one concern of ChanlyticsApp, and the state its effects set (the drawer's is useNavDrawer's), called in
+// the order the shell always called these hooks, so the effects run in the order they always ran.
 
 /** What needs you, for the sidebar's and the phone bar's count: from the threads at the first draw, then the Inbox's own count. */
 const useInboxNeeds = () => {
@@ -400,8 +370,12 @@ const useShellKeys = ({ setAskOpen, sidebar, onSidebar }) => {
   }, [sidebar, onSidebar]);
 };
 
-/** Mobile drawer flows: Escape closes, body scroll locks while open, and a resize past the breakpoint clears the drawer state. */
-const useNavDrawer = (navOpen, setNavOpen) => {
+/**
+ * The phone's drawer: whether it is open, and its flows. Escape closes, body scroll locks while open, and a resize past
+ * the breakpoint clears the drawer state. `React.useState`, not the file's alias: the lint knows that setter is stable.
+ */
+const useNavDrawer = () => {
+  const [navOpen, setNavOpen] = React.useState(false);
   // Inside the native shell (legacy-bridge/app-bridge.ts): the More tab asks for the drawer, a re-tap for the top.
   useShellEffect(() => {
     const onMenu = () => setNavOpen(true);
@@ -409,8 +383,7 @@ const useNavDrawer = (navOpen, setNavOpen) => {
     window.addEventListener("shell:menu", onMenu);
     window.addEventListener("shell:top", onTop);
     return () => { window.removeEventListener("shell:menu", onMenu); window.removeEventListener("shell:top", onTop); };
-    // setNavOpen is the shell's own useState setter, handed in: stable, as it was when this effect sat in ChanlyticsApp.
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
   useShellEffect(() => {
     if (!navOpen) return;
     const onKey = (e) => { if (e.key === "Escape") setNavOpen(false); };
@@ -425,6 +398,7 @@ const useNavDrawer = (navOpen, setNavOpen) => {
       window.removeEventListener("resize", onResize);
     };
   }, [navOpen]);
+  return { navOpen, setNavOpen };
 };
 
 /**
@@ -468,9 +442,9 @@ const useTabTitle = (crumbs, inboxNeeds) => {
  * though its route starts with the list's word.
  * Decided as the view changes, in the draw that mounts it, and kept for that view's life: decided after the mount
  * (an effect, a state) it re-drew the same element with the class, which cancelled the fade on every page one
- * frame in.
+ * frame in. `mountKey` is what the view is mounted under, the route table's answer (drawRoute).
  */
-const useViewFade = ({ page, param, mountKey }, routeLoading) => {
+const useViewFade = ({ page, param }, mountKey, routeLoading) => {
   const viewKey = routeLoading ? `${mountKey}/reading` : mountKey;
   const family = page === "clients" && param && !/^(leads(:|$)|pipeline(:|$)|seg:|list:|state:)/.test(param) ? "clients/person" : page;
   // Where the view stands on a strip (surface-tabs.jsx stripPlace): a view from the tab beside comes in from its side on
@@ -606,12 +580,11 @@ const appChrome = (s) => {
 };
 
 // ---- Shell -------------------------------------------------------------
-// The hooks below are called in the order the shell always called them, so every hook keeps the cell it had.
+// The hooks below are called in the order the shell always called them, so its effects run in the order they always did.
 const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", onSidebar = () => {}, inboxDensity, showInboxAgentRail }) => {
   const [route, setRoute] = useShellState(parseHash());
   const [askOpen, setAskOpen] = useShellState(false);
   const inboxNeeds = useInboxNeeds();
-  const [navOpen, setNavOpen] = useShellState(false);
   const at = routeAt(route);
   const { page, param } = at;
   const gate = useRouteGate(at);
@@ -628,7 +601,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
 
   useShellRouting({ route, setRoute, setReadyTick: gate.setReadyTick });
   useShellKeys({ setAskOpen, sidebar, onSidebar });
-  useNavDrawer(navOpen, setNavOpen);
+  const { navOpen, setNavOpen } = useNavDrawer();
 
   // The route table's answer (app-routes.jsx, published on window as every shell file's names are), the honesty gate applied.
   const drawn = window.drawRoute({ ...at, demoGated, navigate, openAsk, backToPeople, inboxDensity, showInboxAgentRail });
@@ -637,7 +610,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   useTabTitle(drawn.crumbs, inboxNeeds);
   // A route change: the drawer closes, and the gate's clocks start for the new route.
   useShellEffect(() => { setNavOpen(false); return gate.arm(); }, [at.routeKey]);
-  const fade = useViewFade(at, gate.routeLoading);
+  const fade = useViewFade(at, drawn.mountKey, gate.routeLoading);
   // The shell is mounted and listening (useNavDrawer above): the native app's bridge replays a menu ask that arrived
   // while this was still compiling (legacy-bridge/app-bridge.ts). After the route effect, so the first route's close
   // runs before the replayed open.

@@ -66,7 +66,7 @@
   },
   "apps/dashboard/src/legacy-bridge/mascot/driver.ts::mountCharacter#1": {
     "lines": 218,
-    "branches": 19,
+    "branches": 17,
     "depth": 2
   },
   "apps/dashboard/src/legacy-bridge/notifications.ts::installNotifications#1": {
@@ -80,7 +80,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/surface-runner.ts::startSurfaces#1": {
-    "lines": 248,
+    "lines": 243,
     "branches": 8,
     "depth": 1
   },
@@ -720,7 +720,7 @@
     "depth": 2
   },
   "apps/edge/lib/leads/lead-db.ts::leadDb#1": {
-    "lines": 282,
+    "lines": 273,
     "branches": 1,
     "depth": 0
   },
@@ -939,12 +939,12 @@
     "branches": 33,
     "depth": 2
   },
-  "packages/contracts/src/today/today.ts::figuresOf#1": {
+  "packages/contracts/src/today/today-figures.ts::figuresOf#1": {
     "lines": 200,
     "branches": 55,
     "depth": 2
   },
-  "packages/contracts/src/today/today.ts::todayLeaks#1": {
+  "packages/contracts/src/today/today-leaks.ts::todayLeaks#1": {
     "lines": 207,
     "branches": 66,
     "depth": 1
@@ -955,8 +955,8 @@
     "depth": 2
   },
   "packages/contracts/src/workspace/activity.ts::activityWords#1": {
-    "lines": 159,
-    "branches": 76,
+    "lines": 154,
+    "branches": 75,
     "depth": 3
   },
   "packages/contracts/src/workspace/billing.ts::toBillingVM#1": {

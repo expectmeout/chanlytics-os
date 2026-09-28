@@ -189,7 +189,11 @@ var EVENT_KINDS = [
   // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
   "partner.handover_sent",
   "partner.handover_accepted",
-  "partner.handover_declined"
+  "partner.handover_declined",
+  // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
+  "reach_out.replied",
+  // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
+  "reach_out.reply_undone"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -2232,7 +2236,7 @@ var FIRST_RUN_PHONE_WORDS = {
   readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
   readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
   recommended: "Recommended",
-  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
+  keepTitle: (display) => display ? `Keep ${display}` : "Keep the number you have",
   keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
   keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
   newTitle: "Get a new number",
@@ -2277,7 +2281,7 @@ var FIRST_RUN_PHONE_WORDS = {
   moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
   cancelled: CHECKOUT_OUTCOME_WORDS.cancel,
   /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
-  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
+  ringsLabel: (display) => display ? `Which phone rings when customers call ${display}?` : "Which phone rings when customers call?",
   rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
   companyLabel: "Who's the phone company?",
   company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
@@ -2781,8 +2785,8 @@ var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
-var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SEARCH_WARN_MS = 12 * HOUR_MS;
+var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var InviteCodeSchema = z13.string().trim().max(80);

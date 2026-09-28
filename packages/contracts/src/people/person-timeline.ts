@@ -13,7 +13,7 @@ import { type PersonCampaignDto, reasonShort, visitTitleFor } from "./people";
 import { CARRIER_CONSENT_SOURCE, CONSENT_RESET_SOURCE, consentSourceLabel } from "./person-consent";
 import { addedBy, ts } from "./person-helpers";
 import { capitalize } from "../shared/words";
-import { mmss } from "../shared/clock";
+import { callLength } from "../shared/clock";
 import {
   isIdentifierName,
   type MessageAuthor,
@@ -65,12 +65,24 @@ export interface PersonVisitAheadVM {
  */
 export function consentChangeWords(c: ConsentChange): { who: string; text: string; sub?: string } {
   // Marketing email is its own answer (00174), and the one thing a person says to it is no: a press of the
-  // Unsubscribe link in a campaign email. Texting and WhatsApp are untouched by it.
+  // Unsubscribe link in a campaign email, a complaint, or a reply to a reach-out read as no (00220). A reply's no is
+  // the one a member may take back ("read as no · undo"), to the answer it had. Texting and WhatsApp are untouched.
   if (c.purpose === "email_marketing")
     return {
       who: "Email",
-      text: c.consent === "opted_out" ? "Unsubscribed from your emails" : "Marketing email: back to not asked",
-      ...(c.source === "unsubscribe" ? { sub: "Pressed Unsubscribe in an email" } : {}),
+      text:
+        c.consent === "opted_out"
+          ? c.source === "reply"
+            ? "Said no in a reply to your reach-out"
+            : "Unsubscribed from your emails"
+          : c.consent === "opted_in"
+            ? "Marketing email: back to yes"
+            : "Marketing email: back to not asked",
+      ...(c.source === "unsubscribe"
+        ? { sub: "Pressed Unsubscribe in an email" }
+        : c.source === "reply_undone"
+          ? { sub: "A reply read as no, undone" }
+          : {}),
     };
   const offers = c.purpose === "marketing";
   const text =
@@ -158,13 +170,13 @@ function speakerOf(author: MessageAuthor | null): string {
 }
 
 /** Their messages and ours, from every thread: what was said, by whom, and whether it reached them. */
-function messageItems({ d, base, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+function messageItems({ profile, base, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   // A person we know only by number or address has no first name to shorten
   // to: "+1" as a speaker label is nobody. Keep the whole identifier.
   const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
-  const runOf = new Map((d.campaigns ?? []).filter((c) => c.message_id).map((c) => [c.message_id!, c]));
+  const runOf = new Map((profile.campaigns ?? []).filter((c) => c.message_id).map((c) => [c.message_id!, c]));
   const items: PersonTimelineItemVM[] = [];
-  for (const c of d.conversations) {
+  for (const c of profile.conversations) {
     for (const m of c.messages) {
       if (m.type === "call_summary") continue; // the call carries its own item
       if (m.status === "canceled") continue; // never reached them
@@ -189,12 +201,12 @@ function messageItems({ d, base, stamp }: PersonCardContext): PersonTimelineItem
 }
 
 /** Their calls: what they wanted, else the summary's first sentence, and where the recording is. */
-function callItems({ d, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+function callItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
-  for (const k of d.calls) {
+  for (const k of profile.calls) {
     const t = ts(k.started_at);
     if (t === null) continue;
-    const dur = k.duration_ms == null || k.duration_ms <= 0 ? undefined : mmss(k.duration_ms);
+    const dur = callLength(k.duration_ms);
     const wanted = (k.wanted || "").trim();
     const summary = tidyCallSummary(k.summary) ?? "";
     const missed = k.status === "not_connected";
@@ -227,9 +239,9 @@ function callItems({ d, stamp }: PersonCardContext): PersonTimelineItemVM[] {
 }
 
 /** Each time the receptionist stopped for them, and whether that is over. */
-function escalationItems({ d, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+function escalationItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
-  for (const e of d.escalations) {
+  for (const e of profile.escalations) {
     const t = ts(e.created_at);
     if (t === null) continue;
     items.push({
@@ -248,10 +260,10 @@ function escalationItems({ d, stamp }: PersonCardContext): PersonTimelineItemVM[
 }
 
 /** The decisions on their threads and on them (DECISION_LABELS): what a person did, in the ledger's words. */
-function decisionItems({ d, row, stamp }: PersonCardContext): PersonTimelineItemVM[] {
-  const convIds = new Set(d.conversations.map((c) => c.id));
+function decisionItems({ profile, row, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+  const convIds = new Set(profile.conversations.map((c) => c.id));
   const items: PersonTimelineItemVM[] = [];
-  for (const dec of d.decisions) {
+  for (const dec of profile.decisions) {
     const label = DECISION_LABELS[dec.verb];
     if (!label) continue;
     const mine =
@@ -270,9 +282,9 @@ function decisionItems({ d, row, stamp }: PersonCardContext): PersonTimelineItem
  * same line as what was said. The decisions ledger has no label for these
  * (DECISION_LABELS), so nothing is said twice.
  */
-function consentItems({ d, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+function consentItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
-  for (const c of d.consent_history ?? []) {
+  for (const c of profile.consent_history ?? []) {
     const t = ts(c.at);
     if (t === null) continue;
     const w = consentChangeWords(c);
@@ -293,11 +305,11 @@ function consentItems({ d, stamp }: PersonCardContext): PersonTimelineItemVM[] {
  * Their visits, from the calendar: what happened in the chair belongs on
  * the same line as what was said. A visit ahead reads as booked.
  */
-function visitItems({ d, nowMs, base, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+function visitItems({ profile, nowMs, base, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
-  if (d.visits?.all?.length) {
-    const zone = d.visits.timezone;
-    for (const v of d.visits.all) {
+  if (profile.visits?.all?.length) {
+    const zone = profile.visits.timezone;
+    for (const v of profile.visits.all) {
       const t = Date.parse(v.start);
       if (!Number.isFinite(t)) continue;
       const ahead = Date.parse(v.end) >= nowMs;
@@ -309,7 +321,7 @@ function visitItems({ d, nowMs, base, stamp }: PersonCardContext): PersonTimelin
         kind: "visit",
         who: "Calendar",
         text: `${ahead ? "Booked" : "Visited"} · ${visitTitleFor(v.title, base.name)}`,
-        sub: `${visitTime(v, zone)} · from ${d.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
+        sub: `${visitTime(v, zone)} · from ${profile.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
         link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, zone)}` },
       });
     }
@@ -322,9 +334,9 @@ function visitItems({ d, nowMs, base, stamp }: PersonCardContext): PersonTimelin
  * proposal's value until they say yes, and then the client's, so it is said on the line it belongs to (0008); a pass
  * says why.
  */
-function dealItems({ d, dealsOn, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+function dealItems({ profile, dealsOn, stamp }: PersonCardContext): PersonTimelineItemVM[] {
   const items: PersonTimelineItemVM[] = [];
-  for (const x of dealsOn ? (d.deals ?? []) : []) {
+  for (const x of dealsOn ? (profile.deals ?? []) : []) {
     const svc = x.service ? ` · ${x.service}` : "";
     const put = (id: string, at: string | null, text: string) => {
       const t = ts(at);
@@ -343,10 +355,10 @@ function dealItems({ d, dealsOn, stamp }: PersonCardContext): PersonTimelineItem
 }
 
 /** How they came to be in People, when a door other than their own words added them (addedBy). */
-function addedItems({ d, stamp }: PersonCardContext): PersonTimelineItemVM[] {
-  if (!d.added) return [];
-  const t = ts(d.added.at);
-  const by = addedBy(d.added);
+function addedItems({ profile, stamp }: PersonCardContext): PersonTimelineItemVM[] {
+  if (!profile.added) return [];
+  const t = ts(profile.added.at);
+  const by = addedBy(profile.added);
   return t !== null ? [{ id: "added", ts: t, ...stamp(t), kind: "system", who: by.who, text: `Added ${by.how}` }] : [];
 }
 
@@ -367,11 +379,11 @@ export function timelineOf(ctx: PersonCardContext): PersonTimelineItemVM[] {
 }
 
 /** Their visits that have not ended, soonest first: the page's Coming up. */
-export function comingUpOf({ d, nowMs, base }: PersonCardContext): PersonVisitAheadVM[] {
+export function comingUpOf({ profile, nowMs, base }: PersonCardContext): PersonVisitAheadVM[] {
   const found: { t: number; vm: PersonVisitAheadVM }[] = [];
-  if (d.visits?.all?.length) {
-    const zone = d.visits.timezone;
-    for (const v of d.visits.all) {
+  if (profile.visits?.all?.length) {
+    const zone = profile.visits.timezone;
+    for (const v of profile.visits.all) {
       const t = Date.parse(v.start);
       if (!Number.isFinite(t)) continue;
       const ahead = Date.parse(v.end) >= nowMs;

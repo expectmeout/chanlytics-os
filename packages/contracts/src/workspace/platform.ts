@@ -139,7 +139,7 @@ function billingBites(mode: BillingMode, status: BillingStatus): boolean {
  *
  *   `paused` came first, and `paused` is what the BILLING APPLIER writes -- it
  *   is the only thing in this codebase that ever sets tenants.status to it
- *   (edge/lib/billing.ts via tenantStatusFor). So every workspace whose card
+ *   (edge/lib/billing/billing.ts via tenantStatusFor). So every workspace whose card
  *   stopped working read "Paused. Nothing answers, by design", which is the
  *   opposite of true and files a paying customer's emergency under a shrug.
  *

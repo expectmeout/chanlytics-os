@@ -34,17 +34,17 @@ rows (`docs/debt.md`).
 
 ```text
 functions over the limit            207   of which over 200 lines: 65
-files over 800 lines                 34
+files over 800 lines                 33
 directories over 20 modules           7
 window globals                      198   names
 window publishers                   442   sites in 151 files
-copies                              155   of 39 names
+copies                              152   of 38 names
 as unknown as                       222
-table names outside packages/db     535
+table names outside packages/db     533
 unnamed durations                    78   in 34 files
-dead exports, types and modules     199
-source-text reads in tests          832
-lint warnings                       130   in 36 files, 129 of them exhaustive-deps
+dead exports, types and modules     167
+source-text reads in tests          830
+lint warnings                       129   in 36 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped     1006   the shell included
 workspace route CSS, KB gzipped     122
 ```
@@ -100,7 +100,7 @@ keeps its twenty-five rows so each re-scoring compares with the last.
 11. **Form validation**: the zod `input` on every route that declares one; field-level problems come from contracts. There is no form library, by design.
 12. **Permissions**: `ROLE_PERMS`, `route()`, `roleGate` in the UI.
 13. **Multi-tenancy**: `docs/architecture.md`, Tenancy; `docs/glossary.md` for the tenant and workspace rule.
-14. **Integrations**: `packages/channels` adapters; doors under `apps/edge/api`; Stripe in `apps/edge/lib/billing.ts`.
+14. **Integrations**: `packages/channels` adapters; doors under `apps/edge/api`; Stripe in `apps/edge/lib/billing/billing.ts`.
 15. **Background jobs**: `packages/jobs`, `apps/edge/api/jobs/tick.ts`, the sweeps under `apps/edge/api/cron`.
 16. **AI**: one receptionist (`apps/edge/lib/receptionist/brain.ts`, the composer in `packages/contracts/src/config/config.ts`, the structured answer in `contracts/config/brain.ts`); Ask under `src/server/ask`; the lead judge in `packages/channels/src/lead-judge.ts` and `core/leads`. The mockup's agent fleet is not built, by decision.
 17. **Adding a feature**: `CLAUDE.md`, Where new code goes, and the canonical example table.

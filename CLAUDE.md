@@ -90,7 +90,9 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   dead exports; a duration written as a bare number (name it from `contracts/shared/time.ts`, or
   give it a constant); lint warnings. A new offender is a red build. `UPDATE_BASELINES=1` banks only
   what fell; a number that must rise is raised with `UPDATE_BASELINES=raise` (knip: `--raise`) in the
-  same diff as its row under "Rises" in `docs/debt.md`, with the reason in the pull request.
+  same diff as its row under "Rises" in `docs/debt.md`, with the reason in the pull request. Where a
+  tree's functions are all under the limits, the limits are lint errors (`LIMITED_TREES` in
+  `eslint.config.mjs`): the change that banks a tree's last entry adds the tree there.
 - **Production scripts** are dry-run by default, write a backup first, and take `--apply`.
 - **The layers hold apart.** Browser code (`legacy-bridge`, `client`, `yes`, `auth`) never imports
   `src/server` or `@chanlytics/core|jobs|channels`; server code never imports the shell, the bridge

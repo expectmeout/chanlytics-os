@@ -17,17 +17,22 @@ import { pathToFileURL } from "node:url";
 /** Old tool name -> `name.action`, or `name` for a tool with no action. */
 export const TOOL_NAMES = JSON.parse(readFileSync(new URL("./tool-names.json", import.meta.url), "utf8"));
 /**
- * The actions added since the rename (Ask Rewired, PR 4.3, the Phase 4 plan's D1): no old tool was any of them, so the
- * table has no row for them, and a case may name them as they are.
+ * The actions added since the rename (Ask Rewired, PRs 4.3, 4.5, 4.6 and 4.7, the Phase 4 plan's D1), and PR 4.7's new
+ * tool: no old tool was any of them, so the table has no row for them, and a case may name them as they are.
  */
 export const ADDED_SINCE = [
   "campaigns.broadcast",
   "campaigns.broadcasts",
+  "inbox.search",
   "leads.lead",
   "leads.leads",
   "leads.search",
   "people.lists",
   "people.pipeline",
+  "propose_campaign.run",
+  "propose_list",
+  "propose_person.details",
+  "propose_person.note",
   "workspace.activity",
   "workspace.connections",
   "workspace.notifications",

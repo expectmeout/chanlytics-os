@@ -122,6 +122,12 @@ export function inAppFrom(userAgent: string | null | undefined): InApp | null {
 }
 /** The class on <html> that in-app rules hang from; the legacy shell reads window.__IN_APP for the same fact. */
 export const IN_APP_CLASS = "in-app";
+/**
+ * The class the phone app puts on <html> where it shrinks the page to stand above the keyboard (Android: the app is
+ * drawn edge to edge, so the system resizes nothing and the WebView is sized by the app). Such a page never makes room
+ * for a keyboard it only expects (data-bits.jsx watchKeyboard): the room would come, then go as the page shrank.
+ */
+export const APP_KEYS_RESIZE_CLASS = "app-keys-resize";
 /** Inline in the document head, before anything paints: the tab bar must never appear for a frame under the native one. */
 export function inAppBootScript(): string {
   return [

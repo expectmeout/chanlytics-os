@@ -116,10 +116,28 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
   for (const [file, s] of [
     ["packages/contracts/src/conversations/viewmodels.ts", /standingOf\(\s*\{/],
     ["packages/contracts/src/people/people.ts", /standingOf\(\s*\{/],
-    ["packages/contracts/src/today/today.ts", /standingOf\(\s*\{/],
+    ["packages/contracts/src/today/today-facts.ts", /standingOf\(\s*\{/],
   ])
     assert.ok(s.test(readCode(file)), `${file} reads standingOf`);
-  const today = readCode("packages/contracts/src/today/today.ts");
+  // Today's view model, in the modules today.ts was split into.
+  const today = [
+    "metrics",
+    "vm",
+    "clock",
+    "facts",
+    "figures",
+    "rows",
+    "queue",
+    "brief",
+    "day",
+    "period",
+    "runs",
+    "leaks",
+    "away",
+    "steps",
+  ]
+    .map((m) => readCode(`packages/contracts/src/today/today-${m}.ts`))
+    .join("\n");
   assert.ok(
     !today.includes("live.escalations_open"),
     "Today no longer counts the SQL's open escalations — it counts the threads that need you",

@@ -26,10 +26,10 @@
  * Draw order follows elevation: the tile a state holds toward you and the nearest on the ring are the lifted ones, and
  * since elevation is a spring, the order never jumps; in the stack, where nothing is lifted, the later tile is on top.
  *
- * The character is a record over reducers. character-core.ts holds everything it knows as one value (`Core`) and
- * builds it; character-tick.ts is the frame, phase by phase; character-states.ts is what each state does, as tables
- * keyed by state; character-moves.ts is the gestures. createCharacter holds the one record and hands each call to
- * its reducer, so the API below is the whole of what a page can do to the three.
+ * The character is one record and the steps that change it in place. character-core.ts holds everything it knows as
+ * one value (`Core`) and builds it; character-tick.ts is the frame, phase by phase; character-states.ts is what each
+ * state does, as tables keyed by state; character-moves.ts is the gestures. createCharacter holds the one record and
+ * hands each call to its step, so the API below is the whole of what a page can do to the three.
  *
  * Spec: docs/superpowers/specs/2026-09-25-the-three-in-motion-design.md.
  */
@@ -114,7 +114,7 @@ export interface Character {
   events(): CharacterEvent[];
 }
 
-// the states and the mark's own measures live with the record, where the reducers read them
+// the states and the mark's own measures live with the record, where the steps read them
 export { STATES, STEP, CORNER } from "./character-core";
 /**
  * The box everything the tiles do stays inside, in tiles, their shadows included (measured over every state, move and
@@ -125,7 +125,7 @@ export const FIT = { w: 3.8, h: 3.2 } as const;
 export const CENTRE_Y = -0.225;
 export const fitSide = (w: number, h: number): number => Math.min(w / FIT.w, h / FIT.h);
 
-/** The three: one record, and each call handed to its reducer. */
+/** The three: one record, and each call handed to its step. */
 export function createCharacter(options: CharacterOptions = {}): Character {
   const st = createCore(options);
   return {
@@ -165,7 +165,7 @@ export function createCharacter(options: CharacterOptions = {}): Character {
       const side = Number(v);
       if (side > 0 && Math.abs(side - st.px) > 0.01) {
         st.px = side;
-        st.g = gainOf(st.px);
+        st.sizeGain = gainOf(st.px);
       }
     },
     attend(v) {

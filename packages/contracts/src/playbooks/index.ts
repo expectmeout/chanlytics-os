@@ -47,6 +47,7 @@ export {
   nextRunLabel,
   poolWords,
   reachLines,
+  runDayPassed,
   toApprovalVM,
 } from "./playbooks";
 export type {

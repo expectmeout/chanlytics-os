@@ -2,16 +2,18 @@
  * What Today says, band by band: the standing line (the chips, the count above the work, the alert), what an empty
  * queue means, the headline ladder, Ask's four facts, the recap's one line and its sentences, and the quiet day.
  *
- * Every builder here is pure over the facts today.ts computes once (`TodayFacts`) and returns one band of the view
- * model. The rows — Ask's needs-you rows, the closing windows, who is waiting with nothing back, the receipts, the
- * calls worth an ear and the queue — are built beside the facts in today.ts, and `toTodayVM` there composes the two.
- * This module imports nothing from today.ts but types, so the two cannot form a cycle.
+ * Every builder here is pure over the facts today-facts.ts computes once (`TodayFacts`) and returns one band of the
+ * view model. The rows — Ask's needs-you rows, the closing windows, who is waiting with nothing back, the receipts,
+ * the calls worth an ear and the queue — are built from the same facts in today-rows.ts and today-queue.ts, and
+ * `toTodayVM` (today-brief.ts) composes them all. This module imports nothing from its neighbours but types, so it
+ * cannot form a cycle with them.
  *
  * The words every band is built from live here too: the list join and the seconds phrase.
  */
 import { EMAIL_NOT_ANSWERED_SENTENCE } from "../email/mailbox";
 import { CHANNEL_ANSWERED } from "../lines/channels";
-import type { TodayFacts, TodayFactVM, TodayNeedsRowVM, TodayQueueEmptyVM, TodaySentenceVM, TodayVM } from "./today";
+import type { TodayFacts } from "./today-facts";
+import type { TodayFactVM, TodayNeedsRowVM, TodayQueueEmptyVM, TodaySentenceVM, TodayVM } from "./today-vm";
 
 /** "Email", "WhatsApp and Email", "WhatsApp, Texting and Email". (calendar.ts, config.ts and
  *  reports.ts each hold their own copy of this join; one home for it is a tidy of its own.) */
@@ -38,14 +40,14 @@ export function secondsPhrase(s: number): string {
  * reassuring line — "nothing needs you" is a lie while the number is dark.
  */
 export function todayStanding(f: TodayFacts): Pick<TodayVM["standing"], "chips" | "lines" | "alert"> {
-  const { m, wires } = f;
+  const { metrics, wires } = f;
   const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
   const down = wires.filter((w) => !w.on);
   const on = wires.filter((w) => w.on);
   const up = on.length;
   const lines = {
     text:
-      m.linesRead === false
+      metrics.linesRead === false
         ? "the email line could not be counted"
         : wires.length
           ? `${up} of ${wires.length} ${wires.length === 1 ? "line" : "lines"} connected`
@@ -53,7 +55,7 @@ export function todayStanding(f: TodayFacts): Pick<TodayVM["standing"], "chips" 
     down: down.length > 0,
   };
   const alert =
-    m.workspace.status === "paused"
+    metrics.workspace.status === "paused"
       ? "This workspace is paused — the receptionist is not answering anything."
       : down.length
         ? `${andList(down.map((w) => w.label))} ${down.length > 1 ? "are" : "is"} disconnected — messages coming in are not being answered.`
@@ -69,11 +71,11 @@ export function todayStanding(f: TodayFacts): Pick<TodayVM["standing"], "chips" 
  * with it, so the two are decided once. First match wins.
  */
 export function todayQueueEmpty(f: TodayFacts): TodayQueueEmptyVM {
-  const { m, wires } = f;
+  const { metrics, wires } = f;
   const down = wires.filter((w) => !w.on);
   const on = wires.filter((w) => w.on);
   const answered = on.filter((w) => CHANNEL_ANSWERED.has(w.kind));
-  if (m.workspace.status === "paused") {
+  if (metrics.workspace.status === "paused") {
     return {
       title: "Nothing in the queue — the workspace is paused, so nothing is being answered.",
       sub: "nothing in the queue",
@@ -131,31 +133,31 @@ export function todayQueueEmpty(f: TodayFacts): TodayQueueEmptyVM {
  * percentage or a sparkline: a jump from 1 message to 3 is not "+200%".
  */
 export function todayAskFacts(f: TodayFacts): TodayFactVM[] {
-  const { p, callMinutes } = f;
+  const { period, callMinutes } = f;
   return [
-    { label: "Messages in", value: String(p.messages_in) },
-    { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
-    p.median_reply_seconds_ai === null
+    { label: "Messages in", value: String(period.messages_in) },
+    { label: "Answered by the receptionist", value: `${period.answered_by_ai} of ${period.messages_in}` },
+    period.median_reply_seconds_ai === null
       ? { label: "Typical reply time", value: "—", hint: "Not enough replies yet" }
-      : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
-    { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` · ${callMinutes} min` : ""}` : "0" },
+      : { label: "Typical reply time", value: secondsPhrase(period.median_reply_seconds_ai) },
+    { label: "Calls", value: period.calls ? `${period.calls}${callMinutes ? ` · ${callMinutes} min` : ""}` : "0" },
   ];
 }
 
 /** The day's traffic as one sentence, for Ask; the page draws the figures instead. */
 export function todayTrafficLine(f: TodayFacts): string {
-  const { p, callMinutes } = f;
+  const { period, callMinutes } = f;
   const trafficParts: string[] = [];
-  if (p.messages_in > 0) {
+  if (period.messages_in > 0) {
     trafficParts.push(
-      `${p.messages_in} message${p.messages_in === 1 ? "" : "s"} in, ${p.answered_by_ai} answered by the receptionist${
-        p.median_reply_seconds_ai === null ? "" : `, typically in ${secondsPhrase(p.median_reply_seconds_ai)}`
+      `${period.messages_in} message${period.messages_in === 1 ? "" : "s"} in, ${period.answered_by_ai} answered by the receptionist${
+        period.median_reply_seconds_ai === null ? "" : `, typically in ${secondsPhrase(period.median_reply_seconds_ai)}`
       }`,
     );
   }
-  if (p.calls) {
+  if (period.calls) {
     trafficParts.push(
-      `${p.calls} call${p.calls === 1 ? "" : "s"}${callMinutes ? `, ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}`,
+      `${period.calls} call${period.calls === 1 ? "" : "s"}${callMinutes ? `, ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}`,
     );
   }
   return trafficParts.length ? `${trafficParts.join(". ")}.` : "Nothing has come in yet today.";
@@ -219,34 +221,34 @@ export function todayHeadline(f: TodayFacts, alert: string | null, needsRows: To
       tone: "needs",
     };
   }
-  return calmHeadline(f.p);
+  return calmHeadline(f.period);
 }
 
 /** The last rung of the ladder: nothing needs you, so the day's traffic, and whether the receptionist handled all of it. */
-function calmHeadline(p: TodayFacts["p"]): TodayHeadline {
+function calmHeadline(period: TodayFacts["period"]): TodayHeadline {
   const bits: string[] = [];
-  if (p.messages_in) {
+  if (period.messages_in) {
     bits.push(
-      `${p.messages_in} message${p.messages_in === 1 ? "" : "s"}${
-        p.conversations_active
-          ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}`
+      `${period.messages_in} message${period.messages_in === 1 ? "" : "s"}${
+        period.conversations_active
+          ? ` from ${period.conversations_active} ${period.conversations_active === 1 ? "person" : "people"}`
           : ""
       }`,
     );
   }
-  if (p.calls) bits.push(`${p.calls} call${p.calls === 1 ? "" : "s"}`);
+  if (period.calls) bits.push(`${period.calls} call${period.calls === 1 ? "" : "s"}`);
   // "Handled everything" only when the receptionist did: a message you
   // answered yourself, or one nobody answered, is not the receptionist's.
-  const allByReceptionist = p.unanswered_in_window === 0 && p.messages_out_you === 0;
+  const allByReceptionist = period.unanswered_in_window === 0 && period.messages_out_you === 0;
   const headline = bits.length
     ? allByReceptionist
       ? `The receptionist handled everything — ${bits.join(" and ")} today. Nothing needs you.`
       : `${bits.join(" and ")} today. Nothing needs you right now.`
     : "Nothing needs you.";
   const detail =
-    p.median_reply_seconds_ai !== null && p.messages_in > 0
-      ? `It answered ${p.answered_by_ai} of the ${p.messages_in} on its own, typically in about ${secondsPhrase(
-          p.median_reply_seconds_ai,
+    period.median_reply_seconds_ai !== null && period.messages_in > 0
+      ? `It answered ${period.answered_by_ai} of the ${period.messages_in} on its own, typically in about ${secondsPhrase(
+          period.median_reply_seconds_ai,
         )}.`
       : null;
   return { headline, detail, tone: "calm" };
@@ -262,38 +264,40 @@ export function todaySentences(
   tone: TodayVM["standing"]["tone"],
   alert: string | null,
 ): TodaySentenceVM[] {
-  const { p, callMinutes, conversations, sinceMs } = f;
+  const { period, callMinutes, conversations, sinceMs } = f;
   const sentences: TodaySentenceVM[] = [];
   const headlineCoversTraffic = tone === "calm" && !alert;
-  if (p.answered_by_ai && !headlineCoversTraffic) {
+  if (period.answered_by_ai && !headlineCoversTraffic) {
     sentences.push({
       // Not "the WhatsApp receptionist": answered_by_ai is first_replies with
       // no channel predicate (00037_hygiene.sql), so an email it answered is
       // in this count. Every other sentence in this file already says just
       // "the receptionist".
-      text: `The receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${
-        p.conversations_active
-          ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}`
+      text: `The receptionist answered ${period.answered_by_ai} message${period.answered_by_ai === 1 ? "" : "s"}${
+        period.conversations_active
+          ? ` from ${period.conversations_active} ${period.conversations_active === 1 ? "person" : "people"}`
           : ""
       }.`,
       traffic: true,
     });
   }
-  if (p.calls && !headlineCoversTraffic) {
+  if (period.calls && !headlineCoversTraffic) {
     sentences.push({
-      text: `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${
+      text: `${period.calls} caller${period.calls === 1 ? "" : "s"} reached the phone line${
         callMinutes ? ` — ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""
       }.`,
       traffic: true,
     });
   }
-  if (p.messages_out_you) {
-    sentences.push({ text: `You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.` });
+  if (period.messages_out_you) {
+    sentences.push({
+      text: `You sent ${period.messages_out_you} repl${period.messages_out_you === 1 ? "y" : "ies"} yourself.`,
+    });
   }
   // A reply that never reached the customer is the one line that must never be
   // quiet — the send already escalated, but a card saying "handled everything"
   // while a message died in transit would be a lie of omission.
-  if (p.send_failures) {
+  if (period.send_failures) {
     // The thread of the newest reply that failed, when the conversations read holds it: "See the thread"
     // opened the Inbox list, where the owner had to go looking.
     const lastFailed = conversations
@@ -310,7 +314,7 @@ export function todaySentences(
       )
       .sort((a, b) => b.at.localeCompare(a.at))[0];
     sentences.push({
-      text: `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver — the customer got no answer.`,
+      text: `${period.send_failures} repl${period.send_failures === 1 ? "y" : "ies"} failed to deliver — the customer got no answer.`,
       warn: true,
       ...(lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}),
     });

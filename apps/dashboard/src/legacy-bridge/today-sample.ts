@@ -65,21 +65,20 @@ export interface TodaySample {
 
 /** The day, surface by surface: the rows first, the metrics counted from them, then each surface's view model. */
 function build(nowMs: number, day: SampleDay): TodaySample {
-  const busy = day === "busy";
   const clock = sampleClock(nowMs);
-  const conversations = sampleConversations(clock, busy);
-  const escalations = sampleEscalations(clock, busy);
-  const calls = sampleCalls(clock, busy);
+  const conversations = sampleConversations(clock, day);
+  const escalations = sampleEscalations(clock, day);
+  const calls = sampleCalls(clock, day);
   const metrics = sampleMetrics(clock, conversations, escalations, calls);
   return {
     TODAY_DATA: toTodayVM(metrics, conversations, escalations, calls, clock.now),
     __CALENDAR: sampleCalendar(clock, day),
     __PLAYBOOKS: samplePlaybooks(clock),
     __PEOPLE: samplePeople(clock, conversations),
-    __BROADCASTS: sampleBroadcasts(clock, busy),
+    __BROADCASTS: sampleBroadcasts(clock, day),
     __REPORTS: reportsSample(7, clock.today),
     __LIVE: toLiveVM(calls, null, ZONE, clock.now),
-    bell: sampleBellRows(clock, busy),
+    bell: sampleBellRows(clock, day),
     metrics,
     conversations,
     escalations,

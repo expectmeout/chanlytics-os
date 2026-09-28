@@ -5,6 +5,13 @@
  * real config over probe snippets, placed as if they lived in each layer, and
  * expects each forbidden thing to be refused and each allowed thing to pass.
  *
+ * The function limits are lint rules there too, in the trees the complexity
+ * ratchet has emptied (plan 27: "the limits are lint errors for new code"):
+ * LIMITED_TREES holds `complexity`, `max-lines-per-function` and `max-depth`
+ * at the ratchet's own numbers, and `max-params` at four in each tree but the
+ * ones still wider (WIDE_PARAMS). The tests at the end ask ESLint what it
+ * applies to a real file of each tree, and lint probes one past each limit.
+ *
  * Nothing here reads the config's text; it asks ESLint.
  */
 import { test } from "node:test";
@@ -12,6 +19,10 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ESLint } from "eslint";
+import { LIMITED_TREES, WIDE_PARAMS, FUNCTION_LIMITS } from "../../../../eslint.config.mjs";
+import { LIMIT } from "../_measures.mjs";
+import { repoFiles } from "../_ast.mjs";
+import { readBaseline } from "../_ratchet.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../../..");
@@ -95,4 +106,77 @@ test("the edge reads the environment through env.ts and logs through log.ts, now
   assert.deepEqual(await rulesFiredOn(at, 'console.error("probe_failed");\n'), ["no-console"]);
   assert.deepEqual(await rulesFiredOn("apps/edge/lib/env.ts", "export const k = process.env.DIAG_KEY;\n"), []);
   assert.deepEqual(await rulesFiredOn("apps/edge/lib/log.ts", 'console.error("{}");\n'), []);
+});
+
+/* ---- A function's limits, where the ratchet holds nothing ---- */
+
+test("the lint's limits are the ratchet's", () => {
+  assert.deepEqual(
+    { lines: FUNCTION_LIMITS.lines, branches: FUNCTION_LIMITS.branches, depth: FUNCTION_LIMITS.depth },
+    LIMIT,
+    "eslint.config.mjs and _measures.mjs hold a function to the same three numbers",
+  );
+});
+
+test("a tree is held once the ratchet holds nothing in it, and every tree it names is source", () => {
+  const listed = Object.keys(readBaseline("complexity.json"));
+  for (const tree of LIMITED_TREES) {
+    assert.ok(repoFiles([tree]).length > 0, `${tree} holds tracked source: a tree renamed away holds nothing`);
+    const left = listed.filter((k) => k.startsWith(`${tree}/`));
+    assert.deepEqual(left, [], `${tree} is held by the lint only once its entries in complexity.json are gone`);
+  }
+  for (const tree of WIDE_PARAMS) assert.ok(LIMITED_TREES.includes(tree), `${tree} is a held tree`);
+});
+
+test("ESLint applies the limits to a real file in every held tree", async () => {
+  for (const tree of LIMITED_TREES) {
+    const file = repoFiles([tree]).find((f) => /\.tsx?$/.test(f));
+    const { rules } = await eslint.calculateConfigForFile(path.join(ROOT, file));
+    assert.deepEqual(rules.complexity, [2, FUNCTION_LIMITS.branches], `${file}: complexity`);
+    assert.deepEqual(
+      rules["max-lines-per-function"],
+      [2, { max: FUNCTION_LIMITS.lines, IIFEs: true }],
+      `${file}: lines`,
+    );
+    assert.deepEqual(rules["max-depth"], [2, FUNCTION_LIMITS.depth], `${file}: depth`);
+    if (WIDE_PARAMS.includes(tree)) assert.equal(rules["max-params"], undefined, `${file}: max-params waits`);
+    else assert.deepEqual(rules["max-params"], [2, FUNCTION_LIMITS.params], `${file}: max-params`);
+  }
+});
+
+/** A function `lines` lines long, with `branches` branches and `depth` levels of nesting, taking `params` parameters. */
+function probe({ lines = 3, branches = 1, depth = 0, params = 1 }) {
+  const args = Array.from({ length: params }, (_, i) => `a${i}: number`).join(", ");
+  const body = [];
+  for (let d = 0; d < depth; d++) body.push(`${"  ".repeat(d + 1)}if (a0 > ${d}) {`);
+  if (depth > 0) body.push(`${"  ".repeat(depth + 1)}void a0;`);
+  for (let d = depth - 1; d >= 0; d--) body.push(`${"  ".repeat(d + 1)}}`);
+  const ors = Array.from({ length: Math.max(0, branches - depth) }, (_, i) => `a0 === ${i}`).join(" || ");
+  body.push(`  const x = ${ors || "a0"};`);
+  while (body.length < lines - 3) body.push("  void x;");
+  return `export function probe(${args}): unknown {\n${body.join("\n")}\n  return x;\n}\n`;
+}
+
+async function fired(file, code) {
+  const [r] = await eslint.lintText(code, { filePath: path.join(ROOT, file) });
+  assert.deepEqual(
+    r.messages.filter((m) => m.fatal),
+    [],
+    "the probe parses",
+  );
+  return r.messages.filter((m) => m.severity === 2).map((m) => m.ruleId);
+}
+
+test("in a held tree each limit is an error one past its number, and not at it", async () => {
+  const held = "packages/contracts/src/shared/probe.ts";
+  const at = { lines: LIMIT.lines, branches: LIMIT.branches, depth: LIMIT.depth, params: FUNCTION_LIMITS.params };
+  assert.deepEqual(await fired(held, probe(at)), [], "a function at every limit passes");
+  assert.deepEqual(await fired(held, probe({ ...at, lines: at.lines + 1 })), ["max-lines-per-function"]);
+  assert.deepEqual(await fired(held, probe({ ...at, branches: at.branches + 1 })), ["complexity"]);
+  assert.deepEqual(await fired(held, probe({ ...at, depth: at.depth + 1, branches: at.depth + 2 })), ["max-depth"]);
+  assert.deepEqual(await fired(held, probe({ ...at, params: at.params + 1 })), ["max-params"]);
+  const wide = `${WIDE_PARAMS[0]}/probe.ts`;
+  assert.deepEqual(await fired(wide, probe({ params: at.params + 1 })), [], `${WIDE_PARAMS[0]} waits for max-params`);
+  // Where the ratchet still holds a function, the lint does not: a split is banked there, never a lint error.
+  assert.deepEqual(await fired("packages/core/src/probe.ts", probe({ ...at, lines: at.lines + 1 })), []);
 });

@@ -205,7 +205,11 @@ var EVENT_KINDS = [
   // A workspace a partner set up for a business (0016): handed to its owner (again, on a resend), accepted, declined.
   "partner.handover_sent",
   "partner.handover_accepted",
-  "partner.handover_declined"
+  "partner.handover_declined",
+  // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
+  "reach_out.replied",
+  // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
+  "reach_out.reply_undone"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -2328,7 +2332,7 @@ var FIRST_RUN_PHONE_WORDS = {
   readyLeadForwarded: "Customers never see this number: the calls nobody picks up at yours are sent to it.",
   readyLeadNew: "Customers call this number directly. Put it on your website and your Google listing.",
   recommended: "Recommended",
-  keepTitle: (display2) => display2 ? `Keep ${display2}` : "Keep the number you have",
+  keepTitle: (display) => display ? `Keep ${display}` : "Keep the number you have",
   keepListed: "The number on your Google listing. Calls nobody picks up go to your receptionist. Same phone, same phone company.",
   keepTyped: "Calls nobody picks up go to your receptionist. Same phone, same phone company.",
   newTitle: "Get a new number",
@@ -2373,7 +2377,7 @@ var FIRST_RUN_PHONE_WORDS = {
   moveNotAsked: "The move wasn't asked for. Ask again from Settings later; your number forwards meanwhile.",
   cancelled: CHECKOUT_OUTCOME_WORDS.cancel,
   /** The two questions while the number is on its way (canvas R4), and the button they lead to. */
-  ringsLabel: (display2) => display2 ? `Which phone rings when customers call ${display2}?` : "Which phone rings when customers call?",
+  ringsLabel: (display) => display ? `Which phone rings when customers call ${display}?` : "Which phone rings when customers call?",
   rings: { mobile: "A mobile", landline: "A landline", office: "An office phone system" },
   companyLabel: "Who's the phone company?",
   company: { verizon: "Verizon", att: "AT&T", tmobile: "T-Mobile", other: "Another company" },
@@ -2584,6 +2588,14 @@ var NOTE_SUGGEST_SCHEMA = {
   required: ["worth", "kind", "text", "quote"],
   additionalProperties: false
 };
+async function keyedDigest(tenantId, identifier) {
+  const bytes = new TextEncoder().encode(`${tenantId}:${identifier}`);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function leadSuppressionHash(tenantId, value) {
+  return keyedDigest(tenantId, value);
+}
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
 var REACH_OUT_SUBJECT_MAX = 80;
@@ -2715,8 +2727,8 @@ var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
-var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SEARCH_WARN_MS = 12 * HOUR_MS;
+var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
 var InviteCodeSchema = z13.string().trim().max(80);
@@ -3395,6 +3407,104 @@ async function outreachFactsOf(db, p) {
     sent_since: Number(f.sent_since ?? 0) || 0
   };
 }
+async function addressesSuppressed(db, tenantId, addresses) {
+  const asked = [...new Set(addresses.map((a) => a.trim().toLowerCase()).filter((a) => a !== ""))];
+  if (!asked.length) return /* @__PURE__ */ new Set();
+  const { data, error } = await db.rpc("lead_addresses_suppressed", { p_tenant_id: tenantId, p_addresses: asked });
+  if (error && missingDoor(error)) return addressesHeldBefore00220(db, tenantId, asked);
+  if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
+  return new Set((data ?? []).filter((a) => typeof a === "string"));
+}
+var missingDoor = (e) => e.code === "PGRST202" || e.code === "42883" || /could not find the function/i.test(e.message);
+async function addressesHeldBefore00220(db, tenantId, asked) {
+  const byHash = new Map(
+    await Promise.all(asked.map(async (a) => [await leadSuppressionHash(tenantId, a), a]))
+  );
+  const { data, error } = await db.from("lead_suppressions").select("hash").eq("tenant_id", tenantId).eq("kind", "email").in("hash", [...byHash.keys()]);
+  if (error) throw new Error(`cannot read the never-again list: ${error.message}`);
+  return new Set((data ?? []).flatMap((r2) => byHash.get(r2.hash) ?? []));
+}
+var textOf = (v) => typeof v === "string" && v !== "" ? v : null;
+async function reachOutReplyOf(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_of", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_days: p.days
+  });
+  if (error && missingDoor(error)) return null;
+  if (error) throw new Error(`cannot read whose reply this is: ${error.message}`);
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : null;
+  const sendId = textOf(o?.send_id);
+  const leadId = textOf(o?.lead_id);
+  const conversationId = textOf(o?.conversation_id);
+  const receivedAt = textOf(o?.received_at);
+  if (!o || !sendId || !leadId || !conversationId || !receivedAt) return null;
+  const claim = o.claim === "auto_reply" || o.claim === "automated" ? o.claim : "person";
+  return {
+    send_id: sendId,
+    lead_id: leadId,
+    lead_contact_id: textOf(o.lead_contact_id),
+    lead_email: textOf(o.lead_email),
+    lead_website: textOf(o.lead_website),
+    answered_message_id: textOf(o.answered_message_id),
+    answered_text: textOf(o.answered_text),
+    business: textOf(o.business) ?? "",
+    chain: textOf(o.chain),
+    signed_by: textOf(o.signed_by),
+    tz: textOf(o.tz),
+    conversation_id: conversationId,
+    contact_id: textOf(o.contact_id),
+    claim,
+    from: textOf(o.from),
+    subject: textOf(o.subject),
+    text: textOf(o.text),
+    received_at: receivedAt
+  };
+}
+async function replyReadingOf(db, p) {
+  const { data, error } = await db.from("reach_out_replies").select("intent, claim, summary, unread, rereads, plan, told_at, undone_at").eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
+  if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
+  return data ?? null;
+}
+async function takeReplyRead(db, p) {
+  const { data, error } = await db.rpc("reach_out_read_take", {
+    p_tenant_id: p.tenantId,
+    p_cap: p.cap,
+    p_at: p.at.toISOString()
+  });
+  if (error) throw new Error(`cannot take the day's read: ${error.message}`);
+  return data === true;
+}
+async function applyReplyReading(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_apply", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_reading: p.reading,
+    p_plan: p.plan,
+    p_reread: p.reread,
+    p_days: p.days
+  });
+  if (error) throw new Error(`cannot apply the reply's reading: ${error.message}`);
+  const o = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return o.applied === true;
+}
+async function claimReplyTell(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_tell_claim", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_stale_before: p.staleBefore.toISOString()
+  });
+  if (error) throw new Error(`cannot claim the reply's notice: ${error.message}`);
+  return typeof data === "string" && data !== "" ? data : null;
+}
+async function markReplyTold(db, p) {
+  const { error } = await db.rpc("reach_out_reply_told", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_claimed_at: p.claim
+  });
+  if (error) throw new Error(`cannot mark the reply's notice told: ${error.message}`);
+}
 
 // src/repositories/reach-out-sheet.ts
 var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, run_hour, last_run_for, created_at";
@@ -3903,6 +4013,20 @@ async function forgetNotification(db, p) {
   const { error } = await db.from("notifications").delete().eq("tenant_id", p.tenantId).eq("id", p.id);
   if (error) throw new Error(`cannot take the notification back: ${error.message}`);
 }
+async function activityTokensOf(db, tenantId, roles) {
+  const { data: members, error: me } = await db.from("memberships").select("user_id").eq("tenant_id", tenantId).in("role", [...roles]);
+  if (me) throw new Error(`cannot read who is in the workspace: ${me.message}`);
+  const people = (members ?? []).map((m) => m.user_id);
+  if (!people.length) return [];
+  const { data: devices, error: de } = await db.from("push_devices").select("activity_token").in("user_id", people).not("activity_token", "is", null);
+  if (de) throw new Error(`cannot read the phones: ${de.message}`);
+  return [...new Set((devices ?? []).map((d) => d.activity_token).filter((t) => !!t))];
+}
+async function forgetActivityTokens(db, tokens) {
+  if (!tokens.length) return;
+  const { error } = await db.from("push_devices").update({ activity_token: null }).in("activity_token", [...tokens]);
+  if (error) throw new Error(`cannot forget the gone activity tokens: ${error.message}`);
+}
 
 // src/repositories/routing.ts
 var POS_TTL_MS = 5 * MIN_MS;
@@ -3932,6 +4056,39 @@ async function resolveChannelDetailed(db, kind, externalId) {
 }
 async function resolveChannel(db, kind, externalId) {
   return (await resolveChannelDetailed(db, kind, externalId)).channel;
+}
+
+// src/repositories/people.ts
+var PEOPLE_PAGE = 1e3;
+var IDS_PER_READ = 100;
+async function namesOfPeople(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`namesOfPeople: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
+}
+async function peoplePage(db, tenantId, page = {}) {
+  const offset = page.offset ?? 0;
+  const limit = page.limit ?? PEOPLE_PAGE;
+  const { data, error } = await db.rpc("people_list", {
+    p_tenant_id: tenantId,
+    ...page.q ? { p_query: page.q } : {},
+    ...offset > 0 ? { p_offset: offset } : {},
+    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {}
+  });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  return data ?? [];
+}
+async function everyoneIn(db, tenantId) {
+  const all = [];
+  for (let offset = 0; ; offset += PEOPLE_PAGE) {
+    const page = await peoplePage(db, tenantId, { offset });
+    all.push(...page);
+    if (page.length < PEOPLE_PAGE) return all;
+  }
 }
 
 // src/repositories/calls.ts
@@ -3976,6 +4133,15 @@ async function linkCallMessage(db, tenantId, callId, messageId) {
   else if (!data || data.length === 0)
     console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
 }
+async function callersOf(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("calls").select("id, from_e164, from_raw").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`callersOf: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
+}
 async function setCallRecording(db, tenantId, callId, recording) {
   const { data, error } = await db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId).select("id");
   if (error) console.error("set_call_recording_failed", error.message);
@@ -4010,6 +4176,16 @@ async function claimCallNotification(db, tenantId, callId) {
   const { data, error } = await db.from("calls").update({ notified_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", callId).eq("tenant_id", tenantId).is("notified_at", null).select("id");
   if (error) throw new Error(`claim_call_notification: ${error.message}`);
   return (data?.length ?? 0) > 0;
+}
+async function claimCallActivity(db, tenantId, callId) {
+  const { data, error } = await db.from("calls").update({ activity_started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", callId).eq("tenant_id", tenantId).is("activity_started_at", null).select("id");
+  if (error) throw new Error(`claim_call_activity: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function callerNameOf(db, tenantId, contactId) {
+  const { data, error } = await db.from("contacts").select("display_name, wa_profile_name").eq("tenant_id", tenantId).eq("id", contactId).maybeSingle();
+  if (error) throw new Error(`caller_name: ${error.message}`);
+  return (data?.display_name || data?.wa_profile_name || "").trim() || null;
 }
 
 // src/repositories/thread.ts
@@ -4198,6 +4374,15 @@ async function searchMessages(db, tenantId, words2, since, limit) {
     snippet: r2.snippet ?? ""
   }));
 }
+async function messageSenders(db, tenantId, ids) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db.from("messages").select("id, sender, status, type").eq("tenant_id", tenantId).in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`messageSenders: ${error.message}`);
+    out.push(...data ?? []);
+  }
+  return out;
+}
 
 // src/repositories/idempotency.ts
 var HOLD_COLUMNS = "response, created_at, request_hash";
@@ -4311,29 +4496,6 @@ async function setPersonReplyMode(db, tenantId, contactId, mode) {
     { onConflict: "tenant_id,class,subject_type,subject_id" }
   );
   if (error) throw new Error(error.message);
-}
-
-// src/repositories/people.ts
-var PEOPLE_PAGE = 1e3;
-async function peoplePage(db, tenantId, page = {}) {
-  const offset = page.offset ?? 0;
-  const limit = page.limit ?? PEOPLE_PAGE;
-  const { data, error } = await db.rpc("people_list", {
-    p_tenant_id: tenantId,
-    ...page.q ? { p_query: page.q } : {},
-    ...offset > 0 ? { p_offset: offset } : {},
-    ...limit !== PEOPLE_PAGE ? { p_limit: limit } : {}
-  });
-  if (error) throw Object.assign(new Error(error.message), { code: error.code });
-  return data ?? [];
-}
-async function everyoneIn(db, tenantId) {
-  const all = [];
-  for (let offset = 0; ; offset += PEOPLE_PAGE) {
-    const page = await peoplePage(db, tenantId, { offset });
-    all.push(...page);
-    if (page.length < PEOPLE_PAGE) return all;
-  }
 }
 
 // src/paged.ts
@@ -4899,17 +5061,25 @@ export {
   CALL_CONTROL_S,
   DEFAULT_ROW_CAP,
   HISTORY_COLUMNS,
+  IDS_PER_READ,
   MAX_ROWS,
   PEOPLE_PAGE,
   acceptHandover,
+  activityTokensOf,
   addToList,
+  addressesSuppressed,
   applyDomainCheck,
+  applyReplyReading,
   archiveList,
   assembleHistory,
   becomePartner,
+  callerNameOf,
+  callersOf,
+  claimCallActivity,
   claimCallNotification,
   claimControl,
   claimIdempotencyKey,
+  claimReplyTell,
   claimSends,
   closedRunSends,
   coldReceiptsOwed,
@@ -4936,6 +5106,7 @@ export {
   everyoneIn,
   finishableRuns,
   followUpTouchesSince,
+  forgetActivityTokens,
   forgetNotification,
   getHandoverInvite,
   getOpenHandovers,
@@ -4968,8 +5139,11 @@ export {
   markHeldNotice,
   markPartnerPaid,
   markProcessed,
+  markReplyTold,
+  messageSenders,
   monthSent,
   moveSend,
+  namesOfPeople,
   notesForReceptionist,
   outreachFactsOf,
   outreachModeOf,
@@ -4985,6 +5159,7 @@ export {
   reachOutFollowers,
   reachOutPerson,
   reachOutRecord,
+  reachOutReplyOf,
   reachOutRootOf,
   reachOutRunSendsOf,
   reachOutSendRefOf,
@@ -5010,6 +5185,7 @@ export {
   releaseIdempotencyKey,
   releaseUnavailableHolds,
   renameList,
+  replyReadingOf,
   reputationHoldsSince,
   resendHandover,
   reserveSendingDomain,
@@ -5049,6 +5225,7 @@ export {
   suppressEmailOf,
   takeCheckAttempt,
   takeIdempotencyKey,
+  takeReplyRead,
   templatesFor,
   tenantZoneOf,
   touchIndex,

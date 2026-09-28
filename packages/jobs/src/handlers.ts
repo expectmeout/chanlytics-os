@@ -4,7 +4,14 @@
  * packages/core/src/messages as verbs over ports; each handler here is the
  * adapter that builds the ports from the job's context (no env reads here).
  */
-import { pushFor, type JobKind, unreadFor, PUSH_RECEIPTS_AFTER_MS, BELL_WINDOW_DAYS } from "@chanlytics/contracts";
+import {
+  pushFor,
+  type JobKind,
+  unreadFor,
+  PUSH_RECEIPTS_AFTER_MS,
+  BELL_WINDOW_DAYS,
+  REACH_OUT_REPLY_DAYS,
+} from "@chanlytics/contracts";
 import {
   classifyReceived,
   emailPlainText,
@@ -25,12 +32,14 @@ import {
   ingestInboundEmail,
   mailboxById,
   markProcessed,
+  reachOutReplyOf,
   sentEmailWithMessageId,
   stampMailboxReceived,
   type Json,
 } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { broadcastSend } from "./broadcast-send";
+import { replyRead } from "./reply-read";
 import { type ClaimedJob, type JobContext, must, type PushTicket } from "./context";
 export type { PushReceipt, PushPort, JobContext, ClaimedJob } from "./context";
 
@@ -136,6 +145,13 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
       escalate: (tenantId, conversationId, reason, details) =>
         upsertEscalation(db, tenantId, conversationId, reason, details),
       tell: email.tell,
+      // A reach-out's reply is read for what it means (Reach out Part 5): one reply_read per message, however often
+      // this intake runs (jobs_reply_read_once), as this job's own tenant.
+      reachOutReply: async (tenantId, messageId) =>
+        (await reachOutReplyOf(db, { tenantId, messageId, days: REACH_OUT_REPLY_DAYS })) !== null,
+      readReply: async (_tenantId, messageId) => {
+        await ctx.scheduleOnce("reply_read", new Date(), { message_id: messageId });
+      },
       markProcessed: (tenantId, messageId) => markProcessed(db, tenantId, messageId),
       received: (mailboxId, at) => stampMailboxReceived(db, mailboxId, at),
       now: Date.now,
@@ -353,6 +369,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   lead_check: leadCheck,
   push_send: pushSend,
   push_receipts: pushReceipts,
+  reply_read: replyRead,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {

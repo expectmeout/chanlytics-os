@@ -27,6 +27,7 @@ import {
   proposalLinkOf,
 } from "@chanlytics/contracts";
 import type { Database } from "../database.types";
+import { IDS_PER_READ } from "./people";
 
 type Db = SupabaseClient<Database>;
 
@@ -536,4 +537,34 @@ export async function searchMessages(
     at: r.at,
     snippet: r.snippet ?? "",
   }));
+}
+
+/** What a message hit does not carry: who sent it, what became of it, and its kind. */
+export interface MessageSender {
+  id: string;
+  /** customer, ai, human or system: who of the business wrote an outbound message, which its direction does not say. */
+  sender: string;
+  /** What became of it: a business message queued, canceled or failed never reached the customer. */
+  status: string;
+  /** text, template, media, call_summary (a call's note in its thread) or note. */
+  type: string;
+}
+
+/**
+ * Who sent these messages and what became of them, by id, in one read for a hundred ids or fewer (IDS_PER_READ), under
+ * the caller's row security and the workspace's own filter: a message the caller cannot read is not answered. A read
+ * that fails THROWS.
+ */
+export async function messageSenders(db: Db, tenantId: string, ids: readonly string[]): Promise<MessageSender[]> {
+  const out: MessageSender[] = [];
+  for (let i = 0; i < ids.length; i += IDS_PER_READ) {
+    const { data, error } = await db
+      .from("messages")
+      .select("id, sender, status, type")
+      .eq("tenant_id", tenantId)
+      .in("id", ids.slice(i, i + IDS_PER_READ));
+    if (error) throw new Error(`messageSenders: ${error.message}`);
+    out.push(...(data ?? []));
+  }
+  return out;
 }

@@ -8,8 +8,6 @@
 import {
   AppError,
   asTenantId,
-  isOptedOutContact,
-  OPT_OUT_REFUSAL,
   REACH_OUT_REFUSALS,
   writtenChannelOf,
   type DecisionVerb,
@@ -18,27 +16,9 @@ import {
   HOUR_MS,
 } from "@chanlytics/contracts";
 import { listRow, reachOutRootOf, reachOutSendRefOf, type Json } from "@chanlytics/db";
-import { memberContext, requireRole, type RouteContext } from "./with-route";
+import type { RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
 import { row } from "./route";
-
-/**
- * Every committing verb goes through here first.
- *
- * RLS is the floor and it stops cross-TENANT access, but the app-plane write
- * policies check membership only, not role — so until now a viewer could call
- * the reply route and text a real customer. Not in theory: the job that
- * performs the send is scheduled with the SERVICE ROLE, so RLS was never in
- * the path at all. The control-plane routes (settings, policies, team) have
- * had this check since Session A; the seven verb routes never did.
- *
- * The tenant is taken from the SUBJECT being acted on, not from a default
- * workspace — for a member of two workspaces, the role that matters is the one
- * they hold where the conversation actually lives.
- */
-export async function requireOperator(ctx: RouteContext, tenantId: string): Promise<void> {
-  requireRole(await memberContext(ctx, tenantId), "operator");
-}
 
 export interface VerbConversation {
   id: string;
@@ -112,7 +92,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
  */
 export const conversationScope = row((ctx, params) => loadConversation(ctx, String(params.id ?? "")));
 
-export interface VerbContact {
+interface VerbContact {
   id: string;
   tenant_id: string;
   marketing_consent: string | null;
@@ -124,7 +104,7 @@ export interface VerbContact {
  * the role is then decided against the contact's tenant, never one from the
  * body. Both consent doors take their row from here.
  */
-export async function loadContact(ctx: RouteContext, id: string): Promise<VerbContact> {
+async function loadContact(ctx: RouteContext, id: string): Promise<VerbContact> {
   const contactId = requireUuid(id, "contact");
   const { data: contact, error } = await ctx.supabase
     .from("contacts")
@@ -139,7 +119,7 @@ export async function loadContact(ctx: RouteContext, id: string): Promise<VerbCo
 /** The contact named by `:id`, as the row a consent route acts on. */
 export const contactScope = row((ctx, params) => loadContact(ctx, String(params.id ?? "")));
 
-export interface VerbMessage {
+interface VerbMessage {
   id: string;
   tenant_id: string;
   conversation_id: string;
@@ -148,7 +128,7 @@ export interface VerbMessage {
 }
 
 /** The message a verb acts on (a held draft to rewrite), read under RLS: one the caller cannot see is a 404. */
-export async function loadMessage(ctx: RouteContext, id: string): Promise<VerbMessage> {
+async function loadMessage(ctx: RouteContext, id: string): Promise<VerbMessage> {
   const messageId = requireUuid(id, "message");
   const { data, error } = await ctx.supabase
     .from("messages")
@@ -161,7 +141,7 @@ export async function loadMessage(ctx: RouteContext, id: string): Promise<VerbMe
 }
 export const messageScope = row((ctx, params) => loadMessage(ctx, String(params.id ?? "")));
 
-export interface VerbCall {
+interface VerbCall {
   id: string;
   tenant_id: string;
   retell_call_id: string;
@@ -170,7 +150,7 @@ export interface VerbCall {
 }
 
 /** The call a verb acts on (a whisper into it, its recording), read under RLS: one the caller cannot see is a 404. */
-export async function loadCall(ctx: RouteContext, id: string): Promise<VerbCall> {
+async function loadCall(ctx: RouteContext, id: string): Promise<VerbCall> {
   const callId = requireUuid(id, "call");
   const { data, error } = await ctx.supabase
     .from("calls")
@@ -204,12 +184,6 @@ export async function replyChannelOf(
     .maybeSingle();
   if (error) throw new Error(`reading the last inbound: ${error.message}`);
   return writtenChannelOf(data?.channel);
-}
-
-/** The customer asked not to be contacted. The rule itself lives in
- *  contracts/consent so this route and every other send path cannot drift. */
-export function assertCanSend(conv: VerbConversation): void {
-  if (isOptedOutContact(conv)) throw new AppError("conflict", OPT_OUT_REFUSAL);
 }
 
 /**
@@ -277,8 +251,7 @@ export async function resolveOpenEscalation(
   else if (!data || data.length === 0) console.log("resolve_escalation_noop", conversationId);
 }
 
-export const PAUSE_MS = 24 * HOUR_MS;
-export { SEND_GRACE_MS } from "@chanlytics/core"; // the cancelable window IS the undo (§6); one home, in core
+const PAUSE_MS = 24 * HOUR_MS;
 
 /**
  * How long a human's touch keeps the receptionist off a thread.
@@ -352,7 +325,7 @@ export async function cancelPendingAiReply(
   return ids.length;
 }
 
-export interface VerbErasure {
+interface VerbErasure {
   id: string;
   tenant_id: string;
   phone_e164: string | null;
@@ -366,7 +339,7 @@ export interface VerbErasure {
  * is, so it must find them. Every other contact verb wants a live person
  * (contactScope). Read under RLS, so one the caller cannot see is a 404.
  */
-export async function loadErasable(ctx: RouteContext, id: string): Promise<VerbErasure> {
+async function loadErasable(ctx: RouteContext, id: string): Promise<VerbErasure> {
   const contactId = requireUuid(id, "contact");
   const { data, error } = await ctx.supabase
     .from("contacts")
@@ -379,7 +352,7 @@ export async function loadErasable(ctx: RouteContext, id: string): Promise<VerbE
 }
 export const erasureScope = row((ctx, params) => loadErasable(ctx, String(params.id ?? "")));
 
-export interface VerbList {
+interface VerbList {
   id: string;
   tenant_id: string;
   name: string;
@@ -390,7 +363,7 @@ export interface VerbList {
 }
 
 /** The saved list named by `:id`, read under RLS: one the caller cannot see is a 404, and the role is judged in the list's own workspace. */
-export async function loadList(ctx: RouteContext, id: string): Promise<VerbList> {
+async function loadList(ctx: RouteContext, id: string): Promise<VerbList> {
   const listId = requireUuid(id, "list");
   const list = await listRow(ctx.supabase, listId);
   if (!list) throw new AppError("not_found", "List not found.", 404);
@@ -399,7 +372,7 @@ export async function loadList(ctx: RouteContext, id: string): Promise<VerbList>
 export const listScope = row((ctx, params) => loadList(ctx, String(params.id ?? "")));
 
 /** The broadcast a verb acts on (approved, canceled), read under RLS: one the caller cannot see is a 404. */
-export async function loadBroadcast(ctx: RouteContext, id: string) {
+async function loadBroadcast(ctx: RouteContext, id: string) {
   const broadcastId = requireUuid(id, "broadcast");
   const { data, error } = await ctx.supabase
     .from("broadcasts")
@@ -413,7 +386,7 @@ export async function loadBroadcast(ctx: RouteContext, id: string) {
 export const broadcastScope = row((ctx, params) => loadBroadcast(ctx, String(params.id ?? "")));
 
 /** The template a verb acts on (hidden, titled, deleted), read under RLS: one the caller cannot see is a 404. */
-export async function loadTemplate(ctx: RouteContext, id: string) {
+async function loadTemplate(ctx: RouteContext, id: string) {
   const templateId = requireUuid(id, "template");
   const { data, error } = await ctx.supabase
     .from("templates")
@@ -427,7 +400,7 @@ export async function loadTemplate(ctx: RouteContext, id: string) {
 export const templateScope = row((ctx, params) => loadTemplate(ctx, String(params.id ?? "")));
 
 /** The playbook a verb acts on (paused, rewritten, run, deleted), read under RLS: one the caller cannot see is a 404. */
-export async function loadPlaybook(ctx: RouteContext, id: string) {
+async function loadPlaybook(ctx: RouteContext, id: string) {
   const playbookId = requireUuid(id, "playbook");
   const { data, error } = await ctx.supabase
     .from("playbooks")

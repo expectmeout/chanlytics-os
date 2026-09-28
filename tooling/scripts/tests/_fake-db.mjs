@@ -137,7 +137,7 @@ function matches(row, filters) {
 }
 
 /**
- * A partial unique index (`opts.uniqueIndexes`: `[{ table, name, columns, where }]`): among the rows `where` admits,
+ * A partial unique index (`opts.uniqueIndexes`: `[{ table, name, columns | key, where }]`): among the rows `where` admits,
  * the `columns` hold each combination once. An insert or an update that would leave two such rows fails as Postgres
  * fails the statement (23505, naming the index, nothing written). Modelled for the one line a workspace holds
  * (lines_one_live_per_tenant_idx, 00195): two buys that crossed both read no line, and it is the database, not the
@@ -147,14 +147,115 @@ function matches(row, filters) {
 function uniqueViolation(indexes, table, candidates, others) {
   for (const ix of indexes.filter((i) => i.table === table)) {
     const held = others.filter((r) => ix.where(r));
+    // An index on expressions (`key`: the row's key, as a string) rather than columns: jobs_reply_read_once is on the
+    // payload's message and stage (00222).
+    const same = ix.key ? (a, b) => ix.key(a) === ix.key(b) : (a, b) => ix.columns.every((c) => a[c] === b[c]);
     for (const row of candidates) {
       if (!ix.where(row)) continue;
-      if (held.some((r) => ix.columns.every((c) => r[c] === row[c])))
+      if (held.some((r) => same(r, row)))
         return { code: "23505", message: `duplicate key value violates unique constraint "${ix.name}"` };
       held.push(row);
     }
   }
   return null;
+}
+
+/** The words `to_tsvector('simple', ...)` makes of a text, in order: lower-cased runs of letters and digits. */
+const lexemesOf = (text) =>
+  String(text ?? "")
+    .toLowerCase()
+    .match(/[\p{L}\p{N}]+/gu) ?? [];
+
+/**
+ * websearch_to_tsquery's grammar, as a search box uses it: words (every one), "a phrase" (its words in a row), `or`
+ * (either side), `-word` and `-"a phrase"` (not it). An OR of AND-groups of `{ words, not }`; a word the parser splits
+ * ("don't") is a phrase of its parts, as Postgres makes it. Null when the words have nothing to look for -- none at all
+ * (querytree ''), or a group of exclusions alone, which a text holding none of the words would match (querytree 'T')
+ * -- where search_messages answers nothing (00219).
+ */
+function webQuery(words) {
+  const groups = [[]];
+  for (const m of String(words).matchAll(/(-?)"([^"]*)"?|(\S+)/g)) {
+    const bare = m[3];
+    if (bare !== undefined && bare.toLowerCase() === "or") {
+      groups.push([]);
+      continue;
+    }
+    const not = bare !== undefined ? bare.startsWith("-") : m[1] === "-";
+    const w = lexemesOf(bare !== undefined ? bare.replace(/^-/, "") : m[2]);
+    if (w.length) groups[groups.length - 1].push({ words: w, not });
+  }
+  const kept = groups.filter((g) => g.length);
+  return !kept.length || kept.some((g) => g.every((t) => t.not)) ? null : kept;
+}
+
+/** Whether a text's words hold a term: its words in a row. */
+const holds = (tokens, term) => tokens.some((_, i) => term.words.every((w, j) => tokens[i + j] === w));
+
+/**
+ * ts_headline's one fragment as 00219 asks for it (MaxFragments=1, MaxWords=24, no markup): the words around the first
+ * that matched, at most 24, eight before it where there are eight. The double's approximation: a run of spaces is one.
+ */
+function headline(text, groups) {
+  const words = String(text ?? "")
+    .split(/\s+/)
+    .filter(Boolean);
+  const wanted = new Set(groups.flatMap((g) => g.filter((t) => !t.not).flatMap((t) => t.words)));
+  const first = Math.max(
+    0,
+    words.findIndex((w) => lexemesOf(w).some((x) => wanted.has(x))),
+  );
+  const start = Math.max(0, Math.min(first - 8, words.length - 24));
+  return words.slice(start, start + 24).join(" ");
+}
+
+/**
+ * `search_messages` (00219), answered out of the messages and calls a fixture holds, in the function's own row shape:
+ * one workspace's messages whose body holds the words and calls whose transcript does, none older than p_since (a call
+ * by when it started, else when it was recorded), newest first with the id breaking ties, at most
+ * least(greatest(p_limit, 1), 50), each `{ kind, id, conversation_id, contact_id, channel (null for a call), direction,
+ * at, snippet }`. Strict: a null argument answers nothing, as blank words and exclusions alone do. No RLS: the double
+ * holds one member's view.
+ */
+function searchMessagesIn(tables, { p_tenant, p_words, p_since, p_limit }) {
+  if ([p_tenant, p_words, p_since, p_limit].some((v) => v == null)) return [];
+  const q = webQuery(p_words);
+  if (!q) return [];
+  const since = Date.parse(p_since);
+  const cap = Math.min(50, Math.max(1, p_limit));
+  const newest = (a, b) => Date.parse(b.at) - Date.parse(a.at) || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
+  const found = (rows, pick) =>
+    rows
+      .filter((r) => r.tenant_id === p_tenant)
+      .map(pick)
+      .filter((h) => Date.parse(h.at) >= since && q.some((g) => g.every((t) => holds(lexemesOf(h.said), t) !== t.not)))
+      .sort(newest)
+      .slice(0, cap);
+  const hits = [
+    ...found(tables.messages ?? [], (m) => ({
+      kind: "message",
+      id: m.id,
+      conversation_id: m.conversation_id ?? null,
+      contact_id: m.contact_id ?? null,
+      channel: m.channel ?? null,
+      direction: m.direction,
+      at: m.created_at,
+      said: m.body,
+    })),
+    ...found(tables.calls ?? [], (c) => ({
+      kind: "call",
+      id: c.id,
+      conversation_id: c.conversation_id ?? null,
+      contact_id: c.contact_id ?? null,
+      channel: null,
+      direction: c.direction,
+      at: c.started_at ?? c.created_at,
+      said: c.transcript,
+    })),
+  ]
+    .sort(newest)
+    .slice(0, cap);
+  return hits.map(({ said, ...h }) => ({ ...h, snippet: headline(said, q) }));
 }
 
 /**
@@ -188,6 +289,8 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
       };
       return { allowance: of("allowance"), budget: of("budget") };
     },
+    // Ask's message search (00219), from the messages and calls the fixture holds: a suite that searches models no door.
+    search_messages: (args) => searchMessagesIn(tables, args),
   };
 
   const from = (table) => {
