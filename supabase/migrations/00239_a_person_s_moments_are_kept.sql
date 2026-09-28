@@ -25,7 +25,7 @@
 --                             move them back (a sent reply that fails, a message moved to another person, a delete, a
 --                             call that stops counting or moves) recomputes the people it touched. A receipt, and a
 --                             call's summary, change nothing the moments read, and pass.
---   person_moments_fill       one batch of the fill, for tooling/scripts/person-moments-fill.mjs.
+--   person_moments_fill       one batch of the fill, for tooling/scripts/ops/person-moments-fill.mjs.
 --   person_moments_check      a workspace's kept moments against its rows, paged as the fill is: each person whole,
 --                             missing or differing.
 --

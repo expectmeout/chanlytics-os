@@ -171,12 +171,12 @@ run. The ported shell and the committed dists are outside the check
 
 ## Test it
 
-| Suite                                                        | Command                                | Needs                                                                                              |
-| ------------------------------------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| The node suite: routes, doors, verbs, view models over fakes | `corepack pnpm test`                   | Nothing. Database and integration suites skip, with the reason printed                             |
-| The database suites: RLS, CHECKs, triggers, tenancy, erasure | `corepack pnpm test:db`                | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, usually the local stack's                          |
-| The browser suite                                            | `corepack pnpm e2e`                    | Chromium (`corepack pnpm e2e:install` once); signed-in specs need the four variables in the README |
-| The edge's frozen HTTP contract                              | `node tooling/scripts/golden-edge.mjs` | `BASE_URL` plus the Meta and Retell secrets                                                        |
+| Suite                                                        | Command                                    | Needs                                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| The node suite: routes, doors, verbs, view models over fakes | `corepack pnpm test`                       | Nothing. Database and integration suites skip, with the reason printed                             |
+| The database suites: RLS, CHECKs, triggers, tenancy, erasure | `corepack pnpm test:db`                    | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, usually the local stack's                          |
+| The browser suite                                            | `corepack pnpm e2e`                        | Chromium (`corepack pnpm e2e:install` once); signed-in specs need the four variables in the README |
+| The edge's frozen HTTP contract                              | `node tooling/scripts/ops/golden-edge.mjs` | `BASE_URL` plus the Meta and Retell secrets                                                        |
 
 A skip is not a pass. A run that is meant to hold credentials says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and the coverage guard then fails instead of
@@ -208,7 +208,7 @@ mutation run asks whether the journey went red, and a retry that passes turns a
 caught mutant into a flake.
 
 Three records. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
-`tooling/scripts/e2e-workspace.mjs` -- the config it writes, the line it
+`tooling/scripts/ops/e2e-workspace.mjs` -- the config it writes, the line it
 provisions, the clock it sets -- so it changes when the seed changes rather than
 drifting from it; `e2e-harness.test.mjs` holds the two together. `salon` is a
 fuller, fictional record for the branches the nightly's data cannot reach: a
@@ -660,7 +660,7 @@ of the message id on every line.
 
 ## Scripts that touch production
 
-Every writing script in `tooling/scripts` is a dry run by default, writes a
+Every writing script in `tooling/scripts/ops` is a dry run by default, writes a
 JSONL backup first, is idempotent, and takes `--apply` to mean it. Read the
 header of the script before running it; each says what it needs and what it
 refuses.

@@ -17,9 +17,9 @@
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  * Usage:
- *   node tooling/scripts/person-moments-fill.mjs
- *   node tooling/scripts/person-moments-fill.mjs --apply
- *   node tooling/scripts/person-moments-fill.mjs --apply --workspace <uuid>
+ *   node tooling/scripts/ops/person-moments-fill.mjs
+ *   node tooling/scripts/ops/person-moments-fill.mjs --apply
+ *   node tooling/scripts/ops/person-moments-fill.mjs --apply --workspace <uuid>
  */
 import { createClient } from "@supabase/supabase-js";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -141,7 +141,7 @@ async function main() {
     return;
   }
 
-  const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "backups");
+  const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "backups");
   mkdirSync(backupsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupPath = join(backupsDir, `person-moments-fill-${stamp}.jsonl`);

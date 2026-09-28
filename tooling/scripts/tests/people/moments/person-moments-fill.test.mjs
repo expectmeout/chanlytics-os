@@ -1,5 +1,5 @@
 /**
- * The moments fill (tooling/scripts/person-moments-fill.mjs, 00239): the script's own steps, over a double of the
+ * The moments fill (tooling/scripts/ops/person-moments-fill.mjs, 00239): the script's own steps, over a double of the
  * database that answers as PostgREST does. The check and the fill each walk a workspace a batch at a time, the next
  * starting after the last person of the one before, until a batch comes back short; the check keeps only the people
  * who are not whole; the backup is every row of the workspace, a line each, read a thousand at a time; and a failure
@@ -15,7 +15,7 @@ import {
   everyRow,
   fillWorkspace,
   tally,
-} from "../../../person-moments-fill.mjs";
+} from "../../../ops/person-moments-fill.mjs";
 
 const W = "00000000-0000-4000-8000-0000000e0a00";
 const id = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;

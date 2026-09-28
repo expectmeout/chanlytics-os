@@ -5,7 +5,7 @@
  * spread. Distance is haversine, in metres, deterministic. No other gazetteer
  * is bundled.
  *
- * zcta-centroids.json is written by tooling/scripts/gen-zcta-centroids.mjs
+ * zcta-centroids.json is written by tooling/scripts/gen/zcta-centroids.mjs
  * from the Census 2020 gazetteer: [zip, lat, lng] triples sorted by zip.
  */
 import type { LeadArea } from "@chanlytics/contracts";
