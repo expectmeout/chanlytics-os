@@ -315,8 +315,43 @@ declare function listCalls(cfg: RetellConfig, opts: {
     ascending?: boolean;
     includeTotal?: boolean;
 }): Promise<ListCallsPage>;
-/** Full call detail — the only source of transcript/transcript_object. */
-declare function getCall(cfg: RetellConfig, callId: string): Promise<RetellCall | null>;
+/**
+ * What a read of one call came back as. `null` once stood for every non-2xx
+ * alike, and the calls sweep counted each one as a try against the recording:
+ * a Retell outage, a rate limit or a revoked key marked every pending
+ * recording failed within three ticks. The four answers a caller tells apart:
+ *
+ *   found        the call, as the provider holds it;
+ *   not_found    the provider answered and has no such call -- a 404, or any
+ *                other refusal of the request: asking again will not change it;
+ *   unavailable  the provider could not answer just now: a 429, a 5xx, a body
+ *                that is not a call, a timeout or a network error, with the
+ *                wait it named when it named one; `status` is null when no
+ *                answer came at all;
+ *   auth         the key is refused (401, 403): every read will be, until it is fixed.
+ */
+type RetellCallRead = {
+    kind: "found";
+    call: RetellCall;
+} | {
+    kind: "not_found";
+    status: number;
+} | {
+    kind: "unavailable";
+    status: number | null;
+    retryAfterMs: number | null;
+} | {
+    kind: "auth";
+    status: number;
+};
+/**
+ * Full call detail — the only source of transcript/transcript_object. Never
+ * throws: the answer says what happened, so a sweep can tell a row the
+ * provider has no record of from a provider that could not be asked.
+ */
+declare function getCall(cfg: RetellConfig, callId: string, opts?: {
+    timeoutMs?: number;
+}): Promise<RetellCallRead>;
 /** The agent settings that decide what the call pipeline can show. */
 interface RetellAgentConfig {
     agent_id: string;
