@@ -9,6 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  toCallVM,
   toLiveVM,
   toLiveCallVM,
   fmtClock,
@@ -114,9 +115,11 @@ test("a live call carries its real start for the page's clock and no invented du
   assert.equal(fmtClock(0), "0:00");
 });
 
-test('REGRESSION: the clock face never reads below "0:00" -- a length below zero, or one that is not a number, which said "NaN:NaN"', () => {
+test('REGRESSION: the clock face never reads below "0:00" -- a length below zero, or one that is not a finite number, which said "NaN:NaN" and "Infinity:NaN"', () => {
   assert.equal(fmtClock(-3), "0:00");
   assert.equal(fmtClock(NaN), "0:00");
+  assert.equal(fmtClock(Infinity), "0:00");
+  assert.equal(fmtClock(-Infinity), "0:00");
   assert.equal(fmtClock(0.4), "0:00");
   assert.equal(fmtClock(125), "2:05");
 });
@@ -175,6 +178,31 @@ test("a dial that never connected is 'missed' with nothing to review", () => {
   assert.equal(m.summaryState, "missed");
   assert.equal(m.duration, null);
   assert.equal(m.endedHow, "Call couldn't connect");
+});
+
+test('REGRESSION: an ended call\'s length is the call card\'s rule (callLength), and its words go with it -- a length below zero read "0:00" and was spoken as "-1 min -1 sec"', () => {
+  const ended = (duration_ms) => call("e", { status: "ended", ended_at: ago(30_000), duration_ms });
+  for (const [ms, duration, lengthWords] of [
+    [124_600, "2:05", "2 min 5 sec"],
+    [500, "0:01", "1 sec"],
+    [499, "0:00", "0 sec"],
+    [-1, null, null],
+    [-1_500, null, null],
+    [0, null, null],
+    [null, null, null],
+    [undefined, null, null],
+    [NaN, null, null],
+    [Infinity, null, null],
+    [-Infinity, null, null],
+  ]) {
+    const c = toLiveCallVM(ended(ms), ZONE, NOW);
+    assert.deepEqual([c.duration, c.lengthWords], [duration, lengthWords], `${ms} ms`);
+    assert.equal(c.duration, toCallVM(ended(ms), ZONE, NOW).duration ?? null, `${ms} ms: the call card says the same`);
+  }
+  for (const over of [{ status: "ongoing", ended_at: null }, { status: "not_connected" }]) {
+    const c = toLiveCallVM(call("x", { ...over, duration_ms: 124_600 }), ZONE, NOW);
+    assert.deepEqual([c.duration, c.lengthWords], [null, null], `${over.status}: no length until the call has ended`);
+  }
 });
 
 test("the transcript keeps only spoken turns, with the provider's timings", () => {

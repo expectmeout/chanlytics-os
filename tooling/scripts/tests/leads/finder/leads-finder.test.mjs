@@ -10,20 +10,21 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { LeadSearchPlanSchema, planVersionOf } from "../../../../../packages/contracts/src/leads/search/plan.ts";
 import {
-  LeadSearchPlanSchema,
   LEAD_COUNT_CHOICES,
-  LEAD_ROUND_ENDINGS,
-  planArea,
   planCeiling,
   planMinutes,
+} from "../../../../../packages/contracts/src/leads/search/cards.ts";
+import { LEAD_ROUND_ENDINGS } from "../../../../../packages/contracts/src/leads/search/sets.ts";
+import {
+  planArea,
   planSaid,
   planSentence,
-  planVersionOf,
   planWhere,
   planWho,
   planWords,
-} from "../../../../../packages/contracts/src/leads/lead-search.ts";
+} from "../../../../../packages/contracts/src/leads/search/sentence.ts";
 import {
   LEAD_QUESTION_WAIT_LINE,
   leadEndingLine,
@@ -184,7 +185,11 @@ const CARD = {
   payload: { plan: PLAN, view: { title: "Find 200 personal trainers" }, facts: FACTS },
   undo: "Stop the search",
 };
-/** The page's panel state, as LeadsReal holds it, with the setters leadAnswerPlan and leadFinderApprove take. */
+/**
+ * The page's panel state, as LeadsReal holds it, with what leadAnswerPlan and leadFinderApprove take: a setter for each
+ * field, the panel's one close (closeFinder: it shuts and lets go of the round it was opened under), and `more`, the
+ * round as the page last drew it.
+ */
 const page = (over = {}) => {
   const st = {
     open: true,
@@ -195,11 +200,13 @@ const page = (over = {}) => {
     proposal: null,
     plan: null,
     pick: null,
+    more: null,
     ...over,
   };
   const set = {
-    open: (v) => {
-      st.open = v;
+    close: () => {
+      st.open = false;
+      st.more = null;
     },
     stage: (v) => {
       st.stage = v;
@@ -222,6 +229,7 @@ const page = (over = {}) => {
     pick: (v) => {
       st.pick = v;
     },
+    more: st.more,
   };
   return { st, set };
 };
@@ -511,11 +519,11 @@ test("answering: the panel says the question, sends the owner's words as one tur
       text: "include the chains too",
       threadId: "t-planned",
       answering: { searchId: "s-b" },
-      scope: null,
       surface: "leads",
     },
     "the owner's words and nothing else as the text; the search by id for the route to read and tell the model " +
-      "(ask-routes.test.mjs); the thread the search was planned in",
+      "(ask-routes.test.mjs); the thread the search was planned in; and no scope, so the planning thread keeps its " +
+      "own (a null would clear it: the Phase 5 plan, D9)",
   );
   assert.deepEqual(
     [st.stage, st.trace, st.refusal, card.id, st.plan.version, st.plan.count, st.plan.exclusions],
@@ -671,14 +679,18 @@ test("answering: the card's count is words, its button updates the search, an an
     stage: "plan",
     proposal: { ...CARD, payload: { ...CARD.payload, plan: approved, amends } },
     plan: approved,
+    more: ANSWERING,
   });
-  set.more = ANSWERING;
   const r = await globalThis.window.leadFinderApprove(s2.proposal, s2.plan, set);
   assert.equal(r.ok, true);
   assert.equal(committed.length, 1, "one commit");
   assert.deepEqual(committed[0].payload.plan, approved, "the plan approved is the plan committed");
   assert.deepEqual(committed[0].payload.amends, amends, "with what it amends intact");
-  assert.deepEqual([s2.open, s2.stage], [false, "compose"]);
+  assert.deepEqual(
+    [s2.open, s2.stage, s2.more],
+    [false, "compose", null],
+    "started, the panel shuts the one way it shuts, and lets go of the round it answered",
+  );
   // The page's Include (a strip's step, no card): the plan is sent as given and the route versions it.
   const answered = [];
   globalThis.window.__leadSearchAnswer = async (id, a, plan) => {
@@ -690,11 +702,23 @@ test("answering: the card's count is words, its button updates the search, an an
       throw new Error("a plan opened on the page is not a card");
     },
   };
-  const { st: s3, set: set3 } = page({ stage: "plan", proposal: null, plan: { ...PLAN, version: 4, count: 50 } });
-  set3.more = ANSWERING;
+  const { st: s3, set: set3 } = page({
+    stage: "plan",
+    proposal: null,
+    plan: { ...PLAN, version: 4, count: 50 },
+    more: ANSWERING,
+  });
   assert.equal((await globalThis.window.leadFinderApprove(s3.proposal, s3.plan, set3)).ok, true);
   assert.deepEqual(answered, [["s-b", "include", 4]], "the plan as given: the route versions it");
-  assert.deepEqual([s3.open, s3.stage], [false, "compose"]);
+  assert.deepEqual([s3.open, s3.stage, s3.more], [false, "compose", null]);
+  // Refused, the card stays where it was, and so does the round it answers, for the next press.
+  globalThis.window.__leadSearchAnswer = async () => ({ ok: false, message: "That question was already answered." });
+  const { st: s4, set: set4 } = page({ stage: "plan", proposal: null, plan: PLAN, more: ANSWERING });
+  assert.equal((await globalThis.window.leadFinderApprove(s4.proposal, s4.plan, set4)).ok, false);
+  assert.deepEqual(
+    [s4.open, s4.stage, s4.refusal, s4.more],
+    [true, "plan", "That question was already answered.", ANSWERING],
+  );
 });
 
 test("near the month's limit the card offers what is left and says when the leads renew", () => {

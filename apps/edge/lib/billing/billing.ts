@@ -670,8 +670,18 @@ export async function forgetEvent(db: Db, id: string, lease: string): Promise<vo
   if (error) logger({ hook: "stripe" }).error("stripe_event_unclaim_failed", { event_id: id, error: error.message });
 }
 
-/** The bells a payment event rings, beside the row facts it keeps. */
-export async function notePayment(db: Db, row: BillingRow, kind: "failed" | "paid", now = new Date()): Promise<void> {
+/**
+ * The bells a payment event rings, beside the row facts it keeps. A paid invoice that took no money (a trial's $0 first
+ * invoice, a full discount) is not a payment and stamps nothing: last_paid_at says the workspace has paid, which
+ * Billing shows and 0020 reads to decide whether a partner joining it earns. `amountPaid` absent is a payment.
+ */
+export async function notePayment(
+  db: Db,
+  row: BillingRow,
+  kind: "failed" | "paid",
+  amountPaid?: number,
+  now = new Date(),
+): Promise<void> {
   if (kind === "failed") {
     const up = await db
       .from("billing_accounts")
@@ -685,7 +695,7 @@ export async function notePayment(db: Db, row: BillingRow, kind: "failed" | "pai
       route: "admin/billing",
       about: null,
     });
-  } else {
+  } else if (amountPaid === undefined || amountPaid > 0) {
     const up = await db
       .from("billing_accounts")
       .update({ last_paid_at: now.toISOString() })

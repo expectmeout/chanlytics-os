@@ -13,9 +13,9 @@
  * Nothing here is read or drawn yet: the job that asks the model and applies the plan is PR 3's.
  */
 import { isRealDate } from "../config/workspace-config/config-schema";
-import { mondayOf, shiftKey } from "../calendar/calendar";
+import { mondayOf, shiftKey } from "../calendar/day-keys";
 import { clipAtWord } from "../conversations/message-words";
-import { siteHost } from "../leads/lead-search";
+import { siteHost } from "../leads/search/clean";
 import { wallClockAt, zoneDayKey } from "../shared/clock";
 import { DAY_MS, HOUR_MS } from "../shared/time";
 import { normalizeEmail } from "../shared/email-address";
@@ -601,7 +601,7 @@ function redactedReadAs(intent: ReplyIntent, unread: Unread | null): string {
  * be told when the workspace cannot be (`redacted`: no business, no words of theirs). A phone shows the body's first
  * line (today/push.ts pushFor), so the first line is the summary, never their words: `push` is that line.
  * "The receptionist drafted an answer" is said only when a draft was made, with its first lines (PR 5): never in
- * `redacted`, which holds no words of anyone's. The undo's sentence is PR 7's.
+ * `redacted`, which holds no words of anyone's. A no says it can be undone on the thread for seven days (PR 7).
  */
 export function replyNoticeWords(p: {
   intent: ReplyIntent;
@@ -627,6 +627,7 @@ export function replyNoticeWords(p: {
     push,
     quote ? `“${withinChars(quote, REPLY_QUOTE_MAX)}”` : null,
     doneWords(intent),
+    intent === "no" ? "If that's a misreading, undo it on the thread within seven days." : null,
     p.unread ? `It could not be read (${UNREAD_WORDS[p.unread]}), so it is read again later.` : null,
     p.draft ? `The receptionist drafted an answer: “${draftExcerpt(p.draft)}” Nothing is sent without you.` : null,
   ].filter((l): l is string => l !== null);

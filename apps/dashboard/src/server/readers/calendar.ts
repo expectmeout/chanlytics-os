@@ -1,13 +1,13 @@
 import "server-only";
 import type { CalendarWeekDto } from "@chanlytics/contracts";
-import { calendarSources, weekFrom, type CalendarSources } from "../calendar/calendar";
+import { calendarSources, weekFrom, type CalendarSources } from "../calendar/calendar-week";
 import { load, stamp, type Reader, type RowRef } from "./index";
 import * as facts from "./facts";
 
 /**
- * The calendar's one read for a span (server/calendar/calendar.ts calendarSources) with the zone and the settings the turn
+ * The calendar's one read for a span (server/calendar/calendar-week.ts calendarSources) with the zone and the settings the turn
  * already holds (readers/facts.ts), so a turn reads the tenant once however many of its reads say "today". Its data
- * carries neither the feed's address nor the raw settings (server/calendar/calendar.ts CalendarSources), and it is never an
+ * carries neither the feed's address nor the raw settings (server/calendar/calendar-week.ts CalendarSources), and it is never an
  * answer: `calendar` below and the calendar route assemble what is answered from it. It writes nothing (D7): the
  * route puts the feed's people in People between this read and the board, when its caller may act.
  */

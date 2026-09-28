@@ -1,7 +1,7 @@
 /**
  * What became of an email we sent: the provider's receipts, read and applied.
  *
- * The reading is pure (channels email.ts) and is pinned by value against the
+ * The reading is pure (channels email/receipts.ts) and is pinned by value against the
  * payloads Resend documents. The applying is run through the webhook's own
  * door, signed the way Svix signs, over a database in memory: what is proved is
  * which rows change, in what order, and what a redelivered receipt does not do.

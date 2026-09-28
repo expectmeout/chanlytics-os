@@ -48,6 +48,8 @@ const WATCHED: Array<{ table: string; event: "INSERT" | "*" }> = [
   // a list made, renamed, archived, or people put on and taken off by a teammate: People's rail repaints (00169)
   { table: "segments", event: "*" },
   { table: "segment_members", event: "*" },
+  // a reply to a reach-out read, drafted or undone: the Inbox's strip and chip repaint (00222)
+  { table: "reach_out_replies", event: "*" },
 ];
 
 /** The tables the one subscription listens to: a surface's refreshOnTables can only name one of these. */

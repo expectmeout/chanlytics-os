@@ -81,9 +81,9 @@ test("the words: the share from the row, the count from the memberships, the sta
   assert.equal(shareWords(2500), "25% of what it pays for its plan");
   assert.equal(shareWords(1250), "12.5% of what it pays for its plan");
   assert.equal(shareWords(PARTNER_SHARE_BP_DEFAULT), "25% of what it pays for its plan", "what 00202 defaults to");
-  assert.equal(broughtWords(0), "No workspace has come through your link yet.");
-  assert.equal(broughtWords(1), "1 workspace came through your link.");
-  assert.equal(broughtWords(3), "3 workspaces came through your link.");
+  assert.equal(broughtWords(0), "No workspace has you as its partner yet.");
+  assert.equal(broughtWords(1), "1 workspace has you as its partner.");
+  assert.equal(broughtWords(3), "3 workspaces have you as their partner.");
   const dto = {
     id: "p1",
     code: "ada",
@@ -95,7 +95,7 @@ test("the words: the share from the row, the count from the memberships, the sta
   const vm = partnerVM(dto, "https://app.example.com", 2);
   assert.equal(vm.link, "https://app.example.com/p/ada");
   assert.equal(vm.share, "25% of what it pays for its plan");
-  assert.equal(vm.brought, "2 workspaces came through your link.");
+  assert.equal(vm.brought, "2 workspaces have you as their partner.");
   assert.equal(vm.standing, null, "an active account leads with nothing");
   assert.match(vm.since, /^A partner since Sep 1, 2026\.$/);
   assert.equal(partnerVM({ ...dto, status: "paused" }, "x", 0).standing, PARTNER_WORDS.paused);
@@ -536,7 +536,7 @@ test("a workspace whose owner took the partner off its team keeps its money line
 });
 
 test("nothing brought yet is said once, and needs-you counts only what the back office says needs someone", () => {
-  assert.equal(partnerWorkspacesVM([], [], NOW).summary, "No workspace has come through your link yet.");
+  assert.equal(partnerWorkspacesVM([], [], NOW).summary, "No workspace has you as its partner yet.");
   const broken = overviewRow({
     tenant_id: "t-b",
     slug: "b",

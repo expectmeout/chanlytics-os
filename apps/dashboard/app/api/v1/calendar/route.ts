@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { ROLE_PERMS } from "@chanlytics/contracts";
 import { read, workspace } from "@/server/route";
-import { addPeopleSeen, weekFrom } from "@/server/calendar/calendar";
+import { addPeopleSeen } from "@/server/calendar/people-seen";
+import { weekFrom } from "@/server/calendar/calendar-week";
 import { load, readerContext } from "@/server/readers";
 import { sources } from "@/server/readers/calendar";
 

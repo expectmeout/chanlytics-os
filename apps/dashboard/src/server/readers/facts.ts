@@ -65,7 +65,7 @@ export const config: Reader<
 };
 
 /**
- * How to read the calendar's zone and settings from the turn (server/calendar/calendar.ts ZoneAndSettings), for a function that
+ * How to read the calendar's zone and settings from the turn (server/calendar/people-visits.ts ZoneAndSettings), for a function that
  * reads them only where its calendar lookup would: through the facts and config readers above, so a turn reads each
  * once, and a read of either that fails fails where the lookup's own did.
  */

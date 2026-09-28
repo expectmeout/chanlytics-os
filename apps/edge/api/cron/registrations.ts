@@ -14,7 +14,8 @@ import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
 import { dashboardOrigin } from "../../lib/dashboard-origin.js";
-import { registerLine, syncRegistration } from "../../lib/lines/a2p.js";
+import { registerLine } from "../../lib/lines/a2p-register.js";
+import { syncRegistration } from "../../lib/lines/a2p-sync.js";
 
 /** A bound per tick; a backlog drains over successive hours rather than one long call. */
 const MAX_PER_TICK = 20;

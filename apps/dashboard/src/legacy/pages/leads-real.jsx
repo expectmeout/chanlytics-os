@@ -345,12 +345,13 @@ const leadActs = ({ leads, leadView, leadBusy, setLeadBusy, plFlash, setSel, set
 };
 
 /* ---------------------------------------- the plan panel (Tasks 9, 10; spec F5) */
-const leadFinderActs = ({ leadView, nav, plFlash, finder, openFinder, setFinder }) => {
-  // The setters leadAnswerPlan and leadFinderApprove take (leads-finder.jsx), a field each, and `more`, which says
-  // whose round an approval belongs to when the plan was opened from a strip, and whether it answers its question.
+const leadFinderActs = ({ leadView, nav, plFlash, finder, openFinder, closeFinder, setFinder }) => {
+  // What leadAnswerPlan and leadFinderApprove take (leads-finder.jsx): a setter for each field, the panel's one close
+  // (closeFinder, which lets go of `more` as it shuts), and `more`, which says whose round an approval belongs to when
+  // the plan was opened from a strip, and whether it answers its question.
   const field = (key) => (value) => setFinder({ [key]: value });
   const finderSet = {
-    open: field("open"), stage: field("stage"), words: field("words"), trace: field("trace"),
+    close: closeFinder, stage: field("stage"), words: field("words"), trace: field("trace"),
     refusal: field("refusal"), proposal: field("proposal"), plan: field("plan"), pick: field("pick"),
     more: finder.more,
   };
@@ -358,7 +359,6 @@ const leadFinderActs = ({ leadView, nav, plFlash, finder, openFinder, setFinder 
   const finderApprove = async (plan) => {
     const answering = !!(finder.more && finder.more.answer);
     const r = await window.leadFinderApprove(finder.proposal, plan, finderSet);
-    if (r && r.ok) setFinder({ more: null });
     if (r && r.ok && answering) plFlash({ msg: <>Carrying on with your change.</> });
     // A new search lands the owner on it: the strip narrating the run, the
     // classes filling, the address the search's own. Without this they stayed

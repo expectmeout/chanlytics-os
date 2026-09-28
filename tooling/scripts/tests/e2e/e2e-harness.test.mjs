@@ -222,6 +222,7 @@ const NOT_PUBLISHED = new Map([
   ["__href", "the chrome's own"],
   ["__me", "the chrome's own; the fixture publishes __ME, which the record reads"],
   ["__surfaceFailed", "the surface runner's, for a read that failed; nothing here fails a read"],
+  ["__today", "Today's helpers; the Notifications pane lists what is sent from them, and the record never reads them"],
 ]);
 
 test("the fixture publishes every global the Business record and Settings read, or says why not", async () => {

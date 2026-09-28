@@ -16,7 +16,8 @@ import {
   judgeOpId,
   sha256Hex,
 } from "../../../../../packages/contracts/src/leads/lead-judge.ts";
-import { LeadSearchPlanSchema, LEAD_FACT_MAX } from "../../../../../packages/contracts/src/leads/lead-search.ts";
+import { LeadSearchPlanSchema } from "../../../../../packages/contracts/src/leads/search/plan.ts";
+import { LEAD_FACT_MAX } from "../../../../../packages/contracts/src/leads/search/caps.ts";
 
 const plan = LeadSearchPlanSchema.parse({
   version: 1,

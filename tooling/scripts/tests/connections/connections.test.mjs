@@ -451,7 +451,7 @@ test("the wiring: the page draws rows from the same facts Setup reads, the old c
   const bridge = readCode("apps/dashboard/src/legacy-bridge/connections.ts");
   assert.ok(bridge.includes("win.__connections = { rows: connectionRows, groupWords: CONNECTION_GROUP_WORDS };"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installConnections();"));
-  const edge = readCode("apps/edge/lib/google/google.ts");
+  const edge = readCode("apps/edge/lib/google/google-config.ts");
   assert.ok(
     edge.includes("export function googleAudience(): GoogleAudience | null {") &&
       edge.includes('return a === "testing" || a === "unverified" || a === "verified" ? a : null;'),
