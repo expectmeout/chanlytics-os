@@ -197,6 +197,7 @@ test("the loop fills the shape: a read then an answer is two rounds with their t
     [sh.surface, sh.scope_kind, sh.follow_up, sh.since_last_ms, sh.opened_ms],
     ["reports", "call", true, 30_000, 4200],
   );
+  assert.equal(sh.replay, "rebuilt", "the earlier turns went as words (the Phase 5 plan, PR 5.4): a rebuilt history");
   assert.deepEqual([sh.rounds, sh.rounds_ms], [2, [20, 20]]);
   assert.deepEqual(
     sh.tokens,
@@ -241,6 +242,7 @@ test("a turn answered without a Say has none; a scripted round without timing or
   assert.equal(sh.cache_hit, null);
   assert.equal(sh.rounds_ms.length, 1, "a round without timing is still timed by the loop's own clock");
   assert.deepEqual([sh.follow_up, sh.since_last_ms, sh.opened_ms], [false, null, null]);
+  assert.equal(sh.replay, "none", "a thread's first turn has no history to replay");
 });
 
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
@@ -298,6 +300,7 @@ test("the route: the shape is stored on the turn's row with the palette's opened
     const stored = tables.ask_messages[1].content;
     assert.equal(stored.shape.v, 1, "the shape rides on the turn's row");
     assert.deepEqual([stored.shape.opened_ms, stored.shape.follow_up, stored.shape.since_last_ms], [4200, false, null]);
+    assert.equal(stored.shape.replay, "none", "a thread's first turn replays nothing");
     assert.equal(stored.shape.rounds, 1);
     assert.equal(stored.shape.cache_hit, 0.9);
     assert.ok(typeof stored.shape.first_say_ms === "number");
@@ -310,6 +313,7 @@ test("the route: the shape is stored on the turn's row with the palette's opened
     await again.text();
     const second = tables.ask_messages[3].content;
     assert.equal(second.shape.follow_up, true);
+    assert.equal(second.shape.replay, "live", "asked at once: the first turn replayed as it was sent (PR 5.4)");
     assert.ok(
       typeof second.shape.since_last_ms === "number" && second.shape.since_last_ms >= 0,
       "since the previous turn",
