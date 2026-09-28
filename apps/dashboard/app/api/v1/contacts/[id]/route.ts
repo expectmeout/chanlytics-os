@@ -2,12 +2,16 @@ import { AppError } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
 import { erasureScope, recordDecision } from "@/server/verbs";
-import { removeMediaObjects, scrubErasedJobs, beginErasure, FINISHED_JOB_STATES } from "@/server/people/erasure";
+import {
+  removeMediaObjects,
+  scrubErasedJobs,
+  beginErasure,
+  erasureKeys,
+  FINISHED_JOB_STATES,
+} from "@/server/people/erasure";
 import { requireUuid } from "@/server/request-guards";
 import { load, readerContext } from "@/server/readers";
 import { person } from "@/server/readers/person";
-
-const digits = (s: string) => s.replace(/\D/g, "");
 
 /**
  * DELETE /api/v1/contacts/:id — honour a deletion request.
@@ -93,14 +97,12 @@ export const DELETE = write({
       .select("external_id")
       .eq("contact_id", id);
     keyRead("WhatsApp identities", identErr);
-    // Every spelling of the customer's number, as an Ask turn or a finished job may quote it (the WhatsApp wa_id is
-    // bare digits, a call's from_number E.164, so both are reduced to the digits), and then the address: `identifiers`.
-    const threadIds = [
-      ...new Set(
-        [contact.phone_e164 ?? "", ...(idents ?? []).map((i) => i.external_id ?? "")].map(digits).filter(Boolean),
-      ),
-    ];
-    const identifiers = [...threadIds, ...(contact.email ? [contact.email] : [])];
+    // The number and the address, as a finished job carries them (`identifiers`) and as an Ask turn may spell them
+    // (`needles`): read off the row and its identities while they exist.
+    const { identifiers, needles } = erasureKeys(
+      contact,
+      (idents ?? []).map((i) => i.external_id),
+    );
 
     const { data: calls, error: callErr } = await ctx.supabase.from("calls").select("recording").eq("contact_id", id);
     keyRead("call recordings", callErr);
@@ -149,7 +151,7 @@ export const DELETE = write({
       const { error: askErr } = await ctx.supabase.rpc("scrub_ask_for_contact", {
         p_tenant_id: contact.tenant_id,
         p_contact_id: id,
-        p_needles: identifiers,
+        p_needles: needles,
       });
       if (askErr) {
         console.error("erase_ask_prescrub_failed", id, askErr.message);
@@ -209,12 +211,12 @@ export const DELETE = write({
     // assistant's memory of a person is a name that outlives its erasure too.
     {
       const { data: scrubbed, error: askErr } = await ctx.supabase.rpc("scrub_ask_for_contact", {
-        // The identifiers, read off the row before erase_contact ran, because the row no longer has them. Step 2
+        // The needles, read off the row before erase_contact ran, because the row no longer has them. Step 2
         // already scrubbed with them; this pass catches a turn written since, and a re-driven erasure (above) scrubs
         // by the id alone.
         p_tenant_id: contact.tenant_id,
         p_contact_id: id,
-        p_needles: identifiers,
+        p_needles: needles,
       });
       if (askErr) console.error("erase_ask_scrub_failed", id, askErr.message);
       else console.log(JSON.stringify({ level: "info", event: "erase_ask_scrubbed", contact: id, messages: scrubbed }));

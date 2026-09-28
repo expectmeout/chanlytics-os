@@ -318,7 +318,7 @@ test("the workspace and the case set: a body naming another workspace than the t
     ),
     [403, { ok: false, error: "workspace_mismatch" }],
   );
-  const need = (error) => [400, { ok: false, error }];
+  const need = (detail) => [400, { ok: false, error: "bad_request", detail }];
   assert.deepEqual(
     await answer(await knock({ cases: CASES }, { brain: b.port })),
     need("tenant_id and 1-6 cases required"),

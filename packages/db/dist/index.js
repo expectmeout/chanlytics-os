@@ -1494,7 +1494,7 @@ var ASK_ANSWER_CAPS = {
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -2214,6 +2214,8 @@ var CHECKOUT_OUTCOME_WORDS = {
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var HAND_KINDS = ["call", "note"];
+var HAND_WORDS_MAX = 280;
 var REACH_OUT_SUBJECT_MAX = 80;
 var REACH_OUT_BODY_MAX = 1200;
 var OPENING_WORDS_MAX = 40;
@@ -2229,7 +2231,9 @@ var ReachOutStepSchema = z14.object({
   id: z14.string().uuid().nullable().optional(),
   subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
   body: z14.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z14.object({ kind: z14.enum(HAND_KINDS), words: z14.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
 var ReachOutChainSchema = z14.object({
   name: z14.string().trim().min(1).max(REACH_OUT_NAME_MAX),
@@ -2682,6 +2686,9 @@ var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -3219,13 +3226,13 @@ async function lastInboundEmail(db, tenantId, conversationId) {
   if (error) throw new Error(`email: cannot read the email being answered: ${error.message}`);
   if (!data) return null;
   const e = data.meta?.email ?? {};
-  const str2 = (v) => typeof v === "string" && v ? v : null;
+  const str = (v) => typeof v === "string" && v ? v : null;
   return {
     messageId: data.id,
-    from: str2(e.from),
-    rfcMessageId: str2(e.message_id),
+    from: str(e.from),
+    rfcMessageId: str(e.message_id),
     references: Array.isArray(e.references) ? e.references.filter((r2) => typeof r2 === "string") : [],
-    subject: str2(e.subject)
+    subject: str(e.subject)
   };
 }
 var ANSWERED_LOOKBACK = 50;
@@ -3522,6 +3529,7 @@ async function reachOutReplyOf(db, p) {
     lead_contact_id: textOf(o.lead_contact_id),
     lead_email: textOf(o.lead_email),
     lead_website: textOf(o.lead_website),
+    lead_website_root: typeof o.lead_website_root === "boolean" ? o.lead_website_root : null,
     answered_message_id: textOf(o.answered_message_id),
     answered_text: textOf(o.answered_text),
     business: textOf(o.business) ?? "",
@@ -3632,7 +3640,7 @@ async function undoReplyReading(db, messageId) {
 }
 
 // src/repositories/reach-out-sheet.ts
-var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, run_hour, last_run_for, created_at";
+var STEP_COLUMNS = "id, name, state, trigger, lead_search_id, after_playbook_id, after_days, gap_minutes, domain_ids, signed_by, include_unconfirmed, template_id, hand, run_hour, last_run_for, created_at";
 async function reachOutStepsOf(db, tenantId) {
   const { data, error } = await db.from("playbooks").select(STEP_COLUMNS).eq("tenant_id", tenantId).eq("kind", "reach_out");
   if (error) throw new Error(`cannot read the reach-outs: ${error.message}`);
@@ -3671,6 +3679,24 @@ async function searchNamesByIds(db, tenantId, ids) {
   const { data, error } = await db.from("lead_searches").select("id, name").eq("tenant_id", tenantId).in("id", ids);
   if (error) throw new Error(`cannot read the searches: ${error.message}`);
   return new Map((data ?? []).map((s) => [s.id, s.name]));
+}
+async function leadNamesByIds(db, tenantId, ids) {
+  if (ids.length === 0) return /* @__PURE__ */ new Map();
+  const { data, error } = await db.from("leads").select("id, business_name").eq("tenant_id", tenantId).in("id", ids);
+  if (error) throw new Error(`cannot read the leads' names: ${error.message}`);
+  return new Map((data ?? []).map((l) => [l.id, l.business_name]));
+}
+async function handRun(db, p) {
+  const { data, error } = await db.rpc("reach_out_hand_run", {
+    p_tenant_id: p.tenantId,
+    p_step_id: p.stepId,
+    p_run_id: p.runId,
+    p_day: p.day,
+    p_items: p.items
+  });
+  if (error) throw new Error(`cannot write the hand step's run: ${error.message}`);
+  const r2 = data ?? {};
+  return { made: r2.made ?? 0, already: r2.already ?? 0 };
 }
 async function runsWaitingOf(db, tenantId) {
   const { data, error } = await db.from("broadcasts").select("id, audience").eq("tenant_id", tenantId).eq("state", "pending_approval");
@@ -3935,7 +3961,7 @@ async function sendStanding(db, s) {
   const step = s.playbook_id ? (chain.data ?? []).find((p) => p.id === s.playbook_id) : void 0;
   return {
     run: run.data?.state ?? null,
-    step: step ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
+    step: step?.template_id ? { state: step.state, template_id: step.template_id, after_playbook_id: step.after_playbook_id } : null,
     root: (chain.data ?? []).find((p) => p.id === s.root_id)?.state ?? null,
     signedBy: (chain.data ?? []).find((p) => p.id === s.root_id)?.signed_by ?? null
   };
@@ -5141,20 +5167,20 @@ async function getPartnerInviteMail(db, tenantId) {
 
 // src/repositories/leads.ts
 var ONE_LEAD_COLUMNS = "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at";
-var str = (v) => typeof v === "string" ? v : null;
+var jsonString = (v) => typeof v === "string" ? v : null;
 function memberOf(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const id = str(data.id);
-  const searchId = str(data.search_id);
-  const cls = str(data.class);
+  const id = jsonString(data.id);
+  const searchId = jsonString(data.search_id);
+  const cls = jsonString(data.class);
   if (!id || !searchId || !cls) return null;
   return {
     id,
     search_id: searchId,
     class: cls,
-    excluded_by: str(data.excluded_by),
-    fit: str(data.fit),
-    reason: str(data.reason) ?? "",
+    excluded_by: jsonString(data.excluded_by),
+    fit: jsonString(data.fit),
+    reason: jsonString(data.reason) ?? "",
     distance_m: typeof data.distance_m === "number" ? data.distance_m : null,
     counted: data.counted === true,
     judgment: data.judgment ?? null
@@ -5331,6 +5357,7 @@ export {
   getPlatformPartners,
   getTenantConfig,
   getWorkspacePartner,
+  handRun,
   heldNoticeDue,
   heldStale,
   ingestCall,
@@ -5341,6 +5368,7 @@ export {
   keepIdempotencyReceipt,
   lastInboundEmail,
   leadAddressBounced,
+  leadNamesByIds,
   leadSlotsOf,
   leadWritten,
   linkCallMessage,

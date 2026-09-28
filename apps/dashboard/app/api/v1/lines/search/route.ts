@@ -1,6 +1,7 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
 import { edgeLines } from "@/server/connections/lines";
+import { edgeRefusalWords } from "@/server/edge";
 
 /**
  * POST /api/v1/lines/search — {area_code}: local numbers to choose from,
@@ -31,11 +32,7 @@ export const POST = write({
         409,
       );
     if (a.status !== 200 || b.ok !== true)
-      throw new AppError(
-        "internal",
-        typeof b.error === "string" ? b.error : "The carrier did not answer. Try again in a moment.",
-        502,
-      );
+      throw new AppError("internal", edgeRefusalWords(b) ?? "The carrier did not answer. Try again in a moment.", 502);
     return {
       area_code: Number(raw),
       numbers: Array.isArray(b.numbers) ? b.numbers : [],

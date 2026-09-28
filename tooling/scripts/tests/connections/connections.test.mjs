@@ -272,6 +272,39 @@ test("the phone line's road: requested, being set up with the step and since, st
   assert.equal(fwd.phone.verb.label, "Get a line", "a forwarded number is not the workspace's own line");
 });
 
+test("the rows read one set of facts: the listing's verb reads the profile's connection, and the phone and texting rows speak for the same line, the workspace's own", () => {
+  // A read is a sync only once the profile has its location: a connection still choosing one does not sync.
+  const google = (c) => ({ ready: { places: true, profile: true }, listing: listing(), connection: c });
+  const choosing = by(
+    connectionRows({ ...base(), google: google(connection({ location_name: null, location_title: null })) }, NOW),
+  );
+  assert.equal(choosing.google_profile.body, "google_choose");
+  assert.equal(choosing.google_listing.verb.label, "Check now", "a location still to choose is not a sync");
+  assert.equal(by(connectionRows({ ...base(), google: google(null) }, NOW)).google_listing.verb.label, "Check now");
+  assert.equal(
+    by(connectionRows({ ...base(), google: google(connection()) }, NOW)).google_listing.verb.label,
+    "Sync now",
+  );
+  // The workspace's own line is the first that is not a forwarded number, whichever order the rows arrive in.
+  const own = line({ voice_state: "provisioning", step: "number", sms_state: "registering" });
+  const forwarded = line({
+    id: "l0",
+    provider: "carrier",
+    e164: "+13055550111",
+    voice_state: "none",
+    sms_state: "active",
+  });
+  for (const rows of [
+    [forwarded, own],
+    [own, forwarded],
+  ]) {
+    const r = by(connectionRows({ ...base(), lines: { rows, ready: true } }, NOW));
+    assert.equal(r.phone.detail, "+1 (646) 555-0100");
+    assert.equal(r.sms.detail, "+1 (646) 555-0100", "texting speaks for the phone row's line");
+    assert.equal(r.sms.state, "waiting_them", "in that line's state, not the forwarded number's");
+  }
+});
+
 test("texting's states, in the owner's words, with the carriers' vocabulary kept out", () => {
   const words = (s, over = {}) => smsStateRow(line({ sms_state: s, ...over }), NOW);
   // A line that ANSWERS CALLS already has everything a text needs except the

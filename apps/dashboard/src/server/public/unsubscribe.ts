@@ -148,7 +148,7 @@ function page(status: number, view: UnsubscribeView): Response {
   return new Response(html, { status, headers });
 }
 
-function text(status: number, body: string): Response {
+function plainText(status: number, body: string): Response {
   return new Response(body, { status, headers: { ...HEADERS, "content-type": "text/plain; charset=utf-8" } });
 }
 
@@ -239,23 +239,23 @@ async function readFields(req: Request): Promise<Map<string, string> | "too_larg
 
 export async function unsubscribePost(token: string, req: Request): Promise<Response> {
   const open = door();
-  if (!open) return text(503, "Unsubscribe is not available right now. Try again in a minute.");
+  if (!open) return plainText(503, "Unsubscribe is not available right now. Try again in a minute.");
   const { db } = open;
   // The link first: one we did not make is refused before its body is read or the database asked. Our own page
   // never draws the button under a bad link, so no person pressing lands here.
   const claims = verifyUnsubscribeToken(open.keys, token);
   if (!claims) {
     sayBadLink();
-    return text(400, "This link doesn't work.");
+    return plainText(400, "This link doesn't work.");
   }
-  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return text(413, "Too large.");
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return plainText(413, "Too large.");
   const fields = await readFields(req);
-  if (fields === "too_large") return text(413, "Too large.");
-  if (fields === "unreadable") return text(400, "An unsubscribe says List-Unsubscribe=One-Click.");
+  if (fields === "too_large") return plainText(413, "Too large.");
+  if (fields === "unreadable") return plainText(400, "An unsubscribe says List-Unsubscribe=One-Click.");
   // The mail client's one click says exactly this (RFC 8058 §3.1); the page's own button says the other.
   const oneClick = fields.get("List-Unsubscribe") === "One-Click";
   const pressed = fields.get("unsubscribe") === "yes";
-  if (!oneClick && !pressed) return text(400, "An unsubscribe says List-Unsubscribe=One-Click.");
+  if (!oneClick && !pressed) return plainText(400, "An unsubscribe says List-Unsubscribe=One-Click.");
 
   const { data, error } = await db.rpc("set_email_marketing", {
     p_tenant_id: claims.tenantId,
@@ -271,10 +271,10 @@ export async function unsubscribePost(token: string, req: Request): Promise<Resp
       JSON.stringify({ tenant: claims.tenantId, message: claims.messageId, error: error.message }),
     );
     return oneClick
-      ? text(503, "Not recorded. Try again in a minute.")
+      ? plainText(503, "Not recorded. Try again in a minute.")
       : page(503, { kind: "unavailable", retry: true });
   }
-  if (oneClick) return text(200, "Unsubscribed.");
+  if (oneClick) return plainText(200, "Unsubscribed.");
   const said = (data ?? null) as { business?: unknown } | null;
   return page(200, {
     kind: "done",

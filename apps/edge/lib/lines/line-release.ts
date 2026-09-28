@@ -23,6 +23,7 @@ import {
   lineReleaseWarning,
   lineReleasedWords,
   receptionistOn,
+  type EdgeErrorCode,
   type LineReleaseBilling,
   type LineReleaseWarned,
 } from "../packages/contracts.js";
@@ -37,9 +38,10 @@ import type { Logger } from "../log.js";
 type Db = SupabaseClient<Database>;
 type LineDbRow = Database["public"]["Tables"]["lines"]["Row"];
 
+/** A release that stopped: its code, what stopped it in `detail`, and what came off before it did. */
 export type LineReleaseResult =
   | { ok: true; released: Record<string, unknown> }
-  | { ok: false; status: 502 | 503; error: string; released: Record<string, unknown> };
+  | { ok: false; status: 502 | 503; error: EdgeErrorCode; detail: string; released: Record<string, unknown> };
 
 /**
  * Give one line's number back: Retell's copy of it, the number and the trunk at the carrier, the routing rows switched
@@ -93,15 +95,16 @@ export async function releaseLine(
     return {
       ok: false,
       status: 502,
-      error: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`,
+      error: "provider_refused",
+      detail: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`,
       released,
     };
   }
   const rows = await releaseRoutingRows(db, tenantId, line);
   Object.assign(released, rows.released);
-  if (!rows.ok) return { ok: false, status: 503, error: rows.error, released };
+  if (!rows.ok) return { ok: false, status: 503, error: "write_failed", detail: rows.error, released };
   const del = await db.from("lines").delete().eq("id", line.id);
-  if (del.error) return { ok: false, status: 503, error: del.error.message, released };
+  if (del.error) return { ok: false, status: 503, error: "write_failed", detail: del.error.message, released };
   await emitEvent(db, tenantId, "line.released", "setup", "line", line.id, {
     e164: line.e164,
     provider: choice.name,
@@ -269,10 +272,10 @@ export async function sweepEndedLines(
     const r = await ports.release(row.tenant_id, row, new Date(again.endedAt).toISOString());
     if (!r.ok) {
       out.failed += 1;
-      ports.log.error("line_release_failed", { tenant: row.tenant_id, line: row.id, error: r.error });
+      ports.log.error("line_release_failed", { tenant: row.tenant_id, line: row.id, error: r.error, detail: r.detail });
       await ports.alert(
         `A number could not be given back (workspace ${row.tenant_id})`,
-        `The lines sweep tried to release line ${row.id} after its subscription ended, and it stopped: ${r.error}\n\nWhat came off before it stopped: ${JSON.stringify(r.released)}. The row stays, and the next quarter hour tries again.`,
+        `The lines sweep tried to release line ${row.id} after its subscription ended, and it stopped: ${r.detail}\n\nWhat came off before it stopped: ${JSON.stringify(r.released)}. The row stays, and the next quarter hour tries again.`,
       );
       continue;
     }

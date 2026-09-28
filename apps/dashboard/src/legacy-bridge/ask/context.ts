@@ -12,6 +12,7 @@
 import {
   ASK_CONTEXT_MAX_ROWS,
   ASK_SCOPE_KINDS,
+  itemFocus,
   parseLeadsRoute,
   parsePipelineRoute,
   scopeFromRoute,
@@ -217,10 +218,24 @@ const fold = (s: string) =>
 const SCOPE_KINDS = new Set<string>(ASK_SCOPE_KINDS);
 
 /**
- * The row the words name on screen (the spec's 5.5; the plan's D4): an ordinal, in English or Spanish ("the second",
- * "#2", "el segundo", "la tercera") where it ends the question or "one" or a row's noun follows, picks that row; otherwise a row whose name appears whole in the words (case
- * and accents aside, the longest name winning, a name under three letters never); otherwise none. Only a row a scope
- * may be.
+ * The place the words name a row by (folded words): "#2", "number 2", "el número 2" where it ends the question (an
+ * invoice's "#3" mid-sentence names no row), or an ordinal in English or Spanish ("the second", "el segundo", "la
+ * tercera") where it ends the question or "one" or a row's noun follows; else none.
+ */
+function placeOf(said: string): number | null {
+  const hash = new RegExp(
+    `(?:^|\\s)(?<!\\b(?:invoice|order|ticket|room|table|step|page|line|item|factura|pedido|mesa|paso)\\s)(?:#|number\\s|numero\\s)\\s?(\\d{1,2})${ROW_AFTER}`,
+  ).exec(said);
+  if (hash) return Number(hash[1]);
+  for (const [words, at] of ORDINALS)
+    if (new RegExp(`\\b(?:the|el|la|lo)\\s+(?:${words})${ROW_AFTER}`).test(said)) return at;
+  return null;
+}
+
+/**
+ * The row the words name on screen (the spec's 5.5; the plan's D4): a place (placeOf) picks that row; otherwise a row
+ * whose name appears whole in the words (case and accents aside, the longest name winning, a name under three letters
+ * never); otherwise none. Only a row a scope may be.
  */
 export function focusFromWords(words: string, rows: Row[]): AskScope | null {
   const scoped = rows.filter((r) => SCOPE_KINDS.has(r.kind));
@@ -231,17 +246,7 @@ export function focusFromWords(words: string, rows: Row[]): AskScope | null {
     id: r.id,
     label: (r.label ?? "").slice(0, 80) || `this ${r.kind}`,
   });
-  // "#2", "number 2", "el número 2" -- only where it ends the question (an invoice's "#3" mid-sentence names no row).
-  const hash = new RegExp(
-    `(?:^|\\s)(?<!\\b(?:invoice|order|ticket|room|table|step|page|line|item|factura|pedido|mesa|paso)\\s)(?:#|number\\s|numero\\s)\\s?(\\d{1,2})${ROW_AFTER}`,
-  ).exec(said);
-  let n: number | null = hash ? Number(hash[1]) : null;
-  if (n === null)
-    for (const [words, at] of ORDINALS)
-      if (new RegExp(`\\b(?:the|el|la|lo)\\s+(?:${words})${ROW_AFTER}`).test(said)) {
-        n = at;
-        break;
-      }
+  const n = placeOf(said);
   if (n !== null && scoped[n - 1]) return asScope(scoped[n - 1]);
   let best: Row | null = null;
   const plain = words.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -263,14 +268,42 @@ export function focusFromWords(words: string, rows: Row[]): AskScope | null {
   return best ? asScope(best) : null;
 }
 
+/** A message of the open thread as the Line holds it: an answer, or the fields an answer made before the Line kept. */
+export type ThreadMessage = Parameters<typeof itemFocus>[0] & { role: string };
+
+/**
+ * The row the words name (the Phase 5 plan, D7): asked in an open thread, a place is first its last answer's item at
+ * that place (contracts itemFocus) -- one no focus may be names none, and never the page's row at that place -- and the
+ * page's rows only past the answer's items; a name, or a place with no answer to count, is the page's (focusFromWords).
+ * A thread in a shape it does not know is no thread.
+ */
+function wordsFocus(words: string, rows: Row[], thread?: ReadonlyArray<ThreadMessage> | null): AskScope | null {
+  const n = placeOf(fold(words));
+  let item: AskScope | null | undefined;
+  try {
+    const last =
+      n !== null && Array.isArray(thread) ? [...thread].reverse().find((m) => m?.role === "assistant") : null;
+    item = last && n !== null ? itemFocus(last, n) : undefined;
+  } catch {
+    item = undefined;
+  }
+  return item === undefined ? focusFromWords(words, rows) : item;
+}
+
 const routeOf = (r: Route) => (r.param ? `${r.page}/${r.param}` : r.page).slice(0, 200);
 
 /**
  * The page, as Ask is sent it: the surface, the route, the page's view, the row open or named, and the rows on screen
- * in the page's order, forty at most, kind and id only. The words, when given, may name the focus; else the page's
- * own; else the route's.
+ * in the page's order, forty at most, kind and id only. The words, when given, may name the focus -- in an open thread
+ * (`thread`, its messages as the Line holds them) by its last answer's items first; else the page's own; else the
+ * route's.
  */
-export function pageContext(win: Window, route: Route, words?: string): PageContext {
+export function pageContext(
+  win: Window,
+  route: Route,
+  words?: string,
+  thread?: ReadonlyArray<ThreadMessage> | null,
+): PageContext {
   const w = win as unknown as ContextGlobals;
   const surface = surfaceFor(route.page, route.param);
   let got: Provided;
@@ -282,7 +315,11 @@ export function pageContext(win: Window, route: Route, words?: string): PageCont
   const rows = got.rows
     .filter((r) => typeof r.id === "string" && r.id && r.id.length <= 120)
     .slice(0, ASK_CONTEXT_MAX_ROWS);
-  const focus = (words ? focusFromWords(words, rows) : null) ?? got.focus ?? scopeFromRoute(route.page, route.param);
+  // Words that name no row -- an answer's item of a kind no focus may be among them -- leave the page's own focus, then
+  // the route's; never the page's row at that place. Paired with the eval (tooling/scripts/eval-ask-context.mjs
+  // resolveContext, `item ?? scope`): change one, change the other.
+  const focus =
+    (words ? wordsFocus(words, rows, thread) : null) ?? got.focus ?? scopeFromRoute(route.page, route.param);
   return {
     v: 1,
     surface,

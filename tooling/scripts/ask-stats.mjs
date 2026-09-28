@@ -26,6 +26,19 @@ export function wilson(k, n, z = 1.96) {
   return [Math.max(0, (c - m) / d), Math.min(1, (c + m) / d)];
 }
 
+/**
+ * Why the rounds of these turns missed the cache (AskTurnShape.cache_miss, the Phase 6 plan, D2): each reason the API
+ * gave and how many rounds gave it, the most first, then by name. Rounds that named no message, or where nothing
+ * diverged, say nothing and are not counted; a turn from before Phase 6 has no key.
+ */
+export function missTally(shapes) {
+  const n = new Map();
+  for (const s of shapes)
+    for (const m of Array.isArray(s?.cache_miss) ? s.cache_miss : [])
+      if (typeof m === "string") n.set(m, (n.get(m) ?? 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([reason, rounds]) => ({ reason, rounds }));
+}
+
 /** A ratio as a whole percent. */
 export const pct = (x) => `${Math.round(x * 100)}%`;
 

@@ -11,7 +11,7 @@
  */
 import type { Database } from "../packages/db.js";
 import { PLACE_ID, cleanReply, type PlaceDetails } from "../packages/channels.js";
-import type { ReviewReplyMode } from "../packages/contracts.js";
+import type { EdgeRefusal, ReviewReplyMode } from "../packages/contracts.js";
 import type { LogEvent } from "../log.js";
 import { connectionForClient, listingForClient, type ConnectionRow, type ListingRow } from "./google-rows.js";
 import type { CheckResult } from "./listing-check.js";
@@ -47,7 +47,8 @@ export const UNKNOWN_GOOGLE_OP: DoorAnswer = {
   status: 400,
   body: {
     ok: false,
-    error: "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply or draft",
+    error: "unknown_op",
+    detail: "op must be status, search, link, unlink, refresh, connect, locations, choose, disconnect, reply or draft",
   },
 };
 
@@ -81,16 +82,20 @@ export function planPlaceSearch(
       kind: "refuse",
       answer: {
         status: 400,
-        body: { ok: false, error: "query must be a few words: the business name and where it is" },
+        body: {
+          ok: false,
+          error: "bad_request",
+          detail: "query must be a few words: the business name and where it is",
+        },
       },
     };
   }
   return { kind: "search", key, query };
 }
 
-/** Google's refusal in Google's words, never a throw. */
+/** Google's refusal, in Google's words in `detail`, never a throw. */
 export function googleFailedAnswer(e: unknown): DoorAnswer {
-  return { status: 502, body: { ok: false, error: errorMessage(e) } };
+  return { status: 502, body: { ok: false, error: "google_refused", detail: errorMessage(e) } };
 }
 
 /* ------------------------------------------------------------------ link */
@@ -102,7 +107,10 @@ export function planLink(
   if (!key) return { kind: "refuse", answer: NO_PLACES_KEY };
   const placeId = typeof rawPlaceId === "string" ? rawPlaceId.trim() : "";
   if (!PLACE_ID.test(placeId)) {
-    return { kind: "refuse", answer: { status: 400, body: { ok: false, error: "place_id is required" } } };
+    return {
+      kind: "refuse",
+      answer: { status: 400, body: { ok: false, error: "bad_request", detail: "place_id is required" } },
+    };
   }
   return { kind: "link", key, placeId };
 }
@@ -142,7 +150,10 @@ export function planConnect(
 ): { kind: "refuse"; answer: DoorAnswer } | { kind: "connect"; code: string } {
   const code = typeof rawCode === "string" ? rawCode.trim() : "";
   if (!code || code.length > 2000) {
-    return { kind: "refuse", answer: { status: 400, body: { ok: false, error: "code is required" } } };
+    return {
+      kind: "refuse",
+      answer: { status: 400, body: { ok: false, error: "bad_request", detail: "code is required" } },
+    };
   }
   return { kind: "connect", code };
 }
@@ -177,7 +188,7 @@ export function connectAnswer(r: ConnectResult, listing: ListingView): { answer:
 /** A draft and a reply are about one review, named by its row. */
 export const NO_REVIEW_ID: DoorAnswer = {
   status: 400,
-  body: { ok: false, error: "id (the review's row) is required" },
+  body: { ok: false, error: "bad_request", detail: "id (the review's row) is required" },
 };
 
 /** The Autonomy row, read once for the dashboard's draft and the sweep's replies alike: Never refuses before the review is read. */
@@ -188,7 +199,7 @@ export function draftRefusal(mode: ReviewReplyMode): DoorAnswer | null {
 export function draftAnswer(
   id: string,
   mode: ReviewReplyMode,
-  r: { ok: true; text: string } | { ok: false; error: string; detail?: string },
+  r: { ok: true; text: string } | EdgeRefusal,
 ): { answer: DoorAnswer; log: GoogleLog } {
   if (!r.ok) {
     return {
@@ -204,7 +215,7 @@ export function draftAnswer(
 
 /* ---------------------------------------------------- locations, choose */
 
-type LocationsRead = { ok: true; locations: LocationChoice[] } | { ok: false; error: string };
+type LocationsRead = { ok: true; locations: LocationChoice[] } | EdgeRefusal;
 
 export function locationsAnswer(r: LocationsRead): DoorAnswer {
   return { status: r.ok ? 200 : 502, body: r };
@@ -223,7 +234,10 @@ export function planChoose(
   if (!/^accounts\/[\w-]{1,64}$/.test(accountName) || !/^locations\/[\w-]{1,64}$/.test(locationName)) {
     return {
       kind: "refuse",
-      answer: { status: 400, body: { ok: false, error: "account_name and location_name are required" } },
+      answer: {
+        status: 400,
+        body: { ok: false, error: "bad_request", detail: "account_name and location_name are required" },
+      },
     };
   }
   return { kind: "choose", conn, accountName, locationName };
@@ -235,14 +249,13 @@ export function chosenLocation(
   accountName: string,
   locationName: string,
 ): { kind: "refuse"; answer: DoorAnswer } | { kind: "bind"; loc: LocationChoice } {
-  if (!r.ok) return { kind: "refuse", answer: { status: 502, body: { ok: false, error: r.error } } };
+  if (!r.ok) return { kind: "refuse", answer: { status: 502, body: { ok: false, error: r.error, detail: r.detail } } };
   const loc = r.locations.find((l) => l.account_name === accountName && l.name === locationName);
   if (!loc) return { kind: "refuse", answer: { status: 404, body: { ok: false, error: "no_such_location" } } };
   return { kind: "bind", loc };
 }
 
-type BindResult =
-  { ok: true; connection: ConnectionRow; read: CheckResult } | { ok: false; error: string; detail?: string };
+type BindResult = { ok: true; connection: ConnectionRow; read: CheckResult } | EdgeRefusal;
 
 export function bindFailedAnswer(bound: Extract<BindResult, { ok: false }>): DoorAnswer {
   return { status: 502, body: { ok: false, error: bound.error, detail: bound.detail } };
@@ -264,11 +277,15 @@ export function planReply(
 ): { kind: "refuse"; answer: DoorAnswer } | { kind: "reply"; id: string; comment: string } {
   const comment = cleanReply(rawComment);
   if (!id) return { kind: "refuse", answer: NO_REVIEW_ID };
-  if (!comment) return { kind: "refuse", answer: { status: 400, body: { ok: false, error: "comment is required" } } };
+  if (!comment)
+    return {
+      kind: "refuse",
+      answer: { status: 400, body: { ok: false, error: "bad_request", detail: "comment is required" } },
+    };
   return { kind: "reply", id, comment };
 }
 
-export function replyAnswer(r: { ok: true } | { ok: false; error: string }): DoorAnswer {
+export function replyAnswer(r: { ok: true } | EdgeRefusal): DoorAnswer {
   if (r.ok) return { status: 200, body: r };
   const status =
     r.error === "not_connected" || r.error === "not_from_profile" ? 409 : r.error === "no_review" ? 404 : 502;

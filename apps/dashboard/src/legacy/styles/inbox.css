@@ -2030,7 +2030,7 @@ button.ix-ctx:hover { background: var(--bg-hover); }
 .ix-th-bar .ix-why-said { flex-basis: 100%; margin-top: 0; line-height: 1.4; }
 /* The thread's Actions: a ghost button with a word, lit while its menu is open. A ⋯ alone in the dim ink was too
    faint to find on a phone. */
-.btn.ix-th-more { height: 30px; padding: 0 10px; border-radius: 8px; color: var(--ink-muted); font-size: 12px; }
+.btn.ix-th-more { height: var(--control-h-md); padding: 0 10px; border-radius: var(--control-radius); color: var(--ink-muted); font-size: 12px; }
 .btn.ix-th-more:hover, .btn.ix-th-more[aria-expanded="true"] { background: var(--bg-hover); color: var(--ink); }
 /* Beside the wires, who this is: the next visit ahead, or the last one behind them, in People's words. The wires keep
    their words; the chip is what gives way when the line is short (it squeezed "Phone" out on a 375px phone). */

@@ -324,9 +324,9 @@ export type Database = {
           scheduled_for: string
           started_at: string | null
           state: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id: string | null
+          template_language: string | null
+          template_name: string | null
           tenant_id: string
           updated_at: string
         }
@@ -345,9 +345,9 @@ export type Database = {
           scheduled_for: string
           started_at?: string | null
           state?: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id: string
           updated_at?: string
         }
@@ -366,9 +366,9 @@ export type Database = {
           scheduled_for?: string
           started_at?: string | null
           state?: string
-          template_id?: string
-          template_language?: string
-          template_name?: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id?: string
           updated_at?: string
         }
@@ -2803,6 +2803,7 @@ export type Database = {
           tiktok_url: string | null
           version: number
           website_host: string | null
+          website_root: boolean | null
         }
         Insert: {
           about?: string | null
@@ -2855,6 +2856,7 @@ export type Database = {
           tiktok_url?: string | null
           version?: number
           website_host?: string | null
+          website_root?: boolean | null
         }
         Update: {
           about?: string | null
@@ -2907,6 +2909,7 @@ export type Database = {
           tiktok_url?: string | null
           version?: number
           website_host?: string | null
+          website_root?: boolean | null
         }
         Relationships: [
           {
@@ -3793,6 +3796,7 @@ export type Database = {
           domain_ids: string[]
           gap_days: number
           gap_minutes: number | null
+          hand: Json | null
           id: string
           include_unconfirmed: boolean
           kind: string
@@ -3807,9 +3811,9 @@ export type Database = {
           run_hour: number
           signed_by: string | null
           state: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id: string | null
+          template_language: string | null
+          template_name: string | null
           tenant_id: string
           trigger: string
           updated_at: string
@@ -3824,6 +3828,7 @@ export type Database = {
           domain_ids?: string[]
           gap_days?: number
           gap_minutes?: number | null
+          hand?: Json | null
           id?: string
           include_unconfirmed?: boolean
           kind?: string
@@ -3838,9 +3843,9 @@ export type Database = {
           run_hour?: number
           signed_by?: string | null
           state?: string
-          template_id: string
-          template_language: string
-          template_name: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id: string
           trigger: string
           updated_at?: string
@@ -3855,6 +3860,7 @@ export type Database = {
           domain_ids?: string[]
           gap_days?: number
           gap_minutes?: number | null
+          hand?: Json | null
           id?: string
           include_unconfirmed?: boolean
           kind?: string
@@ -3869,9 +3875,9 @@ export type Database = {
           run_hour?: number
           signed_by?: string | null
           state?: string
-          template_id?: string
-          template_language?: string
-          template_name?: string
+          template_id?: string | null
+          template_language?: string | null
+          template_name?: string | null
           tenant_id?: string
           trigger?: string
           updated_at?: string
@@ -4861,6 +4867,7 @@ export type Database = {
       }
     }
     Functions: {
+      ask_tokens_day: { Args: { p_tenant: string }; Returns: number }
       billing_card_mark: {
         Args: { p_fingerprint: string; p_tenant_id: string }
         Returns: undefined
@@ -6016,6 +6023,10 @@ export type Database = {
               region: string
             }[]
           }
+      reach_out_booked: {
+        Args: { p_seen: Json; p_tenant_id: string }
+        Returns: number
+      }
       reach_out_chain_report: {
         Args: { p_root_id: string; p_tenant_id: string }
         Returns: Json
@@ -6113,6 +6124,16 @@ export type Database = {
         }[]
       }
       reach_out_given_up: { Args: { p_created_at: string }; Returns: boolean }
+      reach_out_hand_run: {
+        Args: {
+          p_day: string
+          p_items: Json
+          p_run_id: string
+          p_step_id: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
       reach_out_held_stale: {
         Args: { p_before: string; p_limit: number; p_tenant_id?: string }
         Returns: {

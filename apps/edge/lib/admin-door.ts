@@ -8,16 +8,16 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./packages/db.js";
-import { UUID } from "./packages/contracts.js";
-import { json } from "./http.js";
+import { UUID, type EdgeErrorCode } from "./packages/contracts.js";
+import { json, refuse } from "./http.js";
 import { pg } from "./pg.js";
 
 type Db = SupabaseClient<Database>;
 
-/** What a door answers: the status and the JSON body. */
+/** What a door answers: the status and the JSON body, whose `error`, when it has one, is a code of the closed set. */
 export interface DoorAnswer {
   status: number;
-  body: unknown;
+  body: { readonly [k: string]: unknown; readonly error?: EdgeErrorCode };
 }
 
 /** A refusal on the way to an op: the response the door answers with, the op never run. */
@@ -48,21 +48,21 @@ export async function readBody<T extends object>(request: Request): Promise<Part
 /** The database and the workspace an op acts on: no database is a 503, an id that is not a workspace's a 400. */
 export function workspaceOf(tenantId: unknown): { ok: true; db: Db; tenantId: string } | Refused {
   const db = pg();
-  if (!db) return stop(json(503, { ok: false, error: "no_database" }));
+  if (!db) return stop(refuse(503, "no_database"));
   const id = typeof tenantId === "string" ? tenantId.trim() : "";
-  if (!UUID.test(id)) return stop(json(400, { ok: false, error: "tenant_id (a workspace id) is required" }));
+  if (!UUID.test(id)) return stop(refuse(400, "bad_tenant", "tenant_id (a workspace id) is required"));
   return { ok: true, db, tenantId: id };
 }
 
 /**
- * The workspace's row, as the door's read of it answered (the columns are the door's): a read that failed is a 503 in
- * the database's words, no row a 404.
+ * The workspace's row, as the door's read of it answered (the columns are the door's): a read that failed is a 503
+ * with the database's words in `detail`, no row a 404.
  */
 export function workspaceRow<R>(read: {
   data: R | null;
   error: { message: string } | null;
 }): { ok: true; row: R } | Refused {
-  if (read.error) return stop(json(503, { ok: false, error: read.error.message }));
-  if (!read.data) return stop(json(404, { ok: false, error: "no such workspace" }));
+  if (read.error) return stop(refuse(503, "read_failed", read.error.message));
+  if (!read.data) return stop(refuse(404, "not_found", "no such workspace"));
   return { ok: true, row: read.data };
 }

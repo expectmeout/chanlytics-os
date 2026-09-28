@@ -13,7 +13,7 @@ import { LEASE_SECONDS, YIELD_AT_MS } from "../../../../packages/jobs/src/ledger
 import { YIELD_AT_MS as DOMAINS_YIELD_AT_MS } from "../../../../apps/edge/api/cron/domains.ts";
 import { CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_DONE_BY_MS } from "../../../../apps/edge/lib/reach-out/check.ts";
 import { PREVIEW_LIMITS } from "../../../../apps/edge/lib/reach-out/preview.ts";
-import { SEND_TIMEOUT_MS } from "../../../../packages/channels/src/email-resend.ts";
+import { SEND_TIMEOUT_MS } from "../../../../packages/channels/src/email/email-resend.ts";
 import { NOTIFY_TIMEOUT_MS } from "../../../../apps/edge/lib/ops/notify.ts";
 import { EVENT_EVIDENCE_KINDS, RETENTION_DAYS } from "@chanlytics/contracts";
 
@@ -148,8 +148,11 @@ test("a log line on the message path carries a phone tail, never the number or t
     "apps/edge/lib/voice/call-start.ts",
     "apps/edge/lib/whatsapp/inbound.ts",
     // The message path itself: a verb over ports, logging through the
-    // factory the edge hands it. Same lines, same rule, new home.
-    "packages/core/src/inbound/answer.ts",
+    // factory the edge hands it. Same lines, same rule, new home: answer.ts's
+    // order and the phase modules beside it.
+    ...["answer", "context", "ingest", "gates", "unreadable", "reply-gates", "model-turn", "dispatch"].map(
+      (m) => `packages/core/src/inbound/${m}.ts`,
+    ),
     "apps/edge/lib/whatsapp/persist.ts",
     "apps/edge/lib/sms/sms.ts",
   ];
