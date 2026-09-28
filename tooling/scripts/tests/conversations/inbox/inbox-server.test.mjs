@@ -175,6 +175,42 @@ test("the Inbox's read reaches every thread's messages past PostgREST's thousand
   );
 });
 
+test("a thread with a long history holds its newest hundred and leaves every other thread its own", async () => {
+  const conversations = Array.from({ length: 30 }, (_, i) =>
+    conversation(uuid(i), A, { last_message_at: ago(i * HOUR) }),
+  );
+  // The newest thread wrote four thousand five hundred times in the last hour and a quarter, the others ten times
+  // each, hours ago. Read as one list, newest first, four thousand of the first thread's filled it, and the other
+  // twenty-nine read "No messages yet".
+  const long = Array.from({ length: 4500 }, (_, j) =>
+    message(`m-0-${j}`, uuid(0), A, { created_at: ago(j * 1000), channel_ts: ago(j * 1000) }),
+  );
+  const short = conversations.slice(1).flatMap((c, i) =>
+    Array.from({ length: 10 }, (_, j) =>
+      message(`m-${i + 1}-${j}`, c.id, A, {
+        created_at: ago((i + 2) * HOUR + j * 1000),
+        channel_ts: ago((i + 2) * HOUR + j * 1000),
+      }),
+    ),
+  );
+  const out = await list.GET.run(
+    get(inA),
+    ctxFor(
+      { memberships: both("viewer", "viewer"), conversations, messages: [...long, ...short] },
+      {},
+      { maxRows: 1000 },
+    ),
+  );
+  const held = out.conversations.map((c) => c.messages.length);
+  assert.equal(held[0], 100, "the long thread holds its newest hundred");
+  assert.deepEqual(held.slice(1), Array(29).fill(10), 'REGRESSION: the other threads read "No messages yet"');
+  assert.deepEqual(
+    out.conversations[0].messages.map((m) => m.id),
+    Array.from({ length: 100 }, (_, j) => `m-0-${99 - j}`),
+    "its newest hundred, in reading order",
+  );
+});
+
 test("the escalated threads the page did not load come back in one read, by id, in the tab's workspace only; a malformed id refuses", async () => {
   const C1 = uuid(1);
   const C2 = uuid(2);

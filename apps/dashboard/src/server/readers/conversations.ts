@@ -1,10 +1,10 @@
 import "server-only";
 import { contactName, type ConversationDto, type MessageDto } from "@chanlytics/contracts";
-import { CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toConversationDto, type MessageRow } from "../dto";
+import { CONVERSATION_COLUMNS, groupMessages, messageRowsOf, toConversationDto } from "../dto";
 import { stamp, type Reader, type RowRef } from "./index";
 
-/** The most rows PostgREST answers for one select (supabase config max_rows): a longer read pages. */
-const PAGE = 1000;
+/** Each thread's newest messages the Inbox holds: a hundred, the page GET conversations/:id reads a thread by. */
+const EACH = 100;
 /** The Inbox's messages across the threads it shows, newest first. */
 const MESSAGES_MAX = 4000;
 
@@ -15,7 +15,9 @@ export const whoOf: (c: ConversationDto) => string = contactName;
  * GET conversations, as the route answers it: the hundred most recent
  * conversations of the workspace with their recent messages, as the Inbox
  * draws them, or the ones `ids` names (parsed, capped and checked by the
- * route). Each is a thread a citation may name, called what the Inbox calls it.
+ * route). A thread's recent messages are its newest hundred, and the read holds
+ * four thousand in all. Each is a thread a citation may name, called what the
+ * Inbox calls it.
  */
 export const conversations: Reader<{ ids: string[] | null }, { conversations: ConversationDto[] }> = {
   name: "conversations",
@@ -30,23 +32,19 @@ export const conversations: Reader<{ ids: string[] | null }, { conversations: Co
     const ids = (convs ?? []).map((c) => c.id);
     let byConv = new Map<string, MessageDto[]>();
     if (ids.length) {
-      // Paged: PostgREST answers a thousand rows whatever a select asks for, so .limit(4000) read 1,000 and the
-      // older threads came back with no messages, reading "No messages yet" (I5). The id breaks ties, so a page
-      // boundary neither repeats a message nor skips one.
-      const rows: MessageRow[] = [];
-      for (let from = 0; from < MESSAGES_MAX; from += PAGE) {
-        const { data: page, error: merr } = await supabase
-          .from("messages")
-          .select(MESSAGE_COLUMNS)
-          .in("conversation_id", ids)
-          .order("created_at", { ascending: false })
-          .order("id", { ascending: false })
-          .range(from, Math.min(from + PAGE, MESSAGES_MAX) - 1);
-        if (merr) throw new Error(merr.message);
-        rows.push(...((page ?? []) as MessageRow[]));
-        if ((page ?? []).length < PAGE) break;
-      }
-      byConv = groupMessages(rows);
+      // One read, bounded by what it answers (00235): each thread's newest hundred through the thread's own index,
+      // then the newest four thousand of those, the id breaking ties, as one list PostgREST's thousand rows do not
+      // cut. Paged by OFFSET, this read every message the hundred threads ever had and sorted them for each page, up
+      // to four times on every refresh, and one thread with a long history could fill every page and leave the others
+      // reading "No messages yet" (I5).
+      const { data, error: merr } = await supabase.rpc("newest_messages", {
+        p_tenant_id: tenantId,
+        p_threads: ids,
+        p_each: EACH,
+        p_most: MESSAGES_MAX,
+      });
+      if (merr) throw new Error(merr.message);
+      byConv = groupMessages(messageRowsOf(data));
     }
     const conversations: ConversationDto[] = (convs ?? []).map((c) =>
       toConversationDto(c, byConv.get(c.id) ?? [], userId),

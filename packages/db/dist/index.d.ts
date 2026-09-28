@@ -5714,6 +5714,15 @@ type Database = {
                 Args: never;
                 Returns: string;
             };
+            newest_messages: {
+                Args: {
+                    p_each: number;
+                    p_most: number;
+                    p_tenant_id: string;
+                    p_threads: string[];
+                };
+                Returns: Json;
+            };
             note_candidates: {
                 Args: {
                     p_limit?: number;

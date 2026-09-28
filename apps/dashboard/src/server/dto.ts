@@ -44,7 +44,7 @@ interface ConversationRow {
   } | null;
 }
 
-export interface MessageRow {
+interface MessageRow {
   id: string;
   conversation_id: string;
   direction: string;
@@ -114,6 +114,22 @@ export function mediaPublic(raw: unknown): MessageDto["media"] {
     filename: str("filename"),
     caption: str("caption"),
   };
+}
+
+/** A row newest_messages answered (00235): a message, with the columns MESSAGE_COLUMNS names. */
+function isMessageRow(r: unknown): r is MessageRow {
+  if (!r || typeof r !== "object") return false;
+  const m = r as Record<string, unknown>;
+  return typeof m.id === "string" && typeof m.conversation_id === "string" && typeof m.created_at === "string";
+}
+
+/**
+ * newest_messages' answer as the reader's rows: one JSON list, which PostgREST's max_rows does not cut, of messages
+ * the function built from MESSAGE_COLUMNS' twelve columns. Anything else in it is no row, and an answer that is no list
+ * is none.
+ */
+export function messageRowsOf(data: unknown): MessageRow[] {
+  return Array.isArray(data) ? data.filter(isMessageRow) : [];
 }
 
 export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {

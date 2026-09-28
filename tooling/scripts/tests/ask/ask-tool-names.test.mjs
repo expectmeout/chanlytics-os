@@ -479,6 +479,9 @@ function renamed(old, input) {
 /** Whose an action is, in the registry's refusal (tools/context.ts WHOSE). */
 const WHOSE = { owner: "an owner's", partner: "an owner's or a partner's" };
 
+/** The old tools that read the threads through the conversations reader (readers/conversations.ts). */
+const THROUGH_THE_HUNDRED = new Set(["get_today", "list_threads"]);
+
 /** An old name as a refusal now says it: the tool, and its action in words. */
 const inWords = (to) => (to.includes(".") ? to.replace(".", " with action ") : to);
 
@@ -515,6 +518,12 @@ test("every old tool's call, made by its new name and action, answers the bytes 
     const needs = act && call.input.action ? PROPOSAL_SPECS[act.kind].needs : null;
     if (needs && !roleAtLeast(role, needs))
       result = JSON.stringify({ error: `${call.name}: action ${call.input.action} is ${WHOSE[needs]}` });
-    assert.deepEqual(got, { ...want, result }, `${old} -> ${NAMES[old]} ${JSON.stringify(input)}`);
+    // The threads' messages are one call since 00235: the conversations reader read the table a page at a time, and
+    // reads each thread's newest through newest_messages. The old tools that read through it made that read, and no
+    // other of the table: the one change to the reads, with the bytes unchanged.
+    const reads = THROUGH_THE_HUNDRED.has(old)
+      ? want.reads.map((r) => (r === "messages.select" ? "rpc:newest_messages" : r))
+      : want.reads;
+    assert.deepEqual(got, { ...want, result, reads }, `${old} -> ${NAMES[old]} ${JSON.stringify(input)}`);
   }
 });
