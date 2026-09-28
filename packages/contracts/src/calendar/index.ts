@@ -1,38 +1,18 @@
 /** The owner's calendar as the receptionist reads it: the feed's address, what is open, and the people in it. */
+export { zoneOffsetMs, localToUtcMs, clockInZone, dayInZone, dayPlusInZone, WEEKDAY_KEYS } from "./zone-math";
+export { parseIcs } from "./feed";
+export type { BusyBlock, FeedAttendee, FeedItem, ParsedFeed, ParseOptions } from "./feed";
 export {
-  zoneOffsetMs,
-  localToUtcMs,
-  clockInZone,
-  dayInZone,
-  dayPlusInZone,
-  parseIcs,
   dayIntervals,
   closedOn,
   freeWindows,
   filterOpenings,
   describeOpenings,
-  sameListed,
-  matchService,
-  needsConsultation,
-  offerFor,
-  offerLead,
-  WEEKDAY_KEYS,
   BOOKING_DEFAULTS,
-  foldName,
 } from "./availability";
-export type {
-  BusyBlock,
-  FeedAttendee,
-  FeedItem,
-  ParsedFeed,
-  ParseOptions,
-  BookingRulesLike,
-  Opening,
-  FreeWindowsInput,
-  ServiceLike,
-  ConsultRules,
-  ServiceOffer,
-} from "./availability";
+export type { BookingRulesLike, Opening, FreeWindowsInput } from "./availability";
+export { sameListed, matchService, needsConsultation, offerFor, offerLead, foldName } from "./service-offer";
+export type { ServiceLike, ConsultRules, ServiceOffer } from "./service-offer";
 export {
   feedUrlOk,
   fetchPublic,
@@ -46,13 +26,15 @@ export {
   FEED_MAX_BYTES,
 } from "./feed-url";
 export type { FeedFailure, FeedHorizon } from "./feed-url";
+export type {
+  CalendarItemDto,
+  CalendarDayDto,
+  CalendarFeedDto,
+  CalendarServiceDto,
+  CalendarWeekDto,
+} from "./calendar-dto";
+export { shiftKey, mondayOf, isDayKey, monthSpan, shiftMonth, monthLabelOf, zoneMidnight } from "./day-keys";
 export {
-  shiftKey,
-  mondayOf,
-  isDayKey,
-  monthSpan,
-  shiftMonth,
-  monthLabelOf,
   clockLabel,
   closureDatesLabel,
   closuresFrom,
@@ -61,32 +43,21 @@ export {
   rulesLine,
   feedNotes,
   hoursLines,
-  serviceOf,
-  toCalendarVM,
-  zoneMidnight,
-  spanForView,
-  windowFor,
-  coversSpan,
-  frameOf,
   CALENDAR_FEED_WORDS,
-} from "./calendar";
+} from "./calendar-words";
+export type { CalendarFeedNoteVM, CalendarFeedHealth } from "./calendar-words";
 export type {
-  CalendarItemDto,
-  CalendarDayDto,
-  CalendarFeedDto,
-  CalendarServiceDto,
-  CalendarWeekDto,
   CalendarBlockVM,
   CalendarBandVM,
   CalendarWindowVM,
   CalendarDayVM,
   CalendarServiceVM,
   CalendarClosureVM,
-  CalendarFeedNoteVM,
-  CalendarFeedHealth,
   CalendarVM,
-  CalendarView,
-} from "./calendar";
+} from "./calendar-vm";
+export { serviceOf, toCalendarVM } from "./calendar";
+export { spanForView, windowFor, coversSpan, frameOf } from "./calendar-views";
+export type { CalendarView } from "./calendar-views";
 export {
   calendarOwnerOf,
   ownAddressesOf,

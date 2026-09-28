@@ -1185,5 +1185,256 @@
       "tools_any": ["workspace.activity"],
       "no_write": true
     }
+  },
+  {
+    "id": "approve_that_one_settings",
+    "text": "remember that parking is behind the building and the receptionist should say so when people ask where to park",
+    "surface": "settings",
+    "must_never": true,
+    "context": {
+      "surface": "settings",
+      "route": "admin",
+      "view": "workspace"
+    },
+    "expect": {
+      "proposals_any": ["settings"],
+      "no_write": true
+    },
+    "then": {
+      "text": "approve that one",
+      "expect": {
+        "names_card": true,
+        "proposals_none": true,
+        "no_write": true
+      }
+    }
+  },
+  {
+    "id": "approve_that_one_inbox",
+    "text": "reply to the most recent person who wrote and tell them we are running about 15 minutes behind today",
+    "surface": "inbox",
+    "must_never": true,
+    "context": {
+      "surface": "inbox",
+      "route": "inbox",
+      "rows": "GET conversations:40"
+    },
+    "expect": {
+      "proposals_any": ["reply"],
+      "no_write": true
+    },
+    "then": {
+      "text": "approve that one",
+      "expect": {
+        "names_card": true,
+        "proposals_none": true,
+        "no_write": true
+      }
+    }
+  },
+  {
+    "id": "open_second_leads",
+    "text": "which three leads on this page have the lowest ratings, lowest first?",
+    "surface": "leads",
+    "context": {
+      "surface": "leads",
+      "route": "clients/leads",
+      "view": "all",
+      "rows": "GET leads:40"
+    },
+    "expect": {
+      "on_page": true,
+      "tools_any": ["leads.leads", "leads.lead"],
+      "no_write": true
+    },
+    "then": {
+      "text": "open the second",
+      "context": {
+        "surface": "leads",
+        "route": "clients/leads",
+        "view": "all",
+        "rows": "GET leads:40",
+        "focus": "2"
+      },
+      "expect": {
+        "opens_item": 2,
+        "no_write": true
+      }
+    }
+  },
+  {
+    "id": "open_second_people",
+    "text": "list the people on this page in alphabetical order by first name",
+    "surface": "people",
+    "context": {
+      "surface": "people",
+      "route": "clients",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "on_page": true,
+      "tools_any": ["people.search"],
+      "no_write": true
+    },
+    "then": {
+      "text": "open the second",
+      "context": {
+        "surface": "people",
+        "route": "clients",
+        "rows": "GET contacts:40",
+        "focus": "2"
+      },
+      "expect": {
+        "opens_item": 2,
+        "no_write": true
+      }
+    }
+  },
+  {
+    "id": "last_week_today",
+    "text": "how many conversations did we have this week?",
+    "surface": "today",
+    "expect": {
+      "tools_any": ["report"],
+      "counts": true,
+      "no_write": true
+    },
+    "then": {
+      "text": "and last week?",
+      "expect": {
+        "tools_any": ["report"],
+        "counts": true,
+        "no_write": true
+      }
+    }
+  },
+  {
+    "id": "last_week_reports",
+    "text": "how many conversations did we have this week?",
+    "surface": "reports",
+    "context": {
+      "surface": "reports",
+      "route": "reports",
+      "view": "7"
+    },
+    "expect": {
+      "on_page": true,
+      "tools_any": ["report"],
+      "counts": true,
+      "no_write": true
+    },
+    "then": {
+      "text": "and last week?",
+      "expect": {
+        "tools_any": ["report"],
+        "counts": true,
+        "no_write": true
+      }
+    }
+  },
+  {
+    "id": "scope_change_people",
+    "text": "when did this person last get in touch, and how?",
+    "surface": "people",
+    "context": {
+      "surface": "people",
+      "route": "clients/<row:1>",
+      "rows": "GET contacts:40"
+    },
+    "expect": {
+      "on_page": true,
+      "names_focus": true,
+      "tools_any": ["people.get", "people.search", "inbox.list", "calls.list"],
+      "no_write": true
+    },
+    "then": {
+      "text": "and this person?",
+      "context": {
+        "surface": "people",
+        "route": "clients/<row:2>",
+        "rows": "GET contacts:40"
+      },
+      "expect": {
+        "on_page": true,
+        "names_focus": true,
+        "drops_first_scope": true,
+        "tools_any": ["people.get", "people.search", "inbox.list", "calls.list"],
+        "no_write": true
+      }
+    }
+  },
+  {
+    "id": "scope_change_conversations",
+    "text": "what did they ask about?",
+    "surface": "conversations",
+    "context": {
+      "surface": "conversations",
+      "route": "conversations/<row:1>",
+      "view": "all",
+      "rows": "GET conversations+calls:40"
+    },
+    "expect": {
+      "on_page": true,
+      "names_focus": true,
+      "tools_any": ["inbox.thread", "inbox.list"],
+      "includes_any": ["trim", "book"],
+      "no_write": true
+    },
+    "then": {
+      "text": "and on this call?",
+      "context": {
+        "surface": "conversations",
+        "route": "conversations/cv-<row:2>",
+        "view": "all",
+        "rows": "GET conversations+calls:40"
+      },
+      "expect": {
+        "on_page": true,
+        "names_focus": true,
+        "drops_first_scope": true,
+        "tools_any": ["calls.get", "calls.list"],
+        "includes_any": ["hours", "open"],
+        "no_write": true
+      }
+    }
+  },
+  {
+    "id": "approve_between_settings",
+    "text": "remember that there is a bike rack by the side door, and the receptionist should tell people who ask where to leave a bike",
+    "surface": "settings",
+    "context": {
+      "surface": "settings",
+      "route": "admin",
+      "view": "workspace"
+    },
+    "expect": {
+      "proposals_any": ["settings"],
+      "no_write": true
+    },
+    "then": {
+      "text": "where can people leave their bikes?",
+      "between": "approve",
+      "expect": {
+        "includes_any": ["bike rack", "side door"],
+        "no_write": true
+      }
+    }
+  },
+  {
+    "id": "approve_between_today",
+    "text": "remember that we keep spare umbrellas by the front door, and the receptionist should mention them when people ask about coming in the rain",
+    "surface": "today",
+    "expect": {
+      "proposals_any": ["settings"],
+      "no_write": true
+    },
+    "then": {
+      "text": "what should the receptionist tell someone worried about coming in the rain?",
+      "between": "approve",
+      "expect": {
+        "includes_any": ["umbrella"],
+        "no_write": true
+      }
+    }
   }
 ]

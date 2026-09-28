@@ -4,7 +4,7 @@
  */
 import type { AskProposal } from "../ask/ask";
 import { DEAL_STAGE_WORDS } from "../deals/deal-words";
-import { PERSON_MODE_WORDS } from "../people/people";
+import { PERSON_MODE_WORDS } from "../people/person-receptionist";
 import { NOTE_WORDS } from "../notes/person-notes";
 import {
   PEOPLE_CHANGED,

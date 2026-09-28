@@ -2,7 +2,7 @@
  * When a playbook runs: the run plan, the workspace's local day and hour, the next open moment, and the schedule's
  * words. Moved whole from playbooks.ts (Reach out Part 2.5), which re-exports it.
  */
-import { shiftKey, zoneMidnight } from "../calendar/calendar";
+import { shiftKey, zoneMidnight } from "../calendar/day-keys";
 import { PLAYBOOK_HOURS, PLAYBOOK_VETO_DELAY_MS, triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
 import { HOUR_MS } from "../shared/time";

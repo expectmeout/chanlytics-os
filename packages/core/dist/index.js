@@ -1467,7 +1467,7 @@ function isRealDate(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES2 = {
+var DAY_NAMES = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -1476,7 +1476,7 @@ var DAY_NAMES2 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME = DAY_NAMES2;
+var DAY_NAME = DAY_NAMES;
 function dayProblems(h, day) {
   const name = DAY_NAME[day] ?? day;
   const out = [];
@@ -2329,16 +2329,12 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l) => {
 var PeopleExportQuerySchema = z9.object({
   list: z9.string().max(80).refine((t) => parseListToken(t) !== null, "Name a list by its token.").optional()
 });
-var WA_WINDOW_MS = 24 * HOUR_MS;
-var REPLY_LIMITS = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
-var CALL_HEARTBEAT_MS = 10 * MIN_MS;
-var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var MONTH_MS = 30 * DAY_MS;
+var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS = {
+  ...PERSON_MODE_LABELS,
+  inherit: "Follow the workspace"
+};
 var NOTE_MAX = 600;
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -2351,11 +2347,6 @@ var NOTE_REFUSALS = {
   bad_source: "Could not save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done."
-};
-var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = {
-  ...PERSON_MODE_LABELS,
-  inherit: "Follow the workspace"
 };
 var ASK_ANSWER_CAPS = {
   headline: 160,
@@ -2685,6 +2676,15 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   30 * MIN_MS
 ];
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var WA_WINDOW_MS = 24 * HOUR_MS;
+var REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
+var CALL_HEARTBEAT_MS = 10 * MIN_MS;
+var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var EVENT_KINDS = [
   "message.received",
   "message.sent",
@@ -3999,13 +3999,6 @@ import { z as z192 } from "zod";
 import { z as z202 } from "zod";
 import { z as z212 } from "zod";
 z22.config({ jitless: true });
-var NO_LINK_DETAILS = "their name, what they need, and where and when";
-function offersBookingLink(brain) {
-  return !brain || !!brain.booking_link;
-}
-function priceNextStep(hasBookingLink) {
-  return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
-}
 function zoneParts(tz, at2) {
   const parts2 = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
@@ -4053,22 +4046,6 @@ function dayPlusInZone(tz, atMs, days) {
   const pad = (n) => String(n).padStart(2, "0");
   const y = at2.getUTCFullYear(), m = at2.getUTCMonth() + 1, d = at2.getUTCDate();
   return { key: `${y}-${pad(m)}-${pad(d)}`, weekday: WEEKDAY_KEYS[at2.getUTCDay()], y, m, d };
-}
-function dayIntervals(h) {
-  const raw = [];
-  if (h?.open && h?.close) raw.push([h.open, h.close]);
-  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
-  const usable = raw.filter(([o, c]) => c > o).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
-  const merged = [];
-  for (const [o, c] of usable) {
-    const last = merged[merged.length - 1];
-    if (last && o <= last[1]) {
-      if (c > last[1]) last[1] = c;
-    } else {
-      merged.push([o, c]);
-    }
-  }
-  return merged;
 }
 var MIN_MS2 = 6e4;
 var HOUR_MS2 = 36e5;
@@ -5141,7 +5118,7 @@ function isRealDate2(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES22 = {
+var DAY_NAMES2 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -5150,7 +5127,7 @@ var DAY_NAMES22 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME2 = DAY_NAMES22;
+var DAY_NAME2 = DAY_NAMES2;
 function dayProblems2(h, day) {
   const name = DAY_NAME2[day] ?? day;
   const out = [];
@@ -6082,6 +6059,7 @@ var PEOPLE_LISTS2 = BUILTIN_LISTS2.map((l) => {
 var PeopleExportQuerySchema2 = z92.object({
   list: z92.string().max(80).refine((t) => parseListToken2(t) !== null, "Name a list by its token.").optional()
 });
+var MONTH_MS2 = 30 * DAY_MS2;
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
 }
@@ -6101,46 +6079,6 @@ function purposeOfTemplate(category) {
 }
 function purposeOfPlaybook(policyClass) {
   return policyClass === "booking" || policyClass === "follow_up" ? "conversational" : "marketing";
-}
-var PRICE_PATTERNS = [
-  /\$\s?\d/,
-  /\b\d+(?:[.,]\d{2})?\s?(?:dollars?|usd|bucks?)\b/i,
-  /\b\d+(?:[.,]\d{2})?\s?(?:d[oó]lares?|pesos?)\b/i
-];
-function violatesNoPrices(text) {
-  return PRICE_PATTERNS.some((p) => p.test(text));
-}
-var WA_WINDOW_MS2 = 24 * HOUR_MS2;
-function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
-  if (!lastWaInboundAtIso) return { open: false, closesAtIso: null };
-  const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS2;
-  return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
-}
-function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
-  return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
-}
-var REPLY_LIMITS2 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l) => l.max));
-var CALL_HEARTBEAT_MS2 = 10 * MIN_MS2;
-var REPLY_DELAY_DEFAULT_MS = 3e4;
-var REPLY_DELAY_MIN_MS = 5e3;
-var REPLY_DELAY_MAX_MS2 = 10 * MIN_MS2;
-function replyDelayMs(mode, limits) {
-  if (mode !== "veto") return 0;
-  const raw = limits?.reply_delay_ms;
-  if (typeof raw !== "number" || !Number.isFinite(raw)) return REPLY_DELAY_DEFAULT_MS;
-  return Math.min(REPLY_DELAY_MAX_MS2, Math.max(REPLY_DELAY_MIN_MS, Math.round(raw)));
-}
-var ms = (t) => typeof t === "number" ? t : Date.parse(t);
-function visitStartTime(v, tz) {
-  if (v.allDay || v.all_day) return "all day";
-  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(
-    new Date(ms(v.start))
-  );
 }
 var CARRIER_CONSENT_SOURCE = "carrier";
 function mayReceive(r22, purpose) {
@@ -6163,7 +6101,11 @@ function saidYesTo(r22, purpose) {
     { proactive: true }
   ).ok;
 }
-var MONTH_MS2 = 30 * DAY_MS2;
+var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS2 = {
+  ...PERSON_MODE_LABELS2,
+  inherit: "Follow the workspace"
+};
 var NOTE_MAX2 = 600;
 var NOTE_REFUSALS2 = {
   empty: "Write something first.",
@@ -6176,15 +6118,6 @@ var NOTE_REFUSALS2 = {
   bad_source: "Could not save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done."
-};
-var NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
-function noNumberWords(who, purpose) {
-  return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_NUMBER_REACH}.`;
-}
-var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS2 = {
-  ...PERSON_MODE_LABELS2,
-  inherit: "Follow the workspace"
 };
 var ASK_ANSWER_CAPS2 = {
   headline: 160,
@@ -6619,6 +6552,10 @@ function templateTitle(name, title) {
 function playbookName(trigger, tpl) {
   return starterForTrigger(trigger.id)?.name === tpl.name ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
 }
+var NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
+function noNumberWords(who, purpose) {
+  return `Nobody on ${who} can be sent ${purpose === "marketing" ? "an offer" : "a message"} yet \u2014 ${NO_NUMBER_REACH}.`;
+}
 var L2 = (id, name, region, native) => ({
   id,
   label: region ? `${name} (${region})` : name,
@@ -6859,7 +6796,48 @@ function emptyAudienceRefusal(purpose, label, pool) {
   if (pool.some((r22) => saidYesTo(r22, purpose))) return noNumberWords(`\u201C${label}\u201D`, purpose);
   return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and the QR on Broadcasts." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and the QR on Broadcasts.";
 }
-var DAY_LABEL = DAY_NAMES22;
+var NO_LINK_DETAILS = "their name, what they need, and where and when";
+function offersBookingLink(brain) {
+  return !brain || !!brain.booking_link;
+}
+function priceNextStep(hasBookingLink) {
+  return hasBookingLink ? "offer the booking link" : `take ${NO_LINK_DETAILS}`;
+}
+function dayIntervals(h) {
+  const raw = [];
+  if (h?.open && h?.close) raw.push([h.open, h.close]);
+  for (const iv of h?.intervals ?? []) if (iv?.open && iv?.close) raw.push([iv.open, iv.close]);
+  const usable = raw.filter(([o, c]) => c > o).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  const merged = [];
+  for (const [o, c] of usable) {
+    const last = merged[merged.length - 1];
+    if (last && o <= last[1]) {
+      if (c > last[1]) last[1] = c;
+    } else {
+      merged.push([o, c]);
+    }
+  }
+  return merged;
+}
+function keyParts(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return { y, m: m ?? 1, d: d ?? 1 };
+}
+function shiftKey(key, n) {
+  const { y, m, d } = keyParts(key);
+  const at2 = new Date(Date.UTC(y, m - 1, d + n));
+  return `${at2.getUTCFullYear()}-${String(at2.getUTCMonth() + 1).padStart(2, "0")}-${String(at2.getUTCDate()).padStart(2, "0")}`;
+}
+function mondayOf(key) {
+  const { y, m, d } = keyParts(key);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return shiftKey(key, -((dow + 6) % 7));
+}
+function zoneMidnight(tz, key) {
+  const { y, m, d } = keyParts(key);
+  return localToUtcMs(tz, y, m, d, 0, 0);
+}
+var DAY_LABEL = DAY_NAMES2;
 function dayIntervals2(h) {
   return dayIntervals(h).map(([open, close]) => ({ open, close }));
 }
@@ -6896,24 +6874,46 @@ function hoursLines(hours) {
     return `${label}: ${r22.text}`;
   });
 }
-function keyParts(key) {
-  const [y, m, d] = key.split("-").map(Number);
-  return { y, m: m ?? 1, d: d ?? 1 };
-}
-function shiftKey(key, n) {
-  const { y, m, d } = keyParts(key);
-  const at2 = new Date(Date.UTC(y, m - 1, d + n));
-  return `${at2.getUTCFullYear()}-${String(at2.getUTCMonth() + 1).padStart(2, "0")}-${String(at2.getUTCDate()).padStart(2, "0")}`;
-}
-function mondayOf(key) {
-  const { y, m, d } = keyParts(key);
-  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return shiftKey(key, -((dow + 6) % 7));
-}
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-function zoneMidnight(tz, key) {
-  const { y, m, d } = keyParts(key);
-  return localToUtcMs(tz, y, m, d, 0, 0);
+var PRICE_PATTERNS = [
+  /\$\s?\d/,
+  /\b\d+(?:[.,]\d{2})?\s?(?:dollars?|usd|bucks?)\b/i,
+  /\b\d+(?:[.,]\d{2})?\s?(?:d[oó]lares?|pesos?)\b/i
+];
+function violatesNoPrices(text) {
+  return PRICE_PATTERNS.some((p) => p.test(text));
+}
+var WA_WINDOW_MS2 = 24 * HOUR_MS2;
+function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
+  if (!lastWaInboundAtIso) return { open: false, closesAtIso: null };
+  const closes = new Date(lastWaInboundAtIso).getTime() + WA_WINDOW_MS2;
+  return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
+}
+function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
+  return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
+}
+var REPLY_LIMITS2 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l) => l.max));
+var CALL_HEARTBEAT_MS2 = 10 * MIN_MS2;
+var REPLY_DELAY_DEFAULT_MS = 3e4;
+var REPLY_DELAY_MIN_MS = 5e3;
+var REPLY_DELAY_MAX_MS2 = 10 * MIN_MS2;
+function replyDelayMs(mode, limits) {
+  if (mode !== "veto") return 0;
+  const raw = limits?.reply_delay_ms;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return REPLY_DELAY_DEFAULT_MS;
+  return Math.min(REPLY_DELAY_MAX_MS2, Math.max(REPLY_DELAY_MIN_MS, Math.round(raw)));
+}
+var ms = (t) => typeof t === "number" ? t : Date.parse(t);
+function visitStartTime(v, tz) {
+  if (v.allDay || v.all_day) return "all day";
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(
+    new Date(ms(v.start))
+  );
 }
 var EVENT_KINDS2 = [
   "message.received",
@@ -9795,7 +9795,7 @@ function isRealDate3(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES23 = {
+var DAY_NAMES3 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -9804,7 +9804,7 @@ var DAY_NAMES23 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME3 = DAY_NAMES23;
+var DAY_NAME3 = DAY_NAMES3;
 function dayProblems3(h, day) {
   const name = DAY_NAME3[day] ?? day;
   const out = [];
@@ -10657,17 +10657,13 @@ var PEOPLE_LISTS3 = BUILTIN_LISTS3.map((l) => {
 var PeopleExportQuerySchema3 = z93.object({
   list: z93.string().max(80).refine((t) => parseListToken3(t) !== null, "Name a list by its token.").optional()
 });
-var WA_WINDOW_MS3 = 24 * HOUR_MS3;
-var REPLY_LIMITS3 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY3 = Math.max(...Object.values(REPLY_LIMITS3).map((l) => l.max));
-var CALL_HEARTBEAT_MS3 = 10 * MIN_MS3;
-var REPLY_DELAY_MAX_MS3 = 10 * MIN_MS3;
-var CARRIER_CONSENT_SOURCE2 = "carrier";
 var MONTH_MS3 = 30 * DAY_MS3;
+var CARRIER_CONSENT_SOURCE2 = "carrier";
+var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS3 = {
+  ...PERSON_MODE_LABELS3,
+  inherit: "Follow the workspace"
+};
 var NOTE_MAX3 = 600;
 var NOTE_REFUSALS3 = {
   empty: "Write something first.",
@@ -10680,11 +10676,6 @@ var NOTE_REFUSALS3 = {
   bad_source: "Could not save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done."
-};
-var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS3 = {
-  ...PERSON_MODE_LABELS3,
-  inherit: "Follow the workspace"
 };
 var ASK_ANSWER_CAPS3 = {
   headline: 160,
@@ -11014,6 +11005,15 @@ var BROADCAST_THROTTLE_WAITS_MS3 = [
   30 * MIN_MS3
 ];
 var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var WA_WINDOW_MS3 = 24 * HOUR_MS3;
+var REPLY_LIMITS3 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY3 = Math.max(...Object.values(REPLY_LIMITS3).map((l) => l.max));
+var CALL_HEARTBEAT_MS3 = 10 * MIN_MS3;
+var REPLY_DELAY_MAX_MS3 = 10 * MIN_MS3;
 var EVENT_KINDS3 = [
   "message.received",
   "message.sent",

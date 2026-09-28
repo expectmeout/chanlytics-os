@@ -3,7 +3,7 @@
  * and its one next act (deal-acts.ts dealNextAct), or, with none open, one quiet line; and a deal's next step
  * (dealStepOf), which its card says.
  */
-import { foldName } from "../../calendar/availability";
+import { foldName } from "../../calendar/service-offer";
 import { visitDay } from "../../calendar/calendar-people";
 import { clockDate } from "../../shared/clock";
 import { DEAL_LINE_NONE, DEAL_STAGE_WORDS } from "../deal-words";

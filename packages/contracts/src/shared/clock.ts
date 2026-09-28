@@ -31,7 +31,7 @@
  * UTC, so a bad row never throws on a page; the write path already refuses one
  * (workspace.ts isTimezone).
  */
-import { localToUtcMs } from "../calendar/availability";
+import { localToUtcMs } from "../calendar/zone-math";
 import { DAY_MS } from "./time";
 
 interface ZoneFormats {
