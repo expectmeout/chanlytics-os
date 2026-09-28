@@ -29,6 +29,15 @@
  * a must-never case passes only when both its turns passed on every repetition. A turn 2 that turn 1 left nothing to be
  * asked in (no answer, no thread, no card to name, too few items to open) is a failing row that asked nothing.
  *
+ * Between the turns, turn 1's card may be approved (`then.between: "approve"`): only a settings card whose change is
+ * add_note, one note more for the receptionist, approved as the Line approves it (GET settings, the card's own commit
+ * sent as PUT settings marked `x-via: ask`, the outcome recorded on turn 1's message), and put back in a `finally` once
+ * turn 2 has answered (the card's own undo, the outcome recorded as undone, the settings read again and compared field
+ * by field with the ones before). That note and its undo are the only things a run writes but its threads. One that
+ * cannot be put back ends the run at once, exit 3, saying what to put back by hand. Do not run across 09:00 UTC: the
+ * nightly's converge (e2e-workspace.mjs) rewrites the workspace's config and deletes its Ask threads then, so a turn 2
+ * can lose its thread and a put back its compare.
+ *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
  *   E2E_USER_EMAIL=… [REPS=3] [SURFACE=today] [ONLY=id,id] node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
  *   [REPS=3] [SURFACE=…] [ONLY=…] node tooling/scripts/eval-ask.mjs --list [tooling/evals/ask-cases.json]
@@ -45,6 +54,7 @@ import { usedAny } from "../evals/rename-ask-tools.mjs";
 import {
   ROW_SOURCES,
   announcement,
+  approveBetween,
   claimsWrite,
   contextFails,
   describeContext,
@@ -54,6 +64,7 @@ import {
   neededGets,
   notAsked,
   pageProblems,
+  putBack,
   resolveContext,
   secondScope,
   secondTurn,
@@ -540,6 +551,24 @@ async function askTurn(q, rep, turn, { warmIt, threadId = null, scopeOf, first =
   return { r, row };
 }
 
+/** The Line's own requests, made from here (approveBetween, putBack): the workspace named, the session's cookie. */
+const io = { fetch, at: (path) => scopedUrl(path, tenantId), cookie, origin: new URL(BASE).origin, now: Date.now };
+
+/**
+ * A change the eval made to the workspace and could not put back: said, with what to put back by hand, and the run
+ * ends at once (exit 3), before anything else is asked or written.
+ */
+function unrestored(back, at) {
+  process.stderr.write(
+    `\nRESTORE FAILED after ${at}: ${back.why}\n` +
+      `The workspace's settings still hold the note turn 1's card added, and nothing after it was asked. Put them back by hand:\n` +
+      `  in Settings › Business, take out the note “${back.byHand.note.title}” (${back.byHand.note.text});\n` +
+      `  or PUT /api/v1/settings?workspace=${tenantId} with { config, version }: the version the settings have now, and this config:\n` +
+      `${JSON.stringify(back.byHand.config, null, 2)}\n`,
+  );
+  process.exit(3);
+}
+
 /** A turn toward the stop: a refusal adds one, an answer starts the count again. True at the third in a row. */
 function thirdRefusal(r, row) {
   // A request that threw (a 5xx, the route's rate limit) counts too: it says nothing about the model either.
@@ -560,21 +589,51 @@ run: for (let rep = 1; rep <= REPS; rep++) {
     if (!two) continue;
     // Turn 2 is asked in turn 1's thread, once turn 1 has answered, or is a row that asked nothing and says why.
     const t1 = { final: one.r.final, threadId: one.r.threadId ?? null, scope: one.row.scope };
-    const why = notAsked(two, t1);
+    let why = notAsked(two, t1);
+    let approval = null;
+    let back = null;
+    let second = null;
+    try {
+      if (!why && two.between === "approve") {
+        const a = await approveBetween(io, t1.final);
+        approval = a.approval;
+        if (!a.ok) why = `turn 1's card could not be approved: ${a.why}`;
+        else
+          process.stderr.write(
+            `     approved “${a.approval.card.title}” (${a.approval.card.summary}); settings v${a.approval.before.version} → v${a.approval.record.version_after}, put back once turn 2 has answered\n`,
+          );
+      }
+      if (!why)
+        second = await askTurn(two, rep, 2, {
+          warmIt: two.warm,
+          threadId: t1.threadId,
+          scopeOf: (page) => secondScope(page, t1.scope),
+          first: t1,
+        });
+    } finally {
+      // Whatever turn 2 did, a change the eval made is put back before anything else is asked; one that cannot be ends
+      // the run here.
+      if (approval) {
+        back = await putBack(io, approval);
+        if (!back.ok) unrestored(back, `${c.id} #${rep}`);
+      }
+    }
+    const between = approval
+      ? {
+          approved: { id: approval.card.id, title: approval.card.title, summary: approval.card.summary },
+          versions: [approval.before.version, approval.record.version_after],
+          put_back: back.undone,
+          outcome_undone: back.recorded,
+        }
+      : null;
     if (why) {
       // Nothing was asked, so nothing was refused: the count toward the stop stands as it was.
       const row = rowOf(two, rep, 2, NOT_ASKED, null, { pass: false, fails: [`not asked: ${why}`], notes: [] });
-      results.push(row);
+      results.push(between ? { ...row, between } : row);
       said(row, NOT_ASKED, null);
       continue;
     }
-    const second = await askTurn(two, rep, 2, {
-      warmIt: two.warm,
-      threadId: t1.threadId,
-      scopeOf: (page) => secondScope(page, t1.scope),
-      first: t1,
-    });
-    results.push(second.row);
+    results.push(between ? { ...second.row, between } : second.row);
     if (thirdRefusal(second.r, second.row)) break run;
   }
 }

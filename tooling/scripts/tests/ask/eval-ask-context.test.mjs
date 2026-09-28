@@ -13,6 +13,7 @@ import { PageContextSchema } from "@chanlytics/contracts";
 import {
   ROW_KINDS,
   announcement,
+  approveBetween,
   claimsWrite,
   contextFails,
   contextProblems,
@@ -27,6 +28,7 @@ import {
   ordinal,
   pageProblems,
   parseRows,
+  putBack,
   resolveContext,
   secondScope,
   secondTurn,
@@ -296,7 +298,9 @@ test("a second turn is asked in the first's thread: its page the case's, its own
     surface: "people",
     must_never: true,
     warm: false,
+    between: null,
   });
+  assert.equal(secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, between: "approve" } }).between, "approve");
   const focus = { ...PEOPLE_PAGE, focus: "2" };
   const own = secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, context: focus } });
   assert.deepEqual([own.context, own.surface, own.warm], [focus, "people", true], "its own page, warmed again");
@@ -346,6 +350,20 @@ test("a second turn the runner cannot ask is said before anything is read, and i
     /x: its second turn is asked on today, its page is people/,
   );
   assert.equal(said({ text: "b", expect: {}, context: null, surface: "today" }), "", "no page: asked where it says");
+  // Approving between the turns is for a settings card alone, and turn 1 says it makes one (the add_note itself is
+  // known only once the card is made: approveBetween refuses any other change).
+  const settings = { ...TWO_TURNS, expect: { proposals_any: ["settings"], no_write: true } };
+  const approving = (c, between = "approve") => pageProblems([{ ...c, then: { ...c.then, between } }]).join("; ");
+  assert.equal(approving(settings), "");
+  assert.match(
+    approving(TWO_TURNS),
+    /^x: between: "approve" approves a settings card whose change is add_note, and turn 1 expects \[\]$/,
+  );
+  assert.match(
+    approving({ ...settings, expect: { proposals_any: ["settings", "reply"] } }),
+    /and turn 1 expects \["settings","reply"\]/,
+  );
+  assert.match(approving(settings, "dismiss"), /^x: nothing the eval does between turns is called "dismiss"$/);
   assert.deepEqual(
     neededGets([
       {
@@ -364,6 +382,10 @@ test("turn 2 is not asked when turn 1 left it nothing to ask in, and a turn 2 an
   assert.equal(notAsked({ expect: {} }, { final: m, threadId: null }), "turn 1 named no thread");
   assert.equal(notAsked({ expect: {} }, { final: m, threadId: T1 }), null);
   assert.equal(notAsked({ expect: { names_card: true } }, { final: m, threadId: T1 }), "turn 1 made no card to name");
+  assert.equal(
+    notAsked({ expect: {}, between: "approve" }, { final: m, threadId: T1 }),
+    "turn 1 made no card to approve",
+  );
   const one = final({ items: [item(U(12), "Casey Example")] });
   assert.equal(
     notAsked({ expect: { opens_item: 2 } }, { final: one, threadId: T1 }),
@@ -492,6 +514,176 @@ test("turn 2's own checks run from its expect, and a check of a second turn on a
   );
   assert.match(said({ expect: {}, then: { text: "b", expect: { opens_item: "2" } } }), /an item's place, 1 to 5/);
   assert.equal(said({ expect: {}, then: { text: "b", expect: { opens_item: 5, names_card: true } } }), "");
+});
+
+/* ---- a card approved between the turns, and put back ---- */
+
+/** The seeded workspace's config as GET settings answers it: no profile, so no hours or closures another case reads. */
+const SEED = { brain: { business_name: "Example Studio", phone_display: "(212) 555-0142" }, notifications: {} };
+const ORIGIN = "https://app.example.com";
+
+/**
+ * The settings door and a card's outcome door, as their routes answer them, over a config in memory: GET settings;
+ * PUT settings, a 409 on a stale version and one version on from what it stored; POST an outcome. `hold` answers a
+ * door's next request with a refusal instead; `afterWrite` answers the next saves with a refusal once they have
+ * stored; `mangle` changes what a save stores.
+ */
+function doors({ version = 7, hold = {}, afterWrite = [], mangle = (c) => c } = {}) {
+  const state = { config: structuredClone(SEED), version, calls: [], outcomes: [] };
+  const answer = (status, data) =>
+    new Response(JSON.stringify(status < 400 ? { data } : { error: { code: "refused", message: data } }), { status });
+  const fetch = async (url, init = {}) => {
+    const u = new URL(url);
+    const method = init.method ?? "GET";
+    const body = init.body === undefined ? undefined : JSON.parse(init.body);
+    const key = `${method} ${u.pathname}`;
+    state.calls.push({ key, workspace: u.searchParams.get("workspace"), headers: init.headers ?? {}, body });
+    const held = hold[key]?.shift();
+    if (held) return answer(held.status, held.message);
+    if (key === "GET /api/v1/settings")
+      return answer(200, { config: structuredClone(state.config), version: state.version, configBroken: false });
+    if (key === "PUT /api/v1/settings") {
+      if (body.version !== state.version) return answer(409, "Someone else saved the settings since you opened them.");
+      state.config = mangle(structuredClone(body.config));
+      state.version += 1;
+      const failed = afterWrite.shift();
+      if (failed) return answer(failed.status, failed.message);
+      return answer(200, { config: structuredClone(state.config), version: state.version });
+    }
+    if (method === "POST" && /^\/api\/v1\/ask\/messages\/[^/]+\/proposals\/p-[a-z0-9-]+$/.test(u.pathname)) {
+      state.outcomes.push(body);
+      return answer(200, { proposal: {} });
+    }
+    return answer(404, "no such door");
+  };
+  const io = {
+    fetch,
+    at: (p) => `${ORIGIN}${p}?workspace=W`,
+    cookie: "sb-x-auth-token=1",
+    origin: ORIGIN,
+    now: () => 1000,
+  };
+  return { state, io };
+}
+const approved = final({ text: "One card to review: Remember this.", proposals: [CARD] });
+const NOTE = { title: "Parking", text: "Parking is behind the building." };
+
+test("a settings note approved between the turns as the Line approves it, turn 2 asked, then put back and read again", async () => {
+  const d = doors();
+  const a = await approveBetween(d.io, approved);
+  assert.equal(a.ok, true, a.why);
+  assert.deepEqual(d.state.config, { ...SEED, brain: { ...SEED.brain, profile: { notes: [NOTE] } } }, "the note");
+  const [get, put, told] = d.state.calls;
+  assert.deepEqual(
+    d.state.calls.map((c) => c.key),
+    ["GET /api/v1/settings", "PUT /api/v1/settings", `POST /api/v1/ask/messages/${U(81)}/proposals/p-1`],
+  );
+  assert.ok(d.state.calls.every((c) => c.workspace === "W" && c.headers.cookie === "sb-x-auth-token=1"));
+  assert.equal(get.headers["x-via"], undefined, "a read is no card's");
+  assert.deepEqual([put.headers.origin, put.headers["x-via"]], [ORIGIN, "ask"], "same-origin, marked as a card's");
+  assert.deepEqual(put.body.version, 7);
+  assert.deepEqual([told.headers.origin, told.headers["x-via"]], [ORIGIN, "ask"]);
+  assert.deepEqual(d.state.outcomes, [
+    { state: "done", receipt: CARD.summary, atMs: 1000, undo: { config: SEED, version_after: 8 } },
+  ]);
+  // Turn 2 is asked here, with the note in the settings it reads.
+  const back = await putBack(d.io, a.approval);
+  assert.deepEqual(back, { ok: true, undone: true, recorded: true });
+  assert.deepEqual(d.state.config, SEED, "the settings as they were");
+  assert.deepEqual(
+    d.state.calls.slice(3).map((c) => c.key),
+    [
+      "GET /api/v1/settings",
+      "PUT /api/v1/settings",
+      `POST /api/v1/ask/messages/${U(81)}/proposals/p-1`,
+      "GET /api/v1/settings",
+    ],
+  );
+  assert.deepEqual(d.state.calls[4].body, { config: SEED, version: 8 }, "the card's own undo, on the version it wrote");
+  assert.deepEqual(d.state.outcomes[1], {
+    state: "undone",
+    receipt: "Previous settings are back",
+    atMs: 1000,
+    undo: null,
+  });
+});
+
+test("only a settings note is approved between the turns, and only on a turn that was saved: anything else asks nothing", async () => {
+  const hours = { ...CARD, payload: { change: { op: "set_hours", day: "sat", open: "10:00", close: "14:00" } } };
+  for (const [proposals, words] of [
+    [[hours], /turn 1's cards are \["settings set_hours"\]/],
+    [[{ ...CARD, kind: "reply", payload: {} }], /turn 1's cards are \["reply"\]/],
+    [[CARD, { ...CARD, id: "p-2" }], /\["settings add_note","settings add_note"\]/],
+    [[], /turn 1's cards are none/],
+  ]) {
+    const d = doors();
+    const a = await approveBetween(d.io, final({ proposals }));
+    assert.equal(a.ok, false);
+    assert.match(a.why, /^only one settings card whose change is add_note is approved between the turns/);
+    assert.match(a.why, words);
+    assert.equal(a.approval, null);
+    assert.deepEqual(d.state.calls, [], "nothing was asked of the workspace");
+  }
+  const unsaved = await approveBetween(doors().io, { ...approved, id: "unsaved-1" });
+  assert.deepEqual([unsaved.ok, unsaved.approval], [false, null]);
+  assert.match(unsaved.why, /was not saved/);
+});
+
+test("a stale version refuses the approval and writes nothing, so nothing is put back", async () => {
+  const d = doors({ hold: { "PUT /api/v1/settings": [{ status: 409, message: "Someone else saved the settings." }] } });
+  const a = await approveBetween(d.io, approved);
+  assert.deepEqual([a.ok, a.approval], [false, null]);
+  assert.equal(a.why, "PUT settings 409: Someone else saved the settings.");
+  assert.deepEqual(
+    d.state.calls.map((c) => c.key),
+    ["GET /api/v1/settings", "PUT /api/v1/settings", "GET /api/v1/settings"],
+    "read again to know nothing moved; no outcome recorded",
+  );
+  assert.deepEqual(d.state.config, SEED);
+});
+
+test("a save that failed after it wrote, or an outcome that was not recorded, is put back all the same", async () => {
+  const d = doors({ afterWrite: [{ status: 500, message: "The change was saved, and recording it failed." }] });
+  const a = await approveBetween(d.io, approved);
+  assert.equal(a.ok, false);
+  assert.match(a.why, /^PUT settings 500/);
+  assert.ok(a.approval, "the settings moved: an approval to put back");
+  assert.deepEqual(await putBack(d.io, a.approval), { ok: true, undone: true, recorded: null });
+  assert.deepEqual(d.state.config, SEED);
+  assert.deepEqual(d.state.outcomes, [], "no outcome was recorded, so none is undone");
+  const lost = doors({
+    hold: { [`POST /api/v1/ask/messages/${U(81)}/proposals/p-1`]: [{ status: 404, message: "No such card." }] },
+  });
+  const b = await approveBetween(lost.io, approved);
+  assert.equal(b.ok, false);
+  assert.equal(b.why, "the card's outcome was not recorded (404: No such card.)");
+  assert.deepEqual((await putBack(lost.io, b.approval)).ok, true);
+  assert.deepEqual(lost.state.config, SEED);
+});
+
+test("a put back that fails says what to put back by hand: someone saved since, or the settings read again differ", async () => {
+  const d = doors();
+  const a = await approveBetween(d.io, approved);
+  // Someone saved the settings between the approval and the undo: the card's undo will not write over them.
+  d.state.version += 1;
+  d.state.config.brain.phone_display = "(212) 555-0199";
+  const back = await putBack(d.io, a.approval);
+  assert.equal(back.ok, false);
+  assert.equal(back.why, "Settings have changed since this card — change them in Settings.");
+  assert.deepEqual(back.byHand, { note: NOTE, config: SEED });
+  assert.equal(d.state.calls.filter((c) => c.key === "PUT /api/v1/settings").length, 1, "the undo sent nothing");
+  // A put back whose save stored something other than what was sent: the read after it says where.
+  let saves = 0;
+  const mangled = doors({ mangle: (c) => (++saves === 2 ? { ...c, brain: { ...c.brain, business_name: "X" } } : c) });
+  const m = await approveBetween(mangled.io, approved);
+  const wrong = await putBack(mangled.io, m.approval);
+  assert.equal(wrong.ok, false);
+  assert.equal(wrong.why, "the settings differ from the ones before at brain.business_name");
+  assert.deepEqual(wrong.byHand.config, SEED);
+  // Settings that cannot be read are refused before anything is written.
+  const unread = doors({ hold: { "GET /api/v1/settings": [{ status: 503, message: "Try again." }] } });
+  const c = await approveBetween(unread.io, approved);
+  assert.deepEqual([c.ok, c.why, c.approval], [false, "GET settings 503: Try again.", null]);
 });
 
 test("a turn's lines are read across chunks as the bridge reads them, and a torn line is skipped, not the turn", () => {
