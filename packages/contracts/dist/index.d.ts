@@ -21317,7 +21317,7 @@ declare const escapeHtml: (s: string) => string;
 /**
  * Reading a value that came from outside, whose shape is not promised: a provider's JSON, a query string, a stored
  * jsonb. Each reader answers with the value when it is the kind asked for, and null (or zero) when it is not; none of
- * them guesses. Five files spelled these out for themselves, word for word, and each is one function here.
+ * them guesses. Eight files spelled these out for themselves, word for word, and each is one function here.
  */
 /** A finite number, or null. */
 declare const finiteOrNull: (v: unknown) => number | null;
