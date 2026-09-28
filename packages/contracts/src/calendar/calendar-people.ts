@@ -16,7 +16,8 @@
  * Pure. The dashboard's calendar, the person's profile, both receptionists
  * and the tests share it, so an appointment is the same person everywhere.
  */
-import { dayInZone, dayPlusInZone, type FeedItem } from "./availability";
+import { dayInZone, dayPlusInZone } from "./zone-math";
+import type { FeedItem } from "./feed";
 import { normalizeEmail } from "../shared/email-address";
 import { formatPhoneDisplay, normalizePhone } from "../shared/phone";
 import { DAY_MS } from "../shared/time";

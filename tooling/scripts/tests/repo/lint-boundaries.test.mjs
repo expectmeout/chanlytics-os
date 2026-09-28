@@ -12,6 +12,23 @@
  * ones still wider (WIDE_PARAMS). The tests at the end ask ESLint what it
  * applies to a real file of each tree, and lint probes one past each limit.
  *
+ * And the list keeps up: a tree joins LIMITED_TREES in the change that banks
+ * its last entry, so every candidate tree with no entry in complexity.json is
+ * held, listed itself or under a listed tree. A candidate tree is a folder at
+ * the list's own granularity that holds TypeScript:
+ *
+ *   - a package's domain folder, a folder of `packages/<p>/src` with an
+ *     index.ts of its own (contracts' and core's), or the package's `src` as a
+ *     whole where it has none (channels, db, jobs);
+ *   - each folder of `apps/dashboard/src/server`, `apps/dashboard/src/legacy-bridge`,
+ *     `apps/edge/lib` and `apps/edge/api`, a domain each;
+ *   - each other top-level folder of `apps/dashboard/src` as a whole (auth,
+ *     client, lib, yes), but the shell's `legacy`, which leaves with decision
+ *     0015 rather than joining;
+ *
+ * less the trees of the programs in flight (IN_FLIGHT: Ask, Reach out, the
+ * phone app, partners), which join as those land, as eslint.config.mjs says.
+ *
  * Nothing here reads the config's text; it asks ESLint.
  */
 import { test } from "node:test";
@@ -126,6 +143,87 @@ test("a tree is held once the ratchet holds nothing in it, and every tree it nam
     assert.deepEqual(left, [], `${tree} is held by the lint only once its entries in complexity.json are gone`);
   }
   for (const tree of WIDE_PARAMS) assert.ok(LIMITED_TREES.includes(tree), `${tree} is a held tree`);
+});
+
+/**
+ * The trees of the programs in flight, which join LIMITED_TREES as those land: until then each program holds its own
+ * functions to the ratchet, which may raise with a reason, where the lint could not. A tree leaves this list in the
+ * change that lists it there.
+ */
+const IN_FLIGHT = {
+  "Ask Rewired": [
+    "packages/contracts/src/ask",
+    "packages/contracts/src/ask-proposals",
+    "apps/dashboard/src/server/ask",
+    "apps/dashboard/src/legacy-bridge/ask",
+  ],
+  "Reach out": [
+    "packages/contracts/src/reach-out",
+    "apps/edge/lib/reach-out",
+    "apps/dashboard/src/legacy-bridge/reach-out",
+  ],
+  "the phone app": ["packages/contracts/src/mobile"],
+  partners: ["apps/edge/lib/partners"],
+};
+const inFlight = Object.values(IN_FLIGHT).flat();
+
+/** What the lint's limits read: TypeScript under apps/ and packages/, as the ratchet's file set has it. */
+const typescript = repoFiles(["apps", "packages"]).filter((f) => /\.tsx?$/.test(f));
+
+/** The folders directly under `dir` with TypeScript in them, at any depth. */
+function foldersOf(dir) {
+  const below = typescript.filter((f) => f.startsWith(`${dir}/`)).map((f) => f.slice(dir.length + 1));
+  return [...new Set(below.filter((rest) => rest.includes("/")).map((rest) => `${dir}/${rest.split("/")[0]}`))];
+}
+
+/** The app areas whose folders are the trees, a domain each. */
+const DOMAIN_AREAS = [
+  "apps/dashboard/src/server",
+  "apps/dashboard/src/legacy-bridge",
+  "apps/edge/lib",
+  "apps/edge/api",
+];
+/** The shell, which leaves with decision 0015 rather than joining. */
+const SHELL = "apps/dashboard/src/legacy";
+
+/** Every candidate tree, as the file's header defines one. */
+function candidateTrees() {
+  const trees = [];
+  const sources = new Set(typescript.map((f) => /^packages\/[^/]+\/src\//.exec(f)?.[0].slice(0, -1)).filter(Boolean));
+  for (const src of sources) {
+    const domains = foldersOf(src).filter((d) => typescript.includes(`${d}/index.ts`));
+    trees.push(...(domains.length > 0 ? domains : [src]));
+  }
+  for (const area of DOMAIN_AREAS) trees.push(...foldersOf(area));
+  trees.push(...foldersOf("apps/dashboard/src").filter((d) => d !== SHELL && !DOMAIN_AREAS.includes(d)));
+  return trees.sort();
+}
+
+const isHeld = (tree) => LIMITED_TREES.some((t) => tree === t || tree.startsWith(`${t}/`));
+
+test("a tree joins LIMITED_TREES in the change that banks its last entry: every candidate tree the ratchet has emptied is held", () => {
+  const trees = candidateTrees();
+  for (const tree of LIMITED_TREES)
+    assert.ok(
+      trees.some((t) => t === tree || t.startsWith(`${tree}/`)),
+      `${tree} is a candidate tree, or a parent that replaced its folders: the definition is the list's own granularity`,
+    );
+  const entries = Object.keys(readBaseline("complexity.json"));
+  const emptied = trees.filter((tree) => !inFlight.includes(tree) && !entries.some((k) => k.startsWith(`${tree}/`)));
+  assert.deepEqual(
+    emptied.filter((tree) => !isHeld(tree)),
+    [],
+    "the ratchet holds no function over the limit in these, so the lint holds them: add each to LIMITED_TREES in " +
+      "eslint.config.mjs, and to WIDE_PARAMS too while a function there takes more than four parameters",
+  );
+});
+
+test("each tree of a program in flight is a candidate tree, and not yet held", () => {
+  const trees = candidateTrees();
+  for (const tree of inFlight) {
+    assert.ok(trees.includes(tree), `${tree} is a candidate tree: one renamed away would hold nothing back`);
+    assert.ok(!isHeld(tree), `${tree} is in LIMITED_TREES, so its program has landed: take it out of IN_FLIGHT`);
+  }
 });
 
 test("ESLint applies the limits to a real file in every held tree", async () => {

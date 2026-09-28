@@ -4,7 +4,7 @@
  * two doors see it.
  *
  * The dashboard never sends an email. It queues a reply, and an email's queued
- * row is born with the request it will leave as, frozen (channels email.ts says
+ * row is born with the request it will leave as, frozen (channels email/request.ts says
  * why), so the dashboard has to know the one thing that request needs and a
  * mailbox row does not hold: the domain its addresses are on. EMAIL_DOMAIN here
  * is the same value the edge holds. Absent, email is off on this deployment: no

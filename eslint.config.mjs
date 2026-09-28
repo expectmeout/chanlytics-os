@@ -157,7 +157,8 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
  * in the change that banks its last entry; a parent replaces its folders once all of it is held. The shell
  * (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of the programs in flight
  * (Ask, Reach out, the phone app, partners), which join as those land. repo/lint-boundaries.test.mjs holds each entry
- * to real source with no entry left in the baseline, and asks ESLint that the limits apply there.
+ * to real source with no entry left in the baseline, asks ESLint that the limits apply there, and fails a tree the
+ * ratchet has emptied that is not here (its header says which folders are trees).
  */
 export const LIMITED_TREES = [
   "packages/db/src",
@@ -183,6 +184,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/public",
   "apps/dashboard/src/server/receptionist",
   "apps/edge/api/jobs",
+  "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
   "apps/edge/lib/email",
   "apps/edge/lib/notes",
@@ -192,7 +194,7 @@ export const LIMITED_TREES = [
 ];
 
 /**
- * The held trees where a function still takes more than four parameters (measured 27 September 2026: 29 functions,
+ * The held trees where a function still takes more than four parameters (measured 27 September 2026: 35 functions,
  * db's widest at 7 and today-sample's at 11). `max-params` waits in these; a tree leaves this list when its last one
  * takes an object instead.
  */
@@ -203,6 +205,7 @@ export const WIDE_PARAMS = [
   "apps/dashboard/src/server/platform",
   "apps/dashboard/src/server/ports",
   "apps/dashboard/src/server/receptionist",
+  "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
   "apps/edge/lib/email",
 ];

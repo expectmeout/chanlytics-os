@@ -13,15 +13,9 @@ import type { Database } from "../packages/db.js";
 import { PLACE_ID, cleanReply, type PlaceDetails } from "../packages/channels.js";
 import type { ReviewReplyMode } from "../packages/contracts.js";
 import type { LogEvent } from "../log.js";
-import {
-  connectionForClient,
-  listingForClient,
-  type CheckResult,
-  type ConnectResult,
-  type ConnectionRow,
-  type ListingRow,
-  type LocationChoice,
-} from "./google.js";
+import { connectionForClient, listingForClient, type ConnectionRow, type ListingRow } from "./google-rows.js";
+import type { CheckResult } from "./listing-check.js";
+import type { ConnectResult, LocationChoice } from "./profile-connection.js";
 import { errorMessage, type DoorAnswer } from "../admin-door.js";
 
 type ListingInsert = Database["public"]["Tables"]["google_listings"]["Insert"];
