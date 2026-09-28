@@ -752,7 +752,14 @@ test("a reply by email goes to the address on the person's page; its request is 
   );
   assert.deepEqual(call("email.freeze"), [
     "email.freeze",
-    { tenantId: "t1", messageId: "id-1", to: ADDRESS, parent: PARENT, body: "We can do Saturday at 9." },
+    {
+      tenantId: "t1",
+      conversationId: "c1",
+      messageId: "id-1",
+      to: ADDRESS,
+      parent: PARENT,
+      body: "We can do Saturday at 9.",
+    },
   ]);
   const row = call("queue")[1];
   assert.deepEqual([row.id, row.channel, row.type, row.body], ["id-1", "email", "text", "We can do Saturday at 9."]);
@@ -771,6 +778,18 @@ test("a reply by email goes to the address on the person's page; its request is 
     "an address never travels as to_phone",
   );
   assert.equal(r.window_open, true, "email has no window");
+
+  // An answer to a reach-out on an own domain verified now carries its twin beside the mailbox's request (C15).
+  const twin = {
+    to: [ADDRESS],
+    subject: "Re: Quote for Saturday",
+    idempotency_key: "id-1",
+    from: "Sam <sam@owndomain.example.com>",
+  };
+  const owned = emailFakes({ queue: (row) => row.id }, { freeze: { ...FROZEN, own: twin } });
+  await replyToConversation(owned.ports, cmd({ conv: byEmail() }));
+  const kept = owned.call("queue")[1].meta.email;
+  assert.deepEqual([kept.request, kept.own_request], [FROZEN.request, twin]);
 
   const both = emailFakes();
   await replyToConversation(both.ports, cmd({ conv: byEmail({ phone_e164: "+15550000001" }) }));

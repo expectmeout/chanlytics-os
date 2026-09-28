@@ -11,6 +11,7 @@
  *     budget rule: a read is spent the way a check's attempt is.
  *   - tell: the notification door, once (notifyOnce: the bell's row, the push, the mail), true only when the owner was
  *     told; a mail that failed takes the row back, so the ledger's retry does not leave the bell a twin.
+ *   - draft: the receptionist's draft of an answer (reply-draft.ts, decision 0017).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -26,14 +27,19 @@ import { env } from "../env.js";
 import { notifyOnce } from "../ops/notify.js";
 import { loadTenantNotifications } from "../tenant-runtime.js";
 import { CHECK_CALL_MS } from "./check.js";
+import { replyDrafter } from "./reply-draft.js";
 
 type Db = SupabaseClient<Database>;
 type Replies = NonNullable<JobContext["replies"]>;
 
-/** The reader over this database. The tests give their own `tell` (true only when the owner was told) and clock. */
-export function replyReader(db: Db, over: { tell?: Replies["tell"]; now?: () => number } = {}): Replies {
+/** The reader over this database. The tests give their own `tell` (true only when the owner was told), draft and clock. */
+export function replyReader(
+  db: Db,
+  over: { tell?: Replies["tell"]; draft?: Replies["draft"]; now?: () => number } = {},
+): Replies {
   const now = over.now ?? Date.now;
   return {
+    draft: over.draft ?? replyDrafter(db, { now }),
     ask: async (system, user, deadline) => {
       const ms = Math.min(CHECK_CALL_MS, deadline - now());
       if (ms <= 0) throw new Error("reply_read: no time left for the reader");

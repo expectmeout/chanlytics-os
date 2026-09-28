@@ -2,7 +2,7 @@ import { Database, Json } from '@chanlytics/db';
 import { JobKind, JobNews, PushMessage, Unread } from '@chanlytics/contracts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ReceivedEmail } from '@chanlytics/channels';
-import { Wire, EmailIngestPorts, ReplyNotice, IncomingEmail } from '@chanlytics/core';
+import { Wire, EmailIngestPorts, ReplyNotice, ReplyReadPorts, IncomingEmail } from '@chanlytics/core';
 
 /**
  * The jobs ledger: the rules a row moves by, and the writes that move it.
@@ -318,6 +318,11 @@ interface JobContext {
         mayRead: (tenantId: string, at: Date) => Promise<Exclude<Unread, "model_failed"> | null>;
         /** Tell the workspace once (notifyOnce): true only when the owner was told. */
         tell: (tenantId: string, notice: ReplyNotice) => Promise<boolean>;
+        /**
+         * The receptionist's draft of an answer (decision 0017): its text, or the gate that stopped it or that it was not
+         * drafted. Throws when it failed; no call runs past `ask.deadline`.
+         */
+        draft: ReplyReadPorts["draft"];
     };
     /**
      * Schedule a job of this tenant — how a broadcast continues itself, one

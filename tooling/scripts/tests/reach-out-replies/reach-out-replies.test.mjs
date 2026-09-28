@@ -610,7 +610,7 @@ const notice = (over = {}) =>
     business: "Brightwater & Co.",
     summary: "wants more details",
     quote: "This sounds useful. Can you send me more details?",
-    draft: false,
+    draft: null,
     unread: null,
     automatic: false,
     reread: false,
@@ -645,7 +645,17 @@ test("the notice's body: the summary a phone shows, their words quoted, then wha
   assert.equal(lines[1], "“This sounds useful. Can you send me more details?”");
   assert.equal(lines[2], "They are Talking now, and your reach-out stops for them.");
   assert.doesNotMatch(n.body, /The receptionist drafted an answer/);
-  assert.match(notice({ draft: true }).body, /The receptionist drafted an answer\. Nothing is sent without you\./);
+  const drafted = notice({ draft: "Thank you for writing.\n\nWe can send details today.\n\nSam" }).body;
+  assert.match(
+    drafted,
+    /The receptionist drafted an answer: “Thank you for writing\. We can send details today\. Sam” Nothing is sent without you\./,
+    "the draft's first lines, on one line",
+  );
+  assert.doesNotMatch(notice({ draft: "Thank you." }).redacted, /Thank you/, "never in what the platform is told");
+  const longDraft = notice({ draft: "word ".repeat(200) })
+    .body.split("\n")
+    .at(-1);
+  assert.ok(longDraft.length < 240 + 80, `a long draft is clipped: ${longDraft.length}`);
   assert.match(notice({ intent: "no" }).body, /nothing more will be written to them/);
   const fits = "a".repeat(280);
   assert.equal(notice({ quote: fits }).body.split("\n")[1], `“${fits}”`, "a quote that fits is whole");

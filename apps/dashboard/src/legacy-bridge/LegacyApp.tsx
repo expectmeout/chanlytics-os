@@ -71,6 +71,7 @@ import { installTemplates } from "./templates";
 import { installBroadcasts } from "./broadcast-verbs";
 import { installPlaybooks } from "./playbooks";
 import { installReachOuts, reachOutsOverride } from "./reach-out/reach-outs";
+import { installReplies, repliesOverride } from "./reach-out/replies";
 import { installCalendar } from "./calendar";
 import { installToday } from "./today";
 import { installMascot } from "./mascot";
@@ -121,6 +122,7 @@ installTemplates();
 installBroadcasts();
 installPlaybooks();
 installReachOuts();
+installReplies();
 installCalendar();
 installToday();
 // The three, Today's face: the character, its driver and the turn reducer (mascot/index.ts).
@@ -176,6 +178,7 @@ const SURFACES = [
   playbooksOverride,
   // A reach-out's chains and their emails (Part 4 PR 8): Playbooks' rows and Templates' email rows.
   reachOutsOverride,
+  repliesOverride,
   // The partner's account (0012): on the person, read once, beside the rest.
   partnerOverride,
   calendarOverride,

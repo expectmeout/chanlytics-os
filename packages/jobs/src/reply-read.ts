@@ -1,7 +1,7 @@
 /**
  * reply_read (Reach out Part 5, 00222): core's readReply, over the rows the database keeps and the reader, the spend
- * and the notice the edge injects (ctx.replies). payload: { message_id, stage? } -- no stage is the first read,
- * "reread-<n>" a re-read of a reply that could not be read.
+ * the notice and the draft the edge injects (ctx.replies). payload: { message_id, stage? } -- no stage is the first
+ * read, "reread-<n>" a re-read of a reply that could not be read, "draft" the draft a first read had no time for.
  */
 import {
   DEFAULT_TIMEZONE,
@@ -10,10 +10,11 @@ import {
   isUnread,
   type ReadingPlan,
 } from "@chanlytics/contracts";
-import { readReply, type KeptReading, type ReplyFacts } from "@chanlytics/core";
+import { readReply, type DraftMark, type DraftState, type KeptReading, type ReplyFacts } from "@chanlytics/core";
 import {
   applyReplyReading,
   claimReplyTell,
+  markReplyDraft,
   markReplyTold,
   reachOutReplyOf,
   replyReadingOf,
@@ -43,6 +44,7 @@ function replyFactsOf(r: ReachOutReplyOf): ReplyFacts {
     business: r.business,
     leadAddress: r.lead_email,
     leadWebsite: r.lead_website,
+    signedBy: r.signed_by,
     tz: r.tz ?? DEFAULT_TIMEZONE,
   };
 }
@@ -53,6 +55,8 @@ function keptReadingOf(row: ReplyReadingRow): KeptReading {
   if (row.unread !== null && !isUnread(row.unread))
     throw new Error(`reply_read: a reading was not read for ${row.unread}`);
   const plan = row.plan && typeof row.plan === "object" && !Array.isArray(row.plan) ? row.plan : {};
+  if (!DRAFT_STATES.includes(row.draft_state as DraftState))
+    throw new Error(`reply_read: a draft is ${row.draft_state}`);
   return {
     intent: row.intent,
     summary: row.summary,
@@ -61,7 +65,19 @@ function keptReadingOf(row: ReplyReadingRow): KeptReading {
     tell: plan.tell === true,
     told: row.told_at !== null,
     undone: row.undone_at !== null,
+    draft: plan.draft === "answer" || plan.draft === "thanks" ? plan.draft : null,
+    draftState: row.draft_state as DraftState, // one of DRAFT_STATES, checked above
+    draftText: row.draft,
   };
+}
+
+const DRAFT_STATES: readonly DraftState[] = ["none", "waiting", "written", "not_written"];
+
+/** A draft's mark as the door takes it. */
+function draftMarkOf(m: DraftMark): { state: DraftMark["state"]; draft: string | null; why: string | null } {
+  if (m.state === "written") return { state: m.state, draft: m.draft, why: null };
+  if (m.state === "not_written") return { state: m.state, draft: null, why: m.why };
+  return { state: m.state, draft: null, why: null };
 }
 
 export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void> {
@@ -100,6 +116,8 @@ export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void>
       claimTell: (tenantId, id, staleBefore) =>
         claimReplyTell(db, { ...where(tenantId, id), staleBefore: new Date(staleBefore) }),
       tell: (tenantId, notice) => replies.tell(tenantId, notice),
+      draft: (tenantId, ask) => replies.draft(tenantId, ask),
+      markDraft: (tenantId, id, mark) => markReplyDraft(db, { ...where(tenantId, id), ...draftMarkOf(mark) }),
       told: (tenantId, id, claim) => markReplyTold(db, { ...where(tenantId, id), claim }),
       scheduleOnce: (at, payload) => ctx.scheduleOnce("reply_read", new Date(at), payload),
       now: Date.now,
@@ -112,6 +130,7 @@ export async function replyRead(ctx: JobContext, job: ClaimedJob): Promise<void>
       messageId,
       stage: job.payload.stage,
       tellStaleMs: LEASE_SECONDS * 1000 - FUNCTION_CEILING_MS,
+      deadline: ctx.deadline,
     },
   );
   console.log(JSON.stringify({ level: "info", event: "reply_read", tenant: job.tenant_id, job: job.id, outcome }));

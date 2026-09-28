@@ -1097,7 +1097,30 @@ Draft mode's first use, as decision 0017 records it: for interested, a question 
 
 **Deploy order:** the edge and packages only. Either order.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `5b630026`). What departed from the tasks, and why:
+>
+> - **The draft is a stage of `readReply`, not a verb of its own.**
+>   - `draftStage` runs between the apply and the claim, so the notice carries the draft.
+>   - `draftLater` is the job's `draft` stage, which drafts a reading still waiting and tells nobody.
+>   - Both record through `markDraft` (00222's `reach_out_reply_draft`, compare-and-set from none or waiting).
+>   - A draft is read back before the notice, so a retry, or the draft's own job, keeps the one draft already kept.
+> - **The gates are a contracts predicate the edge's port asks.** `draftRefusal` in `reach-out/reach-out-reply-draft.ts` holds G14's order: `no_receptionist`, `off`, `budget`, `may_not_spend`. The edge's port (`apps/edge/lib/reach-out/reply-draft.ts`) reads the facts for it:
+>   - the runtime, from a `RoutedChannel` built from the mailbox;
+>   - the reply policy's mode;
+>   - `tokensLast24h` under `tokenBudgetSpent`;
+>   - `workspaceMaySpend`.
+>
+>   A missing mailbox, or no model key on the edge, is `no_receptionist`: neither can speak. "Off" is the policy mode `never`, the one mode under which the receptionist says nothing. A workspace on its free trial is `may_not_spend`, as it is for the reading itself (`maySpend` leaves `trialing` out).
+> - **The brain is raced against the job's deadline**, which the verb only reaches with `DRAFT_NEEDS_MS` (25 s) left. `generateReply` takes no signal, and its client may retry once. The draft's job, short of time, throws for the ledger's retry and marks nothing.
+> - **No holding words.** The brain is handed `""` as its fallback, so an answer it could not give (a hand-off, a refusal, a record it could not read, a blank) is `not_drafted`, never the holding words. Its tokens are counted whether or not it drafted.
+> - **Usage:** the one writer is `recordTokens(db, tenantId, conversationId, usage)` in `receptionist/budget.ts`, which `persist.ts` now calls. A draft's event also carries `source: "reach_out_reply_draft"`. A write that fails is logged (`reach_out_reply_draft_usage_failed`), and the draft stands.
+> - **`answer.ts` asks `tokenBudgetSpent` and nothing else new.** The file is pinned at its length, and a second import would wrap the import line. Beside the predicate, contracts also holds `tokenCapOf`, which the draft's port uses to pass the cap to `tokensLast24h`.
+> - **The notice quotes the draft on one line**, clipped at 240 characters (`draftExcerpt`, over `clipAtWord`): "The receptionist drafted an answer: “…” Nothing is sent without you." It is never in `redacted`. The same words stand for a not-now's line of thanks.
+> - **The RoutedChannel's `externalId` is the mailbox's local part**, the one address the row keeps. `loadTenantRuntime` reads nothing of it for an email kind.
+> - **Tests:**
+>   - `reach-out-replies/reply-draft.test.mjs` covers the contracts, the verb over fakes, and the edge's port over a database in memory (the real runtime loader, gates and usage writer, with the brain handed in);
+>   - `reply-read-door.test.mjs` now models the draft's door and proves the notice carries the draft;
+>   - `whatsapp/inbound-executed.test.mjs` is unchanged and green.
 
 ### Task 5.1: One budget, one usage writer
 
@@ -1137,7 +1160,31 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** the dashboard only, and either order with the edge: the row's `meta.email.request` is the mailbox's, which every edge sends, and only an edge with PR 4 sends the twin. **Reverting** removes the twin; replies leave from the mailbox, as before Part 5.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `0c8225d5`). What departed from the tasks, and why:
+>
+> - **`replyIdentityOf(supabase, { tenantId, conversationId, references, domains? })`** lives in `connections/email.ts`.
+>   - It takes the client rather than the route's context, so the readings' read can hand it the domains read once for many threads.
+>   - Lint holds a function to four parameters, so the rest ride in one object.
+>   - `replyFromOf` turns its answer into what the composer is told: the address, never the domain's row.
+> - **The freeze port is handed the thread** (`conversationId`) and answers `own` beside `request`. Core's reply keeps it as `meta.email.own_request`, and only when there is one.
+> - **Which reach-out email is answered.** `answeredReachOutEmail` reads the thread's latest 50 outbound emails and picks in TypeScript:
+>   - it keeps those whose `meta.source` is `reach_out` and that left (sent, delivered or read);
+>   - it takes the one the References name, else the latest.
+>
+>   A thread is one person's, so "on the thread" is "to this person". An email that never left is never the one answered.
+> - **The twin's reply domain** is the host of the answered email's Reply-To, as it was frozen (the mail domain when that cannot be read). A domain whose state is anything but `verified` (records, verifying, held) is `domain_held`, and one no longer among the workspace's is `domain_removed`.
+> - **`can_undo` is asked of the door for each no not undone, one call each, not selected with the row.**
+>   - PostgREST calls a function per row only as a computed column, and `reach_out_reply_undoable` takes a message id, not the row.
+>   - The calls are bounded by the noes among the page's 200 rows.
+>   - Its seven days, who asks, and what moved since stay the door's alone; nothing in TypeScript restates them.
+> - **Each thread's `reply_from` is computed as the freeze computes it:** from that thread's latest inbound email's References, once per thread.
+> - **`GET reach-out-replies` declares no role and no rate.** Every member reads, as every workspace read here declares: there is no `read` rate bucket.
+> - **The undo's refusal words are the door's own exception texts** (`REPLY_UNDO_REFUSALS`), answered as 404 for `not_found`, 403 for `role`, and 409 for the rest. The door's test is asked before the undo, and again if the undo refuses, so the member hears the reason that held when it refused.
+> - **The route-policy rows were added by hand.** `UPDATE_ROUTE_POLICY=1` would have rewritten the whole file in a new order; the test compares the rows, not their order.
+> - **Tests:**
+>   - `reach-out-replies/reply-freeze.test.mjs` (4): the dashboard's freeze over a database in memory;
+>   - `reach-out-replies/reply-routes.test.mjs` (5): the routes through `route()`;
+>   - `conversations/core-reply.test.mjs`: the freeze's input and the twin kept.
 
 ### Task 6.1: The reply from the thread's own domain
 
@@ -1190,7 +1237,39 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** the dashboard only, after PR 6's routes.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `bf860170`). What departed from the tasks, and why:
+>
+> - **The surface is the Inbox's only.** `ROUTE_DRAWS.inbox` gains `reach_out_replies`; Today's draws take it in PR 8, which draws it, because `surface-boot.test.mjs` pins Today's draws to what Today reads. `packages/db/src/realtime.ts` names the table (00222 published it), and the undo reads the readings, the thread, Today and Leads again (`refresh-map.ts`).
+> - **The list carries what the words need.** PR 6's DTO gains:
+>   - `rereads`, so the strip knows the last try;
+>   - `said_no` (the plan's `suppressFrom` and `suppressDomain`);
+>   - `step_day` (the plan's step);
+>   - `until_at`.
+>
+>   The answer gains `mailbox`, the mailbox's address. `ReplyFrom`'s held and removed arms name the own address they would have gone from.
+> - **The words are contracts'** (`reach-out-reply-words.ts`): `replyStripOf`, `replyChipOf`, `replyFromLineOf`, `replyLeftAsOf`, and a no's sentence in `replyNoticeWords`. Where the plan's cases left a word open:
+>   - a not-now's draft is "a line of thanks";
+>   - a draft still waiting says "The receptionist is drafting an answer.";
+>   - `other` says nothing under its title.
+> - **The composer's line is drawn under the strip**, not inside the composer, so `Composer` takes one line (the draft's door) and nothing more. It shows only for a thread with a reading, which is every thread an own domain can answer.
+> - **A sent reply's "Went from…" rides the bubble's existing note** (`entry.leftOut`, which already says what an email left out): `toInboxThreadVM` asks `replyLeftAsOf` when there is nothing else to say. No page line.
+> - **`__replies` publishes `readingOf` and `stripFor`** beside the plan's names:
+>   - `stripFor(thread)` is the strip or null: null when no reading, or when a person's reply is newer than the reading on the thread's own timeline;
+>   - `readingOf` is what the row's chip and the seed read.
+> - **"Use the draft" is a window event** (`inbox:use-draft`) that the composer's door (`useReplyDraftDoor`, in `reply-strip.jsx`) takes for its own thread, into the composer's own writer. Nothing reaches into the composer's state from outside.
+> - **The pages stay at their length, with one guarded line each.**
+>   - `inbox-thread.jsx` is one line shorter, because the comment above the composer was reflowed.
+>   - The guard is the component's presence on window, because the Inbox's many tests load these pages without `reply-strip.jsx`. Each guard is a branch, and the rises are rows in `docs/debt.md`: `InboxThread` +2 branches, `Composer` +1 line and +1 branch, `InboxList` +1 line, its row +1 line and +1 branch.
+>   - The new keys and files were raised with `UPDATE_BASELINES=raise` (`bank()` never writes a new key): globals `__REPLIES`, `__replies`, `__clock` +1, and publishers `reach-out/replies.ts`, `reply-strip.jsx`.
+> - **Gates are `approve`**, as every Inbox control's is. The role table has no `inbox` permission.
+> - **Tests:**
+>   - `reach-out-replies/reply-words.test.mjs` (10);
+>   - `reach-out-replies/reply-strip-page.test.mjs` (9, the legacy harness over the real bridge with the undo stubbed);
+>   - `reply-routes.test.mjs` (the new facts);
+>   - `reply-freeze.test.mjs` (the own address named).
+>
+> - **The workspace route's budget holds.** The strip, its bridge and its words add 1.9 KB gzipped; on the branch's first base that took the route past its band, and the budget was raised, until `main` took the demo off the route (#1210) and the rise was merged away.
+> - **A Part 4 test failed by the clock**, not by this change: `reach-out-approval.test.mjs` expected a run's first send as a bare time, which from 10 PM to midnight in Chicago is tomorrow's. It now says it as the page does (`firstSendWhen`).
 
 ### Task 7.1: The surface
 
@@ -1252,7 +1331,14 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** the dashboard and contracts only, after PR 7: Today and the bell read `window.__REPLIES`, which PR 7 installs.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `914d421b`). What departed from the tasks, and why:
+>
+> - **No `AWAY_NOUN` move.** `today.ts` was already split by domain (`today/today-away.ts` holds the nouns), so the kind is a row there and `today-vm.ts` gains `reply` at no cost in length.
+> - **`replyRowOf`, `withReplies` and `bellActionOf` are a file of their own**, contracts `reach-out/reach-out-reply-today.ts`, since `reach-out-reply-words.ts` is the Inbox's and Today's words would have grown it past a screen. A reading's thread is its newest; a no, an automatic reply and an undone reading leave the handoff as it was.
+> - **`pushFor` takes no words per kind.** The notice's own title and summary are what a phone is sent (the redacted body, never their words); the test proves it for a reply.
+> - **The kinds reach Settings through `__today.notificationKinds`, not `__SETTINGS`.** `__SETTINGS` is fed by `surface-data.ts`, which is at its file and function caps; `__today` is contracts' Today helpers, which the page reads already elsewhere, and the pane's rows are words, not a read. `settings.jsx` fell by seven lines; the test is in `settings-owner-panes.test.mjs` beside the pane's others, and `settings-truth.test.mjs` now executes the kinds rather than reading the page's text.
+> - **A reach-out run's meta** says "Reach-out · ready" and "Reach-out · sends …" beside the playbooks' "Playbook · …", which moved from the page into `todayRunWords`. Stop on a reach-out run is the broadcasts route's own, already proved by Part 4's approval tests; it is not proved again here.
+> - **A clock-dependent test from Part 4** (`reach-out-approval.test.mjs`) failed every night from 10 PM to midnight in Chicago; it was fixed on PR 7's branch to say the first send as the page does (`firstSendWhen`).
 
 ### Task 8.1: Today's reply row
 

@@ -304,7 +304,7 @@ const EventPanel = ({ a, day, onClose, onMove, onCancel, onConfirmReq, slots = [
 };
 
 // ---------- Page ----------
-const CalendarPage = ({ initialApptId = null }) => {
+const CalendarSeed = ({ initialApptId = null }) => {
   const { CAL_WEEK, CAL_HOURS, CAL_THERAPISTS, CAL_NOW, SERVICE_PRICE } = window.CALENDAR_DATA;
   const [therapist, setTherapist] = useCalState("all");
   const [agentFilter, setAgentFilter] = useCalState("all");
@@ -645,5 +645,6 @@ const CalendarPage = ({ initialApptId = null }) => {
   );
 };
 
-// A real workspace renders its own calendar (calendar-real.jsx); the seeded page keeps the demo.
-window.CalendarSeed = CalendarPage;
+// A real workspace renders its own calendar (pages/calendar.jsx); the seeded page keeps the demo, drawn by that page
+// where the bridge has not fed it.
+window.CalendarSeed = CalendarSeed;

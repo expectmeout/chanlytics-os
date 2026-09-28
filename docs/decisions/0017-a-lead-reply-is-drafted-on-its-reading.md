@@ -1,7 +1,8 @@
 # 0017 · A lead's reply is drafted on its reading
 
 **Status:** decided with the Part 5 plan (its G13 and G14, after the plan's two reviews on 27 September 2026, under
-the spec's decision 6), not built. Written against commit `e48ccecb` (main, 27 September 2026, after #1188), and every file
+the spec's decision 6). Step 2 is built (the plan's PR 5, 28 September 2026; its As built note says where it departed
+from the Shape below); step 3 waits on 0001's step 6. Written against commit `e48ccecb` (main, 27 September 2026, after #1188), and every file
 and line below was read at it. Where this note and the code disagree, the code wins. It is Reach out Part 5's
 (`docs/superpowers/plans/2026-09-27-reach-out-part-5-replies.md`, G13 and G14), and PR 5 of that plan builds it. The
 plan named it 0016, which #1177 has since taken for a partner's handover, so it takes 0017.

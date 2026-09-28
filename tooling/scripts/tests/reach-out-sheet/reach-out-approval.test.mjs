@@ -38,7 +38,12 @@ const bridge = await import("../../../../apps/dashboard/src/legacy-bridge/reach-
  */
 const FIRST_MS = Date.now() + 2 * 3_600_000;
 const FIRST_AT = new Date(FIRST_MS).toISOString();
-const FIRST_TIME = contracts.clockTime(FIRST_MS, ZONE);
+// Said as the page says it: the time alone on the run's own day, else with its day ("tomorrow 12:12 AM"), since two
+// hours on from late evening in Chicago is tomorrow there; the test once failed every night from 10 PM to midnight.
+const FIRST_TIME =
+  dayKey(FIRST_MS) === dayKey(Date.now())
+    ? contracts.clockTime(FIRST_MS, ZONE)
+    : contracts.clockWhen(FIRST_MS, ZONE, Date.now());
 const RUN = (over = {}) => ({
   root_id: "r1",
   chain_name: "Reach out · Personal trainers",

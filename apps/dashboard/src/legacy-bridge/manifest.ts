@@ -1,10 +1,15 @@
 /**
- * The ordered legacy manifest — the EXACT script order of Chanlytics.html.
+ * The ordered legacy manifest: every file a real workspace draws, in the EXACT
+ * script order of Chanlytics.html, which loads these first and then
+ * manifest-demo.ts's.
  * ES modules execute static imports in declaration order, so this file IS the
  * execution-order guarantee the classic <script> tags used to provide.
  * Order matters: data/ seeds globals pages/ read at module scope
- * (inbox.jsx reads CHANLY; calendar.jsx calls CHANLY.agents() over FLEET_ROSTER;
- * people-data mutates CLIENT_SEGMENTS from clients-data).
+ * (inbox.jsx reads CHANLY; people-data mutates CLIENT_SEGMENTS from clients-data).
+ *
+ * The mockup's own files (legacy/demo/) are not here: a real workspace never
+ * draws them, so it never downloads them. A session that declared itself a demo
+ * loads them after these, at the foot of this file.
  *
  * Dropped vs the original, and since deleted from the tree: tweaks-panel.jsx
  * (replaced by the bridge's localStorage prefs) and design-canvas.jsx (never
@@ -50,7 +55,6 @@ import "@/legacy/data/conversations-data.jsx";
 import "@/legacy/data/live-data.jsx";
 import "@/legacy/data/calendar-data.jsx";
 import "@/legacy/data/reports-data.jsx";
-import "@/legacy/demo/data/tasks-data.jsx";
 import "@/legacy/data/people-data.jsx";
 import "@/legacy/pages/attention-bits.jsx";
 import "@/legacy/pages/dashboard-a-brief.jsx";
@@ -66,6 +70,8 @@ import "@/legacy/pages/ask-turn.jsx";
 import "@/legacy/pages/ask-home.jsx";
 import "@/legacy/pages/ask-real.jsx";
 import "@/legacy/pages/dashboard-a.jsx";
+// A reply to a reach-out, read: the thread's strip and the row's chip (Reach out Part 5, PR 7), before the Inbox draws them.
+import "@/legacy/pages/reach-out/reply-strip.jsx";
 import "@/legacy/pages/inbox-list.jsx";
 import "@/legacy/pages/inbox-thread.jsx";
 // The one thread, both tabs mount it: after the drawing it wraps, before the pages that use it.
@@ -99,20 +105,6 @@ import "@/legacy/pages/leads-map.jsx";
 import "@/legacy/pages/leads-scope.jsx";
 import "@/legacy/pages/leads-finder.jsx";
 import "@/legacy/pages/leads-peek.jsx";
-// agent-store, agent-fleet, agent-studio, content-cal, pipeline and tasks
-// are the mockup's surfaces: kept, hidden from every real workspace (the
-// registry marks them demo), revisited when the product is at 100% — Ruben,
-// 11 September 2026. None of their features is built before then.
-// The mockup's own files live under legacy/demo/: those six, the seeded twin of
-// each real page (calendar, broadcasts, outbound, live-monitor: the *Seed a
-// real page falls back to outside a fed workspace) and the seeds only they
-// read. Still in this list, at the places they always had, until the twins'
-// forks on the seeds are gone (docs/plans/2026-09-26-organization-and-code-health.md).
-import "@/legacy/pages/segments.jsx";
-import "@/legacy/demo/pages/agent-store.jsx";
-import "@/legacy/demo/pages/agent-fleet.jsx";
-import "@/legacy/demo/pages/agent-studio.jsx";
-import "@/legacy/demo/pages/outbound.jsx";
 // A playbook's words, card and composer (moved whole from the page, outbound-real.jsx then): before it, which draws them.
 import "@/legacy/pages/playbook-bits.jsx";
 import "@/legacy/pages/playbook-card.jsx";
@@ -123,27 +115,20 @@ import "@/legacy/pages/reach-out/reach-out-sheet.jsx";
 import "@/legacy/pages/reach-out/reach-out-door.jsx";
 import "@/legacy/pages/reach-out/reach-out-row.jsx";
 import "@/legacy/pages/outbound.jsx";
-import "@/legacy/demo/pages/content-cal.jsx";
 import "@/legacy/pages/templates-real.jsx";
 // A reach-out's email as a Templates row (Reach out Part 4 PR 8): before the page, which draws it.
 import "@/legacy/pages/reach-out/email-template-row.jsx";
 import "@/legacy/pages/messages.jsx";
-import "@/legacy/demo/pages/broadcasts.jsx";
 // A run and the ledger of runs (moved whole from the page, broadcasts-real.jsx then): before it, which draws them.
 import "@/legacy/pages/reach-out/reach-out-approval.jsx";
 import "@/legacy/pages/broadcasts-run.jsx";
 import "@/legacy/pages/broadcasts-ledger.jsx";
 import "@/legacy/pages/broadcasts.jsx";
-import "@/legacy/demo/pages/pipeline.jsx";
 import "@/legacy/pages/conversations.jsx";
-import "@/legacy/demo/pages/live-monitor.jsx";
-// After the mockup's console: takes the route over when the bridge feeds it.
 import "@/legacy/pages/live-monitor.jsx";
-import "@/legacy/demo/pages/calendar.jsx";
 import "@/legacy/pages/calendar.jsx";
 import "@/legacy/pages/reports-sections.jsx";
 import "@/legacy/pages/reports.jsx";
-import "@/legacy/demo/pages/tasks.jsx";
 import "@/legacy/pages/setup.jsx";
 import "@/legacy/pages/first-run.jsx";
 // Before the Business tab, and so before settings.jsx: what the tab's saves write, the one saver they go through, the
@@ -174,5 +159,10 @@ import "@/legacy/pages/activity.jsx";
 // The route table (SHELL_ROUTES, drawRoute): what each route draws, before the shell that reads it.
 import "@/legacy/pages/app-routes.jsx";
 import "@/legacy/pages/app-shell.jsx";
+
+// The mockup's own files (manifest-demo.ts), after every file above and only in a session that declared itself a
+// demo: window.__DEMO_MODE, which seed-globals.ts sets false wherever nothing set it first, so a real workspace never
+// asks for them. Awaited, so the bridge that imports this file goes on, and the shell draws, only once they are in.
+if (window.__DEMO_MODE) await import("./manifest-demo");
 
 export {};

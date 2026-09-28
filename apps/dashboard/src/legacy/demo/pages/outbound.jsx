@@ -64,7 +64,7 @@ const ObPill = ({ s }) =>
 
 const OB_CH_ICON = { chat: "chat", mail: "mail", instagram: "instagram", phone: "phone" };
 
-const OutboundPage = () => {
+const OutboundSeed = () => {
   const [filter, setFilter] = useObState("all");
   const [paused, setPaused] = useObState({});
   const [approved, setApproved] = useObState({});   // campaignId -> true (session)
@@ -263,5 +263,6 @@ const OutboundPage = () => {
   );
 };
 
-// A real workspace renders its playbooks (outbound-real.jsx); the seeded page keeps the demo.
-window.OutboundSeed = OutboundPage;
+// A real workspace renders its playbooks (pages/outbound.jsx); the seeded page keeps the demo, drawn by that page
+// where the bridge has not fed it.
+window.OutboundSeed = OutboundSeed;

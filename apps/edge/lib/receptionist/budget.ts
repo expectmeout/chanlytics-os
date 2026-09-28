@@ -2,16 +2,32 @@
  * What the receptionist has cost, and how it has been doing, from the usage
  * events every reply already writes (usage.llm_tokens).
  *
- * Two readers of one stream. The budget check runs before a reply and asks
- * one question: has this workspace used its day's tokens? The summary runs
- * on the diagnostics endpoint and describes the last day: how many replies,
- * how sure, how fast, how many held or handed off. Neither writes anything.
+ * Two readers of one stream, and its one writer. The budget check runs before
+ * a reply (and before a reach-out reply's draft) and asks one question: has
+ * this workspace used its day's tokens? The summary runs on the diagnostics
+ * endpoint and describes the last day: how many replies, how sure, how fast,
+ * how many held or handed off. recordTokens is the one place a model call's
+ * usage is written, so the budget reads every token the receptionist spent.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "../packages/db.js";
+import { emitEvent, type Database, type Json } from "../packages/db.js";
 import { DAY_MS } from "../packages/contracts.js";
 import { MAX_ROWS } from "../paged.js";
 import { logger, errField } from "../log.js";
+
+/**
+ * One model call's usage (usage.llm_tokens), on the conversation it answered: tokens in and out, and the quality
+ * signal beside them. The receptionist's answers (whatsapp/persist.ts) and a reach-out reply's draft
+ * (reach-out/reply-draft.ts) both write through here. A write that fails throws; each caller says what that costs.
+ */
+export async function recordTokens(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  conversationId: string,
+  usage: Json,
+): Promise<void> {
+  await emitEvent(db, tenantId, "usage.llm_tokens", "usage", "conversation", conversationId, usage);
+}
 
 /** More rows than any workspace writes in a day; a bound, not a target. */
 const ROW_CAP = 20_000;
