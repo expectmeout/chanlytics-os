@@ -16,6 +16,7 @@ export const ROUTES = {
   "DELETE segments/[id]": { method: "DELETE", path: "/api/v1/segments/[id]" },
   "DELETE sending-domains/[id]": { method: "DELETE", path: "/api/v1/sending-domains/[id]" },
   "DELETE team/[id]": { method: "DELETE", path: "/api/v1/team/[id]" },
+  "DELETE team/partner": { method: "DELETE", path: "/api/v1/team/partner" },
   "DELETE templates/[id]": { method: "DELETE", path: "/api/v1/templates/[id]" },
   "GET activity": { method: "GET", path: "/api/v1/activity" },
   "GET ask/openings": { method: "GET", path: "/api/v1/ask/openings" },
@@ -55,11 +56,13 @@ export const ROUTES = {
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
   "GET notifications": { method: "GET", path: "/api/v1/notifications" },
   "GET partner": { method: "GET", path: "/api/v1/partner" },
+  "GET partner/invitations": { method: "GET", path: "/api/v1/partner/invitations" },
   "GET partner/workspaces": { method: "GET", path: "/api/v1/partner/workspaces" },
   "GET platform/overview": { method: "GET", path: "/api/v1/platform/overview" },
   "GET platform/tenants/[id]": { method: "GET", path: "/api/v1/platform/tenants/[id]" },
   "GET playbooks": { method: "GET", path: "/api/v1/playbooks" },
   "GET policies": { method: "GET", path: "/api/v1/policies" },
+  "GET reach-out-replies": { method: "GET", path: "/api/v1/reach-out-replies" },
   "GET reach-outs": { method: "GET", path: "/api/v1/reach-outs" },
   "GET reach-outs/[id]": { method: "GET", path: "/api/v1/reach-outs/[id]" },
   "GET reach-outs/reach": { method: "GET", path: "/api/v1/reach-outs/reach" },
@@ -69,6 +72,7 @@ export const ROUTES = {
   "GET settings": { method: "GET", path: "/api/v1/settings" },
   "GET setup": { method: "GET", path: "/api/v1/setup" },
   "GET team": { method: "GET", path: "/api/v1/team" },
+  "GET team/partner": { method: "GET", path: "/api/v1/team/partner" },
   "GET templates": { method: "GET", path: "/api/v1/templates" },
   "GET today": { method: "GET", path: "/api/v1/today" },
   "GET views": { method: "GET", path: "/api/v1/views" },
@@ -140,6 +144,8 @@ export const ROUTES = {
   "POST messages/[id]/cancel-send": { method: "POST", path: "/api/v1/messages/[id]/cancel-send" },
   "POST messages/[id]/steer": { method: "POST", path: "/api/v1/messages/[id]/steer" },
   "POST partner": { method: "POST", path: "/api/v1/partner" },
+  "POST partner/invitations/[id]/accept": { method: "POST", path: "/api/v1/partner/invitations/[id]/accept" },
+  "POST partner/invitations/[id]/decline": { method: "POST", path: "/api/v1/partner/invitations/[id]/decline" },
   "POST partner/workspaces": { method: "POST", path: "/api/v1/partner/workspaces" },
   "POST partner/workspaces/[id]/resend": { method: "POST", path: "/api/v1/partner/workspaces/[id]/resend" },
   "POST platform/lines/refile": { method: "POST", path: "/api/v1/platform/lines/refile" },
@@ -153,6 +159,7 @@ export const ROUTES = {
   "POST platform/waitlist/invited": { method: "POST", path: "/api/v1/platform/waitlist/invited" },
   "POST playbooks": { method: "POST", path: "/api/v1/playbooks" },
   "POST playbooks/[id]/run": { method: "POST", path: "/api/v1/playbooks/[id]/run" },
+  "POST reach-out-replies/[id]/undo": { method: "POST", path: "/api/v1/reach-out-replies/[id]/undo" },
   "POST reach-out-sends/[id]/decide": { method: "POST", path: "/api/v1/reach-out-sends/[id]/decide" },
   "POST reach-outs": { method: "POST", path: "/api/v1/reach-outs" },
   "POST reach-outs/preview": { method: "POST", path: "/api/v1/reach-outs/preview" },
@@ -164,6 +171,7 @@ export const ROUTES = {
   "POST settings/receptionist": { method: "POST", path: "/api/v1/settings/receptionist" },
   "POST setup/request": { method: "POST", path: "/api/v1/setup/request" },
   "POST team/invite": { method: "POST", path: "/api/v1/team/invite" },
+  "POST team/partner": { method: "POST", path: "/api/v1/team/partner" },
   "POST templates": { method: "POST", path: "/api/v1/templates" },
   "POST templates/draft": { method: "POST", path: "/api/v1/templates/draft" },
   "POST templates/starter": { method: "POST", path: "/api/v1/templates/starter" },
@@ -208,6 +216,7 @@ export type Routes = {
   "DELETE segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").DELETE;
   "DELETE sending-domains/[id]": typeof import("../../app/api/v1/sending-domains/[id]/route").DELETE;
   "DELETE team/[id]": typeof import("../../app/api/v1/team/[id]/route").DELETE;
+  "DELETE team/partner": typeof import("../../app/api/v1/team/partner/route").DELETE;
   "DELETE templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").DELETE;
   "GET activity": typeof import("../../app/api/v1/activity/route").GET;
   "GET ask/openings": typeof import("../../app/api/v1/ask/openings/route").GET;
@@ -247,11 +256,13 @@ export type Routes = {
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
   "GET notifications": typeof import("../../app/api/v1/notifications/route").GET;
   "GET partner": typeof import("../../app/api/v1/partner/route").GET;
+  "GET partner/invitations": typeof import("../../app/api/v1/partner/invitations/route").GET;
   "GET partner/workspaces": typeof import("../../app/api/v1/partner/workspaces/route").GET;
   "GET platform/overview": typeof import("../../app/api/v1/platform/overview/route").GET;
   "GET platform/tenants/[id]": typeof import("../../app/api/v1/platform/tenants/[id]/route").GET;
   "GET playbooks": typeof import("../../app/api/v1/playbooks/route").GET;
   "GET policies": typeof import("../../app/api/v1/policies/route").GET;
+  "GET reach-out-replies": typeof import("../../app/api/v1/reach-out-replies/route").GET;
   "GET reach-outs": typeof import("../../app/api/v1/reach-outs/route").GET;
   "GET reach-outs/[id]": typeof import("../../app/api/v1/reach-outs/[id]/route").GET;
   "GET reach-outs/reach": typeof import("../../app/api/v1/reach-outs/reach/route").GET;
@@ -261,6 +272,7 @@ export type Routes = {
   "GET settings": typeof import("../../app/api/v1/settings/route").GET;
   "GET setup": typeof import("../../app/api/v1/setup/route").GET;
   "GET team": typeof import("../../app/api/v1/team/route").GET;
+  "GET team/partner": typeof import("../../app/api/v1/team/partner/route").GET;
   "GET templates": typeof import("../../app/api/v1/templates/route").GET;
   "GET today": typeof import("../../app/api/v1/today/route").GET;
   "GET views": typeof import("../../app/api/v1/views/route").GET;
@@ -332,6 +344,8 @@ export type Routes = {
   "POST messages/[id]/cancel-send": typeof import("../../app/api/v1/messages/[id]/cancel-send/route").POST;
   "POST messages/[id]/steer": typeof import("../../app/api/v1/messages/[id]/steer/route").POST;
   "POST partner": typeof import("../../app/api/v1/partner/route").POST;
+  "POST partner/invitations/[id]/accept": typeof import("../../app/api/v1/partner/invitations/[id]/accept/route").POST;
+  "POST partner/invitations/[id]/decline": typeof import("../../app/api/v1/partner/invitations/[id]/decline/route").POST;
   "POST partner/workspaces": typeof import("../../app/api/v1/partner/workspaces/route").POST;
   "POST partner/workspaces/[id]/resend": typeof import("../../app/api/v1/partner/workspaces/[id]/resend/route").POST;
   "POST platform/lines/refile": typeof import("../../app/api/v1/platform/lines/refile/route").POST;
@@ -345,6 +359,7 @@ export type Routes = {
   "POST platform/waitlist/invited": typeof import("../../app/api/v1/platform/waitlist/invited/route").POST;
   "POST playbooks": typeof import("../../app/api/v1/playbooks/route").POST;
   "POST playbooks/[id]/run": typeof import("../../app/api/v1/playbooks/[id]/run/route").POST;
+  "POST reach-out-replies/[id]/undo": typeof import("../../app/api/v1/reach-out-replies/[id]/undo/route").POST;
   "POST reach-out-sends/[id]/decide": typeof import("../../app/api/v1/reach-out-sends/[id]/decide/route").POST;
   "POST reach-outs": typeof import("../../app/api/v1/reach-outs/route").POST;
   "POST reach-outs/preview": typeof import("../../app/api/v1/reach-outs/preview/route").POST;
@@ -356,6 +371,7 @@ export type Routes = {
   "POST settings/receptionist": typeof import("../../app/api/v1/settings/receptionist/route").POST;
   "POST setup/request": typeof import("../../app/api/v1/setup/request/route").POST;
   "POST team/invite": typeof import("../../app/api/v1/team/invite/route").POST;
+  "POST team/partner": typeof import("../../app/api/v1/team/partner/route").POST;
   "POST templates": typeof import("../../app/api/v1/templates/route").POST;
   "POST templates/draft": typeof import("../../app/api/v1/templates/draft/route").POST;
   "POST templates/starter": typeof import("../../app/api/v1/templates/starter/route").POST;

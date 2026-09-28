@@ -1477,20 +1477,8 @@ const PaneNotifications = () => {
 // The seeded pane is six toggles in localStorage with nothing behind them. The
 // real one is what the system actually does: it emails the addresses in
 // notifications.escalation_emails, for the kinds of alert the edge really
-// sends, and nothing else. No toggle is offered that no code reads.
-
-const NOTIF_KINDS = [
-  { title: "A customer needs a person", what: "It stopped on a thread and someone is waiting. The alert carries their message." },
-  { title: "Still waiting", what: "A handoff has gone unanswered for a while." },
-  { title: "After every phone call", what: "Who called, how long, how it went." },
-  { title: "A reply failed to send", what: "It wrote an answer and the channel refused it." },
-  // The last two are platform alerts: a switched-off number has no workspace
-  // to address, and a stalled sweep belongs to nobody's workspace. They go to
-  // Chanlytics. Listing them beside "goes to each of these addresses" without
-  // saying so promised an owner an email they will never receive.
-  { title: "Messages arriving for a switched-off number", what: "Someone is texting a channel this workspace switched off. Goes to Chanlytics, not to the addresses above: a switched-off number has no workspace to alert.", platform: true },
-  { title: "Background checks", what: "When the watchdog over unanswered threads stops, and when it recovers. Goes to Chanlytics, not to the addresses above.", platform: true },
-];
+// sends, and nothing else. No toggle is offered that no code reads. The kinds, grouped (Customers, Reach-outs, To
+// Chanlytics), and when each is sent, are contracts' (notification-kinds.ts), through window.__today.
 
 const PaneNotificationsReal = ({ flash }) => {
   const [, tick] = useSetState(0);
@@ -1598,21 +1586,26 @@ const PaneNotificationsReal = ({ flash }) => {
           <h2 className="fl-card-title">What you'll get</h2>
           <span className="fl-card-sub">By email, the moment it happens.</span>
         </div>
-        {NOTIF_KINDS.map((k) => (
-          <div className="set-row" key={k.title}>
-            <div className="set-row-info">
-              <span className="set-row-label">
-                {k.title}
-                {k.platform && <span className="chip set-notif-platform">to Chanlytics</span>}
-                <button
-                  type="button"
-                  className="set-mark"
-                  data-tip={k.what}
-                  aria-label={`When this is sent: ${k.what}`}
-                  onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
-                ><Icon name="info" size={12} /></button>
-              </span>
-            </div>
+        {((window.__today && window.__today.notificationKinds) || []).map((g) => (
+          <div className="set-notif-group" key={g.title} data-testid="notif-group">
+            <SetSectionHead title={g.title} />
+            {g.rows.map((k) => (
+              <div className="set-row" key={k.title}>
+                <div className="set-row-info">
+                  <span className="set-row-label">
+                    {k.title}
+                    {k.platform && <span className="chip set-notif-platform">to Chanlytics</span>}
+                    <button
+                      type="button"
+                      className="set-mark"
+                      data-tip={k.what}
+                      aria-label={`When this is sent: ${k.what}`}
+                      onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
+                    ><Icon name="info" size={12} /></button>
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         ))}
       </section>
@@ -1887,7 +1880,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         )}
         {active.id === "profile" && <PaneProfile flash={flash} />}
         {active.id === "partner" && window.PanePartner && <window.PanePartner flash={flash} />}
-        {active.id === "team" && <TeamSection flash={flash} />}
+        {active.id === "team" && <TeamWithPartner flash={flash} />}
         {active.id === "workspace" && <PaneWorkspace flash={flash} />}
         {active.id === "autonomy" && (window.__POLICIES === undefined ? <PaneAutonomy flash={flash} /> : <PaneAutonomyReal flash={flash} />)}
         {active.id === "integrations" && (window.__CHANNELS === undefined ? <PaneIntegrations flash={flash} /> : <window.PaneIntegrationsReal />)}
@@ -1902,7 +1895,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
     </div>
   );
 };
-
+const TeamWithPartner = ({ flash }) => (window.PanePartner ? <window.PanePartner.Team flash={flash} /> : <TeamSection flash={flash} />); // Team, with its partner card (0020)
 window.SettingsPage = SettingsPage;
 window.SET_TABS = SET_TABS;
 window.SET_TABS_PLATFORM = SET_TABS_PLATFORM; // the rail above decides who sees it

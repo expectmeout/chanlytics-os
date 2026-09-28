@@ -4,7 +4,9 @@
  */
 import { tidyCallSummary } from "../voice/call-words";
 import { clockTime } from "../shared/clock";
-import { ago, type PersonRowVM, type ReceptionistTone } from "./people";
+import { ago } from "./person-row-facts";
+import type { PersonRowVM } from "./person-row";
+import type { ReceptionistTone } from "./person-receptionist";
 import { fmtDate } from "./person-helpers";
 import { DAY_MS } from "../shared/time";
 

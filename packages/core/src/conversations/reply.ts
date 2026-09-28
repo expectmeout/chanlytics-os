@@ -119,14 +119,19 @@ export interface EmailParentFacts {
 export interface EmailReplyPorts {
   /** The person's latest email on this thread; null when it holds none. Read inside this workspace and this conversation only. */
   parent(conv: { id: string; tenant_id: TenantId }): Promise<EmailParentFacts | null>;
-  /** The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send from. */
+  /**
+   * The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send
+   * from. A reply to a reach-out on one of the workspace's own domains, verified now, is frozen a second time on that
+   * domain (`own`, C15): the edge sends it when that route still holds it, and the mailbox's request otherwise (N5).
+   */
   freeze(input: {
     tenantId: TenantId;
+    conversationId: string;
     messageId: string;
     to: string;
     parent: EmailParentFacts;
     body: string;
-  }): Promise<{ request: Json; subject: string } | null>;
+  }): Promise<{ request: Json; subject: string; own?: Json | null } | null>;
   /** The row's id before the row exists. */
   newId(): string;
 }
@@ -249,7 +254,14 @@ async function shapeEmailReply(
     );
   }
   const id = ports.email.newId();
-  const frozen = await ports.email.freeze({ tenantId: conv.tenant_id, messageId: id, to, parent, body: text });
+  const frozen = await ports.email.freeze({
+    tenantId: conv.tenant_id,
+    conversationId: conv.id,
+    messageId: id,
+    to,
+    parent,
+    body: text,
+  });
   if (!frozen)
     throw new AppError(
       "conflict",
@@ -264,6 +276,7 @@ async function shapeEmailReply(
         parent_id: parent.messageId,
         in_reply_to: parent.rfcMessageId,
         request: frozen.request,
+        ...(frozen.own ? { own_request: frozen.own } : {}),
       },
     } as Json,
   };

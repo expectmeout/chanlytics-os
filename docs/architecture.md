@@ -256,9 +256,10 @@ honest:
 The unbuilt surfaces (agent fleet, store, studio, tasks, content, the retired
 deal board) stay in the tree, hidden from every real workspace, by decision.
 They live under `src/legacy/demo/`, with the seeded twin of each real page
-(`demo/pages/calendar.jsx` beside `pages/calendar.jsx`, and so on) and the seed
-data only they read; the manifest still loads them, at the places they always
-had, until the twins' forks on those seeds are gone. The shell's route names
+(`demo/pages/calendar.jsx` beside `pages/calendar.jsx`, and so on), the seeded
+Lists and the seed data only they read, and a real workspace never downloads
+them: `src/legacy-bridge/manifest-demo.ts` lists them, and `manifest.ts` asks
+for it, after its own files, only in a declared demo session. The shell's route names
 and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 
 ## Where to look
@@ -274,10 +275,10 @@ and the API's nouns do not all agree yet; `docs/glossary.md` lists the five.
 | A new sweep                            | A cron door, a `sweep_status` registration, the pg_cron schedule                                                                                         |
 | Billing                                | `apps/edge/lib/billing/`, `apps/edge/api/stripe-webhook.ts`                                                                                              |
 | The lead finder                        | `packages/core/src/leads`, `apps/edge/lib/leads/`, `apps/dashboard/src/server/leads/leads.ts`, migration `00140`                                         |
-| Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/ask.ts`                                                                                   |
-| The calendar                           | `apps/dashboard/src/server/calendar/calendar.ts`, `packages/contracts/src/calendar/availability.ts`, `apps/edge/api/cron/calendar.ts`                    |
-| Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `a2p*.ts`, `apps/edge/lib/lines/`                                                                                     |
-| Email                                  | `packages/channels/src/email*.ts`, `apps/edge/lib/email/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                                  |
+| Ask                                    | `apps/dashboard/src/server/ask/*`, `packages/contracts/src/ask/` (`ask.ts`, `ask-answer.ts`)                                                             |
+| The calendar                           | `apps/dashboard/src/server/calendar/`, `packages/contracts/src/calendar/` (`feed.ts`, `availability.ts`), `apps/edge/api/cron/calendar.ts`               |
+| Phone numbers and carrier registration | `packages/channels/src/lines*.ts`, `a2p*.ts`, `a2p/`, `apps/edge/lib/lines/`                                                                             |
+| Email                                  | `packages/channels/src/email*.ts`, `email/`, `apps/edge/lib/email/email-ingress.ts`, `packages/core/src/messages/email-ingest.ts`                        |
 | Voice                                  | `packages/channels/src/voice-*.ts`, the four `retell-*` doors                                                                                            |
 
 ## Tests

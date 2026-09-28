@@ -237,7 +237,11 @@ test("day keys, the words, and the zone", () => {
 });
 
 test("the doors and the page: read-only, the feed's address never in the browser, the registry flipped", async () => {
-  const svc = readCode("apps/dashboard/src/server/calendar/calendar.ts");
+  // The calendar's server modules that hold what is checked here: the feed's parse (parsed-feed.ts), the settings that
+  // name the address (calendar-settings.ts), the board's week (calendar-week.ts) and the preview (feed-preview.ts).
+  const svc = ["parsed-feed", "calendar-settings", "calendar-week", "feed-preview"]
+    .map((m) => readCode(`apps/dashboard/src/server/calendar/${m}.ts`))
+    .join("\n");
   assert.ok(
     svc.includes("const feed = await loadFeed(tenantId, url, opts);"),
     "the same cache the assistant's openings use",
@@ -292,7 +296,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
     "a viewer: nothing moved, cancelled, synced two ways, or priced",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy/demo/pages/calendar.jsx").includes("window.CalendarSeed = CalendarPage;"),
+    readCode("apps/dashboard/src/legacy/demo/pages/calendar.jsx").includes("window.CalendarSeed = CalendarSeed;"),
   );
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes('key: "calendar"') && sd.includes('read("GET calendar"'), "one override, fed by the route");
@@ -385,7 +389,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
     page.includes("value={anchor}") && page.includes("CR_REFRESH_MS"),
     "the date picker follows the anchor; the board reads itself again while open",
   );
-  const svc = readCode("apps/dashboard/src/server/calendar/calendar.ts");
+  const svc = readCode("apps/dashboard/src/server/calendar/calendar-week.ts");
   assert.ok(
     svc.includes("const MAX_DAYS = 63;") &&
       svc.includes("consult_first: needsConsultation(s.name, profile?.booking_rules),"),
@@ -493,7 +497,7 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
     sd.includes("const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));"),
     "the first read is the window around the business's today",
   );
-  assert.ok(readCode("apps/dashboard/src/server/calendar/calendar.ts").includes("const MAX_DAYS = 63;"));
+  assert.ok(readCode("apps/dashboard/src/server/calendar/calendar-week.ts").includes("const MAX_DAYS = 63;"));
   const css = readCode("apps/dashboard/src/legacy/styles/calendar.css");
   assert.ok(
     css.includes("@keyframes cal-in") && css.includes("prefers-reduced-motion"),

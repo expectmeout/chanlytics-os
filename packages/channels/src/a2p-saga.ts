@@ -7,23 +7,19 @@
  *
  * Pure of the network and of the database: the edge supplies both.
  */
+import { A2P_POLICIES, type A2PRequest } from "./a2p/wire";
+import { brandTypeFor, type BusinessRecord } from "./a2p/business-record";
 import {
-  A2P_POLICIES,
-  EMPTY_A2P_STATE,
-  brandTypeFor,
-  nextA2PStep,
   addressRequest,
   assignRequest,
   a2pProfileEndUserRequest,
   a2pProfileRequest,
-  brandRequest,
   businessEndUserRequest,
   starterProfileRequest,
   starterEndUserRequest,
   starterAttributes,
   soleProprietorProfileRequest,
   soleProprietorEndUserRequest,
-  campaignRequest,
   customerProfileRequest,
   evaluateRequest,
   evaluateTrustProductRequest,
@@ -35,13 +31,10 @@ import {
   businessAttributes,
   representativeAttributes,
   updateEndUserRequest,
-  isBrandNotReady,
-  type A2PRequest,
-  type A2PState,
-  type A2PStep,
-  type BusinessRecord,
-  type CampaignFacts,
-} from "./a2p";
+} from "./a2p/trust-hub";
+import { brandRequest, campaignRequest, type CampaignFacts } from "./a2p/brand-campaign";
+import { EMPTY_A2P_STATE, nextA2PStep, type A2PState, type A2PStep } from "./a2p/steps";
+import { isBrandNotReady } from "./a2p/verdict";
 
 export interface A2PAnswer {
   status: number;

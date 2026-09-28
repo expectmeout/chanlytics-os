@@ -16,11 +16,33 @@
  * and reads what the run cost from Ask's own usage rows (usage.ask_tokens,
  * one per model round, written by the edge): the tokens, the dollars per
  * answered turn at the models' list prices, the rounds that stopped at the
- * cap, and which model answered (the model gate, spec 8.3).
+ * cap, and which model answered (the model gate, spec 8.3). The usage rows
+ * name no turn, so each answered turn's row keeps its own stored shape too:
+ * its tokens, its cache hit, whether it followed another and how long after.
  *
  * A case may carry the page it is asked on (`context`, eval-ask-context.mjs): its rows are read through the GETs the
  * page makes, once, before a turn is spent; the page is warmed (POST ask/warm) and rides with the question as the
  * palette sends it, with the scope its route opens. A case without one is asked as before.
+ *
+ * A case may carry a second turn (`then`, eval-ask-context.mjs; the Phase 5 plan, PR 5.2), asked in the first turn's
+ * thread once it has answered: its page resolved at its own clock and warmed again when it differs from turn 1's other
+ * than in its focus, and the scope the palette would send with it (the row its page opens, else turn 1's). Each turn
+ * is a row of its own (`turn: 1 | 2`, the case's id, its own thread id), so the pass rate, the medians and the cost per
+ * turn count turns; a must-never case passes only when both its turns passed on every repetition. A turn 2 that turn 1
+ * left nothing to be asked in (no answer, a failed one, no thread, no card to name, too few items to open) is a failing
+ * row that asked nothing.
+ *
+ * Between the turns, turn 1's card may be approved (`then.between: "approve"`, approveThenAsk): only a settings card
+ * whose change is add_note, one note more for the receptionist, approved as the Line approves it (GET settings, the
+ * card's own commit sent as PUT settings marked `x-via: ask`, the outcome recorded on turn 1's message), and put back
+ * in a `finally` once turn 2 has answered (the card's own undo, the settings read again and compared field by field
+ * with the ones before, the outcome recorded as undone). That note and its undo are the only things a run writes but
+ * its threads, and nothing is ever put back over someone else's save. A note the run cannot know it put back ends the
+ * run at once, exit 3: the run so far is saved with what to restore, and the terminal says what to do by hand. Ctrl+C
+ * while a note is out waits for the turn in flight, puts the note back, saves the run and exits 130; Ctrl+C again stops
+ * at once and names the note to take out. Do not run across 09:00 UTC: the nightly's converge (e2e-workspace.mjs)
+ * rewrites the workspace's config and deletes its Ask threads then, so a turn 2 can lose its thread and a put back its
+ * compare.
  *
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… NEXT_PUBLIC_SUPABASE_ANON_KEY=… \
  *   E2E_USER_EMAIL=… [REPS=3] [SURFACE=today] [ONLY=id,id] node tooling/scripts/eval-ask.mjs [tooling/evals/ask-cases.json]
@@ -29,7 +51,8 @@
  * REPS runs every case that many times (the gate runs three: spec 5.10). SURFACE keeps one surface's cases. The run
  * says how many turns it is about to spend before it spends one, and stops after three refusals in a row: a key with
  * no credit refuses every turn the same way, and the turns after the third say nothing about the model. `--list`
- * says the same and stops there: every case, its page, the turns and their cost, with nothing read and nothing spent.
+ * says the same and stops there: every case and its second turn, their pages, the turns (a case of two turns is two)
+ * and their cost, with nothing read and nothing spent.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { ASK_TOKENS_DAY, BUILTIN_LISTS, cardOpenRoute, oneDoor } from "@chanlytics/contracts";
@@ -38,12 +61,23 @@ import { usedAny } from "../evals/rename-ask-tools.mjs";
 import {
   ROW_SOURCES,
   announcement,
+  approveThenAsk,
+  claimsWrite,
   contextFails,
   describeContext,
+  describeSecondTurn,
+  followUpFails,
   fromContext,
+  jsonLines,
   neededGets,
+  notAsked,
   pageProblems,
   resolveContext,
+  secondScope,
+  secondTurn,
+  turnShapes,
+  unquoted,
+  usageRows,
 } from "./eval-ask-context.mjs";
 
 const BASE = process.env.E2E_BASE_URL || "https://chanlytics-os.vercel.app";
@@ -59,18 +93,22 @@ const SURFACE = process.env.SURFACE || null;
 /** The baseline cost of one turn (spec §9): what the announcement multiplies before a turn is spent. */
 const PER_TURN = 0.012;
 
+/**
+ * The run ends once the terminal has taken all it said: a Windows terminal writes stdout and stderr asynchronously,
+ * and process.exit waits for neither, so a report, or what to put back by hand, could otherwise end cut short.
+ */
+async function quit(code) {
+  await new Promise((done) => process.stdout.write("", done));
+  await new Promise((done) => process.stderr.write("", done));
+  process.exit(code);
+}
+
 if (!LIST && (!URL_ || !KEY || !ANON || !EMAIL)) {
   console.error(
     "NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY and E2E_USER_EMAIL are required",
   );
-  process.exit(2);
+  await quit(2);
 }
-
-const WRITE_CLAIMS = [
-  /\bI (have )?(sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted)\b/i,
-  /\bhe (enviado|cambiado|actualizado|cerrado)\b/i,
-  /\bdone[,.!]/i,
-];
 
 /* ---- a session, the way the e2e suite mints one ---- */
 async function mint() {
@@ -130,15 +168,6 @@ async function workspaceOf(userId) {
   const rows = await rest(`memberships?user_id=eq.${userId}&select=tenant_id`);
   if (rows.length !== 1) throw new Error(`${EMAIL} belongs to ${rows.length} workspaces; the usage rows need one`);
   return rows[0].tenant_id;
-}
-
-/** Ask's usage rows for the workspace since `since`, oldest first: one per model round, as the edge recorded it. */
-async function usageSince(tenantId, since) {
-  const rows = await rest(
-    `events?tenant_id=eq.${tenantId}&kind=eq.usage.ask_tokens&created_at=gte.${encodeURIComponent(since)}` +
-      `&select=data&order=created_at.asc&limit=2000`,
-  );
-  return rows.map((r) => r.data ?? {}).filter((d) => !d.purpose || d.purpose === "ask");
 }
 
 /** What the day's budget counts (ask-gateway.ts askTokensLast24h): uncached input plus output. */
@@ -212,15 +241,19 @@ async function warm(cookie, ws, context) {
   return { ok: res.ok, status: res.status, ms: Date.now() - t0 };
 }
 
-async function ask(cookie, text, surface, page = null, ws = null) {
+/**
+ * One question, as the palette sends it: in `threadId` (null for a new thread) with `scope`, and the page when it has
+ * one. The lines are read to the end, a torn one skipped as the bridge skips it (jsonLines).
+ */
+async function ask(cookie, { text, surface, page = null, threadId = null, scope = null }, ws = null) {
   const t0 = Date.now();
   const res = await fetch(ws ? scopedUrl("/api/v1/ask", ws) : `${BASE}/api/v1/ask`, {
     method: "POST",
     headers: { "content-type": "application/json", cookie, origin: new URL(BASE).origin },
     body: JSON.stringify({
       text,
-      thread_id: null,
-      scope: page?.scope ?? null,
+      thread_id: threadId,
+      scope,
       surface,
       ...(page ? { context: page.context } : {}),
     }),
@@ -232,26 +265,22 @@ async function ask(cookie, text, surface, page = null, ws = null) {
   const events = [];
   const reader = res.body.getReader();
   const dec = new TextDecoder();
-  let carry = "";
   // When the person first sees words: the first `delta` (a v1 turn) or `say` (a v2 turn), from the request's start;
   // and when the model first decided anything: the first `trace` (a read or a card starting).
   let firstMs = null;
   let firstTraceMs = null;
-  const take = (l) => {
-    const e = JSON.parse(l);
+  const lines = jsonLines((e) => {
     if (firstMs === null && (e.t === "delta" || e.t === "say")) firstMs = Date.now() - t0;
     if (firstTraceMs === null && e.t === "trace") firstTraceMs = Date.now() - t0;
     events.push(e);
-  };
+  });
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
-    carry += dec.decode(value, { stream: true });
-    const lines = carry.split("\n");
-    carry = lines.pop() ?? "";
-    for (const l of lines) if (l.trim()) take(l);
+    lines.push(dec.decode(value, { stream: true }));
   }
-  if (carry.trim()) take(carry);
+  lines.push(dec.decode());
+  lines.end();
   const final = events.find((e) => e.t === "final");
   const thread = events.find((e) => e.t === "thread");
   const ms = Date.now() - t0;
@@ -284,13 +313,14 @@ export function judge(c, r) {
   if (e.tools_any && !fromContext(c, m, r.context) && !usedAny(e.tools_any, m.tools))
     fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_any.join("/")}`);
   fails.push(...contextFails(c, m, r.context));
+  // A second turn is judged against its first too: the thread it was asked in, and the checks only it has.
+  if (r.first) fails.push(...followUpFails(e, r, r.first));
   if (m.failed && /daily budget|presupuesto diario/.test(text))
     fails.push("BUDGET: the workspace's Ask cap is spent; this result says nothing about the model");
   if (e.tools_also_any && !usedAny(e.tools_also_any, m.tools))
     fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_also_any.join("/")}`);
   if (e.language && m.language !== e.language) fails.push(`language ${m.language} ≠ ${e.language}`);
-  if (e.no_write && WRITE_CLAIMS.some((re) => re.test(text)))
-    fails.push(`the answer claims a write: “${text.slice(0, 120)}”`);
+  if (e.no_write && claimsWrite(text)) fails.push(`the answer claims a write: “${text.slice(0, 120)}”`);
   if (e.includes_any && !e.includes_any.some((s) => text.toLowerCase().includes(s.toLowerCase())))
     fails.push(`answer lacks all of ${e.includes_any.join("/")}`);
   for (const s of e.excludes ?? [])
@@ -347,7 +377,7 @@ export function judge(c, r) {
   if (a && !m.failed) {
     // A message the headline quotes ("Yes! Pick a time here", or the same in single quotes after a space or a
     // colon, which is never an apostrophe) is not a sentence of its own.
-    const own = a.say.headline.replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "…").replace(/(^|[\s:(])'[^']*\s[^']*'/g, "$1…");
+    const own = unquoted(a.say.headline);
     if (a.form === "structured" && /[.!?]\s+[A-ZÁÉÍÓÚÑ¿¡]/.test(own))
       fails.push(`the headline is more than one sentence: “${a.say.headline.slice(0, 120)}”`);
     const cards = m.proposals ?? [];
@@ -380,24 +410,27 @@ const cases = JSON.parse(readFileSync(file, "utf8"))
   .filter((c) => !SURFACE || c.surface === SURFACE);
 if (!cases.length) {
   console.error("no cases match ONLY/SURFACE");
-  process.exit(2);
+  await quit(2);
 }
 // A page the eval cannot build is said before anything is read or spent.
 const unbuildable = pageProblems(cases);
 if (unbuildable.length) {
   console.error(`cases whose page cannot be built:\n  ${unbuildable.join("\n  ")}`);
-  process.exit(2);
+  await quit(2);
 }
 
 if (LIST) {
-  for (const c of cases)
+  for (const c of cases) {
     console.log(
       `${c.id} · ${c.surface}${c.must_never ? " · must-never" : ""}${c.context ? ` · ${describeContext(c.context)}` : ""}\n    ${c.text}`,
     );
+    // A case's second turn, on its own lines under it.
+    if (c.then) console.log(describeSecondTurn(c));
+  }
   process.stdout.write(
     `\n${announcement(cases, REPS, PER_TURN)}Nothing was read or spent: --list only says what a run would do.\n`,
   );
-  process.exit(0);
+  await quit(0);
 }
 
 const session = await mint();
@@ -405,17 +438,24 @@ const cookie = cookieHeader(session);
 // The budget before a case is asked: a run that starts near the cap ends in a wall of BUDGET refusals that say
 // nothing about the model (ask-gateway.ts refuses at ASK_TOKENS_DAY over the last day).
 const tenantId = await workspaceOf(session.user.id);
-const usedToday = budgetTokens(await usageSince(tenantId, new Date(Date.now() - DAY_MS).toISOString()));
+const usedToday = budgetTokens(await usageRows(rest, tenantId, new Date(Date.now() - DAY_MS).toISOString()));
 // The pages' rows, read once through the GETs the pages make; each turn builds its page from them at its own clock.
 const answers = await readGets(cookie, tenantId, neededGets(cases));
 let drawn;
 try {
-  drawn = cases
-    .filter((c) => c.context)
-    .map((c) => `${c.id} ${resolveContext(c.context, answers).context.rows.length}`);
+  // Every page a turn is asked on, built once now: a second turn's page of its own too.
+  drawn = cases.flatMap((c) => {
+    const two = secondTurn(c);
+    return [
+      ...(c.context ? [`${c.id} ${resolveContext(c.context, answers).context.rows.length}`] : []),
+      ...(two?.context && c.then.context !== undefined
+        ? [`${c.id} (turn 2) ${resolveContext(two.context, answers).context.rows.length}`]
+        : []),
+    ];
+  });
 } catch (e) {
   console.error(`a page could not be built from what its GETs answered, so nothing was asked: ${e.message}`);
-  process.exit(2);
+  await quit(2);
 }
 process.stderr.write(
   `Ask's budget today: ${usedToday.toLocaleString("en-US")} of ${ASK_TOKENS_DAY.toLocaleString("en-US")} tokens used before this run\n` +
@@ -432,72 +472,238 @@ const REFUSED =
   /refused the question|rechazó la pregunta|not connected to a model|no está conectado|could not reach the model|No pude llegar al modelo/;
 let refusals = 0;
 let stopped = null;
+/** A turn's name in the log: its case, which turn a second one is, and its repetition. */
+const nameOf = (row) => `${row.id}${row.turn === 2 ? " · turn 2" : ""}${REPS > 1 ? ` #${row.rep}` : ""}`;
+/** A turn that threw before it answered (a 5xx, the route's rate limit): no answer and no time. */
+const unanswered = (e) => ({
+  final: null,
+  error: e instanceof Error ? e.message : String(e),
+  ms: 0,
+  firstMs: 0,
+  firstTraceMs: null,
+  deltas: 0,
+  threadId: null,
+});
+/** A second turn that was never asked: no answer, and no time at all. */
+const NOT_ASKED = { final: null, ms: null, firstMs: null, firstTraceMs: null, deltas: 0, threadId: null };
+
+/** A turn's row: what it was asked on and with, what it answered, and what the judge said of it. */
+function rowOf(q, rep, turn, r, warmed, j) {
+  return {
+    id: q.id,
+    rep,
+    turn,
+    surface: q.surface,
+    must_never: q.must_never === true,
+    text: q.text,
+    context: r.context ?? null,
+    scope: r.scope ?? null,
+    warm: warmed,
+    answer: r.final?.text ?? null,
+    // The whole message, so a review can draw the answer as the Line does (the model gate's blind review).
+    message: r.final ?? null,
+    form: r.final?.answer?.form ?? null,
+    shown: r.final?.answer
+      ? {
+          figures: r.final.answer.show.figures.length,
+          items: r.final.answer.show.items.length,
+          breakdown: !!r.final.answer.show.breakdown,
+          open: r.final.answer.do.open?.to ?? null,
+        }
+      : null,
+    rounds: r.final?.rounds ?? null,
+    tools: r.final?.tools ?? [],
+    proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })),
+    citations: r.final?.citations ?? [],
+    language: r.final?.language ?? null,
+    latency_ms: r.final?.latencyMs ?? r.ms,
+    first_ms: r.firstMs,
+    first_trace_ms: r.firstTraceMs,
+    final_ms: r.ms,
+    deltas: r.deltas,
+    threadId: r.threadId ?? null,
+    ...j,
+  };
+}
+
+/** A turn's line on stderr as it lands. */
+function said(row, r, warmed) {
+  const how =
+    r.ms === null
+      ? ""
+      : ` (${r.ms} ms, ${r.final?.rounds ?? "?"} round(s), tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))}${warmed && !warmed.ok ? `, warm refused ${warmed.status}` : ""})`;
+  process.stderr.write(
+    `${row.pass ? "PASS" : "FAIL"} ${nameOf(row)}${how}${row.pass ? "" : "\n     " + row.fails.join("\n     ")}\n`,
+  );
+}
+
+/**
+ * One turn (`q`: a case, or its second turn): its page built at this turn's own clock and, when `warmIt`, warmed as
+ * the Line warms it; the question asked in `threadId` with the scope `scopeOf` gives for that page; judged (against
+ * turn 1, for a second turn); its row, said as it lands.
+ */
+async function askTurn(q, rep, turn, { warmIt, threadId = null, scopeOf, first = null }) {
+  let r;
+  let page = null;
+  let warmed = null;
+  let scope = null;
+  try {
+    // The page as the palette sends it: warmed as the Line opens, then carried with the question.
+    page = q.context ? resolveContext(q.context, answers) : null;
+    if (page && warmIt) warmed = await warm(cookie, tenantId, page.context);
+    scope = scopeOf(page);
+    r = await ask(cookie, { text: q.text, surface: q.surface, page, threadId, scope }, page ? tenantId : null);
+  } catch (e) {
+    r = unanswered(e);
+  }
+  r.context = page?.context ?? null;
+  r.scope = scope;
+  r.first = first;
+  const j = r.final ? judge(q, r) : { pass: false, fails: [r.error ?? "no answer"], notes: [] };
+  const row = rowOf(q, rep, turn, r, warmed, j);
+  said(row, r, warmed);
+  return { r, row };
+}
+
+/** The Line's own requests, made from here (approveThenAsk): the workspace named, the session's cookie. */
+const io = { fetch, at: (path) => scopedUrl(path, tenantId), cookie, origin: new URL(BASE).origin, now: Date.now };
+
+/** The run as it stands, saved where the backups go (gitignored): every turn spent, and what the run ended on. */
+function saveRun(extra = {}) {
+  mkdirSync("tooling/backups", { recursive: true });
+  const out = `tooling/backups/eval-ask-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+  const run = { base: BASE, file, reps: REPS, stopped, at: new Date().toISOString(), used_today_before: usedToday };
+  writeFileSync(out, JSON.stringify({ ...run, usage: null, results, ...extra }, null, 2));
+  return out;
+}
+
+/**
+ * A note the eval cannot know it put back. The run so far is saved first -- the turns spent, and what to restore, in
+ * one file that lasts -- then said with what to do by hand, and the run ends there, exit 3, once the terminal has it
+ * all. The whole config is offered only when the note is all that differs (putBack's `whole`): anything more is
+ * someone's save since the card, which putting the whole config back would undo.
+ */
+async function unrestored(back, at) {
+  stopped = `a note approved between the turns was not put back after ${at}: ${back.why}`;
+  const { note, config, diff, whole } = back.byHand;
+  const out = saveRun({ restore_failed: { at, why: back.why, note, config, diff, whole } });
+  const where =
+    diff === null
+      ? "The settings could not be read, so what they hold now is not known."
+      : `The settings differ from the ones before the card at: ${diff.join(", ")}.`;
+  const instead = whole
+    ? `As the note is all that differs, the whole config may go back instead: PUT /api/v1/settings?workspace=${tenantId}` +
+      ` with { config, version }, the version they have now and this config:\n${JSON.stringify(config, null, 2)}\n`
+    : diff === null
+      ? ""
+      : "Do not put the whole config back: someone has saved the settings since the card, and it would undo that.\n";
+  process.stderr.write(
+    `\nRESTORE FAILED after ${at}: ${back.why}\n` +
+      `The workspace's settings may still hold the note turn 1's card added, and nothing after it was asked.\n` +
+      `${where}\n` +
+      `To put them back by hand, take the note “${note.title}” (${note.text}) out in Settings › Business.\n` +
+      instead +
+      `The run so far, and this, are saved in ${out}.\n`,
+  );
+  await quit(3);
+}
+
+/** The note a card of turn 1's may write, from its approval until it is put back: what Ctrl+C must not leave behind. */
+let noteOut = null;
+/** Ctrl+C while a note was out: the note goes back as the turn in flight ends, and the run stops there. */
+let interrupted = false;
+process.on("SIGINT", () => {
+  if (!noteOut) {
+    process.stderr.write("\nStopped (Ctrl+C). Nothing of the eval's is in the workspace's settings.\n");
+    return void quit(130);
+  }
+  if (interrupted) {
+    process.stderr.write(
+      `\nStopped at once (Ctrl+C twice). The note “${noteOut.title}” (${noteOut.text}) may still be in the settings:` +
+        " take it out in Settings › Business.\n",
+    );
+    return void quit(130);
+  }
+  interrupted = true;
+  process.stderr.write(
+    "\nStopping (Ctrl+C): the note turn 1's card added goes back as the turn in flight ends, then the run saves what" +
+      " it has. Ctrl+C again stops at once and leaves the note.\n",
+  );
+});
+
+/** A turn toward the stop: a refusal adds one, an answer starts the count again. True at the third in a row. */
+function thirdRefusal(r, row) {
+  // A request that threw (a 5xx, the route's rate limit) counts too: it says nothing about the model either.
+  const refused = !r.final || (r.final.failed && REFUSED.test(r.final.text ?? ""));
+  refusals = refused ? refusals + 1 : 0;
+  if (refusals < 3) return false;
+  stopped = `three refusals in a row at ${row.id}${row.turn === 2 ? " · turn 2" : ""} #${row.rep}: the key, its credit, the model or the route. Nothing after this was asked.`;
+  process.stderr.write(`STOP: ${stopped}\n`);
+  return true;
+}
+
 run: for (let rep = 1; rep <= REPS; rep++) {
   for (const c of cases) {
-    let r;
-    let page = null;
-    let warmed = null;
-    try {
-      // The page as the palette sends it: warmed as the Line opens, then carried with the question.
-      page = c.context ? resolveContext(c.context, answers) : null;
-      if (page) warmed = await warm(cookie, tenantId, page.context);
-      r = await ask(cookie, c.text, c.surface, page, page ? tenantId : null);
-    } catch (e) {
-      r = {
-        final: null,
-        error: e instanceof Error ? e.message : String(e),
-        ms: 0,
-        firstMs: 0,
-        firstTraceMs: null,
-        deltas: 0,
-      };
-    }
-    r.context = page?.context ?? null;
-    const j = r.final ? judge(c, r) : { pass: false, fails: [r.error ?? "no answer"], notes: [] };
-    results.push({
-      id: c.id,
-      rep,
-      surface: c.surface,
-      must_never: c.must_never === true,
-      text: c.text,
-      context: r.context,
-      warm: warmed,
-      answer: r.final?.text ?? null,
-      // The whole message, so a review can draw the answer as the Line does (the model gate's blind review).
-      message: r.final,
-      form: r.final?.answer?.form ?? null,
-      shown: r.final?.answer
-        ? {
-            figures: r.final.answer.show.figures.length,
-            items: r.final.answer.show.items.length,
-            breakdown: !!r.final.answer.show.breakdown,
-            open: r.final.answer.do.open?.to ?? null,
-          }
-        : null,
-      rounds: r.final?.rounds ?? null,
-      tools: r.final?.tools ?? [],
-      proposals: (r.final?.proposals ?? []).map((p) => ({ kind: p.kind, title: p.title, summary: p.summary })),
-      citations: r.final?.citations ?? [],
-      language: r.final?.language ?? null,
-      latency_ms: r.final?.latencyMs ?? r.ms,
-      first_ms: r.firstMs,
-      first_trace_ms: r.firstTraceMs,
-      final_ms: r.ms,
-      deltas: r.deltas,
-      threadId: r.threadId ?? null,
-      ...j,
-    });
-    process.stderr.write(
-      `${j.pass ? "PASS" : "FAIL"} ${c.id}${REPS > 1 ? ` #${rep}` : ""} (${r.ms} ms, ${r.final?.rounds ?? "?"} round(s), tools ${JSON.stringify(r.final?.tools ?? [])}, cards ${JSON.stringify((r.final?.proposals ?? []).map((p) => p.kind))}${warmed && !warmed.ok ? `, warm refused ${warmed.status}` : ""})${j.pass ? "" : "\n     " + j.fails.join("\n     ")}\n`,
-    );
-    // A request that threw (a 5xx, the route's rate limit) counts too: it says nothing about the model either.
-    const refused = !r.final || (r.final.failed && REFUSED.test(r.final.text ?? ""));
-    refusals = refused ? refusals + 1 : 0;
-    if (refusals >= 3) {
-      stopped = `three refusals in a row at ${c.id} #${rep}: the key, its credit, the model or the route. Nothing after this was asked.`;
+    const one = await askTurn(c, rep, 1, { warmIt: !!c.context, scopeOf: (page) => page?.scope ?? null });
+    results.push(one.row);
+    if (thirdRefusal(one.r, one.row)) break run;
+    const two = secondTurn(c);
+    if (!two) continue;
+    // Turn 2 is asked in turn 1's thread, once turn 1 has answered, or is a row that asked nothing and says why.
+    const t1 = { final: one.r.final, threadId: one.r.threadId ?? null, scope: one.row.scope };
+    const ask2 = () =>
+      askTurn(two, rep, 2, {
+        warmIt: two.warm,
+        threadId: t1.threadId,
+        scopeOf: (page) => secondScope(page, t1.scope),
+        first: t1,
+      });
+    let why = notAsked(two, t1);
+    let second = null;
+    let between = null;
+    // A note not put back, and what turn 2 threw (the runner's own fault: askTurn catches what a turn throws).
+    let held = null;
+    let thrown = null;
+    if (!why && two.between === "approve") {
+      // A note is out from its approval until approveThenAsk has put it back, and Ctrl+C waits for that (above).
+      noteOut = (t1.final.proposals ?? []).find((p) => p.kind === "settings")?.payload?.change ?? null;
+      const b = await approveThenAsk(
+        io,
+        t1.final,
+        (approval) => {
+          process.stderr.write(
+            `     approved “${approval.card.title}” (${approval.card.summary}); settings v${approval.before.version} → v${approval.record.version_after}, put back once turn 2 has answered\n`,
+          );
+          return ask2();
+        },
+        () => interrupted,
+      );
+      noteOut = null;
+      ({ why, second } = b);
+      held = b.back && !b.back.ok ? b.back : null;
+      thrown = b.error;
+      if (b.approval)
+        between = {
+          approved: { id: b.approval.card.id, title: b.approval.card.title, summary: b.approval.card.summary },
+          versions: [b.approval.before.version, b.approval.record.version_after],
+          put_back: !held && b.back.undone,
+          outcome_undone: held ? null : b.back.recorded,
+        };
+    } else if (!why) second = await ask2();
+    const unasked = (fail) => rowOf(two, rep, 2, NOT_ASKED, null, { pass: false, fails: [fail], notes: [] });
+    const row = why ? unasked(`not asked: ${why}`) : second ? second.row : unasked(`turn 2 threw: ${thrown?.message}`);
+    results.push(between ? { ...row, between } : row);
+    if (!second) said(row, NOT_ASKED, null);
+    // The turn is kept before anything else: a note not put back ends the run here, with every turn spent saved.
+    if (held) await unrestored(held, `${c.id} #${rep}`);
+    if (thrown) throw thrown;
+    if (interrupted) {
+      stopped = `stopped by Ctrl+C at ${c.id} · turn 2 #${rep}: the note was put back, and nothing after it was asked.`;
       process.stderr.write(`STOP: ${stopped}\n`);
       break run;
     }
+    // A turn that was not asked refused nothing: the count toward the stop stands as it was.
+    if (!why && thirdRefusal(second.r, second.row)) break run;
   }
 }
 const passed = results.filter((r) => r.pass).length;
@@ -509,12 +715,28 @@ const whole = spread(answered.map((r) => r.final_ms));
 const median = spread(answered.map((r) => r.latency_ms)).median;
 const oneRound = results.filter((r) => r.rounds === 1).length;
 const repeats = results.filter((r) => r.notes?.length).length;
-// A must-never case passes only when it passed every repetition (pass^k, spec 5.10).
+// A must-never case passes only when it passed every repetition (pass^k, spec 5.10): both turns of one that has two.
 const mustNever = [...new Set(results.filter((r) => r.must_never).map((r) => r.id))];
 const mustNeverHeld = mustNever.filter((id) => results.filter((r) => r.id === id).every((r) => r.pass)).length;
+// A case of two turns held when both passed on one repetition: each repetition of it is one conversation, counted so.
+const pairs = results
+  .filter((r) => r.turn === 2)
+  .map((two) => [results.find((one) => one.turn === 1 && one.id === two.id && one.rep === two.rep), two]);
+const pairsHeld = pairs.filter(([one, two]) => one?.pass && two.pass).length;
 // The edge writes a turn's last usage row as its stream settles, a moment after the final lands.
 await new Promise((res) => setTimeout(res, 5_000));
-const usage = summarizeUsage(await usageSince(tenantId, startedAt), results.filter((r) => r.message).length);
+const usage = summarizeUsage(await usageRows(rest, tenantId, startedAt), results.filter((r) => r.message).length);
+// Each answered turn's own cost and memory, from its stored shape (the usage rows name no turn): a second turn's cache
+// hit is what its first left it. A read that fails leaves the rows without, and says so.
+let shapesUnread = null;
+const shapes = await turnShapes(
+  rest,
+  answered.map((r) => r.message.id),
+).catch((e) => {
+  shapesUnread = e instanceof Error ? e.message : String(e);
+  return new Map();
+});
+for (const r of answered) r.shape = shapes.get(r.message.id) ?? null;
 const reported = results.reduce((s, r) => s + (r.rounds ?? 0), 0);
 const dollars = (n) => (n === null ? "unpriced" : `$${n.toFixed(n < 1 ? 3 : 2)}`);
 const interval = (k, n) => {
@@ -525,9 +747,11 @@ console.log(
   `\nAsk evals: ${interval(passed, results.length)} passed over ${REPS} rep(s) · median ${median} ms · one-round ${oneRound}/${results.length}` +
     ` · first trace median ${trace.median ?? "—"} ms · first words median ${first.median} ms, p90 ${first.p90} ms · final median ${whole.median} ms, p90 ${whole.p90} ms` +
     `\n  must-never: ${mustNeverHeld}/${mustNever.length} cases held on every rep` +
+    (pairs.length ? `\n  two-turn conversations (case × rep) held on both turns: ${pairsHeld}/${pairs.length}` : "") +
     `\n  model ${Object.keys(usage.byModel).join("+") || "?"} · ${dollars(usage.per_turn)} per answered turn` +
     ` (${dollars(usage.cost)} the run, ${usage.rounds} rounds recorded of ${reported} reported)` +
-    ` · at the cap ${usage.cap_hits} · repeats ${repeats}${stopped ? `\n  STOPPED: ${stopped}` : ""}`,
+    ` · at the cap ${usage.cap_hits} · repeats ${repeats}${stopped ? `\n  STOPPED: ${stopped}` : ""}` +
+    (shapesUnread ? `\n  the turns' stored shapes could not be read: ${shapesUnread}` : ""),
 );
 const surfaces = [...new Set(results.map((r) => r.surface))];
 for (const s of surfaces) {
@@ -547,27 +771,9 @@ for (const [model, m] of Object.entries(usage.byModel))
   );
 for (const r of results)
   console.log(
-    `- ${r.pass ? "ok  " : "FAIL"} ${r.id}${REPS > 1 ? ` #${r.rep}` : ""}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}` +
+    `- ${r.pass ? "ok  " : "FAIL"} ${nameOf(r)}: ${(r.answer ?? "").replace(/\s+/g, " ").slice(0, 160)}` +
       (r.notes?.length ? `\n       note: ${r.notes.join("; ")}` : ""),
   );
-mkdirSync("tooling/backups", { recursive: true });
-const out = `tooling/backups/eval-ask-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-writeFileSync(
-  out,
-  JSON.stringify(
-    {
-      base: BASE,
-      file,
-      reps: REPS,
-      stopped,
-      at: new Date().toISOString(),
-      used_today_before: usedToday,
-      usage,
-      results,
-    },
-    null,
-    2,
-  ),
-);
-console.log(`saved ${out}`);
-process.exit(passed === results.length && !stopped ? 0 : 1);
+console.log(`saved ${saveRun({ usage })}`);
+// Stopped by Ctrl+C: 130, as a shell counts an interrupt; else whether every turn passed.
+await quit(interrupted ? 130 : passed === results.length && !stopped ? 0 : 1);
