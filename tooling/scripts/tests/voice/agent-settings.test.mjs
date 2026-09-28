@@ -148,7 +148,7 @@ test("the converger, the diagnostic and the provisioning script all read the sam
     "without --publish the script says the line did not change",
   );
   // The diagnostic's agent-settings drift is run in diag-door.test.mjs.
-  const adapter = readCode("packages/channels/src/voice-retell.ts");
+  const adapter = readCode("packages/channels/src/voice/voice-retell.ts");
   assert.ok(adapter.includes('data_storage_retention_days: num("data_storage_retention_days")'));
   // Provisioning creates the agent with the same settings the converger keeps.
   const created = voiceAgentCreateBody({ llmId: "llm_x", llmVersion: 0, agentName: "x" }, { fnSecret: "s" });

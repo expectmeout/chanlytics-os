@@ -21,7 +21,7 @@
   "apps/edge/lib/reach-out/sender.ts": 2,
   "apps/edge/lib/tenant-runtime.ts": 1,
   "apps/edge/lib/voice/call-recording.ts": 1,
-  "packages/channels/src/voice-retell.ts": 8,
+  "packages/channels/src/voice/voice-retell.ts": 8,
   "packages/contracts/src/ask/ask-fast-paths.ts": 1,
   "packages/contracts/src/ask/ask.ts": 1,
   "packages/contracts/src/calendar/availability.ts": 5,

@@ -1585,7 +1585,7 @@ declare function emailReceiptEffect(r: EmailReceipt): EmailReceiptEffect;
 
 /**
  * Two answers the provider gives a call, read: what a refusal means for the next send (resendLimitOf), and what it
- * thinks of the mail domain (mailDomainsFrom). The calls themselves are ../email-resend.ts.
+ * thinks of the mail domain (mailDomainsFrom). The calls themselves are ./email-resend.ts.
  */
 /**
  * What a refusal from the provider means for the next send, read from the
