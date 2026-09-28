@@ -1,4 +1,4 @@
-import { SECOND_FACTOR_PATH, factorStepNeeded, type AssuranceLevels } from "@chanlytics/contracts";
+import { SECOND_FACTOR_PATH, factorStepNeeded, type AssuranceLevels, lineOrNull } from "@chanlytics/contracts";
 
 /**
  * The provider's return, decided without a network: what to exchange, and
@@ -49,11 +49,6 @@ interface CallbackRefusal {
   description: string | null;
 }
 
-const clip = (s: string | null | undefined): string | null => {
-  const t = (s ?? "").replace(/[\r\n]+/g, " ").trim();
-  return t ? t.slice(0, 200) : null;
-};
-
 interface CallbackPlan {
   /** The code to exchange for a session, or null when there is nothing to exchange. */
   exchange: string | null;
@@ -74,7 +69,11 @@ export function callbackPlan(q: {
     return {
       exchange: null,
       to: OAUTH_FAILED,
-      refused: { error: clip(q.error) ?? "unknown", code: clip(q.errorCode), description: clip(q.errorDescription) },
+      refused: {
+        error: lineOrNull(q.error) ?? "unknown",
+        code: lineOrNull(q.errorCode),
+        description: lineOrNull(q.errorDescription),
+      },
     };
   if (!q.code) return { exchange: null, to: "/login", refused: null };
   return { exchange: q.code, to: safeNext(q.next), refused: null };

@@ -14,6 +14,7 @@
 import crypto from "node:crypto";
 import { APIFY_RUN_END_EVENTS } from "../packages/channels.js";
 import type { LogEvent } from "../log.js";
+import { trimmedOrNull, recordOrNull } from "@chanlytics/contracts";
 
 /** The endings, spelled once: exactly the events every run is started asking for (core runner/start.ts, runner/check.ts). Anything else is progress. */
 const APIFY_FINAL_EVENTS: ReadonlySet<string> = new Set(APIFY_RUN_END_EVENTS);
@@ -52,10 +53,6 @@ type IngressVerdict =
       fill: { datasetId: string | null } | null;
     };
 
-const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
-const obj = (v: unknown): Record<string, unknown> | null =>
-  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
-
 export function planApifyIngress(input: {
   runRow: IngressRunRow | null;
   tokenOk: boolean;
@@ -64,12 +61,12 @@ export function planApifyIngress(input: {
   const { runRow, tokenOk } = input;
   if (!runRow) return { action: "ignore", log: "apify_webhook_unknown_run" };
   if (!tokenOk) return { action: "refuse", status: 401, log: "apify_webhook_bad_token" };
-  const body = obj(input.body);
+  const body = recordOrNull(input.body);
   if (!body) return { action: "refuse", status: 400, log: "apify_webhook_not_json" };
-  const eventType = str(body.eventType);
+  const eventType = trimmedOrNull(body.eventType);
   if (!eventType || !APIFY_FINAL_EVENTS.has(eventType)) return { action: "ignore", log: "apify_webhook_not_final" };
-  const resource = obj(body.resource);
-  const pointer = str(obj(body.eventData)?.actorRunId) ?? str(resource?.id);
+  const resource = recordOrNull(body.resource);
+  const pointer = trimmedOrNull(recordOrNull(body.eventData)?.actorRunId) ?? trimmedOrNull(resource?.id);
   if (!pointer || !/^[A-Za-z0-9]{1,40}$/.test(pointer))
     return { action: "refuse", status: 400, log: "apify_webhook_no_run" };
   if (runRow.apify_run_id && runRow.apify_run_id !== pointer)
@@ -80,6 +77,6 @@ export function planApifyIngress(input: {
     tenantId: runRow.tenant_id,
     apifyRunId: pointer,
     // A start whose answer was lost learns its run id here: the token proves the URL was ours, and only the run we started carries it.
-    fill: runRow.apify_run_id ? null : { datasetId: str(resource?.defaultDatasetId) },
+    fill: runRow.apify_run_id ? null : { datasetId: trimmedOrNull(resource?.defaultDatasetId) },
   };
 }

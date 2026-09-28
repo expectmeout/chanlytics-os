@@ -16,16 +16,21 @@ corepack pnpm exec eas build --profile development --platform android          #
 corepack pnpm start                                      # the dev client loop, once one is installed
 ```
 
-**The preview app on main** (`.eas/workflows/preview.yml`): a push to main that touches this app or the contracts
-fingerprints the native code. When a preview APK with that fingerprint exists, the push reaches it as an update on
-the `preview` channel (the app fetches it at launch and runs it on the next one); only a native change builds a new
-APK. Each build is one of the plan's builds, and the free plan's run out, so nothing else builds on a push.
+**The preview app on main** (`.eas/workflows/preview.yml`): a push to main that changes what the app is made of (this
+app, the lockfile, or a contracts module its entry reaches; `test/preview-paths.test.mjs` holds the list to that
+entry) fingerprints the native code. When a preview APK with that fingerprint exists, the push reaches it as an update
+on the `preview` channel (the app fetches it at launch and runs it on the next one); only a native change builds a new
+APK. Besides the native modules, the fingerprint hashes the evaluated `app.config.ts`, this `package.json`'s scripts,
+`eas.json` and `.gitignore`: a change to any of those builds a new APK, which spends the plan's build credit.
 
 `EXPO_PUBLIC_SITE_ORIGIN` names the site the shell holds. Unset, it is the product's own address (`src/site.ts`); an
 EAS environment or a local `.env.local` may point it elsewhere, at a preview for instance.
 
 ## What is where
 
+- `@chanlytics/contracts/phone-app` (`packages/contracts/src/mobile/phone-app.ts`): everything the app reads of
+  contracts, bundled from its sources. The package's root is the web's built bundle, every export and zod, and the
+  app's lint refuses it.
 - `src/site.ts`: the origin, the User-Agent token the site reads, a workspace page's address.
 - `src/shell/Surface.tsx`: one page of the site; `bridge.ts` its side of the bridge; `state.ts` what the shell knows;
   `deploy.ts` when a deploy reloads the pages; `Offline.tsx` the screen without a network.

@@ -1,3 +1,4 @@
+import { lineOrNull } from "@chanlytics/contracts";
 /**
  * Reading a refused sign-in out of the URL fragment.
  *
@@ -34,18 +35,12 @@ interface HashAuthError {
  */
 export const OAUTH_CANCELLED = "access_denied";
 
-/** Clipped and flattened: a fragment is written by whoever built the link, and this ends up in a log line. */
-const clip = (s: string | null | undefined): string | null => {
-  const t = (s ?? "").replace(/[\r\n]+/g, " ").trim();
-  return t ? t.slice(0, 200) : null;
-};
-
 export function authErrorInHash(hash: string | null | undefined): HashAuthError | null {
   const h = (hash ?? "").trim();
   // A route, or nothing at all. Both are somebody else's business.
   if (!h.startsWith("#") || h.startsWith("#/")) return null;
   const q = new URLSearchParams(h.slice(1));
-  const error = clip(q.get("error"));
+  const error = lineOrNull(q.get("error"));
   if (!error) return null;
-  return { error, code: clip(q.get("error_code")), description: clip(q.get("error_description")) };
+  return { error, code: lineOrNull(q.get("error_code")), description: lineOrNull(q.get("error_description")) };
 }

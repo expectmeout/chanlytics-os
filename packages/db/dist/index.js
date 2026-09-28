@@ -3226,13 +3226,13 @@ async function lastInboundEmail(db, tenantId, conversationId) {
   if (error) throw new Error(`email: cannot read the email being answered: ${error.message}`);
   if (!data) return null;
   const e = data.meta?.email ?? {};
-  const str2 = (v) => typeof v === "string" && v ? v : null;
+  const str = (v) => typeof v === "string" && v ? v : null;
   return {
     messageId: data.id,
-    from: str2(e.from),
-    rfcMessageId: str2(e.message_id),
+    from: str(e.from),
+    rfcMessageId: str(e.message_id),
     references: Array.isArray(e.references) ? e.references.filter((r2) => typeof r2 === "string") : [],
-    subject: str2(e.subject)
+    subject: str(e.subject)
   };
 }
 var ANSWERED_LOOKBACK = 50;
@@ -5167,20 +5167,20 @@ async function getPartnerInviteMail(db, tenantId) {
 
 // src/repositories/leads.ts
 var ONE_LEAD_COLUMNS = "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at";
-var str = (v) => typeof v === "string" ? v : null;
+var jsonString = (v) => typeof v === "string" ? v : null;
 function memberOf(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const id = str(data.id);
-  const searchId = str(data.search_id);
-  const cls = str(data.class);
+  const id = jsonString(data.id);
+  const searchId = jsonString(data.search_id);
+  const cls = jsonString(data.class);
   if (!id || !searchId || !cls) return null;
   return {
     id,
     search_id: searchId,
     class: cls,
-    excluded_by: str(data.excluded_by),
-    fit: str(data.fit),
-    reason: str(data.reason) ?? "",
+    excluded_by: jsonString(data.excluded_by),
+    fit: jsonString(data.fit),
+    reason: jsonString(data.reason) ?? "",
     distance_m: typeof data.distance_m === "number" ? data.distance_m : null,
     counted: data.counted === true,
     judgment: data.judgment ?? null
