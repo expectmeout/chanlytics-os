@@ -1383,7 +1383,15 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** 00227 first. Then the edge's calendar sweep; the dashboard is untouched. Either order.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `b51ecdea`). What departed from the tasks, and why:
+>
+> - **A booking matches the lead's own address or number as well as its person's.** A reach-out writes to the lead's address, and a business that books straight from the email may have no person yet; the lead's `email` and `phone_e164` are what the reach-out knows it by.
+> - **The extraction is contracts `bookedSeenOf`** (`reach-out/reach-out-booked.ts`), over `extractContacts` with the business's own addresses (`ownAddressesOf`) left out as People's import leaves them; the cap of 500 is on the addresses and numbers handed over, the earliest appointments first, and the door reads no more than 500 either.
+> - **Either deploy order works.** A door that refuses (00227 not yet applied, or any error) is logged as `reach_out_booked_failed` and counts nothing; People's import and the read's stamp go on, and the appointment is read again next hour.
+> - **The deal's trigger never refuses a deal**: a lead that could not follow it is a warning.
+> - **The sweep's `POST` rose by one line** (the call), raised with its row in `docs/debt.md`; `POST` was already over its branch limit.
+> - **`stop-skips.test.mjs` is unchanged**: a converted lead is stopped by the send door's `lead_stage`, which PR 4's tests already prove; `reply-booked.db.test.mjs` proves the facts say `converted` after a booking.
+> - **00227 was dry-run on production** (applied inside a transaction that aborted with its answers: 0 moved for input of every wrong shape, the trigger made), then applied and read back.
 
 ### Task 9.1: The migration
 
@@ -1414,7 +1422,15 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** 00228 first. The edge's run of a hand step ships here, and the door that makes one ships in PR 11.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `4bc3e49a`). What departed from the tasks, and why:
+>
+> - **A hand step has no template, so the template columns may be null**, on `playbooks` and on `broadcasts` (a hand step's day's run is a run with no template). Two CHECKs say when: `playbooks_template_or_hand` (a template, or a reach-out later step's hand of two kinds with 1–280 characters of words and nothing else) and `broadcasts_template_or_hand` (a template, or a reach-out run whose audience names the hand's kind). Each is added NOT VALID and then validated; a dry run on production validated all four new CHECKs against its rows, and 00228 was then applied and read back (every body's md5 equal to the file's). The types that read these columns take the null where it can arrive: contracts' template tallies skip a run with no template name, the moments' proposal follow-up reads none as nothing to send, the broadcast job reads a run with none as no run, and a send's step with none is no step of its own.
+> - **The guard is not re-created.** 00197's `reach_out_sends_guard` names every move it allows, and none from `handed`, so a handed send already never moves; the test proves it.
+> - **The run's ids are handed in**, as every reach-out run's are: `reach_out_hand_run(tenant, step, run_id, day, items)` takes the run's id and each item's `send_id` and `source_id`, derived in core (`reach-out-ids.ts`, with `handStepIdFor(step, lead)` new), so the one derivation stays in one place. A second run of the step on the same day, under another id, is refused (`23505`).
+> - **`reach_out_save`** takes a last step `{ hand, after_days }`, refuses a hand anywhere else ("A call or a note ends the chain."), lets a step that never ran change what it is (its template hidden or made), refuses that once it ran ("That step has run already. Add a new step instead."), and never drops a step that handed anyone.
+> - **The reach and who is handed.** The step's followers are an email step's; a lead the send door would refuse (`outreachRefusalOf`: wrote back, said no, away, no longer being written to) is not handed either, and a bounced email is no reason not to call. The team's step is worded by contracts `handStepWords` (`reach-out/reach-out-hand.ts`, with `handOf`, which reads a row's hand), over the businesses' names read by `leadNamesByIds`.
+> - **Where it lives.** There is no `run-step.ts` in core: the edge's `lib/reach-out/run-step.ts` dispatches a hand step to core's `runHandStep` (`packages/core/src/campaigns/run-hand-step.ts`). The run context's later-step ports (followers, names, the run) moved into one helper, which keeps `reachOutRunContext` under its line limit. The db reads sit in `reach-out-sheet.ts`, since the repositories directory is at its twenty modules.
+> - **Tests:** `reach-out-stops/hand-step.test.mjs` (the verb over fakes, the words, `handOf`) and `reach-out-stops/hand-step.db.test.mjs` (the save, the CHECKs, the run made once, the guard, the followers, the report's `handed`).
 
 ### Task 10.1: The migration
 
@@ -1448,12 +1464,19 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** the dashboard and contracts only, after PR 10.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `0289a433`). What departed from the tasks, and why:
+>
+> - **A third problem, `hand_words_long`.** 00228's CHECK holds a hand's words to 280 characters (`HAND_WORDS_MAX`), so the sheet says so before the door refuses. The three problems' words sit in `chainIssueWords` (`reach-out-words.ts`), with every other chain problem's, not in `reach-out-draft.ts`.
+> - **An email step carries no `hand` key at all.** The door reads a step with the key as a call or a note (`v_steps->v_i ? 'hand'`, which is true for a JSON null too). So `reachOutChainBodyOf` writes the key on a hand step only, and the route drops a null `hand` before the door as well, for a body the sheet did not make.
+> - **The offer is two buttons beside "Another step"**, "A call for you" and "A note for you", shown while another step may be added; once the last step is a call or a note, none is (`reachOutMayAddStep`). Remove takes it off, as it does an email.
+> - **Two door sentences joined `REACH_OUT_REFUSALS`**: 00228's "A call or a note ends the chain." and "That step has run already. Add a new step instead.", so the route says them as they are.
+> - **The open row** labels a hand step by its kind (`stepLabelOf`), in the hint, the path and the table; its table row reads "N handed to you" with no delivery counts, the sentence adds "N handed to you", and a hand run's history line says what it handed rather than "0 written". A report from before 00228 has no `handed`, and nothing is said of it.
+> - **The tests** are `reach-out-stops/hand-sheet.test.mjs` (the draft, the problems, the refusals and the open row, over contracts), a harness test in `reach-out-sheet/reach-out-sheet-page.test.mjs` (offer, write, save, and the door's refusal said at the foot; its world is that file's, so it stays there), and a route test in `reach-out-routes.test.mjs` (the hand reaches the door, an email's key does not, and both of 00228's refusals are said).
 
-- [ ] **The input.** `ReachOutStepSchema` gains `hand?: { kind, words }`. `validateReachOutChain` gains `hand_not_last` and `hand_words_empty`, with their words in `reach-out-draft.ts`.
-- [ ] **The sheet** (`reach-out-sheet.jsx`) draws a hand step as a row with its kind and its words, and no subject.
-- [ ] **The open row.** Playbooks' open row reads the report's `handed` as "handed to you".
-- [ ] **Tests:**
+- [x] **The input.** `ReachOutStepSchema` gains `hand?: { kind, words }`. `validateReachOutChain` gains `hand_not_last` and `hand_words_empty`, with their words in `reach-out-draft.ts`.
+- [x] **The sheet** (`reach-out-sheet.jsx`) draws a hand step as a row with its kind and its words, and no subject.
+- [x] **The open row.** Playbooks' open row reads the report's `handed` as "handed to you".
+- [x] **Tests:**
   - `reach-out-sheet/reach-out-sheet-words.test.mjs` gains the problems;
   - `reach-out-stops/hand-sheet-page.test.mjs` (harness): offer, save, and the refusal for a hand step not last.
 

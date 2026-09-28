@@ -109,9 +109,9 @@ export interface Me {
 export const workspaceOverride: SurfaceOverride & { current: () => Workspace | null } = {
   key: "workspace",
   globals: ["__WORKSPACES", "__ME", "__ACTIVE_WORKSPACE", "__PENDING_WORKSPACE", "__SIGNUP_POSTURE"],
-  // The workspace actually being VIEWED, as resolved by the server — not
-  // `[0]`, which was whichever tenant happened to sort first and could differ
-  // from the one the data below it came from.
+  events: ["surface:workspace"], // the sidebar, the arrival line and the bell listen for the list read again
+  // The workspace actually being VIEWED, as resolved by the server — not `[0]`, which was whichever tenant happened
+  // to sort first and could differ from the one the data below it came from.
   current: () => {
     const w = window as unknown as { __WORKSPACES?: Workspace[]; __ACTIVE_WORKSPACE?: string };
     return w.__WORKSPACES?.find((t) => t.id === w.__ACTIVE_WORKSPACE) ?? null;

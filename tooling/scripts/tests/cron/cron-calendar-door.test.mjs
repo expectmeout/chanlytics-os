@@ -54,6 +54,8 @@ function ics(events) {
       `DTEND:${stamp(new Date(start.getTime() + H))}`,
       `SUMMARY:${e.title}`,
       ...(e.phone ? [`DESCRIPTION:Client: ${e.phone}`] : []),
+      ...(e.organizer ? [`ORGANIZER:mailto:${e.organizer}`] : []),
+      ...(e.guest ? [`ATTENDEE;CN=${e.guest.name}:mailto:${e.guest.email}`] : []),
       "END:VEVENT",
     );
   }
@@ -72,21 +74,30 @@ const read = (line) => line.calls.filter((c) => c.url.includes("cal.example")).m
 
 /* -------------------------------------------------------------- the world */
 
-function world({ ticks = 1, faults = {} } = {}) {
+/**
+ * The world. The booking door (00227 reach_out_booked) answers `booked(args)`: none moved by default, and a throw is the
+ * database refusing it. Each call is kept.
+ */
+function world({ ticks = 1, faults = {}, booked = () => 0 } = {}) {
   // One handler instance keeps every feed for five minutes; each case starts with none.
   forgetFeeds();
   feeds.clear();
   const tables = { tenants: [], tenant_config: [], contacts: [], events: [], notifications: [] };
   const backlog = [];
+  const bookings = [];
   const db = fakeDb(tables, faults, {
     ...vault,
     note_sweep_backlog: (a) => {
       backlog.push(a);
       return ticks;
     },
+    reach_out_booked: (a) => {
+      bookings.push(a);
+      return booked(a);
+    },
   });
   setPg(db);
-  return { db, tables, backlog, tick: () => knock(POST, "calendar") };
+  return { db, tables, backlog, bookings, tick: () => knock(POST, "calendar") };
 }
 /**
  * A workspace with a calendar connected, last read at `checkedAt` (null:
@@ -181,6 +192,7 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
       added: 3,
       named: 1,
       emailed: 0,
+      booked: 0,
       failed: 0,
       remaining: 0,
     });
@@ -248,6 +260,60 @@ test("the rotation, and what a read leaves behind: the never-read workspace firs
   }
 });
 
+/* ------------------------------------------------------------ the booking */
+
+test("the booking door is handed each appointment's address and number with its start, the owner's and the organiser's left out, and what it moved is counted", async () => {
+  const w = world({ booked: (a) => a.p_seen.length && 1 });
+  const B = "books";
+  connected(w.tables, B, null, [
+    {
+      uid: "b1",
+      title: "Intro call",
+      phone: "+1 305 555 0110",
+      organizer: "owner@business.example.com",
+      guest: { name: "Sam Rivera", email: "Sam@Brightwater.example.com" },
+      inDays: 2,
+    },
+    { uid: "b2", title: "Blocked out", inDays: 1 },
+  ]);
+  const line = wire(reply);
+  try {
+    const [status, body] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.equal(body.booked, 1);
+    assert.equal(w.bookings.length, 1, "one call a workspace");
+    const [{ p_tenant_id, p_seen }] = w.bookings;
+    assert.equal(p_tenant_id, B);
+    assert.deepEqual(
+      p_seen.map((s) => s.email ?? s.phone).sort(),
+      ["+13055550110", "sam@brightwater.example.com"],
+      "the guest's address, lower-cased, and the number; never the organiser's",
+    );
+    const start = p_seen[0].start;
+    assert.ok(p_seen.every((s) => s.start === start) && Math.abs(Date.parse(start) - (Date.now() + 2 * D)) < 60_000);
+  } finally {
+    line.restore();
+  }
+});
+
+test("a booking door that refuses counts nothing and fails nothing: People is filled and the read is stamped", async () => {
+  const w = world({
+    booked: () => {
+      throw new Error("function public.reach_out_booked(uuid, jsonb) does not exist");
+    },
+  });
+  connected(w.tables, "no-door", null, [{ uid: "d1", title: "Maria Lopez - Balayage", phone: "+1 305 555 0142" }]);
+  const line = wire(reply);
+  try {
+    const [status, body] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.deepEqual([body.booked, body.failed, body.added], [0, 0, 1]);
+    assert.ok(fresh(checkedAt(w, "no-door")), "stamped: the appointment is read again next hour anyway");
+  } finally {
+    line.restore();
+  }
+});
+
 /* --------------------------------------------------------------- failure */
 
 test("a feed that cannot be read fails that workspace only and leaves it due: no stamp, no row, the rest of the page served", async () => {
@@ -269,6 +335,7 @@ test("a feed that cannot be read fails that workspace only and leaves it due: no
       added: 1,
       named: 0,
       emailed: 0,
+      booked: 0,
       failed: 1,
       remaining: 0,
     });
@@ -315,6 +382,7 @@ test("more due than a tick takes: forty are read, the two read most recently wai
       added: 0,
       named: 0,
       emailed: 0,
+      booked: 0,
       failed: 0,
       remaining: 2,
     });
@@ -354,6 +422,7 @@ test("three ticks in a row with work left behind: the sweep says so with a 503, 
       added: 0,
       named: 0,
       emailed: 0,
+      booked: 0,
       failed: 0,
       remaining: 1,
     });

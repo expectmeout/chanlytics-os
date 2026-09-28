@@ -7573,7 +7573,7 @@ function templateUsage(src) {
       runs: p.runs ?? null
     });
   }
-  const byHand = src.broadcasts.filter((b) => b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  const byHand = src.broadcasts.filter((b) => !!b.template_name && !b.playbook_id).slice().sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
   for (const b of byHand) {
     const u = at2(b.template_name);
     u.broadcasts += 1;
@@ -7972,7 +7972,16 @@ function toRunReportVM(d, opts) {
 // src/broadcasts/broadcasts.ts
 var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
 var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
-var REACH_OUT_SEND_STATES = ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"];
+var REACH_OUT_SEND_STATES = [
+  "planned",
+  "held",
+  "claimed",
+  "queued",
+  "sent",
+  "skipped",
+  "failed",
+  "handed"
+];
 var BROADCAST_STATE_LABELS = {
   pending_approval: "Needs you",
   scheduled: "Scheduled",
@@ -8096,8 +8105,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z22] = m;
-  if (z22) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z23] = m;
+  if (z23) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -9632,6 +9641,11 @@ var EVENT_KINDS = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -10115,8 +10129,29 @@ function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @
   return composeSystemPromptWith(base, profile, channel, tz, now, policy);
 }
 function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
-  const s = [];
   const link = offersBookingLink(base) ? base.booking_link : null;
+  const hrs = hoursLines(profile.hours);
+  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  const facts = { base, profile, channel, tz, policy, link, hrs, closed };
+  return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
+}
+var PROMPT_SECTIONS = [
+  identitySection,
+  contactSection,
+  hoursSection,
+  closuresSection,
+  servicesSection,
+  notesSection,
+  bookingRulesSection,
+  handoffSection,
+  callToolsSection,
+  ownWordsSection,
+  mediumSection,
+  openTimesSection,
+  rulesSection
+];
+function identitySection({ base, profile, channel }) {
+  const s = [];
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
@@ -10127,19 +10162,29 @@ function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
       (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
     );
   }
+  return s;
+}
+function contactSection({ base, profile, link }) {
+  const s = [];
   if (profile.address) s.push(`
 Address: ${profile.address}`);
   if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
   if (link) s.push(`Booking link: ${link}`);
   if (profile.website) s.push(`Website: ${profile.website}`);
-  const hrs = hoursLines(profile.hours);
+  return s;
+}
+function hoursSection({ tz, hrs }) {
+  const s = [];
   if (hrs.length) {
     const where = tz ? ` (all times ${tz})` : "";
     s.push(`
 ${PROMPT_OPENINGS.hours}${where}:
 ${hrs.map((l) => `- ${l}`).join("\n")}`);
   }
-  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  return s;
+}
+function closuresSection({ closed }) {
+  const s = [];
   if (closed.length) {
     s.push(
       `
@@ -10150,6 +10195,10 @@ ${closed.map((l) => `- ${l}`).join(
 If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
     );
   }
+  return s;
+}
+function servicesSection({ profile }) {
+  const s = [];
   if (profile.services?.length) {
     const lines = profile.services.map((sv) => {
       const bits2 = [sv.name];
@@ -10161,34 +10210,50 @@ If someone asks about one of these dates, say the business is closed that day an
 ${PROMPT_OPENINGS.services}
 ${lines.join("\n")}`);
   }
+  return s;
+}
+function notesSection({ profile }) {
+  const s = [];
   if (profile.notes?.length) {
     s.push(`
 ${PROMPT_OPENINGS.notes}
 ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
+  return s;
+}
+function bookingRulesSection({ profile }) {
+  const s = [];
   const br = profile.booking_rules;
   if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)) {
-    const lines = [];
-    if (br.lead_hours !== void 0) {
-      lines.push(
-        br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
-      );
-    }
-    if (br.consult_first?.length)
-      lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
-    if (br.party_max)
-      lines.push(
-        `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
-      );
-    if (br.ask_email)
-      lines.push(
-        "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
-      );
-    for (const n of br.notes ?? []) lines.push(n);
+    const lines = bookingRuleLines(br);
     s.push(`
 ${PROMPT_OPENINGS.bookingRules}
 ${lines.map((l) => `- ${l}`).join("\n")}`);
   }
+  return s;
+}
+function bookingRuleLines(br) {
+  const lines = [];
+  if (br.lead_hours !== void 0) {
+    lines.push(
+      br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
+    );
+  }
+  if (br.consult_first?.length)
+    lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+  if (br.party_max)
+    lines.push(
+      `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
+    );
+  if (br.ask_email)
+    lines.push(
+      "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
+    );
+  for (const n of br.notes ?? []) lines.push(n);
+  return lines;
+}
+function handoffSection({ profile, channel }) {
+  const s = [];
   if (channel === "whatsapp") {
     const when = profile.escalate_when?.length ? `
 ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
@@ -10208,6 +10273,12 @@ ${PROMPT_OPENINGS.handoffCall}
 ${staffed}
 Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
     );
+  }
+  return s;
+}
+function callToolsSection({ channel, link }) {
+  const s = [];
+  if (channel !== "whatsapp") {
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
@@ -10215,6 +10286,10 @@ ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar
 `) + "Ending: once the caller has said goodbye, use end_call."
     );
   }
+  return s;
+}
+function ownWordsSection({ profile, channel, hrs, closed }) {
+  const s = [];
   if (profile.extra_instructions?.trim()) {
     const above = [
       profile.address ? "address" : "",
@@ -10233,6 +10308,10 @@ ${header}
 ${text}` : `
 ${text}`);
   }
+  return s;
+}
+function mediumSection({ channel, link }) {
+  const s = [];
   const callMedium = link ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
   const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(
@@ -10240,10 +10319,18 @@ ${text}`);
 ${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
 ${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
   );
+  return s;
+}
+function openTimesSection({ link }) {
+  const s = [];
   s.push(
     `
 ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (link ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
   );
+  return s;
+}
+function rulesSection({ profile, channel, policy, link }) {
+  const s = [];
   const g = guardrailsInForce(profile.guardrails);
   const rules = [];
   if (g.never_quote_prices) {
@@ -10273,7 +10360,7 @@ ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants
   if (rules.length) s.push(`
 ${PROMPT_OPENINGS.rules}
 ${rules.map((r2) => `- ${r2}`).join("\n")}`);
-  return s.join("\n");
+  return s;
 }
 
 // src/config/workspace-config/resolve.ts
@@ -12909,6 +12996,21 @@ function posesAsReply(subject) {
   return ANSWER_OR_FORWARD.test(subject);
 }
 
+// src/reach-out/reach-out-hand.ts
+var HAND_KINDS = ["call", "note"];
+var HAND_WORDS_MAX = 280;
+function handOf(v) {
+  if (!v || typeof v !== "object") return null;
+  const h = v;
+  if (!HAND_KINDS.includes(h.kind) || typeof h.words !== "string") return null;
+  const words4 = h.words.trim();
+  return words4 ? { kind: h.kind, words: words4 } : null;
+}
+function handStepWords(kind, business, words4) {
+  const who = business.trim() || "This business";
+  return kind === "call" ? `Call ${who}: ${words4.trim()}` : `${who}: ${words4.trim()}`;
+}
+
 // src/reach-out/reach-out-words.ts
 var REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"];
 var REACH_OUT_SLOT_WORDS = {
@@ -13072,7 +13174,9 @@ var ReachOutStepSchema = z14.object({
   id: z14.string().uuid().nullable().optional(),
   subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
   body: z14.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z14.object({ kind: z14.enum(HAND_KINDS), words: z14.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
 var ReachOutChainSchema = z14.object({
   name: z14.string().trim().min(1).max(REACH_OUT_NAME_MAX),
@@ -13090,11 +13194,13 @@ var ReachOutChainSchema = z14.object({
 function validateReachOutChain(c, has3) {
   const out = [];
   c.steps.forEach((s, i) => {
-    for (const w of validateReachOutWords({ subject: s.subject, body: s.body }, i === 0)) out.push({ step: i, ...w });
+    if (s.hand) out.push(...handIssues(s.hand, i, c.steps.length));
+    else
+      for (const w of validateReachOutWords({ subject: s.subject, body: s.body }, i === 0)) out.push({ step: i, ...w });
     if (i === 0 && s.after_days !== null) out.push({ step: 0, field: "after_days", problem: "first_has_a_delay" });
     if (i > 0 && s.after_days === null) out.push({ step: i, field: "after_days", problem: "step_needs_a_delay" });
   });
-  const said = c.steps.map((s, i) => `${i === 0 ? s.subject ?? "" : ""}
+  const said = c.steps.filter((s) => !s.hand).map((s, i) => `${i === 0 ? s.subject ?? "" : ""}
 ${s.body}`).join("\n");
   if (slotCount(said, "your name") > 0 && !c.signed_by?.trim())
     out.push({ step: null, field: "signed_by", problem: "no_name_to_sign" });
@@ -13102,8 +13208,22 @@ ${s.body}`).join("\n");
     out.push({ step: null, field: "body", problem: "no_booking_link" });
   return out;
 }
+function handIssues(hand, i, steps) {
+  const out = [];
+  if (i === 0 || i < steps - 1) out.push({ step: i, field: "body", problem: "hand_not_last" });
+  const words4 = hand.words.trim();
+  if (!words4) out.push({ step: i, field: "body", problem: "hand_words_empty" });
+  else if (words4.length > HAND_WORDS_MAX) out.push({ step: i, field: "body", problem: "hand_words_long" });
+  return out;
+}
 function chainIssueWords(i) {
   switch (i.problem) {
+    case "hand_not_last":
+      return "A call or a note ends the chain.";
+    case "hand_words_empty":
+      return "Say what to do when they come up.";
+    case "hand_words_long":
+      return `Keep it under ${HAND_WORDS_MAX} characters.`;
     case "first_has_a_delay":
       return "Your email goes on day one.";
     case "step_needs_a_delay":
@@ -17560,44 +17680,69 @@ function areaCodeOf(raw) {
   return e164 && /^\+1\d{10}$/.test(e164) ? e164.slice(2, 5) : null;
 }
 function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
-  const W = FIRST_RUN_PHONE_WORDS;
+  const s = phoneStepOf({ dto, vm, choice, returned, nowMs });
+  if (dto.channels.voice.present) return answeringStageOf(s);
+  if (s.ownLine) return onItsWayStageOf(s, s.ownLine);
+  return noLineYetStageOf(s);
+}
+function phoneStepOf(input) {
+  const { dto, vm, choice } = input;
+  const { way, forwarded, listed, number, area } = numbersOf(dto, choice);
+  const billing = dto.billing;
+  const ownLine = dto.lines?.rows.find((l) => l.voice_state !== "none") ?? null;
+  const lineRow2 = vm.rows.find((r2) => r2.id === "line") ?? null;
+  const pick = choice?.pick ?? null;
+  const base = {
+    way,
+    ways: waysOf(number, listed),
+    number,
+    listed,
+    box: formatPhoneDisplay(listed) ?? "",
+    area
+  };
+  const ready = readyOf(choice, forwarded);
+  return {
+    ...input,
+    way,
+    forwarded,
+    number,
+    area,
+    ownLine,
+    lineRow: lineRow2,
+    canSpend: !billing || maySpend(billing.mode, billing.status),
+    pick,
+    picked: pick ? formatPhoneDisplay(pick.e164) : null,
+    base,
+    ready,
+    rows: { ...base, ...ready, stage: "rows", status: null },
+    ...answersOf(choice, forwarded, number)
+  };
+}
+function numbersOf(dto, choice) {
   const way = choice?.way ?? "keep";
   const forwarded = way !== "new";
   const listed = normalizePhone(dto.google?.phone ?? null);
   const typed = normalizePhone(choice?.number ?? null);
   const number = choice && choice.number !== null ? typed : listed;
   const area = areaCodeOf(forwarded ? number : null) ?? areaCodeOf(listed);
-  const billing = dto.billing;
-  const lines = dto.lines;
-  const ownLine = lines?.rows.find((l) => l.voice_state !== "none") ?? null;
-  const lineRow2 = vm.rows.find((r2) => r2.id === "line") ?? null;
-  const canSpend = !billing || maySpend(billing.mode, billing.status);
-  const pick = choice?.pick ?? null;
-  const picked = pick ? formatPhoneDisplay(pick.e164) : null;
-  const waiting = (sentence2, detail) => ({
-    state: "waiting_them",
-    words: SETUP_STATE_WORDS.waiting_them,
-    sentence: sentence2,
-    detail
-  });
-  const base = {
-    way,
-    ways: [
-      {
-        key: "keep",
-        title: W.keepTitle(formatPhoneDisplay(number)),
-        sentence: number && number === listed ? W.keepListed : W.keepTyped,
-        recommended: W.recommended
-      },
-      { key: "new", title: W.newTitle, sentence: W.newSentence, recommended: null },
-      { key: "move", title: W.moveTitle, sentence: W.moveSentence, recommended: null }
-    ],
-    number,
-    listed,
-    box: formatPhoneDisplay(listed) ?? "",
-    area
-  };
-  const ready = {
+  return { way, forwarded, listed, number, area };
+}
+function waysOf(number, listed) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return [
+    {
+      key: "keep",
+      title: W.keepTitle(formatPhoneDisplay(number)),
+      sentence: number && number === listed ? W.keepListed : W.keepTyped,
+      recommended: W.recommended
+    },
+    { key: "new", title: W.newTitle, sentence: W.newSentence, recommended: null },
+    { key: "move", title: W.moveTitle, sentence: W.moveSentence, recommended: null }
+  ];
+}
+function readyOf(choice, forwarded) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
     heading: W.readyHeading,
     lead: !choice ? "" : forwarded ? W.readyLeadForwarded : W.readyLeadNew,
     plan: null,
@@ -17608,11 +17753,21 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     saved: null,
     keepCode: null
   };
-  const rows = { ...base, ...ready, stage: "rows", status: null };
+}
+function answersOf(choice, forwarded, number) {
   const rings = choice?.rings ?? null;
   const company = choice?.company ?? null;
   const asking = !!choice && forwarded && !!number;
-  const questionsFor = (about) => ({
+  return {
+    rings,
+    company,
+    questions: asking && number ? questionsAbout(number, rings, company) : null,
+    answered: !!forwardingCarrierOf(rings, company)
+  };
+}
+function questionsAbout(about, rings, company) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
     rings: {
       label: W.ringsLabel(formatPhoneDisplay(about)),
       options: PHONE_RINGS.map((k) => ({ key: k, label: W.rings[k] })),
@@ -17627,178 +17782,209 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
       })),
       value: company
     } : null
-  });
-  const questions = asking && number ? questionsFor(number) : null;
-  const answered = !!forwardingCarrierOf(rings, company);
-  const show = (lineAnswers) => ({
-    label: rings === "office" ? W.showOffice : W.show,
-    held: !lineAnswers ? W.readySoon : answered ? null : W.answerFirst,
-    act: "forward"
-  });
-  if (dto.channels.voice.present) {
-    const dest = dto.channels.voice.active ? dto.channels.voice.number : null;
-    const fw = lines?.rows.find((l) => l.kind === "forwarded") ?? null;
-    const f = fw?.forwarding ?? null;
-    const saved = !!fw && !!f && isCarrier(f.carrier) && (fw.forwarding_state === "instructed" || fw.forwarding_state === "verified");
-    if (!dest) return rows;
-    const savedFrom = saved ? normalizePhone(fw.e164) : null;
-    if (saved && choice?.redo && savedFrom) {
-      return {
-        ...base,
-        stage: "ask",
-        heading: W.askHeading,
-        lead: W.askLead,
-        plan: null,
-        status: null,
-        questions: questionsFor(savedFrom),
-        cta: show(true),
-        code: null,
-        forwardFrom: savedFrom,
-        saved: { carrier: f.carrier },
-        keepCode: W.keepCode
-      };
-    }
-    if (saved && f.carrier === "office") {
-      const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
-      const codes = forwardingCodes("office", mode, f.destination_e164 ?? dest);
-      const keepRow2 = vm.rows.find((r2) => r2.id === "keep") ?? null;
-      const askedAt = dto.requests.forwarding ? Date.parse(dto.requests.forwarding) : NaN;
-      const asked = !Number.isNaN(askedAt) && nowMs - askedAt < DAY_MS ? askedAt : null;
-      return {
-        ...base,
-        stage: "code",
-        heading: W.officeHeading,
-        lead: W.officeLead,
-        plan: null,
-        status: null,
-        questions: null,
-        cta: { label: W.done, held: null, act: "onward" },
-        code: {
-          label: W.officeLabel(mode === "always"),
-          dial: formatPhoneDisplay(f.destination_e164 ?? dest) ?? dest,
-          tel: codes.on.tel,
-          tap: null,
-          steps: [...W.officeSteps],
-          warn: W.officeWarn,
-          off: W.officeOff,
-          help: { label: W.helpOffice, notes: codes.notes },
-          change: savedFrom ? W.change : null,
-          verified: fw.forwarding_state === "verified" && keepRow2 ? keepRow2.sentence : null,
-          withMe: {
-            sentence: W.withMe,
-            label: W.withMeLabel,
-            asked: asked !== null ? W.withMeAsked(agoWords(asked, nowMs)) : null
-          }
-        },
-        forwardFrom: null,
-        saved: null,
-        keepCode: null
-      };
-    }
-    if (saved) {
-      const carrier = f.carrier;
-      const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
-      const codes = forwardingCodes(carrier, mode, f.destination_e164 ?? dest);
-      const said = rings === "office" ? null : rings;
-      const keepRow2 = vm.rows.find((r2) => r2.id === "keep") ?? null;
-      return {
-        ...base,
-        stage: "code",
-        heading: W.codeHeading,
-        lead: mode === "always" ? W.codeLeadAll : W.codeLead,
-        plan: null,
-        status: null,
-        questions: null,
-        cta: { label: W.done, held: null, act: "onward" },
-        code: {
-          label: said ? W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said) : CARRIER_WORDS[carrier],
-          dial: codes.on.code,
-          tel: codes.on.tel,
-          tap: said === "mobile" ? W.tap : null,
-          steps: said === "mobile" ? [...W.stepsMobile] : said === "landline" ? [...W.stepsLandline] : [...W.stepsAny],
-          warn: said === "mobile" ? W.warnMobile : said === "landline" ? W.warnLandline : W.warnAny,
-          off: W.off(codes.off.code),
-          help: { label: W.help, notes: codes.notes },
-          change: savedFrom ? W.change : null,
-          verified: fw.forwarding_state === "verified" && keepRow2 ? keepRow2.sentence : null,
-          withMe: null
-        },
-        forwardFrom: null,
-        saved: null,
-        keepCode: null
-      };
-    }
-    if (questions) {
-      return {
-        ...base,
-        stage: "ask",
-        heading: W.askHeading,
-        lead: W.askLead,
-        plan: null,
-        status: null,
-        questions,
-        cta: show(true),
-        code: null,
-        forwardFrom: number,
-        saved: null,
-        keepCode: null
-      };
-    }
-    return rows;
-  }
-  if (ownLine) {
-    const onItsWay = ownLine.voice_state === "provisioning" && !lineStuckProvisioning(ownLine, nowMs) || ownLine.voice_state === "answering";
-    return onItsWay && lineRow2 ? {
-      ...base,
-      ...ready,
-      stage: "getting",
-      status: {
-        state: lineRow2.state,
-        words: lineRow2.stateWords,
-        sentence: lineRow2.sentence,
-        detail: lineRow2.details[0] ?? ""
-      },
-      questions,
-      cta: questions ? show(false) : null
-    } : rows;
-  }
-  if (!lines?.ready || dto.requests.line || dto.requests.port) return rows;
-  const onTrial = billingDoorOpen(billing) && billing.status === "trialing";
-  const plan = billingDoorOpen(billing) && (billing.status === "none" || onTrial) ? {
-    offer: W.planOffer(priceWords(billing.price ?? null)),
-    note: onTrial ? W.planNoteTrial : W.planNote
-  } : null;
-  if (!canSpend && !plan) return rows;
-  if (plan && returned) {
-    return {
-      ...base,
-      ...ready,
-      stage: "starting",
-      status: waiting(W.starting, W.startingDetail)
-    };
-  }
-  if (canSpend && choice?.pending) {
-    return {
-      ...base,
-      ...ready,
-      stage: "buying",
-      status: waiting(way === "new" && picked ? W.buyingNew(picked) : W.buyingIn(forwarded ? area : null), W.usually),
-      questions,
-      cta: questions ? show(false) : null
-    };
-  }
-  const typedSome = !!choice && typeof choice.number === "string" && choice.number.trim() !== "";
-  const boxProblem = way !== "new" && typedSome && !(number && areaCodeOf(number)) ? W.held.us : null;
-  const held = way === "new" ? pick ? null : W.held.pick : boxProblem ?? (!number ? W.held.number : areaCodeOf(number) ? null : W.held.us);
-  const label = plan ? way === "keep" ? W.cta.planKeep : way === "new" ? W.cta.planNew(picked) : W.cta.planMove : way === "keep" ? W.cta.keep : way === "new" ? W.cta.new(picked) : W.cta.move;
+  };
+}
+function showCtaOf(s, lineAnswers) {
+  const W = FIRST_RUN_PHONE_WORDS;
   return {
-    ...base,
+    label: s.rings === "office" ? W.showOffice : W.show,
+    held: !lineAnswers ? W.readySoon : s.answered ? null : W.answerFirst,
+    act: "forward"
+  };
+}
+function answeringStageOf(s) {
+  const voice = s.dto.channels.voice;
+  const dest = voice.active ? voice.number : null;
+  const saved = savedForwardingOf(s.dto.lines);
+  if (!dest) return s.rows;
+  const line = { dest, saved, from: saved ? normalizePhone(saved.line.e164) : null };
+  for (const stage of ANSWERING_STAGES) {
+    const drawn = stage(s, line);
+    if (drawn) return drawn;
+  }
+  return s.rows;
+}
+function savedForwardingOf(lines) {
+  const fw = lines?.rows.find((l) => l.kind === "forwarded") ?? null;
+  const f = fw?.forwarding ?? null;
+  return fw && f && isCarrier(f.carrier) && (fw.forwarding_state === "instructed" || fw.forwarding_state === "verified") ? { line: fw, forwarding: f, carrier: f.carrier } : null;
+}
+var ANSWERING_STAGES = [
+  askedAgainStageOf,
+  officeCodeStageOf,
+  phoneCodeStageOf,
+  questionsStageOf
+];
+function askedAgainStageOf(s, line) {
+  if (!line.saved || !s.choice?.redo || !line.from) return null;
+  return askStageOf(s, {
+    questions: questionsAbout(line.from, s.rings, s.company),
+    forwardFrom: line.from,
+    saved: { carrier: line.saved.carrier },
+    keepCode: FIRST_RUN_PHONE_WORDS.keepCode
+  });
+}
+function officeCodeStageOf(s, line) {
+  const saved = line.saved;
+  if (!saved || saved.carrier !== "office") return null;
+  const W = FIRST_RUN_PHONE_WORDS;
+  const f = saved.forwarding;
+  const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
+  const codes = forwardingCodes("office", mode, f.destination_e164 ?? line.dest);
+  const keepRow2 = s.vm.rows.find((r2) => r2.id === "keep") ?? null;
+  const asked = withMeAskedOf(s);
+  return codeStageOf(s, W.officeHeading, W.officeLead, {
+    label: W.officeLabel(mode === "always"),
+    dial: formatPhoneDisplay(f.destination_e164 ?? line.dest) ?? line.dest,
+    tel: codes.on.tel,
+    tap: null,
+    steps: [...W.officeSteps],
+    warn: W.officeWarn,
+    off: W.officeOff,
+    help: { label: W.helpOffice, notes: codes.notes },
+    change: line.from ? W.change : null,
+    verified: saved.line.forwarding_state === "verified" && keepRow2 ? keepRow2.sentence : null,
+    withMe: {
+      sentence: W.withMe,
+      label: W.withMeLabel,
+      asked: asked !== null ? W.withMeAsked(agoWords(asked, s.nowMs)) : null
+    }
+  });
+}
+function withMeAskedOf(s) {
+  const askedAt = s.dto.requests.forwarding ? Date.parse(s.dto.requests.forwarding) : NaN;
+  return !Number.isNaN(askedAt) && s.nowMs - askedAt < DAY_MS ? askedAt : null;
+}
+function phoneCodeStageOf(s, line) {
+  const saved = line.saved;
+  if (!saved || saved.carrier === "office") return null;
+  const W = FIRST_RUN_PHONE_WORDS;
+  const carrier = saved.carrier;
+  const f = saved.forwarding;
+  const mode = isForwardingMode(f.mode) ? f.mode : "unanswered";
+  const codes = forwardingCodes(carrier, mode, f.destination_e164 ?? line.dest);
+  const said = s.rings === "office" ? null : s.rings;
+  const keepRow2 = s.vm.rows.find((r2) => r2.id === "keep") ?? null;
+  return codeStageOf(s, W.codeHeading, mode === "always" ? W.codeLeadAll : W.codeLead, {
+    label: said ? W.codeLabel(said === "mobile" && carrier !== "other" ? W.company[carrier] : null, said) : CARRIER_WORDS[carrier],
+    dial: codes.on.code,
+    tel: codes.on.tel,
+    ...ringWordsOf(said),
+    off: W.off(codes.off.code),
+    help: { label: W.help, notes: codes.notes },
+    change: line.from ? W.change : null,
+    verified: saved.line.forwarding_state === "verified" && keepRow2 ? keepRow2.sentence : null,
+    withMe: null
+  });
+}
+function ringWordsOf(said) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    tap: said === "mobile" ? W.tap : null,
+    steps: said === "mobile" ? [...W.stepsMobile] : said === "landline" ? [...W.stepsLandline] : [...W.stepsAny],
+    warn: said === "mobile" ? W.warnMobile : said === "landline" ? W.warnLandline : W.warnAny
+  };
+}
+function questionsStageOf(s) {
+  if (!s.questions) return null;
+  return askStageOf(s, { questions: s.questions, forwardFrom: s.number, saved: null, keepCode: null });
+}
+function askStageOf(s, asked) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    ...s.base,
+    stage: "ask",
+    heading: W.askHeading,
+    lead: W.askLead,
+    plan: null,
+    status: null,
+    questions: asked.questions,
+    cta: showCtaOf(s, true),
+    code: null,
+    forwardFrom: asked.forwardFrom,
+    saved: asked.saved,
+    keepCode: asked.keepCode
+  };
+}
+function codeStageOf(s, heading, lead, code2) {
+  return {
+    ...s.base,
+    stage: "code",
+    heading,
+    lead,
+    plan: null,
+    status: null,
+    questions: null,
+    cta: { label: FIRST_RUN_PHONE_WORDS.done, held: null, act: "onward" },
+    code: code2,
+    forwardFrom: null,
+    saved: null,
+    keepCode: null
+  };
+}
+function onItsWayStageOf(s, ownLine) {
+  const onItsWay = ownLine.voice_state === "provisioning" && !lineStuckProvisioning(ownLine, s.nowMs) || ownLine.voice_state === "answering";
+  const row2 = s.lineRow;
+  if (!onItsWay || !row2) return s.rows;
+  return {
+    ...s.base,
+    ...s.ready,
+    stage: "getting",
+    status: { state: row2.state, words: row2.stateWords, sentence: row2.sentence, detail: row2.details[0] ?? "" },
+    questions: s.questions,
+    cta: s.questions ? showCtaOf(s, false) : null
+  };
+}
+function noLineYetStageOf(s) {
+  const { dto, choice, returned } = s;
+  if (!dto.lines?.ready || dto.requests.line || dto.requests.port) return s.rows;
+  const onTrial = billingDoorOpen(dto.billing) && dto.billing.status === "trialing";
+  const plan = planOf(dto.billing, onTrial);
+  if (!s.canSpend && !plan) return s.rows;
+  if (plan && returned) return startingStageOf(s);
+  if (s.canSpend && choice?.pending) return buyingStageOf(s);
+  return chooseStageOf(s, plan, onTrial);
+}
+function planOf(billing, onTrial) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return billingDoorOpen(billing) && (billing.status === "none" || onTrial) ? { offer: W.planOffer(priceWords(billing.price ?? null)), note: onTrial ? W.planNoteTrial : W.planNote } : null;
+}
+function startingStageOf(s) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return { ...s.base, ...s.ready, stage: "starting", status: waitingOn(W.starting, W.startingDetail) };
+}
+function buyingStageOf(s) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  return {
+    ...s.base,
+    ...s.ready,
+    stage: "buying",
+    status: waitingOn(
+      s.way === "new" && s.picked ? W.buyingNew(s.picked) : W.buyingIn(s.forwarded ? s.area : null),
+      W.usually
+    ),
+    questions: s.questions,
+    cta: s.questions ? showCtaOf(s, false) : null
+  };
+}
+function waitingOn(sentence2, detail) {
+  return { state: "waiting_them", words: SETUP_STATE_WORDS.waiting_them, sentence: sentence2, detail };
+}
+function chooseStageOf(s, plan, onTrial) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  const boxProblem = boxProblemOf(s);
+  return {
+    ...s.base,
     stage: "choose",
     heading: W.chooseHeading,
     lead: W.chooseLead,
     plan,
     boxProblem,
-    cta: { label, held, act: plan ? onTrial ? "startNow" : "plan" : "buy" },
+    cta: {
+      label: ctaLabelOf(s.way, plan, s.picked),
+      held: ctaHeldOf(s, boxProblem),
+      act: plan ? onTrial ? "startNow" : "plan" : "buy"
+    },
     status: null,
     questions: null,
     code: null,
@@ -17806,6 +17992,21 @@ function firstRunPhoneOf({ dto, vm, choice, returned, nowMs }) {
     saved: null,
     keepCode: null
   };
+}
+function boxProblemOf(s) {
+  const typedSome = !!s.choice && typeof s.choice.number === "string" && s.choice.number.trim() !== "";
+  return s.way !== "new" && typedSome && !(s.number && areaCodeOf(s.number)) ? FIRST_RUN_PHONE_WORDS.held.us : null;
+}
+function ctaHeldOf(s, boxProblem) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  if (s.way === "new") return s.pick ? null : W.held.pick;
+  return boxProblem ?? (!s.number ? W.held.number : areaCodeOf(s.number) ? null : W.held.us);
+}
+function ctaLabelOf(way, plan, picked) {
+  const W = FIRST_RUN_PHONE_WORDS;
+  if (way === "keep") return plan ? W.cta.planKeep : W.cta.keep;
+  if (way === "new") return plan ? W.cta.planNew(picked) : W.cta.new(picked);
+  return plan ? W.cta.planMove : W.cta.move;
 }
 
 // src/setup/first-run-route.ts
@@ -20755,6 +20956,12 @@ var REACH_OUT_SHEET_WORDS = {
   noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
   anotherStep: "Another step",
   anotherStepHint: "\xB7 another email",
+  /** The last step may hand each business it reaches to you instead (Part 5, G20). */
+  anotherCall: "A call for you",
+  anotherNote: "A note for you",
+  handHint: "\xB7 ends the chain: each business it reaches is a step on your Today",
+  handWords: "What to do",
+  handPlaceholder: "Ask whether our quote suited them",
   remove: "Remove",
   removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
   recheck: "Check the held again"
@@ -20763,6 +20970,9 @@ var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -20841,6 +21051,10 @@ function sheetFootWords(p) {
 }
 function stepLabel(n) {
   return n === 0 ? "Your email" : n === 1 ? "A short nudge" : `Email ${n + 1}`;
+}
+function stepLabelOf(s) {
+  if (!s.hand) return stepLabel(s.n);
+  return s.hand.kind === "call" ? REACH_OUT_SHEET_WORDS.anotherCall : REACH_OUT_SHEET_WORDS.anotherNote;
 }
 function stepWhenWords(n, afterDays) {
   return n === 0 ? "Day one, in their hours" : `After ${afterDays ?? "?"} days with nothing back \xB7 in the same thread`;
@@ -20972,7 +21186,7 @@ function chainPathWords(c) {
   return {
     steps: c.steps.map((s) => ({
       id: s.id,
-      label: stepLabel(s.n),
+      label: stepLabelOf(s),
       after: s.n === 0 ? null : `after ${s.after_days ?? "?"} days, nothing back`
     })),
     stops: "Stops for anyone who writes back, books or says no."
@@ -20994,22 +21208,38 @@ var REACH_OUT_ROW_WORDS = {
   edit: "Edit"
 };
 function chainHintOf(c, host) {
-  const labels = c.steps.map((s) => stepLabel(s.n).toLowerCase());
+  const labels = c.steps.map((s) => stepLabelOf(s).toLowerCase());
   return `${labels.join(", ").replace(/^your email/, "Your email")}${host ? ` \xB7 from ${host}` : ""}`;
 }
+function reportRowOf(s, step2) {
+  const label = stepLabelOf({ n: s.n, hand: step2?.hand ?? null });
+  const when = s.n === 0 ? "Day one, in their hours" : `After ${step2?.after_days ?? "?"} days with nothing back`;
+  if (step2?.hand) return [label, when, `${s.handed ?? 0} handed to you`, "\u2014", "\u2014", "\u2014", "\u2014"];
+  return [
+    label,
+    when,
+    String(s.written),
+    `${s.delivered} (${pct(s.delivered, s.written)}%)`,
+    `${s.wrote_back} (${pct(s.wrote_back, s.written)}%)`,
+    String(s.said_no),
+    String(s.bounced)
+  ];
+}
 function chainReportWordsOf(c, report, reach, p) {
-  const sum3 = (k) => report.steps.reduce((t, s) => t + s[k], 0);
+  const sum3 = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
   const written = sum3("written");
   const wroteBack = sum3("wrote_back");
   const saidNo = sum3("said_no");
   const bounced = sum3("bounced");
   const held = sum3("held");
+  const handed = sum3("handed");
   const clauses = [`${written} written`];
+  if (handed > 0) clauses.push(`${handed} handed to you`);
   if (wroteBack > 0) clauses.push(`${wroteBack} wrote back`);
   if (saidNo > 0) clauses.push(`${saidNo} said no`);
   if (bounced > 0) clauses.push(`${bounced} bounced and their addresses were dropped`);
   const first = report.steps.find((s) => s.n === 0);
-  const afterOf = new Map(c.steps.map((s) => [s.id, s.after_days]));
+  const stepOf = new Map(c.steps.map((s) => [s.id, s]));
   return {
     // Who the chain has reached or will: its first step's written, waiting and held, and the search's still ready.
     reaches: {
@@ -21017,21 +21247,13 @@ function chainReportWordsOf(c, report, reach, p) {
       of: `of ${reach.of} on the search`
     },
     head: ["Step", "When", "Written", "Delivered", "Wrote back", "Said no", "Bounced"],
-    table: report.steps.map((s) => [
-      stepLabel(s.n),
-      s.n === 0 ? "Day one, in their hours" : `After ${afterOf.get(s.id) ?? "?"} days with nothing back`,
-      String(s.written),
-      `${s.delivered} (${pct(s.delivered, s.written)}%)`,
-      `${s.wrote_back} (${pct(s.wrote_back, s.written)}%)`,
-      String(s.said_no),
-      String(s.bounced)
-    ]),
+    table: report.steps.map((s) => reportRowOf(s, stepOf.get(s.id))),
     sentence: p.share > 0 ? `${p.share} a day${p.host ? ` from ${p.host}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.` : `${REACH_OUT_SHEET_WORDS.noDomain} ${clauses.join("; ")}.`,
     // The held wait for their owner in their run (R20): the newest run that holds some opens them.
     waiting: held > 0 ? { text: `${held} wait for your say`, run_id: report.runs.find((r2) => r2.held > 0)?.id ?? null } : null,
     history: report.runs.map((r2) => ({
       id: r2.id,
-      text: `${r2.run_for ? runDayWords(r2.run_for) : "A run"} \xB7 ${r2.written} written${r2.held > 0 ? ` \xB7 ${r2.held} held` : ""}`
+      text: `${r2.run_for ? runDayWords(r2.run_for) : "A run"} \xB7 ${(r2.handed ?? 0) > 0 ? `${r2.handed} handed to you` : `${r2.written} written`}${r2.held > 0 ? ` \xB7 ${r2.held} held` : ""}`
     })),
     stopOne: REACH_OUT_SHEET_WORDS.stopOne,
     canRemove: report.can_remove,
@@ -21099,7 +21321,8 @@ function reachOutDraftOf(p) {
         id: s.id,
         subject: s.n === 0 ? s.subject : null,
         body: s.body,
-        after_days: s.n === 0 ? null : s.after_days
+        after_days: s.n === 0 ? null : s.after_days,
+        hand: s.hand
       }))
     };
   return {
@@ -21108,16 +21331,40 @@ function reachOutDraftOf(p) {
     gap_minutes: REACH_OUT_GAP_FIRST,
     domain_ids: [],
     signed_by: p.signedBy ?? "",
-    steps: [{ id: null, subject: REACH_OUT_FIRST_WORDS.subject, body: REACH_OUT_FIRST_WORDS.body, after_days: null }]
+    steps: [
+      {
+        id: null,
+        subject: REACH_OUT_FIRST_WORDS.subject,
+        body: REACH_OUT_FIRST_WORDS.body,
+        after_days: null,
+        hand: null
+      }
+    ]
   };
 }
 function reachOutMayAddStep(d) {
-  return d.steps.length < REACH_OUT_STEPS_MAX;
+  return d.steps.length < REACH_OUT_STEPS_MAX && !d.steps[d.steps.length - 1]?.hand;
 }
 function reachOutAddStep(d) {
   if (!reachOutMayAddStep(d)) return d;
-  const step2 = { id: null, subject: null, body: REACH_OUT_FIRST_WORDS.nudge, after_days: REACH_OUT_AFTER_DAYS.first };
+  const step2 = {
+    id: null,
+    subject: null,
+    body: REACH_OUT_FIRST_WORDS.nudge,
+    after_days: REACH_OUT_AFTER_DAYS.first,
+    hand: null
+  };
   return { ...d, steps: [...d.steps, step2] };
+}
+function reachOutAddHandStep(d, kind) {
+  if (!reachOutMayAddStep(d)) return d;
+  const step2 = { id: null, subject: null, body: "", after_days: REACH_OUT_AFTER_DAYS.first, hand: { kind, words: "" } };
+  return { ...d, steps: [...d.steps, step2] };
+}
+function reachOutSetHandWords(d, i, words4) {
+  const s = d.steps[i];
+  if (!s?.hand) return d;
+  return { ...d, steps: d.steps.map((x, j) => j === i ? { ...x, hand: { kind: s.hand.kind, words: words4 } } : x) };
 }
 function reachOutDropStep(d) {
   return d.steps.length > 1 ? { ...d, steps: d.steps.slice(0, -1) } : d;
@@ -21135,11 +21382,13 @@ function reachOutChainBodyOf(d, searchId) {
     gap_minutes: d.gap_minutes,
     domain_ids: d.domain_ids,
     signed_by: d.signed_by.trim() || null,
+    // An email carries no hand at all: the door reads a step with the key as a hand step (00228).
     steps: d.steps.map((s, i) => ({
       ...s.id ? { id: s.id } : {},
       subject: i === 0 ? s.subject ?? "" : null,
-      body: s.body,
-      after_days: i === 0 ? null : s.after_days
+      body: s.hand ? "" : s.body,
+      after_days: i === 0 ? null : s.after_days,
+      ...s.hand ? { hand: { kind: s.hand.kind, words: s.hand.words } } : {}
     }))
   };
 }
@@ -21382,6 +21631,21 @@ function bellActionOf(row2, readings) {
   if (row2.kind !== "reach_out_replied" || !row2.about || row2.about.type !== "conversation") return row2.action;
   const r2 = readings.find((x) => x.conversation_id === row2.about?.id);
   return r2 && !r2.undone && drafted(r2) ? "Read the draft" : row2.action;
+}
+
+// src/reach-out/reach-out-booked.ts
+var BOOKED_SEEN_CAP = 500;
+function bookedSeenOf(items, own) {
+  const out = [];
+  const byStart = [...items].sort((a, b) => a.start - b.start);
+  for (const it of byStart) {
+    const c = extractContacts(it, own);
+    const start = new Date(it.start).toISOString();
+    for (const email of c.emails) out.push({ email, start });
+    for (const phone of c.phones) out.push({ phone, start });
+    if (out.length >= BOOKED_SEEN_CAP) break;
+  }
+  return out.slice(0, BOOKED_SEEN_CAP);
 }
 
 // src/reports/campaign-report.ts
@@ -23446,7 +23710,7 @@ var SCHEMA_SETS = {
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
   "partner_reversals_waiting.kind": ["refund", "dispute", "dispute_won"],
-  "partner_tenants.origin": ["link", "handover"],
+  "partner_tenants.origin": ["link", "handover", "invite"],
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],
@@ -23486,7 +23750,7 @@ var SCHEMA_SETS = {
   "reach_out_replies.draft_state": ["none", "waiting", "written", "not_written"],
   "reach_out_replies.intent": ["interested", "question", "not_now", "no", "wrong_person", "away", "other"],
   "reach_out_replies.unread": ["no_model", "may_not_spend", "day_spent", "model_failed"],
-  "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed"],
+  "reach_out_sends.state": ["planned", "held", "claimed", "queued", "sent", "skipped", "failed", "handed"],
   "sending_domains.dmarc": ["found", "missing"],
   "sending_domains.held_why": ["verification", "dmarc", "bounces", "complaint", "provider", "unsubscribes"],
   "sending_domains.resume_by": ["owner", "platform"],
@@ -23518,6 +23782,7 @@ var ROUTE_KEYS = [
   "DELETE segments/[id]",
   "DELETE sending-domains/[id]",
   "DELETE team/[id]",
+  "DELETE team/partner",
   "DELETE templates/[id]",
   "GET activity",
   "GET ask/openings",
@@ -23557,6 +23822,7 @@ var ROUTE_KEYS = [
   "GET metrics",
   "GET notifications",
   "GET partner",
+  "GET partner/invitations",
   "GET partner/workspaces",
   "GET platform/overview",
   "GET platform/tenants/[id]",
@@ -23572,6 +23838,7 @@ var ROUTE_KEYS = [
   "GET settings",
   "GET setup",
   "GET team",
+  "GET team/partner",
   "GET templates",
   "GET today",
   "GET views",
@@ -23643,6 +23910,8 @@ var ROUTE_KEYS = [
   "POST messages/[id]/cancel-send",
   "POST messages/[id]/steer",
   "POST partner",
+  "POST partner/invitations/[id]/accept",
+  "POST partner/invitations/[id]/decline",
   "POST partner/workspaces",
   "POST partner/workspaces/[id]/resend",
   "POST platform/lines/refile",
@@ -23668,6 +23937,7 @@ var ROUTE_KEYS = [
   "POST settings/receptionist",
   "POST setup/request",
   "POST team/invite",
+  "POST team/partner",
   "POST templates",
   "POST templates/draft",
   "POST templates/starter",
@@ -26978,10 +27248,10 @@ var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -27000,7 +27270,7 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -27018,9 +27288,9 @@ function shareWords(shareBp) {
   return `${shown}% of what it pays for its plan`;
 }
 function broughtWords(count2) {
-  if (count2 <= 0) return "No workspace has come through your link yet.";
-  if (count2 === 1) return "1 workspace came through your link.";
-  return `${count2} workspaces came through your link.`;
+  if (count2 <= 0) return "No workspace has you as its partner yet.";
+  if (count2 === 1) return "1 workspace has you as its partner.";
+  return `${count2} workspaces have you as their partner.`;
 }
 var dayWords2 = (at2) => new Date(at2).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 function sumWords(rows, state) {
@@ -27118,7 +27388,7 @@ function partnerWorkspacesVM(overview, money2, nowMs = Date.now(), status = "act
   const needs = rows.filter((r2) => r2.verdict !== null && NEEDS_THE_PARTNER.includes(r2.verdict)).length;
   const parts2 = [`${total} workspace${total === 1 ? "" : "s"}`, `${live} live`];
   if (needs) parts2.push(`${needs} need${needs === 1 ? "s" : ""} you`);
-  return { rows, summary: total ? parts2.join(" \xB7 ") : "No workspace has come through your link yet." };
+  return { rows, summary: total ? parts2.join(" \xB7 ") : broughtWords(0) };
 }
 var PARTNER_STANDING_VERBS = {
   qualified: "Qualify",
@@ -27196,12 +27466,22 @@ var STANDING_LABELS = {
   review: "Under review",
   disqualified: "Disqualified"
 };
+var DECIDED_BY_WORDS = {
+  person: " (decided by a person)",
+  sweep: " (the nightly check)",
+  joining: " (as the partner joined)"
+};
+var BY_ORIGIN = {
+  link: (code2) => `Brought by ${code2}`,
+  handover: (code2) => `Set up and handed over by ${code2}`,
+  invite: (code2) => `${code2}, asked in by its owner`
+};
 function platformPartnerStanding(w) {
   const label = w.standing ? STANDING_LABELS[w.standing] ?? w.standing : "Not judged yet";
-  const whose = w.decided_by === "person" ? " (decided by a person)" : w.decided_by === "sweep" ? " (the nightly check)" : "";
+  const whose = (w.decided_by && DECIDED_BY_WORDS[w.decided_by]) ?? "";
   const why = w.standing ? w.standing_why ? `: ${w.standing_why}` : "" : ": judged once it has paid";
   return {
-    by: `Brought by ${w.code}`,
+    by: (BY_ORIGIN[w.origin ?? "link"] ?? BY_ORIGIN.link)(w.code),
     standing: `${label}${whose}${why}`,
     tone: w.standing === "review" ? "warn" : w.standing === "disqualified" ? "danger" : w.standing === "qualified" ? "ok" : "plain",
     choices: partnerStandingChoices(w.standing).map((s) => ({ standing: s, label: PARTNER_STANDING_VERBS[s] }))
@@ -27510,6 +27790,99 @@ var PartnerSecondFactorResetSchema = z21.object({
 function secondFactorResetWords(code2, removed) {
   return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
 }
+
+// src/workspace/partner-invite.ts
+import { z as z22 } from "zod";
+var PARTNER_INVITE_DAYS = 14;
+var CODE_IN_LINK = /\/p\/([a-z0-9-]+)/i;
+var AROUND_A_CODE = /^[^a-z0-9]+|[^a-z0-9]+$/gi;
+function partnerCodeFrom(raw) {
+  const typed = raw.trim();
+  const inLink = CODE_IN_LINK.exec(typed);
+  return (inLink ? inLink[1] : typed).replace(AROUND_A_CODE, "").toLowerCase();
+}
+var PartnerInviteSchema = z22.object({
+  code: z22.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
+var ORIGIN_WORDS = {
+  link: "came to you through their link",
+  handover: "set this workspace up for you",
+  invite: "joined at your invitation"
+};
+function workspacePartnerVM(dto, nowMs = Date.now()) {
+  const p = dto.partner;
+  if (p)
+    return {
+      state: "partner",
+      sentence: p.seated ? `${p.code} is your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}. Remove them in the team above at any time.` : `${p.code} was your partner: they ${ORIGIN_WORDS[p.origin] ?? "joined"}, on ${dayWords2(p.since)}, and are no longer on your team. A workspace has one partner.`,
+      canInvite: false,
+      canWithdraw: false
+    };
+  const i = dto.invitation;
+  if (!i) return { state: "none", sentence: null, canInvite: true, canWithdraw: false };
+  if (i.declinedAt)
+    return {
+      state: "declined",
+      sentence: `${i.code} declined on ${dayWords2(i.declinedAt)}.`,
+      canInvite: true,
+      canWithdraw: false
+    };
+  if (Date.parse(i.expiresAt) <= nowMs)
+    return {
+      state: "expired",
+      sentence: `Your invitation to ${i.code} expired on ${dayWords2(i.expiresAt)}.`,
+      canInvite: true,
+      canWithdraw: false
+    };
+  return {
+    state: "waiting",
+    sentence: `Waiting for ${i.code} to accept: asked on ${dayWords2(i.sentAt)}, open until ${dayWords2(i.expiresAt)}.`,
+    canInvite: false,
+    canWithdraw: true
+  };
+}
+var partnerInvitationWords = (i) => `${i.workspace.trim() || "A workspace"} asks you to be its partner. Open until ${dayWords2(i.expiresAt)}.`;
+function partnerJoinedWords(workspace, earns) {
+  const name = workspace.trim() || "The workspace";
+  return earns ? `You're ${name}'s partner. When it pays for its plan, your share is written as for a workspace you brought.` : `You're ${name}'s partner. It was already paying when you joined, so it earns you no share; the owner's team is yours to help run.`;
+}
+function partnerInviteEmail(i) {
+  const workspace = i.workspace.trim() || "A workspace";
+  return {
+    subject: `${workspace} asks you to be its partner on Chanlytics`,
+    body: [
+      `${workspace} asked you to join its team as its partner: you'd set up and run its receptionist with its owner, and never touch its billing or its team.`,
+      "",
+      "A workspace that has not paid for a plan yet earns you your share once it does, as one you brought. One that was already paying earns you none.",
+      "",
+      `Sign in and open Settings \u203A Partner to join or decline: ${i.signInUrl}`,
+      "",
+      `Open until ${dayWords2(i.expiresAt)}. If you weren't expecting this, you can ignore it: nothing changes unless you join.`
+    ].join("\n")
+  };
+}
 export {
   ABANDONED_MS,
   ABILITY_CHANNEL_WORDS,
@@ -27556,6 +27929,7 @@ export {
   BILLING_STATUSES,
   BILLING_TEST_MODE_CLAUSE,
   BILLING_TRIAL_DAYS,
+  BOOKED_SEEN_CAP,
   BOOKING_DEFAULTS,
   BOOKING_LINK_NEEDED,
   BOOKING_PLATFORM_HOSTS,
@@ -27709,6 +28083,8 @@ export {
   HANDOVER_DAYS,
   HANDOVER_WAITING_MAX,
   HANDOVER_WORDS,
+  HAND_KINDS,
+  HAND_WORDS_MAX,
   HELD_REASONS,
   HOLD_DOOR_WORDS,
   HOUR_MS,
@@ -27927,6 +28303,8 @@ export {
   PARTNER_EARNING_KINDS,
   PARTNER_EARNING_STATES,
   PARTNER_HOLD_DAYS,
+  PARTNER_INVITE_DAYS,
+  PARTNER_INVITE_WORDS,
   PARTNER_REVERSAL_KINDS,
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_STANDINGS,
@@ -27999,6 +28377,7 @@ export {
   PUSH_TOKEN_MAX,
   PageContextSchema,
   PartnerBecomeSchema,
+  PartnerInviteSchema,
   PartnerLetterNewsSchema,
   PartnerLettersSchema,
   PartnerSecondFactorResetSchema,
@@ -28242,6 +28621,7 @@ export {
   billingPill,
   blockShareWords,
   bookedAfterAsk,
+  bookedSeenOf,
   bookingHeld,
   bookingLinkAction,
   bookingLinkOptional,
@@ -28506,6 +28886,8 @@ export {
   guardrailsInForce,
   guessName,
   guessSlotKind,
+  handOf,
+  handStepWords,
   handoffCallWords,
   handoffChatWords,
   handoffE164,
@@ -28782,9 +29164,13 @@ export {
   parseTenantConfigResult,
   parseTodayWidgetSnapshot,
   partialSay,
+  partnerCodeFrom,
   partnerCodeFromCookie,
   partnerEarningsWords,
   partnerHandoverVM,
+  partnerInvitationWords,
+  partnerInviteEmail,
+  partnerJoinedWords,
   partnerLetter,
   partnerLinkFor,
   partnerPaneUrl,
@@ -28904,6 +29290,7 @@ export {
   ratingWords,
   reachLineOf,
   reachLines,
+  reachOutAddHandStep,
   reachOutAddStep,
   reachOutAfterDayChoices,
   reachOutChainBodyOf,
@@ -28918,6 +29305,7 @@ export {
   reachOutRunWordsOf,
   reachOutSavedWords,
   reachOutSendsFrom,
+  reachOutSetHandWords,
   reachOutSheetPaceOf,
   reachOutSheetUnreadOf,
   reachOutSlots,
@@ -29082,6 +29470,7 @@ export {
   stepDays,
   stepIsDue,
   stepLabel,
+  stepLabelOf,
   stepSheetBody,
   stepSheetDirty,
   stepSheetFor,
@@ -29228,6 +29617,7 @@ export {
   wordsIssueWords,
   wordsNeedOpening,
   workspaceHotkey,
+  workspacePartnerVM,
   writtenChannelOf,
   writtenOutDetail,
   yesWaitWords,

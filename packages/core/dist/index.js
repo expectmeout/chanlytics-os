@@ -153,6 +153,7 @@ import { z as z18 } from "zod";
 import { z as z19 } from "zod";
 import { z as z20 } from "zod";
 import { z as z21 } from "zod";
+import { z as z22 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -2815,6 +2816,11 @@ var EVENT_KINDS = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -3060,6 +3066,8 @@ var CHECKOUT_OUTCOME_WORDS = {
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var HAND_KINDS = ["call", "note"];
+var HAND_WORDS_MAX = 280;
 var REACH_OUT_SUBJECT_MAX = 80;
 var REACH_OUT_BODY_MAX = 1200;
 var OPENING_WORDS_MAX = 40;
@@ -3075,7 +3083,9 @@ var ReachOutStepSchema = z14.object({
   id: z14.string().uuid().nullable().optional(),
   subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
   body: z14.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z14.object({ kind: z14.enum(HAND_KINDS), words: z14.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
 var ReachOutChainSchema = z14.object({
   name: z14.string().trim().min(1).max(REACH_OUT_NAME_MAX),
@@ -3472,6 +3482,9 @@ var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -3610,10 +3623,10 @@ var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -3632,7 +3645,7 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -3713,6 +3726,32 @@ var PartnerSecondFactorResetSchema = z21.object({
   partner_id: z21.string().uuid("That partner does not exist."),
   why: z21.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
+var PARTNER_INVITE_DAYS = 14;
+var PartnerInviteSchema = z22.object({
+  code: z22.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -3962,10 +4001,10 @@ var APIFY_RUN_END_EVENTS = [
 ];
 
 // ../contracts/dist/index.js
-import { z as z22 } from "zod";
+import { z as z23 } from "zod";
 import { z as z72 } from "zod";
 import { z as z52 } from "zod";
-import { z as z23 } from "zod";
+import { z as z24 } from "zod";
 import { z as z42 } from "zod";
 import { z as z32 } from "zod";
 import { z as z62 } from "zod";
@@ -3983,7 +4022,8 @@ import { z as z182 } from "zod";
 import { z as z192 } from "zod";
 import { z as z202 } from "zod";
 import { z as z212 } from "zod";
-z22.config({ jitless: true });
+import { z as z222 } from "zod";
+z23.config({ jitless: true });
 function zoneParts(tz, at2) {
   const parts2 = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
@@ -4103,38 +4143,38 @@ var US_STATES2 = {
 var US_CODES2 = new Set(Object.values(US_STATES2));
 var KEY2 = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe2 = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words2 = (min, max) => z23.string().transform((s) => stripUnsafe2(s).trim()).pipe(z23.string().min(min).max(max));
-var LeadSearchPlanSchema2 = z23.object({
-  version: z23.number().int().min(1),
-  card: z23.literal("local_businesses"),
+var words2 = (min, max) => z24.string().transform((s) => stripUnsafe2(s).trim()).pipe(z24.string().min(min).max(max));
+var LeadSearchPlanSchema2 = z24.object({
+  version: z24.number().int().min(1),
+  card: z24.literal("local_businesses"),
   name: words2(2, 80),
   asked: words2(1, 400),
-  terms: z23.array(words2(2, 60)).min(1).max(5),
-  area: z23.object({
-    kind: z23.enum(["zip", "city", "radius"]),
+  terms: z24.array(words2(2, 60)).min(1).max(5),
+  area: z24.object({
+    kind: z24.enum(["zip", "city", "radius"]),
     label: words2(2, 80),
-    state: z23.string().regex(/^[A-Z]{2}$/),
-    center: z23.object({ lat: z23.number().min(-90).max(90), lng: z23.number().min(-180).max(180) }).nullable(),
-    radius_m: z23.number().int().min(500).max(2e5),
-    zip: z23.string().regex(/^\d{5}$/).optional(),
+    state: z24.string().regex(/^[A-Z]{2}$/),
+    center: z24.object({ lat: z24.number().min(-90).max(90), lng: z24.number().min(-180).max(180) }).nullable(),
+    radius_m: z24.number().int().min(500).max(2e5),
+    zip: z24.string().regex(/^\d{5}$/).optional(),
     query: words2(2, 120)
   }),
-  count: z23.number().int().min(1).max(LEAD_MAX_PLACES2),
-  contact: z23.enum(["phone", "email"]),
-  criteria: z23.array(
-    z23.object({
-      key: z23.string().regex(KEY2),
+  count: z24.number().int().min(1).max(LEAD_MAX_PLACES2),
+  contact: z24.enum(["phone", "email"]),
+  criteria: z24.array(
+    z24.object({
+      key: z24.string().regex(KEY2),
       text: words2(2, 120),
-      standard: z23.enum(["likely", "seen"]),
-      required: z23.boolean()
+      standard: z24.enum(["likely", "seen"]),
+      required: z24.boolean()
     })
   ).max(8),
-  exclusions: z23.array(
-    z23.object({
-      key: z23.string().regex(KEY2),
+  exclusions: z24.array(
+    z24.object({
+      key: z24.string().regex(KEY2),
       text: words2(2, 80),
-      origin: z23.enum(["claude", "you_said"]),
-      category_key: z23.string().regex(KEY2).optional()
+      origin: z24.enum(["claude", "you_said"]),
+      category_key: z24.string().regex(KEY2).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -7030,6 +7070,11 @@ var EVENT_KINDS2 = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -7331,8 +7376,29 @@ function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @
   return composeSystemPromptWith(base, profile, channel, tz, now, policy);
 }
 function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
-  const s = [];
   const link = offersBookingLink(base) ? base.booking_link : null;
+  const hrs = hoursLines(profile.hours);
+  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  const facts = { base, profile, channel, tz, policy, link, hrs, closed };
+  return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
+}
+var PROMPT_SECTIONS = [
+  identitySection,
+  contactSection,
+  hoursSection,
+  closuresSection,
+  servicesSection,
+  notesSection,
+  bookingRulesSection,
+  handoffSection,
+  callToolsSection,
+  ownWordsSection,
+  mediumSection,
+  openTimesSection,
+  rulesSection
+];
+function identitySection({ base, profile, channel }) {
+  const s = [];
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
@@ -7343,19 +7409,29 @@ function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
       (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
     );
   }
+  return s;
+}
+function contactSection({ base, profile, link }) {
+  const s = [];
   if (profile.address) s.push(`
 Address: ${profile.address}`);
   if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
   if (link) s.push(`Booking link: ${link}`);
   if (profile.website) s.push(`Website: ${profile.website}`);
-  const hrs = hoursLines(profile.hours);
+  return s;
+}
+function hoursSection({ tz, hrs }) {
+  const s = [];
   if (hrs.length) {
     const where = tz ? ` (all times ${tz})` : "";
     s.push(`
 ${PROMPT_OPENINGS.hours}${where}:
 ${hrs.map((l) => `- ${l}`).join("\n")}`);
   }
-  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  return s;
+}
+function closuresSection({ closed }) {
+  const s = [];
   if (closed.length) {
     s.push(
       `
@@ -7366,6 +7442,10 @@ ${closed.map((l) => `- ${l}`).join(
 If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
     );
   }
+  return s;
+}
+function servicesSection({ profile }) {
+  const s = [];
   if (profile.services?.length) {
     const lines = profile.services.map((sv) => {
       const bits2 = [sv.name];
@@ -7377,34 +7457,50 @@ If someone asks about one of these dates, say the business is closed that day an
 ${PROMPT_OPENINGS.services}
 ${lines.join("\n")}`);
   }
+  return s;
+}
+function notesSection({ profile }) {
+  const s = [];
   if (profile.notes?.length) {
     s.push(`
 ${PROMPT_OPENINGS.notes}
 ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
+  return s;
+}
+function bookingRulesSection({ profile }) {
+  const s = [];
   const br = profile.booking_rules;
   if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)) {
-    const lines = [];
-    if (br.lead_hours !== void 0) {
-      lines.push(
-        br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
-      );
-    }
-    if (br.consult_first?.length)
-      lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
-    if (br.party_max)
-      lines.push(
-        `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
-      );
-    if (br.ask_email)
-      lines.push(
-        "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
-      );
-    for (const n of br.notes ?? []) lines.push(n);
+    const lines = bookingRuleLines(br);
     s.push(`
 ${PROMPT_OPENINGS.bookingRules}
 ${lines.map((l) => `- ${l}`).join("\n")}`);
   }
+  return s;
+}
+function bookingRuleLines(br) {
+  const lines = [];
+  if (br.lead_hours !== void 0) {
+    lines.push(
+      br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
+    );
+  }
+  if (br.consult_first?.length)
+    lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+  if (br.party_max)
+    lines.push(
+      `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
+    );
+  if (br.ask_email)
+    lines.push(
+      "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
+    );
+  for (const n of br.notes ?? []) lines.push(n);
+  return lines;
+}
+function handoffSection({ profile, channel }) {
+  const s = [];
   if (channel === "whatsapp") {
     const when = profile.escalate_when?.length ? `
 ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
@@ -7424,6 +7520,12 @@ ${PROMPT_OPENINGS.handoffCall}
 ${staffed}
 Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
     );
+  }
+  return s;
+}
+function callToolsSection({ channel, link }) {
+  const s = [];
+  if (channel !== "whatsapp") {
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
@@ -7431,6 +7533,10 @@ ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar
 `) + "Ending: once the caller has said goodbye, use end_call."
     );
   }
+  return s;
+}
+function ownWordsSection({ profile, channel, hrs, closed }) {
+  const s = [];
   if (profile.extra_instructions?.trim()) {
     const above = [
       profile.address ? "address" : "",
@@ -7449,6 +7555,10 @@ ${header}
 ${text}` : `
 ${text}`);
   }
+  return s;
+}
+function mediumSection({ channel, link }) {
+  const s = [];
   const callMedium = link ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
   const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(
@@ -7456,10 +7566,18 @@ ${text}`);
 ${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
 ${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
   );
+  return s;
+}
+function openTimesSection({ link }) {
+  const s = [];
   s.push(
     `
 ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (link ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
   );
+  return s;
+}
+function rulesSection({ profile, channel, policy, link }) {
+  const s = [];
   const g = guardrailsInForce(profile.guardrails);
   const rules = [];
   if (g.never_quote_prices) {
@@ -7489,7 +7607,7 @@ ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants
   if (rules.length) s.push(`
 ${PROMPT_OPENINGS.rules}
 ${rules.map((r22) => `- ${r22}`).join("\n")}`);
-  return s.join("\n");
+  return s;
 }
 function hasProfile(p) {
   if (!p) return false;
@@ -7601,6 +7719,12 @@ function clipAtWord(text, max) {
   const space = cut.lastIndexOf(" ");
   return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
 }
+var HAND_KINDS2 = ["call", "note"];
+var HAND_WORDS_MAX2 = 280;
+function handStepWords(kind, business, words4) {
+  const who = business.trim() || "This business";
+  return kind === "call" ? `Call ${who}: ${words4.trim()}` : `${who}: ${words4.trim()}`;
+}
 var REACH_OUT_SUBJECT_MAX2 = 80;
 var REACH_OUT_BODY_MAX2 = 1200;
 var OPENING_WORDS_MAX2 = 40;
@@ -7619,7 +7743,9 @@ var ReachOutStepSchema2 = z142.object({
   id: z142.string().uuid().nullable().optional(),
   subject: z142.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
   body: z142.string().max(REACH_OUT_BODY_MAX2 * 2),
-  after_days: z142.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable()
+  after_days: z142.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z142.object({ kind: z142.enum(HAND_KINDS2), words: z142.string().max(HAND_WORDS_MAX2 * 2) }).nullable().optional()
 });
 var ReachOutChainSchema2 = z142.object({
   name: z142.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
@@ -8919,6 +9045,9 @@ var REACH_OUT_REFUSALS2 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -9140,10 +9269,10 @@ var PARTNER_WORDS2 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN2} to ${PARTNER_CODE_MAX2} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -9162,7 +9291,7 @@ var PARTNER_WORDS2 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -9243,12 +9372,38 @@ var PartnerSecondFactorResetSchema2 = z212.object({
   partner_id: z212.string().uuid("That partner does not exist."),
   why: z212.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
+var PARTNER_INVITE_DAYS2 = 14;
+var PartnerInviteSchema2 = z222.object({
+  code: z222.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS2 = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS2} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
 
 // ../db/dist/index.js
-import { z as z24 } from "zod";
+import { z as z25 } from "zod";
 import { z as z73 } from "zod";
 import { z as z53 } from "zod";
-import { z as z25 } from "zod";
+import { z as z26 } from "zod";
 import { z as z43 } from "zod";
 import { z as z33 } from "zod";
 import { z as z63 } from "zod";
@@ -9266,7 +9421,8 @@ import { z as z183 } from "zod";
 import { z as z193 } from "zod";
 import { z as z203 } from "zod";
 import { z as z213 } from "zod";
-z24.config({ jitless: true });
+import { z as z223 } from "zod";
+z25.config({ jitless: true });
 var MIN_MS3 = 6e4;
 var HOUR_MS3 = 36e5;
 var DAY_MS3 = 864e5;
@@ -9330,38 +9486,38 @@ var US_STATES3 = {
 var US_CODES3 = new Set(Object.values(US_STATES3));
 var KEY3 = /^[a-z][a-z0-9_]{0,39}$/;
 var stripUnsafe3 = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words3 = (min, max) => z25.string().transform((s) => stripUnsafe3(s).trim()).pipe(z25.string().min(min).max(max));
-var LeadSearchPlanSchema3 = z25.object({
-  version: z25.number().int().min(1),
-  card: z25.literal("local_businesses"),
+var words3 = (min, max) => z26.string().transform((s) => stripUnsafe3(s).trim()).pipe(z26.string().min(min).max(max));
+var LeadSearchPlanSchema3 = z26.object({
+  version: z26.number().int().min(1),
+  card: z26.literal("local_businesses"),
   name: words3(2, 80),
   asked: words3(1, 400),
-  terms: z25.array(words3(2, 60)).min(1).max(5),
-  area: z25.object({
-    kind: z25.enum(["zip", "city", "radius"]),
+  terms: z26.array(words3(2, 60)).min(1).max(5),
+  area: z26.object({
+    kind: z26.enum(["zip", "city", "radius"]),
     label: words3(2, 80),
-    state: z25.string().regex(/^[A-Z]{2}$/),
-    center: z25.object({ lat: z25.number().min(-90).max(90), lng: z25.number().min(-180).max(180) }).nullable(),
-    radius_m: z25.number().int().min(500).max(2e5),
-    zip: z25.string().regex(/^\d{5}$/).optional(),
+    state: z26.string().regex(/^[A-Z]{2}$/),
+    center: z26.object({ lat: z26.number().min(-90).max(90), lng: z26.number().min(-180).max(180) }).nullable(),
+    radius_m: z26.number().int().min(500).max(2e5),
+    zip: z26.string().regex(/^\d{5}$/).optional(),
     query: words3(2, 120)
   }),
-  count: z25.number().int().min(1).max(LEAD_MAX_PLACES3),
-  contact: z25.enum(["phone", "email"]),
-  criteria: z25.array(
-    z25.object({
-      key: z25.string().regex(KEY3),
+  count: z26.number().int().min(1).max(LEAD_MAX_PLACES3),
+  contact: z26.enum(["phone", "email"]),
+  criteria: z26.array(
+    z26.object({
+      key: z26.string().regex(KEY3),
       text: words3(2, 120),
-      standard: z25.enum(["likely", "seen"]),
-      required: z25.boolean()
+      standard: z26.enum(["likely", "seen"]),
+      required: z26.boolean()
     })
   ).max(8),
-  exclusions: z25.array(
-    z25.object({
-      key: z25.string().regex(KEY3),
+  exclusions: z26.array(
+    z26.object({
+      key: z26.string().regex(KEY3),
       text: words3(2, 80),
-      origin: z25.enum(["claude", "you_said"]),
-      category_key: z25.string().regex(KEY3).optional()
+      origin: z26.enum(["claude", "you_said"]),
+      category_key: z26.string().regex(KEY3).optional()
     })
   ).max(8)
 }).superRefine((p, ctx) => {
@@ -11114,6 +11270,11 @@ var EVENT_KINDS3 = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -11359,6 +11520,8 @@ var CHECKOUT_OUTCOME_WORDS3 = {
 };
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
+var HAND_KINDS3 = ["call", "note"];
+var HAND_WORDS_MAX3 = 280;
 var REACH_OUT_SUBJECT_MAX3 = 80;
 var REACH_OUT_BODY_MAX3 = 1200;
 var OPENING_WORDS_MAX3 = 40;
@@ -11374,7 +11537,9 @@ var ReachOutStepSchema3 = z143.object({
   id: z143.string().uuid().nullable().optional(),
   subject: z143.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
   body: z143.string().max(REACH_OUT_BODY_MAX3 * 2),
-  after_days: z143.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable()
+  after_days: z143.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z143.object({ kind: z143.enum(HAND_KINDS3), words: z143.string().max(HAND_WORDS_MAX3 * 2) }).nullable().optional()
 });
 var ReachOutChainSchema3 = z143.object({
   name: z143.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
@@ -11763,6 +11928,9 @@ var REACH_OUT_REFUSALS3 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -11901,10 +12069,10 @@ var PARTNER_WORDS3 = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN3} to ${PARTNER_CODE_MAX3} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -11923,7 +12091,7 @@ var PARTNER_WORDS3 = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -12004,6 +12172,32 @@ var PartnerSecondFactorResetSchema3 = z213.object({
   partner_id: z213.string().uuid("That partner does not exist."),
   why: z213.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
+var PARTNER_INVITE_DAYS3 = 14;
+var PartnerInviteSchema3 = z223.object({
+  code: z223.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS3 = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS3} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
 async function recordCarrierOptOut(db, p) {
   const { data, error } = await db.from("contacts").update({
     consent: "opted_out",
@@ -13759,6 +13953,7 @@ async function uuidV5(name) {
 var reachOutRunIdFor = (stepId, runFor) => uuidV5(`reach_out_run:${stepId}:${runFor}`);
 var sendIdFor = (runId, leadId) => uuidV5(`reach_out_send:${runId}:${leadId}`);
 var sendMessageId = (sendId, attempt) => uuidV5(`reach_out_email:${sendId}:${attempt}`);
+var handStepIdFor = (stepId, leadId) => uuidV5(`reach_out_hand:${stepId}:${leadId}`);
 
 // src/campaigns/run-reach-out.ts
 var neverOpen = (week) => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
@@ -13860,6 +14055,32 @@ async function runReachOut(ports, step, cmd) {
     return { outcome: "held", reason: "waiting_for_you", planned: plan.placed.length };
   }
   return { outcome: "sent", planned: plan.placed.length };
+}
+
+// src/campaigns/run-hand-step.ts
+var doorRefuses = (f) => outreachRefusalOf({
+  leadStage: f.facts.lead_stage,
+  suppressed: f.facts.suppressed,
+  wroteBack: f.facts.wrote_back,
+  away: f.facts.away === true
+}) !== null;
+async function runHandStep(ports, step, cmd) {
+  if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
+  const leads = (await ports.followers(step)).filter((f) => !doorRefuses(f)).slice(0, step.cap_per_run);
+  if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
+  const names = await ports.businessNames(leads.map((l) => l.lead_id));
+  const runId = await reachOutRunIdFor(step.id, cmd.runFor);
+  const items = await Promise.all(
+    leads.map(async (l) => ({
+      send_id: await sendIdFor(runId, l.lead_id),
+      lead_id: l.lead_id,
+      contact_id: l.contact_id,
+      words: handStepWords(step.hand.kind, names.get(l.lead_id) ?? "", step.hand.words),
+      source_id: await handStepIdFor(step.id, l.lead_id)
+    }))
+  );
+  const r4 = await ports.handRun({ stepId: step.id, runId, day: cmd.runFor, items });
+  return r4.made > 0 ? { outcome: "sent", planned: r4.made } : { outcome: "empty", reason: "already_ran", planned: 0 };
 }
 
 // src/leads/zcta-centroids.json
@@ -47021,14 +47242,14 @@ function haversineM(a, b) {
   return Math.round(2 * R * Math.asin(Math.sqrt(s)));
 }
 function zctaCenter(zip) {
-  const z26 = zip.trim();
+  const z27 = zip.trim();
   let lo = 0;
   let hi = TABLE.length - 1;
   while (lo <= hi) {
     const mid = lo + hi >> 1;
     const row = TABLE[mid];
-    if (row[0] === z26) return { lat: row[1], lng: row[2] };
-    if (row[0] < z26) lo = mid + 1;
+    if (row[0] === z27) return { lat: row[1], lng: row[2] };
+    if (row[0] < z27) lo = mid + 1;
     else hi = mid - 1;
   }
   return null;
@@ -48661,11 +48882,12 @@ function noModelPlan(fallbacks) {
   };
 }
 
-// src/inbound/answer.ts
+// src/inbound/context.ts
 function errField(e) {
   return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
 }
-async function answerInbound(input, ports) {
+var GO = /* @__PURE__ */ Symbol("go on");
+async function openInbound(input, ports) {
   const { message: n, raw, tenantId, routed, isEnvDefault, carrier } = input;
   const from = raw.from;
   const channel = carrier?.channel ?? "whatsapp";
@@ -48677,8 +48899,6 @@ async function answerInbound(input, ports) {
     runtimeUsable: !!rt && !rt.loadFailed,
     policyMode: rt?.policy["reply"]?.mode
   });
-  let replyMode = posture.replyMode;
-  let personMode = null;
   const brainCfg = rt?.brain ?? null;
   const fallbacks = brainCfg ? fallbackMessages(brainCfg, rt?.known) : null;
   const notif = rt?.notifications ?? null;
@@ -48687,26 +48907,55 @@ async function answerInbound(input, ports) {
   const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
   const pauseMs = replyLimits.pause_hours ? replyLimits.pause_hours * 3600 * 1e3 : PAUSE_MS;
   const pauseHours = Math.round(pauseMs / 36e5);
-  const recordOrSay = async () => {
-    try {
-      return await ports.persist.ingest(db, tenantId, n, channel);
-    } catch (e) {
-      if (e instanceof IngestFailed) {
-        try {
-          await ports.alertStaff(
-            from,
-            n.body ?? `[${raw.type} message]`,
-            "(NOT recorded: the database did not accept the message; the provider will retry)",
-            "message not recorded",
-            { target: notifyTarget, channel, who: n.profileName ?? null }
-          );
-        } catch (alertErr) {
-          L4.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
-        }
-      }
-      throw e;
-    }
+  return {
+    ports,
+    n,
+    raw,
+    tenantId,
+    isEnvDefault,
+    carrier,
+    from,
+    channel,
+    db,
+    t0,
+    L: L4,
+    rt,
+    posture,
+    brainCfg,
+    fallbacks,
+    notifyTarget,
+    replyLimits,
+    maxRepliesDay,
+    pauseMs,
+    pauseHours
   };
+}
+
+// src/inbound/ingest.ts
+async function ingestOrSay(cx) {
+  const { ports, db, tenantId, n, channel, from, raw, notifyTarget, L: L4 } = cx;
+  try {
+    return await ports.persist.ingest(db, tenantId, n, channel);
+  } catch (e) {
+    if (e instanceof IngestFailed) {
+      try {
+        await ports.alertStaff(
+          from,
+          n.body ?? `[${raw.type} message]`,
+          "(NOT recorded: the database did not accept the message; the provider will retry)",
+          "message not recorded",
+          { target: notifyTarget, channel, who: n.profileName ?? null }
+        );
+      } catch (alertErr) {
+        L4.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
+      }
+    }
+    throw e;
+  }
+}
+async function ingestMessage(cx) {
+  const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L: L4, rt, notifyTarget } = cx;
+  const recordOrSay = () => ingestOrSay(cx);
   if (shortCode(from)) {
     const ing2 = await recordOrSay();
     const sink2 = ports.persist.sink(db, tenantId, ing2, rt, channel);
@@ -48751,6 +49000,14 @@ async function answerInbound(input, ports) {
     L4.info("wa_skip_pg_dupe");
     return;
   }
+  return { ing, thread, ingestMs, sink, wire, send, tell };
+}
+
+// src/inbound/gates.ts
+async function modeInForce(cx, ing) {
+  const { db, tenantId, ports, posture, L: L4 } = cx;
+  let replyMode = posture.replyMode;
+  let personMode = null;
   if (db && tenantId && ing?.contact_id) {
     try {
       personMode = await ports.leads.personReplyMode(db, tenantId, ing.contact_id);
@@ -48759,6 +49016,10 @@ async function answerInbound(input, ports) {
       L4.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
     }
   }
+  return { replyMode, personMode };
+}
+async function firstGates(at) {
+  const { thread, L: L4, sink, tell, n, raw, ing, carrier } = at;
   if (isThreadUnknown(thread)) {
     L4.error("wa_state_unavailable");
     await Promise.all([
@@ -48831,6 +49092,12 @@ async function answerInbound(input, ports) {
     L4.info("wa_escalate_readable_nontext", { kind: n.kind });
     return;
   }
+  return GO;
+}
+
+// src/inbound/unreadable.ts
+function seeingOf(at) {
+  const { n, rt, brainCfg, replyMode, thread, send, fallbacks, personMode, pauseMs, sink, raw, tell, pauseHours, L: L4 } = at;
   const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type) && !!brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil;
   const sayUnreadable = async (pausedUntilNow) => {
     if (Date.now() <= pausedUntilNow) return 0;
@@ -48849,13 +49116,47 @@ async function answerInbound(input, ports) {
     L4.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
     return pausedUntil;
   };
+  return { maySee, sayUnreadable };
+}
+async function unreadableGate(at, seen) {
+  const { n, sink, thread } = at;
+  const { maySee, sayUnreadable } = seen;
   if (!maySee && (n.type !== "text" || !n.body)) {
     const media = sink.media(n);
     await sayUnreadable(thread.pausedUntil);
     await Promise.all([media, sink.processed()]);
     return;
   }
+  return GO;
+}
+function wordsOf(at, seen) {
+  const { n } = at;
+  const { maySee } = seen;
   const bodyText = maySee ? n.media?.caption?.trim() || "[photo]" : n.body ?? "";
+  return bodyText;
+}
+async function photoOf(at, seen) {
+  const { sink, n, L: L4, thread } = at;
+  const { maySee, sayUnreadable } = seen;
+  let photo = null;
+  if (maySee) {
+    const got = await sink.media(n);
+    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
+      photo = { mime: got.mime, base64: toBase64(got.bytes) };
+      L4.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
+    } else {
+      L4.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
+      await sayUnreadable(thread.pausedUntil);
+      await sink.processed();
+      return;
+    }
+  }
+  return { photo };
+}
+
+// src/inbound/reply-gates.ts
+async function lateOrConfirmed(at, bodyText) {
+  const { raw, sink, tell, n, L: L4, channel, brainCfg, rt, send } = at;
   const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? void 0);
   if (age === "stale") {
     await Promise.all([
@@ -48893,6 +49194,24 @@ async function answerInbound(input, ports) {
     });
     return;
   }
+  return GO;
+}
+async function heldForThePerson(at, bodyText) {
+  const {
+    thread,
+    maxRepliesDay,
+    L: L4,
+    sink,
+    tell,
+    replyLimits,
+    db,
+    tenantId,
+    ports,
+    rt,
+    brainCfg,
+    replyMode,
+    personMode
+  } = at;
   const gate = threadVerdict(thread, maxRepliesDay);
   if (gate === "paused") {
     L4.info("wa_skip_paused", { paused_until: thread.pausedUntil });
@@ -48961,19 +49280,30 @@ async function answerInbound(input, ports) {
     });
     return;
   }
-  let photo = null;
-  if (maySee) {
-    const got = await sink.media(n);
-    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
-      photo = { mime: got.mime, base64: toBase64(got.bytes) };
-      L4.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
-    } else {
-      L4.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
-      await sayUnreadable(thread.pausedUntil);
-      await sink.processed();
-      return;
+  return GO;
+}
+
+// src/inbound/model-turn.ts
+async function leadNoteFor(at) {
+  const { db, tenantId, from, ports, rt, L: L4 } = at;
+  let leadNote;
+  if (db && tenantId) {
+    try {
+      const e164 = from.startsWith("+") ? from : `+${from}`;
+      const lead = await ports.leads.read(db, tenantId, e164, 1);
+      leadNote = ports.leads.describe(lead, /* @__PURE__ */ new Date(), rt?.timezone ?? "UTC");
+      const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
+      if (visits) leadNote = `${leadNote}
+${visits}`;
+    } catch (e) {
+      L4.warn("lead_context_unavailable", { error: errField(e) });
     }
   }
+  return leadNote;
+}
+async function modelTurn(at, bodyText, photo) {
+  const { ports, db, rt, thread, n, fallbacks, L: L4 } = at;
+  const brainCfg = at.brainCfg;
   let replyText;
   let escalate;
   let escalationReason = "human_token";
@@ -48984,19 +49314,7 @@ async function answerInbound(input, ports) {
   if (ports.env.modelKey) {
     try {
       const { generateReply } = await ports.brain();
-      let leadNote;
-      if (db && tenantId) {
-        try {
-          const e164 = from.startsWith("+") ? from : `+${from}`;
-          const lead = await ports.leads.read(db, tenantId, e164, 1);
-          leadNote = ports.leads.describe(lead, /* @__PURE__ */ new Date(), rt?.timezone ?? "UTC");
-          const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
-          if (visits) leadNote = `${leadNote}
-${visits}`;
-        } catch (e) {
-          L4.warn("lead_context_unavailable", { error: errField(e) });
-        }
-      }
+      const leadNote = await leadNoteFor(at);
       const openings = rt ? await ports.calendar.openings(rt) : null;
       const tBrain = Date.now();
       const r4 = await generateReply(
@@ -49059,6 +49377,13 @@ ${openings}` : ""}`,
       }
     }
   }
+  return { replyText, escalate, escalationReason, usage, brainMeta, fallback, brainMs, photo };
+}
+
+// src/inbound/dispatch.ts
+async function planTheHold(at, turn) {
+  const { replyMode, replyLimits, L: L4, ports, db, tenantId, ing, from, wire, channel } = at;
+  const { brainMeta, replyText, brainMs, escalate, photo } = turn;
   const plan = holdPlan(replyMode, replyLimits, brainMeta);
   const { delayMs, heldForConfidence } = plan;
   if (heldForConfidence)
@@ -49088,6 +49413,12 @@ ${openings}` : ""}`,
     escalate,
     photo: !!photo
   };
+  return { plan, delayMs, heldForConfidence, queued, replyQuality };
+}
+async function heldOrKept(at, turn, hold, bodyText) {
+  const { sink, pauseMs, tell, pauseHours, L: L4 } = at;
+  const { usage, brainMeta, replyText, escalate, escalationReason, fallback } = turn;
+  const { plan, delayMs, heldForConfidence, queued, replyQuality } = hold;
   if (delayMs > 0 && !queued) {
     await sink.vetoFallback(delayMs, plan.source);
   }
@@ -49134,6 +49465,12 @@ ${openings}` : ""}`,
     L4.info("wa_reply_queued", { delay_ms: delayMs, escalate });
     return;
   }
+  return GO;
+}
+async function sendNow(at, turn, hold, bodyText) {
+  const { send, sink, pauseMs, tell, pauseHours, L: L4, ingestMs } = at;
+  const { replyText, fallback, brainMeta, usage, escalate, escalationReason } = turn;
+  const { replyQuality } = hold;
   const sent = await send(
     replyText,
     fallback ? fallback.meta : brainMeta
@@ -49172,6 +49509,26 @@ ${openings}` : ""}`,
     ingest_ms: ingestMs,
     post_ms: Date.now() - tSent
   });
+}
+
+// src/inbound/answer.ts
+async function answerInbound(input, ports) {
+  const cx = await openInbound(input, ports);
+  const kept = await ingestMessage(cx);
+  if (!kept) return;
+  const at = { ...cx, ...kept, ...await modeInForce(cx, kept.ing) };
+  if (await firstGates(at) !== GO) return;
+  const seen = seeingOf(at);
+  if (await unreadableGate(at, seen) !== GO) return;
+  const bodyText = wordsOf(at, seen);
+  if (await lateOrConfirmed(at, bodyText) !== GO) return;
+  if (await heldForThePerson(at, bodyText) !== GO) return;
+  const shown = await photoOf(at, seen);
+  if (!shown) return;
+  const turn = await modelTurn(at, bodyText, shown.photo);
+  const hold = await planTheHold(at, turn);
+  if (await heldOrKept(at, turn, hold, bodyText) !== GO) return;
+  await sendNow(at, turn, hold, bodyText);
 }
 
 // src/booking-page.ts
@@ -49287,6 +49644,7 @@ export {
   factsOf,
   foldDuplicates,
   handBack,
+  handStepIdFor,
   hasContact,
   haversineM,
   holdCopy,
@@ -49324,6 +49682,7 @@ export {
   resolveConsent,
   resolveEscalation,
   runCaps,
+  runHandStep,
   runIdFor,
   runPlaybook,
   runReachOut,
