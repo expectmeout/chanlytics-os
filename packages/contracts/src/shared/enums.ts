@@ -90,6 +90,13 @@ export const JOB_KINDS = [
    * tickets in its payload; a transport failure throws and is tried again.
    */
   "push_receipts",
+  /**
+   * One reply to a reach-out, read for what it means (Reach out Part 5, 00222): the model's reading, applied through
+   * reach_out_reply_apply, and the workspace told once. Scheduled by the email intake once per message
+   * (jobs_reply_read_once, scheduleJobOnce), and by itself for a re-read of a reply it could not read ({ stage:
+   * "reread-<n>" }). Internal work written to be run again: a second claim finds the reading and pays nothing.
+   */
+  "reply_read",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
@@ -260,6 +267,10 @@ export const EVENT_KINDS = [
   "partner.invite_withdrawn",
   "partner.invite_accepted",
   "partner.invite_declined",
+  // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
+  "reach_out.replied",
+  // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
+  "reach_out.reply_undone",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 

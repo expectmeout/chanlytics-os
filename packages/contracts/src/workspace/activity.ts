@@ -1,6 +1,7 @@
 import { DECISION_VERBS, EVENT_KINDS, type DecisionVerb } from "../shared/enums";
 import { LEAD_ENDING_WORDS, type LeadRoundEnding } from "../leads/lead-search";
 import { domainHoldWords } from "../email/sending-domains";
+import { REPLY_INTENT_WORDS, isReplyIntent } from "../reach-out/reach-out-replies";
 import type { Tone } from "../shell/tone";
 
 /**
@@ -162,6 +163,10 @@ const WORDS: Record<string, string> = {
   "sending_domain.removed": "A domain to send from was removed",
   "lead.round": "A search for businesses",
   "lead.no_card": "An ask no source covers yet",
+  "lead.converted": "A lead is Talking",
+  // A reply to a reach-out, read (Reach out Part 5): the case below says who and what it meant.
+  "reach_out.replied": "A business wrote back to a reach-out",
+  "reach_out.reply_undone": "A reply read as no was undone",
   "workspace.created": "The workspace was created",
   "settings.changed": "Settings changed",
   "policy.changed": "An autonomy setting changed",
@@ -193,6 +198,48 @@ const num = (o: Record<string, unknown>, k: string): number | null =>
   typeof o[k] === "number" ? (o[k] as number) : null;
 
 /**
+ * An import's sentence. One row per part of fifty, and the counts are the news: the sentence is them, not the verb's
+ * words. A part that stopped at a fault says so, or it would read as a clean import.
+ */
+function importWords(p: Record<string, unknown>): string {
+  const n = (k: string) => num(p, k) ?? 0;
+  const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
+  const stopped = n("failed") > 0 ? ", then stopped at a fault" : "";
+  return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
+}
+
+/** How a lead became Talking (00220 lead_convert_by's `how`). */
+const CONVERTED_HOW: Record<string, string> = {
+  call: "after a call",
+  reply: "they wrote back",
+  booking: "they booked",
+  deal: "a deal was opened",
+};
+
+/**
+ * A lead's conversion, and a reach-out's reply read (Reach out Part 5): "Harbor Movers wrote back · interested", the
+ * business the lead is and what their reply was read as; one not read yet says so.
+ */
+function readingWords(kind: string, p: Record<string, unknown>, base: string): string {
+  if (kind === "lead.converted") {
+    const how = CONVERTED_HOW[str(p, "how") ?? ""];
+    return how ? `${base} · ${how}` : base;
+  }
+  const who = str(p, "business") ?? "A business";
+  if (str(p, "unread")) return `${who} wrote back · not read yet`;
+  return isReplyIntent(p.intent) && p.intent !== "other"
+    ? `${who} wrote back · ${REPLY_INTENT_WORDS[p.intent]}`
+    : `${who} wrote back`;
+}
+
+/** The kinds whose sentence is written whole, by its own function. */
+const WHOLE_SENTENCE = new Map<string, (p: Record<string, unknown>, base: string) => string>([
+  ["import", (p) => importWords(p)],
+  ["lead.converted", (p, base) => readingWords("lead.converted", p, base)],
+  ["reach_out.replied", (p, base) => readingWords("reach_out.replied", p, base)],
+]);
+
+/**
  * The sentence for a row: the kind's words, then the one or two fields a
  * reader wants and nothing else of the payload.
  */
@@ -205,6 +252,9 @@ export function activityWords(kind: string, payload: unknown): string {
   // receptionist passed the caller to the business's own line.
   const base =
     kind === "take_over" && str(p, "how") === "transfer" ? "Took over a call" : (WORDS[kind] ?? humanize(kind));
+  // A kind whose sentence is its own, not the kind's words and a field or two.
+  const whole = WHOLE_SENTENCE.get(kind);
+  if (whole) return whole(p, base);
   const bits: string[] = [];
   switch (kind) {
     case "take_over": {
@@ -254,14 +304,6 @@ export function activityWords(kind: string, payload: unknown): string {
       const rows = num(p, "rows");
       if (rows !== null) bits.push(`${rows} rows`);
       break;
-    }
-    case "import": {
-      // One row per part of fifty, and the counts are the news: the sentence is them, not the verb's words. A part
-      // that stopped at a fault says so, or it would read as a clean import.
-      const n = (k: string) => num(p, k) ?? 0;
-      const counts = `${n("added")} new, ${n("existed")} already here, ${n("skipped")} skipped`;
-      const stopped = n("failed") > 0 ? ", then stopped at a fault" : "";
-      return `Imported ${n("rows")} rows from a spreadsheet: ${counts}${stopped}`;
     }
     case "pause_agent":
     case "resume_agent": {

@@ -41,6 +41,9 @@ function world(over = {}) {
     record: { message_id: "m1", conversation_id: "c1", is_new: true, processed: false },
     escalate: "opened",
     tell: undefined,
+    // Not a reach-out's reply: the intake as it was before Part 5 (reach-out-replies/reply-intake.test.mjs has the rest).
+    reachOutReply: false,
+    readReply: undefined,
     markProcessed: undefined,
     received: undefined,
     ...over,
@@ -65,6 +68,7 @@ test("an email from a person is kept under their address in one spelling, flagge
     "ours",
     "erasedBefore",
     "record",
+    "reachOutReply",
     "escalate",
     "tell",
     "markProcessed",
@@ -106,7 +110,7 @@ test("a claim decides how LITTLE is done: an automatic reply is kept and never f
   assert.equal(await run(auto), "kept_quietly");
   assert.deepEqual(
     auto.ops(),
-    ["mailbox", "fetch", "ours", "erasedBefore", "record", "markProcessed", "received"],
+    ["mailbox", "fetch", "ours", "erasedBefore", "record", "reachOutReply", "markProcessed", "received"],
     "kept, handled, nobody paged: two responders answering each other is a loop",
   );
 
