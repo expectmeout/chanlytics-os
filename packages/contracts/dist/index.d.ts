@@ -6384,16 +6384,9 @@ declare function triggerOffered(t: {
 declare function policyClassOffered(cls: string, dealsOn: boolean): boolean;
 
 /**
- * A deal is a record (docs/decisions/0004-deals-record.md), and a proposal is
- * part of it (0008).
- *
- * One engagement a person is deciding on or has taken: a proposal out, a
- * client, passed, ended. The proposal's link, its value, the day it stands
- * until and the reason someone passed live on the deal. Everything a page or
- * a receptionist says about one is derived here, once: the words, the line,
- * the chip, the moves the person's page offers, the sentence the receptionist
- * hears, Today's leak, Reports' cohort, and the one switch the whole layer
- * hangs on (dealsAreOn). Pure.
+ * A deal's closed sets and their words (0004, 0008): its stages, how an amount recurs, where it came from and why
+ * someone passed, each with the word a page says; the acts a deal offers and their labels; and the door's
+ * refusals. The deal as a page says it is deal-vm.ts; how a workspace sells is sells-by.ts.
  */
 
 declare const DEAL_STAGES: readonly ["proposed", "won", "lost", "ended"];
@@ -6406,101 +6399,27 @@ type DealSource = SchemaSet<"deals.source">;
 declare const DEAL_LOST_REASONS: readonly ["price", "timing", "elsewhere", "no_reply", "not_a_fit", "other"];
 type DealLostReason = SchemaSet<"deals.lost_reason">;
 declare const DEAL_LOST_REASON_WORDS: Record<DealLostReason, string>;
-/**
- * How a workspace's customers buy (tenants.sells_by, 00160): they book an
- * appointment, or some get a proposal first. Null is not asked yet. The deal
- * layer is there or absent by this answer and nothing else (dealsAreOn).
- */
-declare const SELLS_BY: readonly ["booking", "proposal"];
-type SellsBy = SchemaSet<"tenants.sells_by">;
-declare const SELLS_BY_QUESTION = "How customers buy";
-declare const SELLS_BY_WORDS: Record<SellsBy, {
-    label: string;
-    sentence: string;
-}>;
-declare function isSellsBy(s: unknown): s is SellsBy;
-/** What the workspace route answers for anything but the two answers: the question and both labels (deals.test holds them). */
-declare const SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
-/**
- * Whether deals are on in this workspace (0008): exactly when it says some of
- * its customers get a proposal first. The one predicate every gate reads --
- * the person's page, People's lists and column, the thread, Today, Reports,
- * Ask. A consult-first service is a booking rule, and a deal on file switches
- * nothing.
- */
-declare function dealsAreOn(sellsBy: string | null | undefined): boolean;
-/**
- * Whether a receptionist may have no booking link: a business that says some customers get a proposal first quotes
- * before anyone books, and its receptionist takes their details instead (the first run's decision 2). One that books,
- * or has not said, is asked for one. The pages ask by this; the save does not, since the config cannot see the answer
- * and a receptionist with no link is read and answered either way (no-booking-link.ts).
- */
-declare function bookingLinkOptional(sellsBy: string | null | undefined): boolean;
-/**
- * What a page says when a business that is asked for a booking link leaves it empty: the Business tab's own check
- * (business-tab-save.jsx btCheckBookingLink, which reads it through the bridge). Said as what the link is for, since a
- * receptionist with none is still read and answered.
- */
-declare const BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
-/** The answer a new workspace's create card has chosen before anyone presses (0008): most businesses book one. */
-declare const SELLS_BY_FIRST: SellsBy;
-/** "Needs a consult first", where deals are on (0008): a consultation for one of those is where a deal starts. */
-declare const CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
-/** What Settings › Business says of the answer (0008): its row, the choice, and what the answer switches there. */
-interface SellsByVM {
-    /** The row's label, and the choice's name. */
-    question: string;
-    /** The answer's label; null where it was never said. */
-    value: string | null;
-    /** What the row says with no answer. */
-    empty: string;
-    /** The row's act, and what a screen reader hears it as: its words with the question. */
-    act: string;
-    name: string;
-    /** The two answers, each with what choosing it means: the kit's RecordToggleGroup options. */
-    choices: {
-        value: SellsBy;
-        label: string;
-        hint: string;
-    }[];
-    /** What stops a Save with neither chosen: the route's own refusal. */
-    refusal: string;
-    /** What the create card has chosen before anyone presses: the answer, or they book an appointment. */
-    first: SellsBy;
-    /** Deals are on here (dealsAreOn). */
-    dealsOn: boolean;
-    /** The hint the consult-first row carries where deals are on; null where they are off. */
-    consultHint: string | null;
-}
-/**
- * The view model of the answer for the Business tab. `answer` is the workspace's `sells_by` as the workspace list
- * carries it; anything but the two answers is never said. Pure.
- */
-declare function sellsByVM(answer: string | null | undefined): SellsByVM;
-/**
- * The toast once an answer is saved (0008): what it switched. Turning deals off says that those on file are kept,
- * since every surface hides them and answering "proposal" again brings them back.
- */
-declare function sellsBySaved(was: string | null | undefined, now: SellsBy): string;
 /** The word a stage wears; "Client" is a stage word, never a word for a person (docs/glossary.md). */
 declare const DEAL_STAGE_WORDS: Record<DealStage, string>;
 declare const DEAL_PER_WORDS: Record<DealPer, string>;
 /** The line the person's page says where no deal was ever recorded. */
 declare const DEAL_LINE_NONE = "No proposal yet";
-/** A proposal out this long with nothing back is Today's leak. */
-declare const WAITING_AFTER_DAYS = 7;
-/** How many yeses of the last year a workspace needs before its pace is said (0008, amended). */
-declare const PACE_AFTER_YESES = 5;
-/** The days a workspace's pace is read over: its yeses decided in the last year (pace.ts dealPaceFrom). */
-declare const PACE_WINDOW_DAYS = 365;
-/** A consultation this recent with no proposal after it is the next step to take. */
-declare const CONSULT_FOLLOW_DAYS = 7;
 declare function isDealStage(s: unknown): s is DealStage;
 declare function isDealLostReason(s: unknown): s is DealLostReason;
 declare function isDealPer(s: unknown): s is DealPer;
 /** What a move may empty (deal_record's p_clear, 00160): the link, the valid-until day, the amount with its per, the note. */
 declare const DEAL_CLEARABLE: readonly ["proposal_url", "valid_until", "amount", "note"];
 type DealClearable = (typeof DEAL_CLEARABLE)[number];
+/** An act on a deal (0008): most open the deal sheet (deal-sheet.ts) in a mode; a send opens their thread. */
+type DealActId = "propose" | "again" | "edit" | "won" | "lost" | "ended" | "send" | "follow-up";
+/**
+ * One act, one label, wherever it is drawn: the person page's deal card and its quiet line, the thread's Deal group,
+ * and the person's More menu, whose send is the proposal's (people.ts personActs).
+ */
+declare const DEAL_ACT_WORDS: Record<DealActId, string>;
+/** What the door can answer, in a sentence the page shows at the control. */
+declare const DEAL_REFUSALS: Record<string, string>;
+
 /** The columns the people read carries for a person (people_list, 00156): the newest open or current deal, else the newest of any. */
 interface DealColumns {
     deal_id: string | null;
@@ -6580,28 +6499,6 @@ declare function proposalLinkOf(current: {
         url: string;
     } | null;
 } | null | undefined, personLink: string | null | undefined): string | null;
-/** "$2,500 a month", "$999.50", "$1,200 a year"; null without an amount. */
-declare function amountWords(cents: number | null | undefined, per: string | null | undefined, currency?: string): string | null;
-/**
- * Cents from what a person typed ("2,500", "$999.50"), or null for anything
- * that is not an amount. Everything but digits, a point and a minus goes
- * first; letters alone strip to "", and Number("") is 0, which once made
- * "abc" a $0 client; the minus survives the strip, so "-5" is refused rather
- * than read as five dollars.
- */
-declare function parseAmount(words: string | null | undefined): number | null;
-/** An amount as a deal carries one: its cents, how it recurs and its currency. */
-interface AmountFact {
-    amount_cents?: number | null;
-    per?: string | null;
-    currency?: string | null;
-}
-/**
- * What a set of deals is worth, summed by how each recurs and joined: "$4,250
- * + $600 a month". Once and no per are one sum; a currency is never added to
- * another. Null when nothing has an amount.
- */
-declare function amountTotalsWords(items: readonly AmountFact[]): string | null;
 /**
  * Whole days since a moment, as a deal counts its time in a stage: 0 on the day it began, never below it; null without
  * the moment. A proposal's wait (DealVM.waitingDays) and the Pipeline's time in stage are this one count.
@@ -6677,13 +6574,6 @@ declare function toDealVM(d: DealFacts & {
 }, tz: string, nowMs: number): DealVM | null;
 /** The People row's deal, from its columns; null where none. */
 declare function dealOf(r: Partial<DealColumns> | null | undefined, tz: string, nowMs: number): DealVM | null;
-/** An act on a deal (0008): most open the deal sheet (deal-sheet.ts) in a mode; a send opens their thread. */
-type DealActId = "propose" | "again" | "edit" | "won" | "lost" | "ended" | "send" | "follow-up";
-/**
- * One act, one label, wherever it is drawn: the person page's deal card and its quiet line, the thread's Deal group,
- * and the person's More menu, whose send is the proposal's (people.ts personActs).
- */
-declare const DEAL_ACT_WORDS: Record<DealActId, string>;
 /**
  * The sentence the receptionist hears about this person's deal, beside the
  * owner's note (describeLead). One per stage; never an amount; nothing
@@ -6695,26 +6585,13 @@ declare const DEAL_ACT_WORDS: Record<DealActId, string>;
 declare function dealSentence(d: DealFacts | null | undefined, nowMs: number, tz?: string, opts?: {
     hasLink?: boolean;
 }): string | null;
-/**
- * The consult-first service a calendar title names, as Settings spells it: what a proposal started from that
- * consultation is for (0008). The longest name the title holds, so "Kitchen remodel" wins over "Remodel"; null where
- * it names none. The fold is availability's.
- */
-declare function consultServiceOf(title: string | null | undefined, services: readonly {
-    name: string;
-}[] | undefined, rules: ConsultRules | null | undefined): string | null;
-/** A calendar title that is a consultation: it says so, or it names a consult-first service (consultServiceOf). */
-declare function isConsultationTitle(title: string | null | undefined, services: readonly {
-    name: string;
-}[] | undefined, rules: ConsultRules | null | undefined): boolean;
-/**
- * Whether anything came back since a proposal went (0008): they wrote or called after it. `askedMs` is when the person
- * last did either. What "nothing back" is measured against, and what the Pipeline's "Heard back" says.
- */
-declare function heardSinceProposal(r: {
-    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
-    askedMs: number | null;
-}): boolean;
+
+/** A proposal out this long with nothing back is Today's leak. */
+declare const WAITING_AFTER_DAYS = 7;
+/** How many yeses of the last year a workspace needs before its pace is said (0008, amended). */
+declare const PACE_AFTER_YESES = 5;
+/** The days a workspace's pace is read over: its yeses decided in the last year (pace.ts dealPaceFrom). */
+declare const PACE_WINDOW_DAYS = 365;
 /** Whether a deal is a yes (0004): it became a client, standing won or ended since -- an ended engagement was one. */
 declare function isYes(d: {
     stage: string;
@@ -6747,6 +6624,14 @@ declare function dealPaceWords(medianDays: number): string;
 /** A workspace's pace: null until five of its proposals became clients in the last year, or where none was read. */
 declare function dealPaceOf(dto: DealPaceDto | null | undefined): DealPaceVM | null;
 /**
+ * Whether anything came back since a proposal went (0008): they wrote or called after it. `askedMs` is when the person
+ * last did either. What "nothing back" is measured against, and what the Pipeline's "Heard back" says.
+ */
+declare function heardSinceProposal(r: {
+    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+    askedMs: number | null;
+}): boolean;
+/**
  * The one rule for a proposal waiting (0006, 0008): out past the workspace's pace by a fifth -- a week while it has
  * none (waitAfterDays) -- with nothing back since it went. Today's leak, the Pipeline and the deal card all ask it,
  * one row at a time, and each hands it the workspace's pace: there is no pace a caller may leave out.
@@ -6760,126 +6645,6 @@ declare function proposalsWaiting<T extends {
     deal: DealVM | null;
     askedMs: number | null;
 }>(rows: readonly T[], nowMs: number, pace: Pick<DealPaceVM, "waitDays"> | null): T[];
-/**
- * Whether a consultation that ended at `endedMs` has had no proposal since (0008), given the person's deal: none on
- * file, or one that passed or ended before it, which the consultation then began again. An open deal has had its
- * proposal; a pass or an end at or after the consultation answered one. The one rule for the step not taken, which
- * the week's count (consultationsWithoutProposal) and the Calendar's peek (calendarPeekDeal) both ask.
- */
-declare function noProposalSince(deal: Pick<DealVM, "stage" | "sinceMs"> | null | undefined, endedMs: number): boolean;
-/**
- * One person's consultation waits on the business (0008): it ended in the last CONSULT_FOLLOW_DAYS days and no proposal
- * came after it (noProposalSince). The one row-level rule the week's count (consultationsWithoutProposal) and the deal
- * stage a list reads (dealStageOf) both ask.
- */
-declare function consultationHeld(r: {
-    consultedMs: number | null;
-    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
-}, nowMs: number): boolean;
-/** Where a person stands on the way to a deal, as the Pipeline groups them: a consultation, or their deal's stage. */
-type DealStandingStage = "consultation" | DealStage;
-/**
- * Which of the Pipeline's groups a person is in (pipeline.ts pipelineOf), and so what a list's deal stage fact reads
- * (decision 0009): a consultation held with no proposal since, then a proposal out or a client, then a consultation
- * ahead of someone with nothing open (something new begins, whatever they passed on or ended before), then the stage of
- * a deal that passed or ended. Null for someone with none of these. One rule, so the Pipeline's Consultations and
- * People's Consultations list are one set of people.
- */
-declare function dealStageOf(r: {
-    consultedMs: number | null;
-    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
-    consultAhead: {
-        startMs: number;
-        allDay: boolean;
-    } | null;
-}, nowMs: number): DealStandingStage | null;
-/**
- * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days with no
- * proposal since (noProposalSince), the oldest first, a tie by name and then id, which is the order the Pipeline lists
- * them in and Today names its first two. `consultedMs` is when their last visit, a consultation, ended; a row without
- * a number there has no consultation to follow.
- */
-declare function consultationsWithoutProposal<T extends {
-    id?: string;
-    name?: string;
-    consultedMs: number | null;
-    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
-}>(rows: readonly T[], nowMs: number): T[];
-/**
- * Their count, in the one sentence the Pipeline's Consultations say it in and Today's row re-prints word for word:
- * "2 held in the last week, no proposal yet". The week is the rule's own (CONSULT_FOLLOW_DAYS).
- */
-declare function consultsHeldWords(n: number): string;
-/** What the door can answer, in a sentence the page shows at the control. */
-declare const DEAL_REFUSALS: Record<string, string>;
-/**
- * Reports (0004, 0008): one cohort -- the proposals sent in the period and what became of them -- and beside it the
- * stock, what stands now whenever it began: the clients with what they bring in a month, and the proposals still open.
- * Computed by the reports route from one read of the table and the People rows it already holds.
- */
-interface DealReportDto {
-    /** Whether the section is drawn: deals are on here (dealsAreOn, 0008) and a deal was ever recorded. */
-    any: boolean;
-    /** The cohort: the proposals sent in the period, and of them how many became clients (an ended engagement too),
-     *  passed, or are still waiting. */
-    sent: number;
-    won: number;
-    lost: number;
-    waiting: number;
-    clients: number;
-    /** The monthly total of running engagements: month amounts, plus year amounts over twelve; once excluded. */
-    monthly_cents: number;
-    /** The cohort's clients: whole days from the proposal to the yes, their median, rounded; null with none. */
-    median_days_to_yes: number | null;
-    /** Every proposal out now, whenever it went: how many, and the amount of each that carries one (amountTotalsWords). */
-    open: {
-        count: number;
-        amounts: AmountFact[];
-    };
-    /** The cohort's clients by where their person first came from (people_list's came_from), most first. A client whose
-     *  person says nothing, or is no longer in People, is counted in `won` and in no row here. */
-    sources: {
-        came_from: PersonCameFrom;
-        count: number;
-    }[];
-    /** The cohort's passes by the reason given, most first. No reason is not a reason: a pass without one is counted in
-     *  `lost` and in no row here. */
-    reasons: {
-        reason: DealLostReason;
-        count: number;
-    }[];
-}
-/** One of the cohort's outcomes as a bar, in the kit's BarList shape: its count, and its share of the cohort beside it. */
-interface DealOutcomeVM {
-    id: "won" | "waiting" | "lost";
-    label: string;
-    value: number;
-    /** "3  60%": the count, then its share of the proposals sent. */
-    display: string;
-}
-/** Which fact a line says, so a page can key it. */
-type DealReportLineId = "median" | "sources" | "reasons" | "open";
-interface DealReportVM {
-    present: boolean;
-    /** "5 proposals went out in the last 30 days." */
-    headline: string;
-    /** "4 clients now · $7,500 a month." */
-    stock: string;
-    /** What became of the period's proposals, as bars out of the cohort's size: each outcome's count and its share,
-     *  said there and nowhere else. Null when none went out. */
-    outcomes: {
-        title: string;
-        max: number;
-        rows: DealOutcomeVM[];
-    } | null;
-    /** Up to four sentences, each only when it has something to say: how long a yes took, where the new clients came
-     *  from, why people passed, and what is still open. */
-    lines: {
-        id: DealReportLineId;
-        text: string;
-    }[];
-}
-declare function toDealReportVM(dto: DealReportDto | null | undefined, rangeLabel: string): DealReportVM;
 
 /** Why a proposal follow-up is not made or run here: deals are off. The check, a run now and Ask say it alike. */
 declare const FOLLOW_UP_NEEDS_DEALS: string;
@@ -7581,6 +7346,77 @@ interface ConversationDto {
 /** The customer asked not to be contacted. Delegates to the one predicate in
  *  ./consent so the view model and every send path cannot disagree. */
 declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
+
+/**
+ * Consultations, the step before a deal (0008): which consult-first service a calendar title names, whether a
+ * consultation has had no proposal since, and where a person stands on the way to a deal (dealStageOf), the one
+ * rule the Pipeline's groups and People's deal lists both read.
+ */
+
+/** A consultation this recent with no proposal after it is the next step to take. */
+declare const CONSULT_FOLLOW_DAYS = 7;
+/**
+ * The consult-first service a calendar title names, as Settings spells it: what a proposal started from that
+ * consultation is for (0008). The longest name the title holds, so "Kitchen remodel" wins over "Remodel"; null where
+ * it names none. The fold is availability's.
+ */
+declare function consultServiceOf(title: string | null | undefined, services: readonly {
+    name: string;
+}[] | undefined, rules: ConsultRules | null | undefined): string | null;
+/** A calendar title that is a consultation: it says so, or it names a consult-first service (consultServiceOf). */
+declare function isConsultationTitle(title: string | null | undefined, services: readonly {
+    name: string;
+}[] | undefined, rules: ConsultRules | null | undefined): boolean;
+/**
+ * Whether a consultation that ended at `endedMs` has had no proposal since (0008), given the person's deal: none on
+ * file, or one that passed or ended before it, which the consultation then began again. An open deal has had its
+ * proposal; a pass or an end at or after the consultation answered one. The one rule for the step not taken, which
+ * the week's count (consultationsWithoutProposal) and the Calendar's peek (calendarPeekDeal) both ask.
+ */
+declare function noProposalSince(deal: Pick<DealVM, "stage" | "sinceMs"> | null | undefined, endedMs: number): boolean;
+/**
+ * One person's consultation waits on the business (0008): it ended in the last CONSULT_FOLLOW_DAYS days and no proposal
+ * came after it (noProposalSince). The one row-level rule the week's count (consultationsWithoutProposal) and the deal
+ * stage a list reads (dealStageOf) both ask.
+ */
+declare function consultationHeld(r: {
+    consultedMs: number | null;
+    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+}, nowMs: number): boolean;
+/** Where a person stands on the way to a deal, as the Pipeline groups them: a consultation, or their deal's stage. */
+type DealStandingStage = "consultation" | DealStage;
+/**
+ * Which of the Pipeline's groups a person is in (pipeline.ts pipelineOf), and so what a list's deal stage fact reads
+ * (decision 0009): a consultation held with no proposal since, then a proposal out or a client, then a consultation
+ * ahead of someone with nothing open (something new begins, whatever they passed on or ended before), then the stage of
+ * a deal that passed or ended. Null for someone with none of these. One rule, so the Pipeline's Consultations and
+ * People's Consultations list are one set of people.
+ */
+declare function dealStageOf(r: {
+    consultedMs: number | null;
+    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+    consultAhead: {
+        startMs: number;
+        allDay: boolean;
+    } | null;
+}, nowMs: number): DealStandingStage | null;
+/**
+ * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days with no
+ * proposal since (noProposalSince), the oldest first, a tie by name and then id, which is the order the Pipeline lists
+ * them in and Today names its first two. `consultedMs` is when their last visit, a consultation, ended; a row without
+ * a number there has no consultation to follow.
+ */
+declare function consultationsWithoutProposal<T extends {
+    id?: string;
+    name?: string;
+    consultedMs: number | null;
+    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+}>(rows: readonly T[], nowMs: number): T[];
+/**
+ * Their count, in the one sentence the Pipeline's Consultations say it in and Today's row re-prints word for word:
+ * "2 held in the last week, no proposal yet". The week is the rule's own (CONSULT_FOLLOW_DAYS).
+ */
+declare function consultsHeldWords(n: number): string;
 
 /**
  * What a person said yes or no to, and who may send them what: the consent sources, the refusals, and the three
@@ -9245,6 +9081,89 @@ interface PolicyRow {
     limits: PolicyLimits;
     updated_at: string;
 }
+
+/**
+ * How a workspace's customers buy (tenants.sells_by, 0008), and the one switch the deal layer hangs on
+ * (dealsAreOn): the question and its answers, what Settings › Business says of them, and whether a receptionist
+ * may have no booking link. The deal itself is deal-vm.ts's.
+ */
+
+/**
+ * How a workspace's customers buy (tenants.sells_by, 00160): they book an
+ * appointment, or some get a proposal first. Null is not asked yet. The deal
+ * layer is there or absent by this answer and nothing else (dealsAreOn).
+ */
+declare const SELLS_BY: readonly ["booking", "proposal"];
+type SellsBy = SchemaSet<"tenants.sells_by">;
+declare const SELLS_BY_QUESTION = "How customers buy";
+declare const SELLS_BY_WORDS: Record<SellsBy, {
+    label: string;
+    sentence: string;
+}>;
+declare function isSellsBy(s: unknown): s is SellsBy;
+/** What the workspace route answers for anything but the two answers: the question and both labels (deals.test holds them). */
+declare const SELLS_BY_REFUSAL = "How customers buy: they book an appointment, or some get a proposal first.";
+/**
+ * Whether deals are on in this workspace (0008): exactly when it says some of
+ * its customers get a proposal first. The one predicate every gate reads --
+ * the person's page, People's lists and column, the thread, Today, Reports,
+ * Ask. A consult-first service is a booking rule, and a deal on file switches
+ * nothing.
+ */
+declare function dealsAreOn(sellsBy: string | null | undefined): boolean;
+/**
+ * Whether a receptionist may have no booking link: a business that says some customers get a proposal first quotes
+ * before anyone books, and its receptionist takes their details instead (the first run's decision 2). One that books,
+ * or has not said, is asked for one. The pages ask by this; the save does not, since the config cannot see the answer
+ * and a receptionist with no link is read and answered either way (no-booking-link.ts).
+ */
+declare function bookingLinkOptional(sellsBy: string | null | undefined): boolean;
+/**
+ * What a page says when a business that is asked for a booking link leaves it empty: the Business tab's own check
+ * (business-tab-save.jsx btCheckBookingLink, which reads it through the bridge). Said as what the link is for, since a
+ * receptionist with none is still read and answered.
+ */
+declare const BOOKING_LINK_NEEDED = "The receptionist needs a booking link to send anyone who wants to book.";
+/** The answer a new workspace's create card has chosen before anyone presses (0008): most businesses book one. */
+declare const SELLS_BY_FIRST: SellsBy;
+/** "Needs a consult first", where deals are on (0008): a consultation for one of those is where a deal starts. */
+declare const CONSULT_FIRST_DEAL_HINT = "A consultation for these is the first step of a deal.";
+/** What Settings › Business says of the answer (0008): its row, the choice, and what the answer switches there. */
+interface SellsByVM {
+    /** The row's label, and the choice's name. */
+    question: string;
+    /** The answer's label; null where it was never said. */
+    value: string | null;
+    /** What the row says with no answer. */
+    empty: string;
+    /** The row's act, and what a screen reader hears it as: its words with the question. */
+    act: string;
+    name: string;
+    /** The two answers, each with what choosing it means: the kit's RecordToggleGroup options. */
+    choices: {
+        value: SellsBy;
+        label: string;
+        hint: string;
+    }[];
+    /** What stops a Save with neither chosen: the route's own refusal. */
+    refusal: string;
+    /** What the create card has chosen before anyone presses: the answer, or they book an appointment. */
+    first: SellsBy;
+    /** Deals are on here (dealsAreOn). */
+    dealsOn: boolean;
+    /** The hint the consult-first row carries where deals are on; null where they are off. */
+    consultHint: string | null;
+}
+/**
+ * The view model of the answer for the Business tab. `answer` is the workspace's `sells_by` as the workspace list
+ * carries it; anything but the two answers is never said. Pure.
+ */
+declare function sellsByVM(answer: string | null | undefined): SellsByVM;
+/**
+ * The toast once an answer is saved (0008): what it switched. Turning deals off says that those on file are kept,
+ * since every surface hides them and answering "proposal" again brings them back.
+ */
+declare function sellsBySaved(was: string | null | undefined, now: SellsBy): string;
 
 /**
  * The bell: what needs the owner, from what the browser already holds.
@@ -11180,12 +11099,12 @@ declare const PageContextSchema: z.ZodObject<{
         start: "start";
         conversations: "conversations";
         settings: "settings";
-        live: "live";
-        leads: "leads";
         inbox: "inbox";
+        leads: "leads";
         reports: "reports";
-        campaigns: "campaigns";
+        live: "live";
         pipeline: "pipeline";
+        campaigns: "campaigns";
     }>;
     route: z.ZodString;
     view: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -14230,6 +14149,98 @@ interface CallVM {
 declare function spokenDuration(ms: number | null): string;
 declare function toCallVM(dto: CallDto, tz: string, now?: Date): CallVM;
 
+/** "$2,500 a month", "$999.50", "$1,200 a year"; null without an amount. */
+declare function amountWords(cents: number | null | undefined, per: string | null | undefined, currency?: string): string | null;
+/**
+ * Cents from what a person typed ("2,500", "$999.50"), or null for anything
+ * that is not an amount. Everything but digits, a point and a minus goes
+ * first; letters alone strip to "", and Number("") is 0, which once made
+ * "abc" a $0 client; the minus survives the strip, so "-5" is refused rather
+ * than read as five dollars.
+ */
+declare function parseAmount(words: string | null | undefined): number | null;
+/** An amount as a deal carries one: its cents, how it recurs and its currency. */
+interface AmountFact {
+    amount_cents?: number | null;
+    per?: string | null;
+    currency?: string | null;
+}
+/**
+ * What a set of deals is worth, summed by how each recurs and joined: "$4,250
+ * + $600 a month". Once and no per are one sum; a currency is never added to
+ * another. Null when nothing has an amount.
+ */
+declare function amountTotalsWords(items: readonly AmountFact[]): string | null;
+
+/**
+ * Reports (0004, 0008): one cohort -- the proposals sent in the period and what became of them -- and beside it the
+ * stock, what stands now whenever it began: the clients with what they bring in a month, and the proposals still open.
+ * Computed by the reports route from one read of the table and the People rows it already holds.
+ */
+interface DealReportDto {
+    /** Whether the section is drawn: deals are on here (dealsAreOn, 0008) and a deal was ever recorded. */
+    any: boolean;
+    /** The cohort: the proposals sent in the period, and of them how many became clients (an ended engagement too),
+     *  passed, or are still waiting. */
+    sent: number;
+    won: number;
+    lost: number;
+    waiting: number;
+    clients: number;
+    /** The monthly total of running engagements: month amounts, plus year amounts over twelve; once excluded. */
+    monthly_cents: number;
+    /** The cohort's clients: whole days from the proposal to the yes, their median, rounded; null with none. */
+    median_days_to_yes: number | null;
+    /** Every proposal out now, whenever it went: how many, and the amount of each that carries one (amountTotalsWords). */
+    open: {
+        count: number;
+        amounts: AmountFact[];
+    };
+    /** The cohort's clients by where their person first came from (people_list's came_from), most first. A client whose
+     *  person says nothing, or is no longer in People, is counted in `won` and in no row here. */
+    sources: {
+        came_from: PersonCameFrom;
+        count: number;
+    }[];
+    /** The cohort's passes by the reason given, most first. No reason is not a reason: a pass without one is counted in
+     *  `lost` and in no row here. */
+    reasons: {
+        reason: DealLostReason;
+        count: number;
+    }[];
+}
+/** One of the cohort's outcomes as a bar, in the kit's BarList shape: its count, and its share of the cohort beside it. */
+interface DealOutcomeVM {
+    id: "won" | "waiting" | "lost";
+    label: string;
+    value: number;
+    /** "3  60%": the count, then its share of the proposals sent. */
+    display: string;
+}
+/** Which fact a line says, so a page can key it. */
+type DealReportLineId = "median" | "sources" | "reasons" | "open";
+interface DealReportVM {
+    present: boolean;
+    /** "5 proposals went out in the last 30 days." */
+    headline: string;
+    /** "4 clients now · $7,500 a month." */
+    stock: string;
+    /** What became of the period's proposals, as bars out of the cohort's size: each outcome's count and its share,
+     *  said there and nowhere else. Null when none went out. */
+    outcomes: {
+        title: string;
+        max: number;
+        rows: DealOutcomeVM[];
+    } | null;
+    /** Up to four sentences, each only when it has something to say: how long a yes took, where the new clients came
+     *  from, why people passed, and what is still open. */
+    lines: {
+        id: DealReportLineId;
+        text: string;
+    }[];
+}
+declare function toDealReportVM(dto: DealReportDto | null | undefined, rangeLabel: string): DealReportVM;
+
 /**
  * How long a workspace's yeses take (0004, 0008 amended): the one rule Reports' median and the workspace's pace both
  * read (yesWaits), and the pace from the workspace's own deals (dealPaceFrom), which says when a proposal out is
@@ -14255,6 +14266,13 @@ declare function yesWaits(rows: readonly DealWaitRow[]): number[];
 declare function medianWait(waits: readonly number[]): number | null;
 /** A workspace's pace from its deals: its yeses decided in the last year, their median wait, and how many. */
 declare function dealPaceFrom(rows: readonly DealWaitRow[], nowMs: number): DealPaceDto;
+
+/**
+ * What can be done with a person's deal (0008): the modes the deal sheet opens in, what the sheet, the card and
+ * the thread read of a person (DealPerson), whether the proposal can go now (dealSendOf), and each act with its
+ * label: the card's next act, the thread's Deal group and the Calendar peek's. The card is deal-card.ts; the
+ * sheet is deal-sheet.ts.
+ */
 
 /** What the sheet is opened to do: a new proposal, the proposal edited, a passed one again, a yes, a pass, an end. */
 declare const DEAL_SHEET_MODES: readonly ["propose", "edit", "again", "won", "lost", "ended"];
@@ -14403,6 +14421,7 @@ interface PeekPeople {
     }>;
 }
 declare function calendarPeekDeal(block: PeekBlock, people: PeekPeople | null | undefined, nowMs: number): CalendarPeekDealVM;
+
 /** The words the person page's Deal section says beside what its view model derives. */
 declare const DEAL_CARD_WORDS: {
     readonly title: "Deal";
@@ -14494,6 +14513,7 @@ declare function dealStepOf(notes: DealPerson["noteList"], dealId: string | null
  * never said here, and a consultation is a step on one card only, the deal's it began (consultedDealOf).
  */
 declare function dealCardsOf(p: DealPerson, nowMs: number, tz: string): PersonDealsVM;
+
 /** Every word the sheet says. */
 declare const DEAL_SHEET_WORDS: {
     readonly titles: {
@@ -14727,6 +14747,7 @@ declare function dealSheetDirty(draft: DealSheetDraft, opened: DealSheetDraft): 
  * emptied here.
  */
 declare function dealSheetMerge(draft: DealSheetDraft, opened: DealSheetDraft, fresh: DealSheetDraft): DealSheetDraft;
+
 /** The route's body for a move (the deal route and window.__recordDeal's DealBody). */
 interface DealSheetBody {
     stage: DealStage;
@@ -14776,6 +14797,269 @@ declare function dealSheetBody(mode: DealSheetMode, draft: DealSheetDraft, deal:
  * sentence says which field. One the sheet cannot place (a deal moved since, an ended engagement) names none.
  */
 declare function dealSheetRefusal(message: string | null | undefined): DealSheetProblem;
+
+/**
+ * What the rail picks and the address carries: the whole Pipeline, one group, what waits on the owner (nothing back in
+ * a week, lapsed), or one service's deals (`svc:<its name>`).
+ */
+type PipelineView = "all" | PipelineGroupKey | "waiting" | "lapsed" | "steps" | `svc:${string}`;
+declare function isPipelineView(s: unknown): s is PipelineView;
+/** A view in the owner's words: the rail's own label for it, the phone's button says the same. */
+declare function pipelineViewLabel(view: PipelineView, pace: DealPaceVM | null): string;
+/**
+ * The Pipeline's address, as Leads spells its own (contracts leadsRoute): `clients/pipeline`, then the view
+ * (`v-proposals`, or a service as `v-s.<its name, encoded>`), then the person open over it (`p-<id>`). The shell reads
+ * the hash as it stands, so an encoded name keeps its colons and slashes out of the separators.
+ */
+declare function pipelineRoute(v?: {
+    view?: PipelineView | null;
+    peek?: string | null;
+}): string;
+/** The view and the person an address names; null for an address that is not the Pipeline's. Anything else is left. */
+declare function parsePipelineRoute(route: string | null | undefined): {
+    view: PipelineView;
+    peek: string | null;
+} | null;
+/** One row of the Pipeline's rail: the view it picks, its words, how many, and warn where it counts what waits. */
+interface PipelineRailRow {
+    view: PipelineView;
+    label: string;
+    count: number;
+    tone: "warn" | null;
+}
+interface PipelineRailSection {
+    key: "deals" | "waiting" | "services";
+    label: string;
+    rows: PipelineRailRow[];
+}
+/** How many services the rail lists: the busiest, then by name. */
+declare const PIPELINE_RAIL_SERVICES = 8;
+/**
+ * The Pipeline's own rail, from the whole Pipeline (`pipelineOf` with no view): All deals and each group, always, so the
+ * rail keeps its shape; what waits on the owner, each only when there is some; and each service a deal is for, the
+ * busiest first. A consultation has no deal yet, so it counts under its group and All deals, never a service.
+ */
+declare function pipelineRail<T extends PipelineSource>(vm: PipelineVM<T>, nowMs: number): PipelineRailSection[];
+
+/**
+ * The Pipeline's view model (0008): the shape of its groups, its rows with their chips, steps and next steps, and
+ * the line over them. Types and the groups' order only; pipeline.ts builds it (pipelineOf).
+ */
+
+type PipelineGroupKey = "consultations" | "proposals" | "clients" | "closed";
+/** The groups, in the order the Pipeline draws them. */
+declare const PIPELINE_GROUPS: readonly PipelineGroupKey[];
+/**
+ * What of a People row the Pipeline reads: who, their deal as the page says it, when they last wrote or called, and
+ * their consultations -- the last one's end (the rule's) and its start (the words'), and the next one.
+ */
+type PipelineSource = Pick<PersonRowVM, "id" | "name" | "deal" | "askedMs" | "consultedMs" | "lastVisitMs" | "consultAhead" | "calendarTz" | "nextStep" | "followUp">;
+/** The one thing a row says beside its facts: warn where something waits on the owner, info for what is on its way, plain for a fact. */
+interface PipelineChip {
+    words: string;
+    tone: Extract<Tone, "warn" | "info" | "plain">;
+}
+interface PipelineRowVM<T extends PipelineSource = PersonRowVM> {
+    id: string;
+    /** The group it is drawn in: what its menu offers is the group's (a consultation starts a proposal). */
+    group: PipelineGroupKey;
+    name: string;
+    /** The People row it stands for, whole: the person cell and the phone's card draw it as People does. */
+    person: T;
+    /** The deal's service; null for a consultation, which has no deal yet. */
+    service: string | null;
+    /** The deal's value in words, "$1,200" or "$2,500 a month"; null without one. */
+    value: string | null;
+    /** How long it has stood where it is, "8 d"; "" for a consultation still ahead. */
+    inStage: string;
+    chip: PipelineChip | null;
+    /**
+     * The deal's steps, as the row, the card and the peek draw them: a consultation where one was held or is coming
+     * up, the proposal, the client. Empty for a pass or an end, whose chip says it. A picture of what the group head
+     * and the chip say in words, so a screen reader is not read it again.
+     */
+    track: PipelineStep[];
+    /**
+     * Their next step (0007, amended): the earliest open note with a day, as People's row carries it, its day judged
+     * again as the Pipeline is drawn. Null without one.
+     */
+    next: PipelineNextVM | null;
+}
+/** A row's next step, as its column, its card and the peek say it. */
+interface PipelineNextVM {
+    id: string;
+    words: string;
+    /** The day itself, "2026-09-26", for the order; `when` is how it is said: "Due Thu", "Overdue since Mon". */
+    day: string;
+    when: string;
+    due: StepDue;
+    forWho: string | null;
+    /** The deal it moves, when it names one. */
+    dealId: string | null;
+}
+/** One step on a row's track: done, where the deal stands now, or still ahead. */
+interface PipelineStep {
+    key: "consultation" | "proposal" | "client";
+    at: "done" | "current" | "ahead";
+    /** Where it stands, in the tone its chip is in (a proposal waiting on the owner is warn); plain either side of it. */
+    tone: Extract<Tone, "info" | "ok" | "warn" | "plain">;
+}
+interface PipelineGroupVM<T extends PipelineSource = PersonRowVM> {
+    key: PipelineGroupKey;
+    label: string;
+    count: number;
+    /**
+     * What the group comes to: the value of its proposals or its clients in all ("$4,250", "$1,340 a month"), and for
+     * the consultations, how many were held in the last week with no proposal yet. Null for nothing to say.
+     */
+    meta: string | null;
+    /** Whether it starts folded: Passed or ended does, until someone opens it (PIPELINE_WORDS.show). */
+    collapsed: boolean;
+    rows: PipelineRowVM<T>[];
+}
+/**
+ * One part of the line over the table: its words, and the view a press on it opens (the rail's own row), in warn where
+ * it counts what waits on the owner. The totals are words only.
+ */
+interface PipelineLinePart {
+    words: string;
+    view: PipelineView | null;
+    tone: "warn" | null;
+}
+interface PipelineVM<T extends PipelineSource = PersonRowVM> {
+    /**
+     * The line over the table, in the parts a page sets dots between -- "3 proposals out", "$4,250", "1 waiting over a
+     * week", "1 lapsed", "2 clients", "$1,340 a month" -- and only the parts that have something. Always the whole
+     * Pipeline's, whatever view the groups are of.
+     */
+    summary: string[];
+    /** The same parts, with the view each opens. */
+    line: PipelineLinePart[];
+    /** The groups with someone in them, in order. */
+    groups: PipelineGroupVM<T>[];
+    /** Nobody in any group: no deal, and no consultation to follow. */
+    empty: boolean;
+    /** The workspace's pace (dealPaceOf), which every wait on this Pipeline was judged by; null without one. */
+    pace: DealPaceVM | null;
+}
+
+/** Every word the Pipeline says that is not a row's own. */
+declare const PIPELINE_WORDS: {
+    readonly groups: Record<PipelineGroupKey, string>;
+    /**
+     * The table's headings, in the order it draws them. The chip's column shows none -- no one word is right for "Fri
+     * 2:00 PM" and "Since Sep 18" alike -- and says this one to a screen reader.
+     */
+    readonly columns: {
+        readonly person: "Person";
+        readonly service: "Service";
+        readonly value: "Value";
+        readonly stage: "Stage";
+        readonly came: "Came from";
+        readonly valid: "Valid until";
+        readonly next: "Next step";
+        readonly chip: "Where it stands";
+        /** The row's own menu, as a screen reader hears its heading. */
+        readonly acts: "More";
+    };
+    /** What opens a folded group, whose head counts its rows already, and what folds it again. */
+    readonly show: "Show";
+    readonly hide: "Hide";
+    /** Where there is nobody in any group. */
+    readonly empty: {
+        readonly title: "No deals yet.";
+        readonly body: "Proposals you start show here, with what they come to.";
+    };
+    /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
+    readonly views: {
+        readonly label: "Show as";
+        readonly list: "List";
+        readonly board: "Board";
+    };
+    /** The peek beside the rows: its two doors, its wait, and what it calls a person it could not read. */
+    readonly peek: {
+        readonly close: "Close";
+        readonly page: "Open their page";
+        readonly thread: "Open the thread";
+        readonly reading: "Reading…";
+        readonly what: "this person";
+        /** How to reach them: the number (a call, a copy), the address (a copy), and what a reply may be. */
+        readonly reach: {
+            readonly phone: "Phone";
+            readonly email: "Email";
+            readonly replies: "Replies";
+            readonly call: "Call";
+            readonly copy: "Copy";
+            readonly copied: "Copied";
+            /** What a Copy says it copies, to a screen reader: both buttons read "Copy" on the page. */
+            readonly copyPhone: "Copy the number";
+            readonly copyEmail: "Copy the address";
+        };
+        /** What happened with their deals, newest first. */
+        readonly history: "History";
+    };
+    /** The board: a column with nobody in it, what a card says of itself to a screen reader, and a card's menu. */
+    readonly board: {
+        readonly nobody: "Nobody here";
+        readonly card: "Open";
+        readonly menu: "More for";
+        readonly move: "Move to";
+    };
+    /** The row's menu: the deal's own acts come from the deal sheet's words; these are its two doors. */
+    readonly row: {
+        readonly menu: "More for";
+    };
+    /** A selection's pass (Mark as passed · N): the one question, asked once for every proposal in it. */
+    readonly pass: {
+        readonly button: "Mark as passed";
+        readonly ask: "Why did they pass?";
+        readonly cancel: "Cancel";
+        readonly busy: "Marking…";
+    };
+    /** A proposal out waiting with nothing back (waitingOnProposal): the row's In stage already says how long. */
+    readonly nothingBack: "Nothing back";
+    /**
+     * The line's part for the proposals waiting: past a week; past the workspace's pace once it has one; and past the
+     * cap in its days, where thirty holds the wait at or under the pace and "longer than usual" would not be so.
+     */
+    readonly waitingLine: (n: number, pace: DealPaceVM | null) => string;
+    /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
+    readonly rail: {
+        /** A phone's sheet of the rail's rows, behind the bar's list button. */
+        readonly sheet: "Show";
+        readonly deals: "Deals";
+        readonly all: "All deals";
+        readonly waitingOnYou: "Waiting on you";
+        readonly waiting: "Nothing back in a week";
+        /** The same, once the workspace has a pace: past it by a fifth (waitAfterDays). */
+        readonly waitingPaced: (days: number) => string;
+        readonly lapsed: "Lapsed";
+        readonly steps: "Steps due";
+        readonly services: "Services";
+    };
+    /** New proposal: the button, and the picker it opens before the deal sheet. */
+    readonly newProposal: {
+        readonly button: "New proposal";
+        readonly title: "New proposal";
+        readonly sub: "Who is it for?";
+        readonly search: "Search people";
+        readonly none: "No one matches.";
+        readonly add: "Add someone new";
+        readonly name: "Name";
+        readonly optional: "optional";
+        readonly number: "Mobile number";
+        readonly go: "Continue";
+        readonly adding: "Adding…";
+    };
+};
+
+/**
+ * The Pipeline of these rows: the line over it, its groups and their rows, and whether it is empty. `rows` are People's
+ * (PersonRowVM, as the People surface publishes them where deals are on); `tz` is the workspace's zone; `pace` is its
+ * pace (dealPaceOf, null without one), which says when a proposal out is waiting. `view` is the rail's pick: the
+ * groups hold only its rows, and the line stays the whole Pipeline's.
+ */
+declare function pipelineOf<T extends PipelineSource>(rows: readonly T[], nowMs: number, tz: string, pace: DealPaceVM | null, view?: PipelineView): PipelineVM<T>;
 
 interface PersonRightNow {
     tone: ReceptionistTone;
@@ -14981,276 +15265,6 @@ declare function toPersonVM(d: PersonDetailDto, tz: string, now?: Date,
 /** The member looking (toPersonRowVM's viewer). */
 viewerId?: string | null): PersonVM;
 
-type PipelineGroupKey = "consultations" | "proposals" | "clients" | "closed";
-/** The groups, in the order the Pipeline draws them. */
-declare const PIPELINE_GROUPS: readonly PipelineGroupKey[];
-/**
- * What of a People row the Pipeline reads: who, their deal as the page says it, when they last wrote or called, and
- * their consultations -- the last one's end (the rule's) and its start (the words'), and the next one.
- */
-type PipelineSource = Pick<PersonRowVM, "id" | "name" | "deal" | "askedMs" | "consultedMs" | "lastVisitMs" | "consultAhead" | "calendarTz" | "nextStep" | "followUp">;
-/** The one thing a row says beside its facts: warn where something waits on the owner, info for what is on its way, plain for a fact. */
-interface PipelineChip {
-    words: string;
-    tone: Extract<Tone, "warn" | "info" | "plain">;
-}
-interface PipelineRowVM<T extends PipelineSource = PersonRowVM> {
-    id: string;
-    /** The group it is drawn in: what its menu offers is the group's (a consultation starts a proposal). */
-    group: PipelineGroupKey;
-    name: string;
-    /** The People row it stands for, whole: the person cell and the phone's card draw it as People does. */
-    person: T;
-    /** The deal's service; null for a consultation, which has no deal yet. */
-    service: string | null;
-    /** The deal's value in words, "$1,200" or "$2,500 a month"; null without one. */
-    value: string | null;
-    /** How long it has stood where it is, "8 d"; "" for a consultation still ahead. */
-    inStage: string;
-    chip: PipelineChip | null;
-    /**
-     * The deal's steps, as the row, the card and the peek draw them: a consultation where one was held or is coming
-     * up, the proposal, the client. Empty for a pass or an end, whose chip says it. A picture of what the group head
-     * and the chip say in words, so a screen reader is not read it again.
-     */
-    track: PipelineStep[];
-    /**
-     * Their next step (0007, amended): the earliest open note with a day, as People's row carries it, its day judged
-     * again as the Pipeline is drawn. Null without one.
-     */
-    next: PipelineNextVM | null;
-}
-/** A row's next step, as its column, its card and the peek say it. */
-interface PipelineNextVM {
-    id: string;
-    words: string;
-    /** The day itself, "2026-09-26", for the order; `when` is how it is said: "Due Thu", "Overdue since Mon". */
-    day: string;
-    when: string;
-    due: StepDue;
-    forWho: string | null;
-    /** The deal it moves, when it names one. */
-    dealId: string | null;
-}
-/** One step on a row's track: done, where the deal stands now, or still ahead. */
-interface PipelineStep {
-    key: "consultation" | "proposal" | "client";
-    at: "done" | "current" | "ahead";
-    /** Where it stands, in the tone its chip is in (a proposal waiting on the owner is warn); plain either side of it. */
-    tone: Extract<Tone, "info" | "ok" | "warn" | "plain">;
-}
-interface PipelineGroupVM<T extends PipelineSource = PersonRowVM> {
-    key: PipelineGroupKey;
-    label: string;
-    count: number;
-    /**
-     * What the group comes to: the value of its proposals or its clients in all ("$4,250", "$1,340 a month"), and for
-     * the consultations, how many were held in the last week with no proposal yet. Null for nothing to say.
-     */
-    meta: string | null;
-    /** Whether it starts folded: Passed or ended does, until someone opens it (PIPELINE_WORDS.show). */
-    collapsed: boolean;
-    rows: PipelineRowVM<T>[];
-}
-/**
- * One part of the line over the table: its words, and the view a press on it opens (the rail's own row), in warn where
- * it counts what waits on the owner. The totals are words only.
- */
-interface PipelineLinePart {
-    words: string;
-    view: PipelineView | null;
-    tone: "warn" | null;
-}
-interface PipelineVM<T extends PipelineSource = PersonRowVM> {
-    /**
-     * The line over the table, in the parts a page sets dots between -- "3 proposals out", "$4,250", "1 waiting over a
-     * week", "1 lapsed", "2 clients", "$1,340 a month" -- and only the parts that have something. Always the whole
-     * Pipeline's, whatever view the groups are of.
-     */
-    summary: string[];
-    /** The same parts, with the view each opens. */
-    line: PipelineLinePart[];
-    /** The groups with someone in them, in order. */
-    groups: PipelineGroupVM<T>[];
-    /** Nobody in any group: no deal, and no consultation to follow. */
-    empty: boolean;
-    /** The workspace's pace (dealPaceOf), which every wait on this Pipeline was judged by; null without one. */
-    pace: DealPaceVM | null;
-}
-/** Every word the Pipeline says that is not a row's own. */
-declare const PIPELINE_WORDS: {
-    readonly groups: Record<PipelineGroupKey, string>;
-    /**
-     * The table's headings, in the order it draws them. The chip's column shows none -- no one word is right for "Fri
-     * 2:00 PM" and "Since Sep 18" alike -- and says this one to a screen reader.
-     */
-    readonly columns: {
-        readonly person: "Person";
-        readonly service: "Service";
-        readonly value: "Value";
-        readonly stage: "Stage";
-        readonly came: "Came from";
-        readonly valid: "Valid until";
-        readonly next: "Next step";
-        readonly chip: "Where it stands";
-        /** The row's own menu, as a screen reader hears its heading. */
-        readonly acts: "More";
-    };
-    /** What opens a folded group, whose head counts its rows already, and what folds it again. */
-    readonly show: "Show";
-    readonly hide: "Hide";
-    /** Where there is nobody in any group. */
-    readonly empty: {
-        readonly title: "No deals yet.";
-        readonly body: "Proposals you start show here, with what they come to.";
-    };
-    /** The two ways to see it on a desk, and what a screen reader calls the switch. A phone has the list alone. */
-    readonly views: {
-        readonly label: "Show as";
-        readonly list: "List";
-        readonly board: "Board";
-    };
-    /** The peek beside the rows: its two doors, its wait, and what it calls a person it could not read. */
-    readonly peek: {
-        readonly close: "Close";
-        readonly page: "Open their page";
-        readonly thread: "Open the thread";
-        readonly reading: "Reading…";
-        readonly what: "this person";
-        /** How to reach them: the number (a call, a copy), the address (a copy), and what a reply may be. */
-        readonly reach: {
-            readonly phone: "Phone";
-            readonly email: "Email";
-            readonly replies: "Replies";
-            readonly call: "Call";
-            readonly copy: "Copy";
-            readonly copied: "Copied";
-            /** What a Copy says it copies, to a screen reader: both buttons read "Copy" on the page. */
-            readonly copyPhone: "Copy the number";
-            readonly copyEmail: "Copy the address";
-        };
-        /** What happened with their deals, newest first. */
-        readonly history: "History";
-    };
-    /** The board: a column with nobody in it, what a card says of itself to a screen reader, and a card's menu. */
-    readonly board: {
-        readonly nobody: "Nobody here";
-        readonly card: "Open";
-        readonly menu: "More for";
-        readonly move: "Move to";
-    };
-    /** The row's menu: the deal's own acts come from the deal sheet's words; these are its two doors. */
-    readonly row: {
-        readonly menu: "More for";
-    };
-    /** A selection's pass (Mark as passed · N): the one question, asked once for every proposal in it. */
-    readonly pass: {
-        readonly button: "Mark as passed";
-        readonly ask: "Why did they pass?";
-        readonly cancel: "Cancel";
-        readonly busy: "Marking…";
-    };
-    /** A proposal out waiting with nothing back (waitingOnProposal): the row's In stage already says how long. */
-    readonly nothingBack: "Nothing back";
-    /**
-     * The line's part for the proposals waiting: past a week; past the workspace's pace once it has one; and past the
-     * cap in its days, where thirty holds the wait at or under the pace and "longer than usual" would not be so.
-     */
-    readonly waitingLine: (n: number, pace: DealPaceVM | null) => string;
-    /** The Pipeline's own rail: its groups, what waits on the owner, and each service. */
-    readonly rail: {
-        /** A phone's sheet of the rail's rows, behind the bar's list button. */
-        readonly sheet: "Show";
-        readonly deals: "Deals";
-        readonly all: "All deals";
-        readonly waitingOnYou: "Waiting on you";
-        readonly waiting: "Nothing back in a week";
-        /** The same, once the workspace has a pace: past it by a fifth (waitAfterDays). */
-        readonly waitingPaced: (days: number) => string;
-        readonly lapsed: "Lapsed";
-        readonly steps: "Steps due";
-        readonly services: "Services";
-    };
-    /** New proposal: the button, and the picker it opens before the deal sheet. */
-    readonly newProposal: {
-        readonly button: "New proposal";
-        readonly title: "New proposal";
-        readonly sub: "Who is it for?";
-        readonly search: "Search people";
-        readonly none: "No one matches.";
-        readonly add: "Add someone new";
-        readonly name: "Name";
-        readonly optional: "optional";
-        readonly number: "Mobile number";
-        readonly go: "Continue";
-        readonly adding: "Adding…";
-    };
-};
-/**
- * The Pipeline of these rows: the line over it, its groups and their rows, and whether it is empty. `rows` are People's
- * (PersonRowVM, as the People surface publishes them where deals are on); `tz` is the workspace's zone; `pace` is its
- * pace (dealPaceOf, null without one), which says when a proposal out is waiting. `view` is the rail's pick: the
- * groups hold only its rows, and the line stays the whole Pipeline's.
- */
-declare function pipelineOf<T extends PipelineSource>(rows: readonly T[], nowMs: number, tz: string, pace: DealPaceVM | null, view?: PipelineView): PipelineVM<T>;
-/**
- * What the rail picks and the address carries: the whole Pipeline, one group, what waits on the owner (nothing back in
- * a week, lapsed), or one service's deals (`svc:<its name>`).
- */
-type PipelineView = "all" | PipelineGroupKey | "waiting" | "lapsed" | "steps" | `svc:${string}`;
-declare function isPipelineView(s: unknown): s is PipelineView;
-/** A view in the owner's words: the rail's own label for it, the phone's button says the same. */
-declare function pipelineViewLabel(view: PipelineView, pace: DealPaceVM | null): string;
-/**
- * The Pipeline's address, as Leads spells its own (contracts leadsRoute): `clients/pipeline`, then the view
- * (`v-proposals`, or a service as `v-s.<its name, encoded>`), then the person open over it (`p-<id>`). The shell reads
- * the hash as it stands, so an encoded name keeps its colons and slashes out of the separators.
- */
-declare function pipelineRoute(v?: {
-    view?: PipelineView | null;
-    peek?: string | null;
-}): string;
-/** The view and the person an address names; null for an address that is not the Pipeline's. Anything else is left. */
-declare function parsePipelineRoute(route: string | null | undefined): {
-    view: PipelineView;
-    peek: string | null;
-} | null;
-/** One row of the Pipeline's rail: the view it picks, its words, how many, and warn where it counts what waits. */
-interface PipelineRailRow {
-    view: PipelineView;
-    label: string;
-    count: number;
-    tone: "warn" | null;
-}
-interface PipelineRailSection {
-    key: "deals" | "waiting" | "services";
-    label: string;
-    rows: PipelineRailRow[];
-}
-/** How many services the rail lists: the busiest, then by name. */
-declare const PIPELINE_RAIL_SERVICES = 8;
-/**
- * The Pipeline's own rail, from the whole Pipeline (`pipelineOf` with no view): All deals and each group, always, so the
- * rail keeps its shape; what waits on the owner, each only when there is some; and each service a deal is for, the
- * busiest first. A consultation has no deal yet, so it counts under its group and All deals, never a service.
- */
-declare function pipelineRail<T extends PipelineSource>(vm: PipelineVM<T>, nowMs: number): PipelineRailSection[];
-/** What a card dropped in another column asks for: the one deal sheet, in the mode the move needs (0008). */
-interface PipelineMove {
-    mode: DealSheetMode;
-    /** The deal the move is about; null for a new proposal. */
-    dealId: string | null;
-}
-/**
- * What dropping a card from one group into another means, or null where it means nothing. A consultation into
- * Proposal out starts a proposal; a proposal into Clients is a yes, into Passed or ended a pass; a client into Passed
- * or ended is an end; a passed deal back into Proposal out is proposed again, and an ended one begins a new proposal.
- * Nothing else moves, and nothing moves without the sheet: a drop is a person's confirmation, never the record
- * itself, so the sheet still asks what the move needs (the amount, the reason, the day).
- */
-declare function pipelineMove(from: PipelineGroupKey, to: PipelineGroupKey, row: {
-    person: Pick<PipelineSource, "deal">;
-}): PipelineMove | null;
 /** One quiet fact under the peek's deal: when they were last heard, their words, or what is coming up. */
 interface PipelinePeekFact {
     id: "heard" | "quote" | "next" | "step";
@@ -15278,6 +15292,54 @@ declare function pipelinePeekOf(row: PipelineRowVM, group: PipelineGroupKey, dea
     id: string;
     stage: string;
 }[] | null): PipelinePeekVM;
+/** One way to reach them in the peek: what it is, the thing itself, and what can be done with it. */
+interface PipelinePeekReachVM {
+    id: "phone" | "email" | "replies";
+    label: string;
+    words: string;
+    /** A call's address (tel:), for the number only. */
+    call: string | null;
+    /** What a copy puts on the clipboard; null where there is nothing to copy. */
+    copy: string | null;
+}
+interface PipelinePeekDetailVM {
+    reach: PipelinePeekReachVM[];
+    /** Their deals' moves, newest first, three at most, in the person page's own words: "Proposal out · SEO · $800". */
+    history: {
+        id: string;
+        words: string;
+        when: string;
+    }[];
+}
+/**
+ * What the peek says once the person is read (0008, "the row carries the deal"): how to reach them -- the number, the
+ * address, and what a reply may be now (repliesWords, the person page's own sentence) -- and the last moves of their
+ * deals from their timeline. Nothing here is the peek's own: each word is the person page's.
+ */
+declare function pipelinePeekDetail(p: PersonVM): PipelinePeekDetailVM;
+
+/**
+ * What a member does over the Pipeline's rows (0008): a card dropped in another column (pipelineMove), the order
+ * the table sorts by (pipelineSorted), a selection's pass (pipelinePassMany, pipelinePassDone), and a board
+ * column's cap. The peek is pipeline-peek.ts's.
+ */
+
+/** What a card dropped in another column asks for: the one deal sheet, in the mode the move needs (0008). */
+interface PipelineMove {
+    mode: DealSheetMode;
+    /** The deal the move is about; null for a new proposal. */
+    dealId: string | null;
+}
+/**
+ * What dropping a card from one group into another means, or null where it means nothing. A consultation into
+ * Proposal out starts a proposal; a proposal into Clients is a yes, into Passed or ended a pass; a client into Passed
+ * or ended is an end; a passed deal back into Proposal out is proposed again, and an ended one begins a new proposal.
+ * Nothing else moves, and nothing moves without the sheet: a drop is a person's confirmation, never the record
+ * itself, so the sheet still asks what the move needs (the amount, the reason, the day).
+ */
+declare function pipelineMove(from: PipelineGroupKey, to: PipelineGroupKey, row: {
+    person: Pick<PipelineSource, "deal">;
+}): PipelineMove | null;
 /**
  * How the rows order within each group, by the table's sortable headings: Stage, the Pipeline's own order (reversed,
  * the other way); Value, what each deal comes to over a year; Person, by name. The groups themselves never move.
@@ -15327,31 +15389,6 @@ declare function pipelinePassDone(done: number, changed: number, failed?: number
     words: string;
     tone: "ok" | "warn" | "danger";
 };
-/** One way to reach them in the peek: what it is, the thing itself, and what can be done with it. */
-interface PipelinePeekReachVM {
-    id: "phone" | "email" | "replies";
-    label: string;
-    words: string;
-    /** A call's address (tel:), for the number only. */
-    call: string | null;
-    /** What a copy puts on the clipboard; null where there is nothing to copy. */
-    copy: string | null;
-}
-interface PipelinePeekDetailVM {
-    reach: PipelinePeekReachVM[];
-    /** Their deals' moves, newest first, three at most, in the person page's own words: "Proposal out · SEO · $800". */
-    history: {
-        id: string;
-        words: string;
-        when: string;
-    }[];
-}
-/**
- * What the peek says once the person is read (0008, "the row carries the deal"): how to reach them -- the number, the
- * address, and what a reply may be now (repliesWords, the person page's own sentence) -- and the last moves of their
- * deals from their timeline. Nothing here is the peek's own: each word is the person page's.
- */
-declare function pipelinePeekDetail(p: PersonVM): PipelinePeekDetailVM;
 /** A board column shows this many cards, then says how many more it holds. */
 declare const PIPELINE_BOARD_CAP = 20;
 /** A board column's way to the rest of its cards: "Show 4 more". */

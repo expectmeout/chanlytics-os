@@ -8,7 +8,8 @@
 import { visitDateKey, visitDay, visitTime } from "../calendar/calendar-people";
 import { tidyCallSummary } from "../voice/call-words";
 import type { ConsentChange } from "../consent/consent";
-import { amountWords, DEAL_LOST_REASON_WORDS, DEAL_STAGE_WORDS, isDealLostReason } from "../deals/deals";
+import { DEAL_LOST_REASON_WORDS, DEAL_STAGE_WORDS, isDealLostReason } from "../deals/deal-words";
+import { amountWords } from "../deals/deal-amount";
 import { type PersonCampaignDto, reasonShort, visitTitleFor } from "./people";
 import { CARRIER_CONSENT_SOURCE, CONSENT_RESET_SOURCE, consentSourceLabel } from "./person-consent";
 import { addedBy, ts } from "./person-helpers";

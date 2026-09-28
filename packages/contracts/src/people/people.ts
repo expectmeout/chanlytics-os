@@ -32,14 +32,9 @@ import { initialsOf, isIdentifierName } from "../conversations/thread-contact";
 import { shortTime } from "../conversations/thread-clock";
 import type { CallDto } from "../conversations/call-dto";
 import type { ConversationDto } from "../conversations/thread-dto";
-import {
-  dealOf,
-  dealStageOf,
-  type DealDto,
-  type DealPaceDto,
-  type DealStandingStage,
-  type DealVM,
-} from "../deals/deals";
+import { dealOf, type DealDto, type DealVM } from "../deals/deal-vm";
+import type { DealPaceDto } from "../deals/deal-waits";
+import { dealStageOf, type DealStandingStage } from "../deals/deal-consultations";
 import type { RecipientState } from "../broadcasts/broadcasts";
 import { consentSourceLabel, mayReceive, type PersonConsent, saidYesTo } from "./person-consent";
 import { fmtDate, MONTH_MS, ts } from "./person-helpers";
