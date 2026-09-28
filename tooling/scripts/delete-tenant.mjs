@@ -113,6 +113,7 @@ const TABLES = [
   "partner_earnings",
   "partner_invitations",
   "partner_tenants",
+  "person_moments",
   "person_notes",
   "playbooks",
   "policies",
