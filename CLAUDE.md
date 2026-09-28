@@ -114,7 +114,8 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   publishers; a helper declared in three files; `as unknown as`, `as never` and `x!`; an index read
   the compiler lets pass; a table name, or a SQL function called by name, outside `packages/db`; a route file that
   imports a repository or a provider client; dead exports; a duration written as a
-  bare number (name it from `contracts/shared/time.ts`, or give it a constant); lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
+  bare number (name it from `contracts/shared/time.ts`, or give it a constant); a width the layout changes at that is
+  not one of `tokens.css`'s breakpoints; lint warnings; a type size, radius, shadow, colour or blur a stylesheet writes
   instead of reading a token; a button, chip, tab, card, sheet, field or face class of a page's own;
   a `style` prop (`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`). A new offender is a red
   build. `UPDATE_BASELINES=1` banks only what fell (knip, the lint and the bundle budget: their

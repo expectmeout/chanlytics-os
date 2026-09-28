@@ -49,6 +49,7 @@ SQL functions outside packages/db   133   called by .rpc
 edge statements naming no workspace   28   in 15 files
 doors importing db or channels        0   imports in 0 files
 unnamed durations                    63   in 33 files
+breakpoints outside the set          37   in 11 files
 literal style values                997   in 23 stylesheets
 primitives outside the kit         1983   selectors naming 802 classes
 inline style props                  208   in 56 files
