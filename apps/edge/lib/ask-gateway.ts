@@ -28,7 +28,7 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
 
 /**
  * Ask's tokens in the last day, this workspace: input plus output of every usage.ask_tokens event of the last 24
- * hours, summed in one statement (ask_tokens_day, 00239). Read failures count as zero, never as a refusal.
+ * hours, summed in one statement (ask_tokens_day, 00240). Read failures count as zero, never as a refusal.
  */
 export async function askTokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number> {
   const L = logger({ tenant: tenantId });

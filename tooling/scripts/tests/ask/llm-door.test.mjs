@@ -187,7 +187,7 @@ function use(tables = { events: [] }, faults = {}, rpcs = {}) {
   setPg(db);
   return db;
 }
-/** The day's count, asked of the database: one call of ask_tokens_day (00239) per read, never a read of the rows. */
+/** The day's count, asked of the database: one call of ask_tokens_day (00240) per read, never a read of the rows. */
 const counted = (db) => db.seen.filter((q) => q.rpc === "ask_tokens_day");
 
 /* -------------------------------- the model ------------------------------- */
@@ -414,7 +414,7 @@ test("under the budget: the day's usage is read once for this workspace and Ask'
 
   const reads = counted(db);
   assert.equal(reads.length, 1, "the count is read once");
-  assert.deepEqual(reads[0].args, { p_tenant: ws }, "this workspace's day, summed by the database (00239)");
+  assert.deepEqual(reads[0].args, { p_tenant: ws }, "this workspace's day, summed by the database (00240)");
   assert.equal(
     db.seen.filter((q) => q.table === "events" && q.op === "select").length,
     0,
@@ -579,7 +579,7 @@ test("a count that cannot be read is zero, never a refusal: the turn goes throug
   );
 });
 
-test("a day past a thousand turns is counted whole: the database sums the day (00239), so no page of 1,000 rows can cut it, where .limit(2000) once stopped at the thousandth", async () => {
+test("a day past a thousand turns is counted whole: the database sums the day (00240), so no page of 1,000 rows can cut it, where .limit(2000) once stopped at the thousandth", async () => {
   const ws = T(6);
   const events = Array.from({ length: 1500 }, (_, i) => usage(ws, 100, 10, (i % 600) * 60_000));
   const db = fakeDb({ events }, {}, {}, { maxRows: 1000 });

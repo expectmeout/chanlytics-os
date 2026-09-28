@@ -1,5 +1,5 @@
 /**
- * Ask's day is one sum (00239).
+ * Ask's day is one sum (00240).
  *
  * The edge's model gateway refuses a workspace's Ask round once its last 24 hours of Ask tokens reach the day's budget
  * (apps/edge/api/admin/llm.ts). It used to read every usage.ask_tokens event of the day and sum them in JavaScript;

@@ -1,4 +1,4 @@
--- 00239 · Ask counts its day in one sum.
+-- 00240 · Ask counts its day in one sum.
 --
 -- Ask Rewired, Phase 6, PR 6.1 (docs/superpowers/plans/2026-09-28-ask-rewired-6-gateway.md, D1). The edge's model
 -- gateway refuses a workspace's Ask round once its last 24 hours of Ask tokens reach the day's budget (contracts
@@ -29,4 +29,4 @@ $$;
 revoke execute on function public.ask_tokens_day(uuid) from public, anon, authenticated;
 grant execute on function public.ask_tokens_day(uuid) to service_role;
 comment on function public.ask_tokens_day(uuid) is
-  'The workspace''s Ask tokens (input plus output of every usage.ask_tokens event) in the last 24 hours: what the edge''s model gateway weighs against the day''s budget (00239). Service role only.';
+  'The workspace''s Ask tokens (input plus output of every usage.ask_tokens event) in the last 24 hours: what the edge''s model gateway weighs against the day''s budget (00240). Service role only.';
