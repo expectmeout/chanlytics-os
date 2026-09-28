@@ -2808,7 +2808,8 @@ var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null
 var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
 var nonBlankOrNull = (v) => typeof v === "string" && v.trim() ? v : null;
 var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var utf8Encoder = new TextEncoder();
+var encoder = null;
+var utf8Bytes = (s) => (encoder ??= new TextEncoder()).encode(s);
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
@@ -4689,14 +4690,10 @@ function twilioSignedString(url, form2) {
   return url + Object.keys(form2).sort().map((k) => `${k}${form2[k]}`).join("");
 }
 async function twilioSignature(authToken, url, form2) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    utf8Encoder.encode(authToken),
-    { name: "HMAC", hash: "SHA-1" },
-    false,
-    ["sign"]
-  );
-  const mac = await crypto.subtle.sign("HMAC", key, utf8Encoder.encode(twilioSignedString(url, form2)));
+  const key = await crypto.subtle.importKey("raw", utf8Bytes(authToken), { name: "HMAC", hash: "SHA-1" }, false, [
+    "sign"
+  ]);
+  const mac = await crypto.subtle.sign("HMAC", key, utf8Bytes(twilioSignedString(url, form2)));
   return btoa(String.fromCharCode(...new Uint8Array(mac)));
 }
 function sameSignature(a, b) {
@@ -6252,7 +6249,7 @@ function grantHasScope(grant, scope) {
 }
 var dec = new TextDecoder();
 function b64url(bytes) {
-  const b = typeof bytes === "string" ? utf8Encoder.encode(bytes) : bytes;
+  const b = typeof bytes === "string" ? utf8Bytes(bytes) : bytes;
   let s = "";
   for (const x of b) s += String.fromCharCode(x);
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -6275,14 +6272,10 @@ function idTokenClaims(idToken) {
   }
 }
 async function hmac(secret, data) {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    utf8Encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, utf8Encoder.encode(data));
+  const key = await crypto.subtle.importKey("raw", utf8Bytes(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign"
+  ]);
+  const sig = await crypto.subtle.sign("HMAC", key, utf8Bytes(data));
   return b64url(new Uint8Array(sig));
 }
 async function signState(secret, s) {

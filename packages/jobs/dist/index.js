@@ -2765,7 +2765,6 @@ var REACH_OUT_SHEET_PARTS = {
   repliesLine: "Replies"
 };
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var utf8Encoder = new TextEncoder();
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
@@ -10553,7 +10552,6 @@ var REACH_OUT_SHEET_PARTS2 = {
   repliesLine: "Replies"
 };
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var utf8Encoder2 = new TextEncoder();
 var LIVE_STALE_MS2 = 5 * MIN_MS2;
 var LIVE_OVERLONG_MS2 = 30 * MIN_MS2;
 var ANALYSIS_GRACE_MS2 = 10 * MIN_MS2;
@@ -14427,7 +14425,6 @@ var REACH_OUT_SHEET_PARTS3 = {
   repliesLine: "Replies"
 };
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var utf8Encoder3 = new TextEncoder();
 var LIVE_STALE_MS3 = 5 * MIN_MS3;
 var LIVE_OVERLONG_MS3 = 30 * MIN_MS3;
 var ANALYSIS_GRACE_MS3 = 10 * MIN_MS3;
@@ -17952,7 +17949,6 @@ var REACH_OUT_SHEET_PARTS22 = {
   repliesLine: "Replies"
 };
 var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var utf8Encoder22 = new TextEncoder();
 var LIVE_STALE_MS22 = 5 * MIN_MS22;
 var LIVE_OVERLONG_MS22 = 30 * MIN_MS22;
 var ANALYSIS_GRACE_MS22 = 10 * MIN_MS22;
@@ -20729,7 +20725,6 @@ var REACH_OUT_SHEET_PARTS32 = {
   repliesLine: "Replies"
 };
 var WHEN232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var utf8Encoder32 = new TextEncoder();
 var LIVE_STALE_MS32 = 5 * MIN_MS32;
 var LIVE_OVERLONG_MS32 = 30 * MIN_MS32;
 var ANALYSIS_GRACE_MS32 = 10 * MIN_MS32;
@@ -24464,7 +24459,6 @@ var REACH_OUT_SHEET_PARTS4 = {
   repliesLine: "Replies"
 };
 var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var utf8Encoder4 = new TextEncoder();
 var LIVE_STALE_MS4 = 5 * MIN_MS4;
 var LIVE_OVERLONG_MS4 = 30 * MIN_MS4;
 var ANALYSIS_GRACE_MS4 = 10 * MIN_MS4;

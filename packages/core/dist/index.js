@@ -3542,7 +3542,6 @@ var REACH_OUT_SHEET_PARTS = {
   repliesLine: "Replies"
 };
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var utf8Encoder = new TextEncoder();
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
 var ANALYSIS_GRACE_MS = 10 * MIN_MS;
@@ -9143,7 +9142,8 @@ var DEFAULT_STATUS = {
 var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
 var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
 var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var utf8Encoder2 = new TextEncoder();
+var encoder = null;
+var utf8Bytes = (s) => (encoder ??= new TextEncoder()).encode(s);
 var hexOf = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
@@ -11992,7 +11992,6 @@ var REACH_OUT_SHEET_PARTS3 = {
   repliesLine: "Replies"
 };
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var utf8Encoder3 = new TextEncoder();
 var LIVE_STALE_MS3 = 5 * MIN_MS3;
 var LIVE_OVERLONG_MS3 = 30 * MIN_MS3;
 var ANALYSIS_GRACE_MS3 = 10 * MIN_MS3;
@@ -13947,7 +13946,7 @@ async function checkPlaybook(ports, body) {
 
 // src/uuid-v5.ts
 async function uuidV5(name) {
-  const h = hexOf(await crypto.subtle.digest("SHA-1", utf8Encoder2.encode(name)));
+  const h = hexOf(await crypto.subtle.digest("SHA-1", utf8Bytes(name)));
   const v = `${h.slice(0, 12)}5${h.slice(13, 16)}${(parseInt(h.slice(16, 17), 16) & 3 | 8).toString(16)}${h.slice(17, 32)}`;
   return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
 }
@@ -47532,7 +47531,7 @@ function identityOf(p, held, suppressedPlaceIds, shares) {
 
 // src/leads/ids.ts
 async function sha256Hex2(s) {
-  return hexOf(await crypto.subtle.digest("SHA-256", utf8Encoder2.encode(s)));
+  return hexOf(await crypto.subtle.digest("SHA-256", utf8Bytes(s)));
 }
 async function runIdFor(roundId, phase, term) {
   return uuidV5(`lead_run:${roundId}:${phase}:${term}`);

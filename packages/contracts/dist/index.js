@@ -23289,7 +23289,8 @@ var lineOrNull = (s) => {
 };
 
 // src/shared/bytes.ts
-var utf8Encoder = new TextEncoder();
+var encoder = null;
+var utf8Bytes = (s) => (encoder ??= new TextEncoder()).encode(s);
 var hexOf = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 
 // src/shared/csv.ts
@@ -29540,7 +29541,7 @@ export {
   unsureHoursWords,
   usPhone,
   usableDeviceTimezone,
-  utf8Encoder,
+  utf8Bytes,
   v1FromAnswer,
   validateReachOutChain,
   validateReachOutWords,

@@ -112,7 +112,7 @@ export type { TenantId, ContactId } from "./identity";
 export { plural } from "./words";
 export { escapeHtml } from "./html";
 export { finiteOrNull, finiteOrZero, trimmedOrNull, nonBlankOrNull, recordOrNull, lineOrNull } from "./unknown";
-export { utf8Encoder, hexOf } from "./bytes";
+export { utf8Bytes, hexOf } from "./bytes";
 export { sumOf } from "./numbers";
 export { csvCell, parseCsv, matchColumns, importRowsOf, importCounts } from "./csv";
 export type { CsvCell, ImportColumns, ImportRow } from "./csv";
