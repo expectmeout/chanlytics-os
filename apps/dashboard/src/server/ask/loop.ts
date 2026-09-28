@@ -18,6 +18,7 @@ import {
   type AskMessageVM,
   type AskModelId,
   type AskProposal,
+  type AskReadSet,
   type AskRowRef,
   type AskScope,
   type AskTurnShape,
@@ -227,15 +228,19 @@ function toolContextOf(input: TurnInput, now: Date): ToolContext {
 }
 
 /**
- * This turn's words, as the text block before the question (prompt.ts turnWords): who is asking, where, when, and --
- * while the question still carries it (`dataDropped` false) -- that the data before them is read already: the page's,
- * the reads made for another page, the scope's row. A live turn's also say what happened since (D8).
+ * This turn's words, as the text block before the question (prompt.ts turnWords): who is asking, where, when, the row
+ * their words point at and whether the read set holds it, and -- while the question still carries it (`dataDropped`
+ * false) -- that the data before them is read already: the page's, the reads made for another page, the scope's row.
+ * A live turn's also say what happened since (D8). Made once the read set holds every read before the model's.
  */
 function wordsBlock(
   input: TurnInput,
   now: Date,
-  rode: { built: BuiltContext | null; crossBlocks: SearchResultBlock[]; scopedRow: unknown },
+  rode: { built: BuiltContext | null; crossBlocks: SearchResultBlock[]; scopedRow: unknown; read: AskReadSet },
 ) {
+  const focus = input.context?.focus;
+  // A focus is a scope: a run is cited, and so read, as its broadcast; a page is never a row.
+  const kind = focus?.kind === "run" ? "broadcast" : focus?.kind;
   const facts = {
     role: input.role,
     personLabel: input.personLabel,
@@ -244,7 +249,8 @@ function wordsBlock(
     language: input.language,
     timezone: input.timezone,
     closures: input.facts.closures,
-    focus: input.context?.focus,
+    focus,
+    focusRead: !!focus && !!kind && kind !== "page" && rode.read[kind].has(focus.id),
     now,
   };
   return (live: boolean, dataDropped: boolean) => ({
@@ -339,7 +345,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   // Whether the question still carries the data blocks: a request the API refuses for them is asked once more without
   // them (D14), and the words stop pointing at them (wordsBlock).
   let dataDropped = pageBlocks.length === 0 && crossBlocks.length === 0;
-  const sayWords = wordsBlock(input, now, { built, crossBlocks, scopedRow });
+  const sayWords = wordsBlock(input, now, { built, crossBlocks, scopedRow, read: tc.read });
   const question = { type: "text", text: input.text };
   // The tools as the API takes them (registry.ts): the same bytes every round, until the API refuses their examples.
   let examples = true;

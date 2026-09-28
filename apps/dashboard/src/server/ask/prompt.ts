@@ -6,6 +6,7 @@ import {
   POLICY_CLASSES,
   POLICY_CLASS_WORDS,
   answerFromV1,
+  clip as answerClip,
   describeNow,
   guardrailsInForce,
   hoursRuns,
@@ -14,7 +15,7 @@ import {
 } from "@chanlytics/contracts";
 import type { MembershipRole } from "@chanlytics/contracts";
 import type { AskMessageVM, AskProposal, AskProposalOutcome, AskScope } from "@chanlytics/contracts";
-import { clip as clipTo, oneLine } from "./context/rows";
+import { oneLine } from "./context/rows";
 
 /**
  * What the assistant is told, and in what order.
@@ -308,6 +309,11 @@ export interface TurnFacts {
    * item by its place in an open thread, or the page's row by its place or its name; said when it is not the scope.
    */
   focus?: AskScope | null;
+  /**
+   * Whether this turn's read set holds the focus's row before the model is asked (loop.ts): only then may it be opened
+   * or named without a read. A page's rows can be cut by its caps, or its build fail, and the words can point past them.
+   */
+  focusRead?: boolean;
 }
 
 /**
@@ -356,12 +362,14 @@ export function turnWords(t: TurnFacts): string {
     lines.push(
       `They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. ${read}`,
     );
-  // The row their words point at, when it is not the scope: an earlier answer's item (in the read set, D5) or the page's.
+  // The row their words point at, when it is not the scope: an earlier answer's item (in the read set, D5) or the page's
+  // -- opened or named without a read only when the read set holds it (focusRead), else read first.
   const f = t.focus;
+  const then = t.focusRead
+    ? "open or name it without a read; read it for anything about it"
+    : "read it first, to open or name it and for anything about it";
   if (f && (f.kind !== t.scope?.kind || f.id !== t.scope?.id))
-    lines.push(
-      `Their words point at ${f.label} (${f.kind} ${f.id}): open or name it without a read; read it for anything about it.`,
-    );
+    lines.push(`Their words point at ${f.label} (${f.kind} ${f.id}): ${then}.`);
   if (t.language === "es") lines.push("They wrote in Spanish; answer in Spanish.");
   else if (t.language === "en") lines.push("They wrote in English; answer in English.");
   return lines.join("\n");
@@ -435,8 +443,11 @@ const LINE_CAPS = {
   rows: ASK_ANSWER_CAPS.items,
   label: ASK_ANSWER_CAPS.label,
 } as const;
-/** A part of a rebuilt line: one line of words (never a new line), cut to `n` with an ellipsis. */
-const linePart = (s: string | null | undefined, n: number): string => clipTo(oneLine(s ?? ""), n);
+/**
+ * A part of a rebuilt line, cut as an answer's own parts are (contracts clip): one line of words, never a new line, at
+ * most `n` characters, a longer one ending on a whole word with an ellipsis.
+ */
+const linePart = (s: string | null | undefined, n: number): string => answerClip(s, n);
 /** What the person did with a card, as a rebuilt line says it: theirs, and never "done". */
 const DID_WORD: Record<AskProposalOutcome["state"], string> = {
   done: "approved",

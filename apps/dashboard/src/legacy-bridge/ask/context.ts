@@ -315,6 +315,9 @@ export function pageContext(
   const rows = got.rows
     .filter((r) => typeof r.id === "string" && r.id && r.id.length <= 120)
     .slice(0, ASK_CONTEXT_MAX_ROWS);
+  // Words that name no row -- an answer's item of a kind no focus may be among them -- leave the page's own focus, then
+  // the route's; never the page's row at that place. Paired with the eval (tooling/scripts/eval-ask-context.mjs
+  // resolveContext, `item ?? scope`): change one, change the other.
   const focus =
     (words ? wordsFocus(words, rows, thread) : null) ?? got.focus ?? scopeFromRoute(route.page, route.param);
   return {

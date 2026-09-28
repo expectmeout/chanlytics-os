@@ -66,6 +66,7 @@ export {
   failedAnswer,
   proseAnswer,
   v1FromAnswer,
+  clip,
   ASK_ANSWER_CAPS,
 } from "./ask-answer";
 export type {

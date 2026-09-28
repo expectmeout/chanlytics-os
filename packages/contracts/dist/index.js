@@ -6583,7 +6583,7 @@ function v1FromAnswer(a) {
 // src/ask/answer-format.ts
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -28655,6 +28655,7 @@ export {
   cleanParam,
   cleanPartnerCode,
   cleanTimezone,
+  clip,
   clipAtWord,
   clockDate,
   clockDateYear,

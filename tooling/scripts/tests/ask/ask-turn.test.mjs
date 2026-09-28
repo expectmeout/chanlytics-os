@@ -6592,6 +6592,21 @@ test("an earlier answer, as a cold turn's history says it (the Phase 5 plan, D4)
     `${"y".repeat(159)}…`,
     "longer: the headline's 160, the cut said",
   );
+  // Every part is cut as an answer's own parts are (contracts clip): on a whole word, the cut said, within its cap.
+  const piano = "Rosa asked about moving the piano on Saturday morning before nine";
+  const onWords = (said, whole, cap) => {
+    const kept = said.slice(0, -1);
+    assert.ok(said.endsWith("…") && said.length <= cap, `${said.length}: ${said}`);
+    assert.ok(whole.startsWith(kept) && whole[kept.length] === " ", `a whole word: ${said}`);
+  };
+  const told = `So ${piano} ${piano} ${piano}`;
+  assert.notEqual(told[159], " ", "a cut at the cap would land inside a word");
+  onWords(answerLine(answered({ text: told }), TURN_CHARS), told, 160);
+  const titled = answerLine(
+    answered({ answer: shaped("One."), proposals: [cardOf("p-1", `${piano} and the parking`)] }),
+    TURN_CHARS,
+  );
+  onWords(titled.split(" · ")[2], `${piano} and the parking`, 80);
   // Never a new line: the words of a prose answer, or an old one, run on one line.
   const prosy = answered({ answer: proseAnswer("First, the calls.\n\nThen the threads.", "en") });
   assert.equal(answerLine(prosy, TURN_CHARS), "First, the calls. Then the threads.");
@@ -6923,7 +6938,7 @@ test("a row an earlier answer in this thread named is citable without a read (th
   assert.deepEqual([live.lines, live.r.ungrounded], [[], false]);
 });
 
-test("the row the words point at is said in the turn's words when it is not the scope (the Phase 5 plan, D7): by its name, its kind and its id, to open or name without a read, and to read for anything about it -- after the scope's line; the scope's own row, or none, says nothing", async () => {
+test("the row the words point at is said in the turn's words when it is not the scope (the Phase 5 plan, D7): by its name, its kind and its id, after the scope's line -- to open or name without a read only when this turn's read set holds it (the page's refs, the reads made before the model, the rows earlier answers cited), else to read first -- and to read for anything about it; the scope's own row, or none, says nothing", async () => {
   const facts = {
     role: "operator",
     personLabel: "ada",
@@ -6936,18 +6951,22 @@ test("the row the words point at is said in the turn's words when it is not the 
   };
   const rosa = { kind: "thread", id: C1, label: "Rosa" };
   const sam = { kind: "person", id: P1, label: "Sam Ortiz" };
-  const line = `Their words point at Sam Ortiz (person ${P1}): open or name it without a read; read it for anything about it.`;
-  assert.ok(
-    turnWords({ ...facts, focus: sam })
-      .split("\n")
-      .includes(line),
-    "no scope",
+  const held = (f) =>
+    `Their words point at ${f.label} (${f.kind} ${f.id}): open or name it without a read; read it for anything about it.`;
+  const unheld = (f) =>
+    `Their words point at ${f.label} (${f.kind} ${f.id}): read it first, to open or name it and for anything about it.`;
+  const linesOf = (over) => turnWords({ ...facts, ...over }).split("\n");
+  assert.ok(linesOf({ focus: sam, focusRead: true }).includes(held(sam)), "no scope, the row in the read set");
+  assert.ok(linesOf({ focus: sam }).includes(unheld(sam)), "not in the read set: read it first");
+  const scoped = linesOf({ scope: rosa, focus: sam, focusRead: true });
+  assert.equal(
+    scoped[scoped.findIndex((l) => l.startsWith("They are looking at Rosa")) + 1],
+    held(sam),
+    "after the scope",
   );
-  const scoped = turnWords({ ...facts, scope: rosa, focus: sam }).split("\n");
-  assert.equal(scoped[scoped.findIndex((l) => l.startsWith("They are looking at Rosa")) + 1], line, "after the scope");
   for (const focus of [rosa, null, undefined])
     assert.ok(
-      !turnWords({ ...facts, scope: rosa, focus }).includes("Their words point at"),
+      !turnWords({ ...facts, scope: rosa, focus, focusRead: true }).includes("Their words point at"),
       `${focus?.label ?? focus}`,
     );
   assert.ok(
@@ -6955,11 +6974,26 @@ test("the row the words point at is said in the turn's words when it is not the 
     "the same id as another kind is another row",
   );
 
-  // Through the turn: the page's focus, as the tab sent it, rides in the question's words.
-  const s = sentAs([ROUND([answer("Sam asked about Saturday.")])]);
-  await runAskTurn(turn(ctxFor(), { context: { ...PAGE, focus: sam }, scope: rosa }).input, ports(s.round));
-  assert.ok(wordsLines(s.requests[0]).includes(line));
-  const plain = sentAs([ROUND([answer("Rosa.")])]);
-  await runAskTurn(turn(ctxFor(), { context: { ...PAGE, focus: rosa }, scope: rosa }).input, ports(plain.round));
-  assert.ok(!wordsLines(plain.requests[0]).join("\n").includes("Their words point at"), "the scope's own row");
+  // Through the turn: the page's focus, as the tab sent it, rides in the question's words -- "without a read" only for
+  // a row the read set holds by the time the words are made.
+  const SAM = "abababab-abab-4aba-8aba-abababababa2";
+  const RUN = "e5e5e5e5-e5e5-4e5e-8e5e-e5e5e5e5e5e5";
+  const onPage = { kind: "person", id: SAM, label: "Sam Ortiz" };
+  const run = { kind: "run", id: RUN, label: "Monday offer" };
+  const page = builtWith([
+    { kind: "person", id: SAM, route: `clients/${SAM}`, label: "Sam Ortiz" },
+    { kind: "broadcast", id: RUN, route: `broadcasts/run:${RUN}`, label: "Monday offer" },
+  ]);
+  const said = async (focus, over = {}, portsOver = {}) => {
+    const s = sentAs([ROUND([answer("Fine.")])]);
+    const input = turn(ctxFor(), { context: { ...PAGE, focus }, scope: rosa, ...over }).input;
+    await runAskTurn(input, ports(s.round, portsOver));
+    return wordsLines(s.requests[0]);
+  };
+  assert.ok((await said(onPage, {}, { context: async () => page })).includes(held(onPage)), "a row of the page's");
+  assert.ok((await said(run, {}, { context: async () => page })).includes(held(run)), "a run: its broadcast's row");
+  assert.ok((await said(onPage)).includes(unheld(onPage)), "a row the page's build left out, or none built: read it");
+  const cited = [{ kind: "person", id: SAM, route: `clients/${SAM}`, label: "Sam Ortiz" }];
+  assert.ok((await said(onPage, { cited })).includes(held(onPage)), "an earlier answer's item (D5)");
+  assert.ok(!(await said(rosa)).join("\n").includes("Their words point at"), "the scope's own row");
 });

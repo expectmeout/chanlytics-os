@@ -25,7 +25,7 @@ import type { Msg, TurnInput } from "./loop";
 
 /**
  * The earlier turns a cold question is asked with: counted as turns -- a person's message and what follows it until the
- * next -- never as messages (the Phase 5 plan, D3), each cut at HISTORY_CHARS, and at most HISTORY_BASE_CHARS in all as
+ * next -- never as messages (the Phase 5 plan, D3), each cut at HISTORY_CHARS, and about HISTORY_BASE_CHARS in all as
  * sent (D4: some four thousand tokens), the oldest turns going whole past it (rebuiltHistory).
  */
 const HISTORY_TURNS = 12;
@@ -139,7 +139,9 @@ const questionsOf = (history: TurnInput["history"]): number[] =>
  * The thread's earlier turns as a cold turn is asked with them (the Phase 5 plan, D4): each question in the person's
  * words as the model has always read them (readThread's `turns`, askTurnText), each answer one line (answerLine: its
  * headline, its cards and what became of them, the rows it named) -- the last HISTORY_TURNS turns from a question, as
- * foldHistory keeps them, at most HISTORY_BASE_CHARS as it sends them: the oldest turns go whole, the newest stays. The
+ * foldHistory keeps them, and about HISTORY_BASE_CHARS as it sends them: the oldest turns go whole, the newest stays.
+ * About: each entry is counted as it stands, cut at HISTORY_CHARS, before foldHistory joins two neighbours of one role
+ * with a new line (a question left unanswered, two answers in a row), so a history runs a character over per join. The
  * turn keeps what it sent as its base (rawTurn), and a live turn after it replays that base as it was sent, so a line
  * is frozen on the turn that made it.
  */

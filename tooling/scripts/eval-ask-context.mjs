@@ -218,8 +218,10 @@ export function resolveContext(spec, answers = {}, now = Date.now(), first = nul
   if (opened && scope && scope.kind !== opened.kind)
     throw new Error(`the route ${route} opens a ${scope.kind}, and the row there is a ${opened.kind}`);
   const n = ordinal(spec.focus);
-  // Undefined past turn 1's items (or with no turn 1), null for an item no focus may be -- which, as in the palette,
-  // leaves the route's own row -- else that item as a focus.
+  // Undefined past turn 1's items (or with no turn 1), null for an item no focus may be, else that item as a focus.
+  // Paired with the palette (legacy-bridge/ask/context.ts pageContext): there a refused kind's null falls to the page's
+  // own focus, then the route's (`got.focus ?? scopeFromRoute`), never to the page's row at that place; a case's page
+  // has no focus of its own, so here it falls to the route's, `item ?? scope`. Change one, change the other.
   const item = n !== null && first ? itemFocus(first, n) : undefined;
   const placed = n !== null && item === undefined ? rows.filter((r) => SCOPE_KINDS.has(r.kind))[n - 1] : null;
   const focus = isScope(spec.focus)
