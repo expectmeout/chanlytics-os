@@ -82,7 +82,7 @@ fails when this block and the baselines disagree.
 
 ```text
 functions over the limit            207   of which over 200 lines: 65
-files over 800 lines                 26
+files over 800 lines                 23
 directories over 20 modules           7
 window globals                      198   names
 window publishers                   442   sites in 151 files
