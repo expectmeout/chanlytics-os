@@ -31,7 +31,7 @@ import * as Updates from "expo-updates";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useIsFocused } from "expo-router";
 import { useObserve } from "expo-observe";
-import { parsePageMessage, THEME_COLORS, type PageMessage, type ShellMessage } from "@chanlytics/contracts";
+import { parsePageMessage, THEME_COLORS, type PageMessage, type ShellMessage } from "@chanlytics/contracts/phone-app";
 import { askPage, bottomInset, insetScript, onPageMessage, registrationKey, shouldRegister, signedOut } from "./bridge";
 import { getState, registerReloader, setState, useShell, type Tab } from "./state";
 import { setBadge, tabOf } from "./notifications";

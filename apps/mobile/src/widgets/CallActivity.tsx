@@ -8,7 +8,7 @@
 import { HStack, Image, Text, VStack } from "@expo/ui/swift-ui";
 import { font, foregroundStyle, padding } from "@expo/ui/swift-ui/modifiers";
 import { createLiveActivity, type LiveActivityEnvironment } from "expo-widgets";
-import { CALL_ACTIVITY_NAME, type CallActivityProps } from "@chanlytics/contracts";
+import { CALL_ACTIVITY_NAME, type CallActivityProps } from "@chanlytics/contracts/phone-app";
 
 const CallActivity = (props: CallActivityProps, environment: LiveActivityEnvironment) => {
   "widget";
