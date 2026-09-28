@@ -26,8 +26,20 @@
 -- order: metrics_summary and report_series have said the same of their own
 -- message CTE since 00037.
 --
+-- people_list's `added`, the door that added each person (their first
+-- contact.added event), was read once for the whole workspace and joined to
+-- each person. Postgres 17 plans a SQL function's statements without the
+-- values it is called with, and for this one it expects a single person, so
+-- the join ran as a loop through every such event once per person: the People
+-- list cost its people times the people a door had added. Each person's door
+-- is now looked up for them, through events_tenant_subject (00002). Modelled
+-- on Postgres 16 with events in monthly partitions as production keeps them,
+-- a workspace of 10,000 people read its first page in 2.1 s as written and
+-- 0.75 s with the look-up, the same rows. PGlite plans with the call's values,
+-- so it never showed the loop.
+--
 -- Each function is copied as it stands from its latest migration with only
--- that change. Only the bodies change, so `create or replace` takes them:
+-- these changes. Only the bodies change, so `create or replace` takes them:
 -- nothing is dropped, and the grants and the comment stand; they are restated
 -- so this file reads on its own.
 
@@ -113,19 +125,6 @@ as $$
      where m.tenant_id = p_tenant_id
        and m.contact_id is not null
        and (p_contact_id is null or m.contact_id = p_contact_id)
-  ),
-  -- How they were added, when a door added them: the first contact.added event
-  -- for each person, should a door ever write two.
-  added as (
-    select distinct on (e.subject_id)
-           e.subject_id,
-           coalesce(e.data->>'source', 'manual') as source
-      from events e
-     where e.tenant_id = p_tenant_id
-       and e.kind = 'contact.added'
-       and e.subject_type = 'contact'
-       and (p_contact_id is null or e.subject_id = p_contact_id)
-     order by e.subject_id, e.created_at
   )
   select
     c.id, c.display_name, c.wa_profile_name, c.phone_e164, c.email,
@@ -166,7 +165,18 @@ as $$
     dl.proposal_url, dl.valid_until, dl.lost_reason,
     st.id, st.body, st.due_on, st.for_user_id, st.deal_id
   from contacts c
-  left join added ad on ad.subject_id = c.id
+  left join lateral (
+    -- How they were added, when a door added them: their first contact.added
+    -- event, should a door ever write two.
+    select coalesce(e.data->>'source', 'manual') as source
+      from events e
+     where e.tenant_id = p_tenant_id
+       and e.subject_type = 'contact'
+       and e.subject_id = c.id
+       and e.kind = 'contact.added'
+     order by e.created_at
+     limit 1
+  ) ad on true
   left join lateral (
     select array_agg(distinct ci.channel order by ci.channel) as channels
       from contact_identities ci where ci.contact_id = c.id

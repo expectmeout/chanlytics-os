@@ -9,6 +9,10 @@
  * shows what it could use, the read looks messages up at least once a row, through whichever index the planner picks
  * (as written it read them once, to fill the CTE), and still answers what it answered.
  *
+ * The door that added each person is the same: read once for the workspace and joined in a loop that went through
+ * every such event for each person, it is now looked up for each person, so events are read at least once a person
+ * (as written, once a partition).
+ *
  * Everything happens in a transaction on this machine's database that never commits: the workspace, its people,
  * their threads and messages, and the setting go with it. Read through the CLI, as sweep-registry.db.test.mjs turns a
  * clock; SUPABASE_CLI names the binary when `supabase` is not on PATH.
@@ -46,16 +50,29 @@ function rolledBack(body) {
   return JSON.parse(Buffer.from(seen[1], "hex").toString("utf8"));
 }
 
+/** Index scans so far in this transaction on every index of every partition of events. */
+const EVENT_SCANS = `(select coalesce(sum(pg_stat_get_xact_numscans(x.indexrelid)), 0)
+    from pg_inherits i join pg_index x on x.indrelid = i.inhrelid where i.inhparent = 'public.events'::regclass)`;
+/**
+ * Rows fetched so far in this transaction from every partition of events: by a bitmap scan (counted on the table) or
+ * by an index scan (counted on the index), as pg_stat_all_tables adds them into idx_tup_fetch.
+ */
+const EVENT_ROWS = `(select coalesce(sum(pg_stat_get_xact_tuples_fetched(i.inhrelid)
+      + (select coalesce(sum(pg_stat_get_xact_tuples_fetched(x.indexrelid)), 0) from pg_index x where x.indrelid = i.inhrelid)), 0)
+    from pg_inherits i where i.inhparent = 'public.events'::regclass)`;
+
 test(
-  "the People list looks each person's messages up for them, not in a copy of every message, and still answers everyone, newest first",
+  "the People list looks each person's messages and door up for them, not in a copy of every message or a loop through every door, and still answers everyone, newest first",
   { skip },
   () => {
     const seen = rolledBack(`
     declare
-      t uuid; cid uuid; conv uuid; newest uuid; before bigint; people int; first uuid;
+      t uuid; cid uuid; conv uuid; newest uuid; before bigint; before_events bigint; before_event_rows bigint;
+      people int; first uuid; by_calendar int; by_wire int;
     begin
       insert into public.tenants (slug, name) values ('people-reads-' || gen_random_uuid(), 'People reads') returning id into t;
-      -- Thirty people, each with a thread and three words from them; the thirtieth wrote last.
+      -- Thirty people, each with a thread and three words from them; the thirtieth wrote last. Every third was added
+      -- by the calendar before they wrote.
       for i in 1..30 loop
         insert into public.contacts (tenant_id) values (t) returning id into cid;
         insert into public.conversations (tenant_id, contact_id) values (t, cid) returning id into conv;
@@ -63,16 +80,28 @@ test(
           select t, conv, cid, 'whatsapp', 'inbound', 'customer', 'text', 'hello ' || g, 'received',
                  now() - make_interval(mins => (30 - i) * 10 + g)
             from generate_series(1, 3) g;
+        if i % 3 = 0 then
+          insert into public.events (tenant_id, kind, subject_type, subject_id, data)
+            values (t, 'contact.added', 'contact', cid, '{"source": "calendar"}');
+        end if;
         newest := cid;
       end loop;
       perform set_config('enable_seqscan', 'off', true);
       before := (select sum(pg_stat_get_xact_numscans(x.indexrelid)) from pg_index x where x.indrelid = 'public.messages'::regclass);
-      select count(*)::int, (array_agg(l.id order by l.ordinality))[1]
-        into people, first
+      before_events := ${EVENT_SCANS};
+      before_event_rows := ${EVENT_ROWS};
+      select count(*)::int, (array_agg(l.id order by l.ordinality))[1],
+             count(*) filter (where l.came_from = 'calendar')::int, count(*) filter (where l.came_from = 'whatsapp')::int
+        into people, first, by_calendar, by_wire
         from public.people_list(t) with ordinality as l;
       seen := jsonb_build_object(
         'people', people,
         'scans', (select sum(pg_stat_get_xact_numscans(x.indexrelid)) from pg_index x where x.indrelid = 'public.messages'::regclass) - before,
+        'event_scans', ${EVENT_SCANS} - before_events,
+        'event_rows', ${EVENT_ROWS} - before_event_rows,
+        'partitions', (select count(*) from pg_inherits where inhparent = 'public.events'::regclass),
+        'by_calendar', by_calendar,
+        'by_wire', by_wire,
         'first_is_newest', first = newest);
     end;
   `);
@@ -80,6 +109,24 @@ test(
     assert.ok(
       seen.scans >= seen.people,
       `each person's reads look up their own messages: ${seen.scans} index reads for ${seen.people} people`,
+    );
+    assert.deepEqual(
+      { calendar: seen.by_calendar, whatsapp: seen.by_wire },
+      { calendar: 10, whatsapp: 20 },
+      "a person the calendar added came from the calendar; the rest from the wire of their first word",
+    );
+    assert.ok(
+      seen.partitions < seen.people,
+      `events has ${seen.partitions} partitions, so one pass over it could look like a read a person; seed more people`,
+    );
+    assert.ok(
+      seen.event_scans >= seen.people,
+      `each person's door is looked up for them: ${seen.event_scans} index reads of events for ${seen.people} people`,
+    );
+    assert.ok(
+      seen.event_rows <= seen.by_calendar,
+      `each look-up reads that person's door alone: ${seen.event_rows} rows of events for ${seen.by_calendar} doors ` +
+        "(a loop through every door reads them all again for each person)",
     );
     assert.equal(seen.first_is_newest, true, "the person who wrote last comes first");
   },
