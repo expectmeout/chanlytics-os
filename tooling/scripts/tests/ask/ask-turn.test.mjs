@@ -6862,3 +6862,63 @@ test("what a rebuild told is what it read (the Phase 5 plan, PR 5.5): an outcome
   assert.equal(after.r.shape.replay, "live");
   assert.ok(!wordsLines(after.s.requests[0]).some((l) => l.startsWith(SINCE)), "an old base: its chain's cards only");
 });
+
+test("a row an earlier answer in this thread named is citable without a read (the Phase 5 plan, D5): the turn's read set starts with the rows the thread's answers cited, where each opened -- a cold turn and a live one cite turn 1's row, read by nothing this turn, and keep it at the route turn 1 stored, dropping nothing; a figure about it is still unread, and says so; a page's citation and one that opened nowhere are never seeded", async () => {
+  const { ctx } = threadWorld();
+  const rosa = { kind: "thread", id: C1, label: "Rosa" };
+  const naming = (headline) =>
+    answer(headline, { show: { items: [{ title: "Rosa", meta: "", line: "", source: rosa }] } });
+  const t1 = sentAs([ROUND([tool("inbox", { action: "list", filter: "recent" })]), ROUND([naming("Rosa needs you.")])]);
+  const r1 = await runAskTurn(turn(ctx).input, ports(t1.round));
+  assert.deepEqual(
+    r1.answer.show.items.map((i) => i.source.to),
+    [`inbox/th-${C1}`],
+  );
+  const v1 = v1FromAnswer(r1.answer);
+  const DEAL = "dddddddd-dddd-4ddd-8ddd-ddddddddddd5";
+  const citations = [
+    ...v1.citations,
+    { kind: "page", id: "reports", label: "Reports", to: "reports" },
+    { kind: "deal", id: DEAL, label: "Rosa's move", to: "" },
+  ];
+  await keep(ctx, "Who needs me?", r1, {
+    over: { answer: r1.answer, ...v1, citations },
+    created_at: iso(Date.now() - 10 * 60_000),
+  });
+
+  /** The thread's next turn, on no page and reading nothing: what it answered, and every source it dropped. */
+  const asking = async (text, headline) => {
+    const found = await threadNow(ctx, text);
+    const { thread: _thread, scope: _scope, ...earlier } = found;
+    const s = sentAs([ROUND([naming(headline)])]);
+    const { result: r, lines } = await logged("ask_sources_dropped", () =>
+      runAskTurn(turn(ctx, { text, ...earlier }).input, ports(s.round)),
+    );
+    return { r, lines, found };
+  };
+  const cold = await asking("How often did Rosa write?", "Rosa wrote 3 times.");
+  assert.deepEqual(
+    cold.found.cited,
+    [{ kind: "thread", id: C1, route: `inbox/th-${C1}`, label: "Rosa" }],
+    "Rosa's thread, where turn 1 opened it: never the page, never the deal that opened nowhere",
+  );
+  assert.equal(cold.r.shape.replay, "rebuilt");
+  assert.deepEqual(
+    cold.r.answer.show.items.map((i) => [i.source.kind, i.source.id, i.source.to]),
+    [["thread", C1, `inbox/th-${C1}`]],
+    "cited with no read, at the route turn 1 stored",
+  );
+  assert.deepEqual(cold.lines, [], "no source dropped");
+  assert.deepEqual([cold.r.tools, cold.r.ungrounded], [[], true], "a count about it read nothing: not from the data");
+
+  await keep(ctx, "How often did Rosa write?", cold.r, {
+    over: { answer: cold.r.answer, ...v1FromAnswer(cold.r.answer) },
+  });
+  const live = await asking("Open her thread", "Opening Rosa's thread.");
+  assert.equal(live.r.shape.replay, "live");
+  assert.deepEqual(
+    live.r.answer.show.items.map((i) => i.source.to),
+    [`inbox/th-${C1}`],
+  );
+  assert.deepEqual([live.lines, live.r.ungrounded], [[], false]);
+});

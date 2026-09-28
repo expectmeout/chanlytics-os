@@ -18,6 +18,7 @@ import {
   type AskMessageVM,
   type AskModelId,
   type AskProposal,
+  type AskRowRef,
   type AskScope,
   type AskTurnShape,
   type PageContext,
@@ -106,6 +107,11 @@ export interface TurnInput {
    * its base, so a live turn after it tells only what is newer. None with no history.
    */
   told?: string[] | null;
+  /**
+   * The rows the thread's earlier answers cited, where each opened (memory.ts threadForTurn): the turn's read set starts
+   * with them, so one is named, cited and opened without a read (the Phase 5 plan, D5); a fact about it is read again.
+   */
+  cited?: AskRowRef[];
   text: string;
   /** From the palette opening to the question being sent, as the tab measured it; null from an older tab or a script. */
   openedMs?: number | null;
@@ -210,6 +216,17 @@ function refusalText(r: GatewayRefused["refusal"], es: boolean): string {
 }
 
 /**
+ * What the turn's tools run with, as the person, its read set starting with the rows the thread's earlier answers cited
+ * (the Phase 5 plan, D5): one of them is cited and opened without a read, and any read this turn makes of one -- the
+ * page's, another page's, a tool's -- replaces its ref with the fresh one.
+ */
+function toolContextOf(input: TurnInput, now: Date): ToolContext {
+  const tc = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now, input.rc);
+  noteRows(tc.read, input.cited ?? []);
+  return tc;
+}
+
+/**
  * This turn's words, as the text block before the question (prompt.ts turnWords): who is asking, where, when, and --
  * while the question still carries it (`dataDropped` false) -- that the data before them is read already: the page's,
  * the reads made for another page, the scope's row. A live turn's also say what happened since (D8).
@@ -246,7 +263,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const model = askModel();
   const now = input.now ?? new Date();
   const es = input.language === "es";
-  const tc: ToolContext = newToolContext(input.ctx, input.tenantId, input.role, input.timezone, now, input.rc);
+  const tc = toolContextOf(input, now);
   const toolsUsed: string[] = [];
   const proposals: AskProposal[] = [];
   let reads = 0;

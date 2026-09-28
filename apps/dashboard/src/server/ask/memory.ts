@@ -13,6 +13,7 @@ import {
   type AskAnswer,
   type AskMessageVM,
   type AskModelId,
+  type AskRowRef,
   type AskScope,
   type AskTurnShape,
 } from "@chanlytics/contracts";
@@ -85,6 +86,21 @@ const toldIn = (rows: AskMessageVM[]): string[] =>
   rows.flatMap((r) =>
     r.proposals.flatMap((p) => (p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, atMs: p.outcome.atMs })] : [])),
   );
+
+/**
+ * The rows the thread's answers cited, where each opened them (the Phase 5 plan, D5): their items' sources and their
+ * citations, the newest answer's last, each row once -- never a page, which needs no read, nor a row that opened
+ * nowhere. The turn's read set starts with them, so a row an earlier answer named is cited and opened without a read;
+ * every row the read holds is a superset of what the model was shown, and it cites a row only by the exact id it saw.
+ */
+function citedIn(rows: AskMessageVM[]): AskRowRef[] {
+  const refs = new Map<string, AskRowRef>();
+  for (const m of rows)
+    for (const s of [...(m.answer?.show.items.map((i) => i.source) ?? []), ...m.citations])
+      if (s.kind !== "page" && s.to)
+        refs.set(`${s.kind}:${s.id}`, { kind: s.kind, id: s.id, route: s.to, label: s.label });
+  return [...refs.values()];
+}
 
 /**
  * The thread's prior turns, folded so no two neighbours share a role, starting with the person: the last HISTORY_TURNS
@@ -168,6 +184,8 @@ export async function threadForTurn(
    * live turn after it tells only what is newer (Chain.since). Null with no history.
    */
   told: string[] | null;
+  /** The rows the thread's answers cited (citedIn): this turn's read set starts with them (D5). */
+  cited: AskRowRef[];
 }> {
   const { tenantId, threadId, text, answering } = asked;
   let { scope } = asked;
@@ -176,12 +194,14 @@ export async function threadForTurn(
   let thread: { id: string; title: string; scope: AskScope | null } | null = null;
   let chain: Chain | null = null;
   let told: string[] | null = null;
+  let cited: AskRowRef[] = [];
   if (threadId) {
     const found = await readThread(ctx, threadId);
     if (found && found.tenantId === tenantId) {
       thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
       history = rebuiltHistory(found.messages, found.turns);
       told = history.length ? toldIn(found.messages) : null;
+      cited = citedIn(found.messages);
       // The thread's previous turn, before this question is appended: how long the person waited to ask again. The
       // read holds the newest rows (readThread), so its last is the previous turn however long the thread is.
       const lastAt = found.messages.at(-1)?.atMs;
@@ -197,7 +217,7 @@ export async function threadForTurn(
     const created = await createThread(ctx, tenantId, title, scope ?? null);
     thread = { id: created.id, title: created.title, scope: scope ?? null };
   }
-  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told };
+  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told, cited };
 }
 
 /**

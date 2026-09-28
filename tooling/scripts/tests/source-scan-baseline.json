@@ -10,7 +10,7 @@
     "repo/legacy-harness.test.mjs"
   ],
   "counts": {
-    "ask/ask.test.mjs": 56,
+    "ask/ask.test.mjs": 55,
     "auth/auth-gate.test.mjs": 5,
     "auth/signup-posture.test.mjs": 5,
     "auth/signup.test.mjs": 9,
