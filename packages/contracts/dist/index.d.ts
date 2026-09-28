@@ -19665,6 +19665,7 @@ type Draft = Omit<ConnectionRow, "group" | "tone" | "body"> & {
 declare function googleAudienceWords(a: GoogleAudience | null | undefined): string | null;
 /** The texting states of a line, in the owner's words. The carriers' vocabulary stays out. */
 declare function smsStateRow(line: LineDto | null, nowMs: number): Draft;
+/** The fold over ROW_BUILDERS: every connection's row, drawn from one set of facts, in the page's order. */
 declare function connectionRows(i: ConnectionInputs, nowMs?: number): ConnectionRow[];
 declare const CONNECTION_GROUP_WORDS: Record<ConnectionGroup, {
     title: string;

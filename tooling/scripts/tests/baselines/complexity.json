@@ -789,11 +789,6 @@
     "branches": 41,
     "depth": 5
   },
-  "packages/channels/src/lines-twilio.ts::twilioProvider#1": {
-    "lines": 261,
-    "branches": 2,
-    "depth": 0
-  },
   "packages/channels/src/whatsapp.ts::normalizeInbound#1": {
     "lines": 100,
     "branches": 51,
@@ -883,11 +878,6 @@
     "lines": 66,
     "branches": 36,
     "depth": 3
-  },
-  "packages/contracts/src/setup/connections.ts::connectionRows#1": {
-    "lines": 394,
-    "branches": 67,
-    "depth": 1
   },
   "packages/contracts/src/setup/first-run-try.ts::firstRunTryOf#1": {
     "lines": 127,
