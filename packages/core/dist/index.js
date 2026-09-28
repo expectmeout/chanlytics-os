@@ -325,28 +325,28 @@ var EntityDecoder = class {
    * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  write(str2, offset) {
+  write(str, offset) {
     switch (this.state) {
       case EntityDecoderState.EntityStart: {
-        if (str2.charCodeAt(offset) === CharCodes.NUM) {
+        if (str.charCodeAt(offset) === CharCodes.NUM) {
           this.state = EntityDecoderState.NumericStart;
           this.consumed += 1;
-          return this.stateNumericStart(str2, offset + 1);
+          return this.stateNumericStart(str, offset + 1);
         }
         this.state = EntityDecoderState.NamedEntity;
-        return this.stateNamedEntity(str2, offset);
+        return this.stateNamedEntity(str, offset);
       }
       case EntityDecoderState.NumericStart: {
-        return this.stateNumericStart(str2, offset);
+        return this.stateNumericStart(str, offset);
       }
       case EntityDecoderState.NumericDecimal: {
-        return this.stateNumericDecimal(str2, offset);
+        return this.stateNumericDecimal(str, offset);
       }
       case EntityDecoderState.NumericHex: {
-        return this.stateNumericHex(str2, offset);
+        return this.stateNumericHex(str, offset);
       }
       case EntityDecoderState.NamedEntity: {
-        return this.stateNamedEntity(str2, offset);
+        return this.stateNamedEntity(str, offset);
       }
     }
   }
@@ -359,22 +359,22 @@ var EntityDecoder = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericStart(str2, offset) {
-    if (offset >= str2.length) {
+  stateNumericStart(str, offset) {
+    if (offset >= str.length) {
       return -1;
     }
-    if ((str2.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+    if ((str.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
       this.state = EntityDecoderState.NumericHex;
       this.consumed += 1;
-      return this.stateNumericHex(str2, offset + 1);
+      return this.stateNumericHex(str, offset + 1);
     }
     this.state = EntityDecoderState.NumericDecimal;
-    return this.stateNumericDecimal(str2, offset);
+    return this.stateNumericDecimal(str, offset);
   }
-  addToNumericResult(str2, start, end, base) {
+  addToNumericResult(str, start, end, base) {
     if (start !== end) {
       const digitCount = end - start;
-      this.result = this.result * Math.pow(base, digitCount) + parseInt(str2.substr(start, digitCount), base);
+      this.result = this.result * Math.pow(base, digitCount) + parseInt(str.substr(start, digitCount), base);
       this.consumed += digitCount;
     }
   }
@@ -387,18 +387,18 @@ var EntityDecoder = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericHex(str2, offset) {
+  stateNumericHex(str, offset) {
     const startIdx = offset;
-    while (offset < str2.length) {
-      const char = str2.charCodeAt(offset);
+    while (offset < str.length) {
+      const char = str.charCodeAt(offset);
       if (isNumber(char) || isHexadecimalCharacter(char)) {
         offset += 1;
       } else {
-        this.addToNumericResult(str2, startIdx, offset, 16);
+        this.addToNumericResult(str, startIdx, offset, 16);
         return this.emitNumericEntity(char, 3);
       }
     }
-    this.addToNumericResult(str2, startIdx, offset, 16);
+    this.addToNumericResult(str, startIdx, offset, 16);
     return -1;
   }
   /**
@@ -410,18 +410,18 @@ var EntityDecoder = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericDecimal(str2, offset) {
+  stateNumericDecimal(str, offset) {
     const startIdx = offset;
-    while (offset < str2.length) {
-      const char = str2.charCodeAt(offset);
+    while (offset < str.length) {
+      const char = str.charCodeAt(offset);
       if (isNumber(char)) {
         offset += 1;
       } else {
-        this.addToNumericResult(str2, startIdx, offset, 10);
+        this.addToNumericResult(str, startIdx, offset, 10);
         return this.emitNumericEntity(char, 2);
       }
     }
-    this.addToNumericResult(str2, startIdx, offset, 10);
+    this.addToNumericResult(str, startIdx, offset, 10);
     return -1;
   }
   /**
@@ -466,12 +466,12 @@ var EntityDecoder = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNamedEntity(str2, offset) {
+  stateNamedEntity(str, offset) {
     const { decodeTree } = this;
     let current = decodeTree[this.treeIndex];
     let valueLength = (current & BinTrieFlags.VALUE_LENGTH) >> 14;
-    for (; offset < str2.length; offset++, this.excess++) {
-      const char = str2.charCodeAt(offset);
+    for (; offset < str.length; offset++, this.excess++) {
+      const char = str.charCodeAt(offset);
       this.treeIndex = determineBranch(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
       if (this.treeIndex < 0) {
         return this.result === 0 || // If we are parsing an attribute
@@ -556,15 +556,15 @@ var EntityDecoder = class {
 };
 function getDecoder(decodeTree) {
   let ret = "";
-  const decoder = new EntityDecoder(decodeTree, (str2) => ret += fromCodePoint(str2));
-  return function decodeWithTrie(str2, decodeMode) {
+  const decoder = new EntityDecoder(decodeTree, (str) => ret += fromCodePoint(str));
+  return function decodeWithTrie(str, decodeMode) {
     let lastIndex = 0;
     let offset = 0;
-    while ((offset = str2.indexOf("&", offset)) >= 0) {
-      ret += str2.slice(lastIndex, offset);
+    while ((offset = str.indexOf("&", offset)) >= 0) {
+      ret += str.slice(lastIndex, offset);
       decoder.startEntity(decodeMode);
       const len = decoder.write(
-        str2,
+        str,
         // Skip the "&"
         offset + 1
       );
@@ -575,7 +575,7 @@ function getDecoder(decodeTree) {
       lastIndex = offset + len;
       offset = len === 0 ? lastIndex + 1 : lastIndex;
     }
-    const result = ret + str2.slice(lastIndex);
+    const result = ret + str.slice(lastIndex);
     ret = "";
     return result;
   };
@@ -707,7 +707,7 @@ var xmlCodeMap = /* @__PURE__ */ new Map([
 ]);
 var getCodePoint = (
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  String.prototype.codePointAt != null ? (str2, index) => str2.codePointAt(index) : (
+  String.prototype.codePointAt != null ? (str, index) => str.codePointAt(index) : (
     // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
     (c, index) => (c.charCodeAt(index) & 64512) === 55296 ? (c.charCodeAt(index) - 55296) * 1024 + c.charCodeAt(index + 1) - 56320 + 65536 : c.charCodeAt(index)
   )
@@ -2367,7 +2367,7 @@ var ASK_ANSWER_CAPS = {
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -3066,6 +3066,8 @@ var CHECKOUT_OUTCOME_WORDS = {
 };
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var HAND_KINDS = ["call", "note"];
+var HAND_WORDS_MAX = 280;
 var REACH_OUT_SUBJECT_MAX = 80;
 var REACH_OUT_BODY_MAX = 1200;
 var OPENING_WORDS_MAX = 40;
@@ -3081,7 +3083,9 @@ var ReachOutStepSchema = z14.object({
   id: z14.string().uuid().nullable().optional(),
   subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
   body: z14.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z14.object({ kind: z14.enum(HAND_KINDS), words: z14.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
 var ReachOutChainSchema = z14.object({
   name: z14.string().trim().min(1).max(REACH_OUT_NAME_MAX),
@@ -3478,6 +3482,9 @@ var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -3849,7 +3856,6 @@ var SMS_OPTED_OUT_CODE = 21610;
 function smsRefusalOf(r22) {
   return !r22.ok && r22.code === SMS_OPTED_OUT_CODE ? "opted_out" : null;
 }
-var enc = new TextEncoder();
 var oneLine = (s) => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
 function addressOf(header) {
   const s = oneLine(header ?? "");
@@ -3983,7 +3989,6 @@ var RESEND_RECEIVED = `${RESEND_API}/emails/receiving`;
 var RESEND_DOMAINS = `${RESEND_API}/domains`;
 var FRESH_SLACK_MS = 2 * DAY_MS;
 var STATE_TTL_MS = 10 * MIN_MS;
-var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 var PAYLOAD_BYTES = 1 + 16 * 3;
 var APIFY_RUN_END_EVENTS = [
@@ -4814,6 +4819,14 @@ function usPhone(raw) {
   const ten = e164.slice(2);
   if (/^(\d)\1{9}$/.test(ten) || ten === "1234567890") return null;
   return e164;
+}
+function isSiteRoot(url) {
+  try {
+    const w = (url ?? "").trim();
+    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
+  } catch {
+    return false;
+  }
 }
 function siteHost(url) {
   if (!url) return null;
@@ -6155,7 +6168,7 @@ var ASK_ANSWER_CAPS2 = {
 var ROW_KINDS2 = ASK_CITATION_KINDS2.filter((k) => k !== "page");
 var SOURCE2 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS2, "none"] },
     id: { type: "string" },
@@ -6564,8 +6577,8 @@ function templateTitle(name, title) {
   if (given) return given.slice(0, TEMPLATE_TITLE_MAX);
   const s = starterByName(name);
   if (s) return s.title;
-  const words4 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
-  return words4 ? words4[0].toUpperCase() + words4.slice(1) : String(name ?? "");
+  const words32 = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  return words32 ? words32[0].toUpperCase() + words32.slice(1) : String(name ?? "");
 }
 function playbookName(trigger, tpl) {
   return starterForTrigger(trigger.id)?.name === tpl.name ? trigger.label : `${trigger.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`;
@@ -7369,8 +7382,29 @@ function composeSystemPrompt(base, profile, channel = "whatsapp", tz, now = /* @
   return composeSystemPromptWith(base, profile, channel, tz, now, policy);
 }
 function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
-  const s = [];
   const link = offersBookingLink(base) ? base.booking_link : null;
+  const hrs = hoursLines(profile.hours);
+  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  const facts = { base, profile, channel, tz, policy, link, hrs, closed };
+  return PROMPT_SECTIONS.flatMap((section) => section(facts)).join("\n");
+}
+var PROMPT_SECTIONS = [
+  identitySection,
+  contactSection,
+  hoursSection,
+  closuresSection,
+  servicesSection,
+  notesSection,
+  bookingRulesSection,
+  handoffSection,
+  callToolsSection,
+  ownWordsSection,
+  mediumSection,
+  openTimesSection,
+  rulesSection
+];
+function identitySection({ base, profile, channel }) {
+  const s = [];
   const medium = channel === "voice" ? "on the phone" : "over WhatsApp";
   s.push(`You are the assistant for ${base.business_name}, answering customers ${medium}.`);
   if (profile.tone) s.push(`Tone: ${profile.tone}`);
@@ -7381,19 +7415,29 @@ function composeSystemPromptWith(base, profile, channel, tz, now, policy) {
       (channel === "voice" ? " Answer in whichever of these the caller uses, and switch if they do." : "")
     );
   }
+  return s;
+}
+function contactSection({ base, profile, link }) {
+  const s = [];
   if (profile.address) s.push(`
 Address: ${profile.address}`);
   if (base.phone_display) s.push(`Phone: ${base.phone_display}`);
   if (link) s.push(`Booking link: ${link}`);
   if (profile.website) s.push(`Website: ${profile.website}`);
-  const hrs = hoursLines(profile.hours);
+  return s;
+}
+function hoursSection({ tz, hrs }) {
+  const s = [];
   if (hrs.length) {
     const where = tz ? ` (all times ${tz})` : "";
     s.push(`
 ${PROMPT_OPENINGS.hours}${where}:
 ${hrs.map((l) => `- ${l}`).join("\n")}`);
   }
-  const closed = closureLines(upcomingClosures(profile.closures, tz, now));
+  return s;
+}
+function closuresSection({ closed }) {
+  const s = [];
   if (closed.length) {
     s.push(
       `
@@ -7404,6 +7448,10 @@ ${closed.map((l) => `- ${l}`).join(
 If someone asks about one of these dates, say the business is closed that day and offer the next day it is open.`
     );
   }
+  return s;
+}
+function servicesSection({ profile }) {
+  const s = [];
   if (profile.services?.length) {
     const lines = profile.services.map((sv) => {
       const bits2 = [sv.name];
@@ -7415,34 +7463,50 @@ If someone asks about one of these dates, say the business is closed that day an
 ${PROMPT_OPENINGS.services}
 ${lines.join("\n")}`);
   }
+  return s;
+}
+function notesSection({ profile }) {
+  const s = [];
   if (profile.notes?.length) {
     s.push(`
 ${PROMPT_OPENINGS.notes}
 ${profile.notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`);
   }
+  return s;
+}
+function bookingRulesSection({ profile }) {
+  const s = [];
   const br = profile.booking_rules;
   if (br && (br.lead_hours !== void 0 || br.consult_first?.length || br.party_max || br.notes?.length || br.ask_email)) {
-    const lines = [];
-    if (br.lead_hours !== void 0) {
-      lines.push(
-        br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
-      );
-    }
-    if (br.consult_first?.length)
-      lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
-    if (br.party_max)
-      lines.push(
-        `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
-      );
-    if (br.ask_email)
-      lines.push(
-        "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
-      );
-    for (const n of br.notes ?? []) lines.push(n);
+    const lines = bookingRuleLines(br);
     s.push(`
 ${PROMPT_OPENINGS.bookingRules}
 ${lines.map((l) => `- ${l}`).join("\n")}`);
   }
+  return s;
+}
+function bookingRuleLines(br) {
+  const lines = [];
+  if (br.lead_hours !== void 0) {
+    lines.push(
+      br.lead_hours === 0 ? "Same-day bookings are fine, right up to the time." : `At least ${br.lead_hours} hour${br.lead_hours === 1 ? "" : "s"}' notice for any appointment.`
+    );
+  }
+  if (br.consult_first?.length)
+    lines.push(`These need a consultation before they can be booked: ${br.consult_first.join(", ")}.`);
+  if (br.party_max)
+    lines.push(
+      `Up to ${br.party_max} ${br.party_max === 1 ? "person" : "people"} per booking; larger groups go to a person.`
+    );
+  if (br.ask_email)
+    lines.push(
+      "When you send the booking link and no email address is on file for them, ask once for the best email for their booking confirmation, then move on. Never insist; thank them if they give one."
+    );
+  for (const n of br.notes ?? []) lines.push(n);
+  return lines;
+}
+function handoffSection({ profile, channel }) {
+  const s = [];
   if (channel === "whatsapp") {
     const when = profile.escalate_when?.length ? `
 ${profile.escalate_when.map((e) => `- ${e}`).join("\n")}` : "";
@@ -7462,6 +7526,12 @@ ${PROMPT_OPENINGS.handoffCall}
 ${staffed}
 Do this whenever the caller asks for a person, is upset, or asks something these instructions do not cover${when ? ", and whenever:" : "."}${when}`
     );
+  }
+  return s;
+}
+function callToolsSection({ channel, link }) {
+  const s = [];
+  if (channel !== "whatsapp") {
     s.push(
       `
 ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar as it is at that moment (a list at the end of these instructions, if any, is from the start of the call). Ask which service first when you can, so only windows long enough are offered.
@@ -7469,6 +7539,10 @@ ${PROMPT_OPENINGS.callTools} before offering a time \u2014 it reads the calendar
 `) + "Ending: once the caller has said goodbye, use end_call."
     );
   }
+  return s;
+}
+function ownWordsSection({ profile, channel, hrs, closed }) {
+  const s = [];
   if (profile.extra_instructions?.trim()) {
     const above = [
       profile.address ? "address" : "",
@@ -7487,6 +7561,10 @@ ${header}
 ${text}` : `
 ${text}`);
   }
+  return s;
+}
+function mediumSection({ channel, link }) {
+  const s = [];
   const callMedium = link ? "Keep answers to one or two sentences, never read a URL out character by character, and offer to send the booking link to the caller's WhatsApp instead." : "Keep answers to one or two sentences, and never read a URL out character by character.";
   const chatMedium = link ? "Send the booking link rather than describing how to book." : noLinkBooking("whatsapp");
   s.push(
@@ -7494,10 +7572,18 @@ ${text}`);
 ${PROMPT_OPENINGS.callMedium} ${callMedium}` : `
 ${PROMPT_OPENINGS.chatMedium} ${chatMedium}`
   );
+  return s;
+}
+function openTimesSection({ link }) {
+  const s = [];
   s.push(
     `
 ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants, ` + (link ? "then send the booking link \u2014 the calendar decides, never you. If none are listed, do not guess at open times; send the link." : `then take ${NO_LINK_DETAILS} so the team can confirm one \u2014 the calendar decides, never you. If none are listed, do not guess at open times.`)
   );
+  return s;
+}
+function rulesSection({ profile, channel, policy, link }) {
+  const s = [];
   const g = guardrailsInForce(profile.guardrails);
   const rules = [];
   if (g.never_quote_prices) {
@@ -7527,7 +7613,7 @@ ${PROMPT_OPENINGS.openTimes}, offer up to three that fit what the customer wants
   if (rules.length) s.push(`
 ${PROMPT_OPENINGS.rules}
 ${rules.map((r22) => `- ${r22}`).join("\n")}`);
-  return s.join("\n");
+  return s;
 }
 function hasProfile(p) {
   if (!p) return false;
@@ -7639,6 +7725,12 @@ function clipAtWord(text, max) {
   const space = cut.lastIndexOf(" ");
   return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
 }
+var HAND_KINDS2 = ["call", "note"];
+var HAND_WORDS_MAX2 = 280;
+function handStepWords(kind, business, words32) {
+  const who = business.trim() || "This business";
+  return kind === "call" ? `Call ${who}: ${words32.trim()}` : `${who}: ${words32.trim()}`;
+}
 var REACH_OUT_SUBJECT_MAX2 = 80;
 var REACH_OUT_BODY_MAX2 = 1200;
 var OPENING_WORDS_MAX2 = 40;
@@ -7657,7 +7749,9 @@ var ReachOutStepSchema2 = z142.object({
   id: z142.string().uuid().nullable().optional(),
   subject: z142.string().max(REACH_OUT_SUBJECT_MAX2 * 2).nullable(),
   body: z142.string().max(REACH_OUT_BODY_MAX2 * 2),
-  after_days: z142.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable()
+  after_days: z142.number().int().min(REACH_OUT_AFTER_DAYS2.min).max(REACH_OUT_AFTER_DAYS2.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z142.object({ kind: z142.enum(HAND_KINDS2), words: z142.string().max(HAND_WORDS_MAX2 * 2) }).nullable().optional()
 });
 var ReachOutChainSchema2 = z142.object({
   name: z142.string().trim().min(1).max(REACH_OUT_NAME_MAX2),
@@ -7787,11 +7881,11 @@ var NUMBER_IN_TEXT = /\+?\(?\d[\d\s().-]{5,}\d/g;
 var numberRun = (run) => run.replace(/\D/g, "").length >= 7 && !/^\d{4}-\d{2}-\d{2}$/.test(run.trim());
 function firstWords(text, n) {
   const kept = [];
-  let words4 = 0;
+  let words32 = 0;
   for (const token2 of text.split(" ")) {
     const isWord = wordCount(token2) > 0;
-    if (isWord && words4 === n) break;
-    if (isWord) words4++;
+    if (isWord && words32 === n) break;
+    if (isWord) words32++;
     kept.push(token2);
   }
   return kept.join(" ");
@@ -7806,8 +7900,8 @@ var REFERRAL_SUMMARY = "They say to write to someone else.";
 var NOT_A_NAME = /* @__PURE__ */ new Set(["the", "a", "an", "our", "their", "my", "your", "please"]);
 var referralNames = (referTo) => [...referTo.replace(ADDRESS_IN_TEXT, " ").matchAll(/\p{Lu}\p{L}+/gu)].map((m) => m[0].toLowerCase()).filter((w) => !NOT_A_NAME.has(w));
 var saysAny = (summary, names2) => {
-  const words4 = new Set(summary.toLowerCase().split(/\P{L}+/u));
-  return names2.some((n) => words4.has(n));
+  const words32 = new Set(summary.toLowerCase().split(/\P{L}+/u));
+  return names2.some((n) => words32.has(n));
 };
 var intentOf = (v) => {
   if (typeof v !== "string") return null;
@@ -7881,20 +7975,12 @@ function rereadAt(unread2, done, receivedAt, now) {
   const at2 = (unread2 === "model_failed" || unread2 === "no_model") && done === 0 ? now + HOUR_MS2 : nextDay;
   return at2 > receivedAt + REPLY_REREAD_DAYS * DAY_MS2 ? null : at2;
 }
-function ownedDomainOf(address, website) {
+function ownedDomainOf(address, website, root = null) {
   const a = normalizeEmail(address);
   const host = siteHost(website);
-  if (!a || !host || !isSiteRoot(website)) return null;
+  if (!a || !host || root === false || !isSiteRoot(website)) return null;
   const domain = a.slice(a.lastIndexOf("@") + 1);
   return domain === host ? domain : null;
-}
-function isSiteRoot(website) {
-  try {
-    const w = (website ?? "").trim();
-    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
-  } catch {
-    return false;
-  }
 }
 var NO_EFFECT = {
   stops: false,
@@ -7916,15 +8002,15 @@ function otherWriter(leadAddress, replyFrom) {
 }
 function replyStepWords(reading, p) {
   const b = p.business.trim() || "The business";
-  let words4;
+  let words32;
   if (reading.intent === "not_now")
-    words4 = `Write to ${b} again: they said not now${reading.summary ? ` ("${reading.summary}")` : ""}.`;
+    words32 = `Write to ${b} again: they said not now${reading.summary ? ` ("${reading.summary}")` : ""}.`;
   else if (reading.intent === "wrong_person") {
     const who = reading.referTo ?? "someone else";
-    words4 = p.automatic ? `${b}'s automatic reply says to write to ${who}.` : `${b} said to write to ${who} instead.`;
-  } else if (reading.intent === "away") words4 = `${b} is back today: write to them.`;
+    words32 = p.automatic ? `${b}'s automatic reply says to write to ${who}.` : `${b} said to write to ${who} instead.`;
+  } else if (reading.intent === "away") words32 = `${b} is back today: write to them.`;
   else return null;
-  return withinChars(p.writer ? `${words4} (${p.writer} wrote it.)` : words4, STEP_WORDS_MAX);
+  return withinChars(p.writer ? `${words32} (${p.writer} wrote it.)` : words32, STEP_WORDS_MAX);
 }
 function automaticPlan(r22, c, today) {
   if (r22.intent === "away")
@@ -7968,7 +8054,7 @@ function readingPlan(reading, c) {
         ...stopped,
         saidNo: true,
         suppressFrom: writer,
-        suppressDomain: ownedDomainOf(c.leadAddress, c.leadWebsite) ?? ownedDomainOf(c.replyFrom, c.leadWebsite)
+        suppressDomain: ownedDomainOf(c.leadAddress, c.leadWebsite, c.leadWebsiteRoot) ?? ownedDomainOf(c.replyFrom, c.leadWebsite, c.leadWebsiteRoot)
       };
     case "wrong_person": {
       const readDay = zoneDayKey(c.readAt, c.tz);
@@ -8791,8 +8877,8 @@ function rangeOf(s) {
   const to = to0 === 0 ? 24 * 60 : to0 <= from ? to0 + 24 * 60 : to0;
   return { from, to };
 }
-function dayOf(words4) {
-  const w = words4.replace(/\([^)]*\)/g, "").trim().toLowerCase();
+function dayOf(words32) {
+  const w = words32.replace(/\([^)]*\)/g, "").trim().toLowerCase();
   if (w === "closed") return [];
   if (w === "open 24 hours" || w === "24 hours") return [{ from: 0, to: 24 * 60 }];
   const ranges = w.split(/\s*,\s*/).map(rangeOf);
@@ -8957,6 +9043,9 @@ var REACH_OUT_REFUSALS2 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -9050,6 +9139,12 @@ var DEFAULT_STATUS = {
   upstream_auth: 503,
   internal: 500
 };
+var finiteOrNull = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+var trimmedOrNull = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+var recordOrNull = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
+var encoder = null;
+var utf8Bytes = (s) => (encoder ??= new TextEncoder()).encode(s);
+var hexOf = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
@@ -10730,7 +10825,7 @@ var ASK_ANSWER_CAPS3 = {
 var ROW_KINDS3 = ASK_CITATION_KINDS3.filter((k) => k !== "page");
 var SOURCE3 = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS3, "none"] },
     id: { type: "string" },
@@ -11429,6 +11524,8 @@ var CHECKOUT_OUTCOME_WORDS3 = {
 };
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
+var HAND_KINDS3 = ["call", "note"];
+var HAND_WORDS_MAX3 = 280;
 var REACH_OUT_SUBJECT_MAX3 = 80;
 var REACH_OUT_BODY_MAX3 = 1200;
 var OPENING_WORDS_MAX3 = 40;
@@ -11444,7 +11541,9 @@ var ReachOutStepSchema3 = z143.object({
   id: z143.string().uuid().nullable().optional(),
   subject: z143.string().max(REACH_OUT_SUBJECT_MAX3 * 2).nullable(),
   body: z143.string().max(REACH_OUT_BODY_MAX3 * 2),
-  after_days: z143.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable()
+  after_days: z143.number().int().min(REACH_OUT_AFTER_DAYS3.min).max(REACH_OUT_AFTER_DAYS3.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z143.object({ kind: z143.enum(HAND_KINDS3), words: z143.string().max(HAND_WORDS_MAX3 * 2) }).nullable().optional()
 });
 var ReachOutChainSchema3 = z143.object({
   name: z143.string().trim().min(1).max(REACH_OUT_NAME_MAX3),
@@ -11833,6 +11932,9 @@ var REACH_OUT_REFUSALS3 = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -12525,13 +12627,13 @@ function whatsappSender(cfg) {
     return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
   };
 }
-function emailSender(routes) {
+function emailSender(routes, held = []) {
   if (routes.length === 0) return null;
   const refuse = (errorBody) => Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
   return async (to, p) => {
     if (!p.email) return refuse("no_frozen_request");
     if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
-    const own = p.reply && p.ownEmail && p.purpose !== "outreach" ? ownRouteOf(routes, to, p.ownEmail) : null;
+    const own = p.reply && p.ownEmail && p.purpose !== "outreach" ? ownRouteOf(routes, held, to, p.ownEmail) : null;
     if (own && "route" in own) return { ...await sendEmail(own.route.cfg, p.ownEmail), leftAs: "own" };
     const from = addressOf(p.email.from)?.address;
     const lane = p.purpose === "outreach" ? "own" : "hosted";
@@ -12541,13 +12643,14 @@ function emailSender(routes) {
     return own ? { ...sent, leftAs: "mailbox", leftAsWhy: own.why } : sent;
   };
 }
-function ownRouteOf(routes, to, twin) {
+function ownRouteOf(routes, held, to, twin) {
   const owns = routes.filter((r4) => r4.lane === "own");
-  if (owns.length === 0) return { why: "no_own_route" };
-  if (twin.to.length !== 1 || twin.to[0] !== to) return { why: "twin_names_another_recipient" };
   const from = addressOf(twin.from)?.address;
+  const isHeld = from !== void 0 && held.includes(from);
+  if (owns.length === 0) return { why: isHeld ? "domain_held" : "no_own_route" };
+  if (twin.to.length !== 1 || twin.to[0] !== to) return { why: "twin_names_another_recipient" };
   const route = owns.find((r4) => r4.as.address === from);
-  if (!route) return { why: "domain_has_no_route" };
+  if (!route) return { why: isHeld ? "domain_held" : "domain_has_no_route" };
   return requestLeavesAs(twin, route.as) ? { route } : { why: "route_refuses_twin" };
 }
 
@@ -13114,6 +13217,7 @@ async function readReply(ports, cmd) {
       business: facts.business,
       leadAddress: facts.leadAddress,
       leadWebsite: facts.leadWebsite,
+      leadWebsiteRoot: facts.leadWebsiteRoot ?? null,
       replyFrom: facts.from,
       reread: n > 0,
       readAt: now
@@ -13843,10 +13947,8 @@ async function checkPlaybook(ports, body) {
 }
 
 // src/uuid-v5.ts
-var enc3 = new TextEncoder();
-var hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 async function uuidV5(name) {
-  const h = hex(await crypto.subtle.digest("SHA-1", enc3.encode(name)));
+  const h = hexOf(await crypto.subtle.digest("SHA-1", utf8Bytes(name)));
   const v = `${h.slice(0, 12)}5${h.slice(13, 16)}${(parseInt(h.slice(16, 17), 16) & 3 | 8).toString(16)}${h.slice(17, 32)}`;
   return `${v.slice(0, 8)}-${v.slice(8, 12)}-${v.slice(12, 16)}-${v.slice(16, 20)}-${v.slice(20, 32)}`;
 }
@@ -13855,6 +13957,7 @@ async function uuidV5(name) {
 var reachOutRunIdFor = (stepId, runFor) => uuidV5(`reach_out_run:${stepId}:${runFor}`);
 var sendIdFor = (runId, leadId) => uuidV5(`reach_out_send:${runId}:${leadId}`);
 var sendMessageId = (sendId, attempt) => uuidV5(`reach_out_email:${sendId}:${attempt}`);
+var handStepIdFor = (stepId, leadId) => uuidV5(`reach_out_hand:${stepId}:${leadId}`);
 
 // src/campaigns/run-reach-out.ts
 var neverOpen = (week) => Object.values(sendWindowsOf(week)).every((w) => w.length === 0);
@@ -13956,6 +14059,32 @@ async function runReachOut(ports, step, cmd) {
     return { outcome: "held", reason: "waiting_for_you", planned: plan.placed.length };
   }
   return { outcome: "sent", planned: plan.placed.length };
+}
+
+// src/campaigns/run-hand-step.ts
+var doorRefuses = (f) => outreachRefusalOf({
+  leadStage: f.facts.lead_stage,
+  suppressed: f.facts.suppressed,
+  wroteBack: f.facts.wrote_back,
+  away: f.facts.away === true
+}) !== null;
+async function runHandStep(ports, step, cmd) {
+  if (step.state !== "running") return { outcome: "off", reason: "paused", planned: 0 };
+  const leads = (await ports.followers(step)).filter((f) => !doorRefuses(f)).slice(0, step.cap_per_run);
+  if (leads.length === 0) return { outcome: "empty", reason: "nobody", planned: 0 };
+  const names = await ports.businessNames(leads.map((l) => l.lead_id));
+  const runId = await reachOutRunIdFor(step.id, cmd.runFor);
+  const items = await Promise.all(
+    leads.map(async (l) => ({
+      send_id: await sendIdFor(runId, l.lead_id),
+      lead_id: l.lead_id,
+      contact_id: l.contact_id,
+      words: handStepWords(step.hand.kind, names.get(l.lead_id) ?? "", step.hand.words),
+      source_id: await handStepIdFor(step.id, l.lead_id)
+    }))
+  );
+  const r4 = await ports.handRun({ stepId: step.id, runId, day: cmd.runFor, items });
+  return r4.made > 0 ? { outcome: "sent", planned: r4.made } : { outcome: "empty", reason: "already_ran", planned: 0 };
 }
 
 // src/leads/zcta-centroids.json
@@ -47208,10 +47337,7 @@ var CHECKER_FIELDS = ["email", "status", "is_catch_all"];
 var MAPS_CAP_FLOOR_USD = 0.5;
 var MAPS_RUN_TIMEOUT_SECS = 45 * 60;
 var CHECKER_RUN_TIMEOUT_SECS = 15 * 60;
-var obj = (v) => v && typeof v === "object" && !Array.isArray(v) ? v : null;
-var str = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
-var num = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
-var strs = (v) => Array.isArray(v) ? v.map(str).filter((s) => !!s) : [];
+var strs = (v) => Array.isArray(v) ? v.map(trimmedOrNull).filter((s) => !!s) : [];
 function areaCenter(plan) {
   if (plan.area.center) return plan.area.center;
   if (plan.area.kind === "zip" && plan.area.zip) return zctaCenter(plan.area.zip);
@@ -47243,40 +47369,43 @@ var CARDS = {
       };
     },
     mapItem(item) {
-      const o = obj(item);
-      const title = str(o?.title);
-      const placeId = str(o?.placeId);
+      const o = recordOrNull(item);
+      const title = trimmedOrNull(o?.title);
+      const placeId = trimmedOrNull(o?.placeId);
       if (!o || !title || !placeId) return null;
-      const loc = obj(o.location);
-      const lat = num(loc?.lat);
-      const lng = num(loc?.lng);
+      const loc = recordOrNull(o.location);
+      const lat = finiteOrNull(loc?.lat);
+      const lng = finiteOrNull(loc?.lng);
       return {
         placeId,
         title: title.slice(0, 120),
-        category: str(o.categoryName),
-        neighborhood: str(o.neighborhood),
-        street: str(o.street),
-        city: str(o.city),
-        state: str(o.state),
-        postalCode: str(o.postalCode),
-        countryCode: str(o.countryCode),
-        phoneRaw: str(o.phoneUnformatted) ?? str(o.phone),
+        category: trimmedOrNull(o.categoryName),
+        neighborhood: trimmedOrNull(o.neighborhood),
+        street: trimmedOrNull(o.street),
+        city: trimmedOrNull(o.city),
+        state: trimmedOrNull(o.state),
+        postalCode: trimmedOrNull(o.postalCode),
+        countryCode: trimmedOrNull(o.countryCode),
+        phoneRaw: trimmedOrNull(o.phoneUnformatted) ?? trimmedOrNull(o.phone),
         sitePhones: strs(o.phones),
-        website: str(o.website),
+        website: trimmedOrNull(o.website),
         emails: strs(o.emails),
         // Only the first: the business's own account; later ones can be staff members' (Appendix B).
         instagram: strs(o.instagrams)[0] ?? null,
-        rating: num(o.totalScore),
-        reviews: num(o.reviewsCount),
+        rating: finiteOrNull(o.totalScore),
+        reviews: finiteOrNull(o.reviewsCount),
         closed: o.permanentlyClosed === true || o.temporarilyClosed === true,
         location: lat !== null && lng !== null ? { lat, lng } : null,
-        about: (str(o.description) ?? str(o.ownerDescription))?.replace(/[\p{Cc}\p{Cf}]/gu, "").slice(0, 600) ?? null,
-        hours: (Array.isArray(o.openingHours) ? o.openingHours : []).map((h) => ({ day: str(obj(h)?.day) ?? "", hours: str(obj(h)?.hours) ?? "" })).filter((h) => h.day && h.hours).slice(0, 7),
-        imageUrl: str(o.imageUrl),
+        about: (trimmedOrNull(o.description) ?? trimmedOrNull(o.ownerDescription))?.replace(/[\p{Cc}\p{Cf}]/gu, "").slice(0, 600) ?? null,
+        hours: (Array.isArray(o.openingHours) ? o.openingHours : []).map((h) => ({
+          day: trimmedOrNull(recordOrNull(h)?.day) ?? "",
+          hours: trimmedOrNull(recordOrNull(h)?.hours) ?? ""
+        })).filter((h) => h.day && h.hours).slice(0, 7),
+        imageUrl: trimmedOrNull(o.imageUrl),
         reviewsDist: (() => {
-          const d = obj(o.reviewsDistribution);
+          const d = recordOrNull(o.reviewsDistribution);
           if (!d) return null;
-          const n = (k) => num(d[k]) ?? 0;
+          const n = (k) => finiteOrNull(d[k]) ?? 0;
           return {
             one: n("oneStar"),
             two: n("twoStar"),
@@ -47285,13 +47414,13 @@ var CARDS = {
             five: n("fiveStar")
           };
         })(),
-        price: str(o.price)?.slice(0, 8) ?? null,
+        price: trimmedOrNull(o.price)?.slice(0, 8) ?? null,
         facebook: strs(o.facebooks)[0] ?? null,
         linkedin: strs(o.linkedIns)[0] ?? null,
         tiktok: strs(o.tiktoks)[0] ?? null,
         claimed: o.claimThisBusiness === true ? false : o.claimThisBusiness === false ? true : null,
-        rank: num(o.rank),
-        mapsUrl: str(o.url)
+        rank: finiteOrNull(o.rank),
+        mapsUrl: trimmedOrNull(o.url)
       };
     },
     checker: {
@@ -47302,10 +47431,10 @@ var CARDS = {
         return { emails, skipInvalidSyntax: true };
       },
       mapItem(item) {
-        const o = obj(item);
-        const email = str(o?.email)?.toLowerCase() ?? null;
+        const o = recordOrNull(item);
+        const email = trimmedOrNull(o?.email)?.toLowerCase() ?? null;
         if (!o || !email) return null;
-        const status = (str(o.status) ?? "").toLowerCase();
+        const status = (trimmedOrNull(o.status) ?? "").toLowerCase();
         const state = o.is_catch_all === true || status === "risky" ? "catch_all" : status === "valid" ? "ok" : status === "invalid" ? "invalid" : "unknown";
         return { email, state };
       }
@@ -47324,6 +47453,7 @@ function cleanPlace(raw) {
     phone,
     phoneSources: phone ? onSite ? 2 : 1 : 0,
     host,
+    root: host ? isSiteRoot(raw.website) : null,
     region: stateCode(raw.state),
     emails: kept.slice(0, 10),
     dropped
@@ -47403,10 +47533,8 @@ function identityOf(p, held, suppressedPlaceIds, shares) {
 }
 
 // src/leads/ids.ts
-var enc4 = new TextEncoder();
-var hex2 = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 async function sha256Hex2(s) {
-  return hex2(await crypto.subtle.digest("SHA-256", enc4.encode(s)));
+  return hexOf(await crypto.subtle.digest("SHA-256", utf8Bytes(s)));
 }
 async function runIdFor(roundId, phase, term) {
   return uuidV5(`lead_run:${roundId}:${phase}:${term}`);
@@ -47900,6 +48028,7 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
       lat: loc?.lat ?? null,
       lng: loc?.lng ?? null,
       website_host: c.host,
+      website_root: c.root,
       instagram_url: c.raw.instagram,
       phone_e164: c.phone,
       phone_sources: c.phoneSources,
@@ -47925,8 +48054,7 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
       claimed: excluded ? null : c.raw.claimed,
       maps_url: excluded ? null : c.raw.mapsUrl,
       rank: excluded ? null : c.raw.rank,
-      // The business's own mark (D6): read from its home page after the judge has decided, by markPlaces below,
-      // with the copy of it we keep (00161).
+      // The business's own mark (D6) and the copy we keep (00161): read from its home page by markPlaces, below.
       logo_url: null,
       mark_path: null
     },
@@ -48757,11 +48885,12 @@ function noModelPlan(fallbacks) {
   };
 }
 
-// src/inbound/answer.ts
+// src/inbound/context.ts
 function errField(e) {
   return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
 }
-async function answerInbound(input, ports) {
+var GO = /* @__PURE__ */ Symbol("go on");
+async function openInbound(input, ports) {
   const { message: n, raw, tenantId, routed, isEnvDefault, carrier } = input;
   const from = raw.from;
   const channel = carrier?.channel ?? "whatsapp";
@@ -48773,8 +48902,6 @@ async function answerInbound(input, ports) {
     runtimeUsable: !!rt && !rt.loadFailed,
     policyMode: rt?.policy["reply"]?.mode
   });
-  let replyMode = posture.replyMode;
-  let personMode = null;
   const brainCfg = rt?.brain ?? null;
   const fallbacks = brainCfg ? fallbackMessages(brainCfg, rt?.known) : null;
   const notif = rt?.notifications ?? null;
@@ -48783,26 +48910,55 @@ async function answerInbound(input, ports) {
   const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
   const pauseMs = replyLimits.pause_hours ? replyLimits.pause_hours * 3600 * 1e3 : PAUSE_MS;
   const pauseHours = Math.round(pauseMs / 36e5);
-  const recordOrSay = async () => {
-    try {
-      return await ports.persist.ingest(db, tenantId, n, channel);
-    } catch (e) {
-      if (e instanceof IngestFailed) {
-        try {
-          await ports.alertStaff(
-            from,
-            n.body ?? `[${raw.type} message]`,
-            "(NOT recorded: the database did not accept the message; the provider will retry)",
-            "message not recorded",
-            { target: notifyTarget, channel, who: n.profileName ?? null }
-          );
-        } catch (alertErr) {
-          L4.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
-        }
-      }
-      throw e;
-    }
+  return {
+    ports,
+    n,
+    raw,
+    tenantId,
+    isEnvDefault,
+    carrier,
+    from,
+    channel,
+    db,
+    t0,
+    L: L4,
+    rt,
+    posture,
+    brainCfg,
+    fallbacks,
+    notifyTarget,
+    replyLimits,
+    maxRepliesDay,
+    pauseMs,
+    pauseHours
   };
+}
+
+// src/inbound/ingest.ts
+async function ingestOrSay(cx) {
+  const { ports, db, tenantId, n, channel, from, raw, notifyTarget, L: L4 } = cx;
+  try {
+    return await ports.persist.ingest(db, tenantId, n, channel);
+  } catch (e) {
+    if (e instanceof IngestFailed) {
+      try {
+        await ports.alertStaff(
+          from,
+          n.body ?? `[${raw.type} message]`,
+          "(NOT recorded: the database did not accept the message; the provider will retry)",
+          "message not recorded",
+          { target: notifyTarget, channel, who: n.profileName ?? null }
+        );
+      } catch (alertErr) {
+        L4.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
+      }
+    }
+    throw e;
+  }
+}
+async function ingestMessage(cx) {
+  const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L: L4, rt, notifyTarget } = cx;
+  const recordOrSay = () => ingestOrSay(cx);
   if (shortCode(from)) {
     const ing2 = await recordOrSay();
     const sink2 = ports.persist.sink(db, tenantId, ing2, rt, channel);
@@ -48847,6 +49003,14 @@ async function answerInbound(input, ports) {
     L4.info("wa_skip_pg_dupe");
     return;
   }
+  return { ing, thread, ingestMs, sink, wire, send, tell };
+}
+
+// src/inbound/gates.ts
+async function modeInForce(cx, ing) {
+  const { db, tenantId, ports, posture, L: L4 } = cx;
+  let replyMode = posture.replyMode;
+  let personMode = null;
   if (db && tenantId && ing?.contact_id) {
     try {
       personMode = await ports.leads.personReplyMode(db, tenantId, ing.contact_id);
@@ -48855,6 +49019,10 @@ async function answerInbound(input, ports) {
       L4.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
     }
   }
+  return { replyMode, personMode };
+}
+async function firstGates(at) {
+  const { thread, L: L4, sink, tell, n, raw, ing, carrier } = at;
   if (isThreadUnknown(thread)) {
     L4.error("wa_state_unavailable");
     await Promise.all([
@@ -48927,6 +49095,12 @@ async function answerInbound(input, ports) {
     L4.info("wa_escalate_readable_nontext", { kind: n.kind });
     return;
   }
+  return GO;
+}
+
+// src/inbound/unreadable.ts
+function seeingOf(at) {
+  const { n, rt, brainCfg, replyMode, thread, send, fallbacks, personMode, pauseMs, sink, raw, tell, pauseHours, L: L4 } = at;
   const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type) && !!brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil;
   const sayUnreadable = async (pausedUntilNow) => {
     if (Date.now() <= pausedUntilNow) return 0;
@@ -48945,13 +49119,47 @@ async function answerInbound(input, ports) {
     L4.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
     return pausedUntil;
   };
+  return { maySee, sayUnreadable };
+}
+async function unreadableGate(at, seen) {
+  const { n, sink, thread } = at;
+  const { maySee, sayUnreadable } = seen;
   if (!maySee && (n.type !== "text" || !n.body)) {
     const media = sink.media(n);
     await sayUnreadable(thread.pausedUntil);
     await Promise.all([media, sink.processed()]);
     return;
   }
+  return GO;
+}
+function wordsOf(at, seen) {
+  const { n } = at;
+  const { maySee } = seen;
   const bodyText = maySee ? n.media?.caption?.trim() || "[photo]" : n.body ?? "";
+  return bodyText;
+}
+async function photoOf(at, seen) {
+  const { sink, n, L: L4, thread } = at;
+  const { maySee, sayUnreadable } = seen;
+  let photo = null;
+  if (maySee) {
+    const got = await sink.media(n);
+    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
+      photo = { mime: got.mime, base64: toBase64(got.bytes) };
+      L4.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
+    } else {
+      L4.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
+      await sayUnreadable(thread.pausedUntil);
+      await sink.processed();
+      return;
+    }
+  }
+  return { photo };
+}
+
+// src/inbound/reply-gates.ts
+async function lateOrConfirmed(at, bodyText) {
+  const { raw, sink, tell, n, L: L4, channel, brainCfg, rt, send } = at;
   const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? void 0);
   if (age === "stale") {
     await Promise.all([
@@ -48989,6 +49197,24 @@ async function answerInbound(input, ports) {
     });
     return;
   }
+  return GO;
+}
+async function heldForThePerson(at, bodyText) {
+  const {
+    thread,
+    maxRepliesDay,
+    L: L4,
+    sink,
+    tell,
+    replyLimits,
+    db,
+    tenantId,
+    ports,
+    rt,
+    brainCfg,
+    replyMode,
+    personMode
+  } = at;
   const gate = threadVerdict(thread, maxRepliesDay);
   if (gate === "paused") {
     L4.info("wa_skip_paused", { paused_until: thread.pausedUntil });
@@ -49057,19 +49283,30 @@ async function answerInbound(input, ports) {
     });
     return;
   }
-  let photo = null;
-  if (maySee) {
-    const got = await sink.media(n);
-    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
-      photo = { mime: got.mime, base64: toBase64(got.bytes) };
-      L4.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
-    } else {
-      L4.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
-      await sayUnreadable(thread.pausedUntil);
-      await sink.processed();
-      return;
+  return GO;
+}
+
+// src/inbound/model-turn.ts
+async function leadNoteFor(at) {
+  const { db, tenantId, from, ports, rt, L: L4 } = at;
+  let leadNote;
+  if (db && tenantId) {
+    try {
+      const e164 = from.startsWith("+") ? from : `+${from}`;
+      const lead = await ports.leads.read(db, tenantId, e164, 1);
+      leadNote = ports.leads.describe(lead, /* @__PURE__ */ new Date(), rt?.timezone ?? "UTC");
+      const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
+      if (visits) leadNote = `${leadNote}
+${visits}`;
+    } catch (e) {
+      L4.warn("lead_context_unavailable", { error: errField(e) });
     }
   }
+  return leadNote;
+}
+async function modelTurn(at, bodyText, photo) {
+  const { ports, db, rt, thread, n, fallbacks, L: L4 } = at;
+  const brainCfg = at.brainCfg;
   let replyText;
   let escalate;
   let escalationReason = "human_token";
@@ -49080,19 +49317,7 @@ async function answerInbound(input, ports) {
   if (ports.env.modelKey) {
     try {
       const { generateReply } = await ports.brain();
-      let leadNote;
-      if (db && tenantId) {
-        try {
-          const e164 = from.startsWith("+") ? from : `+${from}`;
-          const lead = await ports.leads.read(db, tenantId, e164, 1);
-          leadNote = ports.leads.describe(lead, /* @__PURE__ */ new Date(), rt?.timezone ?? "UTC");
-          const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
-          if (visits) leadNote = `${leadNote}
-${visits}`;
-        } catch (e) {
-          L4.warn("lead_context_unavailable", { error: errField(e) });
-        }
-      }
+      const leadNote = await leadNoteFor(at);
       const openings = rt ? await ports.calendar.openings(rt) : null;
       const tBrain = Date.now();
       const r4 = await generateReply(
@@ -49155,6 +49380,13 @@ ${openings}` : ""}`,
       }
     }
   }
+  return { replyText, escalate, escalationReason, usage, brainMeta, fallback, brainMs, photo };
+}
+
+// src/inbound/dispatch.ts
+async function planTheHold(at, turn) {
+  const { replyMode, replyLimits, L: L4, ports, db, tenantId, ing, from, wire, channel } = at;
+  const { brainMeta, replyText, brainMs, escalate, photo } = turn;
   const plan = holdPlan(replyMode, replyLimits, brainMeta);
   const { delayMs, heldForConfidence } = plan;
   if (heldForConfidence)
@@ -49184,6 +49416,12 @@ ${openings}` : ""}`,
     escalate,
     photo: !!photo
   };
+  return { plan, delayMs, heldForConfidence, queued, replyQuality };
+}
+async function heldOrKept(at, turn, hold, bodyText) {
+  const { sink, pauseMs, tell, pauseHours, L: L4 } = at;
+  const { usage, brainMeta, replyText, escalate, escalationReason, fallback } = turn;
+  const { plan, delayMs, heldForConfidence, queued, replyQuality } = hold;
   if (delayMs > 0 && !queued) {
     await sink.vetoFallback(delayMs, plan.source);
   }
@@ -49230,6 +49468,12 @@ ${openings}` : ""}`,
     L4.info("wa_reply_queued", { delay_ms: delayMs, escalate });
     return;
   }
+  return GO;
+}
+async function sendNow(at, turn, hold, bodyText) {
+  const { send, sink, pauseMs, tell, pauseHours, L: L4, ingestMs } = at;
+  const { replyText, fallback, brainMeta, usage, escalate, escalationReason } = turn;
+  const { replyQuality } = hold;
   const sent = await send(
     replyText,
     fallback ? fallback.meta : brainMeta
@@ -49268,6 +49512,26 @@ ${openings}` : ""}`,
     ingest_ms: ingestMs,
     post_ms: Date.now() - tSent
   });
+}
+
+// src/inbound/answer.ts
+async function answerInbound(input, ports) {
+  const cx = await openInbound(input, ports);
+  const kept = await ingestMessage(cx);
+  if (!kept) return;
+  const at = { ...cx, ...kept, ...await modeInForce(cx, kept.ing) };
+  if (await firstGates(at) !== GO) return;
+  const seen = seeingOf(at);
+  if (await unreadableGate(at, seen) !== GO) return;
+  const bodyText = wordsOf(at, seen);
+  if (await lateOrConfirmed(at, bodyText) !== GO) return;
+  if (await heldForThePerson(at, bodyText) !== GO) return;
+  const shown = await photoOf(at, seen);
+  if (!shown) return;
+  const turn = await modelTurn(at, bodyText, shown.photo);
+  const hold = await planTheHold(at, turn);
+  if (await heldOrKept(at, turn, hold, bodyText) !== GO) return;
+  await sendNow(at, turn, hold, bodyText);
 }
 
 // src/booking-page.ts
@@ -49383,6 +49647,7 @@ export {
   factsOf,
   foldDuplicates,
   handBack,
+  handStepIdFor,
   hasContact,
   haversineM,
   holdCopy,
@@ -49420,6 +49685,7 @@ export {
   resolveConsent,
   resolveEscalation,
   runCaps,
+  runHandStep,
   runIdFor,
   runPlaybook,
   runReachOut,

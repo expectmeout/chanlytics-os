@@ -57,16 +57,24 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
     "a handoff is said in the owner's words, about its thread",
   );
   assert.ok(!alerts.includes("WhatsApp handoff needed"));
-  const inbound = readCode("packages/core/src/inbound/answer.ts");
+  // Every module of the message path: answer.ts's order and the phases beside it.
+  const inbound = ["answer", "context", "ingest", "gates", "unreadable", "reply-gates", "model-turn", "dispatch"]
+    .map((m) => readCode(`packages/core/src/inbound/${m}.ts`))
+    .join("\n");
   // One closure builds the context now, so the name and the thread are stated
-  // once rather than retyped at a dozen call sites — and every call site goes
-  // through it, which is what is asserted instead of a count.
+  // once rather than retyped at a dozen call sites — and every handoff goes
+  // through it: the owner is reached by two calls on the whole path, tell's
+  // and the ingest's copy of words the database did not keep.
   assert.ok(
     inbound.includes("who: n.profileName ?? null,") &&
       inbound.includes('about: ing ? { type: "conversation", id: ing.conversation_id } : null,'),
     "every handoff carries the name and the thread",
   );
-  assert.ok((inbound.match(/\btell\(/g) ?? []).length >= 12, "and reaches the owner through the one closure");
+  assert.equal(
+    (inbound.match(/\bports\.alertStaff\(/g) ?? []).length,
+    2,
+    "and reaches the owner through the one closure",
+  );
   // A call said by name, about its call or the thread that needs a call back, runs: retell-webhook-door.test.mjs.
   assert.ok(
     /dedupeFeed\(\[\s*\.\.\.applyReadState\(/.test(readCode("apps/dashboard/src/legacy-bridge/notifications.ts")),

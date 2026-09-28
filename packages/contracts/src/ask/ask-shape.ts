@@ -4,7 +4,7 @@
  *
  * Logged as `ask_turn_shape` and stored on the turn's own row
  * (ask_messages.content.shape), so a day's numbers are one query
- * (tooling/scripts/ask-day.mjs), never a search of the logs. Milliseconds
+ * (tooling/scripts/ops/ask-day.mjs), never a search of the logs. Milliseconds
  * count from the turn's start in the loop. Null means "never happened this
  * turn": a turn answered by cards alone streams no Say; a broken stream has
  * no first byte; a script sends no opened_ms. The spec:
@@ -20,6 +20,12 @@ export interface AskTurnShape {
   /** A second or later question on its thread, and how long after the thread's previous turn it came. */
   follow_up: boolean;
   since_last_ms: number | null;
+  /**
+   * How the thread's earlier turns reached the model (the Phase 5 plan, PR 5.4): replayed as it was sent them, while
+   * the thread was warm (live); as words, or again as words after the API refused a replay (rebuilt); or none, on a
+   * thread's first turn. A turn stored before it has no such key: unknown.
+   */
+  replay: "live" | "rebuilt" | "none";
   /** From the palette opening to the question being sent, as the tab measured it. */
   opened_ms: number | null;
   /**

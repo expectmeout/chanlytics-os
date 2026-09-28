@@ -54,16 +54,18 @@ export interface EmailRoute {
  * frozen with an own domain's From never leaves around outreach's rules, and a
  * cold email never leaves as the hosted mailbox. That route's own Reply-To rule
  * still applies. No routes, no email line (null, like a number with no
- * credentials).
+ * credentials). `held` is the addresses of the workspace's own domains that
+ * are held: no route, but a reply frozen with one says why it went as the
+ * mailbox.
  */
-export function emailSender(routes: EmailRoute[]): Sender | null {
+export function emailSender(routes: EmailRoute[], held: readonly string[] = []): Sender | null {
   if (routes.length === 0) return null;
   const refuse = (errorBody: string): Promise<SendResult> =>
     Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
   return async (to, p) => {
     if (!p.email) return refuse("no_frozen_request");
     if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
-    const own = p.reply && p.ownEmail && p.purpose !== "outreach" ? ownRouteOf(routes, to, p.ownEmail) : null;
+    const own = p.reply && p.ownEmail && p.purpose !== "outreach" ? ownRouteOf(routes, held, to, p.ownEmail) : null;
     if (own && "route" in own) return { ...(await sendEmail(own.route.cfg, p.ownEmail!)), leftAs: "own" };
     const from = addressOf(p.email.from)?.address;
     const lane = p.purpose === "outreach" ? "own" : "hosted";
@@ -80,14 +82,16 @@ export function emailSender(routes: EmailRoute[]): Sender | null {
  */
 function ownRouteOf(
   routes: EmailRoute[],
+  held: readonly string[],
   to: string,
   twin: EmailRequest,
 ): { route: EmailRoute } | { why: EmailLeftAsWhy } {
   const owns = routes.filter((r) => r.lane === "own");
-  if (owns.length === 0) return { why: "no_own_route" };
-  if (twin.to.length !== 1 || twin.to[0] !== to) return { why: "twin_names_another_recipient" };
   const from = addressOf(twin.from)?.address;
+  const isHeld = from !== undefined && held.includes(from);
+  if (owns.length === 0) return { why: isHeld ? "domain_held" : "no_own_route" };
+  if (twin.to.length !== 1 || twin.to[0] !== to) return { why: "twin_names_another_recipient" };
   const route = owns.find((r) => r.as.address === from);
-  if (!route) return { why: "domain_has_no_route" };
+  if (!route) return { why: isHeld ? "domain_held" : "domain_has_no_route" };
   return requestLeavesAs(twin, route.as) ? { route } : { why: "route_refuses_twin" };
 }

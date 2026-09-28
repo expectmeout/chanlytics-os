@@ -99,16 +99,31 @@ async function mintFresh(): Promise<MintedSession> {
   return (await ver.json()) as MintedSession;
 }
 
+/** One cookie of a session, in the shape both Playwright's addCookies and DevTools' Network.setCookie take. */
+interface SessionCookie {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: "Lax";
+  /** Seconds since the epoch. */
+  expires: number;
+}
+
 /**
- * Put a real session in the browser.
+ * A real session's cookies for the site at `base`.
  *
  * The cookie format is @supabase/ssr's own: the session JSON, base64url with a
  * `base64-` marker, split by the library's own chunker so a long token lands
  * as `<key>.0`, `<key>.1` exactly as the app would have written it. Using the
  * library's chunker rather than a copy of the rule means a change to the
  * format breaks this loudly instead of producing a cookie the app ignores.
+ * The phone app's walk sets the same cookies in its WebView
+ * (tooling/scripts/mobile/sign-in.mjs).
  */
-export async function signIn(page: Page): Promise<void> {
+export async function sessionCookies(base: URL): Promise<SessionCookie[]> {
   if (!HAVE_SESSION) throw new Error(WHY_SKIPPED);
 
   const session = await mint();
@@ -120,19 +135,22 @@ export async function signIn(page: Page): Promise<void> {
       .replace(/\//g, "_")
       .replace(/=+$/, "");
 
+  return createChunks(storageKey(), value).map((c: { name: string; value: string }) => ({
+    name: c.name,
+    value: c.value,
+    domain: base.hostname,
+    path: "/",
+    httpOnly: false,
+    secure: base.protocol === "https:",
+    sameSite: "Lax" as const,
+    expires: session.expires_at,
+  }));
+}
+
+/** Put a real session in the browser. */
+export async function signIn(page: Page): Promise<void> {
   const base = new URL(process.env.E2E_BASE_URL ?? "https://app.chanlytics.com");
-  await page.context().addCookies(
-    createChunks(storageKey(), value).map((c: { name: string; value: string }) => ({
-      name: c.name,
-      value: c.value,
-      domain: base.hostname,
-      path: "/",
-      httpOnly: false,
-      secure: base.protocol === "https:",
-      sameSite: "Lax" as const,
-      expires: session.expires_at,
-    })),
-  );
+  await page.context().addCookies(await sessionCookies(base));
 }
 
 /** Sign in and land on a route, with the app's own boot finished. */

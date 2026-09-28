@@ -25,7 +25,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { ROOT, readCode } from "../_source.mjs";
 
-const SPECS = fs.readdirSync(path.join(ROOT, "e2e")).filter((f) => f.endsWith(".spec.ts"));
+// At every depth: the specs are grouped by domain (e2e/<domain>/), with the helpers at the root.
+const SPECS = fs
+  .readdirSync(path.join(ROOT, "e2e"), { recursive: true })
+  .map((f) => String(f).split(path.sep).join("/"))
+  .filter((f) => f.endsWith(".spec.ts"));
 
 test("every direct request in the e2e suite names a workspace", () => {
   const offenders = [];
@@ -53,7 +57,7 @@ test("every direct request in the e2e suite names a workspace", () => {
       if (line.includes("https://")) continue;
       // The one spec whose bare request is the point: it proves the refusal
       // this rule exists to keep every other spec from meeting.
-      if (f === "choose-workspace.spec.ts") continue;
+      if (f === "auth/choose-workspace.spec.ts") continue;
       offenders.push(`${f}: ${line.trim().slice(0, 90)}`);
     }
   }

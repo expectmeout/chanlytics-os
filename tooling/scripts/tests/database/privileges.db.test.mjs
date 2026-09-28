@@ -12,7 +12,7 @@
  *
  * Runs the way tenancy.db.test.mjs does, against the local stack only.
  * SUPABASE_CLI names the binary when `supabase` is not on PATH, as it does for
- * check-db-types.mjs.
+ * gen/db-types.mjs.
  */
 import { test, before } from "node:test";
 import assert from "node:assert/strict";

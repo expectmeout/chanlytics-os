@@ -1,5 +1,4 @@
 {
-  "apps/dashboard/src/legacy-bridge/surface-data.ts": 1907,
   "apps/dashboard/src/legacy/components/data-bits.jsx": 1234,
   "apps/dashboard/src/legacy/components/record-fold.jsx": 954,
   "apps/dashboard/src/legacy/demo/pages/agent-studio.jsx": 1253,
@@ -12,6 +11,5 @@
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx": 1753,
   "apps/dashboard/src/legacy/pages/inbox.jsx": 976,
   "apps/dashboard/src/legacy/pages/people.jsx": 3255,
-  "apps/dashboard/src/legacy/pages/settings.jsx": 1912,
-  "packages/core/src/inbound/answer.ts": 1007
+  "apps/dashboard/src/legacy/pages/settings.jsx": 1912
 }

@@ -3,8 +3,9 @@
  *
  * Every request names a route key from the generated registry, and the
  * compiler knows from it what the route takes (`InputOf`) and answers
- * (`OutputOf`), so a site that hand-typed the server's answer, or sent a body
- * the route never read, stops compiling. Eleven couriers used to each own the
+ * (`OutputOf`), so a site that hand-typed the server's answer, sent a body
+ * the route never read, or left out the path's parameters or the body the
+ * route declares, stops compiling. Eleven couriers used to each own the
  * envelope, the 401, the timeout and their own list of surfaces to refresh;
  * this owns them once. Pure: no `window`, so it runs under node with a fake
  * fetch, and the bridge instantiates it with the real one.
@@ -25,8 +26,24 @@ type QueryOf<K extends RouteKey> = MethodOf<K> extends "GET" ? InputOf<Routes[K]
 /** A write's body: the declared schema, or anything JSON for a route that reads its own. */
 type BodyOf<K extends RouteKey> =
   MethodOf<K> extends "GET" ? never : InputOf<Routes[K]> extends undefined ? unknown : InputOf<Routes[K]>;
+/**
+ * What a request may not leave out: its path's parameters, when it has any (without them it would ask for
+ * `conversations//snooze`), and the body its write's schema declares, even one whose every field is optional (the
+ * route reads a missing body as `{}`, which a schema that needs a field refuses).
+ */
+type Needs<K extends RouteKey> = ([ParamNames<K>] extends [never] ? unknown : { params: Params<K> }) &
+  (unknown extends BodyOf<K> ? unknown : [BodyOf<K>] extends [never] ? unknown : { body: BodyOf<K> });
+export type ApiOptions<K extends RouteKey> = Options<K> & Needs<K>;
+/**
+ * The options argument: optional for a route that needs neither, and written for one that needs either. A courier
+ * that takes options optionally and hands them on (the shell's `read`) may hand on `undefined`: its own signature
+ * is then what holds its callers.
+ */
+type OptionsOf<K extends RouteKey> =
+  Record<never, never> extends Needs<K> ? [opts?: ApiOptions<K>] : [opts: ApiOptions<K> | undefined];
 
-export interface ApiOptions<K extends RouteKey> {
+/** What a request may carry. A link (`url`) takes it as it is given: the shell's `href` hands on a page's. */
+interface Options<K extends RouteKey> {
   params?: Params<K>;
   query?: QueryOf<K>;
   body?: BodyOf<K>;
@@ -130,7 +147,7 @@ export function createApi(deps: ApiDeps) {
   const inFlight = new Map<string, { p: Promise<unknown>; at: number; kept?: boolean; early?: boolean }>();
   let holds = 0;
 
-  function urlFor<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): string {
+  function urlFor<K extends RouteKey>(key: K, opts: Options<K> = {}): string {
     const params = (opts.params ?? {}) as Record<string, string>;
     const url = ROUTES[key].path.replace(/\[(\w+)\]/g, (_m, name: string) => encodeURIComponent(params[name] ?? ""));
     const qs = new URLSearchParams();
@@ -159,7 +176,7 @@ export function createApi(deps: ApiDeps) {
 
   async function send<K extends RouteKey>(
     key: K,
-    opts: ApiOptions<K> = {} as ApiOptions<K>,
+    ...[opts = {} as ApiOptions<K>]: OptionsOf<K>
   ): Promise<ApiResult<OutputOf<Routes[K]>>> {
     const isRead = ROUTES[key].method === "GET";
     const url = urlFor(key, opts);
@@ -259,7 +276,7 @@ export function createApi(deps: ApiDeps) {
   }
 
   /** The Response itself: the two Google redirects and the Ask stream answer no envelope. */
-  async function raw<K extends RouteKey>(key: K, opts: ApiOptions<K> = {} as ApiOptions<K>): Promise<Response> {
+  async function raw<K extends RouteKey>(key: K, ...[opts = {} as ApiOptions<K>]: OptionsOf<K>): Promise<Response> {
     const res = await deps.fetch(urlFor(key, opts), initFor(key, opts));
     if (res.status === 401) deps.onSignedOut();
     return res;

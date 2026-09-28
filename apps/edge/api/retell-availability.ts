@@ -11,7 +11,7 @@
  * SPEAKS this string, so an error status would make it say nothing while the
  * caller waits.
  */
-import { json } from "../lib/http.js";
+import { json, refuse } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { readDealForPhone, resolveChannel } from "../lib/packages/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
@@ -89,7 +89,7 @@ export async function POST(request: Request): Promise<Response> {
   // The third Retell door, guarded like the other two (voice-door-auth.ts): the signature, or the x-fn-secret header
   // while this door still reads one.
   if (!voiceDoorAuth("availability", request, raw).ok) {
-    return json(401, { ok: false, error: "bad_secret" });
+    return refuse(401, "bad_secret");
   }
   let body: {
     call?: { call_id?: string; from_number?: string; agent_id?: string };

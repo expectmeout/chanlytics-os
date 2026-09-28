@@ -2,6 +2,7 @@ import { z } from "zod";
 import { SPEND_TEXTING, AppError, MOCK_TEXTING_SENTENCE } from "@chanlytics/contracts";
 import { write, workspace } from "@/server/route";
 import { edgeLines, EDGE_LINES_TIMEOUT_MS } from "@/server/connections/lines";
+import { edgeRefusalWords } from "@/server/edge";
 
 const Body = z.object({
   line_id: z.string().trim().min(1, "Which line?"),
@@ -109,7 +110,8 @@ export const POST = write({
       pending: b.pending === true,
       line: b.line ?? null,
       step: typeof b.step === "string" ? b.step : null,
-      error: typeof b.error === "string" ? b.error : null,
+      // Where the filing stopped, in the carrier's words (`detail`): the page shows it as it is.
+      error: edgeRefusalWords(b),
     };
   },
 });

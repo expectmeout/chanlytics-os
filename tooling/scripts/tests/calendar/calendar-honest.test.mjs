@@ -1100,7 +1100,7 @@ test("REGRESSION (C1): leaving the Calendar takes the loaded weeks back to today
   assert.equal(homes, 1, "REGRESSION: the page left the window wherever it had moved it");
   // The bridge's half: a moved window goes home; one already home is not read again.
   const { getCalendarSpan, setCalendarSpan } =
-    await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+    await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
   globalThis.window.__CALENDAR = { vm: toCalendarVM(span("2026-08-31", 63), NOW) };
   setCalendarSpan("2026-11-23", 63);
   assert.equal(await calendar.home(), true, "a window moved to November goes home");
@@ -1257,7 +1257,7 @@ test("REGRESSION (C2): days on their way say so in words -- the board only dimme
 
 test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads as before", async () => {
   const { calendarOverride, setCalendarFresh } =
-    await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+    await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
   const seen = [];
   const was = {
     location: globalThis.window.location,
@@ -1296,7 +1296,7 @@ test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads a
 
 test("(C2) the bridge's refresh reads through the runner, fresh when asked, says whether a read landed, and never leaves fresh behind", async () => {
   const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
-  const { calendarOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const { calendarOverride } = await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
   const seen = [];
   const was = {
     location: globalThis.window.location,
@@ -1357,7 +1357,7 @@ test("a window the board has read paints at once on the way back, and is read ag
   // were 390-500ms of "Reading those days…" each, and leaving for Reports read today's weeks again besides.
   const { startSurfaces } = await import("../../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
   const { calendarOverride, getCalendarSpan } =
-    await import("../../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+    await import("../../../../apps/dashboard/src/legacy-bridge/surfaces/calendar.ts");
   const { windowFor, zoneDayKey } = await import("@chanlytics/contracts");
   const seen = [];
   const parked = [];

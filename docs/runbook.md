@@ -171,12 +171,12 @@ run. The ported shell and the committed dists are outside the check
 
 ## Test it
 
-| Suite                                                        | Command                                | Needs                                                                                              |
-| ------------------------------------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| The node suite: routes, doors, verbs, view models over fakes | `corepack pnpm test`                   | Nothing. Database and integration suites skip, with the reason printed                             |
-| The database suites: RLS, CHECKs, triggers, tenancy, erasure | `corepack pnpm test:db`                | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, usually the local stack's                          |
-| The browser suite                                            | `corepack pnpm e2e`                    | Chromium (`corepack pnpm e2e:install` once); signed-in specs need the four variables in the README |
-| The edge's frozen HTTP contract                              | `node tooling/scripts/golden-edge.mjs` | `BASE_URL` plus the Meta and Retell secrets                                                        |
+| Suite                                                        | Command                                    | Needs                                                                                              |
+| ------------------------------------------------------------ | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| The node suite: routes, doors, verbs, view models over fakes | `corepack pnpm test`                       | Nothing. Database and integration suites skip, with the reason printed                             |
+| The database suites: RLS, CHECKs, triggers, tenancy, erasure | `corepack pnpm test:db`                    | `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, usually the local stack's                          |
+| The browser suite                                            | `corepack pnpm e2e`                        | Chromium (`corepack pnpm e2e:install` once); signed-in specs need the four variables in the README |
+| The edge's frozen HTTP contract                              | `node tooling/scripts/ops/golden-edge.mjs` | `BASE_URL` plus the Meta and Retell secrets                                                        |
 
 A skip is not a pass. A run that is meant to hold credentials says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and the coverage guard then fails instead of
@@ -193,10 +193,10 @@ standalone mockup from this worktree's source with a fixture first in its head,
 and answers the spec's own `/api/v1` reads from a record.
 
 ```bash
-corepack pnpm e2e:local -- e2e/settings-business.spec.ts
-corepack pnpm e2e:local -- e2e/settings-business.spec.ts --scenario=salon
-corepack pnpm e2e:local -- e2e/settings-business.spec.ts --grep "fits a phone"
-corepack pnpm e2e:local -- e2e/people.spec.ts --scenario=pipeline --grep "the Pipeline is a third scope"
+corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts
+corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --scenario=salon
+corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --grep "fits a phone"
+corepack pnpm e2e:local -- e2e/people/people.spec.ts --scenario=pipeline --grep "the Pipeline is a third scope"
 ```
 
 It takes a free port, sets what `signIn()` reads, runs the REAL spec unmodified
@@ -208,7 +208,7 @@ mutation run asks whether the journey went red, and a retry that passes turns a
 caught mutant into a flake.
 
 Three records. `nightly` is the seeded `chanlytics-e2e` workspace, DERIVED from
-`tooling/scripts/e2e-workspace.mjs` -- the config it writes, the line it
+`tooling/scripts/ops/e2e-workspace.mjs` -- the config it writes, the line it
 provisions, the clock it sets -- so it changes when the seed changes rather than
 drifting from it; `e2e-harness.test.mjs` holds the two together. `salon` is a
 fuller, fictional record for the branches the nightly's data cannot reach: a
@@ -227,7 +227,7 @@ in the real bundle -- the harness compiles the legacy tree with Babel in the
 browser, so the runner raises the per-test timeout where production runs under
 the config's own 45s. Green here is not a green nightly.
 
-`e2e/settings-business.spec.ts` runs on it, and `e2e/people.spec.ts`'s Pipeline
+`e2e/settings/settings-business.spec.ts` runs on it, and `e2e/people/people.spec.ts`'s Pipeline
 walk on the `pipeline` record. Another
 surface needs its own globals added to `e2e-harness/fixture-src.ts` -- whatever
 that page's bridge publishes -- and any read it makes added to `answer()` in
@@ -383,6 +383,85 @@ spend, is at its month's allowance, or has spent its 400 model attempts of
 the UTC day (`reach_out_check_spend`) is asked again an hour on
 (`reach_out_check_gated`).
 
+**Replies to a reach-out (Part 5).** A reply to a reach-out's email is read
+for what it means before anyone answers it. The email intake asks
+`reach_out_reply_of` of every email it keeps, and for a reach-out's reply it
+schedules one `reply_read` job instead of telling anyone itself. The job reads
+the reply with the model, applies what the reading means through
+`reach_out_reply_apply`, drafts an answer when the reading asks one, and tells
+the workspace once (`reach_out_replied`). The readings are rows of
+`reach_out_replies`, one per message.
+
+- **Once per message and stage.** A partial unique index,
+  `jobs_reply_read_once`, holds one live `reply_read` per message and stage;
+  a failed one does not count. The stage is in the payload: none (or `read`)
+  for the first read, `reread-<n>` for the n-th read again, and `draft` for a
+  draft a first job had no time left for. A second schedule of the same
+  message and stage is answered `already_scheduled`, never an error.
+- **Cancel them.** Only a job still `scheduled` can be canceled (the ledger's
+  guard refuses the rest):
+  `update public.jobs set state = 'canceled' where kind = 'reply_read' and state = 'scheduled' and tenant_id = '…';`
+  A canceled job still holds its message and stage on the index until
+  `purge_jobs` deletes it a week later, so the same read is not scheduled
+  again before then. A reading already applied stays applied; cancel the
+  jobs, not the readings.
+- **The model the reading needs.** Haiku 4.5 (contracts' `REACH_OUT_MODEL`)
+  through `ANTHROPIC_API_KEY` on the edge, the key the check already uses;
+  the draft asks the receptionist's own model through the same key. A
+  workspace reads at most 200 replies a UTC day (`REACH_OUT_READS_PER_DAY`,
+  counted in `reach_out_check_spend.reads`), and only while it may spend.
+- **What "unread" means.** A reading whose `unread` is set was not read, and
+  is `other` until it is: `no_model` (no key on the edge), `may_not_spend`
+  (the workspace may not spend), `day_spent` (its 200 reads of the UTC day
+  are spent) or `model_failed` (the model threw, ran out of time or answered
+  nothing usable). A person's unread reply stops the chain as any reply does,
+  and an automatic one changes nothing until it is read; nothing is drafted,
+  and the thread says they wrote back. It is read again at most
+  three times within seven days of the reply (`REPLY_REREADS`,
+  `REPLY_REREAD_DAYS`): after `no_model` or `model_failed`, an hour on the
+  first time and the next UTC day after that; after `day_spent` or
+  `may_not_spend`, the next UTC day. A re-read that finds a no applies it and
+  tells the workspace again.
+- **A read job that failed for good** is not scheduled again, and the
+  re-reads it would have made are lost with it: after three failed tries the
+  workspace hears "A reply to your reach-out could not be read or told" on
+  the Inbox. After the edge is rolled back past Part 5 (an older edge fails
+  `reply_read` as work it does not know) and then forward again, schedule
+  again what is still owed:
+  `insert into jobs (tenant_id, kind, due_at, payload) select tenant_id, 'reply_read', now(), jsonb_build_object('message_id', message_id, 'stage', 'reread-' || (rereads + 1)) from reach_out_replies where unread is not null and undone_at is null and rereads < 3 and read_at > now() - interval '7 days' on conflict do nothing;`
+- **Why nothing was drafted.** The reading says why in `draft_why`:
+  `no_receptionist` (no receptionist configured, no mailbox, or no model key),
+  `off` (the reply mode is never), `budget` (the day's tokens are spent),
+  `may_not_spend`, or `not_drafted` (the brain handed off, refused or failed).
+  The edge logs `reach_out_reply_draft` with `drafted` and `why`.
+- **A reply that left from the mailbox, and why.** An owner's reply to a
+  reach-out's thread is frozen twice: the mailbox's request, and a twin from
+  the domain the reach-out wrote from while that domain is verified. The wire
+  sends the twin when it can and records which left on the row:
+  `meta.email.left_as` is `own` or `mailbox`, with the reason
+  (00226 `stamp_email_left_as`). The reasons for `mailbox` are
+  `domain_held` (the twin's domain was held after the freeze; the Inbox line
+  says so), `no_own_route` (no own domain is bound: the cold lane's keys are
+  unset, the domains could not be read that tick, `email_own_domains_unread`,
+  or none is verified now), `domain_has_no_route` (the twin's domain was
+  removed after the freeze, or is being verified again), `route_refuses_twin` (its Reply-To is on a reply domain
+  the edge has retired) and `twin_names_another_recipient`. A reply with no
+  `left_as` left as every reply did before: the dashboard froze no twin
+  (the domain held or removed at Send, or no reach-out email on the thread),
+  or the edge predates Part 5. A stamp that fails is logged
+  (`deliver_left_as_failed`) and never thrown: the words already left.
+- **Microsoft 365's out-of-office stops a chain.** Its documented headers
+  claim `automated`, not `auto_reply`, so it counts as writing back and the
+  chain stops, with a step for the day they are back, rather than pausing.
+  A capture from a live Exchange Online mailbox is still owed; if it claims
+  `auto_reply`, the change is to `classifyReceived` alone.
+- **The proof.** The nightly's run of a reply is
+  `tooling/scripts/tests/reach-out-replies/replies.integration.db.test.mjs`:
+  on a stack, a chain written to four businesses, each reply read by the
+  real job, the owner's answer by the own domain and then the mailbox, and
+  the undo of a no. It runs with the database suites, locally with
+  `corepack pnpm test:db`.
+
 **A domain held twice in 30 days.** Its owner cannot resume it: the platform
 is paged (`sending_domain_held_twice:<host>`, naming the workspace and the
 domain). Look at what it sent, then lift it:
@@ -444,17 +523,26 @@ inbox working that long.
 The phone app is told through Expo's push service (`apps/edge/lib/ops/push.ts`, PR 0 and PR 2 of the phone app).
 Nothing sends until a build carries push credentials, and nothing is signed until the token is set.
 
-1. **Credentials, once per platform**, from `apps/mobile`: `eas credentials --platform ios` and say yes to the push
-   key (needs the Apple Developer Program); `eas credentials --platform android` and upload the FCM V1 service
-   account JSON from the Firebase project (Project settings, Service accounts). Android also needs the app's own
-   `google-services.json` from the same project (Project settings, Your apps, the Android app `com.chanlytics.app`),
-   as `android.googleServicesFile` in `app.config.ts`, from an EAS file variable in the preview and production
-   environments (its identifiers are public, so committing it is fine too); without it a phone never gets a push
-   token, and the app's `askForToken` answers null without a word. Then a new build of each.
-2. **Enhanced push security**, in the Expo dashboard under Access tokens: turn it on for the project, then set
+1. **Credentials, once per platform**, from `apps/mobile`: `npx eas-cli@latest credentials --platform ios` and say
+   yes to the push key (needs the Apple Developer Program); `npx eas-cli@latest credentials --platform android` and
+   upload the FCM V1 service account JSON from the Firebase project (Project settings, Service accounts).
+2. **Android's Firebase file, once**: the app's own `google-services.json` from the same project (Project settings,
+   Your apps, the Android app `com.chanlytics.app`), handed to EAS as a file variable and never to the tree
+   (`apps/mobile/.gitignore` refuses it). From `apps/mobile`:
+
+   ```bash
+   npx eas-cli@latest env:set --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment preview --environment production --visibility secret
+   ```
+
+   Then delete the local copy. EAS writes the file for each job and names its path in `GOOGLE_SERVICES_JSON`, which
+   `app.config.ts` hands to `android.googleServicesFile`; without it a phone is never given a push token, and the app
+   logs `push_token_unavailable`. The file is part of the native fingerprint, so no update can bring it to an
+   installed app: build again (`npx eas-cli@latest build --profile preview --platform android` for the preview app).
+
+3. **Enhanced push security**, in the Expo dashboard under Access tokens: turn it on for the project, then set
    `EXPO_ACCESS_TOKEN` on the edge (Vercel, the messaging project) to a token of that account. In that order: the
    variable first is harmless, the switch first refuses every send until the variable lands.
-3. **Watch** `push_send` and `push_receipts` on the jobs ledger: a `push_rejected 401` is the token; a phone the
+4. **Watch** `push_send` and `push_receipts` on the jobs ledger: a `push_rejected 401` is the token; a phone the
    receipts say is gone is forgotten by the job, never by hand.
 
 ## Turn on the call in progress on phones
@@ -483,10 +571,56 @@ The app signs in with Apple and Google natively (PR 3 of the phone app) and hand
    the app's bundle id `com.chanlytics.app` to the client ids (the Services ID and key are for the web's own Apple
    sign-in, if ever). EAS Build turns the Sign in with Apple capability on from `usesAppleSignIn`.
 2. **Google**: in the Google Cloud project, an iOS OAuth client for `com.chanlytics.app` and a web client; in
-   Supabase, Providers → Google → Authorized Client IDs, add the iOS client id. Then `eas env:create` for
-   `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` and `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in each environment, and a new build:
-   the Google button and its URL scheme exist only in a build made with the ids.
+   Supabase, Providers → Google → Authorized Client IDs, add the iOS client id. Then, from `apps/mobile`, the two ids
+   in the preview and production environments (plain text: an `EXPO_PUBLIC_` value is in the app's bundle anyway),
+   and a new build, since the Google button and its URL scheme exist only in a build made with the ids:
+
+   ```bash
+   npx eas-cli@latest env:set --name EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID --value <ios client id> --environment preview --environment production --visibility plaintext
+   npx eas-cli@latest env:set --name EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID --value <web client id> --environment preview --environment production --visibility plaintext
+   ```
+
 3. **Watch** `native_sign_in_failed` on the dashboard's logs: a provider that does not know the app answers there.
+
+## Walk the phone app
+
+The preview app on an Android emulator or phone, walked end to end from this computer: cleared to its sign-in screen,
+signed in as the nightly's own owner, each tab, the bell's sheet and Back, More's drawer, a chart's CSV to the share
+sheet, and More pressed again while in front. Every step leaves a screenshot, and the walk says which bundle it ran.
+The flows are Maestro's (`apps/mobile/.maestro`); the rest is `tooling/scripts/mobile`, over adb and the WebViews'
+DevTools, which a preview or development build opens and a store build does not.
+
+1. **An emulator, once**: Android Studio's SDK with an x86_64 Google APIs image, and one virtual device made from it
+   (`emulator -avd <name>` starts it). adb comes with the SDK. A phone with USB debugging on works too.
+2. **The preview APK**: the newest finished preview build's artifact, from the Expo dashboard or
+   `npx eas-cli@latest build:list --platform android --build-profile preview --status finished --limit 1`, then
+   `adb install -r <file>.apk`. An update published to the preview channel reaches it on its second launch.
+3. **Maestro, once**: its CLI from its GitHub releases, which runs on a JDK 17 or newer (Android Studio ships one).
+   `maestro` on the PATH, or the launcher's path in `MAESTRO`, and `JAVA_HOME` set.
+4. **Walk it**, with the e2e suite's three keys (`e2e/session.ts`) and the nightly owner's address:
+
+   ```bash
+   E2E_USER_EMAIL=e2e-owner@example.com node --env-file=apps/dashboard/.env.local --import tsx tooling/scripts/mobile/walk.mjs
+   ```
+
+   It ends with the bundle it walked (an update's id and when it was published, or the build's own) and where the
+   screenshots are (`--out <dir>` names the folder). `--store` takes the store listing's screenshots instead
+   (`docs/store/screenshots.md`), on a display of 1080 × 1920, and puts the display back after.
+
+5. **Time a cold start**, signed in: `node tooling/scripts/mobile/cold-start.mjs` (five runs; `--runs <n>`) says, from
+   the moment the app was started, when the system drew its first frame, when the site answered, the first paint,
+   and when Today was drawn with its data. `sign-in.mjs` on its own signs the app in and nothing else.
+
+What trips it:
+
+- **The walk comes back to the sign-in screen.** The site's sign-out is global: the nightly's specs sign its owner
+  out of every device, the emulator's app included. Run the walk (or `sign-in.mjs`) again.
+- **adb lists an `emulator-55xx` that is offline, and Maestro says the device is not connected.** Another program is
+  listening on an emulator's port (on one of our machines, an audio driver's daemon on 5563). Restart adb looking at
+  the first emulator's port only: `adb kill-server`, then `ADB_LOCAL_TRANSPORT_MAX_PORT=5555 adb start-server`
+  (PowerShell: `$env:ADB_LOCAL_TRANSPORT_MAX_PORT=5555; adb start-server`).
+- **A tab pressed again is not in the flows.** The bar's selected item takes no click, and a Maestro tap is one;
+  `walk.mjs` presses More again with a touch and hears the page ask for its drawer.
 
 ## Apply a migration
 
@@ -532,7 +666,7 @@ of the message id on every line.
 
 ## Scripts that touch production
 
-Every writing script in `tooling/scripts` is a dry run by default, writes a
+Every writing script in `tooling/scripts/ops` is a dry run by default, writes a
 JSONL backup first, is idempotent, and takes `--apply` to mean it. Read the
 header of the script before running it; each says what it needs and what it
 refuses.

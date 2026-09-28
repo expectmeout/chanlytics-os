@@ -63,7 +63,8 @@ test("garbage in the config falls back rather than producing NaN", () => {
 
 /* ---------------------- the wiring the rule depends on -------------------- */
 
-const edge = read("packages/core/src/inbound/answer.ts");
+// The mode in force (reply-gates.ts) and the hold window (dispatch.ts).
+const edge = ["reply-gates", "dispatch"].map((m) => read(`packages/core/src/inbound/${m}.ts`)).join("\n");
 const sink = read("apps/edge/lib/whatsapp/persist.ts");
 const verbs = read("apps/dashboard/src/server/verbs.ts");
 const reply = read("packages/core/src/conversations/reply.ts");
@@ -177,7 +178,15 @@ test("the event names the usual cause rather than making someone guess", () => {
 
 /* ---- the closed-window send uses the workspace's OWN approved template ---- */
 {
-  const seam = read("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  // The seam and each surface's module beside it (legacy-bridge/surfaces/), read as one text.
+  const seam = [
+    "apps/dashboard/src/legacy-bridge/surface-data.ts",
+    ...fs
+      .readdirSync(path.join(ROOT, "apps/dashboard/src/legacy-bridge/surfaces"))
+      .map((f) => `apps/dashboard/src/legacy-bridge/surfaces/${f}`),
+  ]
+    .map((p) => read(p))
+    .join("\n");
   // readCode, not read: the forbidden-name assertion below is otherwise
   // satisfied by the COMMENT explaining why that name is forbidden, so the
   // only way to make the guard pass would be to delete the rationale. Same

@@ -2,7 +2,7 @@
  * The pure part of being told: which tab a route belongs to, and what a push carries. No native import, so the
  * rules run under node (test/notifications.test.mjs); notifications.ts wraps them in the effects.
  */
-import { APP_ROUTE_RE, UUID } from "@chanlytics/contracts";
+import { APP_ROUTE_RE, UUID } from "@chanlytics/contracts/phone-app";
 import type { Tab } from "./state";
 
 /** The tab a hash route lives in: the four the bar names, else More, where the drawer reaches everything. */
@@ -26,6 +26,23 @@ export const TAB_ROUTES: Readonly<Record<Tab, string>> = {
   people: "clients",
   more: "today",
 };
+
+/**
+ * Each tab's own address in the app, its route file under src/app/(tabs). Typed routes refuse one that names no route
+ * where the root layout navigates to it, and test/notifications.test.mjs holds each to its file.
+ */
+const TAB_HREFS = {
+  today: "/today",
+  inbox: "/inbox",
+  calendar: "/calendar",
+  people: "/people",
+  more: "/more",
+} as const satisfies Readonly<Record<Tab, string>>;
+
+/** Where in the app a page's route lands: its tab's address. What a tapped push and a link into the app open. */
+export function tabHrefOf(route: string): (typeof TAB_HREFS)[Tab] {
+  return TAB_HREFS[tabOf(route)];
+}
 
 /** What a tapped push opens: its route, and the workspace it was told for (its id), when the data says one. */
 export interface Tap {

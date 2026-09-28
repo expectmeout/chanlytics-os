@@ -1,5 +1,6 @@
 /**
- * The measures behind docs/debt.md, in one module.
+ * The measures behind docs/debt.md, in one module, and the tree docs/architecture.md
+ * draws from the files they measure (docs/docs-tree.test.mjs).
  *
  * The ratchets (repo/code-health-ratchets.test.mjs), the source-scan ratchet
  * (repo/source-scan-ratchet.test.mjs) and the register (repo/debt-register.test.mjs)
@@ -32,8 +33,10 @@ import {
   unknownCasts,
   tableNames,
   durationsIn,
+  inlineStyles,
   SOURCE,
 } from "./_ast.mjs";
+import { cssOf, isPrimitiveClass, STYLE_VALUE_FIELDS } from "./_css.mjs";
 import { bank } from "./_ratchet.mjs";
 
 /** A function's limits: eslint.config.mjs's FUNCTION_LIMITS, as errors where this holds nothing. */
@@ -60,6 +63,22 @@ const TIMED = SRC.filter(
       f,
     ) && f !== "packages/contracts/src/shared/time.ts",
 );
+
+/**
+ * The dashboard's stylesheets, which the interface kit's measures hold
+ * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.7). The tokens are where a literal value belongs, so
+ * they are measured by neither; the kit is where a primitive belongs, so it is measured for its values, never for its
+ * primitives.
+ */
+export const TOKENS_CSS = "apps/dashboard/src/legacy/styles/tokens.css";
+const KIT_CSS = "apps/dashboard/src/surfaces/kit/kit.css";
+const STYLES = repoFiles(["apps/dashboard"], { keep: /\.css$/ }).filter((f) => f !== TOKENS_CSS);
+/**
+ * The shell's markup, which the kit will style: the legacy pages and components, and the surfaces that leave them
+ * (§3.7). The app's own error screens and the bridge's host draw before the stylesheets or without them, so a prop is
+ * all they have and they are not held.
+ */
+const MARKUP = SRC.filter((f) => /^apps\/dashboard\/src\/(legacy|surfaces)\/.*\.(jsx|tsx)$/.test(f));
 
 /** `{ file: n }` for each of `files` whose syntax tree `count` puts over `floor`. */
 const perFile = (files, count, floor = 0) =>
@@ -160,6 +179,42 @@ export const MEASURES = [
     advice:
       "Name the length of time: a whole minute, hour or day from contracts' shared/time.ts (5 * MIN_MS, DAY_MS), anything else a constant in its module that says what it is (const RETRY_MS = 800; const LEASE_MS = 5 * MIN_MS). A value that is not a time says its unit in its name (RADIUS_MAX_M, TAB_TOTAL_CHARS).",
   },
+  {
+    name: "literal style values",
+    file: "style-values.json",
+    measure: () => {
+      const out = {};
+      for (const f of STYLES) {
+        const { values } = cssOf(f);
+        if (STYLE_VALUE_FIELDS.some((k) => values[k] > 0)) out[f] = values;
+      }
+      return out;
+    },
+    advice:
+      "Read a token: a type size, radius, shadow, colour or blur is declared once, in apps/dashboard/src/legacy/styles/tokens.css, and a stylesheet reads it with var(). If no token fits, add one there (the interface kit's rule 1, docs/plans/2026-09-28-the-interface-kit-and-its-looks.md).",
+  },
+  {
+    name: "primitives outside the kit",
+    file: "kit-primitives.json",
+    // Held by count, not as a set: `.btn` is already named in ten page stylesheets, and a new `.pl-peek .btn { … }`
+    // in any of them is one more selector restyling the kit from a page.
+    measure: () => {
+      const out = {};
+      for (const f of STYLES.filter((f) => f !== KIT_CSS)) {
+        for (const [name, n] of Object.entries(cssOf(f).classes)) if (isPrimitiveClass(name)) out[`${f}::${name}`] = n;
+      }
+      return out;
+    },
+    advice:
+      "Draw it with a shared primitive rather than a class of the page's own, and never restyle one from a page's stylesheet: a button, chip, tab, card, sheet, field or face is written once (components.css and record.css hold them until the kit's folder, apps/dashboard/src/surfaces/kit/, does). If none fits, the kit takes a new variant (the interface kit's rule 3, docs/plans/2026-09-28-the-interface-kit-and-its-looks.md).",
+  },
+  {
+    name: "inline style props",
+    file: "inline-styles.json",
+    measure: () => perFile(MARKUP, inlineStyles),
+    advice:
+      "Style it with a class that reads tokens, not a style prop: a value in a prop is one no look can reach (the interface kit's rule 1, docs/plans/2026-09-28-the-interface-kit-and-its-looks.md).",
+  },
 ];
 
 /* ---- Source-text reads in tests (repo/source-scan-ratchet.test.mjs) ---- */
@@ -226,4 +281,49 @@ export function bankedSourceScan(counts, baseline, raise) {
       .sort()
       .map((f) => [f, out[f]]),
   );
+}
+
+/* ---- The tree docs/architecture.md draws (docs/docs-tree.test.mjs) ---- */
+
+/**
+ * The code trees the page draws, in its order, where PACKAGES stands for every package's src. Each is drawn with the
+ * folders that hold its modules (TREES: tracked, hand-written, TypeScript or JavaScript), by name and never with a
+ * count, so the drawing changes when a folder appears or disappears, not with each module a change adds or removes.
+ * `supabase/migrations/`, the schema, is drawn as its one line.
+ */
+const PACKAGES = "packages/<name>/src";
+const DRAWN = [
+  "apps/edge/api",
+  "apps/edge/lib",
+  "apps/dashboard/app",
+  "apps/dashboard/src",
+  "apps/dashboard/src/server",
+  "apps/dashboard/src/legacy-bridge",
+  "apps/dashboard/src/legacy",
+  "apps/mobile/src",
+  PACKAGES,
+  "tooling/scripts",
+  "e2e",
+];
+const MIGRATIONS = "supabase/migrations";
+
+/**
+ * One tree as the page draws it: its path, then each folder that holds one of `files`, by name. A tree that holds
+ * none is an entry of DRAWN its code has left, and fails the drawing rather than draw a tree that is not there.
+ */
+function drawn(tree, files) {
+  if (files.length === 0) throw new Error(`${tree} holds nothing to draw: DRAWN (_measures.mjs) moves with its code`);
+  const paths = files.map((f) => f.slice(tree.length + 1).split("/"));
+  const folders = [...new Set(paths.filter((parts) => parts.length > 1).map((parts) => parts[0]))].sort();
+  return [`${tree}/`, ...folders.map((folder) => `  ${folder}/`)];
+}
+
+/** The block docs/architecture.md prints between its tree markers: each code tree and its folders, by name. */
+export function drawnTree() {
+  const packages = [...new Set(TREES.map((f) => /^packages\/[^/]+\/src(?=\/)/.exec(f)?.[0]).filter(Boolean))].sort();
+  const trees = DRAWN.flatMap((tree) => (tree === PACKAGES ? packages : [tree]));
+  const modulesUnder = (tree) => TREES.filter((f) => f.startsWith(`${tree}/`));
+  const lines = trees.flatMap((tree) => drawn(tree, modulesUnder(tree)));
+  lines.push(...drawn(MIGRATIONS, repoFiles([MIGRATIONS], { keep: /\.sql$/ })));
+  return "```text\n" + lines.join("\n") + "\n```";
 }
