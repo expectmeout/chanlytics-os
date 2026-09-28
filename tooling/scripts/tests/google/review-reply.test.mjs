@@ -281,5 +281,5 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
       reports.includes('data-testid="google-reply-drafted"'),
   );
   assert.ok(reports.includes("<ReviewReply r={r} mode={vm.reply.mode} />") && reports.includes("vm.reply.words"));
-  assert.ok(readRaw("e2e/settings-autonomy.spec.ts").includes("toHaveCount(7)"));
+  assert.ok(readRaw("e2e/settings/settings-autonomy.spec.ts").includes("toHaveCount(7)"));
 });

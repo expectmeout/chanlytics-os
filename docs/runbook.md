@@ -193,10 +193,10 @@ standalone mockup from this worktree's source with a fixture first in its head,
 and answers the spec's own `/api/v1` reads from a record.
 
 ```bash
-corepack pnpm e2e:local -- e2e/settings-business.spec.ts
-corepack pnpm e2e:local -- e2e/settings-business.spec.ts --scenario=salon
-corepack pnpm e2e:local -- e2e/settings-business.spec.ts --grep "fits a phone"
-corepack pnpm e2e:local -- e2e/people.spec.ts --scenario=pipeline --grep "the Pipeline is a third scope"
+corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts
+corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --scenario=salon
+corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --grep "fits a phone"
+corepack pnpm e2e:local -- e2e/people/people.spec.ts --scenario=pipeline --grep "the Pipeline is a third scope"
 ```
 
 It takes a free port, sets what `signIn()` reads, runs the REAL spec unmodified
@@ -227,7 +227,7 @@ in the real bundle -- the harness compiles the legacy tree with Babel in the
 browser, so the runner raises the per-test timeout where production runs under
 the config's own 45s. Green here is not a green nightly.
 
-`e2e/settings-business.spec.ts` runs on it, and `e2e/people.spec.ts`'s Pipeline
+`e2e/settings/settings-business.spec.ts` runs on it, and `e2e/people/people.spec.ts`'s Pipeline
 walk on the `pipeline` record. Another
 surface needs its own globals added to `e2e-harness/fixture-src.ts` -- whatever
 that page's bridge publishes -- and any read it makes added to `answer()` in

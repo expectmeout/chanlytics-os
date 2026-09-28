@@ -1,9 +1,9 @@
 /**
  * A signed-in Playwright spec, run locally against the harness rather than a deployment.
  *
- *   corepack pnpm e2e:local -- e2e/settings-business.spec.ts
- *   corepack pnpm e2e:local -- e2e/settings-business.spec.ts --scenario=salon
- *   corepack pnpm e2e:local -- e2e/settings-business.spec.ts --scenario=salon --grep "fits a phone"
+ *   corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts
+ *   corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --scenario=salon
+ *   corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --scenario=salon --grep "fits a phone"
  *
  * It starts the harness on a FREE port (never a fixed one: a developer machine has its own servers, and a port
  * already taken would fail as something far stranger), sets the four environment variables e2e/session.ts needs so
@@ -26,7 +26,7 @@ import { OWNER, SCENARIOS } from "./scenarios.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const PLAYWRIGHT = path.join(REPO, "node_modules/@playwright/test/cli.js");
-const DEFAULT_SPEC = "e2e/settings-business.spec.ts";
+const DEFAULT_SPEC = "e2e/settings/settings-business.spec.ts";
 
 // `pnpm e2e:local -- <spec>` hands the `--` along with the rest; passed on to Playwright it ends its option parsing
 // and the spec after it is read as nothing at all, so the WHOLE suite runs. It is pnpm's separator, not an argument.
