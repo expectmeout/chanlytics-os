@@ -117,7 +117,7 @@ export const SCHEMA_SETS = {
   "partner_earnings.kind": ["share", "refund", "dispute", "dispute_won"],
   "partner_earnings.state": ["held", "payable", "paid", "void"],
   "partner_reversals_waiting.kind": ["refund", "dispute", "dispute_won"],
-  "partner_tenants.origin": ["link", "handover"],
+  "partner_tenants.origin": ["link", "handover", "invite"],
   "partner_tenants.standing": ["qualified", "review", "disqualified"],
   "partners.status": ["active", "paused", "closed"],
   "person_notes.author_kind": ["member", "receptionist"],

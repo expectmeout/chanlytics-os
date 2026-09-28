@@ -29,6 +29,7 @@ import { z as z19 } from "zod";
 import { z as z20 } from "zod";
 import { z as z21 } from "zod";
 import { z as z22 } from "zod";
+import { z as z23 } from "zod";
 z.config({ jitless: true });
 var MIN_MS = 6e4;
 var HOUR_MS = 36e5;
@@ -1960,6 +1961,11 @@ var EVENT_KINDS = [
   "partner.handover_sent",
   "partner.handover_accepted",
   "partner.handover_declined",
+  // An existing workspace asks a partner to join it (0020): asked (again, on a second ask), taken back, joined, declined.
+  "partner.invited",
+  "partner.invite_withdrawn",
+  "partner.invite_accepted",
+  "partner.invite_declined",
   // A reply to a reach-out, read (00222, Reach out Part 5): what it meant ({ intent, claim, reread, unread }), on the lead.
   "reach_out.replied",
   // A reply read as no, undone by a member within seven days (00222 reach_out_reply_undo).
@@ -2831,10 +2837,10 @@ var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
   /** The offer, before the share, which is printed from the row (shareWords). */
-  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays.",
+  offer: "Send a business your link. When it signs up through the link and pays for its plan, you join its team as its partner: you set its receptionist up and keep it running, and Chanlytics pays you a share of what it pays for its plan, for as long as it pays. A business already on Chanlytics can ask you in by your code: if it has not paid for a plan yet, the same share is yours once it does.",
   codeLabel: "Your code",
   codeHint: `${PARTNER_CODE_MIN} to ${PARTNER_CODE_MAX} letters, digits or dashes. It is the end of your link, and it is yours for good.`,
-  terms: "A share is paid on a workspace made through your link by someone other than you, thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
+  terms: "A share is paid on a workspace someone other than you brought you onto: made through your link, set up by you and handed to its owner, or one whose owner asked you in before it had paid for a plan. It is paid thirty days after each payment of its plan, and never on a workspace of your own. Chanlytics can pause a partner account, and a workspace's owner can remove you from its team at any time.",
   termsAgree: "I agree to these terms.",
   become: "Become a partner",
   becoming: "Setting you up\u2026",
@@ -2853,7 +2859,7 @@ var PARTNER_WORDS = {
   open: "Open",
   readingWorkspaces: "Reading your workspaces\u2026",
   failedWorkspaces: "your workspaces",
-  noneYet: "Nothing earned yet. A share is written when a workspace that came through your link pays for its plan.",
+  noneYet: "Nothing earned yet. A share is written when a workspace you brought pays for its plan.",
   /**
    * The create screen's question when a partner's link brought the person (0012): nobody joins a team without the
    * owner's yes. Their price does not change; the share is Chanlytics'.
@@ -2934,6 +2940,32 @@ var PartnerSecondFactorResetSchema = z22.object({
   partner_id: z22.string().uuid("That partner does not exist."),
   why: z22.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
+var PARTNER_INVITE_DAYS = 14;
+var PartnerInviteSchema = z23.object({
+  code: z23.string().trim().min(1, "Enter your partner's code, or paste their link.").max(200, "That is too long for a partner's code or link.")
+}).strict();
+var PARTNER_INVITE_WORDS = {
+  /** Settings › Team, the owner's card. */
+  title: "Your partner",
+  intro: `A partner is someone who sets up and runs your receptionist with you: they join your team with the partner role, and never touch billing or the team. Ask one by their code, the end of their link. They have ${PARTNER_INVITE_DAYS} days to accept.`,
+  codeLabel: "Their code or link",
+  codePlaceholder: "their-code",
+  invite: "Ask them",
+  inviting: "Asking\u2026",
+  withdraw: "Take it back",
+  withdrawing: "Taking it back\u2026",
+  /** The ask was kept but its email did not go: where the partner sees it, and how to send it again. */
+  notSent: "Asked, but their email didn't go. It is on their Partner page when they sign in; to send the email again, take it back and ask again.",
+  failed: "your partner",
+  failedAnswer: "the invitation",
+  /** Settings › Partner, the partner's pane. */
+  invitationsTitle: "Workspaces asking for you",
+  failedInvitations: "the workspaces asking for you",
+  accept: "Join",
+  accepting: "Joining\u2026",
+  decline: "Decline",
+  declining: "Declining\u2026"
+};
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
@@ -4863,7 +4895,7 @@ async function getOwnPartner(db) {
 }
 async function getPartnerBroughtCount(db, partnerId) {
   const of = () => db.from("partner_tenants").select("tenant_id", { count: "exact", head: true }).eq("partner_id", partnerId);
-  const r2 = await of().or("origin.eq.link,handover_accepted_at.not.is.null");
+  const r2 = await of().or("origin.eq.link,origin.eq.invite,handover_accepted_at.not.is.null");
   if (!r2.error) return r2.count ?? 0;
   if (!/\b(origin|handover_accepted_at)\b/.test(r2.error.message)) return null;
   const older = await of();
@@ -5042,6 +5074,86 @@ async function getHandoverInvite(db, tenantId) {
     expiresAt: data.handover_expires_at
   };
 }
+async function invitePartner(db, tenantId, code) {
+  const { data, error } = await db.rpc("partner_invite", { p_tenant: tenantId, p_code: code });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data ?? {};
+  return {
+    ok: true,
+    value: { code: String(v.code ?? code), sentAt: String(v.sent_at ?? ""), expiresAt: String(v.expires_at ?? "") }
+  };
+}
+async function withdrawPartnerInvite(db, tenantId) {
+  const { error } = await db.rpc("partner_invite_withdraw", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: null };
+}
+async function getWorkspacePartner(db, tenantId) {
+  const { data, error } = await db.rpc("workspace_partner", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = data ?? {};
+  const p = v.partner ?? null;
+  const i = v.invitation ?? null;
+  return {
+    ok: true,
+    value: {
+      partner: p ? {
+        code: String(p.code ?? ""),
+        origin: String(p.origin ?? ""),
+        since: String(p.since ?? ""),
+        seated: p.seated === true
+      } : null,
+      invitation: i ? {
+        code: String(i.code ?? ""),
+        sentAt: String(i.sent_at ?? ""),
+        expiresAt: String(i.expires_at ?? ""),
+        declinedAt: i.declined_at ? String(i.declined_at) : null
+      } : null
+    }
+  };
+}
+async function getPartnerInvitations(db) {
+  const { data, error } = await db.rpc("partner_invitations_mine");
+  if (error) {
+    if (noFunction(error)) return [];
+    throw new Error(`getPartnerInvitations: ${error.message}`);
+  }
+  return (data ?? []).map((r2) => ({
+    tenantId: r2.tenant_id,
+    workspace: r2.workspace,
+    sentAt: r2.sent_at,
+    expiresAt: r2.expires_at
+  }));
+}
+async function acceptPartnerInvite(db, tenantId) {
+  const { data, error } = await db.rpc("partner_invite_accept", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const row = data?.[0];
+  if (!row) return { ok: false, code: "P0002", message: "There is no invitation for you there." };
+  return { ok: true, value: { id: row.id, slug: row.slug, name: row.name, earns: row.earns } };
+}
+async function declinePartnerInvite(db, tenantId) {
+  const { error } = await db.rpc("partner_invite_decline", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: null };
+}
+async function getPartnerInviteMail(db, tenantId) {
+  const { data, error } = await db.from("partner_invitations").select("expires_at, declined_at, tenants(name), partners(code, user_id)").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`getPartnerInviteMail: ${error.message}`);
+  if (!data || data.declined_at || Date.parse(data.expires_at) <= Date.now()) return null;
+  const userId = data.partners?.user_id;
+  if (!userId) return null;
+  const who = await db.auth.admin.getUserById(userId);
+  if (who.error) throw new Error(`getPartnerInviteMail: ${who.error.message}`);
+  const email = who.data.user?.email;
+  if (!email) return null;
+  return {
+    email,
+    workspace: data.tenants?.name ?? "",
+    partnerCode: data.partners?.code ?? "",
+    expiresAt: data.expires_at
+  };
+}
 
 // src/repositories/leads.ts
 var ONE_LEAD_COLUMNS = "id, tenant_id, place_id, business_name, category, street, city, region, postal_code, neighborhood, lat, lng, mark_path, website_host, instagram_url, phone_e164, phone_sources, phone_wrong, email, email_alternates, email_state, email_checked_at, rating, reviews, stage, closed_reason, last_outcome, last_note, about, hours, image_url, price, reviews_dist, facebook_url, linkedin_url, tiktok_url, claimed, maps_url, rank, contact_id, contacted_at, converted_at, exported_at, found_at, version, blanked_at, erased_at";
@@ -5176,6 +5288,7 @@ export {
   MAX_ROWS,
   PEOPLE_PAGE,
   acceptHandover,
+  acceptPartnerInvite,
   activityTokensOf,
   addToList,
   addressesSuppressed,
@@ -5202,6 +5315,7 @@ export {
   createServiceClient,
   createWorkspaceForBusiness,
   declineHandover,
+  declinePartnerInvite,
   deleteList,
   deleteSendingDomain,
   deleteSendingDomainAsRead,
@@ -5226,16 +5340,20 @@ export {
   getPartnerBalance,
   getPartnerBroughtCount,
   getPartnerHandovers,
+  getPartnerInvitations,
+  getPartnerInviteMail,
   getPartnerLetters,
   getPartnerWorkspaces,
   getPlatformPartners,
   getTenantConfig,
+  getWorkspacePartner,
   heldNoticeDue,
   heldStale,
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
   insertQueuedEmail,
+  invitePartner,
   keepIdempotencyReceipt,
   lastInboundEmail,
   leadAddressBounced,
@@ -5353,6 +5471,7 @@ export {
   undoReplyReading,
   watchedTables,
   withdrawEmail,
+  withdrawPartnerInvite,
   workspaceAbout,
   workspaceMaySpend,
   workspaceNameAndConfig,
