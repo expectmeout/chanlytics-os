@@ -68,11 +68,13 @@ async function coldStart() {
     TODAY_MS,
   );
   const page = devtools(target.webSocketDebuggerUrl);
+  // The limit is this computer's clock, as every wait's is; only the times a run reports are the device's.
+  const giveUpAt = Date.now() + TODAY_MS;
   try {
     for (let look = 0; ; look++) {
       const read = await page.evaluate(READ);
       if (read.today) return { launch, ...fromTheStart(startedAt, read), atFirstLook: look === 0 };
-      if (Date.now() - startedAt > TODAY_MS) throw new Error("Today's data never came");
+      if (Date.now() > giveUpAt) throw new Error("Today's data never came");
       await sleep(LOOK_MS);
     }
   } finally {

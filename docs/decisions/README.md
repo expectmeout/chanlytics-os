@@ -24,6 +24,7 @@ once it is built: it is the record of why the code has that shape.
 | [0017](0017-a-lead-reply-is-drafted-on-its-reading.md)          | A lead's reply is drafted on its reading                   | Built, steps 1 and 2 (Reach out Part 5's PRs 1 and 5); step 3 waits on 0001's step 6                                                                              |
 | [0020](0020-an-existing-workspace-brings-in-a-partner.md)       | An existing workspace brings in a partner                  | Built with the note (00225)                                                                                                                                       |
 | [0021](0021-people-are-paged-by-a-moment-the-database-keeps.md) | People are paged by a moment the database keeps            | Proposed; Ruben's to accept. Step 1 is built as a draft (#1306)                                                                                                   |
+| [0022](0022-the-wire-says-snake-case.md)                        | The wire says snake_case                                   | Proposed (the naming review's D1), taken with Road to Ten's Phase 1; Ruben's confirmation owed. Step 1 built with it: the test, its bank, PUT policies' body      |
 
 Open pull request #1039, the pricing note, is written as 0011, which the bearer token has held since #1149: it
 takes the next free number when it lands. A number never changes once it is on `main`.
@@ -32,4 +33,6 @@ A superseded note is edited in place. Each opens with a **Status and commit** li
 today, with the file and line that proves it), Decision, Shape, Steps, Tests, Risks, Open questions. Every note is
 written against a **named commit** and verified against the code at it, not against the plans. When a note's status
 changes, its status line and this table change in the same pull request, and say the commit the status was read at.
-The code moves; where a note and the code disagree, the code wins.
+`tooling/scripts/tests/history/decisions.test.mjs` holds the table: every note is named for a number of its own and
+has one row, and each row says the state its note's status line says (proposed; decided, not built; built, in part or
+whole; or decided). The code moves; where a note and the code disagree, the code wins.

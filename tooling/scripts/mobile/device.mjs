@@ -147,15 +147,18 @@ export function tap({ x, y }) {
 
 /* ---- What the app says as it starts ---- */
 
+/** How the line the app writes as it starts begins (apps/mobile/src/shell/deploy.ts, launchLine). */
+const LAUNCH = "app_launch ";
+
 /**
- * The bundle the app last started with, from the device's log: its `app_launch` line (src/app/_layout.tsx), the
- * update's id or the build's own bundle, and its channel. Null when no launch was logged.
+ * The bundle the app last started with, from the device's log: its last launch line, the update's id or the build's
+ * own bundle, and its channel. Null when no launch was logged.
  */
 export function launchOf(logcat) {
-  const lines = logcat.split(/\r?\n/).filter((l) => l.includes("app_launch "));
-  if (lines.length === 0) return null;
+  const line = logcat.split(/\r?\n/).findLast((l) => l.includes(LAUNCH));
+  if (!line) return null;
   try {
-    return JSON.parse(lines[lines.length - 1].slice(lines[lines.length - 1].indexOf("app_launch ") + 11));
+    return JSON.parse(line.slice(line.indexOf(LAUNCH) + LAUNCH.length));
   } catch {
     return null;
   }

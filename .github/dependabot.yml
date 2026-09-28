@@ -19,10 +19,11 @@ updates:
       # engines field does.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
-      # TypeScript 7 is the native compiler with a new API; tsup's --dts (every
-      # package build) dies on it (`useCaseSensitiveFileNames` of undefined) and
-      # Next 15's type plugin is not on it either. It moves when the toolchain
-      # does (#401 was that bump, closed).
+      # TypeScript 7 is the native compiler and ships no JavaScript API. tsup's
+      # declaration build, typescript-eslint, knip and the ratchets (_ast.mjs) all
+      # call the compiler's, so the toolchain stays on 6.x until each of them moves
+      # (#401 was that bump, closed). The version is pinned once, in
+      # pnpm-workspace.yaml's catalog; tests/types/ holds it.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
     groups:

@@ -66,6 +66,16 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      # A pull request's title becomes the squash commit's subject: one sentence, at most 100 characters, no closing
+      # period (README, Conventions). Before the install, so a title that breaks it fails in seconds. A pull request
+      # opened before 29 September 2026 is exempt, by its created_at, so the rule turned no open one red. The title
+      # and the time come from the event through the environment, never inside the script's text; a re-run is given
+      # the same event, so a title fixed in place is judged again by the next push.
+      - if: github.event_name == 'pull_request'
+        run: node tooling/scripts/checks/pr-title.mjs
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
       - run: pnpm install --frozen-lockfile
       # workspace packages build to dist first; apps typecheck against the built types
       - run: pnpm --filter "./packages/*" build

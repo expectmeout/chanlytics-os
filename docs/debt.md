@@ -37,6 +37,7 @@ it is deleted in the same change. The plan that orders the work is
 | Source-text assertions in tests                                                                                                                       | `source-scan-baseline.json`                                       | Zero outside the eight repo-wide lints                                                                                                                                                | A behaviour test replaces each pin as its module is touched                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Lint warnings, by file and rule                                                                                                                       | `baselines/lint-warnings.json`                                    | Zero, with `exhaustive-deps` and unused names as errors                                                                                                                               | The `exhaustive-deps` are the shell's aliased hooks (#1175 taught the lint every alias): each is a behaviour change, fixed with its page's test. The one unused name left is `vm` in contracts' `first-run-try.ts`. `corepack pnpm lint -- --update` banks each fall                                                                                                                                                                                                                                                                                                                                                                          |
 | What opening a workspace loads: JS and CSS, gzipped                                                                                                   | `baselines/bundle-budget.json`                                    | Kept as a guard; the debt it holds is the shell, one client chunk for every surface                                                                                                   | Declare contracts free of side effects (measured); route-level splitting comes with 0015's App Router routes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Wire names not in snake_case                                                                                                                          | `baselines/wire-casing.json`                                      | Empty: every name a route takes or answers is snake_case, and `routes/wire-casing.test.mjs` holds the wire with no bank                                                               | Seeded on 28 September 2026 at `4bc3e49a7` with decision 0022 and `docs/naming.md`: 54 names in 26 routes, one entry per route and name. Ask's four routes and the partner program's five are theirs, renamed when those programs land; the other 17 a domain at a time (team, workspaces, metrics, leads, Today and the WhatsApp signup; Setup, Settings and the back office; playbooks, broadcasts and templates), a field a page or the phone app reads answered in both spellings for one release. A route that reads its body by hand is not seen until it declares its `input`, as `PUT policies` did with this row                     |
 
 ## What is named and not yet measured
 
@@ -101,13 +102,14 @@ window globals                      200   names
 window publishers                   446   sites in 164 files
 copies                               52   of 14 names
 as unknown as                       221
-table names outside packages/db     534
+table names outside packages/db     533
 unnamed durations                    76   in 37 files
-literal style values               1718   in 21 stylesheets
-primitives outside the kit         2576   selectors naming 971 classes
+literal style values               1709   in 21 stylesheets
+primitives outside the kit         2569   selectors naming 964 classes
 inline style props                  285   in 48 files
+wire names not in snake_case         54   in 26 routes
 dead exports, types and modules     156
-source-text reads in tests          824
+source-text reads in tests          823
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      972   the shell included
 workspace route CSS, KB gzipped     123
