@@ -66,8 +66,8 @@ const TS_PLUGINS = { "@typescript-eslint": tseslint.plugin };
  * file could reach into a server module, and only a failed Vercel build would
  * have said so. Type-only imports cross freely; they carry a shape, not code.
  *
- *   browser code (legacy-bridge, client, yes, auth) → never the server, never
- *                                                     the packages that hold
+ *   browser code (legacy-bridge, client, yes, auth, → never the server, never
+ *                 surfaces)                           the packages that hold
  *                                                     rules or providers
  *   server code (src/server, app/api)               → never the shell or the
  *                                                     bridge that feeds it
@@ -132,6 +132,23 @@ const EDGE_MAY_NOT_IMPORT = [
 ];
 
 /**
+ * A surface draws its controls with the kit's components (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md,
+ * §3.7): outside src/surfaces/kit, a raw <button>, <input>, <select>, <textarea> or <dialog> is refused, and the
+ * refusal names the component to take instead. The kit draws each raw element once, in its component.
+ */
+const KIT_COMPONENT_FOR = {
+  button: "Button",
+  input: "Field, or its Switch for a checkbox",
+  select: "Select",
+  textarea: "Field",
+  dialog: "Sheet",
+};
+const RAW_ELEMENTS = Object.entries(KIT_COMPONENT_FOR).map(([element, component]) => ({
+  selector: `JSXOpeningElement[name.name='${element}']`,
+  message: `Take the kit's ${component} (apps/dashboard/src/surfaces/kit/), not a raw <${element}>. If the kit has no variant for this, add one there with its gallery entry.`,
+}));
+
+/**
  * A function's limits, the complexity ratchet's (tooling/scripts/tests/_measures.mjs, LIMIT): 150 lines, 30
  * branches, 5 levels. The ratchet holds every function over them by name (baselines/complexity.json), counted as
  * these rules count (repo/measures.test.mjs), and a listed one may only shrink. Where a tree's last entry has been
@@ -142,8 +159,9 @@ export const FUNCTION_LIMITS = { lines: 150, branches: 30, depth: 5, params: 4 }
 
 /**
  * The trees whose complexity baseline is empty: a package's src, an app area, or a domain folder in one. A tree joins
- * in the change that banks its last entry; a parent replaces its folders once all of it is held. The shell
- * (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of the programs in flight
+ * in the change that banks its last entry, and a new tree with its first file (src/surfaces, where the shell's pages
+ * land as decision 0015 moves them, joined with the kit's); a parent replaces its folders once all of it is held. The
+ * shell (legacy/) is not here, since it leaves with decision 0015, and neither are the trees of the programs in flight
  * (Ask, Reach out, the phone app, partners), which join as those land. repo/lint-boundaries.test.mjs holds each entry
  * to real source with no entry left in the baseline, asks ESLint that the limits apply there, and fails a tree the
  * ratchet has emptied that is not here (its header says which folders are trees).
@@ -162,6 +180,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/auth",
   "apps/dashboard/src/client",
   "apps/dashboard/src/lib",
+  "apps/dashboard/src/surfaces",
   "apps/dashboard/src/yes",
   "apps/dashboard/src/legacy-bridge/today-sample",
   "apps/dashboard/src/server/auth",
@@ -305,6 +324,8 @@ export default [
       "apps/dashboard/src/auth/**/*.{ts,tsx}",
       // The public opt-in pages' markup, apart from their pages so it renders without a workspace (the desk sign).
       "apps/dashboard/src/yes/**/*.tsx",
+      // The surfaces that leave the shell (decision 0015), and the kit they draw with.
+      "apps/dashboard/src/surfaces/**/*.{ts,tsx}",
       // The few modules that sit at src/ itself (csp.ts): the middleware's own rules.
       "apps/dashboard/src/*.ts",
       "apps/dashboard/*.{ts,mjs}",
@@ -337,6 +358,7 @@ export default [
       "apps/dashboard/src/client/**/*.{ts,tsx}",
       "apps/dashboard/src/yes/**/*.tsx",
       "apps/dashboard/src/auth/**/*.{ts,tsx}",
+      "apps/dashboard/src/surfaces/**/*.{ts,tsx}",
     ],
     rules: {
       "@typescript-eslint/no-restricted-imports": ["error", { patterns: BROWSER_MAY_NOT_IMPORT }],
@@ -347,6 +369,13 @@ export default [
     rules: {
       "@typescript-eslint/no-restricted-imports": ["error", { patterns: SERVER_MAY_NOT_IMPORT }],
     },
+  },
+
+  // A surface draws its controls with the kit's components (RAW_ELEMENTS above); the kit draws the raw elements.
+  {
+    files: ["apps/dashboard/src/surfaces/**/*.{ts,tsx}"],
+    ignores: ["apps/dashboard/src/surfaces/kit/**"],
+    rules: { "no-restricted-syntax": ["error", ...RAW_ELEMENTS] },
   },
 
   // A function's limits, as errors where the ratchet holds nothing (LIMITED_TREES above). IIFEs count, as they

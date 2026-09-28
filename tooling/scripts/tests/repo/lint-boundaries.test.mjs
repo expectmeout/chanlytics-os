@@ -5,6 +5,9 @@
  * longer matches, a block moved above the one it overrides), so this runs the
  * real config over probe snippets, placed as if they lived in each layer, and
  * expects each forbidden thing to be refused and each allowed thing to pass.
+ * So is the kit's rule for the surfaces that leave the shell (src/surfaces):
+ * a raw <button>, <input>, <select>, <textarea> or <dialog> is the kit's to
+ * draw, and a surface takes the kit's component instead.
  *
  * The function limits are lint rules there too, in the trees the complexity
  * ratchet has emptied (plan 27: "the limits are lint errors for new code"):
@@ -24,8 +27,8 @@
  *   - each folder of `apps/dashboard/src/server`, `apps/dashboard/src/legacy-bridge`,
  *     `apps/edge/lib` and `apps/edge/api`, a domain each;
  *   - each other top-level folder of `apps/dashboard/src` as a whole (auth,
- *     client, lib, yes), but the shell's `legacy`, which leaves with decision
- *     0015 rather than joining;
+ *     client, lib, surfaces, yes), but the shell's `legacy`, which leaves with
+ *     decision 0015 rather than joining;
  *
  * less the trees of the programs in flight (IN_FLIGHT: Ask, Reach out, the
  * phone app, partners), which join as those land, as eslint.config.mjs says.
@@ -84,6 +87,64 @@ test("the typed client and the sign-in screens are held to the same boundary", a
       at,
     );
   }
+});
+
+/** Where a surface's probes stand: a page that has left the shell, and the kit it draws with. */
+const SURFACES = ["apps/dashboard/src/surfaces/reports/probe.tsx", "apps/dashboard/src/surfaces/kit/probe.tsx"];
+
+test("a surface is browser code, linted as the dashboard's own: its layer, and the hooks rules on its TSX", async () => {
+  const hookInABranch = [
+    'import { useState } from "react";',
+    "export function Probe({ on }: { on: boolean }): string {",
+    "  if (on) useState(0);",
+    '  return "";',
+    "}",
+    "",
+  ].join("\n");
+  for (const at of SURFACES) {
+    assert.deepEqual(
+      await rulesFiredOn(at, 'import { route } from "@/server/route";\nexport const x = route;\n'),
+      [IMPORTS],
+      `${at}: the server`,
+    );
+    assert.deepEqual(
+      await rulesFiredOn(at, 'import { deliver } from "@chanlytics/core";\nexport const x = deliver;\n'),
+      [IMPORTS],
+      `${at}: a rule package`,
+    );
+    assert.deepEqual(
+      await rulesFiredOn(at, 'import type { InputOf } from "@/server/route";\nexport type Y = InputOf<"a">;\n'),
+      [],
+      `${at}: a type crosses`,
+    );
+    assert.deepEqual(await rulesFiredOn(at, hookInABranch), ["react-hooks/rules-of-hooks"], `${at}: the hooks rules`);
+  }
+});
+
+/** The component each raw element's refusal names (eslint.config.mjs, KIT_COMPONENT_FOR). */
+const KIT_TAKES = { button: "Button", input: "Field", select: "Select", textarea: "Field", dialog: "Sheet" };
+
+test("a surface takes its controls from the kit: a raw one is refused, naming the kit's component, and the kit draws them", async () => {
+  const [page, kit] = SURFACES;
+  const draws = (element) => `export function Probe(): unknown {\n  return <${element} />;\n}\n`;
+  for (const [element, component] of Object.entries(KIT_TAKES)) {
+    const [result] = await eslint.lintText(draws(element), { filePath: path.join(ROOT, page) });
+    const refused = result.messages.filter((m) => m.severity === 2);
+    assert.deepEqual(
+      refused.map((m) => m.ruleId),
+      ["no-restricted-syntax"],
+      `<${element}> in a surface`,
+    );
+    assert.match(refused[0].message, new RegExp(`^Take the kit's ${component}[ ,]`), `<${element}>`);
+    assert.deepEqual(await rulesFiredOn(kit, draws(element)), [], `<${element}> in the kit, which draws it`);
+  }
+  assert.deepEqual(await rulesFiredOn(page, draws("Button")), [], "the kit's component is not the raw element");
+  assert.deepEqual(await rulesFiredOn(page, draws("div")), [], "and the rule names those five alone");
+  assert.deepEqual(
+    await rulesFiredOn("apps/dashboard/src/legacy-bridge/probe.tsx", draws("button")),
+    [],
+    "the bridge's own screens are not surfaces",
+  );
 });
 
 test("server code may not import the shell, the bridge or the browser client", async () => {
@@ -304,4 +365,14 @@ test("in a held tree each limit is an error one past its number, and not at it",
   assert.deepEqual(await fired(wide, probe({ params: at.params + 1 })), [], `${WIDE_PARAMS[0]} waits for max-params`);
   // Where the ratchet still holds a function, the lint does not: a split is banked there, never a lint error.
   assert.deepEqual(await fired("packages/core/src/probe.ts", probe({ ...at, lines: at.lines + 1 })), []);
+});
+
+test("a surface is held to the limits from its first file, a page and the kit alike", async () => {
+  const at = { lines: LIMIT.lines, branches: LIMIT.branches, depth: LIMIT.depth, params: FUNCTION_LIMITS.params };
+  for (const file of SURFACES.map((f) => f.replace(/\.tsx$/, ".ts"))) {
+    assert.deepEqual(await fired(file, probe(at)), [], `${file}: a function at every limit passes`);
+    assert.deepEqual(await fired(file, probe({ ...at, lines: at.lines + 1 })), ["max-lines-per-function"], file);
+    assert.deepEqual(await fired(file, probe({ ...at, branches: at.branches + 1 })), ["complexity"], file);
+    assert.deepEqual(await fired(file, probe({ ...at, params: at.params + 1 })), ["max-params"], file);
+  }
 });

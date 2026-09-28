@@ -35,12 +35,15 @@
  * A length a page keeps in a custom property of its own (`--r: 6px`) is not seen as a
  * radius or a size: a custom property holds anything, and only its colours are read.
  *
- * A class draws a primitive when one of the words its name is made of (split on "-")
+ * A class draws a primitive when the kit's registry lists it (KIT_REGISTRY, the kit's
+ * own names: decision 4), when one of the words its name is made of (split on "-")
  * names one (PRIMITIVE_WORDS), or when it is one of the house's own kit names by
  * prefix (KIT_PREFIXES: the record kit, the menu, the live dot). Three families are
  * homonyms and never count (NOT_PRIMITIVES): People's saved segments (`cl-seg-*`), a
  * saved search (`ld-search-*`) and the map's own controls (`maplibregl-*`). A row or a
- * list item is not counted: a row is most often a page's own layout.
+ * list item is not counted: a row is most often a page's own layout. A class the
+ * registry lists is a primitive whatever its words, so one declared in any stylesheet
+ * but the kit's own is a primitive outside the kit.
  *
  * Not named *.test.mjs on purpose: the runner globs that pattern.
  */
@@ -122,12 +125,20 @@ const KIT_PREFIXES = ["rec-", "more-", "live-dot"];
 /** Families whose words say primitive and whose job is not one. */
 const NOT_PRIMITIVES = ["cl-seg-", "ld-search-", "maplibregl-"];
 
-/** Whether a class name draws a primitive: see the header. */
-export const isPrimitiveClass = (name) => {
+/** The kit's registry of its class names (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.4). */
+export const KIT_REGISTRY = "apps/dashboard/src/surfaces/kit/classes.json";
+const KIT_CLASSES = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, KIT_REGISTRY), "utf8")).classes);
+
+/** Whether a class name draws a primitive, for a set of the kit's names: see the header. */
+export const isPrimitiveClassFor = (kit) => (name) => {
+  if (kit.has(name)) return true;
   if (NOT_PRIMITIVES.some((p) => name.startsWith(p))) return false;
   if (KIT_PREFIXES.some((p) => name === p || name.startsWith(p))) return true;
   return name.split("-").some((w) => PRIMITIVE_WORDS.has(w.toLowerCase()));
 };
+
+/** Whether a class name draws a primitive, the kit's registry read: what the measure counts. */
+export const isPrimitiveClass = isPrimitiveClassFor(KIT_CLASSES);
 
 const FONT = new Set(["font-size", "font"]);
 const RADIUS = new Set([

@@ -13,7 +13,8 @@
  * So: no-store, everything, always. This serves a design review, not traffic.
  *
  * Three files are built rather than read: `data/reports-sample.js` and `data/today-sample.js`, the demo's Reports and
- * Today, and `data/business-tab.js`, the Business tab's helpers (see SAMPLES below).
+ * Today, and `data/business-tab.js`, the Business tab's helpers (see SAMPLES below). One is read from outside the
+ * tree: the kit's stylesheet (KIT_CSS below).
  *
  *   node tooling/scripts/serve-legacy.mjs [port] [dir]
  */
@@ -112,12 +113,20 @@ export const send = (res, status, type, body) => {
 };
 
 /**
- * One file of the mockup, by its path under `root`. Nothing outside it, whatever the path says. Exported for the
- * e2e harness, which serves the same tree with its own routes in front of it.
+ * The one file the document names from outside the mockup's tree: the kit's stylesheet, which lives with the kit and
+ * which the app imports right after the tokens (legacy-bridge/legacy.css). Chanlytics.html links it in the same place,
+ * as `surfaces/kit/kit.css`, so it is asked for at this path.
+ */
+const KIT_CSS = { at: "/surfaces/kit/kit.css", file: path.join(REPO, "apps/dashboard/src/surfaces/kit/kit.css") };
+
+/**
+ * One file of the mockup, by its path under `root`, or the kit's stylesheet at its one path. Nothing else outside the
+ * tree, whatever the path says. Exported for the e2e harness, which serves the same tree with its own routes in front
+ * of it.
  */
 export function serveStatic(res, root, rel) {
-  const file = path.join(root, rel);
-  if (!file.startsWith(root)) {
+  const file = rel === KIT_CSS.at ? KIT_CSS.file : path.join(root, rel);
+  if (file !== KIT_CSS.file && !file.startsWith(root)) {
     res.writeHead(403).end("Forbidden");
     return;
   }

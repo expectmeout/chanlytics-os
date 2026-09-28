@@ -10,6 +10,9 @@
    them, and they resolve to whatever the theme says rather than to a second
    set of values that can drift. */
 @import "../src/legacy/styles/tokens.css";
+/* The kit's primitives, right after the tokens as the shell imports them
+   (legacy-bridge/legacy.css), so a signed-out page draws the same button. */
+@import "../src/surfaces/kit/kit.css";
 
 :root {
   --auth-bg: var(--bg);

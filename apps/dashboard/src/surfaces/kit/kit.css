@@ -1,0 +1,21 @@
+/* The kit's stylesheet (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §2 and §3.4): the rules that draw
+   the interface's primitives, each written once. A button, a switch, a segmented control, a pill, a chip, a count, a
+   mark, a panel, a field, a menu, a sheet, a row, a face, a meter, an empty state, a toast and a tooltip are drawn
+   here, and a page composes them.
+
+   What belongs here:
+   - The kit's rules, on single-class selectors: one class for each thing the kit draws (.btn, .btn-primary), each
+     named in classes.json beside this file. A page that needs something different asks the kit for a variant, and
+     never restyles a kit class from its own stylesheet.
+   - Values read from tokens.css: the roles a look sets (tier 2: a surface's fill, a control's height, the primary
+     action's ink) and a component's own tokens (tier 3, such as --btn-h), declared here and never set by a look. No
+     colour, type size, radius, shadow or blur is written as a number.
+   - One phone breakpoint, 900px: the one width an @media here names.
+   A page's stylesheet holds its layout only: display, grid, flex, gap, position, size and overflow.
+
+   Loaded right after tokens.css, before every other stylesheet: by the app's two entry files (legacy-bridge/legacy.css
+   for the shell, app/globals.css for the pages outside it), and by the standalone document (legacy/Chanlytics.html,
+   at the one path outside its tree that tooling/scripts/serve-legacy.mjs serves).
+
+   No rules yet, so nothing a member sees has changed: step 2.1 moves the house's primitives here from components.css
+   and record.css, under the names classes.json lists. */

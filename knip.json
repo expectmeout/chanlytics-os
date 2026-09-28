@@ -36,7 +36,8 @@
         "src/*.ts",
         "src/legacy-bridge/manifest.ts",
         "src/legacy-bridge/**/*.{ts,tsx}",
-        "src/**/*.type-test.ts"
+        "src/**/*.type-test.ts",
+        "src/surfaces/kit/index.ts"
       ],
       "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "*.{ts,mjs}"]
     },

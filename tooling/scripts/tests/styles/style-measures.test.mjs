@@ -1,15 +1,18 @@
 /**
  * The interface kit's measures on stylesheets and modules written for them, small enough to count by hand
  * (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, §3.7): a literal style value (_css.mjs), a class that
- * draws a primitive (_css.mjs), and a style prop (_ast.mjs). Each branch of a definition has a case that fails when the
- * branch is taken away. And a guard that each measure sees the dashboard's own files, so a parser that stopped
- * reading them fails here instead of banking a zero.
+ * draws a primitive (_css.mjs, the kit's registry of names among them), and a style prop (_ast.mjs). Each branch of a
+ * definition has a case that fails when the branch is taken away. And a guard that each measure sees the dashboard's
+ * own files, so a parser that stopped reading them fails here instead of banking a zero.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import ts from "typescript";
-import { cssFacts, cssOf, isPrimitiveClass, strictFacts } from "../_css.mjs";
-import { inlineStyles } from "../_ast.mjs";
+import { cssFacts, cssOf, isPrimitiveClass, isPrimitiveClassFor, KIT_REGISTRY, strictFacts } from "../_css.mjs";
+import { inlineStyles, repoFiles } from "../_ast.mjs";
+import { ROOT } from "../_source.mjs";
 import { MEASURES, TOKENS_CSS } from "../_measures.mjs";
 
 const NONE = { font: 0, radius: 0, shadow: 0, colour: 0, blur: 0 };
@@ -100,6 +103,23 @@ test("a class draws a primitive when one of its words names one or it is a kit n
   for (const name of ["cl-seg-card", "ld-search-row", "maplibregl-ctrl-attrib-button"]) {
     assert.ok(!isPrimitiveClass(name), `${name} is a homonym: its words say primitive, its job is not one`);
   }
+});
+
+test("a class the kit's registry lists is a primitive whatever its words, and each name it lists is a stylesheet's", () => {
+  const withKit = isPrimitiveClassFor(new Set(["frame-rim"]));
+  assert.ok(withKit("frame-rim"), "a name the registry lists, though no word of it names a primitive");
+  assert.ok(!withKit("frame-top"), "a name it does not list is read by its words");
+  const listed = JSON.parse(fs.readFileSync(path.join(ROOT, KIT_REGISTRY), "utf8")).classes;
+  assert.ok(listed.length > 0, `${KIT_REGISTRY} was read`);
+  assert.equal(new Set(listed).size, listed.length, "each name once");
+  const named = new Set(
+    repoFiles(["apps/dashboard"], { keep: /\.css$/ }).flatMap((f) => Object.keys(cssOf(f).classes)),
+  );
+  assert.deepEqual(
+    listed.filter((name) => !named.has(name)),
+    [],
+    "every name the registry lists is a class a stylesheet of the dashboard names",
+  );
 });
 
 test("a style prop counts on an element or a component; another prop, a style key or the word in a string does not", () => {
