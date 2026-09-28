@@ -87,6 +87,8 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
   const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan, format, toolsUsed } = soFar;
   const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits } = soFar.meter;
   const { proposals, live } = soFar;
+  // What the turn keeps beside it (RawTurn): a live turn, its link and what it told; a rebuilt one, what its lines told.
+  const kept = live && input.chain ? chainEnd(input.chain) : input.told ? { told: input.told } : {};
   const shape: AskTurnShape = {
     v: 1,
     model: model.id,
@@ -135,9 +137,6 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     text: answerText(r.answer),
     model: model.id,
     shape,
-    raw:
-      lastRound && !lastRound.streamError
-        ? rawTurn(lastRound, soFar.questionAt, live && input.chain ? chainEnd(input.chain) : null)
-        : null,
+    raw: lastRound && !lastRound.streamError ? rawTurn(lastRound, soFar.questionAt, kept) : null,
   };
 }

@@ -76,6 +76,15 @@ export interface Chain {
 const toldOf = (o: { id: string; state: string; atMs: number }): string => `${o.id}:${o.state}:${o.atMs}`;
 /** What a live turn keeps of the chain it replayed (RawTurn): where it ended, and what the turn told. */
 export const chainEnd = (chain: Chain) => ({ after: chain.after, told: chain.since.map(toldOf) });
+/**
+ * What a rebuilt history's lines already said of the thread's cards (the Phase 5 plan, PR 5.5): every outcome on a card
+ * of the rows the turn read, as a live turn keeps what it told. Every row read, not only those the lines kept: a card
+ * older than the lines, its outcome recorded before this turn, is no news to a turn after it.
+ */
+const toldIn = (rows: AskMessageVM[]): string[] =>
+  rows.flatMap((r) =>
+    r.proposals.flatMap((p) => (p.outcome ? [toldOf({ id: p.id, state: p.outcome.state, atMs: p.outcome.atMs })] : [])),
+  );
 
 /**
  * The thread's prior turns, folded so no two neighbours share a role, starting with the person: the last HISTORY_TURNS
@@ -154,6 +163,11 @@ export async function threadForTurn(
   scope: AskScope | null;
   /** The thread's warm turns as the model was sent them, for a live replay (the Phase 5 plan, D1–D3); null, cold. */
   chain: Chain | null;
+  /**
+   * What the history's lines already said of the thread's cards (toldIn): a cold turn keeps it beside its base, so a
+   * live turn after it tells only what is newer (Chain.since). Null with no history.
+   */
+  told: string[] | null;
 }> {
   const { tenantId, threadId, text, answering } = asked;
   let { scope } = asked;
@@ -161,11 +175,13 @@ export async function threadForTurn(
   let sinceLastMs: number | null = null;
   let thread: { id: string; title: string; scope: AskScope | null } | null = null;
   let chain: Chain | null = null;
+  let told: string[] | null = null;
   if (threadId) {
     const found = await readThread(ctx, threadId);
     if (found && found.tenantId === tenantId) {
       thread = { id: found.thread.id, title: found.thread.title, scope: found.thread.scope };
       history = rebuiltHistory(found.messages, found.turns);
+      told = history.length ? toldIn(found.messages) : null;
       // The thread's previous turn, before this question is appended: how long the person waited to ask again. The
       // read holds the newest rows (readThread), so its last is the previous turn however long the thread is.
       const lastAt = found.messages.at(-1)?.atMs;
@@ -181,7 +197,7 @@ export async function threadForTurn(
     const created = await createThread(ctx, tenantId, title, scope ?? null);
     thread = { id: created.id, title: created.title, scope: scope ?? null };
   }
-  return { thread, history, sinceLastMs, scope: scope ?? null, chain };
+  return { thread, history, sinceLastMs, scope: scope ?? null, chain, told };
 }
 
 /**
@@ -233,13 +249,16 @@ function chainIds(rows: AskMessageVM[], replays: Array<AskTurnShape["replay"] | 
   return null;
 }
 
-/** A stored raw turn read back as storedRaw keeps it: a live turn's has no base, and names the answer it followed. */
+/**
+ * A stored raw turn read back as storedRaw keeps it: a live turn's has no base, and names the answer it followed; what
+ * it told is null where it kept none (a base from before PR 5.5).
+ */
 interface Kept {
   at: number;
   model: string;
   prefix: string;
   after: string | null;
-  told: string[];
+  told: string[] | null;
   base: Msg[] | null;
   question: unknown[];
   rounds: Msg[];
@@ -256,8 +275,8 @@ function keptOf(v: unknown): Kept | null {
   const { at, model, prefix, blocks, after } = raw;
   if (typeof at !== "number" || typeof model !== "string" || typeof prefix !== "string" || typeof blocks !== "string")
     return null;
-  const told = raw.told ?? [];
-  if (!Array.isArray(told) || !told.every((t) => typeof t === "string")) return null;
+  const told = raw.told ?? null;
+  if (told !== null && (!Array.isArray(told) || !told.every((t) => typeof t === "string"))) return null;
   let b: Record<string, unknown>;
   try {
     const parsed: unknown = JSON.parse(blocks);
@@ -279,12 +298,15 @@ function keptOf(v: unknown): Kept | null {
  * begun under 4½ minutes ago, each live one naming the answer before it (`after`: two tabs interleaving, or a row
  * scrubbed mid-chain, break it), the oldest a base, which keeps the words history it was asked with. Put back together
  * oldest first -- the base's history, then each turn's question, rounds and final -- with every marker a request carried
- * taken off, and held to LIVE_MESSAGES. What happened since is read off the chain's cards, on `rows`.
+ * taken off, and held to LIVE_MESSAGES. What happened since is read off the cards on `rows`: every row's when the base
+ * is a rebuild that kept what its lines said of them (`told`, PR 5.5), else the chain's own -- a words base from before
+ * kept nothing, and every old outcome would be news.
  */
 function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: AskMessageVM[]): Chain | null {
   const turns = kept.filter((k): k is Kept => !!k);
   const [newest] = turns;
-  const base = turns.at(-1)?.base;
+  const oldest = turns.at(-1);
+  const base = oldest?.base;
   if (turns.length !== ids.length || !newest || !base || now - newest.at >= LIVE_WINDOW_MS) return null;
   if (turns.slice(0, -1).some((t, i) => t.base || t.after !== ids[i + 1])) return null;
   const sent = [...base];
@@ -294,8 +316,9 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   const messages = sent.map(unmarked);
   const asked = [...messages].reverse().find((m) => m.role === "user")?.content;
   const anchor = Array.isArray(asked) ? asked.at(-1) : undefined;
-  const told = new Set(turns.flatMap((t) => t.told));
-  const cards = [...ids].reverse().flatMap((id) => rows.find((r) => r.id === id)?.proposals ?? []);
+  const told = new Set(turns.flatMap((t) => t.told ?? []));
+  const own = [...ids].reverse().flatMap((id) => rows.filter((r) => r.id === id));
+  const cards = (oldest?.told ? rows : own).flatMap((r) => r.proposals);
   const since = cards
     .flatMap(({ id, title, outcome }) =>
       outcome ? [{ id, title, state: outcome.state, receipt: outcome.receipt, atMs: outcome.atMs }] : [],
@@ -388,7 +411,11 @@ export interface RawTurn {
   prefix: string;
   /** A live turn's: the answer row whose turn it replayed last (Chain.after), the link the next replay follows. */
   after?: string;
-  /** A live turn's: the outcomes it told (Chain.since, `<card id>:<state>:<atMs>`), which no later turn tells again. */
+  /**
+   * What the turn told of the thread's cards (`<card id>:<state>:<atMs>`), which no later turn of its chain tells again:
+   * a live turn's, the outcomes it said happened since (Chain.since); a rebuilt turn's, every outcome its history's
+   * lines said (threadForTurn's `told`). A thread's first turn keeps none.
+   */
   told?: string[];
 }
 
@@ -439,18 +466,18 @@ function unmarkedBlock(b: unknown): unknown {
 const unmarked = (m: Msg): Msg => (Array.isArray(m.content) ? { ...m, content: m.content.map(unmarkedBlock) } : m);
 
 /**
- * The turn as it was sent, from the round it ended on and where the question sits in that round's request; a live
- * turn's (`live`: the answer its chain ended on, what it told) keeps no base.
+ * The turn as it was sent, from the round it ended on and where the question sits in that round's request, and what it
+ * keeps beside: a live turn's link and what it told (`after`, chainEnd), which keeps no base; a rebuilt turn's `told`.
  */
 export function rawTurn(
   { request, blocks, outcomes, roundAt }: LastRound,
   questionAt: number,
-  live: { after: string; told: string[] } | null,
+  kept: { after?: string; told?: string[] },
 ): RawTurn {
   const { model } = request;
   const messages = request.messages.map(unmarked);
   return {
-    ...(live ? {} : { base: messages.slice(0, questionAt) }),
+    ...(kept.after ? {} : { base: messages.slice(0, questionAt) }),
     question: messages[questionAt].content,
     rounds: messages.slice(questionAt + 1),
     final: replayBlocks(blocks),
@@ -458,7 +485,7 @@ export function rawTurn(
     at: roundAt,
     model,
     prefix: prefixOf(request),
-    ...live,
+    ...kept,
   };
 }
 
@@ -477,5 +504,5 @@ export function storedRaw(
   const blocks = JSON.stringify(
     base ? { base, question, rounds, final, results } : { question, rounds, final, results },
   );
-  return { at, model, prefix, blocks, ...(after ? { after, told } : {}) };
+  return { at, model, prefix, blocks, ...(after ? { after } : {}), ...(told ? { told } : {}) };
 }

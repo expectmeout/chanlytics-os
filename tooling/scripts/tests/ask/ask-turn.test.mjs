@@ -5766,12 +5766,16 @@ async function keep(ctx, text, r, { over = {}, raw = {}, created_at } = {}) {
     .single();
   return data.id;
 }
-/** The thread's next turn as the route asks it: its history and its chain read from the rows (threadForTurn), then run. */
+/**
+ * The thread's next turn as the route asks it: what threadForTurn read from the rows -- its history, its chain and the
+ * rest the route spreads into the turn -- then run.
+ */
 async function nextTurn(ctx, rounds, over = {}, portsOver = {}) {
   const text = over.text ?? "And tomorrow?";
   const found = await threadForTurn(ctx, { tenantId: A, threadId: T9, text, scope: undefined, answering: null });
+  const { thread: _thread, scope: _scope, ...earlier } = found;
   const s = sentAs(rounds);
-  const input = turn(ctx, { text, history: found.history, chain: found.chain, ...over }).input;
+  const input = turn(ctx, { text, ...earlier, ...over }).input;
   const { result: r } = await logged("ask_", () => runAskTurn(input, ports(s.round, portsOver)));
   return { r, s, found };
 }
@@ -6261,8 +6265,8 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
   assert.deepEqual(t7.r.raw.told, ["p-1:done:3000"]);
   await keep(ctx, "And?", t7.r);
 
-  // Dismissed, and asked cold (another role): the chain had it to tell, but a rebuilt turn tells nothing (the rebuild's
-  // own lines carry outcomes, PR 5.5), and keeps no `told`.
+  // Dismissed, and asked cold (another role): the chain had it to tell, but a rebuilt turn tells nothing in its words --
+  // its lines carry the outcome (PR 5.5) -- and keeps what they said as its `told`, which no live turn after it tells.
   await setProposalOutcome(ctx, first, "p-1", { state: "dismissed", receipt: "Not now", atMs: 4_000 });
   const cold = await nextTurn(ctx, [ROUND([answer("Fine.")])], {
     role: "owner",
@@ -6275,7 +6279,8 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
   );
   assert.equal(cold.r.shape.replay, "rebuilt");
   assert.ok(!said(cold.s).includes(SINCE), "a cold turn tells nothing");
-  assert.equal("told" in cold.r.raw, false);
+  assert.ok(cold.s.requests[0].messages[1].content.includes("p-1 · reply · Reply to Rosa · dismissed"), "its line");
+  assert.deepEqual(cold.r.raw.told, ["p-1:dismissed:4000"]);
 
   // The line, as turnWords says it, for each thing a person does with a card.
   const facts = {
@@ -6753,4 +6758,107 @@ test("a cold follow-up's request (the Phase 5 plan, PR 5.5): turn 1 -- two reads
   assert.equal(r.shape.replay, "rebuilt");
   sameBytes(r.raw.base, pairs, "its base: the lines as sent");
   assert.deepEqual(markersOf(s.requests[0]), ["system.0", "system.1", "messages.2.0", "messages.2.2"]);
+});
+
+test("the rebuild is frozen, and knows what it told (the Phase 5 plan, PR 5.5): a cold turn keeps its lines as its base and every outcome they said (`told`); a card approved after it is not in its line, which the next live turn replays as it was sent, and that turn tells the approval once, in its words; the turn after tells it no more; a card the line already called dismissed is never told again", async () => {
+  const { setProposalOutcome } = await import(at("apps/dashboard/src/server/ask/store.ts"));
+  const { world, ctx } = threadWorld();
+  const rosa = { kind: "thread", id: C1, label: "Rosa" };
+  const t1 = sentAs([
+    ROUND([tool("inbox", { action: "list", filter: "recent" })]),
+    ROUND([
+      draft,
+      draft,
+      answer("Rosa needs you.", {
+        show: { items: [{ title: "Rosa", meta: "WhatsApp", line: "Asked about Saturday.", source: rosa }] },
+      }),
+    ]),
+  ]);
+  const r1 = await runAskTurn(
+    turn(ctx).input,
+    ports(t1.round, { propose: proposing(replyCard("p-1", "Rosa"), replyCard("p-2", "Sam")) }),
+  );
+  assert.equal(r1.failed, false, r1.failure ?? "");
+  const first = await keep(ctx, "Who needs me?", r1, {
+    over: { answer: r1.answer, ...v1FromAnswer(r1.answer) },
+    created_at: iso(Date.now() - 10 * 60_000),
+  });
+  await setProposalOutcome(ctx, first, "p-2", { state: "dismissed", receipt: "Not now", atMs: 500 });
+
+  // Turn 2, cold: its lines say what they say now, and it keeps them and every outcome they said.
+  const t2 = await nextTurn(ctx, [ROUND([answer("Rosa asked about Saturday.")])], { text: "What did Rosa ask?" });
+  const line = `Rosa needs you. Cards: p-1 · reply · Reply to Rosa · not pressed yet; p-2 · reply · Reply to Sam · dismissed. Rows, in order: 1. thread ${C1} Rosa.`;
+  sameBytes(unmark(t2.s.requests[0].messages.slice(0, -1)), [
+    { role: "user", content: "Who needs me?" },
+    { role: "assistant", content: line },
+  ]);
+  assert.equal(t2.r.shape.replay, "rebuilt");
+  sameBytes(t2.r.raw.base, unmark(t2.s.requests[0].messages.slice(0, -1)), "its base: the lines as sent");
+  assert.deepEqual(t2.r.raw.told, ["p-2:dismissed:500"], "what its lines said of the thread's cards");
+  assert.deepEqual(Object.keys(t2.r.raw).slice(-2), ["prefix", "told"], "a rebuild's raw keeps no `after`");
+  const second = await keep(ctx, "What did Rosa ask?", t2.r);
+  const stored = world.ask_messages.find((m) => m.id === second).content.raw;
+  assert.deepEqual([stored.told, "after" in stored], [["p-2:dismissed:500"], false], "the row keeps it, and no link");
+
+  // Rosa's card approved; turn 3 at once goes live over turn 2, whose line still says not pressed yet: it is replayed
+  // as it was sent, and turn 3's words tell the approval, once. The dismissal, which the line said, is never told.
+  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 });
+  const t3 = await nextTurn(ctx, [ROUND([answer("It went.")])], { text: "Did it go?" });
+  assert.equal(t3.r.shape.replay, "live");
+  const sent2 = t2.s.requests.at(-1);
+  const n = sent2.messages.length;
+  sameBytes(unmark(t3.s.requests[0].messages.slice(0, n)), unmark(sent2.messages), "turn 2's request, byte for byte");
+  sameBytes(unmark([t3.s.requests[0].messages[n]]), [{ role: "assistant", content: t2.r.raw.final }], "its final");
+  assert.equal(t3.s.requests[0].messages.length, n + 2, "then the new question");
+  assert.equal(t3.s.requests[0].messages[1].content, line, "the line as it was made, though the card was approved");
+  assert.equal(wordsLines(t3.s.requests[0])[1], `${SINCE} “Reply to Rosa” (p-1) was approved: Sent to Rosa.`);
+  assert.deepEqual([t3.r.raw.after, t3.r.raw.told], [second, ["p-1:done:1000"]]);
+  await keep(ctx, "Did it go?", t3.r);
+  const t4 = await nextTurn(ctx, [ROUND([answer("Yes.")])], { text: "And Sam?" });
+  assert.equal(t4.r.shape.replay, "live");
+  assert.ok(!wordsLines(t4.s.requests[0]).some((l) => l.startsWith(SINCE)), "told once, never again");
+});
+
+test("what a rebuild told is what it read (the Phase 5 plan, PR 5.5): an outcome recorded while the cold turn ran is not in its `told`, so the next live turn tells it; a base kept before this PR, which kept no `told`, tells only its chain's own cards, so the deploy never tells every old outcome at once", async () => {
+  const { setProposalOutcome } = await import(at("apps/dashboard/src/server/ask/store.ts"));
+  /** Turn 1 with Rosa's card, saved ten minutes back: a thread whose next turn is cold. */
+  const aCard = async () => {
+    const { world, ctx } = threadWorld();
+    const r1 = await runAskTurn(
+      turn(ctx).input,
+      ports(sentAs([ROUND([draft, answer("A reply to Rosa.")])]).round, {
+        propose: proposing(replyCard("p-1", "Rosa")),
+      }),
+    );
+    const first = await keep(ctx, "Who needs me?", r1, { created_at: iso(Date.now() - 10 * 60_000) });
+    return { world, ctx, first };
+  };
+
+  // Approved after turn 2 read the thread and before it was saved: its lines say not pressed yet, and so does `told`.
+  const racing = await aCard();
+  const read = await threadNow(racing.ctx, "And?");
+  await setProposalOutcome(racing.ctx, racing.first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 });
+  const s2 = sentAs([ROUND([answer("Fine.")])]);
+  const r2 = await runAskTurn(
+    turn(racing.ctx, { text: "And?", history: read.history, chain: read.chain, told: read.told }).input,
+    ports(s2.round),
+  );
+  assert.deepEqual([r2.shape.replay, r2.raw.told], ["rebuilt", []], "nothing was recorded when it read");
+  assert.ok(s2.requests[0].messages[1].content.includes("· not pressed yet"));
+  await keep(racing.ctx, "And?", r2);
+  const t3 = await nextTurn(racing.ctx, [ROUND([answer("Fine.")])]);
+  assert.equal(t3.r.shape.replay, "live");
+  assert.equal(wordsLines(t3.s.requests[0])[1], `${SINCE} “Reply to Rosa” (p-1) was approved: Sent to Rosa.`);
+
+  // A words base kept before this PR (no `told`): only the chain's own rows' cards are told -- turn 1's, older than the
+  // base, is not, though it was approved and no turn told it.
+  const before = await aCard();
+  await setProposalOutcome(before.ctx, before.first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 });
+  const cold = await nextTurn(before.ctx, [ROUND([answer("Fine.")])]);
+  assert.equal(cold.r.shape.replay, "rebuilt");
+  const base = await keep(before.ctx, "And?", cold.r);
+  delete before.world.ask_messages.find((m) => m.id === base).content.raw.told;
+  const after = await nextTurn(before.ctx, [ROUND([answer("Fine.")])]);
+  assert.equal(after.r.shape.replay, "live");
+  assert.ok(!wordsLines(after.s.requests[0]).some((l) => l.startsWith(SINCE)), "an old base: its chain's cards only");
 });

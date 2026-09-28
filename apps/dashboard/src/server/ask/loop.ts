@@ -101,6 +101,11 @@ export interface TurnInput {
   history: Array<{ role: "user" | "assistant"; text: string }>;
   /** The thread's warm turns as the model was sent them (memory.ts threadForTurn); none or null, the turn is cold. */
   chain?: Chain | null;
+  /**
+   * What the history's lines already said of the thread's cards (memory.ts threadForTurn): a cold turn keeps it beside
+   * its base, so a live turn after it tells only what is newer. None with no history.
+   */
+  told?: string[] | null;
   text: string;
   /** From the palette opening to the question being sent, as the tab measured it; null from an older tab or a script. */
   openedMs?: number | null;
