@@ -403,6 +403,21 @@ export function unknownCasts(sf) {
   return n;
 }
 
+/**
+ * The `style` props a module's markup carries: `style={{ … }}` or `style={value}`, on an element or a component. A
+ * prop is a value no look can reach (docs/plans/2026-09-28-the-interface-kit-and-its-looks.md, rule 1); a class that
+ * reads tokens can. A `style` key in an object, or a string that says `style=`, is not one.
+ */
+export function inlineStyles(sf) {
+  let n = 0;
+  const visit = (m) => {
+    if (ts.isJsxAttribute(m) && ts.isIdentifier(m.name) && m.name.text === "style") n++;
+    ts.forEachChild(m, visit);
+  };
+  visit(sf);
+  return n;
+}
+
 const NOT_A_TABLE = new Set([
   "Buffer",
   "Array",
