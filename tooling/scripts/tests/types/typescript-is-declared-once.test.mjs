@@ -10,16 +10,15 @@
  *
  * So the version is written once, in the catalog, at an exact version, and `catalogMode: strict` makes `pnpm add`
  * refuse a version the catalog does not pin. This module holds what is written; typescript-is-installed-once.test.mjs
- * holds what an install made of it. TypeScript 7 ships no JavaScript API, and tsup's declaration build,
- * typescript-eslint, knip and the ratchets (_ast.mjs) all call the compiler's, so 6.0 is where they meet until each
- * of them moves.
+ * holds what an install made of it. Why TypeScript 7 waits is written once, beside the Dependabot rule that
+ * holds it back (.github/dependabot.yml).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "../_source.mjs";
-import { catalogPins, setting, workspaceProjects } from "../_workspace.mjs";
+import { catalogPins, setting, workspaceProjects } from "../_pnpm-workspace.mjs";
 
 const TS = "typescript";
 const FIELDS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];

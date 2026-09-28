@@ -16,7 +16,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { ROOT } from "../_source.mjs";
-import { catalogPins, workspaceProjects } from "../_workspace.mjs";
+import { catalogPins, workspaceProjects } from "../_pnpm-workspace.mjs";
 
 const TS = "typescript";
 const ROOT_COPY = path.join(ROOT, "node_modules", TS);
