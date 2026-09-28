@@ -25,8 +25,8 @@ import {
   unfileMockRegistration,
   resubmitRejectedCampaign,
   replaceRejectedCampaign,
-  filingProblems,
-} from "../../../../apps/edge/lib/lines/a2p.ts";
+} from "../../../../apps/edge/lib/lines/a2p-refile.ts";
+import { filingProblems } from "../../../../apps/edge/lib/lines/a2p-register.ts";
 import { MOCK_TEXTING_SENTENCE, emptyBusinessRecord } from "@chanlytics/contracts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
@@ -102,10 +102,10 @@ test("a mock brand cannot be deleted, so the messaging profile is what changes",
   assert.equal(r.ok, true);
   assert.equal(lines[0].a2p_profile_sid, null, "cleared, so the saga resumes at a2p_profile with a fresh bundle");
   assert.ok(lines[0].profile_sid, "the customer profile is untouched -- it is the expensive half");
-  const lib = readCode("apps/edge/lib/lines/a2p.ts");
+  const lib = readCode("apps/edge/lib/lines/a2p-refile.ts");
   assert.ok(lib.includes("a2p_profile_sid: null,"));
   assert.ok(
-    readRaw("apps/edge/lib/lines/a2p.ts").includes("Duplicate Brand can not be saved"),
+    readRaw("apps/edge/lib/lines/a2p-refile.ts").includes("Duplicate Brand can not be saved"),
     "and says why, where the next person will look",
   );
   // The campaign delete is the INSTANCE url. The collection answers 405, which
@@ -216,7 +216,7 @@ test("a question we could not ask is never reported as an answer", () => {
   // carriers are still thinking" both became null -- and null means "no answer
   // yet". The line would have sat in `registering` for ever with nothing wrong
   // on any page and a cheerful 200 from the sweep every hour.
-  const lib = readCode("apps/edge/lib/lines/a2p.ts");
+  const lib = readCode("apps/edge/lib/lines/a2p-sync.ts");
   assert.ok(lib.includes("return { status: r.status, body:"), "the read carries the status");
   assert.ok(lib.includes("x.status === 401 || x.status === 403"), "and a refusal is recognised as one");
   assert.ok(lib.includes('error: "provider_unauthorized"'), "and reported as a refusal, not as a state");
@@ -280,7 +280,7 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
   ]) {
     assert.ok(chan.slice(chan.indexOf("export function updateCampaignRequest(")).includes(f), `the update sends ${f}`);
   }
-  const lib = readCode("apps/edge/lib/lines/a2p.ts");
+  const lib = readCode("apps/edge/lib/lines/a2p-refile.ts");
   assert.ok(lib.includes("export async function resubmitRejectedCampaign("));
   assert.ok(!lib.includes("unfileRejectedCampaign"), "REGRESSION: the delete-and-pay-again path is gone");
   assert.ok(lib.includes('sms_state: "registering",'), "and the row says it is back with the carriers");
@@ -288,7 +288,7 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
   // POSTs the INSTANCE url once, as the subaccount, with the workspace's
   // CURRENT name in the description, and asks the spend rule of nobody.
   assert.ok(
-    readRaw("apps/edge/lib/lines/a2p.ts").includes("vetting fee is assessed only once per Campaign"),
+    readRaw("apps/edge/lib/lines/a2p-refile.ts").includes("vetting fee is assessed only once per Campaign"),
     "and the reason is quoted where the next person will change it back",
   );
 });

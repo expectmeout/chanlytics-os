@@ -275,7 +275,7 @@ test(
       return data.id;
     };
     const move = (id, sms_state) => db.from("lines").update({ sms_state }).eq("id", id).select("id");
-    // Every edge a writer takes (a2p.ts registerLine, syncRegistration, the two
+    // Every edge a writer takes (a2p-register.ts registerLine, a2p-sync.ts syncRegistration, the two
     // refile doors, lines.ts register): forward, and back again when Twilio's
     // answer changes.
     const allowed = [

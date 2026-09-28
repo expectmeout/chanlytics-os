@@ -51,7 +51,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
-import { campaignFactsFor } from "../../../../apps/edge/lib/lines/a2p.ts";
+import { campaignFactsFor } from "../../../../apps/edge/lib/lines/a2p-campaign-facts.ts";
 import { personRow } from "../_person-row.mjs";
 
 test("which question a customer's message answers", () => {
@@ -455,11 +455,11 @@ test("the resubmit sends everything Twilio will accept, and says what it will no
   );
   // And the caller no longer computes four fields for them to be dropped
   // silently by a narrower parameter type.
-  const edge = readCode("apps/edge/lib/lines/a2p.ts");
+  const edge = readCode("apps/edge/lib/lines/a2p-refile.ts");
   assert.match(edge, /privacyPolicyUrl: string; termsUrl: string \}/);
   assert.match(edge, /privacyPolicyUrl: facts\.privacyPolicyUrl,/);
   // The one that cannot be corrected says so where somebody would look for it.
-  assert.match(readRaw("apps/edge/lib/lines/a2p.ts"), /NOT correctable after the first filing/);
+  assert.match(readRaw("apps/edge/lib/lines/a2p-campaign-facts.ts"), /NOT correctable after the first filing/);
 });
 
 /* ========================================================================== *
