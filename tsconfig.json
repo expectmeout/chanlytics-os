@@ -18,10 +18,13 @@
     "",
     "The other half of the same fix is `--conditions=react-server` on the test",
     "script, which resolves the `server-only` marker package to its empty module",
-    "instead of the one that throws."
+    "instead of the one that throws.",
+    "",
+    "No `baseUrl`: `paths` resolve from this file's directory without one, TypeScript 6.0",
+    "deprecates it (TS5101) and 7.0 removes it. It also made the runner read a bare specifier",
+    "as a file at the root first (`knip` resolved to knip.json); now a bare specifier is a package."
   ],
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": { "@/*": ["./apps/dashboard/src/*"] }
   }
 }

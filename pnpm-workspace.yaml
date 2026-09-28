@@ -2,3 +2,11 @@ packages:
   - apps/*
   - packages/*
   - tooling/*
+
+# One TypeScript for every compiler and tool: each package.json names it "catalog:",
+# and tooling/scripts/tests/repo/one-typescript.test.mjs holds the pin, the names and the install.
+catalog:
+  typescript: 6.0.3
+
+# `pnpm add` writes "catalog:": it refuses a version outside the catalog, and adds a new dependency to it.
+catalogMode: strict

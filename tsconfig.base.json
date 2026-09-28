@@ -8,7 +8,13 @@
     "The two APPS deliberately do NOT extend it: apps/edge is NodeNext because",
     "it ships as vanilla Node functions where import specifiers must carry a",
     ".js suffix, and apps/dashboard is bundler-resolution because Next resolves",
-    "for it. That difference is meaningful, not drift."
+    "for it. That difference is meaningful, not drift.",
+    "",
+    "`ignoreDeprecations` is for tsup, not for this config, which sets nothing deprecated:",
+    "tsup's declaration build (--dts) hands the compiler `baseUrl: \".\"` whatever the",
+    "tsconfig says (tsup 8.5.1, rollup.ts; egoist/tsup#1388), and TypeScript 6.0 refuses",
+    "`baseUrl` (TS5101). It leaves with tsup: TypeScript 7 has no JavaScript API for tsup's",
+    "--dts to call, so the packages build with something else before they move to 7."
   ],
   "compilerOptions": {
     "target": "ES2022",
@@ -18,6 +24,7 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "ignoreDeprecations": "6.0"
   }
 }
