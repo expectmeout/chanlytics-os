@@ -23,7 +23,15 @@
  * Place reference's own, checked on 24 Sep 2026; one wrong name and Google
  * refuses the whole read, so the test pins them name by name.
  */
-import { E164, type GoogleListingFacts, type GooglePeriod, type GooglePoint } from "@chanlytics/contracts";
+import {
+  E164,
+  type GoogleListingFacts,
+  type GooglePeriod,
+  type GooglePoint,
+  finiteOrNull,
+  nonBlankOrNull,
+  recordOrNull,
+} from "@chanlytics/contracts";
 
 export const PLACES_BASE = "https://places.googleapis.com/v1";
 export const PLACES_SEARCH_MASK =
@@ -126,32 +134,29 @@ export function placesDetailsRequest(
 }
 
 type Obj = Record<string, unknown>;
-const obj = (v: unknown): Obj | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : null);
-const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
-const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 /** Google's LocalizedText: { text, languageCode }. */
 const localized = (v: unknown): { text: string | null; languageCode: string | null } => {
-  const o = obj(v);
-  return { text: str(o?.text), languageCode: str(o?.languageCode) };
+  const o = recordOrNull(v);
+  return { text: nonBlankOrNull(o?.text), languageCode: nonBlankOrNull(o?.languageCode) };
 };
 
 function candidateOf(p: Obj): PlaceCandidate | null {
-  const id = str(p.id);
+  const id = nonBlankOrNull(p.id);
   const name = localized(p.displayName).text;
   if (!id || !name) return null;
   return {
     place_id: id,
     name,
-    address: str(p.formattedAddress),
-    maps_uri: str(p.googleMapsUri),
-    business_status: str(p.businessStatus),
+    address: nonBlankOrNull(p.formattedAddress),
+    maps_uri: nonBlankOrNull(p.googleMapsUri),
+    business_status: nonBlankOrNull(p.businessStatus),
     category: localized(p.primaryTypeDisplayName).text,
   };
 }
 
 /** A review's id is the last segment of its resource name, places/{place}/reviews/{review}. */
 export function reviewIdOf(name: unknown): string | null {
-  const s = str(name);
+  const s = nonBlankOrNull(name);
   if (!s) return null;
   const last = s.split("/").pop();
   return last && last.length > 0 ? last : null;
@@ -160,34 +165,34 @@ export function reviewIdOf(name: unknown): string | null {
 function reviewOf(r: Obj): PlaceReview | null {
   const id = reviewIdOf(r.name);
   if (!id) return null;
-  const author = obj(r.authorAttribution);
+  const author = recordOrNull(r.authorAttribution);
   const text = localized(r.text);
   return {
     review_id: id,
-    rating: num(r.rating),
-    author: str(author?.displayName),
-    author_uri: str(author?.uri),
-    author_photo_uri: str(author?.photoUri),
+    rating: finiteOrNull(r.rating),
+    author: nonBlankOrNull(author?.displayName),
+    author_uri: nonBlankOrNull(author?.uri),
+    author_photo_uri: nonBlankOrNull(author?.photoUri),
     text: text.text,
     language_code: text.languageCode,
-    published_at: str(r.publishTime),
-    maps_uri: str(r.googleMapsUri),
+    published_at: nonBlankOrNull(r.publishTime),
+    maps_uri: nonBlankOrNull(r.googleMapsUri),
   };
 }
 
 /** A moment in Google's week. A field Google left out is its zero: proto3 drops defaults, so Sunday at midnight is {}. */
 function pointOf(v: unknown): GooglePoint | null {
-  const o = obj(v);
+  const o = recordOrNull(v);
   if (!o) return null;
-  const day = num(o.day) ?? 0;
-  const hour = num(o.hour) ?? 0;
-  const minute = num(o.minute) ?? 0;
+  const day = finiteOrNull(o.day) ?? 0;
+  const hour = finiteOrNull(o.hour) ?? 0;
+  const minute = finiteOrNull(o.minute) ?? 0;
   return day >= 0 && day <= 6 && hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 ? { day, hour, minute } : null;
 }
 
 /** One opening period; no close is open around the clock, and a close that is not a moment is no period. */
 function periodOf(v: unknown): GooglePeriod | null {
-  const o = obj(v);
+  const o = recordOrNull(v);
   const open = pointOf(o?.open);
   if (!o || !open) return null;
   if (o.close === undefined) return { open, close: null };
@@ -207,54 +212,58 @@ function e164Of(international: string | null): string | null {
 }
 
 /** What the listing says beyond its name and address, as Google says it; nothing invented where it says nothing. */
-function factsOf(p: Obj): GoogleListingFacts {
-  const periods = obj(p.regularOpeningHours)?.periods;
+function listingFactsOf(p: Obj): GoogleListingFacts {
+  const periods = recordOrNull(p.regularOpeningHours)?.periods;
   return {
     hours: Array.isArray(periods) ? periods.map(periodOf).filter((x): x is GooglePeriod => x !== null) : null,
-    phone_e164: e164Of(str(p.internationalPhoneNumber)),
-    phone_display: str(p.nationalPhoneNumber),
-    website: str(p.websiteUri),
-    primary_type: str(p.primaryType),
+    phone_e164: e164Of(nonBlankOrNull(p.internationalPhoneNumber)),
+    phone_display: nonBlankOrNull(p.nationalPhoneNumber),
+    website: nonBlankOrNull(p.websiteUri),
+    primary_type: nonBlankOrNull(p.primaryType),
     primary_type_label: localized(p.primaryTypeDisplayName).text,
     service_area_only: p.pureServiceAreaBusiness === true,
-    time_zone: str(obj(p.timeZone)?.id),
+    time_zone: nonBlankOrNull(recordOrNull(p.timeZone)?.id),
   };
 }
 
 export function parsePlacesSearch(json: unknown): PlaceCandidate[] {
-  const places = obj(json)?.places;
+  const places = recordOrNull(json)?.places;
   if (!Array.isArray(places)) return [];
-  return places.map((p) => (obj(p) ? candidateOf(obj(p)!) : null)).filter((c): c is PlaceCandidate => c !== null);
+  return places
+    .map((p) => (recordOrNull(p) ? candidateOf(recordOrNull(p)!) : null))
+    .filter((c): c is PlaceCandidate => c !== null);
 }
 
 export function parsePlaceDetails(json: unknown): PlaceDetails {
-  const p = obj(json);
-  const id = str(p?.id);
+  const p = recordOrNull(json);
+  const id = nonBlankOrNull(p?.id);
   const name = localized(p?.displayName).text;
   if (!p || !id || !name) throw new PlacesError(502, "Google answered without a place");
   const reviews = Array.isArray(p.reviews)
-    ? p.reviews.map((r) => (obj(r) ? reviewOf(obj(r)!) : null)).filter((r): r is PlaceReview => r !== null)
+    ? p.reviews
+        .map((r) => (recordOrNull(r) ? reviewOf(recordOrNull(r)!) : null))
+        .filter((r): r is PlaceReview => r !== null)
     : [];
   return {
     place_id: id,
     name,
-    address: str(p.formattedAddress),
-    maps_uri: str(p.googleMapsUri),
-    business_status: str(p.businessStatus),
-    rating: num(p.rating),
-    review_count: num(p.userRatingCount),
+    address: nonBlankOrNull(p.formattedAddress),
+    maps_uri: nonBlankOrNull(p.googleMapsUri),
+    business_status: nonBlankOrNull(p.businessStatus),
+    rating: finiteOrNull(p.rating),
+    review_count: finiteOrNull(p.userRatingCount),
     reviews,
-    facts: factsOf(p),
+    facts: listingFactsOf(p),
   };
 }
 
-/** Google's error envelope: { error: { code, message, status } }. */
-function refusal(status: number, body: string): PlacesError {
+/** Google's error envelope for both API families: { error: { code, message, status } }. */
+export function refusal(status: number, body: string): PlacesError {
   let message = `Google answered ${status}`;
   try {
-    const e = obj(obj(JSON.parse(body))?.error);
-    const m = str(e?.message);
-    const s = str(e?.status);
+    const e = recordOrNull(recordOrNull(JSON.parse(body))?.error);
+    const m = nonBlankOrNull(e?.message);
+    const s = nonBlankOrNull(e?.status);
     if (m) message = s ? `${s}: ${m}` : m;
   } catch {
     /* the status is the message */

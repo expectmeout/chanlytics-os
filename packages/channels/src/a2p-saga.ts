@@ -79,7 +79,7 @@ export type A2PResult =
 
 const sid = (a: A2PAnswer): string | null => (typeof a.body?.sid === "string" ? a.body.sid : null);
 
-function refusal(a: A2PAnswer, what: string): string {
+function twilioRefusal(a: A2PAnswer, what: string): string {
   const msg = typeof a.body?.message === "string" ? a.body.message : `HTTP ${a.status}`;
   const code = typeof a.body?.code === "number" ? ` (Twilio ${a.body.code})` : "";
   return `${what}: ${msg}${code}`;
@@ -96,7 +96,7 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
   const need = async (req: A2PRequest, what: string): Promise<string> => {
     const a = await p.send(req);
     const id = sid(a);
-    if (!ok(a) || !id) throw new Error(refusal(a, what));
+    if (!ok(a) || !id) throw new Error(twilioRefusal(a, what));
     return id;
   };
 
@@ -134,14 +134,14 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
             soleProp ? "recording who you are" : "recording the business",
           );
           const a = await p.send(assignRequest(state.profileSid!, id));
-          if (!ok(a)) throw new Error(refusal(a, soleProp ? "attaching your details" : "attaching the business"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, soleProp ? "attaching your details" : "attaching the business"));
           await save({ businessSid: id });
           break;
         }
         case "representative": {
           const id = await need(representativeEndUserRequest(p.record), "recording the person who signs");
           const a = await p.send(assignRequest(state.profileSid!, id));
-          if (!ok(a)) throw new Error(refusal(a, "attaching the person who signs"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, "attaching the person who signs"));
           await save({ representativeSid: id });
           break;
         }
@@ -154,13 +154,13 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
             "attaching the address",
           );
           const a = await p.send(assignRequest(state.profileSid!, id));
-          if (!ok(a)) throw new Error(refusal(a, "attaching the address document"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, "attaching the address document"));
           await save({ documentSid: id });
           break;
         }
         case "primary": {
           const a = await p.send(assignRequest(state.profileSid!, p.primaryProfileSid));
-          if (!ok(a)) throw new Error(refusal(a, "naming us as the provider"));
+          if (!ok(a)) throw new Error(twilioRefusal(a, "naming us as the provider"));
           await save({ primaryAssigned: true });
           break;
         }
@@ -177,7 +177,7 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
               ] as const);
           for (const [sid, a] of refresh) {
             const up = await p.send(updateEndUserRequest(sid, a));
-            if (!ok(up)) throw new Error(refusal(up, "refreshing the business on record"));
+            if (!ok(up)) throw new Error(twilioRefusal(up, "refreshing the business on record"));
           }
           const ev = await p.send(
             evaluateRequest(
@@ -186,13 +186,13 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
             ),
           );
           const status = typeof ev.body?.status === "string" ? ev.body.status : "";
-          if (!ok(ev)) throw new Error(refusal(ev, "checking the profile"));
+          if (!ok(ev)) throw new Error(twilioRefusal(ev, "checking the profile"));
           if (status !== "compliant")
             throw new Error(
               `the profile is not complete yet: ${JSON.stringify(ev.body?.results ?? ev.body).slice(0, 300)}`,
             );
           const sub = await p.send(submitProfileRequest(state.profileSid!));
-          if (!ok(sub)) throw new Error(refusal(sub, "submitting the profile"));
+          if (!ok(sub)) throw new Error(twilioRefusal(sub, "submitting the profile"));
           await save({ profileSubmitted: true });
           break;
         }
@@ -218,12 +218,12 @@ export async function runA2PSaga(start: A2PState, p: A2PPorts): Promise<A2PResul
           );
           for (const objectSid of [endUser, state.profileSid!]) {
             const a = await p.send(trustProductAssignRequest(bundle, objectSid));
-            if (!ok(a)) throw new Error(refusal(a, "attaching to the messaging profile"));
+            if (!ok(a)) throw new Error(twilioRefusal(a, "attaching to the messaging profile"));
           }
           const ev = await p.send(evaluateTrustProductRequest(bundle));
-          if (!ok(ev)) throw new Error(refusal(ev, "checking the messaging profile"));
+          if (!ok(ev)) throw new Error(twilioRefusal(ev, "checking the messaging profile"));
           const sub = await p.send(submitTrustProductRequest(bundle));
-          if (!ok(sub)) throw new Error(refusal(sub, "submitting the messaging profile"));
+          if (!ok(sub)) throw new Error(twilioRefusal(sub, "submitting the messaging profile"));
           await save({ a2pProfileSid: bundle });
           break;
         }

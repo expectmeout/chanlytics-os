@@ -5,7 +5,7 @@
  * tab and the root layout read from here. Which tab is in front is front.ts's, outside React.
  */
 import { useSyncExternalStore } from "react";
-import type { Theme } from "@chanlytics/contracts";
+import type { Theme } from "@chanlytics/contracts/phone-app";
 
 export type Session = "unknown" | "in" | "out";
 export type Tab = "today" | "inbox" | "calendar" | "people" | "more";

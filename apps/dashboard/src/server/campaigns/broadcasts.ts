@@ -143,7 +143,7 @@ async function repliedThreads(
         const first = replied.get(m.conversation_id);
         if (!first || m.created_at < first) {
           replied.set(m.conversation_id, m.created_at);
-          words?.set(m.conversation_id, oneLine(m.body));
+          words?.set(m.conversation_id, previewLine(m.body));
         }
       }
     }
@@ -152,7 +152,7 @@ async function repliedThreads(
 }
 
 /** A reply's words as a list line shows them: the whitespace folded, cut at a length no row needs more of. Null for none. */
-function oneLine(body: string | null | undefined): string | null {
+function previewLine(body: string | null | undefined): string | null {
   const t = typeof body === "string" ? body.replace(/\s+/g, " ").trim() : "";
   return t ? t.slice(0, 200) : null;
 }

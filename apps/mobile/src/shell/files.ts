@@ -6,7 +6,7 @@
  */
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import type { PageMessage } from "@chanlytics/contracts";
+import type { PageMessage } from "@chanlytics/contracts/phone-app";
 
 /** What iOS calls each type the page may hand over. */
 const UTI: Record<string, string> = {
