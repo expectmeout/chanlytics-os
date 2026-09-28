@@ -157,6 +157,7 @@ export const LIMITED_TREES = [
   "apps/dashboard/src/server/ports",
   "apps/dashboard/src/server/public",
   "apps/dashboard/src/server/receptionist",
+  "apps/dashboard/src/server/workspace",
   "apps/edge/api/jobs",
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
@@ -168,7 +169,7 @@ export const LIMITED_TREES = [
 ];
 
 /**
- * The held trees where a function still takes more than four parameters (measured 27 September 2026: 35 functions,
+ * The held trees where a function still takes more than four parameters (measured 28 September 2026: 40 functions,
  * db's widest at 7 and today-sample's at 11). `max-params` waits in these; a tree leaves this list when its last one
  * takes an object instead.
  */
@@ -179,6 +180,7 @@ export const WIDE_PARAMS = [
   "apps/dashboard/src/server/platform",
   "apps/dashboard/src/server/ports",
   "apps/dashboard/src/server/receptionist",
+  "apps/dashboard/src/server/workspace",
   "apps/edge/lib/billing",
   "apps/edge/lib/calendar",
   "apps/edge/lib/email",
