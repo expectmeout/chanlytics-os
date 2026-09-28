@@ -72,8 +72,12 @@ export interface Chain {
   since: CardOutcome[];
 }
 
-/** An outcome as a live turn keeps what it told: the card and what became of it. */
-const toldOf = (o: { id: string; state: string }): string => `${o.id}:${o.state}`;
+/**
+ * An outcome as a live turn keeps what it told: the card, what became of it, and when that was recorded -- `atMs` as
+ * the record's identity only, never compared as a clock, so a card approved again after its undo is told again. A
+ * record of the same state written twice is told twice, which is harmless.
+ */
+const toldOf = (o: { id: string; state: string; atMs: number }): string => `${o.id}:${o.state}:${o.atMs}`;
 /** What a live turn keeps of the chain it replayed (RawTurn): where it ended, and what the turn told. */
 const chainEnd = (chain: Chain) => ({ after: chain.after, told: chain.since.map(toldOf) });
 
@@ -265,11 +269,11 @@ function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: A
   const anchor = Array.isArray(asked) ? asked.at(-1) : undefined;
   const told = new Set(turns.flatMap((t) => t.told));
   const cards = [...ids].reverse().flatMap((id) => rows.find((r) => r.id === id)?.proposals ?? []);
-  const since = cards.flatMap(({ id, title, outcome }) =>
-    outcome && !told.has(toldOf({ id, state: outcome.state }))
-      ? [{ id, title, state: outcome.state, receipt: outcome.receipt }]
-      : [],
-  );
+  const since = cards
+    .flatMap(({ id, title, outcome }) =>
+      outcome ? [{ id, title, state: outcome.state, receipt: outcome.receipt, atMs: outcome.atMs }] : [],
+    )
+    .filter((o) => !told.has(toldOf(o)));
   const { results, model, prefix } = newest;
   return { messages, anchor, results, model, prefix, after: ids[0], since };
 }
@@ -357,7 +361,7 @@ export interface RawTurn {
   prefix: string;
   /** A live turn's: the answer row whose turn it replayed last (Chain.after), the link the next replay follows. */
   after?: string;
-  /** A live turn's: the outcomes it told (Chain.since, `<card id>:<state>`), which no later turn of the chain tells. */
+  /** A live turn's: the outcomes it told (Chain.since, `<card id>:<state>:<atMs>`), which no later turn tells again. */
   told?: string[];
 }
 

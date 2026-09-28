@@ -270,8 +270,8 @@ export function stableSystem(f: WorkspaceFacts): string {
   ].join("\n");
 }
 
-/** A card from earlier in the thread, and what the person did with it (the Phase 5 plan, D8). */
-export type CardOutcome = Pick<AskProposal, "id" | "title"> & Pick<AskProposalOutcome, "state" | "receipt">;
+/** A card from earlier in the thread, and what the person did with it and when it was recorded (the Phase 5 plan, D8). */
+export type CardOutcome = Pick<AskProposal, "id" | "title"> & Pick<AskProposalOutcome, "state" | "receipt" | "atMs">;
 /** What a person's doing with a card is called, in the Line's words: a card done was approved. */
 const DID: Record<AskProposalOutcome["state"], string> = {
   done: "was approved",

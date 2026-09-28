@@ -6122,31 +6122,48 @@ test("the bound (the Phase 5 plan, D3, corrected): a replay of 48 messages is li
   );
 });
 
-test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, in one line of its words after the clock, each outcome recorded on its chain's cards that no turn of the chain told -- the card's title, its id, what the person did and the receipt -- and keeps what it told; the next live turn does not tell it again; an outcome recorded while a turn ran is told by the next; a changed one is told anew; a cold turn tells nothing", async () => {
+/**
+ * A reply's card, as the harness's model proposes it: approving one sends a reply and leaves system as it was, so the
+ * next turn can stay live -- where an autonomy or a settings card's approval changes system (its policies and settings
+ * ride in it), and the next turn is cold by D2.
+ */
+const replyCard = (id, to) => ({
+  id,
+  kind: "reply",
+  needs: "operator",
+  title: `Reply to ${to}`,
+  summary: "We open at nine on Saturday.",
+  payload: { conversation_id: C1, text: "We open at nine on Saturday." },
+  undo: null,
+});
+/** The model proposes these cards in turn, one a call: each call gets the next. */
+const proposing = (...cards) => {
+  let n = 0;
+  return async () => {
+    const card = cards[n++];
+    return { proposal: card, result: JSON.stringify({ proposed: true, id: card.id }), isError: false };
+  };
+};
+const draft = tool("propose_reply", { action: "draft", conversation_id: C1, text: "We open at nine on Saturday." });
+const SINCE = "Since the last answer, the person acted on cards from earlier in this thread:";
+/** The words a request's question carries, line by line. */
+const wordsLines = (req) =>
+  req.messages
+    .at(-1)
+    .content.find((b) => b.text?.includes("You are speaking with"))
+    .text.split("\n");
+
+test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, in one line of its words after the clock, each outcome recorded on its chain's cards that no turn of the chain told -- the card's title, its id, what the person did and the receipt -- and keeps what it told (`<card id>:<state>:<atMs>`); the next live turn does not tell it again; an outcome recorded while a turn ran is told by the next; a changed one is told anew, and so is a card approved again after its undo; a cold turn tells nothing", async () => {
   const { setProposalOutcome } = await import(at("apps/dashboard/src/server/ask/store.ts"));
   const { ctx } = threadWorld();
-  const act = tool("propose_autonomy", { class: "reply", mode: "ask" });
-  const card = {
-    id: "p-1",
-    kind: "policy",
-    needs: "operator",
-    title: "Autonomy: reply",
-    summary: "Ask first.",
-    payload: {},
-    undo: null,
-  };
-  const propose = async () => ({
-    proposal: card,
-    result: JSON.stringify({ proposed: true, id: card.id }),
-    isError: false,
-  });
   const r1 = await runAskTurn(
     turn(ctx).input,
-    ports(sentAs([ROUND([act, answer("I proposed asking you first.")])]).round, { propose }),
+    ports(sentAs([ROUND([draft, answer("I drafted a reply to Rosa.")])]).round, {
+      propose: proposing(replyCard("p-1", "Rosa")),
+    }),
   );
   const first = await keep(ctx, "Who needs me?", r1);
-  const said = (s) => s.requests[0].messages.at(-1).content.find((b) => b.text?.includes("You are speaking with")).text;
-  const SINCE = "Since the last answer, the person acted on cards from earlier in this thread:";
+  const said = (s) => wordsLines(s.requests[0]).join("\n");
 
   const t2 = await nextTurn(ctx, [ROUND([answer("Waiting on you.")])]);
   assert.equal(t2.r.shape.replay, "live");
@@ -6154,11 +6171,12 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
   assert.deepEqual(t2.r.raw.told, []);
   await keep(ctx, "And tomorrow?", t2.r);
 
-  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Replies now ask first", atMs: 0 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 });
   const t3 = await nextTurn(ctx, [ROUND([answer("Noted.")])]);
-  const lines = said(t3.s).split("\n");
-  assert.equal(lines[1], `${SINCE} “Autonomy: reply” (p-1) was approved: Replies now ask first.`, "after the clock");
-  assert.deepEqual(t3.r.raw.told, ["p-1:done"], "what it told, kept");
+  assert.equal(t3.r.shape.replay, "live", "a reply's approval leaves system as it was");
+  const lines = wordsLines(t3.s.requests[0]);
+  assert.equal(lines[1], `${SINCE} “Reply to Rosa” (p-1) was approved: Sent to Rosa.`, "after the clock");
+  assert.deepEqual(t3.r.raw.told, ["p-1:done:1000"], "what it told, kept");
   await keep(ctx, "And now?", t3.r);
   const t4 = await nextTurn(ctx, [ROUND([answer("Fine.")])]);
   assert.ok(!said(t4.s).includes(SINCE), "told once, never again");
@@ -6172,7 +6190,7 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
     scope: undefined,
     answering: null,
   });
-  await setProposalOutcome(ctx, first, "p-1", { state: "undone", receipt: "Replies back to auto", atMs: 0 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "undone", receipt: "Unsent", atMs: 2_000 });
   const s5 = sentAs([ROUND([answer("Fine.")])]);
   const r5 = await runAskTurn(
     turn(ctx, { text: "And?", history: running.history, chain: running.chain }).input,
@@ -6181,13 +6199,20 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
   assert.ok(!said(s5).includes(SINCE) && r5.shape.replay === "live");
   await keep(ctx, "And?", r5);
   const t6 = await nextTurn(ctx, [ROUND([answer("Fine.")])]);
-  assert.equal(said(t6.s).split("\n")[1], `${SINCE} “Autonomy: reply” (p-1) was undone: Replies back to auto.`);
-  assert.deepEqual(t6.r.raw.told, ["p-1:undone"]);
+  assert.equal(wordsLines(t6.s.requests[0])[1], `${SINCE} “Reply to Rosa” (p-1) was undone: Unsent.`);
+  assert.deepEqual(t6.r.raw.told, ["p-1:undone:2000"]);
   await keep(ctx, "And?", t6.r);
+
+  // Approved again after its undo: the same card and state as the first approval, another record -- told again.
+  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa again", atMs: 3_000 });
+  const t7 = await nextTurn(ctx, [ROUND([answer("Fine.")])]);
+  assert.equal(wordsLines(t7.s.requests[0])[1], `${SINCE} “Reply to Rosa” (p-1) was approved: Sent to Rosa again.`);
+  assert.deepEqual(t7.r.raw.told, ["p-1:done:3000"]);
+  await keep(ctx, "And?", t7.r);
 
   // Dismissed, and asked cold (another role): the chain had it to tell, but a rebuilt turn tells nothing (the rebuild's
   // own lines carry outcomes, PR 5.5), and keeps no `told`.
-  await setProposalOutcome(ctx, first, "p-1", { state: "dismissed", receipt: "Not now", atMs: 0 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "dismissed", receipt: "Not now", atMs: 4_000 });
   const cold = await nextTurn(ctx, [ROUND([answer("Fine.")])], {
     role: "owner",
     personLabel: "ada@example.com (owner)",
@@ -6221,6 +6246,60 @@ test("what happened since (the Phase 5 plan, D8, by `told`): a live turn tells, 
     `${SINCE} “Reply to Rosa” (p-1) was dismissed: Not now; “Invite Sam” (p-2) failed.`,
   );
   assert.ok(!turnWords({ ...facts, since: [] }).includes(SINCE), "none: no line");
+});
+
+test("what happened since is told oldest first, by the turn that proposed each card (the Phase 5 plan, D8): two cards on two turns of the chain, approved newest first, are said in the order their turns came", async () => {
+  const { setProposalOutcome } = await import(at("apps/dashboard/src/server/ask/store.ts"));
+  const { ctx } = threadWorld();
+  const propose = proposing(replyCard("p-1", "Rosa"), replyCard("p-2", "Sam"));
+  const r1 = await runAskTurn(
+    turn(ctx).input,
+    ports(sentAs([ROUND([draft, answer("A reply to Rosa.")])]).round, { propose }),
+  );
+  const first = await keep(ctx, "Who needs me?", r1);
+  const t2 = await nextTurn(ctx, [ROUND([draft, answer("A reply to Sam.")])], {}, { propose });
+  assert.equal(t2.r.shape.replay, "live");
+  const second = await keep(ctx, "And Sam?", t2.r);
+  await setProposalOutcome(ctx, second, "p-2", { state: "done", receipt: "Sent to Sam", atMs: 1_000 });
+  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 2_000 });
+  const t3 = await nextTurn(ctx, [ROUND([answer("Both sent.")])]);
+  assert.equal(
+    wordsLines(t3.s.requests[0])[1],
+    `${SINCE} “Reply to Rosa” (p-1) was approved: Sent to Rosa; “Reply to Sam” (p-2) was approved: Sent to Sam.`,
+  );
+  assert.deepEqual(t3.r.raw.told, ["p-1:done:2000", "p-2:done:1000"]);
+});
+
+test("what happened since survives a refusal of the page's data (the Phase 5 plan, D8, D14): a live turn whose round one is refused for its search_result blocks is asked again without them, its words still telling the outcome after the clock, and its raw keeps what it told", async () => {
+  const { setProposalOutcome } = await import(at("apps/dashboard/src/server/ask/store.ts"));
+  const { ctx } = threadWorld();
+  const r1 = await runAskTurn(
+    turn(ctx).input,
+    ports(sentAs([ROUND([draft, answer("A reply to Rosa.")])]).round, { propose: proposing(replyCard("p-1", "Rosa")) }),
+  );
+  const first = await keep(ctx, "Who needs me?", r1);
+  await setProposalOutcome(ctx, first, "p-1", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 });
+  const { r, s } = await nextTurn(
+    ctx,
+    [
+      async () => {
+        throw new GatewayRefused({
+          kind: "bad_request",
+          message: "400 messages.2.content.1: search_result is not supported here",
+        });
+      },
+      ROUND([answer("Fine.")]),
+    ],
+    { context: PAGE },
+  );
+  assert.equal(r.failed, false, r.failure ?? "");
+  assert.deepEqual([r.shape.replay, r.shape.context_dropped, s.requests.length], ["live", true, 2]);
+  const retry = s.requests[1];
+  assert.ok(!JSON.stringify(retry.messages.at(-1)).includes("search_result"), "asked again without the page");
+  const lines = wordsLines(retry);
+  assert.equal(lines[1], `${SINCE} “Reply to Rosa” (p-1) was approved: Sent to Rosa.`, "still told, after the clock");
+  assert.ok(!lines.join("\n").includes("search results before these words"), "the words point at no page");
+  assert.deepEqual(r.raw.told, ["p-1:done:1000"]);
 });
 
 test("an earlier card is the person's to press (the Phase 5 plan, D6, moved into PR 5.4 now that earlier cards reach the model in the replay): one rule, in system's cached rules after 'You never act.' -- name it by its title and say it is one press above, never say it was done, propose it again only when it was dismissed or failed", async () => {

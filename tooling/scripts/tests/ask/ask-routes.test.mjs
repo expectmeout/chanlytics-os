@@ -1287,20 +1287,31 @@ test("through the route a thread stays live turn after turn (the Phase 5 plan, P
 test("what happened since, through the route (the Phase 5 plan, D8): a card approved between two turns is said in the next live turn's words, after the clock -- its title, its id, approved, its receipt -- that turn keeps what it told, and the turn after it says it no more", async () => {
   const tables = askWorld();
   const requests = [];
+  // A reply's card: its approval sends a reply and leaves system as it was, so the next turn stays live. (An autonomy
+  // or a settings card's approval changes system, which carries the policies and the settings: the next turn is cold.)
+  const REPLY = {
+    id: "p-1",
+    kind: "reply",
+    needs: "operator",
+    title: "Reply to Rosa",
+    summary: "We open at nine on Saturday.",
+    payload: { conversation_id: "cccccccc-cccc-4ccc-8ccc-ccccccccccc1", text: "We open at nine on Saturday." },
+    undo: null,
+  };
   setAskPorts({
     round: async (call, onText) => {
       requests.push(JSON.parse(JSON.stringify(call.request)));
       onText(answered);
-      const card = {
+      const draft = {
         type: "tool_use",
         id: "t-card",
-        name: "propose_autonomy",
+        name: "propose_reply",
         text: "",
-        json: '{"class":"reply","mode":"ask"}',
+        json: JSON.stringify({ action: "draft", conversation_id: REPLY.payload.conversation_id, text: REPLY.summary }),
       };
       return {
         blocks: [
-          ...(requests.length === 1 ? [card] : []),
+          ...(requests.length === 1 ? [draft] : []),
           { type: "text", id: "", name: "", text: answered, json: "" },
         ],
         stopReason: "end_turn",
@@ -1308,7 +1319,11 @@ test("what happened since, through the route (the Phase 5 plan, D8): a card appr
       };
     },
     shape: async () => "",
-    propose: async () => ({ proposal: CARD, result: JSON.stringify({ proposed: true, id: CARD.id }), isError: false }),
+    propose: async () => ({
+      proposal: REPLY,
+      result: JSON.stringify({ proposed: true, id: REPLY.id }),
+      isError: false,
+    }),
   });
   const SINCE = "Since the last answer, the person acted on cards from earlier in this thread:";
   /** The words of a request's question: the text block that says who is asking, line by line. */
@@ -1319,11 +1334,11 @@ test("what happened since, through the route (the Phase 5 plan, D8): a card appr
       .text.split("\n");
   try {
     const [opened] = await linesOf(
-      await ask.POST.run(send("POST", { text: "Ask me before every reply" }, inA), asJsonb(tables)),
+      await ask.POST.run(send("POST", { text: "Tell Rosa we open at nine" }, inA), asJsonb(tables)),
     );
     const card = tables.ask_messages.find((m) => m.role === "assistant");
-    const outcome = asJsonb(tables, { id: card.id, pid: CARD.id });
-    await proposals.POST.run(send("POST", { state: "done", receipt: "Replies now ask first", atMs: 0 }), outcome);
+    const outcome = asJsonb(tables, { id: card.id, pid: REPLY.id });
+    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 }), outcome);
     for (const text of ["And the reminders?", "And tomorrow?"])
       await linesOf(await ask.POST.run(send("POST", { text, thread_id: opened.id }, inA), asJsonb(tables)));
 
@@ -1334,10 +1349,10 @@ test("what happened since, through the route (the Phase 5 plan, D8): a card appr
     );
     assert.equal(
       wordsOf(requests[1])[1],
-      `${SINCE} “${CARD.title}” (${CARD.id}) was approved: Replies now ask first.`,
+      `${SINCE} “Reply to Rosa” (p-1) was approved: Sent to Rosa.`,
       "the second turn says it, after the clock",
     );
-    assert.deepEqual(answers[1].content.raw.told, [`${CARD.id}:done`], "and keeps what it told");
+    assert.deepEqual(answers[1].content.raw.told, ["p-1:done:1000"], "and keeps what it told");
     assert.ok(!wordsOf(requests[2]).some((l) => l.startsWith(SINCE)), "the third turn says it no more");
     assert.deepEqual(answers[2].content.raw.told, []);
     assert.ok(!wordsOf(requests[0]).some((l) => l.startsWith(SINCE)), "a first turn has nothing to say");
