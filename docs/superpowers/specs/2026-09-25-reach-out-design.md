@@ -1,7 +1,8 @@
 # Reach out: design spec
 
 **Date:** 25 Sep 2026 · **Owner:** Ruben · **Status:** Parts 1–2 shipped; 2.5 (the hardening) and 2.6 (the review before Part 3)
-shipped; Part 3 (the engine) shipped 26 Sep (D15–D19); Part 4 (the words and the pages) shipped 26–27 Sep (§6, ten PRs); Part 5 (replies) next. The eight decisions in §9 were approved 25 Sep ·
+shipped; Part 3 (the engine) shipped 26 Sep (D15–D19); Part 4 (the words and the pages) shipped 26–27 Sep (§6, ten PRs); Part 5 (replies) shipped 27–28 Sep (§6, twelve PRs; N1–N6);
+Part 6 (what comes back) next. The eight decisions in §9 were approved 25 Sep ·
 **Canvas:** https://claude.ai/artifact/AdMCtQTkWUoDhXz8SewiZg (23 boards; the builder is `Claude Video/reach-out-design/canvas`) ·
 **Supersedes:** §4.7 "Leads" of `2026-09-24-campaigns-on-every-channel-design.md` · **Re-sequences:** steps 2–11 of
 `docs/plans/2026-09-24-every-business-every-channel.md` §4 · **Follows:** Part 0 of the campaigns spec (#999, #1005,
@@ -346,6 +347,64 @@ undoable for seven days on the lead ("read as no · undo").
 - **Owed by Part 5:** *booked*, *not now* and *away* need the reply's intent read, and the classifier is Part 5's. Until
   then any reply stops the chain (C16).
 
+**As built (Part 5; 00220, 00222, 00226, 00227).**
+- **Which replies are read.** The email intake asks `reach_out_reply_of` of every email it keeps. A reply is a
+  reach-out's when it answers or cites an email a reach-out sent in the last 30 days (`REACH_OUT_REPLY_DAYS`), or when
+  its thread's person is a lead's a reach-out wrote to in those days. Such a reply is handed to one job, `reply_read`,
+  once per message (`jobs_reply_read_once`), whatever its claim; the intake does not tell anyone itself.
+- **The reading.** Haiku 4.5 (`REACH_OUT_MODEL`) is given the reply's own words, fenced as data, with quoted history
+  and signature cut, and answers `{intent, summary, day, refer_to}`. The intents are `interested`, `question`,
+  `not_now`, `no`, `wrong_person`, `away` and `other`. Only the intent decides whether there is a reading; a summary is
+  cut to 12 words, and an address or a number is taken out of it, since a phone's lock screen shows it. The reader is
+  told that a request to stop, to be removed or to be unsubscribed is always `no`. One reading per message is kept in
+  `reach_out_replies` (00222), and a workspace reads at most 200 replies a UTC day (`REACH_OUT_READS_PER_DAY`), only
+  while it may spend.
+- **A reply that could not be read** (no key, a workspace that may not spend, the day's reads spent, the model failed)
+  is `other`, with why (`unread`); a person's stops the chain as any reply does, and an automatic one's changes nothing
+  until it is read. It is read again, at most three times within seven days of the reply (`REPLY_REREADS`,
+  `REPLY_REREAD_DAYS`), so a missed no still becomes an opt-out.
+- **What each intent does** is contracts' `readingPlan`, and one service-role door, `reach_out_reply_apply`, executes
+  it in one transaction; the door never decides an effect itself. Every step and consent move lands on the lead's
+  person.
+  - *interested* and *question*: the chain stops, the lead is Talking (`lead_convert_by`, `how: 'reply'`), and the
+    receptionist drafts an answer (§4.9).
+  - *not now*: the chain stops, `leads.resume_at` is the day they named, a dated step ("Write to {business} again: they
+    said not now") is due that day (a weekend's on the Monday after), and a line of thanks is drafted.
+  - *no*: Said no, through the one consent door (`set_email_marketing`, source `reply`), and the never-again list (N6,
+    below).
+  - *wrong person*: the chain stops, and a step due today names who they said to write to.
+  - *away, in their own words*: the chain stops, with a step for the day they are back (N1).
+  - *away, an automatic reply*: the chain pauses (below).
+  - anything else from an automatic reply is recorded and does nothing; *other* from a person stops the chain.
+- **The stop is still `outreach_wrote_back`, never narrowed (N1).** No human reply lets a chain go on, not "not now"
+  and not "I'm away", so C16's rule stands as 00181 wrote it. 00222 widened it once, in the same place: an automatic
+  reply read as `no` or `wrong_person`, and not undone, counts as writing back (B1). An email claimed `automated`
+  rather than `auto_reply` is read as a person's.
+- **An automatic out-of-office pauses** (00226). The door's facts gain `away`: an automatic reply read as away whose
+  day has not passed, by the lead's person or about the send's own lead. The refusal is `outreach_away`, a skip and not
+  a wait; a step's followers leave the lead out while it holds, and take it back after. The day is the end of the one
+  they named in the business's zone; with no day, or one already past, seven days on; never more than 30.
+- **A no's reach (N6, 00220).** The exact addresses always: the person's, the address the email went to, the lead's
+  and the reply's From, as `said_no`. The whole domain only when it is the lead's own website's host
+  (`ownedDomainOf`), so one person's no never closes a shared ISP's or a free-mail domain. The door, the audience and
+  the finder ask one predicate, `lead_addresses_suppressed`. D18 counts a reply's no beside the unsubscribes
+  (`sending_domain_counts`), unless it was undone.
+- **Booked and a deal** (00227). The calendar sweep hands `reach_out_booked` the addresses and numbers of its
+  appointments; a lead a reach-out wrote to whose address or number, or its person's, is on one that starts after the
+  lead's first email is converted (`how: 'booking'`). A deal opened for a person converts that person's `ready` and
+  `nurture` leads (`deals_convert_leads`, `how: 'deal'`). The door's lead stage then stops them
+  (`outreach_lead_closed`), the stop that already was.
+- **Read as no · undo** (`reach_out_reply_undo`, `reach_out_reply_undoable`, N4): a no only, for seven days from the
+  reading, by an owner, an operator or a partner, and refused once the person has unsubscribed or complained since. It
+  puts back exactly what the no wrote: the answer to marketing email (source `reply_undone`), each row on the list that
+  nothing else now holds, and each lead to its stage before, at the version the no left it. A person's reply keeps the
+  chain stopped; an automatic reply's no, undone, lets it go on. It is offered on the thread's strip (§4.11); on the
+  lead it waits for Part 6.
+- **Owed.** Microsoft 365's out-of-office is claimed `automated`, not `auto_reply` (its documented headers; no live
+  capture yet), so it stops the chain with a step for the day they are back rather than pausing it: the safe direction.
+  And `ownedDomainOf` reads the lead's website host, which the finder already cut from the listing's path, so a no from
+  an ISP's user page closes that ISP's domain for the workspace.
+
 ### 4.8 Protection
 
 - **Addresses:** `email_state = 'ok'` only, by default; catch-all and unknown held until included; a customer's number or
@@ -388,6 +447,43 @@ Reach-outs group: wrote back · a run waits · a domain held or a run stopped ·
 shows the run going out (with Stop in the veto window), each reply with its intent and the drafted answer's door, and the
 hand-to-you calls under Steps due. A new definer door, `person_step_from_playbook(contact, due_on, words, for_user)`,
 makes the dated step the hand-to-you and "write again in January" need (today only a signed-in member can, 00166:86-88).
+
+**As built (Part 5; 00220, 00222, 00228).**
+- **The notice.** A reading that tells is one notification of kind `reach_out_replied`: the bell's row, a push and an
+  email, through `notifyOnce`, so it is sent once or not at all. Its words are contracts' `replyNoticeWords`: who wrote
+  back and what it was read as, the summary, their words quoted, what was done, and the draft's first line when there
+  is one. A phone shows the summary, never their words. It is told in two phases: a claim
+  (`reach_out_reply_tell_claim`), then the mark (`reach_out_reply_told`) only once the owner was told. A mail that fails
+  is tried again after two minutes and then ten, and after the third try the job fails and the workspace hears "A
+  reply to your reach-out could not be read or told". Every reading of a person's reply tells; an automatic reply tells
+  only for a no or a wrong person; a re-read tells a no, an automatic reply's wrong person, or a notice still owed. The
+  reading's door writes the event `reach_out.replied` `{intent}` for every reading it applies, told or not.
+- **The intake does not tell twice.** For a reach-out's reply it sends no notice of its own. A person's reply still
+  flags the thread for a person (`email_review`), in words of its own: "They wrote back to your reach-out. Nothing is
+  sent without you".
+- **The draft** (decision 0017). For interested and a question the receptionist drafts the answer, and for not now a
+  line of thanks, with its brain over the workspace's own prompt and a note that says what the reach-out said. The draft
+  is text on the reading (`reach_out_replies.draft`), never a message row, so nothing sends it: the owner's Send is a
+  person's own reply, through the one door. It asks the receptionist's gates again (a receptionist that can speak, a
+  reply mode that is not never, the day's token budget, a workspace that may spend), and when one says no, the reading
+  says why (`draft_why`). A job short of time drafts in a stage of its own (`draft`) and the notice goes without it.
+- **Today.** A thread's handoff row, when its newest reading is a person's, not a no and not undone, becomes a reply
+  row: "Wrote back · interested", their summary, and "Read the draft" or "Open and reply" (contracts `withReplies`). A
+  reach-out's run waiting for its owner or in its veto window reads as a reach-out, in businesses. What happened while
+  away counts the notices as replies to a reach-out, and the bell's action on one is "Read the draft" when there is one.
+- **Settings › Notifications** has the Reach-outs group (N2): "They wrote back", "A reach-out waits for you", "A
+  reach-out holds an email for you" and "A sending domain is held, and when it sends again", each a row that says when
+  it is sent, with no switch. The day's numbers at 6 PM moved to Part 6.
+- **The dated-step door** is `person_step_from_playbook(tenant, contact, due_on, words, for_user, source_id)` (00220,
+  the service role's): a `person_notes` step from `reach_out`, once per source (`person_notes_reach_out_once`). Steps
+  due on Today and People's next step show it with no change of their own. A not-now, a wrong person and an away in
+  their own words each make one, keyed by the reply.
+- **The hand step: a call or a note for you** (00228). A chain's last step may be `playbooks.hand`, `{kind: call |
+  note, words}` of at most 280 characters, with no template. Its run (`reach_out_hand_run`) reaches the followers an
+  email step would, less any lead the door would refuse, and writes the day's run, one send per lead in state `handed`,
+  and one dated step per lead, due that day: "Call {business}: {words}" or "{business}: {words}". It sends nothing, so
+  it waits for no approval. The chain's report counts `handed` apart from `written`, so a hand step is never where a
+  lead's answer is counted.
 
 ### 4.10 Reports
 
@@ -439,6 +535,22 @@ On the surfaces as they stand; the canvas draws each.
   *Write to them* moved to Part 7 (a chain's audience is a search, and chosen leads are Part 7's own list). *Leads while
   it writes* (the strip, the Stage detail line, the peek's timeline) moved to Part 6, with what comes back. The sheet's
   *another step* offers another email only; a call or a note for the owner is Part 5's dated step.
+
+**As built (Part 5).**
+- **The Inbox.** A thread with a reading draws one strip above the composer (contracts `replyStripOf`): what the reply
+  was read as, their summary, what was done ("Talking now", "A step is on Today for Jan 4.", "Nothing more will be
+  written to …"), and its doors, "Use the draft" and "Read as no · undo" while the undo may run. It hides once a
+  person's reply on the thread is newer than the reading. The composer is seeded with the draft. A line under the strip
+  names the address the answer goes from: the one the reach-out wrote from, or the mailbox, with why, when that domain
+  is held or removed (N5). A sent reply that left from the mailbox says so on its bubble ("Went from …: … could not
+  send it"). The list's row carries the reading as a chip ("Interested", "Said no", …). The pages read it all through
+  one surface, `__REPLIES`, over `GET /api/v1/reach-out-replies`, and the undo is
+  `POST /api/v1/reach-out-replies/:id/undo`.
+- **Today, the bell and Settings** draw what §4.9's Part 5 note says.
+- **The sheet's *another step*** now offers an email, "A call for you" or "A note for you", the last two only as the
+  last step, with their words held to 280 characters; Playbooks' open row names such a step "N handed to you". Part 4's
+  line above, that *another step* offers another email only, held until this part and is superseded.
+- ***Leads while it writes*** (the Stage detail line that reads `resume_at`, the undo on the lead) is still Part 6's.
 
 ### 4.12 Failure handling
 
@@ -515,11 +627,26 @@ Each to 100% before the next, and each shippable in either deploy order unless s
    made `reach_out_claim`'s pick a materialized CTE, so a claim never takes more than the domain's room.
    `docs/superpowers/plans/2026-09-26-reach-out-part-4-the-words-and-pages.md` has the decisions (F1–F16, R1–R24) and
    what each PR built. The bulk door moved to Part 7 and *Leads while it writes* to Part 6 (§4.11).
-5. **Replies:** the intent classifier, pause and resume, said no, the dated-step door, notifications, Today's rows, the
-   Inbox strips; the first use of draft mode on a lead thread. 2 PRs. Carried from Part 2.5: **C15**, the owner's reply
-   leaves from the thread's own domain. And **C16**: until a classifier reads replies, the door refuses a cold email to
-   anyone who ever wrote back (00181). Should a reply the classifier reads as `away` or `not_now` let the chain go on at
-   its date, the rule narrows in that one place, `outreach_facts`' `wrote_back`, never in a second check.
+5. **Built 27–28 Sep 2026 in twelve PRs (00220, 00222, 00226, 00227 and 00228).** **Replies:** the intent classifier,
+   pause and resume, said no, the dated-step door, notifications, Today's rows, the Inbox strips; the first use of draft
+   mode on a lead thread. #1197 (PR 1, the reading, pure, and decision 0017), #1204 (PR 2, a no reaches the business's
+   own domain, 00220), #1216 (PR 3, a reply is read, 00222), #1237 (PR 4, an automatic out-of-office pauses a chain and
+   a person's reply may leave by its own domain, 00226), #1242 (PR 5, the receptionist's draft), #1243 (PR 6, the
+   dashboard's doors and the reply frozen with its twin), #1245 (PR 7, the Inbox), #1250 (PR 8, Today, the bell and
+   Settings), #1263 (PR 9, a booking or a deal stops a chain, 00227), #1271 (PR 10, a call or a note for you, the
+   engine, 00228), #1273 (PR 11, the same in the sheet) and PR 12 (the proof on a stack, and these notes).
+   `docs/superpowers/plans/2026-09-27-reach-out-part-5-replies.md` has the decisions (G1–G20, N1–N6) and what each PR
+   built. Two PRs became twelve so that each holds in either deploy order and each page is seen drawn. Carried from
+   Part 2.5, and where each landed:
+   - **C15**, the owner's reply leaves from the thread's own domain. The dashboard freezes the mailbox's request, as
+     every reply before, and beside it a twin from the own domain the reach-out wrote from, while that domain is
+     verified (`meta.email.own_request`, PR 6). The wire sends the twin when an own route for its From holds, and the
+     mailbox's request otherwise (PR 4), and records which left (`meta.email.left_as`). Whenever the own domain cannot
+     carry it, the reply leaves from the mailbox and the thread says so (N5).
+   - **C16**, the door refuses a cold email to anyone who ever wrote back (00181). Not narrowed: no human reply lets a
+     chain go on, not `away` in their own words and not `not_now` (N1; §4.7 already said "Not now: the chain stops").
+     Only an automatic out-of-office pauses, through a fact of its own (`away`, 00226), not through `wrote_back`.
+     `wrote_back` was widened once, in its one place: an automatic reply read as no or wrong person counts (00222).
 6. **What comes back:** Reports by step, angle and domain; the person page's rows. 1 PR.
 7. **Later:** bring your own list (leads from a CSV, checked first, as a search). 1 PR.
 
@@ -533,6 +660,16 @@ receipt landing on its row and its lead; the unsubscribe token; the dated-step d
 audience resolver, the privileges suite for every new door. Pages: the sheet, the Leads door and the strip in the legacy
 harness. Nightly, on the test workspace with the dry wire: a reach-out is made, checked and approved; three "sent"; a
 simulated reply stops the chain and leaves a draft; a simulated bounce drops the address.
+
+**As built (Part 5).** The nightly's reply moved onto a stack:
+`tooling/scripts/tests/reach-out-replies/replies.integration.db.test.mjs` writes a chain to four businesses, has each
+reply through the intake's own job, runs `reply_read` over a scripted reader and brain, and holds what each reading
+did, the owner's answer leaving by the own domain and then by the mailbox, and the undo of the no. It runs with the
+database suites: on a local stack (`corepack pnpm test:db`) and in the Migrations replay when a database path changes.
+The nightly's integration step does not run it: it makes a workspace and signs its owner in, so it refuses a database
+that is not on its machine. The intent fixtures are nineteen, not twelve
+(`tooling/scripts/fixtures/replies/replies.json`), and `tooling/scripts/evals/reply-intents.mjs --live` reads them
+with the model.
 
 ## 8. Risks
 
@@ -558,6 +695,19 @@ on the rates the product can see, since Gmail sends no per-message complaints: u
 beside Postmaster Tools (D18). A nudge keeps "Re:" (D19). Part 3's plan also takes: a "wait" refusal (at the cap, a
 domain not ready) defers a send and never cancels it (C5, C8); the door keyed by lead; one capacity read shared by the
 timetable, the claim and the door; C7 as an atomic SQL claim; and every cold row carrying its `contact_id`.
+
+**Part 5 approved 27 Sep 2026 with six more (N1–N6).** Only an automatic out-of-office read as away pauses a chain,
+until the day it names or seven days on; a person's "I'm away" or "not now" stops it like any reply, with a dated step
+on Today, and C16 is not narrowed for any human reply (N1). Settings › Notifications' Reach-outs group is rows that say
+what is sent, with no switch: they wrote back, a reach-out waits, a reach-out holds an email, a sending domain held and
+when it sends again; the day's numbers at 6 PM move to Part 6 (N2). Booked is read from the calendar now: an
+appointment carrying an address or a number of a reach-out's lead, starting after its first email, converts the lead
+within the sweep's hour (N3). "Read as no · undo" covers a no only, for seven days from the reading, by an owner or an
+operator, and is refused once the person has unsubscribed or complained since (N4); the door admits a partner too, who
+ranks above an operator. When the thread's own domain cannot carry the owner's reply, it leaves from the workspace's
+mailbox, and the composer says so before Send, or the thread after it when only the wire could know (N5). A no
+suppresses the exact address always, and the whole domain only when it is the business's own website's, never a shared
+ISP's or a free-mail domain for one person's no (N6).
 
 1. Pull Reach out ahead of Part 1 and W1–W3 of the PRD. Recommended: yes.
 2. Several own domains per workspace, rotated (§4.6), or E4's one. Recommended: several.

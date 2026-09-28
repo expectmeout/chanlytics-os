@@ -2,7 +2,7 @@
  * What assembling a reach-out step's run needs (Part 3), as ports: the edge's run context builds them over the database
  * (apps/edge lib/reach-out/run-context.ts); tests build them from arrays.
  */
-import type { TimetableDomain } from "@chanlytics/contracts";
+import type { StepHand, TimetableDomain } from "@chanlytics/contracts";
 
 export interface ReachOutStep {
   id: string;
@@ -24,6 +24,40 @@ export interface ReachOutStep {
   template_id: string;
   template_name: string;
   template_language: string;
+}
+
+/** What a later step's leads are read by (reach_out_followers): an email step's, or a hand step's. */
+export type FollowedStep = Pick<ReachOutStep, "id" | "after_playbook_id" | "after_days" | "cap_per_run">;
+
+/**
+ * A chain's last step that hands each lead it reaches to the team (Part 5, G20): an email step's shape without its
+ * template, and with its hand.
+ */
+export interface HandStep extends Omit<ReachOutStep, "template_id" | "template_name" | "template_language"> {
+  hand: StepHand;
+}
+
+/** One lead a hand step hands over, as the door takes it (00228 reach_out_hand_run). */
+export type HandItem = {
+  send_id: string;
+  lead_id: string;
+  contact_id: string;
+  words: string;
+  source_id: string;
+};
+
+/** What a hand step's run reads and writes, over the database on the edge and arrays in tests. */
+export interface HandStepPorts {
+  followers(step: FollowedStep): Promise<ReachOutFollower[]>;
+  /** The businesses' names, by lead id: what the team's step calls each. */
+  businessNames(leadIds: string[]): Promise<Map<string, string>>;
+  /** The run, a handed send per lead and each lead's step, written whole: how many made, how many it had already. */
+  handRun(p: {
+    stepId: string;
+    runId: string;
+    day: string;
+    items: HandItem[];
+  }): Promise<{ made: number; already: number }>;
 }
 
 export interface ReachOutLead {
@@ -90,7 +124,7 @@ export interface ReachOutRunPorts {
    */
   chainState(rootId: string): Promise<"none" | "waiting" | "approved">;
   audience(step: ReachOutStep): Promise<ReachOutLead[]>;
-  followers(step: ReachOutStep): Promise<ReachOutFollower[]>;
+  followers(step: FollowedStep): Promise<ReachOutFollower[]>;
   /** The step's verified domains, each with its day's share and the times it already spends (db capacity). */
   domains(step: ReachOutStep): Promise<TimetableDomain[]>;
   /**
