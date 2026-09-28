@@ -1720,7 +1720,10 @@ test("the owner's own business line is saved with no suggestions, so the next re
   );
 });
 
-test("the plan card's facts are the month's own numbers and what past searches measured, and a kind nobody searched has no prior", async () => {
+test("the plan card's facts are the month's own numbers and what past searches measured, and a kind nobody searched has no prior", async (t) => {
+  // The counters are September's ("2026-09") and the card renews on the 1st of the next month, so the clock is 28
+  // September: read off the wall clock, from 1 October the card read October's counters, and none of these held.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-09-28T17:00:00Z") });
   const rpcs = doors();
   const ctx = ctxOf(world({ role: "owner" }), {}, rpcs);
   const bare = await planFacts(ctx, A);
