@@ -2,14 +2,17 @@ import "server-only";
 
 /**
  * What a turn keeps of its thread: the thread it continues and the history it is asked with, before the model is asked
- * (threadForTurn, the ask route's), and the turn as it ends, measured (finishTurn, runAskTurn's).
+ * (threadForTurn, the ask route's), and the turn as it ends, measured and as the model was sent it (finishTurn,
+ * runAskTurn's).
  */
 
+import { createHash } from "node:crypto";
 import {
   AppError,
   answerText,
   cacheHitOf,
   type AskAnswer,
+  type AskModelId,
   type AskModelProfile,
   type AskProposal,
   type AskScope,
@@ -20,7 +23,8 @@ import { calledName, type ToolRun } from "./tools";
 import { titleFromQuestion, titleFromSearch, type SearchAnswering } from "./prompt";
 import { createThread, readThread } from "./store";
 import type { BuiltContext, SearchResultBlock } from "./context";
-import type { TurnInput, TurnResult } from "./loop";
+import { replayBlocks, resultBlocks, type CallOutcome, type RoundBlock } from "./round";
+import type { Msg, TurnInput, TurnResult } from "./loop";
 
 /** The question as the route read it, and the search it answers, if any. */
 interface Asked {
@@ -74,6 +78,24 @@ export async function threadForTurn(
   return { thread, history, sinceLastMs, scope: scope ?? null };
 }
 
+/** The round a turn ended on: the request as it went out, what the model wrote, what its calls answered, when it began. */
+interface LastRound {
+  request: {
+    model: AskModelId;
+    system: unknown[];
+    messages: Msg[];
+    tools: unknown[];
+    tool_choice: unknown;
+    output_config: unknown;
+  };
+  blocks: RoundBlock[];
+  outcomes: CallOutcome[];
+  /** Epoch ms, as the request went out. */
+  roundAt: number;
+  /** The stream broke after it began: the blocks are what came before the break, perhaps not all the model wrote. */
+  streamError: string | null;
+}
+
 /** How a turn ended, as each of runAskTurn's ends says it. */
 export interface TurnEnd {
   answer: AskAnswer;
@@ -81,6 +103,82 @@ export interface TurnEnd {
   failure: string | null;
   rounds: number;
   ungrounded?: boolean;
+  /** The round an answer or its cards ended the turn on; a turn that failed has none. */
+  lastRound?: LastRound;
+}
+
+/**
+ * A turn as the model was sent it (the Phase 5 plan, D2 and D11), for a later turn to replay verbatim: the answer's row
+ * keeps it at content.raw (storedRaw), the Line's reads never select it (store.ts, readThread), and the browser never
+ * gets it. It is the last request's own messages and bytes, never derived again. A turn that failed keeps none, nor
+ * one whose last stream broke: what came before the break is the answer, never a turn to replay.
+ */
+export interface RawTurn {
+  /**
+   * Every message before the question in the last request: the thread's earlier turns as the turn was asked with them
+   * (foldHistory), none on a thread's first. The thinking blocks that follow are bound to exactly these.
+   */
+  base: Msg[];
+  /**
+   * The person's message as the last request carried it: the page's data, the reads made before the model was asked,
+   * the turn's words and the question -- without the page's data when a refusal dropped it, and after a question the
+   * thread left unanswered, when the fold joined one in (foldHistory).
+   */
+  question: unknown;
+  /** Every message after the question in the last request, in order: each earlier round, and what was sent back. */
+  rounds: Msg[];
+  /** The last round as a request would carry it back (replayBlocks): its thinking and signatures, its text, its calls. */
+  final: unknown[];
+  /** What the last round's calls answered, as the next request would carry it: its cards', alone or beside an answer. */
+  results: unknown[];
+  /** When the last round began, epoch ms: the cache's five minutes run from a request's start, not from the saved row. */
+  at: number;
+  /** The model the requests named. */
+  model: AskModelId;
+  /** What the last request sent besides its messages, hashed (prefixOf): a replay on another is cold. */
+  prefix: string;
+}
+
+/**
+ * The sha256, in hex, of what a request sends besides its messages that a live replay needs unchanged: system and
+ * tools as they were sent, the tool choice, and the output config -- the effort and the answer's format. A setting, a
+ * note, the hours, an autonomy mode, the workspace's shape, the role, a refusal of the examples or the format, another
+ * effort or format, or a last round that could call no tool gives another: any of them makes a replay miss the cache
+ * and write it all again, where a cold turn's words cost less.
+ */
+function prefixOf(request: LastRound["request"]): string {
+  const { system, tools, tool_choice, output_config } = request;
+  return createHash("sha256").update(JSON.stringify({ system, tools, tool_choice, output_config })).digest("hex");
+}
+
+/** The turn as it was sent, from the round it ended on and where the question sits in that round's request. */
+function rawTurn({ request, blocks, outcomes, roundAt }: LastRound, questionAt: number): RawTurn {
+  const { model, messages } = request;
+  return {
+    base: messages.slice(0, questionAt),
+    question: messages[questionAt].content,
+    rounds: messages.slice(questionAt + 1),
+    final: replayBlocks(blocks),
+    results: resultBlocks(outcomes),
+    at: roundAt,
+    model,
+    prefix: prefixOf(request),
+  };
+}
+
+/**
+ * The raw turn as the answer's row keeps it, at content.raw: its messages and blocks as ONE JSON string, beside its
+ * scalars. jsonb does not keep an object's keys in their order -- it writes them back shortest first, then by their
+ * bytes -- so a turn kept as objects would come back reordered (a call's input `{action, words}` as `{words, action}`),
+ * and a replay must be the bytes that were sent: the cache is a prefix match, and a thinking block is bound to the
+ * conversation as it was sent. A string comes back as it went, and JSON.parse keeps its keys' order.
+ */
+export function storedRaw(
+  raw: RawTurn | null,
+): { at: number; model: AskModelId; prefix: string; blocks: string } | null {
+  if (!raw) return null;
+  const { base, question, rounds, final, results, at, model, prefix } = raw;
+  return { at, model, prefix, blocks: JSON.stringify({ base, question, rounds, final, results }) };
 }
 
 /** What the turn read, measured and made up to its end: runAskTurn's own, as they stand when it ends. */
@@ -104,10 +202,16 @@ interface TurnSoFar {
   format: boolean;
   toolsUsed: string[];
   proposals: AskProposal[];
+  /** Where the question sits in every request of the turn: a later round only appends. */
+  questionAt: number;
 }
 
-/** The turn as it returns: its end, with where the time went and what the model was fed (AskTurnShape), logged. */
+/**
+ * The turn as it returns: its end, with where the time went and what the model was fed (AskTurnShape), logged, and the
+ * turn as the model was sent it (RawTurn), which no log line carries.
+ */
 export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
+  const { lastRound, ...end } = r;
   const { input, model, t0, built, contextMs, dataDropped, pageBlocks, crossBlocks, plan } = soFar;
   const { roundsMs, toolsMs, firstByteMs, firstTextMs, firstSayMs, tokens, capHits, format, toolsUsed, proposals } =
     soFar;
@@ -154,9 +258,10 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     tools: toolsUsed,
     proposals,
     latencyMs: Date.now() - t0,
-    ...r,
+    ...end,
     text: answerText(r.answer),
     model: model.id,
     shape,
+    raw: lastRound && !lastRound.streamError ? rawTurn(lastRound, soFar.questionAt) : null,
   };
 }

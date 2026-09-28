@@ -225,7 +225,7 @@ const bareAddress = (from: unknown): string | null => {
 
 /**
  * A sent reply's line when it could not leave by its own domain (PR 4's `left_as`, N5): which address it went from,
- * and which could not send it. Null for every other row.
+ * and which could not send it, or that its domain was held. Null for every other row.
  */
 export function replyLeftAsOf(meta: unknown): string | null {
   const email = (meta as { email?: Record<string, unknown> } | null)?.email;
@@ -233,5 +233,8 @@ export function replyLeftAsOf(meta: unknown): string | null {
   const went = bareAddress((email.request as { from?: unknown } | undefined)?.from);
   const own = bareAddress((email.own_request as { from?: unknown } | undefined)?.from);
   if (!went) return null;
-  return own ? `Went from ${went}: ${own} could not send it.` : `Went from ${went}.`;
+  if (!own) return `Went from ${went}.`;
+  return email.left_as_why === "domain_held"
+    ? `Went from ${went}: ${own}'s domain is held.`
+    : `Went from ${went}: ${own} could not send it.`;
 }
