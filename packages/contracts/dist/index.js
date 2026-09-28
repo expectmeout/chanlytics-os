@@ -126,8 +126,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z21] = m;
-  if (z21) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z22] = m;
+  if (z22) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -21492,6 +21492,23 @@ function replyNoticeWords(p) {
   };
 }
 
+// src/reach-out/reach-out-reply-words.ts
+import { z as z16 } from "zod";
+var REPLIES_PAGE = 200;
+var REPLY_UNDO_REFUSALS = {
+  not_found: "Reply not found.",
+  role: "Not allowed to act in this workspace.",
+  not_a_no: "Only a no can be undone.",
+  already: "Already undone.",
+  too_late: "It's been more than seven days.",
+  moved: "They unsubscribed since, and that stays."
+};
+var isReplyUndoRefusal = (v) => typeof v === "string" && Object.prototype.hasOwnProperty.call(REPLY_UNDO_REFUSALS, v);
+var ReachOutRepliesQuerySchema = z16.object({
+  since: z16.string().datetime({ offset: true }).optional(),
+  conversation_id: z16.string().uuid().optional()
+});
+
 // src/reports/campaign-report.ts
 var sum2 = (xs) => xs.reduce((a, b) => a + b, 0);
 var pct2 = (n, d) => d ? Math.round(n / d * 100) : null;
@@ -23671,6 +23688,7 @@ var ROUTE_KEYS = [
   "GET platform/tenants/[id]",
   "GET playbooks",
   "GET policies",
+  "GET reach-out-replies",
   "GET reach-outs",
   "GET reach-outs/[id]",
   "GET reach-outs/reach",
@@ -23764,6 +23782,7 @@ var ROUTE_KEYS = [
   "POST platform/waitlist/invited",
   "POST playbooks",
   "POST playbooks/[id]/run",
+  "POST reach-out-replies/[id]/undo",
   "POST reach-out-sends/[id]/decide",
   "POST reach-outs",
   "POST reach-outs/preview",
@@ -23960,7 +23979,7 @@ function roleGate(role, perm, doing) {
 }
 
 // src/shell/vitals.ts
-import { z as z16 } from "zod";
+import { z as z17 } from "zod";
 var PAGE_VITALS = ["LCP", "INP", "CLS", "FCP", "TTFB"];
 var PAGE_VITAL_BANDS = {
   LCP: [2500, 4e3],
@@ -23983,14 +24002,14 @@ function vitalsPageOf(route) {
   const first = (route ?? "").split(/[/?]/)[0] ?? "";
   return PAGE_NAME.test(first) ? first : "other";
 }
-var PageVitalReport = z16.object({
-  id: z16.string().regex(VITAL_ID, { error: "A report needs the browser's id." }),
-  name: z16.enum(PAGE_VITALS, { error: "A report names one of the five." }),
-  value: z16.number().min(0).max(VITAL_CEILING)
+var PageVitalReport = z17.object({
+  id: z17.string().regex(VITAL_ID, { error: "A report needs the browser's id." }),
+  name: z17.enum(PAGE_VITALS, { error: "A report names one of the five." }),
+  value: z17.number().min(0).max(VITAL_CEILING)
 });
-var PageVitalsInput = z16.object({
-  page: z16.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
-  vitals: z16.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
+var PageVitalsInput = z17.object({
+  page: z17.string().regex(PAGE_NAME, { error: "A page's name is a word in lower case." }),
+  vitals: z17.array(PageVitalReport).min(1).max(PAGE_VITALS.length)
 });
 var PAGE_VITALS_READ = { days: 7, most: 25e3 };
 var PAGE_VITALS_MIN_LOADS = 20;
@@ -25868,13 +25887,13 @@ function todaySteps(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
 }
 
 // src/workspace/signup.ts
-import { z as z17 } from "zod";
+import { z as z18 } from "zod";
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z17.string().trim().max(80);
-var SignupSchema = z17.object({
-  name: z17.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z17.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z18.string().trim().max(80);
+var SignupSchema = z18.object({
+  name: z18.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z18.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -25888,9 +25907,9 @@ var SignupSchema = z17.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z17.string().max(200).optional(),
+  password: z18.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z17.string().trim().min(1).max(64).optional(),
+  timezone: z18.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
@@ -25900,11 +25919,11 @@ function signupPosture(code2) {
   return code2 === SIGNUP_WAITLIST ? "waitlist" : "invite";
 }
 var PENDING_WORKSPACE_KEY = "pending_workspace";
-var PendingWorkspaceSchema = z17.object({
-  name: z17.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z18.object({
+  name: z18.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z17.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z18.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function pendingWorkspaceOf(metadata) {
   if (!metadata || typeof metadata !== "object") return null;
@@ -26732,7 +26751,7 @@ var PASSWORD_WORDS = {
 };
 
 // src/workspace/partner.ts
-import { z as z18 } from "zod";
+import { z as z19 } from "zod";
 var PARTNER_STATUSES = ["active", "paused", "closed"];
 var PARTNER_SHARE_BP_DEFAULT = 2500;
 var PARTNER_STANDINGS = ["qualified", "review", "disqualified"];
@@ -26755,11 +26774,11 @@ function cleanPartnerCode(raw) {
   return { ok: true, code: code2 };
 }
 var isPartnerCode = (raw) => cleanPartnerCode(raw).ok;
-var PartnerBecomeSchema = z18.object({
-  code: z18.string().trim().min(1).max(64),
-  terms: z18.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z19.object({
+  code: z19.string().trim().min(1).max(64),
+  terms: z19.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z18.object({ letters: z18.boolean() }).strict();
+var PartnerLettersSchema = z19.object({ letters: z19.boolean() }).strict();
 var partnerPathFor = (code2) => `/p/${encodeURIComponent(code2)}`;
 var partnerLinkFor = (code2, origin) => `${origin.replace(/\/+$/, "")}${partnerPathFor(code2)}`;
 var PARTNER_COOKIE = "chanlytics_partner";
@@ -27031,32 +27050,32 @@ function partnerStandingOutcomeWords(r2) {
     return r2.matured ? `Qualified. ${r2.matured} ${r2.matured === 1 ? "share" : "shares"} past the hold ${r2.matured === 1 ? "is" : "are"} payable now.` : "Qualified. Its shares become payable as each one's hold ends.";
   return `Now ${label}. What it holds waits until a person decides.`;
 }
-var letterCents = z18.coerce.number();
-var letterSum = z18.object({ currency: z18.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z18.object({
+var letterCents = z19.coerce.number();
+var letterSum = z19.object({ currency: z19.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z19.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z18.array(z18.object({ kind: z18.string(), currency: z18.string(), count: z18.coerce.number(), cents: letterCents })).default([]),
+  written: z19.array(z19.object({ kind: z19.string(), currency: z19.string(), count: z19.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z18.array(letterSum).default([]),
+  matured: z19.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z18.array(letterSum).default([]),
-  paid: z18.array(z18.object({ currency: z18.string(), cents: letterCents, reference: z18.string(), sent_at: z18.string() })).default([]),
+  voided: z19.array(letterSum).default([]),
+  paid: z19.array(z19.object({ currency: z19.string(), cents: letterCents, reference: z19.string(), sent_at: z19.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z18.array(z18.object({ workspace: z18.string().nullable(), standing: z18.string(), why: z18.string().nullable() })).default([]),
+  standing: z19.array(z19.object({ workspace: z19.string().nullable(), standing: z19.string(), why: z19.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z18.array(z18.string().nullable()).default([]),
+  brought: z19.array(z19.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z18.array(z18.string().nullable()).default([]),
-  declined: z18.array(z18.string().nullable()).default([]),
+  accepted: z19.array(z19.string().nullable()).default([]),
+  declined: z19.array(z19.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z18.object({ status: z18.string(), why: z18.string().nullable() }).nullable().default(null),
-  balance: z18.array(
-    z18.object({
-      currency: z18.string(),
+  status: z19.object({ status: z19.string(), why: z19.string().nullable() }).nullable().default(null),
+  balance: z19.array(
+    z19.object({
+      currency: z19.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z18.string().nullable()
+      next_payable_at: z19.string().nullable()
     })
   ).default([])
 });
@@ -27157,16 +27176,16 @@ function letterSubject(news) {
 }
 
 // src/workspace/handover.ts
-import { z as z19 } from "zod";
+import { z as z20 } from "zod";
 var HANDOVER_DAYS = 14;
 var HANDOVER_WAITING_MAX = 10;
-var ownerEmail = z19.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z19.object({
-  name: z19.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z19.string().trim().max(64).nullish(),
+var ownerEmail = z20.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z20.object({
+  name: z20.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z20.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z19.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z20.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -27242,7 +27261,7 @@ function handoverInviteEmail(h) {
 }
 
 // src/workspace/second-factor.ts
-import { z as z20 } from "zod";
+import { z as z21 } from "zod";
 function factorStepNeeded(aal) {
   return !!aal && aal.nextLevel === "aal2" && aal.currentLevel !== "aal2";
 }
@@ -27310,9 +27329,9 @@ function cleanFactorCode(raw) {
   const code2 = String(raw ?? "").replace(/\s+/g, "");
   return /^\d{6}$/.test(code2) ? code2 : null;
 }
-var PartnerSecondFactorResetSchema = z20.object({
-  partner_id: z20.string().uuid("That partner does not exist."),
-  why: z20.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z21.object({
+  partner_id: z21.string().uuid("That partner does not exist."),
+  why: z21.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 function secondFactorResetWords(code2, removed) {
   return removed > 0 ? `${code2}'s authenticator is removed. They set up a new one at their next sign-in.` : `${code2} had no authenticator to remove. The reset is recorded.`;
@@ -27862,6 +27881,7 @@ export {
   REGISTRATION_PATHS,
   REGISTRATION_PATH_WORDS,
   REGISTRATION_QUESTION,
+  REPLIES_PAGE,
   REPLY_ANSWERED_MAX,
   REPLY_CAP_DEFAULT,
   REPLY_DELAY_DEFAULT_MS,
@@ -27880,6 +27900,7 @@ export {
   REPLY_SCHEMA,
   REPLY_SUBJECT_MAX,
   REPLY_SUMMARY_WORDS,
+  REPLY_UNDO_REFUSALS,
   REPLY_UNREADS,
   REPLY_WINDOW_HOURS,
   REPLY_WINDOW_MS,
@@ -27910,6 +27931,7 @@ export {
   ReachOutChainSchema,
   ReachOutDecideSchema,
   ReachOutPreviewSchema,
+  ReachOutRepliesQuerySchema,
   ReachOutStepSchema,
   RenameLeadSearchSchema,
   SAME_SITTING_MS,
@@ -28385,6 +28407,7 @@ export {
   isRealDate,
   isReplyIntent,
   isReplyTo,
+  isReplyUndoRefusal,
   isSellsBy,
   isSidebarPref,
   isThemePref,

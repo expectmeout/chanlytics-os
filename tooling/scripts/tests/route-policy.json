@@ -1269,6 +1269,20 @@
       "rate": "playbook",
       "spend": false
     },
+    "GET reach-out-replies": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST reach-out-replies/[id]/undo": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "playbook",
+      "spend": false
+    },
     "POST reach-out-sends/[id]/decide": {
       "kind": "write",
       "scope": "row",
