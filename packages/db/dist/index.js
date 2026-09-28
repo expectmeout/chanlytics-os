@@ -26,6 +26,7 @@ import { z as z16 } from "zod";
 import { z as z17 } from "zod";
 import { z as z18 } from "zod";
 import { z as z19 } from "zod";
+import { z as z20 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -2726,6 +2727,10 @@ var REACH_OUT_SHEET_PARTS = {
   footLine: "At the foot",
   repliesLine: "Replies"
 };
+var ReachOutRepliesQuerySchema = z16.object({
+  since: z16.string().datetime({ offset: true }).optional(),
+  conversation_id: z16.string().uuid().optional()
+});
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
@@ -2734,10 +2739,10 @@ var SEARCH_WARN_MS = 12 * HOUR_MS;
 var PUSH_RECEIPTS_AFTER_MS = 15 * MIN_MS;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var InviteCodeSchema = z16.string().trim().max(80);
-var SignupSchema = z16.object({
-  name: z16.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z16.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var InviteCodeSchema = z17.string().trim().max(80);
+var SignupSchema = z17.object({
+  name: z17.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z17.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2751,17 +2756,17 @@ var SignupSchema = z16.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z16.string().max(200).optional(),
+  password: z17.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z16.string().trim().min(1).max(64).optional(),
+  timezone: z17.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
   code: InviteCodeSchema.optional()
 }).strict();
-var PendingWorkspaceSchema = z16.object({
-  name: z16.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z17.object({
+  name: z17.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z16.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z17.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 var DEFAULT_TIMEZONE = "America/New_York";
 function isTimezone(raw) {
@@ -2800,11 +2805,11 @@ var PASSWORD_WORDS = {
 };
 var PARTNER_CODE_MIN = 3;
 var PARTNER_CODE_MAX = 24;
-var PartnerBecomeSchema = z17.object({
-  code: z17.string().trim().min(1).max(64),
-  terms: z17.literal(true, { message: "The terms have to be accepted." })
+var PartnerBecomeSchema = z18.object({
+  code: z18.string().trim().min(1).max(64),
+  terms: z18.literal(true, { message: "The terms have to be accepted." })
 }).strict();
-var PartnerLettersSchema = z17.object({ letters: z17.boolean() }).strict();
+var PartnerLettersSchema = z18.object({ letters: z18.boolean() }).strict();
 var PARTNER_WORDS = {
   tab: "Partner",
   title: "Bring a business to Chanlytics",
@@ -2843,43 +2848,43 @@ var PARTNER_WORDS = {
   letters: "Email me when something changes in my earnings or my workspaces' standing, at most once a day.",
   lettersFailed: "your email setting"
 };
-var letterCents = z17.coerce.number();
-var letterSum = z17.object({ currency: z17.string(), cents: letterCents });
-var PartnerLetterNewsSchema = z17.object({
+var letterCents = z18.coerce.number();
+var letterSum = z18.object({ currency: z18.string(), cents: letterCents });
+var PartnerLetterNewsSchema = z18.object({
   /** Ledger rows written since: shares and reversals, per kind and currency, void ones left out. */
-  written: z17.array(z17.object({ kind: z17.string(), currency: z17.string(), count: z17.coerce.number(), cents: letterCents })).default([]),
+  written: z18.array(z18.object({ kind: z18.string(), currency: z18.string(), count: z18.coerce.number(), cents: letterCents })).default([]),
   /** Rows written before the last letter that became payable since. */
-  matured: z17.array(letterSum).default([]),
+  matured: z18.array(letterSum).default([]),
   /** Shares written before that will not be paid: their workspace was disqualified. */
-  voided: z17.array(letterSum).default([]),
-  paid: z17.array(z17.object({ currency: z17.string(), cents: letterCents, reference: z17.string(), sent_at: z17.string() })).default([]),
+  voided: z18.array(letterSum).default([]),
+  paid: z18.array(z18.object({ currency: z18.string(), cents: letterCents, reference: z18.string(), sent_at: z18.string() })).default([]),
   /** A workspace held for review, or a person's decision on one, with the why they wrote for the partner. */
-  standing: z17.array(z17.object({ workspace: z17.string().nullable(), standing: z17.string(), why: z17.string().nullable() })).default([]),
+  standing: z18.array(z18.object({ workspace: z18.string().nullable(), standing: z18.string(), why: z18.string().nullable() })).default([]),
   /** Workspaces that came through the link since. */
-  brought: z17.array(z17.string().nullable()).default([]),
+  brought: z18.array(z18.string().nullable()).default([]),
   /** Workspaces the partner set up whose owner accepted them, or declined them (0016, 00214). */
-  accepted: z17.array(z17.string().nullable()).default([]),
-  declined: z17.array(z17.string().nullable()).default([]),
+  accepted: z18.array(z18.string().nullable()).default([]),
+  declined: z18.array(z18.string().nullable()).default([]),
   /** The partner's own status, when it changed since. */
-  status: z17.object({ status: z17.string(), why: z17.string().nullable() }).nullable().default(null),
-  balance: z17.array(
-    z17.object({
-      currency: z17.string(),
+  status: z18.object({ status: z18.string(), why: z18.string().nullable() }).nullable().default(null),
+  balance: z18.array(
+    z18.object({
+      currency: z18.string(),
       held: letterCents,
       payable: letterCents,
       paid: letterCents,
-      next_payable_at: z17.string().nullable()
+      next_payable_at: z18.string().nullable()
     })
   ).default([])
 });
 var HANDOVER_DAYS = 14;
-var ownerEmail = z18.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
-var HandoverCreateSchema = z18.object({
-  name: z18.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
-  timezone: z18.string().trim().max(64).nullish(),
+var ownerEmail = z19.string().trim().toLowerCase().max(254, "That address is too long.").regex(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, "Enter the business owner's email address.");
+var HandoverCreateSchema = z19.object({
+  name: z19.string().trim().min(2, "A workspace needs a name of at least 2 characters.").max(120, "That name is too long: 120 characters at most."),
+  timezone: z19.string().trim().max(64).nullish(),
   email: ownerEmail
 }).strict();
-var HandoverResendSchema = z18.object({ email: ownerEmail }).strict();
+var HandoverResendSchema = z19.object({ email: ownerEmail }).strict();
 var HANDOVER_WORDS = {
   start: "Set up a workspace for a business",
   intro: `Build it and show it working, then hand it to its owner: they accept it, choose a plan and pay for it, and you stay on the team as their partner. The invitation is open ${HANDOVER_DAYS} days and you can send it again. If nobody accepts it, what you set up goes with the workspace.`,
@@ -2908,9 +2913,9 @@ var HANDOVER_WORDS = {
   later: "Not now",
   failedAnswer: "your answer"
 };
-var PartnerSecondFactorResetSchema = z19.object({
-  partner_id: z19.string().uuid("That partner does not exist."),
-  why: z19.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
+var PartnerSecondFactorResetSchema = z20.object({
+  partner_id: z20.string().uuid("That partner does not exist."),
+  why: z20.string().trim().min(1, "Say why, and how you checked it's them.").max(500, "At most 500 characters.")
 }).strict();
 
 // src/repositories/ingest.ts
@@ -3189,6 +3194,29 @@ async function lastInboundEmail(db, tenantId, conversationId) {
     references: Array.isArray(e.references) ? e.references.filter((r2) => typeof r2 === "string") : [],
     subject: str2(e.subject)
   };
+}
+var ANSWERED_LOOKBACK = 50;
+async function answeredReachOutEmail(db, p) {
+  const { data, error } = await db.from("messages").select("id, meta, status").eq("tenant_id", p.tenantId).eq("conversation_id", p.conversationId).eq("channel", "email").eq("direction", "outbound").order("created_at", { ascending: false }).limit(ANSWERED_LOOKBACK);
+  if (error) throw new Error(`email: cannot read the reach-out being answered: ${error.message}`);
+  const left = /* @__PURE__ */ new Set(["sent", "delivered", "read"]);
+  const sent = (data ?? []).flatMap((m) => {
+    const meta = m.meta ?? {};
+    if (meta.source !== "reach_out" || !left.has(String(m.status))) return [];
+    const req = meta.email?.request ?? {};
+    const replyTo = Array.isArray(req.reply_to) && typeof req.reply_to[0] === "string" ? req.reply_to[0] : null;
+    return [
+      {
+        messageId: m.id,
+        rfc: typeof meta.email?.message_id === "string" ? meta.email.message_id : null,
+        from: typeof req.from === "string" ? req.from : null,
+        replyTo
+      }
+    ];
+  });
+  const named = new Set(p.references);
+  const hit = sent.find((e) => e.rfc !== null && named.has(e.rfc)) ?? sent[0];
+  return hit ? { messageId: hit.messageId, from: hit.from, replyTo: hit.replyTo } : null;
 }
 async function stampEmailSent(db, p) {
   const { data, error } = await db.rpc("stamp_email_sent", {
@@ -3530,6 +3558,44 @@ async function markReplyTold(db, p) {
     p_claimed_at: p.claim
   });
   if (error) throw new Error(`cannot mark the reply's notice told: ${error.message}`);
+}
+var REPLY_LIST_COLUMNS = "message_id, conversation_id, read_at, intent, claim, summary, named_day, refer_to, unread, rereads, undone_at, draft, draft_state, draft_why, lead_id, send_id";
+async function repliesFor(db, p) {
+  let q = db.from("reach_out_replies").select(REPLY_LIST_COLUMNS).eq("tenant_id", p.tenantId).gte("read_at", p.since);
+  if (p.conversationId) q = q.eq("conversation_id", p.conversationId);
+  const { data, error } = await q.order("read_at", { ascending: false }).limit(p.limit);
+  if (error) throw new Error(`cannot read the replies: ${error.message}`);
+  const rows = data ?? [];
+  const ids = (k) => [...new Set(rows.map((r2) => r2[k]).filter((v) => !!v))];
+  const [leads, sends] = await Promise.all([
+    ids("lead_id").length ? db.from("leads").select("id, business_name").eq("tenant_id", p.tenantId).in("id", ids("lead_id")) : Promise.resolve({ data: [], error: null }),
+    ids("send_id").length ? db.from("reach_out_sends").select("id, playbook_id, root_id").eq("tenant_id", p.tenantId).in("id", ids("send_id")) : Promise.resolve({ data: [], error: null })
+  ]);
+  if (leads.error) throw new Error(`cannot read the replies' leads: ${leads.error.message}`);
+  if (sends.error) throw new Error(`cannot read the replies' emails: ${sends.error.message}`);
+  const business = new Map((leads.data ?? []).map((l) => [l.id, l.business_name]));
+  const step = new Map((sends.data ?? []).map((s) => [s.id, s]));
+  return rows.map(({ lead_id, send_id, ...r2 }) => ({
+    ...r2,
+    business: lead_id && business.get(lead_id) || null,
+    playbook_id: send_id && step.get(send_id)?.playbook_id || null,
+    root_id: send_id && step.get(send_id)?.root_id || null
+  }));
+}
+async function replyReadingRefOf(db, messageId) {
+  const { data, error } = await db.from("reach_out_replies").select("message_id, tenant_id").eq("message_id", messageId).maybeSingle();
+  if (error) throw new Error(`cannot read the reply: ${error.message}`);
+  return data ? { id: data.message_id, tenant_id: data.tenant_id } : null;
+}
+async function replyUndoableOf(db, messageId) {
+  const { data, error } = await db.rpc("reach_out_reply_undoable", { p_message_id: messageId });
+  if (error) throw new Error(`cannot ask whether the reply can be undone: ${error.message}`);
+  return typeof data === "string" && data ? data : null;
+}
+async function undoReplyReading(db, messageId) {
+  const { data, error } = await db.rpc("reach_out_reply_undo", { p_message_id: messageId });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code });
+  return data;
 }
 
 // src/repositories/reach-out-sheet.ts
@@ -5094,6 +5160,7 @@ export {
   activityTokensOf,
   addToList,
   addressesSuppressed,
+  answeredReachOutEmail,
   applyDomainCheck,
   applyReplyReading,
   archiveList,
@@ -5212,7 +5279,10 @@ export {
   releaseIdempotencyKey,
   releaseUnavailableHolds,
   renameList,
+  repliesFor,
   replyReadingOf,
+  replyReadingRefOf,
+  replyUndoableOf,
   reputationHoldsSince,
   resendHandover,
   reserveSendingDomain,
@@ -5261,6 +5331,7 @@ export {
   touchesSince,
   uncheckedSends,
   uncheckedWaiting,
+  undoReplyReading,
   watchedTables,
   withdrawEmail,
   workspaceAbout,
