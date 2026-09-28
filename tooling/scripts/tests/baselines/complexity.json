@@ -780,7 +780,7 @@
     "depth": 6
   },
   "apps/edge/lib/whatsapp/persist.ts::pgSink#1": {
-    "lines": 202,
+    "lines": 192,
     "branches": 5,
     "depth": 0
   },

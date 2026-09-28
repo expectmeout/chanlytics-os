@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { EmailRequest, ResendLimit, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge, NormalizedInbound, CarrierConsent } from '@chanlytics/channels';
-import { SendPurpose, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
+import { SendPurpose, DeliveryRefusal, TenantId, DecisionSubject, DecisionVerb, ContactId, JobNews, DraftWhy, ReplyIntent, Unread, ReplyClaim, ReplyReading, ReadingPlan, ParamSpec, Audience, PersonRowVM, ListRef, NumberHealth, PersonVisitsDto, Membership, DealPaceVM, PlaybookTrigger, PlaybookPolicyClass, TimetableDomain, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, ProbeMember, BrainMeta, NotificationsConfig, BrainConfig, CalendarConfig, FeaturesConfig, PolicyLimits, KnownFacts } from '@chanlytics/contracts';
 export { DeliveryRefusal } from '@chanlytics/contracts';
 import { Json, Database, RoutedChannel, LeadContext, IngestResult } from '@chanlytics/db';
 
@@ -926,10 +926,14 @@ declare function ingestEmail(ports: EmailIngestPorts, cmd: {
  *     already (outreach_wrote_back), and the reply is read again later, so a missed no still becomes an opt-out.
  *   - A re-read (stage reread-<n>) applies only while the reading is still unread and at the re-read before it, and
  *     tells only what nobody was told (a no, and an automatic reply's first real reading).
+ *   - The draft (PR 5, decision 0017): for interested, a question and not now, the receptionist writes an answer (or a
+ *     line of thanks) and it is kept on the reading, never as a message: nothing sends it but a person. It is tried
+ *     once, after the apply and before the notice, so the notice carries it. A job with too little time left marks it
+ *     waiting, hands it to a job of its own (stage "draft"), and tells without it; that job tells nobody.
  *   - The notice, in two phases (B2): the claim, then the telling, then the mark only once the owner was told. A
  *     telling that failed throws, so the ledger tries again once the claim has gone stale; told is never marked before.
  *
- * It sends nothing to the business. The draft (PR 5) and the pages (PRs 7 and 8) come later.
+ * It sends nothing to the business. The pages (PRs 7 and 8) come later.
  */
 
 /** The reply and the reach-out it answers, as the job reads them (packages/db reachOutReplyOf). */
@@ -949,6 +953,8 @@ interface ReplyFacts {
     /** The address the reach-out wrote to, and the lead's website. */
     leadAddress: string | null;
     leadWebsite: string | null;
+    /** The chain's signature ({{your name}}), which a draft ends with. */
+    signedBy: string | null;
     /** The business's zone. */
     tz: string;
 }
@@ -963,7 +969,23 @@ interface KeptReading {
     tell: boolean;
     told: boolean;
     undone: boolean;
+    /** What its plan drafts (contracts readingPlan), and how far the draft got: its text once written. */
+    draft: "answer" | "thanks" | null;
+    draftState: DraftState;
+    draftText: string | null;
 }
+/** reach_out_replies.draft_state. */
+type DraftState = "none" | "waiting" | "written" | "not_written";
+/** A draft's mark: waiting for a job of its own, written, or not written and why. */
+type DraftMark = {
+    state: "waiting";
+} | {
+    state: "written";
+    draft: string;
+} | {
+    state: "not_written";
+    why: DraftWhy;
+};
 /** The notice as the workspace is told it: words only; where it goes and how is the runtime's. */
 interface ReplyNotice {
     conversationId: string;
@@ -1000,7 +1022,23 @@ interface ReplyReadPorts {
     tell(tenantId: string, notice: ReplyNotice): Promise<boolean>;
     /** The notice's second phase: marked told, only while this run's claim still holds it. */
     told(tenantId: string, messageId: string, claim: string): Promise<void>;
-    /** This message's next read, at most once per stage. */
+    /**
+     * The receptionist's draft of an answer to their reply, over the thread and the lead note: the text, or which gate
+     * stopped it (contracts draftRefusal) or that it was not drafted. Throws when it failed; no call runs past `deadline`.
+     */
+    draft(tenantId: string, ask: {
+        conversationId: string;
+        text: string;
+        note: string;
+        deadline: number;
+    }): Promise<{
+        text: string;
+    } | {
+        why: DraftWhy;
+    }>;
+    /** The draft's mark (reach_out_reply_draft): only from none or waiting, so a second stage never writes over the first. */
+    markDraft(tenantId: string, messageId: string, mark: DraftMark): Promise<boolean>;
+    /** This message's next read, or its draft, at most once per stage. */
     scheduleOnce(at: number, payload: {
         message_id: string;
         stage: string;
@@ -1014,8 +1052,10 @@ interface ReadReplyCommand {
     stage?: unknown;
     /** How long a claim on the notice holds before another run may take it: the job's lease. */
     tellStaleMs: number;
+    /** When this job stops starting work (epoch ms): a draft needs DRAFT_NEEDS_MS of it. */
+    deadline: number;
 }
-type ReadReplyOutcome = "not_a_reply" | "already_read" | "read" | "told";
+type ReadReplyOutcome = "not_a_reply" | "already_read" | "read" | "told" | "drafted";
 declare function readReply(ports: ReplyReadPorts, cmd: ReadReplyCommand): Promise<ReadReplyOutcome>;
 
 /**
@@ -3107,4 +3147,4 @@ declare function answerInbound(input: InboundInput, ports: InboundPorts): Promis
  */
 declare function bookingPageLinkedFrom(html: string, pageUrl: string): string | null;
 
-export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, HOLD_EXPIRY_MS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reachOutRunIdFor, readReply, reconcileUnknownRuns, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CheckPlaybookPorts, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ConsentDecision, type ConsentInputs, type ConsentSource, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type Door, type DraftMark, type DraftState, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EmailRoute, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, HOLD_EXPIRY_MS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type InboundBrainReply, type InboundCarrier, type InboundChannel, type InboundDb, type InboundHandoff, type InboundInput, type InboundLog, type InboundPorts, type InboundRuntime, type InboundSink, type IncomingEmail, IngestFailed, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, type KeptReading, type KeyClaim, type KeyHold, LEASE_SECONDS, type LatLng, type LayerTwoIn, type LayerTwoOut, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, type ListCount, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MARK_ALLOWANCE_MS, MARK_AT_ONCE, MARK_MAX_BYTES, MARK_MAX_RATIO, MARK_MIN_SIDE, MARK_TRIES, MAX_REPLIES_PER_DAY, MAX_SNOOZE_MS, type MapsPlace, type MarkImage, type MarkKind, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, NO_MODEL_PAGE, type NewBroadcast, type NewReachOutRun, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PAUSE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlannedSend, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, REPLY_IN_PROGRESS_REFUSAL, type ReachOutFollower, type ReachOutLead, type ReachOutRunOutcome, type ReachOutRunPorts, type ReachOutStep, type ReadReplyCommand, type ReadReplyOutcome, type RecipientMark, type RecipientRow, type ReconcileOutcome, type RejudgeOutcome, type RejudgeResult, type ReplyBody, type ReplyCommand, type ReplyFacts, type ReplyNotice, type ReplyPorts, type ReplyPosture, type ReplyReadPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RoutingFacts, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, STALE_MS, STALE_REPLY_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, type ThreadState, type ThreadTurn, UNKNOWN_START_GRACE_MS, VISION_MAX_BYTES, VISION_MIMES, type WakePorts, type Wire, type WirePayload, afterProbe, ageVerdict, answerInbound, approveRun, archive, areaCenter, assembleRun, bookingPageLinkedFrom, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, effectiveReplyMode, emailSender, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, holdCopy, holdPlan, identityOf, imageHeaderOf, inArea, ingestEmail, isAgainRun, isFreeMail, isThreadUnknown, isVisionMime, judgeBatch, layerTwo, mainAsk, markImageFrom, markPlaces, medianCenter, memberOf, nearbyFor, nearestAreas, noModelPlan, opIdFor, photoUserText, probeAsk, probeYield, provisionLine, radiusFromSpread, reachOutRunIdFor, readReply, reconcileUnknownRuns, rejudgeProbe, replyPosture, replyToConversation, resolveConsent, resolveEscalation, runCaps, runIdFor, runPlaybook, runReachOut, runStateOf, sendBroadcastBatch, sendIdFor, sendMessageId, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, threadVerdict, toBase64, unreadableThread, wake, whatsappSender, yieldOf, zctaCenter };

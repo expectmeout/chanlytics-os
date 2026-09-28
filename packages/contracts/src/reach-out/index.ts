@@ -213,6 +213,17 @@ export {
   readingPlan,
   replyNoticeWords,
 } from "./reach-out-replies";
+export {
+  DRAFT_WHYS,
+  isDraftWhy,
+  DRAFT_NEEDS_MS,
+  DRAFT_MAX,
+  DRAFT_NOTICE_MAX,
+  draftRefusal,
+  leadReplyNote,
+  draftExcerpt,
+} from "./reach-out-reply-draft";
+export type { DraftWhy } from "./reach-out-reply-draft";
 export type {
   ReplyIntent,
   ReplyReading,

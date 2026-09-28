@@ -3477,9 +3477,20 @@ async function reachOutReplyOf(db, p) {
   };
 }
 async function replyReadingOf(db, p) {
-  const { data, error } = await db.from("reach_out_replies").select("intent, claim, summary, unread, rereads, plan, told_at, undone_at").eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
+  const { data, error } = await db.from("reach_out_replies").select("intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why").eq("tenant_id", p.tenantId).eq("message_id", p.messageId).maybeSingle();
   if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
   return data ?? null;
+}
+async function markReplyDraft(db, p) {
+  const { data, error } = await db.rpc("reach_out_reply_draft", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_state: p.state,
+    p_draft: p.draft,
+    p_why: p.why
+  });
+  if (error) throw new Error(`cannot mark the reply's draft: ${error.message}`);
+  return data === true;
 }
 async function takeReplyRead(db, p) {
   const { data, error } = await db.rpc("reach_out_read_take", {
@@ -5154,6 +5165,7 @@ export {
   markHeldNotice,
   markPartnerPaid,
   markProcessed,
+  markReplyDraft,
   markReplyTold,
   messageSenders,
   monthSent,

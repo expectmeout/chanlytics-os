@@ -31,6 +31,7 @@ import {
 } from "../packages/core.js";
 import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { queueDraft } from "../receptionist/draft-queue.js";
+import { recordTokens } from "../receptionist/budget.js";
 import type { BrainMeta, SendPurpose } from "../packages/contracts.js";
 import { logger, errField } from "../log.js";
 
@@ -347,17 +348,7 @@ export function pgSink(
      *  confidence, latency, whether it waited or handed off). */
     usage: (u: Record<string, unknown>) =>
       on
-        ? pgSafe("usage", () =>
-            emitEvent(
-              db!,
-              tenantId!,
-              "usage.llm_tokens",
-              "usage",
-              "conversation",
-              ing!.conversation_id,
-              u as unknown as Json,
-            ),
-          )
+        ? pgSafe("usage", () => recordTokens(db!, tenantId!, ing!.conversation_id, u as unknown as Json))
         : Promise.resolve(),
     /** Resolves to how the escalation landed — "opened" for a new one,
      *  "refreshed" when the thread already had one open — so a caller can

@@ -72,6 +72,19 @@ function world(over = {}) {
         tell: p.plan.tell,
         told: p.plan.tell ? false : (state.kept?.told ?? false),
         undone: false,
+        draft: p.plan.draft,
+        draftState: state.kept?.draftState ?? "none",
+        draftText: state.kept?.draftText ?? null,
+      };
+      return true;
+    }),
+    draft: call("draft", async () => answers.draft ?? { why: "no_receptionist" }),
+    markDraft: call("markDraft", async (_t, _m, mark) => {
+      if (!state.kept || !["none", "waiting"].includes(state.kept.draftState)) return false;
+      state.kept = {
+        ...state.kept,
+        draftState: mark.state,
+        draftText: mark.state === "written" ? mark.draft : state.kept.draftText,
       };
       return true;
     }),
@@ -91,7 +104,8 @@ function world(over = {}) {
     calls: (name) => log.filter((l) => l[0] === name),
   };
 }
-const run = (w, stage) => readReply(w.ports, { tenantId: T, messageId: M, stage, tellStaleMs: 90_000 });
+const run = (w, stage, deadline = w.state.now + 40_000) =>
+  readReply(w.ports, { tenantId: T, messageId: M, stage, tellStaleMs: 90_000, deadline });
 
 test("a stage is the first read, or one of three re-reads; anything else is a caller's bug", () => {
   assert.equal(rereadOf(undefined), 0);
@@ -108,10 +122,23 @@ test("a reply that answers no reach-out is nobody's: nothing is read, spent or a
   assert.deepEqual(w.ops(), ["reply"]);
 });
 
-test("a reply read: the gate, the model, the plan applied, then claim, tell and mark, in that order", async () => {
+test("a reply read: the gate, the model, the plan applied, the draft tried, then claim, tell and mark, in that order", async () => {
   const w = world();
   assert.equal(await run(w), "told");
-  assert.deepEqual(w.ops(), ["reply", "reading", "mayRead", "ask", "apply", "reading", "claimTell", "tell", "told"]);
+  assert.deepEqual(w.ops(), [
+    "reply",
+    "reading",
+    "mayRead",
+    "ask",
+    "apply",
+    "reading",
+    "draft",
+    "markDraft",
+    "reading",
+    "claimTell",
+    "tell",
+    "told",
+  ]);
   const [, , , applied] = w.calls("apply")[0];
   assert.deepEqual(applied.reading, parseReplyReading(INTERESTED));
   assert.equal(applied.unread, null);
@@ -140,7 +167,7 @@ test("a reply read: the gate, the model, the plan applied, then claim, tell and 
     business: set.lead.business,
     summary: "Wants more details",
     quote: "This sounds useful. Can you send me more details?",
-    draft: false,
+    draft: null,
     unread: null,
     automatic: false,
     reread: false,
