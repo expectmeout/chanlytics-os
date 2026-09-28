@@ -48,7 +48,7 @@ import type {
 import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "../broadcasts/broadcasts";
 import type { REPLY_INTENTS, REPLY_UNREADS } from "../reach-out/reach-out-replies";
 import type { CALL_OUTCOMES } from "../voice/call-words";
-import type { POLICY_CLASSES, POLICY_MODES } from "../config/config";
+import type { POLICY_CLASSES, POLICY_MODES } from "../config/workspace-config/policy-classes";
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES, SELLS_BY } from "../deals/deals";
 import type { SERVER_NOTIFICATION_KINDS } from "../today/notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "../playbooks/playbooks";

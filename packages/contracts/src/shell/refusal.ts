@@ -19,7 +19,7 @@
  * who may, in the same words, before anyone presses it.
  */
 
-import { ROLE_PERMS, ROLES, type Role } from "../config/config";
+import { ROLE_PERMS, ROLES, type Role } from "../config/workspace-config/role-perms";
 
 /** The title of a no, by the least role the door wanted: the gate says it before the press (roleGate), the refusal after it. */
 export const NEEDS_TITLE: Readonly<Record<"owner" | "operator", string>> = {

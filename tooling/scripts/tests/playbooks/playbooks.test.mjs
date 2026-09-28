@@ -339,7 +339,7 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   // Run now -- a person's run through the same implementation, sent now under
   // ask, the ledger naming them -- runs in playbooks-run-door.test.mjs.
   assert.ok(
-    readCode("packages/contracts/src/config/config.ts").includes(
+    readCode("packages/contracts/src/config/workspace-config/policy-classes.ts").includes(
       'note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"',
     ) && readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'),
     "the Autonomy row says what the playbooks do, in the one set of words every surface reads",
@@ -555,7 +555,7 @@ test("Ask knows playbooks: read as the page shows them, proposed as a card, comm
     "a run's message names its playbook",
   );
   assert.ok(
-    readCode("packages/contracts/src/conversations/viewmodels.ts").includes(
+    readCode("packages/contracts/src/conversations/message-author.ts").includes(
       '{ kind: "playbook", name: String(m.meta.playbook_name) }',
     ),
   );

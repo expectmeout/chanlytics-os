@@ -20,39 +20,23 @@ export {
   PAUSE_HOURS_DEFAULT,
 } from "./policy";
 export type { SpokenRule, SpokenBreach, SpokenTurn, SpokenGuardVerdict, WaWindow } from "./policy";
+export { ROLES, ROLE_PERMS, TEAM_ROLES } from "./workspace-config/role-perms";
+export type { Role } from "./workspace-config/role-perms";
 export {
   policyClassOfIntent,
   policyAskClass,
   bookingHeld,
   policyRules,
-  guardrailsInForce,
-  newReceptionistDefaults,
-  isBaselinePrompt,
-  instructionsDraft,
-  isRealDate,
-  dayProblems,
-  parseTenantConfigResult,
-  receptionistOf,
-  parseTenantConfig,
-  withFirstAlertAddress,
-  hoursRuns,
-  hasProfile,
-  describeNow,
-  composeSystemPrompt,
-  resolveSystemPrompt,
-  ownWordsOf,
-  whoseWords,
-  isProductFallback,
-  fallbackMessages,
-  unknownDetails,
-  ROLES,
-  ROLE_PERMS,
   POLICY_CLASSES,
   POLICY_CLASS_WORDS,
   POLICY_MODES,
   POLICY_MODE_WORDS,
   POLICY_CLASS_MODES,
   PolicyLimitsSchema,
+} from "./workspace-config/policy-classes";
+export type { PolicyClass, PolicyMode, PolicyLimits, PolicyRow } from "./workspace-config/policy-classes";
+export {
+  guardrailsInForce,
   IntervalSchema,
   HoursSchema,
   ClosureSchema,
@@ -64,27 +48,8 @@ export {
   E164,
   INSTRUCTIONS_MAX,
   BusinessProfileSchema,
-  BrainConfigSchema,
-  NotificationsConfigSchema,
-  CalendarConfigSchema,
-  FeaturesConfigSchema,
-  TenantConfigSchema,
-  MAX_INTERVALS_PER_DAY,
-  MAX_CLOSURES,
-  DAY_NAMES,
-  TenantConfigWriteSchema,
-  NO_FIELDS_COMPOSED_WORDS,
-  PROMPT_OPENINGS,
-  FALLBACK_DETAILS,
-  FALLBACK_DEFAULTS,
-  EARLIER_FALLBACK_DEFAULTS,
-} from "./config";
+} from "./workspace-config/business-profile";
 export type {
-  Role,
-  PolicyClass,
-  PolicyMode,
-  PolicyLimits,
-  PolicyRow,
   GuardrailsInForce,
   Note,
   BookingRules,
@@ -93,17 +58,101 @@ export type {
   Service,
   Interval,
   Closure,
-  BrainConfig,
+} from "./workspace-config/business-profile";
+export { newReceptionistDefaults, isBaselinePrompt, BrainConfigSchema } from "./workspace-config/brain-config";
+export type { BrainConfig } from "./workspace-config/brain-config";
+export {
+  isRealDate,
+  dayProblems,
+  parseTenantConfigResult,
+  receptionistOf,
+  parseTenantConfig,
+  withFirstAlertAddress,
+  NotificationsConfigSchema,
+  CalendarConfigSchema,
+  FeaturesConfigSchema,
+  TenantConfigSchema,
+  MAX_INTERVALS_PER_DAY,
+  MAX_CLOSURES,
+  DAY_NAMES,
+  TenantConfigWriteSchema,
+} from "./workspace-config/config-schema";
+export type {
   NotificationsConfig,
   CalendarConfig,
   FeaturesConfig,
   TenantConfig,
   TenantConfigParse,
   ReceptionistState,
-  HoursRun,
-  WhoseWords,
-  FallbackDetail,
-} from "./config";
+} from "./workspace-config/config-schema";
+export { hoursRuns } from "./workspace-config/prompt-hours";
+export type { HoursRun } from "./workspace-config/prompt-hours";
+export { describeNow, composeSystemPrompt, PROMPT_OPENINGS } from "./workspace-config/compose";
+export {
+  instructionsDraft,
+  hasProfile,
+  resolveSystemPrompt,
+  ownWordsOf,
+  whoseWords,
+  NO_FIELDS_COMPOSED_WORDS,
+} from "./workspace-config/resolve";
+export type { WhoseWords } from "./workspace-config/resolve";
+export {
+  isProductFallback,
+  fallbackMessages,
+  unknownDetails,
+  FALLBACK_DETAILS,
+  FALLBACK_DEFAULTS,
+  EARLIER_FALLBACK_DEFAULTS,
+} from "./workspace-config/fallbacks";
+export type { FallbackDetail } from "./workspace-config/fallbacks";
+export {
+  ruleStrength,
+  rulesKept,
+  rulesWithoutFieldsWords,
+  GUARDRAIL_KEYS,
+  ABILITY_CHANNEL_WORDS,
+  VISION_STRENGTH,
+  RULES_AT_REST_WORDS,
+  RULES_WITHOUT_FIELDS_WORDS,
+} from "./business-tab/rule-strengths";
+export type { GuardrailKey, RuleStrength, RuleStrengthVM, RulesKeptInputs } from "./business-tab/rule-strengths";
+export { bookingLinkRowWords, businessGap } from "./business-tab/business-gap";
+export type { StandingInputs, BusinessGap } from "./business-tab/business-gap";
+export { openWeekWords, hoursZoneWords, closuresAheadWords } from "./business-tab/open-week";
+export type { ClosuresAheadVM } from "./business-tab/open-week";
+export { chipsMoreWords, CHIPS_SHOWN } from "./business-tab/counts";
+export {
+  servicesWords,
+  servicesToldWords,
+  serviceUndoName,
+  servicesFoundWords,
+  servicesSaveWords,
+} from "./business-tab/services-words";
+export type { ServiceWordsInput, ServicesWordsVM } from "./business-tab/services-words";
+export {
+  blockShareWords,
+  promptCostWords,
+  promptTotalWords,
+  PROMPT_READERS,
+  PROMPT_NOW,
+} from "./business-tab/prompt-cost-words";
+export { bookingRulesWords, bookingRuleRefusal, BOOKING_RULE_HINTS } from "./business-tab/booking-rules-words";
+export type { BookingRulesWordsInput, BookingRulesWordsVM, BookingRuleKey } from "./business-tab/booking-rules-words";
+export { profileRefusal, writtenOutDetail, PROFILE_CROSSING_WORDS, PROFILE_LIMITS } from "./business-tab/fold-limits";
+export type { ProfileCrossing, ProfileLimitKey, ProfileRefusalKey } from "./business-tab/fold-limits";
+export {
+  notesWords,
+  instructionsWords,
+  fallbacksWords,
+  COMMON_LANGUAGES,
+  TONE_PRESETS,
+} from "./business-tab/how-it-answers";
+export type { NotesWordsVM, InstructionsWordsVM, FallbacksWordsVM } from "./business-tab/how-it-answers";
+export { handoffChatWords, handoffCallWords, handoffWords } from "./business-tab/handoff-words";
+export type { HandoffWordsVM } from "./business-tab/handoff-words";
+export { abilityRows, cannotRows } from "./business-tab/abilities";
+export type { AbilityInputs, AbilityRowVM, AbilitiesVM, CannotRowVM } from "./business-tab/abilities";
 export { offersBookingLink, priceNextStep, NO_LINK_DETAILS } from "./no-booking-link";
 export {
   parseBrainOutput,
@@ -127,78 +176,8 @@ export {
   SOURCE_WORDS,
 } from "./facts";
 export type { FactSource, Fact, KnownFacts, TypedFacts, ResolvedFacts, ConflictSeverity, FactConflict } from "./facts";
-export {
-  ruleStrength,
-  rulesKept,
-  bookingLinkRowWords,
-  businessGap,
-  openWeekWords,
-  hoursZoneWords,
-  closuresAheadWords,
-  chipsMoreWords,
-  servicesWords,
-  blockShareWords,
-  promptCostWords,
-  promptTotalWords,
-  servicesToldWords,
-  serviceUndoName,
-  servicesFoundWords,
-  servicesSaveWords,
-  bookingRulesWords,
-  bookingRuleRefusal,
-  handoffChatWords,
-  handoffCallWords,
-  handoffWords,
-  notesWords,
-  instructionsWords,
-  fallbacksWords,
-  rulesWithoutFieldsWords,
-  abilityRows,
-  cannotRows,
-  profileRefusal,
-  writtenOutDetail,
-  GUARDRAIL_KEYS,
-  ABILITY_CHANNEL_WORDS,
-  VISION_STRENGTH,
-  RULES_AT_REST_WORDS,
-  CHIPS_SHOWN,
-  PROMPT_READERS,
-  PROMPT_NOW,
-  BOOKING_RULE_HINTS,
-  PROFILE_CROSSING_WORDS,
-  COMMON_LANGUAGES,
-  TONE_PRESETS,
-  RULES_WITHOUT_FIELDS_WORDS,
-  PROFILE_LIMITS,
-} from "./business-tab";
-export type {
-  GuardrailKey,
-  RuleStrength,
-  RuleStrengthVM,
-  RulesKeptInputs,
-  StandingInputs,
-  BusinessGap,
-  ClosuresAheadVM,
-  ServiceWordsInput,
-  ServicesWordsVM,
-  BookingRulesWordsInput,
-  BookingRulesWordsVM,
-  BookingRuleKey,
-  ProfileCrossing,
-  HandoffWordsVM,
-  NotesWordsVM,
-  InstructionsWordsVM,
-  FallbacksWordsVM,
-  AbilityInputs,
-  AbilityRowVM,
-  AbilitiesVM,
-  CannotRowVM,
-  ProfileLimitKey,
-  ProfileRefusalKey,
-} from "./business-tab";
 export { promptBlocks } from "./prompt-blocks";
 export type { PromptBlockVM, PromptSource } from "./prompt-blocks";
 export { firstReceptionistOf, googleFillsOf } from "./first-receptionist";
 export type { FirstReceptionistKnown } from "./first-receptionist";
-export { TEAM_ROLES } from "./config";
 export { roleAtLeast } from "./roles";

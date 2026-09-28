@@ -458,6 +458,17 @@ keeps its first question as its title and updates its scope on each turn. Thread
 scrubbed on erasure; a name becomes a needle for the scrub as well as an id, since a turn that only names a person is
 the one that survives today.
 
+_Amended by the Phase 5 plan (27 Sep 2026):_ "verbatim" includes the person's side of every earlier turn (the page's
+blocks, the `read://` blocks, the turn's words with its clock, the question), the final round and the results of acts
+that ended a turn, since a thinking block's signature and the cache are bound to `system`, `tools` and every earlier
+message; all of it is stored on the answer row, and none of it is today. Warm is the five-minute cache measured from
+the previous turn's last round's start (under 4½ minutes), on the same model, `system` and tools; anything else is
+cold, because a replayed block on another prefix is refused. The twelve-turn bound is met by a cold rebuild — a sliding
+window is an edit — and so are 48 messages or 400,000 characters of replay. "Approve that one" points at the card by
+its title and never presses (Ask proposes, §7); "open the second" is the answer's item, and the rows earlier turns cited
+join the read set. The name needle is bounded to the person's own threads and scrubs their titles and scopes too; that
+is a replaced SQL function, the one migration of the phase.
+
 ### 5.7 Grounding (fix)
 
 The read set becomes a map from kind to a map from id to the RowRef the reader returned, so a source's route is looked
@@ -831,9 +842,17 @@ loops narrowed, and six rows added for what Phases 5–7 and three follow-ups ow
 `inbox.search`; the person and deal cards naming people by a rule of their own rather than `personName`;
 `campaigns.audiences` offering a template the Broadcasts composer withholds).
 
-**Phase 5 · Memory.** Raw turn blocks stored for a warm verbatim replay; the compact rebuild with cards, outcomes and
-cited ids for a cold reopen; replay bounded to twelve turns; newest-sixty; scope updated per turn; a name as a scrub
-needle. No migration. **Proof:** two-turn eval cases; a db test for the scrub.
+**Phase 5 · Memory** (eight PRs; plan `2026-09-27-ask-rewired-5-memory.md`). PR 5.0 makes room in the loop and the
+route as a pure move. PR 5.1: the newest sixty, the scope of each turn kept (an explicit clear honoured), twelve turns
+counted as turns. PR 5.2: two-turn eval cases and their baseline. PR 5.3: the raw turn stored on the answer row — the
+person's side and the model's, the final round, the results of acts that ended the turn, the last round's start and a
+hash of the prefix — never shipped to the browser. PR 5.4: the live replay while the previous turn's last round started
+under 4½ minutes ago on the same model, `system` and tools, with a fourth, moving cache breakpoint. PR 5.5: the cold
+rebuild, one frozen line per turn; earlier cited rows citable; "approve that one" points at the card, never presses.
+PR 5.6: the scrub bounded to the person's own threads, by name as well, with titles and scopes — a replaced function,
+the one migration, held for Ruben. PR 5.7: Phase 5 closed. **Proof:** two-turn harness tests byte for byte against
+the previous turn's request; two-turn eval cases; a real two-turn run with no 400 and the first turn read from the
+cache; the first db test that runs the scrub.
 
 **Phase 6 · The gateway and the budget.** `ask_tokens_day` in SQL; the gateway sums by it; `diagnostics.previous_message_id`
 through the gateway in development; the hop timestamp; the nightly hit-ratio check with its issue. Migration: one
