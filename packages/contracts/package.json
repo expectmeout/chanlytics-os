@@ -10,7 +10,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
-    }
+    },
+    "./phone-app": "./src/mobile/phone-app.ts"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts",

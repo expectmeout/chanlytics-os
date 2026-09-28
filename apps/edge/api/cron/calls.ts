@@ -23,7 +23,7 @@
  * more than N minutes means ended" would eventually mark a genuinely long call
  * as finished and file a summary for a conversation still in progress.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
@@ -69,7 +69,7 @@ export async function POST(request: Request): Promise<Response> {
   const db = pg();
   if (!db) {
     L.error("calls_sweep_no_db");
-    return json(503, { ok: false, error: "no_database" });
+    return refuse(503, "no_database");
   }
 
   const denied = await authorizeCron(request, db, L);
@@ -97,7 +97,7 @@ export async function POST(request: Request): Promise<Response> {
     // Without the provider there is no authority to reconcile against, and
     // guessing is the one thing this sweep exists not to do.
     L.error("calls_sweep_no_retell_key");
-    return json(503, { ok: false, error: "no_provider_credentials" });
+    return refuse(503, "no_provider_credentials");
   }
 
   const { data: stale, error } = await db
@@ -114,7 +114,7 @@ export async function POST(request: Request): Promise<Response> {
     .limit(MAX_PER_TICK);
   if (error) {
     L.error("calls_sweep_query_failed", { error: error.message });
-    return json(500, { ok: false, error: "query_failed" });
+    return refuse(500, "query_failed");
   }
 
   let closed = 0;

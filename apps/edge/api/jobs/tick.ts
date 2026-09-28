@@ -11,7 +11,7 @@
  * handler yields at YIELD_AT_MS, and a claim's lease outlives the whole
  * function (ops-hygiene.test.mjs holds that last one to the ceiling).
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { pg } from "../../lib/pg.js";
 import { logger, errField } from "../../lib/log.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
@@ -61,7 +61,7 @@ function massFailureBody(c: { claimed: number; done: number; failed: number; gav
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "jobs" });
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
 
@@ -157,6 +157,6 @@ export async function POST(request: Request): Promise<Response> {
     // it. A ledger that cannot be claimed from is a database problem, and a 503
     // is what sweep_health() reads as one.
     L.error("jobs_tick_failed", { error: errField(e) });
-    return json(503, { ok: false, error: errField(e) });
+    return refuse(503, "query_failed", errField(e));
   }
 }

@@ -4,8 +4,18 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
-import { tabOf, routeOfData, tapOfData, TAB_ROUTES } from "../src/shell/notifications-pure.ts";
+import { tabOf, tabHrefOf, routeOfData, tapOfData, TAB_ROUTES } from "../src/shell/notifications-pure.ts";
+
+test("a page's route lands on its tab's own screen, a route file under src/app/(tabs) that exists", () => {
+  // One route for each of the five tabs, the drawer's included.
+  for (const route of ["today", "inbox/th-1", "calendar", "clients/abc", "reports"]) {
+    const href = tabHrefOf(route);
+    assert.equal(href, `/${tabOf(route)}`);
+    assert.ok(fs.existsSync(new URL(`../src/app/(tabs)${href}.tsx`, import.meta.url)), `${route} lands on ${href}`);
+  }
+});
 
 test("each tab opens on a route the web has, and that route is the tab's own: More's page is Today under its drawer", () => {
   for (const tab of ["today", "inbox", "calendar", "people"]) {

@@ -41,7 +41,7 @@ interface CacheBlob {
   surfaces: Record<string, Record<string, unknown>>;
 }
 
-function read(): CacheBlob | null {
+function readCacheBlob(): CacheBlob | null {
   try {
     const raw = sessionStorage.getItem(CACHE_NAME);
     if (!raw) return null;
@@ -88,7 +88,7 @@ let waitingSince = 0;
 let hideHeard = false;
 
 function current(): CacheBlob | null {
-  return pending ?? read();
+  return pending ?? readCacheBlob();
 }
 
 /** Write what waits, now. The page's hide calls it; a test reading the tab's storage calls it first. */

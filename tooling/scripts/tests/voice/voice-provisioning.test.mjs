@@ -25,7 +25,7 @@ import {
 } from "@chanlytics/channels";
 import { readRaw } from "../_source.mjs";
 
-const module_ = readRaw("packages/channels/src/voice-provision.ts");
+const module_ = readRaw("packages/channels/src/voice/voice-provision.ts");
 const llm = voiceLlmCreateBody({ fnSecret: "s" });
 
 test("no business fact is written into provisioning", () => {

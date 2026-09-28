@@ -9,7 +9,7 @@
  * Addressed to the workspace's alert addresses only (mail(): no bell row, and nothing to the platform when there are
  * none). Diagnostic-key only.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { mail, reachesTenant } from "../../lib/ops/notify.js";
@@ -24,7 +24,7 @@ export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/you-are-live");
   if (!auth.ok) return auth.response;
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
 
   let body: { tenant_id?: string } = {};
   try {
@@ -35,7 +35,7 @@ export async function POST(request: Request): Promise<Response> {
   const ws = workspaceFor(auth, body.tenant_id);
   if (!ws.ok) return ws.response;
   const tenantId = typeof ws.tenantId === "string" ? ws.tenantId.trim() : "";
-  if (!/^[0-9a-f-]{36}$/i.test(tenantId)) return json(400, { ok: false, error: "tenant_id is required" });
+  if (!/^[0-9a-f-]{36}$/i.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id is required");
 
   const [tenant, voice, kept, cfg, call] = await Promise.all([
     db.from("tenants").select("id, name, slug").eq("id", tenantId).maybeSingle(),
@@ -70,8 +70,8 @@ export async function POST(request: Request): Promise<Response> {
   ]);
   // A read that failed would send a thinner email that says less than is true: none is sent instead.
   const failed = [tenant, voice, kept, cfg, call].find((q) => q.error);
-  if (failed?.error) return json(503, { ok: false, error: failed.error.message });
-  if (!tenant.data) return json(404, { ok: false, error: "no such workspace" });
+  if (failed?.error) return refuse(503, "read_failed", failed.error.message);
+  if (!tenant.data) return refuse(404, "not_found", "no such workspace");
 
   const target = { tenantId, ...(await loadTenantNotifications(db, tenantId)) };
   // Only the workspace's own people: without an address of theirs there is nobody to tell.

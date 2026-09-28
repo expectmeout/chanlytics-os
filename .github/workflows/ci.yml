@@ -45,8 +45,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter "./packages/*" build
-      # The shell: its own lint (Expo's config plus the layer rule), its types, Expo's doctor, and a bundle, which
-      # is the one check that proves Metro resolves everything the app imports from this workspace.
+      # The shell: its types (with the routes' own, which typecheck generates first, so an address that names no
+      # screen is an error), its own lint (Expo's config plus the layer rule), Expo's doctor, and a bundle for each
+      # platform, the one check that proves Metro resolves everything the app imports from this workspace.
       - run: pnpm --filter @chanlytics/mobile typecheck
       - run: pnpm --filter @chanlytics/mobile lint
       # Named check:doctor because `pnpm doctor` is pnpm's own command and shadows a script by that name.

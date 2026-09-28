@@ -1,6 +1,6 @@
 {
   "apps/dashboard/src/legacy-bridge/CreateWorkspace.tsx": {
-    "jsx-a11y-x/no-autofocus": 2
+    "jsx-a11y-x/no-autofocus": 1
   },
   "apps/dashboard/src/legacy/components/ask-face.jsx": {
     "react-hooks/exhaustive-deps": 2

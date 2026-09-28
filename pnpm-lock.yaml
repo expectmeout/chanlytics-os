@@ -43,6 +43,9 @@ importers:
       knip:
         specifier: ^5.88.1
         version: 5.88.1(@types/node@22.20.2)(typescript@6.0.3)
+      lightningcss:
+        specifier: 1.33.0
+        version: 1.33.0
       lint-staged:
         specifier: ^16.4.0
         version: 16.4.0

@@ -1,0 +1,83 @@
+# The walk (Android), signed in, from a cold start: each tab opens the site's own page for it inside the app; the
+# bell's sheet closes with Back and leaves the page where it was; More's first visit opens the drawer; a chart's CSV
+# reaches the phone's share sheet. A screenshot at each step. tooling/scripts/mobile/walk.mjs runs it after
+# sign-in-screen.yml and sign-in.mjs (docs/runbook.md, "Walk the phone app").
+#
+# A tab pressed again while in front (the page's top, More's drawer) is not walked here: Maestro's tap on the bar's
+# selected item does not reach it, since that item takes no click, only a touch. walk.mjs presses it with a touch and
+# hears the page answer.
+appId: com.chanlytics.app
+---
+- launchApp:
+    stopApp: true
+- runFlow:
+    file: tab.yml
+    env:
+      TAB: Today
+- extendedWaitUntil:
+    visible:
+      id: today-card-title
+    timeout: 60000
+- takeScreenshot: 1-today
+# The bell's button says "Notifications, N unread"; its sheet's header is the word alone (Today has a "Mark all read"
+# of its own, so that is no sign of the sheet).
+- tapOn: Notifications, .*
+- extendedWaitUntil:
+    visible: Notifications
+    timeout: 10000
+- takeScreenshot: 2-bell
+- pressKey: Back
+- extendedWaitUntil:
+    visible:
+      id: today-card-title
+    timeout: 10000
+- assertNotVisible: Notifications
+- runFlow:
+    file: tab.yml
+    env:
+      TAB: Inbox
+- extendedWaitUntil:
+    visible: Needs you
+    timeout: 30000
+- takeScreenshot: 3-inbox
+- runFlow:
+    file: tab.yml
+    env:
+      TAB: Calendar
+- extendedWaitUntil:
+    visible: Agenda
+    timeout: 30000
+- takeScreenshot: 4-calendar
+- runFlow:
+    file: tab.yml
+    env:
+      TAB: People
+- extendedWaitUntil:
+    visible: .*\d+ people.*
+    timeout: 30000
+- takeScreenshot: 5-people
+- runFlow:
+    file: tab.yml
+    env:
+      TAB: More
+# The drawer's account row is one node: the avatar's letter, "Your account" and the address.
+- extendedWaitUntil:
+    visible: .*Your account.*
+    timeout: 30000
+- takeScreenshot: 6-more
+- tapOn: Reports
+# The charts are below the fold: the first chart's CSV button is scrolled to the middle before it is pressed.
+- scrollUntilVisible:
+    element:
+      text: Save .* as a CSV file
+    direction: DOWN
+    timeout: 30000
+    centerElement: true
+- tapOn:
+    text: Save .* as a CSV file
+    index: 0
+- extendedWaitUntil:
+    visible: .*\.csv
+    timeout: 10000
+- takeScreenshot: 7-share-csv
+- pressKey: Back

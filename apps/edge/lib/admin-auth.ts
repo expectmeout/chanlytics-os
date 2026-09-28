@@ -30,7 +30,7 @@
  * refused.
  */
 import crypto from "node:crypto";
-import { json } from "./http.js";
+import { json, refuse } from "./http.js";
 import { verifyEdgeToken } from "./packages/channels.js";
 import { env } from "./env.js";
 import { logger } from "./log.js";
@@ -61,7 +61,7 @@ export function authorizeAdmin(
   const secret = env.EDGE_CALL_SECRET;
   if (token && secret) {
     const v = verifyEdgeToken(secret, token, aud);
-    if (!v.ok) return { ok: false, response: json(403, { ok: false, error: `token_${v.reason}` }) };
+    if (!v.ok) return { ok: false, response: refuse(403, `token_${v.reason}`) };
     return { ok: true, via: "token", workspace: v.claims.ws, user: v.claims.user };
   }
   if (!sameKey(request.headers.get("x-diag-key"), env.DIAG_KEY)) {
@@ -71,7 +71,7 @@ export function authorizeAdmin(
     // The key alone, where a token could have been presented: the knock the old rule let in, logged either way.
     const ok = opts.platformKey === true;
     logger().info("admin_door_key_only", { door: aud, ok });
-    if (!ok) return { ok: false, response: json(403, { ok: false, error: "token_required" }) };
+    if (!ok) return { ok: false, response: refuse(403, "token_required") };
   }
   return { ok: true, via: "key", workspace: null, user: null };
 }
@@ -87,7 +87,7 @@ export function workspaceFor(
 ): { ok: true; tenantId: string | null } | { ok: false; response: Response } {
   const fromBody = typeof bodyTenant === "string" && bodyTenant.trim() ? bodyTenant.trim() : null;
   if (auth.workspace && fromBody && fromBody !== auth.workspace) {
-    return { ok: false, response: json(403, { ok: false, error: "workspace_mismatch" }) };
+    return { ok: false, response: refuse(403, "workspace_mismatch") };
   }
   return { ok: true, tenantId: auth.workspace ?? fromBody };
 }

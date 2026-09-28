@@ -1,7 +1,9 @@
 /**
- * The layer boundaries, the edge's two house rules and the refusal of an
- * unused name are lint rules in eslint.config.mjs. A config is easy to loosen by accident (a glob that no
- * longer matches, a block moved above the one it overrides), so this runs the
+ * The layer boundaries, the edge's two house rules, the one on TypeScript's
+ * directives (`@ts-expect-error` says why; no `@ts-ignore`) and the refusal of
+ * an unused name are lint rules in eslint.config.mjs. A config is easy to
+ * loosen by accident (a glob that no longer matches, a block moved above the
+ * one it overrides), so this runs the
  * real config over probe snippets, placed as if they lived in each layer, and
  * expects each forbidden thing to be refused and each allowed thing to pass.
  *
@@ -123,6 +125,32 @@ test("the edge reads the environment through env.ts and logs through log.ts, now
   assert.deepEqual(await rulesFiredOn(at, 'console.error("probe_failed");\n'), ["no-console"]);
   assert.deepEqual(await rulesFiredOn("apps/edge/lib/env.ts", "export const k = process.env.DIAG_KEY;\n"), []);
   assert.deepEqual(await rulesFiredOn("apps/edge/lib/log.ts", 'console.error("{}");\n'), []);
+});
+
+/**
+ * A line that must not compile says why, in every TypeScript block: the type tests' negatives (`*.type-test.ts`) are
+ * `@ts-expect-error <why>`, and one that starts to compile is TS2578, an unused directive. `@ts-ignore` would stay
+ * silent when the line it hides is fixed, and `@ts-nocheck` hides a file, so both are refused.
+ */
+test("@ts-expect-error says why in ten characters or more, and @ts-ignore and @ts-nocheck are refused, in every TypeScript block", async () => {
+  const BAN = "@typescript-eslint/ban-ts-comment";
+  const wrong = 'export const n: number = "one";\n';
+  for (const at of [
+    "packages/contracts/src/shared/probe.type-test.ts",
+    "packages/core/src/probe.ts",
+    "apps/dashboard/src/client/probe.type-test.ts",
+    "apps/dashboard/src/server/probe.ts",
+    "apps/dashboard/app/api/v1/probe/route.ts",
+    "apps/edge/lib/probe.ts",
+    "e2e/probe.ts",
+  ]) {
+    assert.deepEqual(await rulesFiredOn(at, `// @ts-expect-error a string is not a number\n${wrong}`), [], at);
+    assert.deepEqual(await rulesFiredOn(at, `// @ts-expect-error ${"x".repeat(10)}\n${wrong}`), [], `${at}: ten`);
+    assert.deepEqual(await rulesFiredOn(at, `// @ts-expect-error ${"x".repeat(9)}\n${wrong}`), [BAN], `${at}: nine`);
+    assert.deepEqual(await rulesFiredOn(at, `// @ts-expect-error\n${wrong}`), [BAN], `${at}: no reason`);
+    assert.deepEqual(await rulesFiredOn(at, `// @ts-ignore a string is not a number\n${wrong}`), [BAN], at);
+    assert.deepEqual(await rulesFiredOn(at, `// @ts-nocheck the whole file, unread\n${wrong}`), [BAN], at);
+  }
 });
 
 /* ---- A function's limits, where the ratchet holds nothing ---- */

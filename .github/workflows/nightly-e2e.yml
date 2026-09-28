@@ -81,7 +81,7 @@ jobs:
       # its alerts go to is Resend's test inbox, which delivers nowhere.
       - name: The run's own workspace, in its known state
         if: ${{ !cancelled() }}
-        run: node tooling/scripts/e2e-workspace.mjs --apply
+        run: node tooling/scripts/ops/e2e-workspace.mjs --apply
         env:
           SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
