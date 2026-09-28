@@ -3198,6 +3198,16 @@ async function stampEmailSent(db, p) {
   const row = data?.[0];
   return row ? { status: row.status, conversationId: row.conversation_id } : null;
 }
+async function stampEmailLeftAs(db, p) {
+  const { data, error } = await db.rpc("stamp_email_left_as", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_left_as: p.leftAs,
+    p_why: p.why
+  });
+  if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
+  return data === true;
+}
 async function sentEmailRequestOf(db, p) {
   return (await sentEmailOf(db, p))?.request ?? null;
 }
@@ -5219,6 +5229,7 @@ export {
   setPolicyMode,
   staleSends,
   stampEmailComplaint,
+  stampEmailLeftAs,
   stampEmailSent,
   stampMailboxReceived,
   stampReachOutStep,

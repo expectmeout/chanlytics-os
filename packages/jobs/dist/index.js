@@ -20730,6 +20730,16 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
   });
   if (error) console.error("emit_event_failed", kind, error.message);
 }
+async function stampEmailLeftAs(db, p) {
+  const { data, error } = await db.rpc("stamp_email_left_as", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_left_as: p.leftAs,
+    p_why: p.why
+  });
+  if (error) throw new Error(`stamp_email_left_as: ${error.message}`);
+  return data === true;
+}
 async function outreachFactsOf(db, p) {
   const { data, error } = await db.rpc("outreach_facts", {
     p_tenant_id: p.tenantId,
@@ -20897,16 +20907,47 @@ async function stampThread(db, d, nowMs) {
       JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message })
     );
 }
+async function leftAs(db, d, sent) {
+  if (!sent.leftAs) return;
+  const why = sent.leftAsWhy ?? null;
+  await stampEmailLeftAs(db, { tenantId: d.tenantId, messageId: d.messageId, leftAs: sent.leftAs, why }).catch(
+    (e2) => {
+      console.error(
+        "deliver_left_as_failed",
+        JSON.stringify({ tenant: d.tenantId, message: d.messageId, error: e2 instanceof Error ? e2.message : String(e2) })
+      );
+    }
+  );
+}
 async function finalizeQueued(db, d, patch) {
   const { data, error } = await db.from("messages").update(patch).eq("id", d.messageId).eq("status", "queued").select("id");
   if (error) throw new Error(`deliver: cannot finalize message ${d.messageId}: ${error.message}`);
   return !!data && data.length > 0;
 }
+function assertFrozenFor(d) {
+  if (d.channel !== "email") return;
+  const keys = [d.email, d.ownEmail].map((r42) => r42?.idempotency_key ?? d.messageId);
+  if (d.messageId && keys.every((k) => k === d.messageId)) return;
+  throw new Error(
+    `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`
+  );
+}
+async function putOnWire(wire, d) {
+  const send = wire[d.channel];
+  if (send === void 0)
+    return { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" };
+  if (send === null)
+    return { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" };
+  const reply = d.email && kindOf(d) === "reply" ? { reply: true, ownEmail: d.ownEmail } : {};
+  return send(d.to, {
+    body: d.body,
+    template: d.template,
+    ...d.email ? { email: d.email, purpose: d.purpose } : {},
+    ...reply
+  });
+}
 async function deliver(ports, d) {
-  if (d.channel === "email" && (!d.messageId || d.email && d.email.idempotency_key !== d.messageId))
-    throw new Error(
-      `deliver: an email leaves only from the queued row its request was frozen for (conversation ${d.conversationId})`
-    );
+  assertFrozenFor(d);
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
   const outreach = d.purpose === "outreach" && d.channel === "email" ? await outreachFacts(ports.db, d, facts, nowMs) : null;
@@ -20931,12 +20972,7 @@ async function deliver(ports, d) {
     return { outcome: "refused", reason: why, messageId: d.messageId ?? null };
   };
   if (reason) return refuse(reason);
-  const send = ports.wire[d.channel];
-  const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, {
-    body: d.body,
-    template: d.template,
-    ...d.email ? { email: d.email, purpose: d.purpose } : {}
-  });
+  const sent = await putOnWire(ports.wire, d);
   if (!sent.ok && d.channel === "sms" && smsRefusalOf(sent) === "opted_out") {
     if (facts.contactId)
       await recordCarrierOptOut(ports.db, {
@@ -20969,7 +21005,8 @@ async function deliver(ports, d) {
         // A cold email leaves its thread where it was: the Inbox reads the latest hundred threads, and a run of cold
         // sends would push every customer off it. The thread rises when the business writes back.
         d.purpose === "outreach" ? Promise.resolve() : stampThread(ports.db, d, nowMs),
-        event(ports.db, d, "message.sent", d.messageId, { sender: d.sender })
+        event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
+        leftAs(ports.db, d, sent)
       ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
     }
@@ -21084,7 +21121,7 @@ async function sendQueued(ports, cmd) {
     body: p.body ?? msg.body ?? "",
     template: p.template,
     // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
-    ...msg.email ? { email: msg.email } : {},
+    ...msg.email ? { email: msg.email, ownEmail: msg.ownEmail } : {},
     ...msg.leadId ? { leadId: msg.leadId } : {},
     messageId: p.message_id
   });
@@ -21110,7 +21147,7 @@ async function sendQueued(ports, cmd) {
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
   const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : limit === "daily" || limit === "monthly" ? "the mail provider's sending limit is used up for now" : limit === "rate" ? "the mail provider asked us to slow down" : limit === "in_flight" ? "the mail provider is still sending an earlier try of it; check the thread before sending it again" : (
     // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
-    // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
+    // (wire-senders.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
     out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`
   );
   const receptionist = msg.sender === "ai";
@@ -24858,6 +24895,7 @@ async function outboundSend(ctx, job) {
         if (!data) return null;
         const meta = data.meta;
         const request = meta?.email?.request;
+        const own = meta?.email?.own_request;
         const leadId = meta?.reach_out?.lead_id;
         return {
           status: data.status,
@@ -24865,6 +24903,7 @@ async function outboundSend(ctx, job) {
           channel: data.channel,
           sender: data.sender,
           email: isEmailRequest(request) ? request : null,
+          ownEmail: isEmailRequest(own) ? own : void 0,
           leadId: typeof leadId === "string" && leadId ? leadId : null
         };
       },

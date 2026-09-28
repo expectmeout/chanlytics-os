@@ -11,6 +11,9 @@
 --   reach_out_followers   00185's, whole, with the away left out, and a send the door skipped `outreach_away` passed
 --                         over when it asks whether the lead is already on this step: after the day, the step takes
 --                         the lead back.
+--   stamp_email_left_as   how a person's email reply left (G15, N5): by the own domain it was frozen with, or as the
+--                         mailbox's request and why, merged into meta.email as 00128's stamp_email_sent merges the
+--                         Message-ID the provider reports. Nothing freezes an own twin before PR 6, so nothing writes it yet.
 --
 -- Only an automatic reply pauses (N1). A person who writes that they are away wrote back, and 00222 stops the chain
 -- with a step for the day they are back.
@@ -104,3 +107,39 @@ as $$
 $$;
 revoke execute on function public.reach_out_followers(uuid, uuid, uuid, int, int) from public, anon, authenticated;
 grant execute on function public.reach_out_followers(uuid, uuid, uuid, int, int) to service_role;
+
+/* ------------------------------------------------- how a reply left -- */
+
+-- One statement, like stamp_email_sent (00128): the row's other keys are never read back and written over.
+create or replace function public.stamp_email_left_as(
+  p_tenant_id uuid,
+  p_message_id uuid,
+  p_left_as text,
+  p_why text
+) returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  with stamped as (
+    update public.messages m
+       set meta = jsonb_set(
+             coalesce(m.meta, '{}'::jsonb),
+             '{email}',
+             coalesce(m.meta->'email', '{}'::jsonb)
+               || jsonb_build_object('left_as', p_left_as, 'left_as_why', p_why)
+           )
+     where m.id = p_message_id
+       and m.tenant_id = p_tenant_id
+       and m.channel = 'email'
+       and m.direction = 'outbound'
+       and p_left_as in ('own', 'mailbox')
+       and (p_why is null or char_length(p_why) <= 60)
+    returning 1
+  )
+  select exists (select 1 from stamped)
+$$;
+revoke execute on function public.stamp_email_left_as(uuid, uuid, text, text) from public, anon, authenticated;
+grant execute on function public.stamp_email_left_as(uuid, uuid, text, text) to service_role;
+comment on function public.stamp_email_left_as(uuid, uuid, text, text) is
+  'How a person''s email reply left (core deliver): own (the domain it was frozen with) or mailbox, and why not own. Merged into meta.email. Service role only.';
