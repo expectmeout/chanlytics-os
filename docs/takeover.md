@@ -40,7 +40,7 @@ window globals                      200   names
 window publishers                   446   sites in 164 files
 copies                               52   of 14 names
 as unknown as                       221
-table names outside packages/db     534
+table names outside packages/db     533
 unnamed durations                    76   in 37 files
 literal style values               1709   in 21 stylesheets
 primitives outside the kit         2569   selectors naming 964 classes
