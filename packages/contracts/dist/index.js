@@ -7850,7 +7850,19 @@ function receiptWords(r2, clock3) {
   return parts2.join(" \xB7 ");
 }
 var initialsOf2 = (name, named) => named ? name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => Array.from(w)[0] ?? "").join("").toUpperCase() || "\u2014" : "\u2014";
-function toRunReportVM(d, opts) {
+function barSpanOf(reached, opts) {
+  const starts = reached.map((r2) => r2.sent_at ? Date.parse(r2.sent_at) : NaN).filter(Number.isFinite);
+  const start = starts.length ? Math.min(...starts) : opts.nowMs;
+  const heard = reached.flatMap((r2) => [r2.delivered_at, r2.read_at, r2.replied ? r2.replied_at : null, r2.consent_after ? r2.consent_at : null]).map((s) => s ? Date.parse(s) : NaN).filter((t) => Number.isFinite(t) && t >= start && t - start <= opts.windowMs);
+  const last = heard.length ? Math.max(...heard) - start : 0;
+  const windowH = opts.windowMs / HOUR_MS;
+  const spanH = RUN_REPORT_SPANS_H.find((h) => h <= windowH && h * HOUR_MS > last) ?? windowH;
+  return { start, spanH, step: spanH * HOUR_MS / RUN_REPORT_STEPS };
+}
+function cutOffWordsOf(state) {
+  return state === "failed" ? "the run stopped before them" : state === "canceled" ? "canceled before it reached them" : state === "sent" ? "never sent" : null;
+}
+function runFactsOf(d, opts) {
   const clock3 = opts.clock ?? ((iso) => iso);
   const reached = d.recipients.filter((r2) => r2.state === "sent");
   const sent = reached.length;
@@ -7859,129 +7871,216 @@ function toRunReportVM(d, opts) {
   const waiting = replied.filter((r2) => r2.waiting_on_you).length;
   const yes = reached.filter((r2) => r2.consent_after === "opted_in");
   const stopped = reached.filter((r2) => r2.consent_after === "opted_out");
-  const starts = reached.map((r2) => r2.sent_at ? Date.parse(r2.sent_at) : NaN).filter(Number.isFinite);
-  const start = starts.length ? Math.min(...starts) : opts.nowMs;
-  const heard = reached.flatMap((r2) => [r2.delivered_at, r2.read_at, r2.replied ? r2.replied_at : null, r2.consent_after ? r2.consent_at : null]).map((s) => s ? Date.parse(s) : NaN).filter((t) => Number.isFinite(t) && t >= start && t - start <= opts.windowMs);
-  const last = heard.length ? Math.max(...heard) - start : 0;
-  const windowH = opts.windowMs / HOUR_MS;
-  const spanH = RUN_REPORT_SPANS_H.find((h) => h <= windowH && h * HOUR_MS > last) ?? windowH;
-  const step2 = spanH * HOUR_MS / RUN_REPORT_STEPS;
-  const bars2 = (stamps) => {
-    const out = new Array(RUN_REPORT_STEPS).fill(0);
-    for (const s of stamps) {
-      const t = s ? Date.parse(s) : NaN;
-      if (!Number.isFinite(t)) continue;
-      const i = Math.floor((t - start) / step2);
-      if (i >= 0 && i < RUN_REPORT_STEPS) out[i] += 1;
-    }
-    return out;
-  };
-  const pct3 = (n) => sent > 0 && n > 0 ? Math.round(n / sent * 100) : null;
+  const { start, spanH, step: step2 } = barSpanOf(reached, opts);
   const never = sent - delivered.length;
   const greets = (d.broadcast?.params ?? []).some((p) => p && p.kind === "first_name");
-  const state = d.broadcast?.state;
-  const cutOff = state === "failed" ? "the run stopped before them" : state === "canceled" ? "canceled before it reached them" : state === "sent" ? "never sent" : null;
-  const people = d.recipients.map((r2) => {
-    const out = r2.state === "sent";
-    const hiThere = out && greets && !r2.first_name;
-    const answer = r2.consent_after ? consentAnswerWords(r2.consent_after, r2.consent_purpose) : null;
-    const pill = r2.consent_after === "opted_out" && out ? { label: "Asked to stop", tone: "warn" } : r2.replied && out ? { label: "Replied", tone: "ok" } : r2.consent_after === "opted_in" && out ? { label: "Said yes", tone: "ok" } : r2.state === "skipped" ? { label: "Held back", tone: "plain" } : r2.state === "failed" ? { label: "Not sent", tone: "danger" } : r2.state === "queued" ? { label: cutOff ? "Not sent" : "Waiting", tone: "plain" } : r2.message_status === "failed" ? { label: "Never delivered", tone: "danger" } : r2.message_status === "read" ? { label: "Read", tone: "info" } : r2.message_status === "delivered" ? { label: "Delivered", tone: "info" } : { label: "Sent", tone: "plain" };
-    const quote = r2.replied && r2.reply_words ? `\u201C${r2.reply_words}\u201D` : null;
-    const words3 = r2.state === "skipped" ? r2.reason && HELD_REASONS[r2.reason] || r2.reason || "held back" : r2.state === "failed" ? r2.reason && HELD_REASONS[r2.reason] || HELD_REASONS.send_failed || "WhatsApp refused it" : r2.state === "queued" ? cutOff ?? "not sent yet" : r2.consent_after === "opted_out" ? quote ? `${quote} \u2014 ${answer}` : answer : quote ? quote : r2.consent_after === "opted_in" ? answer : r2.message_status === "failed" ? "WhatsApp could not deliver it" : hiThere ? "greeted \u201CHi there\u201D \u2014 no name on file" : receiptWords(r2, clock3);
-    const door = r2.consent_after === "opted_out" && out ? { label: "See consent", to: `clients/${r2.contact_id}` } : hiThere ? { label: "Add a name", to: `clients/${r2.contact_id}` } : r2.replied && r2.conversation_id ? { label: "Open the thread", to: `inbox/th-${r2.conversation_id}` } : null;
-    const inn = ["all"];
-    if (out && r2.replied) inn.push("replied");
-    if (r2.state === "skipped" || r2.state === "failed" || r2.state === "queued" && cutOff) inn.push("held");
-    if (out && r2.consent_after === "opted_out") inn.push("stopped");
+  const cutOff = cutOffWordsOf(d.broadcast?.state);
+  return {
+    d,
+    clock: clock3,
+    reached,
+    sent,
+    delivered,
+    replied,
+    waiting,
+    yes,
+    stopped,
+    start,
+    spanH,
+    step: step2,
+    never,
+    greets,
+    cutOff
+  };
+}
+function barsOf({ start, step: step2 }, stamps) {
+  const out = new Array(RUN_REPORT_STEPS).fill(0);
+  for (const s of stamps) {
+    const t = s ? Date.parse(s) : NaN;
+    if (!Number.isFinite(t)) continue;
+    const i = Math.floor((t - start) / step2);
+    if (i >= 0 && i < RUN_REPORT_STEPS) out[i] += 1;
+  }
+  return out;
+}
+var pctOf = ({ sent }, n) => sent > 0 && n > 0 ? Math.round(n / sent * 100) : null;
+var PERSON_PILLS = [
+  (r2, { out }) => r2.consent_after === "opted_out" && out ? { label: "Asked to stop", tone: "warn" } : null,
+  (r2, { out }) => r2.replied && out ? { label: "Replied", tone: "ok" } : null,
+  (r2, { out }) => r2.consent_after === "opted_in" && out ? { label: "Said yes", tone: "ok" } : null,
+  (r2) => r2.state === "skipped" ? { label: "Held back", tone: "plain" } : null,
+  (r2) => r2.state === "failed" ? { label: "Not sent", tone: "danger" } : null,
+  (r2, { cutOff }) => r2.state === "queued" ? { label: cutOff ? "Not sent" : "Waiting", tone: "plain" } : null,
+  (r2) => r2.message_status === "failed" ? { label: "Never delivered", tone: "danger" } : null,
+  (r2) => r2.message_status === "read" ? { label: "Read", tone: "info" } : null,
+  (r2) => r2.message_status === "delivered" ? { label: "Delivered", tone: "info" } : null
+];
+function personPillOf(r2, c) {
+  for (const row2 of PERSON_PILLS) {
+    const pill = row2(r2, c);
+    if (pill) return pill;
+  }
+  return { label: "Sent", tone: "plain" };
+}
+function personWordsOf(r2, { hiThere, answer, quote, cutOff, clock: clock3 }) {
+  if (r2.state === "skipped") return r2.reason && HELD_REASONS[r2.reason] || r2.reason || "held back";
+  if (r2.state === "failed")
+    return r2.reason && HELD_REASONS[r2.reason] || HELD_REASONS.send_failed || "WhatsApp refused it";
+  if (r2.state === "queued") return cutOff ?? "not sent yet";
+  if (r2.consent_after === "opted_out") return quote ? `${quote} \u2014 ${answer}` : answer;
+  if (quote) return quote;
+  if (r2.consent_after === "opted_in") return answer;
+  if (r2.message_status === "failed") return "WhatsApp could not deliver it";
+  if (hiThere) return "greeted \u201CHi there\u201D \u2014 no name on file";
+  return receiptWords(r2, clock3);
+}
+function personDoorOf(r2, { out, hiThere }) {
+  if (r2.consent_after === "opted_out" && out) return { label: "See consent", to: `clients/${r2.contact_id}` };
+  if (hiThere) return { label: "Add a name", to: `clients/${r2.contact_id}` };
+  if (r2.replied && r2.conversation_id) return { label: "Open the thread", to: `inbox/th-${r2.conversation_id}` };
+  return null;
+}
+function personFiltersOf(r2, { out, cutOff }) {
+  const inn = ["all"];
+  if (out && r2.replied) inn.push("replied");
+  if (r2.state === "skipped" || r2.state === "failed" || r2.state === "queued" && cutOff) inn.push("held");
+  if (out && r2.consent_after === "opted_out") inn.push("stopped");
+  return inn;
+}
+function personLineOf(r2, { greets, cutOff, clock: clock3 }) {
+  const out = r2.state === "sent";
+  const hiThere = out && greets && !r2.first_name;
+  const answer = r2.consent_after ? consentAnswerWords(r2.consent_after, r2.consent_purpose) : null;
+  const quote = r2.replied && r2.reply_words ? `\u201C${r2.reply_words}\u201D` : null;
+  const c = { out, hiThere, answer, quote, cutOff, clock: clock3 };
+  const pill = personPillOf(r2, c);
+  const words3 = personWordsOf(r2, c);
+  const door = personDoorOf(r2, c);
+  const inn = personFiltersOf(r2, c);
+  return {
+    contact_id: r2.contact_id,
+    name: r2.name,
+    initials: initialsOf2(r2.name, !!r2.first_name),
+    pill,
+    words: words3,
+    door,
+    at: out ? clock3(r2.replied_at || r2.consent_at || r2.read_at || r2.delivered_at || r2.sent_at) : null,
+    attn: out && r2.consent_after === "opted_out" || hiThere,
+    held: !out,
+    in: inn
+  };
+}
+function replyOutcomeOf(r2, clock3) {
+  if (r2.waiting_on_you) return { words: "Waiting on you", tone: "warn" };
+  if (r2.answered_by === "receptionist")
     return {
-      contact_id: r2.contact_id,
-      name: r2.name,
-      initials: initialsOf2(r2.name, !!r2.first_name),
-      pill,
-      words: words3,
-      door,
-      at: out ? clock3(r2.replied_at || r2.consent_at || r2.read_at || r2.delivered_at || r2.sent_at) : null,
-      attn: out && r2.consent_after === "opted_out" || hiThere,
-      held: !out,
-      in: inn
+      words: `The receptionist answered${clock3(r2.answered_at) ? ` \xB7 ${clock3(r2.answered_at)}` : ""}`,
+      tone: "ok"
     };
-  });
-  const replies = replied.slice().sort((a, b) => String(a.replied_at ?? "").localeCompare(String(b.replied_at ?? ""))).map((r2) => ({
+  if (r2.answered_by === "team")
+    return { words: `Your team answered${clock3(r2.answered_at) ? ` \xB7 ${clock3(r2.answered_at)}` : ""}`, tone: "ok" };
+  return { words: "Not answered yet", tone: "plain" };
+}
+function repliesOf({ replied, clock: clock3 }) {
+  return replied.slice().sort((a, b) => String(a.replied_at ?? "").localeCompare(String(b.replied_at ?? ""))).map((r2) => ({
     contact_id: r2.contact_id,
     name: r2.name,
     initials: initialsOf2(r2.name, !!r2.first_name),
     quote: r2.reply_words ? `\u201C${r2.reply_words}\u201D` : null,
-    outcome: r2.waiting_on_you ? { words: "Waiting on you", tone: "warn" } : r2.answered_by === "receptionist" ? {
-      words: `The receptionist answered${clock3(r2.answered_at) ? ` \xB7 ${clock3(r2.answered_at)}` : ""}`,
-      tone: "ok"
-    } : r2.answered_by === "team" ? { words: `Your team answered${clock3(r2.answered_at) ? ` \xB7 ${clock3(r2.answered_at)}` : ""}`, tone: "ok" } : { words: "Not answered yet", tone: "plain" },
+    outcome: replyOutcomeOf(r2, clock3),
     to: r2.conversation_id ? `inbox/th-${r2.conversation_id}` : null
   }));
+}
+function runStopOf({ d, sent }) {
   const failed = d.broadcast?.state === "failed";
   const code2 = d.broadcast?.failure ?? null;
+  return failed ? {
+    words: broadcastFailureWords(code2),
+    fix: broadcastFailureFix(code2, sent),
+    tone: code2 === "paused" ? "warn" : "danger"
+  } : null;
+}
+var spanWordsOf = (spanH) => spanH === 1 ? "the first hour" : spanH < 24 ? `the first ${spanH} hours` : spanH === 24 ? "the first day" : `the first ${spanH / 24} days`;
+var runGroupsOf = (people) => ({
+  all: people.length,
+  replied: people.filter((p) => p.in.includes("replied")).length,
+  held: people.filter((p) => p.in.includes("held")).length,
+  stopped: people.filter((p) => p.in.includes("stopped")).length
+});
+var sentFigure = (f) => ({
+  id: "sent",
+  label: "Messages sent",
+  n: f.sent,
+  pct: null,
+  sub: `of ${f.d.recipients.length} on the list`,
+  tone: "plain",
+  bars: barsOf(
+    f,
+    f.reached.map((r2) => r2.sent_at)
+  )
+});
+var deliveredFigure = (f) => ({
+  id: "delivered",
+  label: "Delivered",
+  n: f.delivered.length,
+  pct: pctOf(f, f.delivered.length),
+  sub: f.sent === 0 ? "nothing has gone out" : f.never > 0 ? `${f.never} never reached the handset` : "every one reached the handset",
+  tone: f.delivered.length > 0 ? "ok" : "plain",
+  bars: barsOf(
+    f,
+    f.delivered.map((r2) => r2.delivered_at ?? r2.read_at)
+  )
+});
+var repliedFigure = (f) => ({
+  id: "replied",
+  label: "Replied",
+  n: f.replied.length,
+  pct: pctOf(f, f.replied.length),
+  sub: f.waiting > 0 ? `${f.waiting} waiting on you in the Inbox` : f.replied.length > 0 ? "each one is a thread in the Inbox" : "nobody has written back yet",
+  tone: f.replied.length > 0 ? "ok" : "plain",
+  bars: barsOf(
+    f,
+    f.replied.map((r2) => r2.replied_at)
+  )
+});
+var saidYesFigure = (f) => ({
+  id: "said_yes",
+  label: "Said yes",
+  n: f.yes.length,
+  pct: pctOf(f, f.yes.length),
+  sub: f.yes.length > 0 ? answersWords(f.yes, "opted_in") : "nobody new said yes",
+  tone: f.yes.length > 0 ? "ok" : "plain",
+  bars: barsOf(
+    f,
+    f.yes.map((r2) => r2.consent_at)
+  )
+});
+var stoppedFigure = (f) => ({
+  id: "stopped",
+  label: "Asked to stop",
+  n: f.stopped.length,
+  pct: pctOf(f, f.stopped.length),
+  sub: f.stopped.length > 0 ? answersWords(f.stopped, "opted_out") : "nobody asked to stop",
+  tone: f.stopped.length > 0 ? "warn" : "plain",
+  bars: barsOf(
+    f,
+    f.stopped.map((r2) => r2.consent_at)
+  )
+});
+var RUN_FIGURES = [sentFigure, deliveredFigure, repliedFigure, saidYesFigure, stoppedFigure];
+function toRunReportVM(d, opts) {
+  const f = runFactsOf(d, opts);
+  const people = d.recipients.map((r2) => personLineOf(r2, f));
+  const replies = repliesOf(f);
+  const stop = runStopOf(f);
   return {
     enrolled: d.recipients.length,
-    span: spanH === 1 ? "the first hour" : spanH < 24 ? `the first ${spanH} hours` : spanH === 24 ? "the first day" : `the first ${spanH / 24} days`,
-    groups: {
-      all: people.length,
-      replied: people.filter((p) => p.in.includes("replied")).length,
-      held: people.filter((p) => p.in.includes("held")).length,
-      stopped: people.filter((p) => p.in.includes("stopped")).length
-    },
+    span: spanWordsOf(f.spanH),
+    groups: runGroupsOf(people),
     people,
     replies,
-    stop: failed ? {
-      words: broadcastFailureWords(code2),
-      fix: broadcastFailureFix(code2, sent),
-      tone: code2 === "paused" ? "warn" : "danger"
-    } : null,
-    figures: [
-      {
-        id: "sent",
-        label: "Messages sent",
-        n: sent,
-        pct: null,
-        sub: `of ${d.recipients.length} on the list`,
-        tone: "plain",
-        bars: bars2(reached.map((r2) => r2.sent_at))
-      },
-      {
-        id: "delivered",
-        label: "Delivered",
-        n: delivered.length,
-        pct: pct3(delivered.length),
-        sub: sent === 0 ? "nothing has gone out" : never > 0 ? `${never} never reached the handset` : "every one reached the handset",
-        tone: delivered.length > 0 ? "ok" : "plain",
-        bars: bars2(delivered.map((r2) => r2.delivered_at ?? r2.read_at))
-      },
-      {
-        id: "replied",
-        label: "Replied",
-        n: replied.length,
-        pct: pct3(replied.length),
-        sub: waiting > 0 ? `${waiting} waiting on you in the Inbox` : replied.length > 0 ? "each one is a thread in the Inbox" : "nobody has written back yet",
-        tone: replied.length > 0 ? "ok" : "plain",
-        bars: bars2(replied.map((r2) => r2.replied_at))
-      },
-      {
-        id: "said_yes",
-        label: "Said yes",
-        n: yes.length,
-        pct: pct3(yes.length),
-        sub: yes.length > 0 ? answersWords(yes, "opted_in") : "nobody new said yes",
-        tone: yes.length > 0 ? "ok" : "plain",
-        bars: bars2(yes.map((r2) => r2.consent_at))
-      },
-      {
-        id: "stopped",
-        label: "Asked to stop",
-        n: stopped.length,
-        pct: pct3(stopped.length),
-        sub: stopped.length > 0 ? answersWords(stopped, "opted_out") : "nobody asked to stop",
-        tone: stopped.length > 0 ? "warn" : "plain",
-        bars: bars2(stopped.map((r2) => r2.consent_at))
-      }
-    ]
+    stop,
+    figures: RUN_FIGURES.map((figure) => figure(f))
   };
 }
 
