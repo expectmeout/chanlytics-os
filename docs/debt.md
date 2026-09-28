@@ -79,6 +79,7 @@ argued in its commit message, and takes no row here: nothing is owed that was no
 | Workspace route JS 962.0 → 972.4 KB gzipped (partners, decision 0020, #1206; the CSS stays in its band)                                                            | Main measured 970.1 KB inside the 1% band; #1206 adds 2.3 KB (9.2 KB raw): the owner's partner card, the partner's list of workspaces asking, their bridge verbs and contracts' words. The shell imports every page at once and contracts is one bundle, so no module boundary keeps them off the route                                                         | The shell's exit, one surface at a time (0015), which loads a page's code when it opens        |
 | Tree shape: dashboard `server/readers/` 31 → 32 modules (Ask Rewired 4.5, the Phase 4 plan's D12)                                                                  | `readers/messages.ts`, the message search reader, is Phase 4's one new reader file: the others went into the domain files that exist (one lead into `leads.ts`, one search into `searches.ts`, the pipeline into `people.ts`), and no reader's domain holds what was written and said in every thread and call                                                  | A move splits `server/readers/` (none planned; #1161 kept it whole)                            |
 | `runAskTurn` (dashboard `server/ask/loop.ts`) +1 branch, 86 → 87 (Ask Rewired 4.3, #1202; raised in #1201's merge of main)                                         | The scoped read (`cross-page.ts` `scopedRead`) is handed the page's route, `input.context?.route`, so a lead open on a search's view rides in as that search found it; the `?.` is the branch, the page being null from an older tab or a script. `runAskTurn` is Ask Rewired's; the plan leaves its split to it                                                | Split with Ask Rewired: one of Ask's functions over the limit                                  |
+| Tree shape: `tooling/scripts/tests/repo` 20 → 21 modules, a new entry (Road to Ten, types track PR 1: `one-typescript.test.mjs`)                                   | The test holds a rule over the whole workspace (every `package.json`, the catalog, the install), which is what `repo/` holds and where the plan put it. No folder under `tests/` owns the toolchain, and one of its own would be a folder of one test                                                                                                           | `tests/repo` is grouped by what its tests hold (the ratchets, the layer rules, the hygiene)    |
 
 ## The numbers
 
@@ -90,7 +91,7 @@ fails when this block and the baselines disagree.
 ```text
 functions over the limit            206   of which over 200 lines: 64
 files over 800 lines                 15
-directories over 20 modules           7
+directories over 20 modules           8
 window globals                      200   names
 window publishers                   446   sites in 153 files
 copies                              152   of 38 names

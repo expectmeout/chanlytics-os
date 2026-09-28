@@ -113,8 +113,8 @@ const namesOf = (pkg) => FIELDS.filter((f) => pkg[f]?.[TS] !== undefined).map((f
 
 /**
  * The directory of the copy of `name` that `require` finds from `dir`: the nearest node_modules up the
- * tree that holds it, as node looks. Walked by hand rather than through `require.resolve`, which the
- * test runner's loader answers from tsconfig first.
+ * tree that holds it, as node looks. Walked by hand, so the answer is the copy on disk, whatever the
+ * test runner's loader would map a specifier to.
  */
 function installed(name, dir) {
   for (let d = dir; ; d = path.dirname(d)) {
