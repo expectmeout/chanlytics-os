@@ -150,7 +150,7 @@ A domain earns a folder at its second module. Until then it is one module at its
 the plumbing, named for the domain (`apps/edge/lib/notes.ts`). That holds in each package's `src`,
 `apps/dashboard/src/server`, `apps/edge/lib`, `tooling/scripts` and `apps/mobile/src` (in contracts,
 whose root is plumbing only, a lone module joins the domain it belongs with), and not in the URL
-trees, where a folder is a path (`apps/dashboard/app`, `apps/edge/api`, the phone app's `src/app`).
+trees, where a folder is a path (`apps/dashboard/app`, `apps/edge/api`, `apps/mobile/src/app`).
 `tooling/scripts/tests/repo/contracts-barrels.test.mjs` fails a folder of one module; an exception is
 listed there with its date and the program it waits on.
 

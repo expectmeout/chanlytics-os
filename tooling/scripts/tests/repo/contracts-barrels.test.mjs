@@ -1,8 +1,12 @@
 /**
- * Contracts is grouped by domain behind curated barrels
- * (docs/plans/2026-09-26-organization-and-code-health.md, §2: "every barrel names what it exports").
+ * How the code is grouped, four rules, each a section below in this order: contracts is grouped by domain behind
+ * curated barrels; every package's barrels name what they re-export; `export *` is written nowhere but where a package
+ * root re-exports a domain folder or the edge stands in for a package; and in every tree the code is grouped by
+ * domain in, a domain earns a folder at its second module. Each is measured on the syntax tree or the list of paths,
+ * never the text. The file keeps its first rule's name, the path the docs and the packages' barrels cite it by.
  *
- * Three things hold that shape, measured on the syntax tree and never the text:
+ * Contracts (docs/plans/2026-09-26-organization-and-code-health.md, §2: "every barrel names what it exports"). Three
+ * things hold its shape:
  *
  *   1. the root index is `import "./zod-config"` first (zod-config.ts says why the order matters), then one
  *      `export * from "./<domain>"` per domain folder: each folder once, and every folder;
@@ -14,31 +18,34 @@
  *
  * And the tree's own shape: the root holds the plumbing only, and every other module is in a domain folder with a
  * barrel. A plain invariant, so no baseline (docs/debt.md names the numbers; this holds a shape). That a domain is a
- * folder of two modules or more is every tree's rule, not contracts' alone, and is held at the very end.
+ * folder of two modules or more is every tree's rule, not contracts' alone, and is held in the last section.
  *
- * The same rule for every package, at the end: a barrel (`packages/<p>/src/index.ts`, and the `index.ts` of a folder
- * under it) re-exports by name, so a new export is a line in a review and a name a module stops exporting is a build
- * error at the barrel, not a quiet change to the package's surface. The one `export *` a barrel may write is a
- * package root's re-export of a domain folder whose own barrel names its exports (contracts' and core's roots).
+ * Every package's barrels: a barrel (`packages/<p>/src/index.ts`, and the `index.ts` of a folder under it) re-exports
+ * by name, so a new export is a line in a review and a name a module stops exporting is a build error at the barrel,
+ * not a quiet change to the package's surface. The one `export *` a barrel may write is a package root's re-export of
+ * a domain folder whose own barrel names its exports (contracts' and core's roots).
  *
- * And a module that is not called index.ts is held the same, since a module that re-exports its neighbours acts as a
- * barrel whatever its name (the plan's "no export * outside a domain barrel"): `export *` appears nowhere in a
- * package's or an app's source but at those roots, and in the edge's stand-in for each package
+ * `export *` nowhere else: a module that is not called index.ts is held the same, since a module that re-exports its
+ * neighbours acts as a barrel whatever its name (the plan's "no export * outside a domain barrel"): `export *`
+ * appears nowhere in a package's or an app's source but at those roots, and in the edge's stand-in for each package
  * (`apps/edge/lib/packages/<p>.ts`, the package's built entry under a relative path). A module names what is read
  * through it, and nothing else.
  *
- * And every tree's rule: a domain earns a folder at its second module (CLAUDE.md, "Where new code goes"). Until then
- * it is one module at its tree's root, beside the plumbing, named for the domain (`apps/edge/lib/notes.ts`, not
+ * Every tree's domain folders: a domain earns a folder at its second module (CLAUDE.md, "Where new code goes"). Until
+ * then it is one module at its tree's root, beside the plumbing, named for the domain (`apps/edge/lib/notes.ts`, not
  * `apps/edge/lib/notes/suggest.ts`); a folder of one module is a directory to open for one file, and a name said
  * twice. The trees are the ones the code is grouped by domain in: each package's `src`, `apps/dashboard/src/server`,
  * `apps/edge/lib`, `tooling/scripts` and `apps/mobile/src`. A domain is a folder directly under a tree's root, and its
- * modules are the `.ts`, `.tsx` and `.mjs` files at any depth in it but `index.ts`, a barrel; a folder of data and no
- * module (`tooling/scripts/fixtures`) is not a domain. Not the URL trees, where a folder is a path and a one-file
- * folder is a route: `apps/dashboard/app`, `apps/edge/api`, and the phone app's `src/app` (Expo Router's), which sits
- * in its `src` and is passed over there. In contracts, whose root is its plumbing, a lone module joins the domain it
- * belongs with. A plain rule too, so no baseline: an exception is a folder of one module that a program in flight
- * owns, listed with the day it was granted and the program it waits on, and it leaves in the change that ends it (the
- * last test fails one that no longer excepts anything). The paths are `git ls-files`: this part reads no file.
+ * modules are the ones in it at any depth but `index.ts`, a barrel. A module is what the tree-shape ratchet counts as
+ * one (`repoFiles`' own set: `.ts`, `.tsx`, `.js`, `.jsx` and `.mjs`, less `.d.ts`, generated files and what is
+ * built); only the unit differs, a domain with its nested folders and without its barrel where the ratchet counts a
+ * directory's own files. A folder of data and no module (`tooling/scripts/fixtures`) is not a domain. Not the URL
+ * trees, where a folder is a path and a one-file folder is a route: `apps/dashboard/app`, `apps/edge/api`, and
+ * `apps/mobile/src/app` (Expo Router's root), which sits inside `apps/mobile/src` and is passed over there. In
+ * contracts, whose root is its plumbing, a lone module joins the domain it belongs with. A plain rule too, so no
+ * baseline: an exception is a folder of one module that a program in flight owns, listed with the day it was granted,
+ * the program it waits on and why, and it leaves in the change that ends it (the last test fails one that no longer
+ * excepts anything). The paths are `git ls-files`: this part reads no file.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -273,24 +280,26 @@ const PACKAGE_SRC = /^packages\/[^/]+\/src(?=\/)/;
 /** The routers' roots: a folder in one is a URL path, never a domain. Only the phone app's is inside a tree. */
 const URL_TREES = ["apps/dashboard/app", "apps/edge/api", "apps/mobile/src/app"];
 
-/** The exceptions: a folder of one module that a program in flight owns, the day it was granted, what it waits on. */
+/**
+ * The exceptions: a folder of one module that a program in flight owns, the day it was granted, the program it waits
+ * on, and why it is excepted rather than moved.
+ */
 const EXCEPTIONS = {
   "tooling/scripts/evals": {
     since: "28 September 2026",
     waitsOn: "Ask Rewired and Reach out",
     why:
-      "Reach out's live eval of a reply's reading (reply-intents.mjs, #1197) has a folder of its own because " +
-      "tooling/scripts is at its cap (baselines/tree-shape.json). The root's eval-*.mjs join it when tooling/scripts " +
-      "is grouped by job (docs/debt.md, directories over 20 modules), a move that waits on Ask Rewired, whose " +
-      "eval-ask*.mjs are three of them, and Reach out closing.",
+      "Reach out's live eval of a reply's reading (reply-intents.mjs, #1197). The evals gather in this folder once " +
+      "Ask Rewired and Reach out close: the root's eval-*.mjs, Ask Rewired's eval-ask*.mjs among them, join it " +
+      "then. Moved to the root now, it would only come back with them.",
   },
 };
 
-/** Every module in the trees, generated ones included: all but what is built or installed. */
-const treeModules = repoFiles(["packages", ...TREES], {
-  keep: /\.(ts|tsx|mjs)$/,
-  drop: /(^|\/)(dist|node_modules|\.next)\//,
-});
+/**
+ * Every module in the trees, as the tree-shape ratchet counts one (_measures.mjs reads `repoFiles` the same way): its
+ * own set, `.ts`, `.tsx`, `.js`, `.jsx` and `.mjs`, less `.d.ts`, generated files and what is built or installed.
+ */
+const treeModules = repoFiles(["packages", ...TREES]);
 
 /** The tree a module is in: its package's `src`, or the app or tooling tree it starts with. */
 const treeOf = (f) => PACKAGE_SRC.exec(f)?.[0] ?? TREES.find((t) => f.startsWith(`${t}/`));
@@ -341,11 +350,12 @@ test("a domain earns a folder at its second module: no folder directly under a t
   );
 });
 
-test("each exception is dated, names the program it waits on, and still excepts a folder of one module", () => {
+test("each exception is dated, names the program it waits on and why, and still excepts a folder of one module", () => {
   const folders = domainFolders();
-  for (const [folder, { since, waitsOn }] of Object.entries(EXCEPTIONS)) {
+  for (const [folder, { since, waitsOn, why }] of Object.entries(EXCEPTIONS)) {
     assert.match(since, /^\d{1,2} [A-Z][a-z]+ \d{4}$/, `${folder}: the day its exception was granted`);
     assert.ok(waitsOn, `${folder}: the program its exception waits on`);
+    assert.ok(why, `${folder}: why it is excepted rather than moved`);
     const n = folders.get(folder)?.length ?? 0;
     assert.equal(n, 1, `${folder} holds ${n} modules now: its exception has ended, so take it out of EXCEPTIONS`);
   }

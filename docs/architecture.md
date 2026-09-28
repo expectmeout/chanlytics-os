@@ -90,10 +90,10 @@ its second module; a domain that is one module sits at the root (`notes.ts`,
 the note sweep), beside the edge's own plumbing: the environment, the logger,
 the HTTP shapes, the Postgres handle, pagination, the two door guards, the
 control-plane door, and the erasure check. The same rule holds in every tree
-the code is grouped by domain in (each package's `src`, the dashboard's
-`src/server`, `tooling/scripts`, the phone app's `src`), and not in the URL
-trees, where a folder is a path (`apps/edge/api`, `apps/dashboard/app`, the
-phone app's `src/app`); `tooling/scripts/tests/repo/contracts-barrels.test.mjs`
+the code is grouped by domain in (each package's `src`,
+`apps/dashboard/src/server`, `tooling/scripts`, `apps/mobile/src`), and not in
+the URL trees, where a folder is a path (`apps/edge/api`, `apps/dashboard/app`,
+`apps/mobile/src/app`); `tooling/scripts/tests/repo/contracts-barrels.test.mjs`
 holds it.
 
 ## The four doors
