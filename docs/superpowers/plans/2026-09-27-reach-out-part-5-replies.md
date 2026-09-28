@@ -1383,7 +1383,15 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** 00227 first. Then the edge's calendar sweep; the dashboard is untouched. Either order.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `b51ecdea`). What departed from the tasks, and why:
+>
+> - **A booking matches the lead's own address or number as well as its person's.** A reach-out writes to the lead's address, and a business that books straight from the email may have no person yet; the lead's `email` and `phone_e164` are what the reach-out knows it by.
+> - **The extraction is contracts `bookedSeenOf`** (`reach-out/reach-out-booked.ts`), over `extractContacts` with the business's own addresses (`ownAddressesOf`) left out as People's import leaves them; the cap of 500 is on the addresses and numbers handed over, the earliest appointments first, and the door reads no more than 500 either.
+> - **Either deploy order works.** A door that refuses (00227 not yet applied, or any error) is logged as `reach_out_booked_failed` and counts nothing; People's import and the read's stamp go on, and the appointment is read again next hour.
+> - **The deal's trigger never refuses a deal**: a lead that could not follow it is a warning.
+> - **The sweep's `POST` rose by one line** (the call), raised with its row in `docs/debt.md`; `POST` was already over its branch limit.
+> - **`stop-skips.test.mjs` is unchanged**: a converted lead is stopped by the send door's `lead_stage`, which PR 4's tests already prove; `reply-booked.db.test.mjs` proves the facts say `converted` after a booking.
+> - **00227 was dry-run on production** (applied inside a transaction that aborted with its answers: 0 moved for input of every wrong shape, the trigger made), then applied and read back.
 
 ### Task 9.1: The migration
 

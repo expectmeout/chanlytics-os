@@ -21642,6 +21642,21 @@ function bellActionOf(row2, readings) {
   return r2 && !r2.undone && drafted(r2) ? "Read the draft" : row2.action;
 }
 
+// src/reach-out/reach-out-booked.ts
+var BOOKED_SEEN_CAP = 500;
+function bookedSeenOf(items, own) {
+  const out = [];
+  const byStart = [...items].sort((a, b) => a.start - b.start);
+  for (const it of byStart) {
+    const c = extractContacts(it, own);
+    const start = new Date(it.start).toISOString();
+    for (const email of c.emails) out.push({ email, start });
+    for (const phone of c.phones) out.push({ phone, start });
+    if (out.length >= BOOKED_SEEN_CAP) break;
+  }
+  return out.slice(0, BOOKED_SEEN_CAP);
+}
+
 // src/reports/campaign-report.ts
 var sum2 = (xs) => xs.reduce((a, b) => a + b, 0);
 var pct2 = (n, d) => d ? Math.round(n / d * 100) : null;
@@ -27461,6 +27476,7 @@ export {
   BILLING_STATUSES,
   BILLING_TEST_MODE_CLAUSE,
   BILLING_TRIAL_DAYS,
+  BOOKED_SEEN_CAP,
   BOOKING_DEFAULTS,
   BOOKING_LINK_NEEDED,
   BOOKING_PLATFORM_HOSTS,
@@ -28147,6 +28163,7 @@ export {
   billingPill,
   blockShareWords,
   bookedAfterAsk,
+  bookedSeenOf,
   bookingHeld,
   bookingLinkAction,
   bookingLinkOptional,

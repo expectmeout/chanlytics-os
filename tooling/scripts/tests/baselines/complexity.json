@@ -680,7 +680,7 @@
     "depth": 1
   },
   "apps/edge/api/cron/calendar.ts::POST#1": {
-    "lines": 80,
+    "lines": 81,
     "branches": 32,
     "depth": 3
   },
