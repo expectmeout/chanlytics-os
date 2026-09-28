@@ -7724,6 +7724,9 @@ interface ReplyListRow {
     draft: string | null;
     draft_state: string;
     draft_why: string | null;
+    /** What the reading did (contracts ReadingPlan, as JSON), and an automatic away's day back. */
+    plan: Json;
+    until_at: string | null;
     business: string | null;
     /** The step the reply answers (reach_out_sends.playbook_id), and its chain's first step. */
     playbook_id: string | null;

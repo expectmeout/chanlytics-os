@@ -19,8 +19,8 @@ import { z as z7 } from "zod";
 import { z as z9 } from "zod";
 import { z as z11 } from "zod";
 import { z as z12 } from "zod";
-import { z as z13 } from "zod";
 import { z as z14 } from "zod";
+import { z as z13 } from "zod";
 import { z as z15 } from "zod";
 import { z as z16 } from "zod";
 import { z as z17 } from "zod";
@@ -2296,6 +2296,61 @@ var REVIEW_NEWS_MAX_AGE_MS = 14 * DAY_MS;
 var NAME_MAX = BrainConfigSchema.shape.business_name.maxLength ?? Infinity;
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var REACH_OUT_SUBJECT_MAX = 80;
+var REACH_OUT_BODY_MAX = 1200;
+var OPENING_WORDS_MAX = 40;
+var OPENING_CHARS_MAX = 400;
+var REACH_OUT_STEPS_MAX = 5;
+var REACH_OUT_DOMAINS_MAX = 5;
+var REACH_OUT_NAME_MAX = 80;
+var SIGNED_BY_MAX = 60;
+var REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60];
+var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
+var ReachOutStepSchema = z13.object({
+  /** An existing step's id, when the sheet edits a chain; none for a new one. */
+  id: z13.string().uuid().nullable().optional(),
+  subject: z13.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+  body: z13.string().max(REACH_OUT_BODY_MAX * 2),
+  after_days: z13.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+});
+var ReachOutChainSchema = z13.object({
+  name: z13.string().trim().min(1).max(REACH_OUT_NAME_MAX),
+  search_id: z13.string().uuid(),
+  include_unconfirmed: z13.boolean(),
+  /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
+  gap_minutes: z13.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
+    message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
+  }),
+  /** Empty: every verified domain of the workspace (00183). */
+  domain_ids: z13.array(z13.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
+  signed_by: z13.string().trim().max(SIGNED_BY_MAX).nullable(),
+  steps: z13.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
+});
+var OPENING_FACT_KEYS = [
+  "category",
+  "city",
+  "rating",
+  "reviews",
+  "website",
+  "hours",
+  "about",
+  "why_it_fits"
+];
+var OPENING_SCHEMA = {
+  type: "object",
+  properties: {
+    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
+    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX} words and ${OPENING_CHARS_MAX} characters.` },
+    angle: { type: "string" },
+    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
+  },
+  required: ["opening", "angle", "facts_used"],
+  additionalProperties: false
+};
+var ReachOutRepliesQuerySchema = z14.object({
+  since: z14.string().datetime({ offset: true }).optional(),
+  conversation_id: z14.string().uuid().optional()
+});
 var RETENTION_DAYS = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
   call_recordings: 90,
@@ -2476,15 +2531,15 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z13.object({
-  places: z13.array(
-    z13.object({
-      ref: z13.number().int(),
-      criteria: z13.array(
-        z13.object({ key: z13.string(), answer: z13.enum(["pass", "fail", "unknown"]), facts: z13.array(z13.string()) })
+var AnswerSchema = z15.object({
+  places: z15.array(
+    z15.object({
+      ref: z15.number().int(),
+      criteria: z15.array(
+        z15.object({ key: z15.string(), answer: z15.enum(["pass", "fail", "unknown"]), facts: z15.array(z15.string()) })
       ),
-      email_index: z13.number().int().nullable(),
-      reason: z13.string()
+      email_index: z15.number().int().nullable(),
+      reason: z15.string()
     })
   )
 });
@@ -2602,71 +2657,20 @@ function leadSuppressionHash(tenantId, value) {
 }
 var NINE_TO_FIVE = [{ from: 9 * 60, to: 17 * 60 }];
 var SEND_DAY_FRAME = { from: 8 * 60, to: 20 * 60 };
-var REACH_OUT_SUBJECT_MAX = 80;
-var REACH_OUT_BODY_MAX = 1200;
-var OPENING_WORDS_MAX = 40;
-var OPENING_CHARS_MAX = 400;
-var REACH_OUT_STEPS_MAX = 5;
-var REACH_OUT_DOMAINS_MAX = 5;
-var REACH_OUT_NAME_MAX = 80;
-var SIGNED_BY_MAX = 60;
-var REACH_OUT_GAP_MINUTES = [5, 8, 12, 20, 30, 60];
-var REACH_OUT_AFTER_DAYS = { min: 2, max: 30, first: 4 };
-var ReachOutStepSchema = z14.object({
-  /** An existing step's id, when the sheet edits a chain; none for a new one. */
-  id: z14.string().uuid().nullable().optional(),
-  subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-  body: z14.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
-});
-var ReachOutChainSchema = z14.object({
-  name: z14.string().trim().min(1).max(REACH_OUT_NAME_MAX),
-  search_id: z14.string().uuid(),
-  include_unconfirmed: z14.boolean(),
-  /** One of the sheet's paces: the database's CHECK holds the same set (00211). */
-  gap_minutes: z14.number().int().refine((g) => REACH_OUT_GAP_MINUTES.includes(g), {
-    message: `One of ${REACH_OUT_GAP_MINUTES.join(", ")} minutes.`
-  }),
-  /** Empty: every verified domain of the workspace (00183). */
-  domain_ids: z14.array(z14.string().uuid()).max(REACH_OUT_DOMAINS_MAX),
-  signed_by: z14.string().trim().max(SIGNED_BY_MAX).nullable(),
-  steps: z14.array(ReachOutStepSchema).min(1).max(REACH_OUT_STEPS_MAX)
-});
-var OPENING_FACT_KEYS = [
-  "category",
-  "city",
-  "rating",
-  "reviews",
-  "website",
-  "hours",
-  "about",
-  "why_it_fits"
-];
-var OPENING_SCHEMA = {
-  type: "object",
-  properties: {
-    // The bound is said, not constrained: structured outputs refuse maxLength. Code holds it (checkOpening, too_long).
-    opening: { type: "string", description: `At most ${OPENING_WORDS_MAX} words and ${OPENING_CHARS_MAX} characters.` },
-    angle: { type: "string" },
-    facts_used: { type: "array", items: { type: "string", enum: [...OPENING_FACT_KEYS] } }
-  },
-  required: ["opening", "angle", "facts_used"],
-  additionalProperties: false
-};
 var REACH_OUT_PREVIEW_INDEX_MAX = 199;
-var ReachOutPreviewSchema = z15.object({
-  search_id: z15.string().uuid(),
-  index: z15.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
-  include_unconfirmed: z15.boolean(),
-  words: z15.object({
-    subject: z15.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
-    body: z15.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
+var ReachOutPreviewSchema = z16.object({
+  search_id: z16.string().uuid(),
+  index: z16.number().int().min(0).max(REACH_OUT_PREVIEW_INDEX_MAX),
+  include_unconfirmed: z16.boolean(),
+  words: z16.object({
+    subject: z16.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
+    body: z16.string().trim().min(1).max(REACH_OUT_BODY_MAX * 2)
   }),
-  signed_by: z15.string().trim().max(SIGNED_BY_MAX).nullable(),
-  language: z15.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
+  signed_by: z16.string().trim().max(SIGNED_BY_MAX).nullable(),
+  language: z16.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/).optional()
 });
 var REACH_OUT_DECISIONS = ["include", "rewrite", "skip", "not_a_fit"];
-var ReachOutDecideSchema = z15.object({ decision: z15.enum(REACH_OUT_DECISIONS) });
+var ReachOutDecideSchema = z16.object({ decision: z16.enum(REACH_OUT_DECISIONS) });
 var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
@@ -2727,10 +2731,6 @@ var REACH_OUT_SHEET_PARTS = {
   footLine: "At the foot",
   repliesLine: "Replies"
 };
-var ReachOutRepliesQuerySchema = z16.object({
-  since: z16.string().datetime({ offset: true }).optional(),
-  conversation_id: z16.string().uuid().optional()
-});
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var LIVE_STALE_MS = 5 * MIN_MS;
 var LIVE_OVERLONG_MS = 30 * MIN_MS;
@@ -3559,7 +3559,7 @@ async function markReplyTold(db, p) {
   });
   if (error) throw new Error(`cannot mark the reply's notice told: ${error.message}`);
 }
-var REPLY_LIST_COLUMNS = "message_id, conversation_id, read_at, intent, claim, summary, named_day, refer_to, unread, rereads, undone_at, draft, draft_state, draft_why, lead_id, send_id";
+var REPLY_LIST_COLUMNS = "message_id, conversation_id, read_at, intent, claim, summary, named_day, refer_to, unread, rereads, undone_at, draft, draft_state, draft_why, plan, until_at, lead_id, send_id";
 async function repliesFor(db, p) {
   let q = db.from("reach_out_replies").select(REPLY_LIST_COLUMNS).eq("tenant_id", p.tenantId).gte("read_at", p.since);
   if (p.conversationId) q = q.eq("conversation_id", p.conversationId);
@@ -5106,7 +5106,9 @@ var WATCHED = [
   { table: "person_notes", event: "*" },
   // a list made, renamed, archived, or people put on and taken off by a teammate: People's rail repaints (00169)
   { table: "segments", event: "*" },
-  { table: "segment_members", event: "*" }
+  { table: "segment_members", event: "*" },
+  // a reply to a reach-out read, drafted or undone: the Inbox's strip and chip repaint (00222)
+  { table: "reach_out_replies", event: "*" }
 ];
 function watchedTables() {
   return WATCHED.map((w) => w.table);

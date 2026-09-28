@@ -69,14 +69,22 @@ export async function replyIdentityOf(
 > {
   const { tenantId, domains } = p;
   const answered = await answeredReachOutEmail(supabase, p);
-  const host = hostOf(answered?.from ?? null);
-  if (!answered || !host) return { from: "mailbox", because: null };
+  const own = addressOf(answered?.from ?? "")?.address.toLowerCase() ?? null;
+  const host = hostOf(own);
+  if (!answered || !own || !host) return { from: "mailbox", because: null };
   const domain = (domains ?? (await sendingDomainsFor(supabase, tenantId))).find((d) => d.host.toLowerCase() === host);
-  if (!domain) return { from: "mailbox", because: "domain_removed" };
-  if (domain.state !== "verified") return { from: "mailbox", because: "domain_held" };
+  if (!domain) return { from: "mailbox", because: "domain_removed", own };
+  if (domain.state !== "verified") return { from: "mailbox", because: "domain_held", own: domain.address };
   const replyDomain = hostOf(answered.replyTo) ?? emailDomain();
   if (!replyDomain) return { from: "mailbox", because: null };
   return { from: "own", address: domain.address, domain, replyDomain };
+}
+
+/** The workspace's mailbox address on this deployment, as the composer names it; null with no mailbox or no email. */
+export async function mailboxAddressOf(ctx: RouteContext, tenantId: string): Promise<string | null> {
+  const domain = emailDomain();
+  const mailbox = domain ? await mailboxOfTenant(ctx.supabase, tenantId) : null;
+  return mailbox && domain ? hostedAddress(mailbox.local_part, domain) : null;
 }
 
 /** What the composer is told of where an answer goes out from: the address, never the domain's row. */

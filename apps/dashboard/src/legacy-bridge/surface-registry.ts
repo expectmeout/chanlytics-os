@@ -164,7 +164,19 @@ export function personRouteId(page: string, param?: string | null): string | nul
 export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // Setup first: what is left to set up is drawn ABOVE the queue (dashboard-a-brief.jsx TodaySetup), and read seventh it
   // landed after the queue and pushed it down (Ruben, 24 Sep: "does not load properly like the rest of the page").
-  today: ["setup", "calendar", "broadcasts", "reports", "playbooks", "notifications", "live", "google", "people"],
+  today: [
+    "setup",
+    "calendar",
+    "broadcasts",
+    "reports",
+    "playbooks",
+    "notifications",
+    "live",
+    "google",
+    "people",
+    // A reply to a reach-out, read: its queue row and the bell's door (Reach out Part 5, PR 8).
+    "reach_out_replies",
+  ],
   calendar: ["people"],
   // The first run's receptionist card fills in from the settings read: the brain and the resolved numbers. Try it
   // watches the Live page's calls for the test call (first-run-try.ts).
@@ -172,6 +184,8 @@ export const ROUTE_DRAWS: Record<string, readonly string[]> = {
   // A person's page reads its own person (people-detail.ts); People's row gives it their name in the crumbs and the
   // head while that read is out, so People is read next.
   [PERSON_ROUTE]: ["people"],
+  // A reply to a reach-out, read: the Inbox's strip, composer line and row chip (Reach out Part 5, PR 7).
+  inbox: ["reach_out_replies"],
   // A reach-out's chains are Playbooks' rows, and their emails Templates' email rows (Part 4 PR 8): the reach-outs
   // surface, read beside each page's own.
   outbound: ["reach_outs"],

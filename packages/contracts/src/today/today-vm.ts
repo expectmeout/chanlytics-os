@@ -51,7 +51,8 @@ export interface TodaySentenceVM {
  */
 export interface TodayQueueRowVM {
   id: string;
-  kind: "handoff" | "callback" | "window" | "call" | "search";
+  /** `reply`: a reply to a reach-out, read (Reach out Part 5), in place of its thread's handoff (withReplies). */
+  kind: "handoff" | "callback" | "window" | "call" | "search" | "reply";
   /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
   conversationId: string | null;
   /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */
