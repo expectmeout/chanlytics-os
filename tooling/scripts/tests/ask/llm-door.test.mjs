@@ -261,7 +261,7 @@ test("the door: a token for another door, a forgery and no credential are 403 --
     );
     assert.deepEqual(
       await answer(await knock(T(1), turn(), { "x-diag-key": KEY })),
-      [400, { ok: false, error: "tenant_id, user_id and a purpose required" }],
+      [400, { ok: false, error: "bad_request", detail: "tenant_id, user_id and a purpose required" }],
       "a key holder is about no workspace: the body must name one",
     );
   });
@@ -287,7 +287,7 @@ test("without a model key on this edge the door says so before the body is even 
 test("what a request must be before the key is spent: a body under the cap, a person and a purpose the gateway knows, a request the gateway allows -- a known model, one to sixty turns, at most forty tools, a system prompt as a string or blocks -- and a database; none of it reaches the model", async () => {
   const db = use();
   const net = silent();
-  const bad = (error) => [400, { ok: false, error }];
+  const bad = (detail) => [400, { ok: false, error: "bad_request", detail }];
   assert.deepEqual(
     await answer(await knock(T(1), "x".repeat(GATEWAY_MAX_BODY + 1))),
     [413, { ok: false, error: "too_large" }],
@@ -555,7 +555,7 @@ test("the model's refusal is forwarded as it came -- its status and its body, as
   const bare = wired(() => new Response("", { status: 400 }));
   assert.deepEqual(
     await answer(await knock(ws, turn())),
-    [400, { ok: false, error: "model 400" }],
+    [400, { ok: false, error: "model_failed", detail: "model 400" }],
     "a refusal without a body still says what the status was",
   );
   assert.equal(bare.calls.length, 1);
@@ -599,7 +599,7 @@ test("what the Line needs from the gateway: Opus 5.5 is a model Ask may name, As
   assert.equal(ask({ model: ASK_MODEL }).ok, true, "Ask's default profile is a model the door allows");
   assert.deepEqual(
     ask({ model: "claude-opus-5-9" }),
-    { ok: false, error: "unknown model" },
+    { ok: false, error: "bad_request", detail: "unknown model" },
     "and still only the models listed",
   );
   const schema = {
@@ -614,7 +614,11 @@ test("what the Line needs from the gateway: Opus 5.5 is a model Ask may name, As
     { effort: "low", format: { type: "json_schema", schema } },
     "Ask's own turn keeps its format now: the answer is structured output (the Line, D3)",
   );
-  const refused = { ok: false, error: "output_config.format: a JSON schema under 8,000 characters" };
+  const refused = {
+    ok: false,
+    error: "bad_request",
+    detail: "output_config.format: a JSON schema under 8,000 characters",
+  };
   const huge = { type: "object", properties: { say: { type: "string", description: "x".repeat(8_001) } } };
   assert.deepEqual(ask({ output_config: { format: { type: "json_schema", schema: huge } } }), refused);
   assert.deepEqual(ask({ output_config: { format: { type: "text" } } }), refused);

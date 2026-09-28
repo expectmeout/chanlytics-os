@@ -15,7 +15,7 @@
  *
  * Diagnostic-key only: the dashboard is the sole caller, as for steer.
  */
-import { json } from "../../../lib/http.js";
+import { json, refuse } from "../../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../../lib/admin-auth.js";
 import { pg } from "../../../lib/pg.js";
 import { emitEvent } from "../../../lib/packages/db.js";
@@ -43,7 +43,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!auth.ok) return auth.response;
   const appId = metaAppId();
   const appSecret = env.META_APP_SECRET;
-  if (!appId || !appSecret) return json(503, { ok: false, error: "no_app_credentials" });
+  if (!appId || !appSecret) return refuse(503, "no_app_credentials");
 
   let body: { tenant_id?: string; user_id?: string; code?: string; phone_number_id?: string; waba_id?: string } = {};
   try {
@@ -67,10 +67,10 @@ export async function POST(request: Request): Promise<Response> {
     !ID.test(phoneNumberId) ||
     !ID.test(wabaId)
   ) {
-    return json(400, { ok: false, error: "tenant_id, user_id, code, phone_number_id and waba_id required" });
+    return refuse(400, "bad_request", "tenant_id, user_id, code, phone_number_id and waba_id required");
   }
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
 
   const L = logger({ tenant: tenantId, phone_number_id: phoneNumberId, waba_id: wabaId });
 
@@ -88,18 +88,18 @@ export async function POST(request: Request): Promise<Response> {
     .maybeSingle();
   if (takenErr) {
     L.info("wa_connect_channel_read_failed", { error: takenErr.message });
-    return json(503, { ok: false, error: "channel_read_failed" });
+    return refuse(503, "channel_read_failed");
   }
   if (taken && taken.tenant_id !== tenantId) {
     L.info("wa_connect_number_taken");
-    return json(409, { ok: false, error: "number_taken" });
+    return refuse(409, "number_taken");
   }
 
   // 1. The code becomes the business's token.
   const tok = await exchangeCode(appId, appSecret, code);
   if (!tok.ok) {
     L.info("wa_connect_exchange_failed", { error: tok.error, code: tok.code });
-    return json(502, { ok: false, error: "exchange_failed", detail: tok.error });
+    return refuse(502, "exchange_failed", tok.error);
   }
   const token = tok.data.access_token;
 
@@ -107,11 +107,11 @@ export async function POST(request: Request): Promise<Response> {
   const [num, waba] = await Promise.all([phoneNumber(token, phoneNumberId), wabaInfo(token, wabaId)]);
   if (!num.ok) {
     L.info("wa_connect_number_unreadable", { error: num.error });
-    return json(502, { ok: false, error: "number_unreadable", detail: num.error });
+    return refuse(502, "number_unreadable", num.error);
   }
   if (!waba.ok) {
     L.info("wa_connect_waba_unreadable", { error: waba.error });
-    return json(502, { ok: false, error: "waba_unreadable", detail: waba.error });
+    return refuse(502, "waba_unreadable", waba.error);
   }
   const e164 = toE164(num.data.display_phone_number);
 
@@ -119,7 +119,7 @@ export async function POST(request: Request): Promise<Response> {
   const sub = await subscribeWaba(token, wabaId);
   if (!sub.ok) {
     L.info("wa_connect_subscribe_failed", { error: sub.error });
-    return json(502, { ok: false, error: "subscribe_failed", detail: sub.error });
+    return refuse(502, "subscribe_failed", sub.error);
   }
 
   // 4. Registered for Cloud API messaging. Registration belongs to the
@@ -132,7 +132,7 @@ export async function POST(request: Request): Promise<Response> {
   const reg = pin ? await registerNumber(token, phoneNumberId, pin) : null;
   if (reg && !reg.ok && !alreadyRegistered(reg)) {
     L.info("wa_connect_register_failed", { error: reg.error, code: reg.code });
-    return json(502, { ok: false, error: pinMismatch(reg) ? "pin_required" : "register_failed", detail: reg.error });
+    return refuse(502, pinMismatch(reg) ? "pin_required" : "register_failed", reg.error);
   }
   const registration = reg?.ok ? "registered" : "already_registered";
 
@@ -188,7 +188,7 @@ export async function POST(request: Request): Promise<Response> {
         row = { id: mineNow.data.id };
       } else {
         L.info("wa_connect_number_taken", { at: "insert" });
-        return json(409, { ok: false, error: "number_taken" });
+        return refuse(409, "number_taken");
       }
     } else {
       row = made.data;
@@ -197,7 +197,7 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (upErr || !row) {
     L.info("wa_connect_channel_write_failed", { error: upErr?.message });
-    return json(500, { ok: false, error: "channel_write_failed" });
+    return refuse(500, "channel_write_failed");
   }
 
   // 6. The token, in Vault, through the one door that writes a credential.
@@ -209,7 +209,7 @@ export async function POST(request: Request): Promise<Response> {
     L.info("wa_connect_credentials_failed", { error: credErr.message });
     // Without credentials the row would ride the environment token: not this business's. Disable it.
     await db.from("tenant_channels").update({ status: "disabled" }).eq("id", row.id);
-    return json(500, { ok: false, error: "credentials_failed" });
+    return refuse(500, "credentials_failed");
   }
 
   await emitEvent(db, tenantId, "channel.connected", "system", "channel", row.id, {

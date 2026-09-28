@@ -429,7 +429,7 @@ test("the body: a draft id that is not a uuid, no words, or more than 500 of the
   ]) {
     assert.deepEqual(
       await answer(await knock(body, { brain: unasked().port })),
-      [400, { ok: false, error: "message_id + text (1-500 chars) required" }],
+      [400, { ok: false, error: "bad_request", detail: "message_id + text (1-500 chars) required" }],
       JSON.stringify(body),
     );
   }

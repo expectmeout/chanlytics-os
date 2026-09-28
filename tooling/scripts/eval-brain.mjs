@@ -54,7 +54,7 @@ for (let i = 0; i < cases.length; i += BATCH) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.ok) {
-    console.error(`edge refused batch ${i / BATCH + 1}: HTTP ${res.status} ${data.error ?? ""}`);
+    console.error(`edge refused batch ${i / BATCH + 1}: HTTP ${res.status} ${data.detail ?? data.error ?? ""}`);
     process.exit(2);
   }
   results.push(...data.results);
