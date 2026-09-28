@@ -79,7 +79,7 @@
   "apps/edge/api/whatsapp.ts": 2,
   "apps/edge/lib/ask-gateway.ts": 1,
   "apps/edge/lib/email/sending-domains.ts": 4,
-  "apps/edge/lib/google/google.ts": 1,
+  "apps/edge/lib/google/profile-credentials.ts": 1,
   "apps/edge/lib/leads/lead-db.ts": 7,
   "apps/edge/lib/leads/lead-wires.ts": 1,
   "apps/edge/lib/lines/line-release.ts": 2,

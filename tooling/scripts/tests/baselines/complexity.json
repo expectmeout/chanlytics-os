@@ -714,7 +714,7 @@
     "branches": 54,
     "depth": 8
   },
-  "apps/edge/lib/google/google.ts::syncProfile#1": {
+  "apps/edge/lib/google/profile-sync.ts::syncProfile#1": {
     "lines": 145,
     "branches": 31,
     "depth": 2

@@ -40,7 +40,7 @@
   "apps/edge/lib/email/email-receipts.ts": 1,
   "apps/edge/lib/email/email.ts": 1,
   "apps/edge/lib/email/mail-domain.ts": 1,
-  "apps/edge/lib/google/google.ts": 1,
+  "apps/edge/lib/google/google-config.ts": 1,
   "apps/edge/lib/google/review-reply.ts": 1,
   "apps/edge/lib/leads/lead-pipeline.ts": 1,
   "apps/edge/lib/lines/a2p-register.ts": 1,
