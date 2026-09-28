@@ -17,6 +17,7 @@ import { bank, compare } from "../_ratchet.mjs";
 import { functionsIn, windowUse, unknownCasts, copiesAmong, repoFiles } from "../_ast.mjs";
 import { bankedSourceScan } from "../_measures.mjs";
 import { knipCommand } from "../../check-dead-exports.mjs";
+import { bankWarnings } from "../../checks/lint.mjs";
 
 const source = (text, name = "fixture.ts") =>
   ts.createSourceFile(
@@ -70,6 +71,42 @@ test("a set's numbers are a record: its keys may only go, its numbers follow the
     worse: ["__NEW: new (1)"],
     better: ["__B: now 1, baseline 5", "__GONE: gone (baseline 1)"],
   });
+});
+
+// `corepack pnpm lint -- --update` wrote the warnings as measured, so it banked a rise, or a file and rule the
+// baseline did not name, as readily as a fall. It banks by the rule above now (checks/lint.mjs, `bankWarnings`);
+// the bundle budget's bank, which has a band, is held in bundle-budget.test.mjs.
+const HOOKS = "react-hooks/exhaustive-deps";
+const UNUSED = "@typescript-eslint/no-unused-vars";
+const WARNINGS = { "apps/a.jsx": { [HOOKS]: 4, [UNUSED]: 1 }, "packages/b.ts": { [UNUSED]: 2 } };
+
+test("the lint's bank takes a fall and a file or rule gone to zero, and leaves a rise and a new entry to a raise", () => {
+  // A fall (hooks 4 -> 2), a rise (unused 1 -> 3), a new rule in a named file, a new file, and a file gone.
+  const now = { "apps/a.jsx": { [HOOKS]: 2, [UNUSED]: 3, "no-console": 1 }, "apps/new.tsx": { [HOOKS]: 1 } };
+  const banked = bankWarnings(now, WARNINGS);
+  assert.deepEqual(banked, { "apps/a.jsx": { [HOOKS]: 2, [UNUSED]: 1 } });
+  // A rule at zero leaves, and a file with none left leaves with it.
+  assert.deepEqual(bankWarnings({ "apps/a.jsx": { [HOOKS]: 4 } }, WARNINGS), { "apps/a.jsx": { [HOOKS]: 4 } });
+  assert.deepEqual(bankWarnings({}, WARNINGS), {});
+  // Banking twice is banking once, and a measure equal to its baseline banks as it.
+  assert.deepEqual(bankWarnings(now, banked), banked);
+  assert.deepEqual(bankWarnings(WARNINGS, WARNINGS), WARNINGS);
+});
+
+test("the lint's --raise writes the counts as measured and in order, and it alone seeds a missing baseline", () => {
+  const now = {
+    "packages/b.ts": { [UNUSED]: 5 },
+    "apps/new.tsx": { [HOOKS]: 1 },
+    "apps/a.jsx": { [UNUSED]: 1, [HOOKS]: 6 },
+  };
+  const raised = bankWarnings(now, WARNINGS, { raise: true });
+  assert.deepEqual(raised, now);
+  assert.deepEqual(Object.keys(raised), ["apps/a.jsx", "apps/new.tsx", "packages/b.ts"]);
+  assert.deepEqual(Object.keys(raised["apps/a.jsx"]), [UNUSED, HOOKS]);
+  // As the ratchets' bank above: with no baseline every entry is new, which is a rise, so `--update` writes nothing
+  // and the script fails naming `-- --raise`; a raise seeds it.
+  assert.equal(bankWarnings(now, null), null);
+  assert.deepEqual(bankWarnings(now, null, { raise: true }), raised);
 });
 
 /* ---- Functions, as ESLint's `complexity` and `max-depth` count them ---- */
