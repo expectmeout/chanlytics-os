@@ -2524,11 +2524,11 @@ function fromZonedInput(value, tz) {
   return Number.isFinite(ms2) ? ms2 : null;
 }
 function mmss(ms2) {
-  const total = Math.max(0, Math.round(ms2 / 1e3) || 0);
+  const total = Number.isFinite(ms2) ? Math.max(0, Math.round(ms2 / 1e3)) : 0;
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 function callLength(ms2) {
-  return ms2 != null && ms2 > 0 ? mmss(ms2) : void 0;
+  return ms2 != null && Number.isFinite(ms2) && ms2 > 0 ? mmss(ms2) : void 0;
 }
 
 // src/calendar/calendar-people.ts
@@ -24756,7 +24756,7 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     startedAtMs,
     heartbeatAtMs,
     startedLabel: shortTime(dto.started_at, tz, now),
-    duration: live || missed || !dto.duration_ms ? null : mmss(dto.duration_ms),
+    duration: live || missed ? null : callLength(dto.duration_ms) ?? null,
     summaryState,
     summary,
     sentiment: dto.sentiment,
@@ -24767,7 +24767,7 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     outcomeWords: live ? null : callOutcomeWords(dto.outcome),
     followUp: live ? null : dto.follow_up?.trim() || null,
     callerName: dto.caller_name?.trim() || null,
-    lengthWords: live || missed || !dto.duration_ms ? null : spokenDuration(dto.duration_ms),
+    lengthWords: live || missed || !callLength(dto.duration_ms) ? null : spokenDuration(dto.duration_ms),
     transcript: turnsOf(dto)
   };
 }
@@ -28181,6 +28181,7 @@ export {
   calendarPeekDeal,
   callActivityPropsOf,
   callActivityStart,
+  callLength,
   callMoodTone,
   callOfKey,
   callOutcomeOf,
