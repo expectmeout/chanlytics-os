@@ -4,11 +4,13 @@ One list of what the code owes, with the number that measures each item, what re
 the next step. The numbers are held by ratchets: a baseline under
 `tooling/scripts/tests/baselines/` that may only fall, seeded on 26 September 2026 at `4b4637d`
 from the scorecard that found them drifting. A new offender is a red build. A reduction is banked
-with `UPDATE_BASELINES=1 corepack pnpm test` (dead exports with
-`corepack pnpm check:dead-exports -- --update`), which banks falls and removals and nothing else; a
-rise is raised only as "Rises" below says. The block at the end of this page is rewritten by the
-same command, so a count here is never typed by hand. `docs/takeover.md`, the checklist scored from
-this register, carries the same block and is rewritten with it.
+with `UPDATE_BASELINES=1 corepack pnpm test` (dead exports, lint warnings and the bundle budget
+with their script's `--update`: `corepack pnpm check:dead-exports -- --update`,
+`corepack pnpm lint -- --update`, and `corepack pnpm check:bundle -- --update` after a dashboard
+build), which banks falls and removals and nothing else; a rise is raised only as "Rises" below
+says. The block at the end of this page is rewritten by the suite's command, so a count here is
+never typed by hand. `docs/takeover.md`, the checklist scored from this register, carries the
+same block and is rewritten with it.
 
 There is no owner column. This is a one-founder repository, and the owner of a number is the pull
 request that moves it. A row leaves this page when its "retire when" is true and the test that held
@@ -47,11 +49,11 @@ it is deleted in the same change. The plan that orders the work is
 
 ## Rises, each with its reason
 
-A number that rises is raised with `UPDATE_BASELINES=raise corepack pnpm test` (dead exports with
-`corepack pnpm check:dead-exports -- --raise`) in the same change as its row here: what rose and by how much, why
-nothing that exists would do, and what takes it back down. `UPDATE_BASELINES=1` does not bank a rise, or a new
-offender: it banks only what fell, and the build stays red until the rise is raised or undone. The row leaves when its
-number falls back.
+A number that rises is raised with `UPDATE_BASELINES=raise corepack pnpm test` (dead exports, lint warnings and the
+bundle budget with their script's `--raise`: `check:dead-exports`, `lint`, `check:bundle`, each `-- --raise`) in the
+same change as its row here: what rose and by how much, why nothing that exists would do, and what takes it back down.
+`UPDATE_BASELINES=1` does not bank a rise, or a new offender, and neither does a script's `--update`: it banks only
+what fell, and the build stays red until the rise is raised or undone. The row leaves when its number falls back.
 
 A number that moves because its measure was corrected, not because the code changed, is raised the same way and
 argued in its commit message, and takes no row here: nothing is owed that was not owed before, it was only uncounted.

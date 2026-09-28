@@ -34,13 +34,13 @@ of the public will experience.
 corepack pnpm install
 corepack pnpm --filter "./packages/*" build   # apps typecheck against built dist; dist is committed
 corepack pnpm -r typecheck
-corepack pnpm lint                            # ESLint, warnings held per file and rule; -- --update banks a fall
+corepack pnpm lint                            # ESLint, warnings held per file and rule; -- --update banks a fall, -- --raise a rise
 corepack pnpm format                          # Prettier over the tree; the pre-commit hook does this for staged files
 corepack pnpm test                            # the node suite; database suites skip without credentials
 UPDATE_BASELINES=1 corepack pnpm test         # the same, banking every ratchet's reduction, and nothing else (docs/debt.md)
 UPDATE_BASELINES=raise corepack pnpm test     # the same, raising a number that rose: argued under "Rises" in docs/debt.md
 corepack pnpm check:dead-exports              # knip against a baseline that may only fall; -- --update banks a fall, -- --raise a rise
-corepack pnpm check:bundle                    # after a dashboard build: the workspace route's JS and CSS against its budget
+corepack pnpm check:bundle                    # after a dashboard build: the workspace route's JS and CSS against its budget; -- --update banks a fall, -- --raise a rise
 corepack pnpm test:db                         # the database suites, against a running Supabase stack
 corepack pnpm e2e                             # Playwright, against production by default
 node tooling/scripts/gen-route-types.mjs      # the typed client, after a route changes (--check to verify)
@@ -89,10 +89,11 @@ Each of these is enforced by a test or a workflow. Breaking one is a red build, 
   publishers; a helper declared in three files; `as unknown as`; a table name outside `packages/db`;
   dead exports; a duration written as a bare number (name it from `contracts/shared/time.ts`, or
   give it a constant); lint warnings. A new offender is a red build. `UPDATE_BASELINES=1` banks only
-  what fell; a number that must rise is raised with `UPDATE_BASELINES=raise` (knip: `--raise`) in the
-  same diff as its row under "Rises" in `docs/debt.md`, with the reason in the pull request. Where a
-  tree's functions are all under the limits, the limits are lint errors (`LIMITED_TREES` in
-  `eslint.config.mjs`): the change that banks a tree's last entry adds the tree there.
+  what fell (knip, the lint and the bundle budget: their `--update`); a number that must rise is
+  raised with `UPDATE_BASELINES=raise` (theirs: `--raise`) in the same diff as its row under "Rises"
+  in `docs/debt.md`, with the reason in the pull request. Where a tree's functions are all under the
+  limits, the limits are lint errors (`LIMITED_TREES` in `eslint.config.mjs`): the change that banks
+  a tree's last entry adds the tree there.
 - **Production scripts** are dry-run by default, write a backup first, and take `--apply`.
 - **The layers hold apart.** Browser code (`legacy-bridge`, `client`, `yes`, `auth`) never imports
   `src/server` or `@chanlytics/core|jobs|channels`; server code never imports the shell, the bridge
