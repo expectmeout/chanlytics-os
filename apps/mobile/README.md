@@ -31,6 +31,8 @@ EAS environment or a local `.env.local` may point it elsewhere, at a preview for
   `deploy.ts` when a deploy reloads the pages; `Offline.tsx` the screen without a network.
 - `src/app/(tabs)`: the five tabs; `src/app/_layout.tsx` the theme, the sign-in gate, the foreground looks.
 - `test/`: the pure modules, run by the repository's `corepack pnpm test`.
+- `.maestro/`: the walk's flows, which `tooling/scripts/mobile/walk.mjs` runs on an Android emulator or phone, signed in
+  (`docs/runbook.md`, "Walk the phone app").
 
 ## Being told
 
