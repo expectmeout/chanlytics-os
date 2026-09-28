@@ -6739,6 +6739,14 @@ var PageContextSchema = z11.object({
   rows: z11.array(z11.object({ kind: z11.enum(ASK_CONTEXT_ROW_KINDS), id: Id }).strict()).max(ASK_CONTEXT_MAX_ROWS),
   askedAt: z11.number().int().nonnegative()
 }).strict();
+var isRowFocus = (k) => k !== "page" && ASK_SCOPE_KINDS.includes(k);
+function itemFocus(m, n) {
+  const item = (m.answer ?? answerFromV1(m)).show.items[n - 1];
+  if (!item) return void 0;
+  const { kind: cited, id, label } = item.source;
+  const kind = cited === "broadcast" ? "run" : cited;
+  return isRowFocus(kind) ? { kind, id, label: label.slice(0, 80) || `this ${kind}` } : null;
+}
 
 // src/templates/starter-templates.ts
 var STARTER_LANGUAGES = [
@@ -28923,6 +28931,7 @@ export {
   isUuid,
   isWaitRefusal,
   isYes,
+  itemFocus,
   jobNewsWords,
   judgeAsked,
   judgeDomain,

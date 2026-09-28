@@ -6922,3 +6922,44 @@ test("a row an earlier answer in this thread named is citable without a read (th
   );
   assert.deepEqual([live.lines, live.r.ungrounded], [[], false]);
 });
+
+test("the row the words point at is said in the turn's words when it is not the scope (the Phase 5 plan, D7): by its name, its kind and its id, to open or name without a read, and to read for anything about it -- after the scope's line; the scope's own row, or none, says nothing", async () => {
+  const facts = {
+    role: "operator",
+    personLabel: "ada",
+    scope: null,
+    surface: null,
+    language: "en",
+    timezone: TZ,
+    closures: [],
+    now: NOW,
+  };
+  const rosa = { kind: "thread", id: C1, label: "Rosa" };
+  const sam = { kind: "person", id: P1, label: "Sam Ortiz" };
+  const line = `Their words point at Sam Ortiz (person ${P1}): open or name it without a read; read it for anything about it.`;
+  assert.ok(
+    turnWords({ ...facts, focus: sam })
+      .split("\n")
+      .includes(line),
+    "no scope",
+  );
+  const scoped = turnWords({ ...facts, scope: rosa, focus: sam }).split("\n");
+  assert.equal(scoped[scoped.findIndex((l) => l.startsWith("They are looking at Rosa")) + 1], line, "after the scope");
+  for (const focus of [rosa, null, undefined])
+    assert.ok(
+      !turnWords({ ...facts, scope: rosa, focus }).includes("Their words point at"),
+      `${focus?.label ?? focus}`,
+    );
+  assert.ok(
+    turnWords({ ...facts, scope: rosa, focus: { ...rosa, kind: "conversation" } }).includes("Their words point at"),
+    "the same id as another kind is another row",
+  );
+
+  // Through the turn: the page's focus, as the tab sent it, rides in the question's words.
+  const s = sentAs([ROUND([answer("Sam asked about Saturday.")])]);
+  await runAskTurn(turn(ctxFor(), { context: { ...PAGE, focus: sam }, scope: rosa }).input, ports(s.round));
+  assert.ok(wordsLines(s.requests[0]).includes(line));
+  const plain = sentAs([ROUND([answer("Rosa.")])]);
+  await runAskTurn(turn(ctxFor(), { context: { ...PAGE, focus: rosa }, scope: rosa }).input, ports(plain.round));
+  assert.ok(!wordsLines(plain.requests[0]).join("\n").includes("Their words point at"), "the scope's own row");
+});

@@ -82,6 +82,6 @@ export type {
   AskAnswerRead,
 } from "./ask-answer";
 export { ASK_ANSWER_FORMAT } from "./answer-format";
-export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, PageContextSchema } from "./ask-context";
+export { ASK_CONTEXT_MAX_ROWS, ASK_CONTEXT_ROW_KINDS, PageContextSchema, itemFocus } from "./ask-context";
 export type { AskContextRowKind, PageContextRow, PageContext } from "./ask-context";
 export type { AskScopeKind } from "./ask";

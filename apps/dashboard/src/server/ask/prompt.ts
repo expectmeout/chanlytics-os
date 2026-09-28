@@ -303,6 +303,11 @@ export interface TurnFacts {
    * the clock, in this question's words, never by an edit of an earlier message.
    */
   since?: CardOutcome[];
+  /**
+   * The row their words point at, as the tab read them (PageContext.focus, the Phase 5 plan, D7): an earlier answer's
+   * item by its place in an open thread, or the page's row by its place or its name; said when it is not the scope.
+   */
+  focus?: AskScope | null;
 }
 
 /**
@@ -350,6 +355,12 @@ export function turnWords(t: TurnFacts): string {
   if (t.scope)
     lines.push(
       `They are looking at ${t.scope.label} (${t.scope.kind} ${t.scope.id}); "this", "them", "here" mean that unless they say otherwise. ${read}`,
+    );
+  // The row their words point at, when it is not the scope: an earlier answer's item (in the read set, D5) or the page's.
+  const f = t.focus;
+  if (f && (f.kind !== t.scope?.kind || f.id !== t.scope?.id))
+    lines.push(
+      `Their words point at ${f.label} (${f.kind} ${f.id}): open or name it without a read; read it for anything about it.`,
     );
   if (t.language === "es") lines.push("They wrote in Spanish; answer in Spanish.");
   else if (t.language === "en") lines.push("They wrote in English; answer in English.");

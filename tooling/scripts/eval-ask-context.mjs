@@ -37,6 +37,7 @@ import {
   TenantConfigWriteSchema,
   answerFromV1,
   citationRoute,
+  itemFocus,
   parseTenantConfig,
   personName,
   proposalSpec,
@@ -194,9 +195,12 @@ const SCOPE_KINDS = new Set(["thread", "conversation", "call", "person", "lead",
 
 /**
  * A case's page, as the palette would send it: `{ context, scope }`, the context one the route's schema takes and the
- * scope the route opens (null on a list). `answers` holds each GET's `data`, by key; `now` is the tab's clock.
+ * scope the route opens (null on a list). `answers` holds each GET's `data`, by key; `now` is the tab's clock; `first`
+ * is turn 1's answer when this is its thread's second turn, whose items a place names first, as the palette reads the
+ * words in an open thread (contracts itemFocus, the Phase 5 plan, D7): an item no focus may be names none, and the
+ * page's rows count only past the answer's items.
  */
-export function resolveContext(spec, answers = {}, now = Date.now()) {
+export function resolveContext(spec, answers = {}, now = Date.now(), first = null) {
   const problems = contextProblems(spec);
   if (problems.length) throw new Error(`a context the eval cannot build: ${problems.join("; ")}`);
   const rows = rowsOf(spec, answers);
@@ -214,14 +218,19 @@ export function resolveContext(spec, answers = {}, now = Date.now()) {
   if (opened && scope && scope.kind !== opened.kind)
     throw new Error(`the route ${route} opens a ${scope.kind}, and the row there is a ${opened.kind}`);
   const n = ordinal(spec.focus);
-  const placed = n !== null ? rows.filter((r) => SCOPE_KINDS.has(r.kind))[n - 1] : null;
+  // Undefined past turn 1's items (or with no turn 1), null for an item no focus may be -- which, as in the palette,
+  // leaves the route's own row -- else that item as a focus.
+  const item = n !== null && first ? itemFocus(first, n) : undefined;
+  const placed = n !== null && item === undefined ? rows.filter((r) => SCOPE_KINDS.has(r.kind))[n - 1] : null;
   const focus = isScope(spec.focus)
     ? { kind: spec.focus.kind, id: spec.focus.id, label: spec.focus.label }
-    : placed
-      ? { kind: placed.kind, id: placed.id, label: (placed.label || `this ${placed.kind}`).slice(0, 80) }
-      : n !== null
-        ? null
-        : scope;
+    : item !== undefined
+      ? (item ?? scope)
+      : placed
+        ? { kind: placed.kind, id: placed.id, label: (placed.label || `this ${placed.kind}`).slice(0, 80) }
+        : n !== null
+          ? null
+          : scope;
   const context = {
     v: 1,
     surface: spec.surface,

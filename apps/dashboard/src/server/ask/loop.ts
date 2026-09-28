@@ -244,6 +244,7 @@ function wordsBlock(
     language: input.language,
     timezone: input.timezone,
     closures: input.facts.closures,
+    focus: input.context?.focus,
     now,
   };
   return (live: boolean, dataDropped: boolean) => ({
