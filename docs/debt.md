@@ -91,7 +91,7 @@ copies                              152   of 38 names
 as unknown as                       222
 table names outside packages/db     533
 unnamed durations                    78   in 35 files
-dead exports, types and modules     167
+dead exports, types and modules     165
 source-text reads in tests          829
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      962   the shell included

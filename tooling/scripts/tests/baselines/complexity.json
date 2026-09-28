@@ -1,8 +1,8 @@
 {
   "apps/dashboard/app/api/v1/ask/route.ts::handle#1": {
-    "lines": 247,
-    "branches": 57,
-    "depth": 3
+    "lines": 227,
+    "branches": 47,
+    "depth": 2
   },
   "apps/dashboard/app/api/v1/contacts/[id]/deal/route.ts::handle#1": {
     "lines": 52,
@@ -590,7 +590,7 @@
     "depth": 1
   },
   "apps/dashboard/src/server/ask/loop.ts::runAskTurn#1": {
-    "lines": 558,
+    "lines": 525,
     "branches": 87,
     "depth": 6
   },
