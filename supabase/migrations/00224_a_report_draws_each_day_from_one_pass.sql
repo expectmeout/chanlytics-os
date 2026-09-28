@@ -11,23 +11,16 @@
 -- day, and the days take their counts from the groups: the same numbers, a zero
 -- for a day with none, as before.
 --
--- Both run with jit off, as 00232 sets it: their plans are estimated past the
--- cost at which Postgres compiles a plan on every call, and compiling cost more
--- than the read. The setting is in these copies too, so that whichever file is
--- applied last, it holds.
---
 -- Each function is copied as it stands from its latest migration with only its
--- per_day replaced and that setting. Only the bodies and the setting change, so
--- `create or replace` takes them: nothing is dropped, and the grants and
--- campaign_series' comment stand; they are restated so this file reads on its
--- own.
+-- per_day replaced. Only the bodies change, so `create or replace` takes them:
+-- nothing is dropped, and the grants and campaign_series' comment stand; they
+-- are restated so this file reads on its own.
 
 create or replace function public.report_series(p_tenant_id uuid, p_days integer default 30)
 returns jsonb
 language plpgsql
 stable
 set search_path = public
-set jit = off
 as $$
 declare
   v_tz     text;
@@ -215,7 +208,6 @@ returns jsonb
 language plpgsql
 stable
 set search_path = public
-set jit = off
 as $$
 declare
   v_tz     text;
