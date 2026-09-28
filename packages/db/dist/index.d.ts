@@ -3677,6 +3677,63 @@ type Database = {
                 };
                 Relationships: [];
             };
+            person_moments: {
+                Row: {
+                    added_at: string;
+                    contact_id: string;
+                    first_call_at: string | null;
+                    first_row_at: string | null;
+                    first_word_at: string | null;
+                    in_touch_at: string;
+                    last_call_at: string | null;
+                    last_word_at: string | null;
+                    moved_in: boolean;
+                    new_at: string | null;
+                    tenant_id: string;
+                };
+                Insert: {
+                    added_at: string;
+                    contact_id: string;
+                    first_call_at?: string | null;
+                    first_row_at?: string | null;
+                    first_word_at?: string | null;
+                    in_touch_at?: never;
+                    last_call_at?: string | null;
+                    last_word_at?: string | null;
+                    moved_in?: boolean;
+                    new_at?: never;
+                    tenant_id: string;
+                };
+                Update: {
+                    added_at?: string;
+                    contact_id?: string;
+                    first_call_at?: string | null;
+                    first_row_at?: string | null;
+                    first_word_at?: string | null;
+                    in_touch_at?: never;
+                    last_call_at?: string | null;
+                    last_word_at?: string | null;
+                    moved_in?: boolean;
+                    new_at?: never;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "person_moments_contact_id_fkey";
+                        columns: ["contact_id"];
+                        isOneToOne: true;
+                        referencedRelation: "contacts";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "person_moments_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             person_notes: {
                 Row: {
                     author_kind: string;
@@ -5754,6 +5811,16 @@ type Database = {
                 };
                 Returns: Json;
             };
+            message_moment: {
+                Args: {
+                    p_channel_ts: string;
+                    p_created_at: string;
+                    p_meta: Json;
+                    p_status: string;
+                    p_type: string;
+                };
+                Returns: Record<string, unknown>;
+            };
             metrics_summary: {
                 Args: {
                     p_days?: number;
@@ -6104,6 +6171,50 @@ type Database = {
                     step_id: string;
                     wa_profile_name: string;
                 }[];
+            };
+            person_moments_check: {
+                Args: {
+                    p_after?: string;
+                    p_limit?: number;
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    contact_id: string;
+                    what: string;
+                }[];
+            };
+            person_moments_fill: {
+                Args: {
+                    p_after: string;
+                    p_limit: number;
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    filled: number;
+                    last_contact_id: string;
+                }[];
+            };
+            person_moments_of: {
+                Args: {
+                    p_contacts: string[];
+                };
+                Returns: {
+                    added_at: string;
+                    contact_id: string;
+                    first_call_at: string;
+                    first_row_at: string;
+                    first_word_at: string;
+                    last_call_at: string;
+                    last_word_at: string;
+                    moved_in: boolean;
+                    tenant_id: string;
+                }[];
+            };
+            person_moments_recompute: {
+                Args: {
+                    p_contacts: string[];
+                };
+                Returns: number;
             };
             person_note_add: {
                 Args: {
