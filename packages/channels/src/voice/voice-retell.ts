@@ -294,6 +294,12 @@ function retryAfterMs(header: string | null): number | null {
   return Number.isFinite(ms) && ms > 0 ? ms : null;
 }
 
+/** A body the provider answered as a call: an object carrying the call's id. */
+function isCallBody(v: unknown): v is RetellCall {
+  const o = plainObject(v);
+  return o !== null && typeof o.call_id === "string";
+}
+
 /**
  * Full call detail — the only source of transcript/transcript_object. Never
  * throws: the answer says what happened, so a sweep can tell a row the
@@ -315,10 +321,10 @@ export async function getCall(
     return { kind: "unavailable", status: null, retryAfterMs: null };
   }
   if (r.ok) {
-    const call = plainObject(await r.json().catch(() => null));
+    const body: unknown = await r.json().catch(() => null);
     // A 200 that is not a call is a proxy's page in front of the provider, not its word.
-    return call
-      ? { kind: "found", call: call as unknown as RetellCall }
+    return isCallBody(body)
+      ? { kind: "found", call: body }
       : { kind: "unavailable", status: r.status, retryAfterMs: null };
   }
   await r.body?.cancel().catch(() => undefined);

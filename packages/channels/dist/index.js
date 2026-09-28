@@ -3282,6 +3282,10 @@ function retryAfterMs(header) {
   const ms = /^\d+$/.test(h) ? Number(h) * 1e3 : Date.parse(h) - Date.now();
   return Number.isFinite(ms) && ms > 0 ? ms : null;
 }
+function isCallBody(v) {
+  const o = plainObject(v);
+  return o !== null && typeof o.call_id === "string";
+}
 async function getCall(cfg, callId, opts = {}) {
   let r2;
   try {
@@ -3293,8 +3297,8 @@ async function getCall(cfg, callId, opts = {}) {
     return { kind: "unavailable", status: null, retryAfterMs: null };
   }
   if (r2.ok) {
-    const call2 = plainObject(await r2.json().catch(() => null));
-    return call2 ? { kind: "found", call: call2 } : { kind: "unavailable", status: r2.status, retryAfterMs: null };
+    const body = await r2.json().catch(() => null);
+    return isCallBody(body) ? { kind: "found", call: body } : { kind: "unavailable", status: r2.status, retryAfterMs: null };
   }
   await r2.body?.cancel().catch(() => void 0);
   if (r2.status === 401 || r2.status === 403) return { kind: "auth", status: r2.status };
