@@ -26,10 +26,12 @@
  * (followUpFails). Only new cases carry one: the cases before PR 5.2 stay one turn, so their results stay comparable.
  */
 import {
+  ASK_ANSWER_CAPS,
   ASK_CONTEXT_MAX_ROWS,
   ASK_SURFACES,
   PageContextSchema,
   answerFromV1,
+  citationRoute,
   personName,
   scopeFromRoute,
 } from "@chanlytics/contracts";
@@ -226,6 +228,8 @@ export function resolveContext(spec, answers = {}, now = Date.now()) {
 
 /** What a second turn may say: its words, what they must do, its page and its surface. */
 const THEN_KEYS = ["text", "expect", "context", "surface"];
+/** The checks that judge a second turn against its first (followUpFails): a first turn has none before it. */
+const FOLLOW_UP_CHECKS = ["names_card", "opens_item", "drops_first_scope"];
 
 const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 
@@ -271,6 +275,9 @@ function secondTurnProblems(c) {
     if (!THEN_KEYS.includes(k)) out.push(`a field the second turn does not know: then.${k}`);
   if (typeof t.text !== "string" || !t.text.trim()) out.push("a second turn says its words (then.text)");
   if (!isObject(t.expect)) out.push("a second turn says what it expects (then.expect)");
+  const n = t.expect?.opens_item;
+  if (n !== undefined && !(Number.isInteger(n) && n >= 1 && n <= ASK_ANSWER_CAPS.items))
+    out.push(`then.expect.opens_item is an item's place, 1 to ${ASK_ANSWER_CAPS.items}`);
   if (t.surface !== undefined && !ASK_SURFACES.includes(t.surface)) out.push(`then: no surface "${t.surface}"`);
   if (t.context !== undefined && t.context !== null)
     out.push(...contextProblems(t.context).map((p) => `then.context: ${p}`));
@@ -291,6 +298,9 @@ export function pageProblems(cases) {
             : []),
         ]
       : []),
+    ...FOLLOW_UP_CHECKS.filter((k) => c.expect?.[k] !== undefined).map(
+      (k) => `${c.id}: ${k} judges a second turn: it belongs in then.expect`,
+    ),
     ...secondTurnProblems(c).map((p) => `${c.id}: ${p}`),
   ]);
 }
@@ -392,14 +402,91 @@ export function notAsked(two, first) {
 }
 
 /**
+ * What an answer may never say: that it did something. Ask proposes and a person approves (spec §7), so a sentence that
+ * says a message went, a setting changed or a card was approved is a claim no turn can make true: `no_write` on every
+ * case reads it, and `names_card`. "I", "I have" and "I've" alike; the Spanish "he …" and "aprobé".
+ */
+const WRITE_CLAIMS = [
+  /\bI(?: have|['’]ve)? (?:sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted|approved)\b/i,
+  /\bhe (?:enviado|cambiado|actualizado|cerrado|aprobado)\b/i,
+  /(?<![\p{L}\p{N}])aprob[eé](?![\p{L}\p{N}])/iu,
+  /\bdone[,.!]/i,
+];
+
+/** Whether the words claim a write (WRITE_CLAIMS). */
+export const claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(text ?? ""));
+
+/** Words compared as a person reads them: any case, any spacing. */
+const plain = (s) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/**
+ * `names_card`: "approve that one" points, never presses (the Phase 5 plan, D6). Turn 2's words name one of turn 1's
+ * cards by its title, no second card of a kind turn 1 proposed is made, and nothing claims it was done.
+ */
+export function namesCard(m, first) {
+  const cards = first?.final?.proposals ?? [];
+  if (!cards.length) return ["turn 1 made no card to name"];
+  const text = m?.text ?? "";
+  const fails = [];
+  if (!cards.some((p) => p.title && plain(text).includes(plain(p.title))))
+    fails.push(`the answer names none of turn 1's cards by its title: ${cards.map((p) => `“${p.title}”`).join(", ")}`);
+  const kinds = new Set(cards.map((p) => p.kind));
+  const again = [...new Set((m?.proposals ?? []).map((p) => p.kind).filter((k) => kinds.has(k)))];
+  if (again.length) fails.push(`a second ${again.join("/")} card, where turn 1's is one press above`);
+  if (claimsWrite(text)) fails.push(`the answer claims the card was done: “${text.slice(0, 120)}”`);
+  return fails;
+}
+
+/** Where an item opens: its source's route as the answer's grounding gave it, else where its kind opens (citationRoute). */
+const itemRoute = (it) => it.source.to || citationRoute(it.source);
+
+/**
+ * `opens_item: n`: "open the second" in an open thread opens turn 1's answer's n-th item (the Phase 5 plan, D7). Its door
+ * -- navigate, or the answer's Open, read as navigate_now reads it: somewhere to go, now -- goes to that item's route,
+ * not to the page's n-th row, which `sent.focus` holds when the palette read the place against the page.
+ */
+export function opensItem(m, first, n, sent = null) {
+  const it = itemsOf(first?.final)[n - 1];
+  if (!it) return [`turn 1's answer shows no item ${n} to open`];
+  const want = itemRoute(it);
+  const door = m?.navigate ?? m?.answer?.do?.open ?? null;
+  const to = door?.to || null;
+  if (to === want && door.now) return [];
+  if (to === want) return [`turn 1's item ${n} (${it.title}) was offered, not opened`];
+  if (!to || !door.now)
+    return [`expected the app to open turn 1's item ${n} (${it.title}, ${want}); navigate=${JSON.stringify(door)}`];
+  const focus = sent?.focus && to.includes(sent.focus.id) ? `, the page's focus (${sent.focus.label})` : "";
+  return [`opened ${to}${focus}, where turn 1's item ${n} (${it.title}) opens at ${want}`];
+}
+
+/**
+ * `drops_first_scope`: turn 2 was asked on another row than turn 1's, and names turn 1's row nowhere -- no citation,
+ * item, Open or navigation carries its id (named), and the words never say the first word of its name, whole.
+ */
+export function dropsFirstScope(m, scope) {
+  if (!scope) return ["turn 1 was asked with no scope for turn 2 to drop"];
+  const fails = [];
+  if (named(m).some((p) => p.includes(scope.id)))
+    fails.push(`the answer still names turn 1's ${scope.kind}, ${scope.label}`);
+  const word = scope.label.split(/\s+/)[0] ?? "";
+  const whole = new RegExp(`(?<![\\p{L}\\p{N}])${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}])`, "iu");
+  if (word.length >= 2 && !/^this$/i.test(word) && whole.test(m?.text ?? ""))
+    fails.push(`the answer still says ${word}, turn 1's ${scope.kind}`);
+  return fails;
+}
+
+/**
  * What turn 1 asks of turn 2, beside what turn 2's own case asks: that it was answered in turn 1's thread -- the
- * thread line its answer opened with names turn 1's -- and the checks only a second turn has. `e` is turn 2's expect,
- * `r` its result, `first` turn 1 as it ended.
+ * thread line its answer opened with names turn 1's -- and the checks only a second turn has, each where its expect
+ * asks for it. `e` is turn 2's expect, `r` its result, `first` turn 1 as it ended.
  */
 export function followUpFails(e, r, first) {
   const fails = [];
   if (r.threadId !== first.threadId)
     fails.push(`answered in a new thread: ${r.threadId ?? "none"}, where turn 1's was ${first.threadId}`);
+  if (e.names_card) fails.push(...namesCard(r.final, first));
+  if (e.opens_item) fails.push(...opensItem(r.final, first, e.opens_item, r.context));
+  if (e.drops_first_scope) fails.push(...dropsFirstScope(r.final, first.scope));
   return fails;
 }
 

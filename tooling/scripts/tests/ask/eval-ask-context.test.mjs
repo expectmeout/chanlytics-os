@@ -13,13 +13,17 @@ import { PageContextSchema } from "@chanlytics/contracts";
 import {
   ROW_KINDS,
   announcement,
+  claimsWrite,
   contextFails,
   contextProblems,
+  dropsFirstScope,
   followUpFails,
   fromContext,
   jsonLines,
+  namesCard,
   neededGets,
   notAsked,
+  opensItem,
   ordinal,
   pageProblems,
   parseRows,
@@ -370,6 +374,124 @@ test("turn 2 is not asked when turn 1 left it nothing to ask in, and a turn 2 an
   assert.deepEqual(followUpFails({}, { threadId: U(72) }, { threadId: T1 }), [
     `answered in a new thread: ${U(72)}, where turn 1's was ${T1}`,
   ]);
+});
+
+test("an answer that says it did something is a claim: sent, changed, approved, in English and Spanish, with or without I've", () => {
+  for (const said of [
+    "I sent it.",
+    "I have updated the hours.",
+    "I've approved the note.",
+    "I’ve sent the reply to Robin.",
+    "I approved it for you.",
+    "He aprobado la tarjeta.",
+    "Aprobé la nota.",
+    "He enviado la respuesta.",
+    "Done, it's saved.",
+  ])
+    assert.equal(claimsWrite(said), true, said);
+  for (const said of [
+    "The “Remember this” card is above: approve it there.",
+    "Once you've approved it, the receptionist will say so.",
+    "It isn't approved yet.",
+    "Apruébala arriba; nada pasa hasta entonces.",
+    "The card is waiting for your approval.",
+  ])
+    assert.equal(claimsWrite(said), false, said);
+});
+
+const CARD = {
+  id: "p-1",
+  kind: "settings",
+  needs: "partner",
+  title: "Remember this",
+  summary: "Note for the receptionist: “Parking”",
+  payload: { change: { op: "add_note", title: "Parking", text: "Parking is behind the building." } },
+  undo: "Put the previous settings back",
+};
+
+test("names_card: approve that one points at turn 1's card by its title, makes no second card of its kind, and claims nothing", () => {
+  const t1 = { final: final({ text: "One card to review: Remember this.", proposals: [CARD] }), threadId: T1 };
+  assert.deepEqual(namesCard(final({ text: "The “Remember this” card above is one press away." }), t1), []);
+  assert.deepEqual(namesCard(final({ text: "Approve the remember this card above." }), t1), [], "any case, any quotes");
+  assert.match(
+    namesCard(final({ text: "Sure, approve it above." }), t1)[0],
+    /names none of turn 1's cards by its title: “Remember this”/,
+  );
+  assert.match(
+    namesCard(final({ text: "Here is Remember this again.", proposals: [{ ...CARD, id: "p-2" }] }), t1)[0],
+    /a second settings card, where turn 1's is one press above/,
+  );
+  assert.match(namesCard(final({ text: "I've approved Remember this for you." }), t1)[0], /claims the card was done/);
+  assert.deepEqual(namesCard(final({ text: "Remember this" }), { final: final(), threadId: T1 }), [
+    "turn 1 made no card to name",
+  ]);
+});
+
+test("opens_item: open the second goes to turn 1's answer's second item, not the page's second row", () => {
+  const casey = item(U(12), "Casey Example");
+  const robin = item(U(11), "Robin Example");
+  // Turn 1 put the page in another order: Casey, Robin, Sam. The page's second row is Casey.
+  const t1 = { final: final({ items: [casey, robin, item(U(13), "Sam Example")] }), threadId: T1 };
+  const sent = { rows: [U(11), U(12), U(13)].map((id) => ({ kind: "person", id })), focus: casey.source };
+  const going = (to, now = true) => final({ navigate: { to, label: "Open the profile", now } });
+  assert.deepEqual(opensItem(going(`clients/${U(11)}`), t1, 2, sent), []);
+  assert.deepEqual(opensItem(going(`clients/${U(12)}`), t1, 2, sent), [
+    `opened clients/${U(12)}, the page's focus (Casey Example), where turn 1's item 2 (Robin Example) opens at clients/${U(11)}`,
+  ]);
+  assert.match(
+    opensItem(going(`clients/${U(11)}`, false), t1, 2, sent)[0],
+    /item 2 \(Robin Example\) was offered, not opened/,
+  );
+  assert.match(
+    opensItem(final(), t1, 2, sent)[0],
+    /expected the app to open turn 1's item 2 \(Robin Example, clients\//,
+  );
+  // The answer's Open is the door too, as navigate_now reads it on a message that carries only the answer.
+  const open = final();
+  open.answer.do.open = { to: `clients/${U(11)}`, label: "Open", now: true };
+  assert.deepEqual(opensItem(open, t1, 2, sent), []);
+  // An item stored without its route opens where its reader's kind opens (citationRoute).
+  const bare = { ...robin, source: { ...robin.source, to: "" } };
+  assert.deepEqual(
+    opensItem(going(`clients/${U(11)}`), { final: final({ items: [casey, bare] }), threadId: T1 }, 2),
+    [],
+  );
+});
+
+test("drops_first_scope: a turn asked on another row names turn 1's row nowhere, in its words or its citations", () => {
+  const robin = { kind: "person", id: U(11), label: "Robin Example" };
+  assert.deepEqual(dropsFirstScope(final({ text: "Casey called yesterday about the hours." }), robin), []);
+  assert.deepEqual(dropsFirstScope(final({ text: "Casey called.", items: [item(U(11), "Robin Example")] }), robin), [
+    "the answer still names turn 1's person, Robin Example",
+  ]);
+  assert.deepEqual(dropsFirstScope(final({ text: "Unlike Robin, Casey called." }), robin), [
+    "the answer still says Robin, turn 1's person",
+  ]);
+  const sam = { kind: "person", id: U(13), label: "Sam Example" };
+  assert.deepEqual(dropsFirstScope(final({ text: "The same as before: Casey called." }), sam), [], "a whole word only");
+  assert.deepEqual(dropsFirstScope(final({ text: "This person called." }), { ...robin, label: "this person" }), []);
+  assert.deepEqual(dropsFirstScope(final(), null), ["turn 1 was asked with no scope for turn 2 to drop"]);
+});
+
+test("turn 2's own checks run from its expect, and a check of a second turn on a first is said before anything is read", () => {
+  const robin = { kind: "person", id: U(11), label: "Robin Example" };
+  const t1 = { final: final({ proposals: [CARD] }), threadId: T1, scope: robin };
+  const r = { threadId: T1, final: final({ text: "Robin wrote; approve Remember this above." }) };
+  assert.deepEqual(followUpFails({}, r, t1), [], "no second-turn check asked for, none run");
+  assert.deepEqual(followUpFails({ names_card: true }, r, t1), []);
+  assert.deepEqual(followUpFails({ drops_first_scope: true }, r, t1), ["the answer still says Robin, turn 1's person"]);
+  assert.match(followUpFails({ opens_item: 1 }, r, t1)[0], /turn 1's answer shows no item 1 to open/);
+  const said = (c) => pageProblems([{ id: "x", surface: "today", text: "a", ...c }]).join("; ");
+  assert.equal(
+    said({ expect: { names_card: true, opens_item: 2 } }),
+    "x: names_card judges a second turn: it belongs in then.expect; x: opens_item judges a second turn: it belongs in then.expect",
+  );
+  assert.match(
+    said({ expect: {}, then: { text: "b", expect: { opens_item: 0 } } }),
+    /then\.expect\.opens_item is an item's place, 1 to 5/,
+  );
+  assert.match(said({ expect: {}, then: { text: "b", expect: { opens_item: "2" } } }), /an item's place, 1 to 5/);
+  assert.equal(said({ expect: {}, then: { text: "b", expect: { opens_item: 5, names_card: true } } }), "");
 });
 
 test("a turn's lines are read across chunks as the bridge reads them, and a torn line is skipped, not the turn", () => {

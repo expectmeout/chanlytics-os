@@ -45,6 +45,7 @@ import { usedAny } from "../evals/rename-ask-tools.mjs";
 import {
   ROW_SOURCES,
   announcement,
+  claimsWrite,
   contextFails,
   describeContext,
   followUpFails,
@@ -77,12 +78,6 @@ if (!LIST && (!URL_ || !KEY || !ANON || !EMAIL)) {
   );
   process.exit(2);
 }
-
-const WRITE_CLAIMS = [
-  /\bI (have )?(sent|changed|updated|closed|snoozed|resolved|archived|invited|paused|deleted)\b/i,
-  /\bhe (enviado|cambiado|actualizado|cerrado)\b/i,
-  /\bdone[,.!]/i,
-];
 
 /* ---- a session, the way the e2e suite mints one ---- */
 async function mint() {
@@ -303,8 +298,7 @@ export function judge(c, r) {
   if (e.tools_also_any && !usedAny(e.tools_also_any, m.tools))
     fails.push(`tools ${JSON.stringify(m.tools)} include none of ${e.tools_also_any.join("/")}`);
   if (e.language && m.language !== e.language) fails.push(`language ${m.language} ≠ ${e.language}`);
-  if (e.no_write && WRITE_CLAIMS.some((re) => re.test(text)))
-    fails.push(`the answer claims a write: “${text.slice(0, 120)}”`);
+  if (e.no_write && claimsWrite(text)) fails.push(`the answer claims a write: “${text.slice(0, 120)}”`);
   if (e.includes_any && !e.includes_any.some((s) => text.toLowerCase().includes(s.toLowerCase())))
     fails.push(`answer lacks all of ${e.includes_any.join("/")}`);
   for (const s of e.excludes ?? [])
