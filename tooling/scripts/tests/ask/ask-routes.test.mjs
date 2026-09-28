@@ -989,7 +989,21 @@ test("the scope is each turn's (the Phase 5 plan, D9): a follow-up asked on anot
 /* ------------------------------------ the turn as the model was sent it, kept on its row (Phase 5, 5.3) -- */
 
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
-const sha256 = (s) => createHash("sha256").update(s).digest("hex");
+/**
+ * The prefix a request says (the Phase 5 plan, D2): the sha256 of what it sent besides its messages -- system and tools
+ * as sent, the tool choice, and the output config.
+ */
+const prefixOf = (request) =>
+  createHash("sha256")
+    .update(
+      JSON.stringify({
+        system: request.system,
+        tools: request.tools,
+        tool_choice: request.tool_choice,
+        output_config: request.output_config,
+      }),
+    )
+    .digest("hex");
 /** A card the scripted model proposes, the same bytes every turn. */
 const CARD = {
   id: "p-1",
@@ -1098,10 +1112,7 @@ test("the turn as the model was sent it rides on the answer's row, at content.ra
       "the card's result, which no request carried",
     );
     assert.equal(raw.model, ASK_MODEL);
-    assert.equal(
-      raw.prefix,
-      sha256(JSON.stringify({ system: sent.system, tools: sent.tools, format: !!sent.output_config.format })),
-    );
+    assert.equal(raw.prefix, prefixOf(sent), "the prefix the request says");
     assert.ok(Number.isInteger(raw.at) && raw.at <= Date.parse(row.created_at), "the round began before the save");
 
     assert.equal(lines.at(-1).t, "final");

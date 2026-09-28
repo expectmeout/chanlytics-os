@@ -142,11 +142,15 @@ export interface TurnResult {
   model: AskModelId;
   /** Where the time went and what the model was fed (ask-shape.ts): logged, and stored on the turn's row. */
   shape: AskTurnShape;
-  /** The turn as the model was sent it (memory.ts): stored on the turn's row, never logged or shipped; null if it failed. */
+  /**
+   * The turn as the model was sent it (memory.ts): stored on the turn's row, never logged or shipped; null when the
+   * turn failed or its last stream broke.
+   */
   raw: RawTurn | null;
 }
 
-type Msg = { role: "user" | "assistant"; content: unknown };
+/** A message as a request carries it. */
+export type Msg = { role: "user" | "assistant"; content: unknown };
 
 /**
  * Everything the turn reaches outside itself, as one object: the model
@@ -652,7 +656,7 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
       );
       const refused = outcomes.some(({ out }) => out.isError);
       // The round as it went out and came back: a turn that ends on it keeps it as the turn it was (memory.ts).
-      const lastRound = { request, blocks, outcomes, roundAt };
+      const lastRound = { request, blocks, outcomes, roundAt, streamError };
 
       // Beside acts, the answer stands when every card was made: an act only
       // checks and proposes. A card refused or cut off would leave an answer

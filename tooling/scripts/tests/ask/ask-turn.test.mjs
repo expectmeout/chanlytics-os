@@ -5213,10 +5213,21 @@ function sentAs(rounds) {
 }
 const sha256 = (s) => createHash("sha256").update(s).digest("hex");
 /**
- * The raw turn as a turn's requests say it (the Phase 5 plan, D2): the last request's messages before the question,
- * the question, and after it -- the question is the first request's last message, and a later round only appends --
- * its model, and the sha256 of the bytes a replay depends on besides the messages: system and tools as sent, and
- * whether the format was on.
+ * The prefix a request says (the Phase 5 plan, D2): the sha256 of what it sent besides its messages that a replay needs
+ * unchanged -- system and tools as sent, the tool choice, and the output config (the effort and the answer's format).
+ */
+const prefixOf = (request) =>
+  sha256(
+    JSON.stringify({
+      system: request.system,
+      tools: request.tools,
+      tool_choice: request.tool_choice,
+      output_config: request.output_config,
+    }),
+  );
+/**
+ * The raw turn as a turn's requests say it: the last request's messages before the question, the question, and after
+ * it -- the question is the first request's last message, and a later round only appends -- its model and its prefix.
  */
 function rawOf(requests) {
   const last = requests.at(-1);
@@ -5226,7 +5237,7 @@ function rawOf(requests) {
     question: last.messages[at].content,
     rounds: last.messages.slice(at + 1),
     model: last.model,
-    prefix: sha256(JSON.stringify({ system: last.system, tools: last.tools, format: !!last.output_config.format })),
+    prefix: prefixOf(last),
   };
 }
 /** The same bytes: what JSON would store, key for key and in order. */
@@ -5313,7 +5324,11 @@ test("a read, then the answer: the read's round -- its thinking whole, its call 
       t.mock.timers.tick(ASK_TURN_BUDGET_MS - 7_000);
       return ROUND(read);
     },
-    ROUND(final),
+    () => {
+      // The answering round takes its time too: the raw's start is when it began, not when it ended.
+      t.mock.timers.tick(30_000);
+      return ROUND(final);
+    },
   ]);
   const r = await runAskTurn(turn(ctxFor(), { context: PAGE }).input, ports(s.round));
   assert.equal(r.failed, false, r.failure ?? "");
@@ -5403,7 +5418,7 @@ test("cards alone, and an answer beside its cards: the round is the raw's final,
   sameBytes(messagesOf(b.raw), both.requests.at(-1).messages, "an answer beside its card: the request's messages");
 });
 
-test("the prefix (the Phase 5 plan, D2): the sha256 of the last request's system and tools as sent and whether the format was on -- the same on another page, for another question and for another person of the role; another for another role, shape of the workspace, setting, note, hour or autonomy mode, and once the examples or the format are refused; the page's data a refusal drops is dropped from the raw's question too; a turn that fails keeps no raw", async () => {
+test("the prefix (the Phase 5 plan, D2): the sha256 of what the last request sent besides its messages -- system and tools as sent, the tool choice and the output config -- the same on another page, for another question, for another person of the role and on round two; another for another role, shape of the workspace, setting, note, hour or autonomy mode, once the examples or the format are refused, and on the last round, which may call no tool; the page's data a refusal drops is dropped from the raw's question too; a turn that fails keeps no raw", async () => {
   const ask = async (over = {}, refusals = [], extra = {}) => {
     const requests = [];
     const round = async (c) => {
@@ -5443,6 +5458,22 @@ test("the prefix (the Phase 5 plan, D2): the sha256 of the last request's system
     examples: await ask({}, ["400 tools.3.input_examples.0: does not match the tool's input_schema"]),
     format: await ask({}, ["400 output_config.format.schema: too many properties"]),
   };
+  // The round a turn ended on: round two asks as round one does, with tool_choice auto; the last, which may call no
+  // tool, asks with none -- a turn that used every round.
+  const endedOn = async (reads) => {
+    const s = sentAs([
+      ...Array.from({ length: reads }, () => ROUND([tool("inbox", { action: "list", filter: "recent" })])),
+      ROUND([answer("2 people need you.")]),
+    ]);
+    const r = await runAskTurn(turn(ctxFor(), { context: PAGE }).input, ports(s.round));
+    assert.equal(r.failed, false, r.failure ?? "");
+    assert.equal(r.raw.prefix, rawOf(s.requests).prefix, "the last request's own");
+    return { r, requests: s.requests };
+  };
+  const second = await endedOn(1);
+  assert.equal(second.r.raw.prefix, plain.r.raw.prefix, "round two asks as round one does");
+  changed.last = await endedOn(ASK_MAX_ROUNDS - 1);
+  assert.deepEqual(changed.last.requests.at(-1).tool_choice, { type: "none" });
   const prefixes = [plain, set, ...Object.values(changed)].map((x) => x.r.raw.prefix);
   assert.equal(new Set(prefixes).size, prefixes.length, "each change, its own prefix");
   assert.equal(changed.examples.requests.length, 2, "asked again without the examples");
@@ -5476,6 +5507,30 @@ test("the prefix (the Phase 5 plan, D2): the sha256 of the last request's system
     const r = await failing(round);
     assert.deepEqual([r.failed, r.failure, r.raw], [true, failure, null], failure);
   }
+});
+
+test("a turn whose last stream broke keeps no raw: an answer that arrived whole before the break, and words the format's refusal let through cut off mid-word, still answer the person, and neither is kept to replay; the same words whole are", async () => {
+  const late = await runAskTurn(
+    turn(ctxFor(), { context: PAGE }).input,
+    ports(async () => ROUND([thinking("sig-late"), answer("Nothing waiting.")], { streamError: "socket hang up" })),
+  );
+  assert.deepEqual([late.text, late.failed, late.raw], ["Nothing waiting.", false, null], "an answer before the break");
+  // The format refused, the words come as prose, and the stream breaks in the middle of one.
+  const said = async (streamError) => {
+    const refusals = ["400 output_config.format.schema: too many properties"];
+    const round = async () => {
+      const message = refusals.shift();
+      if (message) throw new GatewayRefused({ kind: "bad_request", message });
+      return ROUND([prose("Rosa asked about Satur")], { streamError, stopReason: streamError ? null : "end_turn" });
+    };
+    const turned = turn(ctxFor(), { context: PAGE }).input;
+    return (await logged("ask_", () => runAskTurn(turned, ports(round)))).result;
+  };
+  const cut = await said("terminated");
+  assert.deepEqual([cut.text, cut.failed, cut.shape.format], ["Rosa asked about Satur", false, false]);
+  assert.equal(cut.raw, null, "words cut off are the answer, never a turn to replay");
+  const whole = await said(null);
+  assert.deepEqual(whole.raw.final, [{ type: "text", text: "Rosa asked about Satur" }], "the same words, whole, are");
 });
 
 test("the raw at the caps (a number for the pull request, not a limit: the Phase 5 plan's D3 bounds the replay): the page at CONTEXT_CAPS, two cross-page reads, the scope's thread, and two rounds of four reads in parallel, each at its tool's cap, before the answering round; the raw is still the last request from the question on, byte for byte", async (t) => {

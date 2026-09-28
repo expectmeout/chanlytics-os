@@ -52,6 +52,8 @@ function cell(row, col) {
  * such key, as `->` answers. Modelled for Ask's thread read (store.ts readThread), which reads each key of a turn it
  * draws and never the turn as the model was sent it (content.raw). A select that names no path answers whole rows, as
  * it always has here; any other spelling beside a path is refused by name. Null when the select names no path.
+ * Not modelled: a column the table does not have, which PostgREST refuses with a 400; here it reads as undefined, or
+ * as null through a path.
  */
 function projectionOf(columns) {
   if (typeof columns !== "string" || !columns.includes("->")) return null;
@@ -75,7 +77,11 @@ function projectionOf(columns) {
 /** jsonb's order for an object's keys: the shorter first, then by their bytes. */
 const byJsonbKey = (a, b) =>
   Buffer.byteLength(a) - Buffer.byteLength(b) || Buffer.compare(Buffer.from(a), Buffer.from(b));
-/** A value as jsonb keeps it: written as JSON, then every object's keys, at every depth, in jsonb's order. */
+/**
+ * A value as jsonb keeps it: written as JSON, then every object's keys, at every depth, in jsonb's order. Not modelled:
+ * a key that reads as an integer ("10"), which JavaScript always orders first, ascending, whatever order an object's
+ * keys were set in -- jsonb puts "10" after "a", and an object here cannot.
+ */
 function asJsonb(value) {
   const reorder = (v) =>
     Array.isArray(v)

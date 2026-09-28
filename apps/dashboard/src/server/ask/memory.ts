@@ -24,7 +24,7 @@ import { titleFromQuestion, titleFromSearch, type SearchAnswering } from "./prom
 import { createThread, readThread } from "./store";
 import type { BuiltContext, SearchResultBlock } from "./context";
 import { replayBlocks, resultBlocks, type CallOutcome, type RoundBlock } from "./round";
-import type { TurnInput, TurnResult } from "./loop";
+import type { Msg, TurnInput, TurnResult } from "./loop";
 
 /** The question as the route read it, and the search it answers, if any. */
 interface Asked {
@@ -78,25 +78,22 @@ export async function threadForTurn(
   return { thread, history, sinceLastMs, scope: scope ?? null };
 }
 
-/** A message as a request carries it. */
-interface Message {
-  role: "user" | "assistant";
-  content: unknown;
-}
-
 /** The round a turn ended on: the request as it went out, what the model wrote, what its calls answered, when it began. */
 interface LastRound {
   request: {
     model: AskModelId;
     system: unknown[];
-    messages: Message[];
+    messages: Msg[];
     tools: unknown[];
-    output_config: { format?: unknown };
+    tool_choice: unknown;
+    output_config: unknown;
   };
   blocks: RoundBlock[];
   outcomes: CallOutcome[];
   /** Epoch ms, as the request went out. */
   roundAt: number;
+  /** The stream broke after it began: the blocks are what came before the break, perhaps not all the model wrote. */
+  streamError: string | null;
 }
 
 /** How a turn ended, as each of runAskTurn's ends says it. */
@@ -113,14 +110,15 @@ export interface TurnEnd {
 /**
  * A turn as the model was sent it (the Phase 5 plan, D2 and D11), for a later turn to replay verbatim: the answer's row
  * keeps it at content.raw (storedRaw), the Line's reads never select it (store.ts, readThread), and the browser never
- * gets it. It is the last request's own messages and bytes, never derived again. A turn that failed keeps none.
+ * gets it. It is the last request's own messages and bytes, never derived again. A turn that failed keeps none, nor
+ * one whose last stream broke: what came before the break is the answer, never a turn to replay.
  */
 export interface RawTurn {
   /**
    * Every message before the question in the last request: the thread's earlier turns as the turn was asked with them
    * (foldHistory), none on a thread's first. The thinking blocks that follow are bound to exactly these.
    */
-  base: Message[];
+  base: Msg[];
   /**
    * The person's message as the last request carried it: the page's data, the reads made before the model was asked,
    * the turn's words and the question -- without the page's data when a refusal dropped it, and after a question the
@@ -128,7 +126,7 @@ export interface RawTurn {
    */
   question: unknown;
   /** Every message after the question in the last request, in order: each earlier round, and what was sent back. */
-  rounds: Message[];
+  rounds: Msg[];
   /** The last round as a request would carry it back (replayBlocks): its thinking and signatures, its text, its calls. */
   final: unknown[];
   /** What the last round's calls answered, as the next request would carry it: its cards', alone or beside an answer. */
@@ -137,18 +135,25 @@ export interface RawTurn {
   at: number;
   /** The model the requests named. */
   model: AskModelId;
-  /**
-   * The sha256, in hex, of what a replay needs unchanged besides the messages: system and tools as they were sent, and
-   * whether the answer's format was on. A setting, a note, the hours, an autonomy mode, the workspace's shape, the
-   * role, or a refusal of the examples or the format gives another.
-   */
+  /** What the last request sent besides its messages, hashed (prefixOf): a replay on another is cold. */
   prefix: string;
+}
+
+/**
+ * The sha256, in hex, of what a request sends besides its messages that a live replay needs unchanged: system and
+ * tools as they were sent, the tool choice, and the output config -- the effort and the answer's format. A setting, a
+ * note, the hours, an autonomy mode, the workspace's shape, the role, a refusal of the examples or the format, another
+ * effort or format, or a last round that could call no tool gives another: any of them makes a replay miss the cache
+ * and write it all again, where a cold turn's words cost less.
+ */
+function prefixOf(request: LastRound["request"]): string {
+  const { system, tools, tool_choice, output_config } = request;
+  return createHash("sha256").update(JSON.stringify({ system, tools, tool_choice, output_config })).digest("hex");
 }
 
 /** The turn as it was sent, from the round it ended on and where the question sits in that round's request. */
 function rawTurn({ request, blocks, outcomes, roundAt }: LastRound, questionAt: number): RawTurn {
-  const { model, system, tools, messages } = request;
-  const format = !!request.output_config.format;
+  const { model, messages } = request;
   return {
     base: messages.slice(0, questionAt),
     question: messages[questionAt].content,
@@ -157,7 +162,7 @@ function rawTurn({ request, blocks, outcomes, roundAt }: LastRound, questionAt: 
     results: resultBlocks(outcomes),
     at: roundAt,
     model,
-    prefix: createHash("sha256").update(JSON.stringify({ system, tools, format })).digest("hex"),
+    prefix: prefixOf(request),
   };
 }
 
@@ -257,6 +262,6 @@ export function finishTurn(r: TurnEnd, soFar: TurnSoFar): TurnResult {
     text: answerText(r.answer),
     model: model.id,
     shape,
-    raw: lastRound ? rawTurn(lastRound, soFar.questionAt) : null,
+    raw: lastRound && !lastRound.streamError ? rawTurn(lastRound, soFar.questionAt) : null,
   };
 }
