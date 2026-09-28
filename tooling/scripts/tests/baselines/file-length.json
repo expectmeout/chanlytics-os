@@ -16,6 +16,5 @@
   "packages/contracts/src/ask/ask.ts": 806,
   "packages/contracts/src/calendar/availability.ts": 917,
   "packages/contracts/src/calendar/calendar.ts": 839,
-  "packages/contracts/src/people/people.ts": 1019,
   "packages/core/src/inbound/answer.ts": 1007
 }

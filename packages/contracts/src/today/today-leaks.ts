@@ -2,7 +2,9 @@
  * Worth a look: the few things Today holds that no row on it says on its own, each a re-print of a number
  * Reports (today-period.ts's `ReportsLike`) or People already publishes, in the order of what they cost.
  */
-import { NO_NUMBER_REACH, saidYesTo, type PersonRowVM } from "../people/people";
+import type { PersonRowVM } from "../people/person-row";
+import { NO_NUMBER_REACH } from "../people/people-lists";
+import { saidYesTo } from "../people/person-consent";
 import type { DealVM } from "../deals/deal-vm";
 import { proposalsWaiting, type DealPaceVM } from "../deals/deal-waits";
 import { consultationsWithoutProposal, consultsHeldWords } from "../deals/deal-consultations";
