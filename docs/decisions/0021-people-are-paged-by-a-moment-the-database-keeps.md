@@ -1,13 +1,13 @@
 # 0021 · People are paged by a moment the database keeps
 
-**Status:** proposed, not built; Ruben's to accept. Written against commit `887e79cc` (main, 28 September 2026, after
+**Status:** proposed; Ruben's to accept. Written against commit `887e79cc` (main, 28 September 2026, after
 #1210 merged), and every file and line below was read at it. The numbers are from a model on Postgres 16 (Context says
 what it holds) with #1226's `people_list` (00223) and #1247's indexes (00230) applied, since both are open and both
 change what People costs; production runs 17, which plans a SQL function and walks an index as 16 does. It is the
 design the plan `docs/plans/2026-09-27-frontend-performance-scale.md` asks for under 36 · Scalability ("Rollups.
 Per-workspace daily rollups behind `metrics_summary` and `people_list`, with keyset paging", `:89`). It keeps the keyset
 paging and decides against daily rollups; Context says why. 0018 (#1205), 0019 (#1244) and 0020 (#1206) are taken, so
-this is 0021.
+this is 0021. Step 1 is built, as a draft that waits for this note (#1306).
 
 ## Context
 
@@ -135,19 +135,26 @@ create index person_moments_new on public.person_moments (tenant_id, new_at) whe
   - a new spoken message or a new connected call moves the moments by `greatest` and `least`, so two statements for
     one person, in either order, leave the same row;
   - a message that stops being spoken (a sent reply that fails), a message that moves to another person (a merge), a
-    deleted row (an erasure), or any change to a call has the people it touched recomputed from their rows;
-  - a receipt (delivered, read) changes nothing the moments read, and is passed over.
-- **One statement of a message's moment.** `public.message_at(m)` and `public.message_spoken(m)` say when a message
-  happened and whether it was spoken, as `people_list`'s `ev` says it today (00170 `:271-286`). `ev` reads through them,
-  and so do the triggers.
+    deleted row (an erasure), or a call that changes its person, its start or whether it connected has the people
+    it touched recomputed from their rows;
+  - a receipt (delivered, read) or a call's summary changes nothing the moments read, and is passed over.
+- **One statement of a message's moment.** `public.message_moment(meta, channel_ts, created_at, type, status)` says
+  when a message happened, whether it was spoken, and whether it came with a history moved in, as `people_list`'s
+  `ev` says it today (00170 `:271-286`). `ev` reads through it, and so do the triggers.
+  - It takes the message's columns, not its row: a function of a table's row is a column PostgREST serves, and the
+    generated types would give every `messages` row a required field.
+  - One call answers all three: each call of a function with a pinned `search_path` costs as much as the rest of a
+    trigger's write.
 - **The fill.** Creating a trigger on `messages` holds a lock that stops every write to it until the migration commits,
   so the migration only creates the table, the functions and the triggers, under the three-second `lock_timeout` guard
   of 00140 and 00142. The fill runs after it, in batches of a few hundred people, each its own transaction, from a
   production script (dry-run by default). A batch merges with anything a trigger wrote meanwhile by `greatest` and
   `least`, so a message that arrives during the fill is never lost. `people_list` does not read the table until
-  `person_moments_check()` finds every workspace whole.
-- **What it costs a write:** modelled, a statement trigger of this shape adds 0.024 ms to a one-row message insert
-  (2,000 inserts: 128 ms without it, 177 ms with it).
+  `person_moments_check` finds every workspace whole.
+- **What it costs a write:** measured with step 1's triggers on Postgres 16, a one-row message insert takes 0.166 ms
+  where it took 0.098, and a receipt 0.156 ms where it took 0.087: about 0.07 ms each. Each write was its own
+  transaction, commits not waiting on the disk, the median of five runs of 2,000. The first model, a cheaper trigger
+  than one that keeps every rule, added 0.024 ms.
 
 ### A page first
 
@@ -206,11 +213,11 @@ select … the eleven reads, for the page's people …
 
 Each is its own pull request, in this order, and each ships alone.
 
-1. **The kept moments** (a migration and a production script): the table, the two message functions and the triggers,
+1. **The kept moments** (a migration and a production script): the table, the message function and the triggers,
    then the fill in batches. Nothing reads the table yet, and `people_list` is not touched, so this does not wait on
-   #1226's copy of it. Either deploy order: nothing deploys.
+   #1226's copy of it. Either deploy order: nothing deploys. Built, as a draft: #1306.
 2. **A page first** (a migration): `people_list`, copied from its latest migration (#1226's 00223 once it lands), takes
-   the page from the index, answers the cursor and reads its messages through the two functions. Offset is still
+   the page from the index, answers the cursor and reads its messages through the function. Offset is still
    answered. Nothing deploys.
 3. **The callers follow the cursor** (`packages/db`, the dashboard, the edge). It needs step 2 applied before it
    merges. Then either app may deploy first: each asks a database that answers the cursor.
@@ -236,13 +243,14 @@ Each is its own pull request, in this order, and each ships alone.
 ## Risks
 
 - **Write cost.** Every spoken message and every change to a call writes one narrow row per person it touches, in the
-  same transaction: 0.024 ms a message, modelled. A broadcast of 5,000 moves 5,000 rows when its sends go out; the
-  receipts after that move none.
+  same transaction: about 0.07 ms a message or a receipt, measured (Shape). A broadcast of 5,000 moves 5,000 rows
+  when its sends go out; the receipts after that move none.
 - **Two writes for one person.** Two transactions writing one person's messages take the person's row in turn, each
   until its commit, which is the length of one message's write.
 - **Drift.** A path that changes messages or calls without firing their triggers (`truncate`, or a restore under
-  `session_replication_role = replica`) leaves moments stale. `person_moments_check()` recomputes a workspace's moments
-  and says which differ. The tests run it, and a restore runs it after.
+  `session_replication_role = replica`) leaves moments stale. `person_moments_check` recomputes a workspace's moments,
+  a batch of people at a time, and says who has no row and whose differs. The tests run it, and a restore runs it
+  after.
 - **The fill on production** reads every person's messages once, through `messages_contact_created`, in batches: minutes
   in all. A message for someone in the batch being filled waits for that batch, a fraction of a second.
 - **The order's ties turn around** (the id falling). No page repeats or skips anyone.
