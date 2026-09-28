@@ -12,11 +12,18 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PageContextSchema } from "@chanlytics/contracts";
+import {
+  PageContextSchema,
+  TenantConfigWriteSchema,
+  applySettingsChange,
+  parseTenantConfig,
+} from "@chanlytics/contracts";
+import { workspaceConfig } from "../../e2e-workspace.mjs";
 import {
   ROW_KINDS,
   announcement,
   approveBetween,
+  approveThenAsk,
   claimsWrite,
   contextFails,
   contextProblems,
@@ -190,6 +197,19 @@ test("the focus is the row at the place the words name; a route that opens a row
     () => resolveContext({ surface: "people", route: "clients/<row:4>", rows: "GET contacts" }, ANSWERS),
     /opens row 4, and the page drew 3/,
   );
+  // A route opens its row as the kind the page drew it, or the page cannot be built: on Conversations here the first
+  // row is a conversation and the second a call, and `cv-` opens a call.
+  const merged = { surface: "conversations", rows: "GET conversations+calls:40" };
+  assert.equal(resolveContext({ ...merged, route: "conversations/cv-<row:2>" }, ANSWERS).scope.kind, "call");
+  assert.equal(resolveContext({ ...merged, route: "conversations/<row:1>" }, ANSWERS).scope.kind, "conversation");
+  assert.throws(
+    () => resolveContext({ ...merged, route: "conversations/cv-<row:1>" }, ANSWERS),
+    new RegExp(`conversations/cv-${U(1)} opens a call, and the row there is a conversation`),
+  );
+  assert.throws(
+    () => resolveContext({ ...merged, route: "conversations/<row:2>" }, ANSWERS),
+    /opens a conversation, and the row there is a call/,
+  );
 });
 
 test("a context the eval cannot build is said in words before anything is read", () => {
@@ -309,7 +329,22 @@ test("a second turn is asked in the first's thread: its page the case's, its own
   assert.equal(secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, between: "approve" } }).between, "approve");
   const focus = { ...PEOPLE_PAGE, focus: "2" };
   const own = secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, context: focus } });
-  assert.deepEqual([own.context, own.surface, own.warm], [focus, "people", true], "its own page, warmed again");
+  assert.deepEqual(
+    [own.context, own.surface, own.warm],
+    [focus, "people", false],
+    "a focus the words name warms nothing: the palette warms as its route changes (ask-real.jsx)",
+  );
+  const moved = { ...PEOPLE_PAGE, route: "clients/<row:2>" };
+  assert.equal(
+    secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, context: moved } }).warm,
+    true,
+    "another route is another page, warmed again",
+  );
+  assert.equal(
+    secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, context: { ...PEOPLE_PAGE, view: "all" } } }).warm,
+    true,
+    "and so is another view",
+  );
   assert.equal(
     secondTurn({ ...TWO_TURNS, then: { ...TWO_TURNS.then, context: { ...PEOPLE_PAGE } } }).warm,
     false,
@@ -386,6 +421,7 @@ test("turn 2 is not asked when turn 1 left it nothing to ask in, and a turn 2 an
   const m = final();
   assert.equal(notAsked({ expect: {} }, { final: null, threadId: null }), "turn 1 has no answer");
   assert.equal(notAsked({ expect: {} }, { final: m, threadId: null }), "turn 1 named no thread");
+  assert.equal(notAsked({ expect: {} }, { final: { ...m, failed: true }, threadId: T1 }), "turn 1 failed");
   assert.equal(notAsked({ expect: {} }, { final: m, threadId: T1 }), null);
   assert.equal(notAsked({ expect: { names_card: true } }, { final: m, threadId: T1 }), "turn 1 made no card to name");
   assert.equal(
@@ -425,6 +461,16 @@ test("an answer that says it did something is a claim: sent, changed, approved, 
     "The card is waiting for your approval.",
   ])
     assert.equal(claimsWrite(said), false, said);
+  // A draft or a message the answer quotes is someone else's words, never a claim of the answer's own; the same words
+  // unquoted are, as the headline's one-sentence check reads only the headline's own.
+  for (const said of [
+    'Here is the reply, ready to approve: "Hi Robin, I\'ve sent the link again."',
+    "The card says “Done, see you Friday.” once you send it.",
+    "Robin wrote «I sent it yesterday» and is waiting.",
+  ])
+    assert.equal(claimsWrite(said), false, said);
+  assert.equal(claimsWrite("Hi Robin, I've sent the link again."), true);
+  assert.equal(claimsWrite('"Hi Robin." I\'ve sent the link again.'), true, "a claim beside a quote is a claim");
 });
 
 const CARD = {
@@ -524,18 +570,46 @@ test("turn 2's own checks run from its expect, and a check of a second turn on a
 
 /* ---- a card approved between the turns, and put back ---- */
 
-/** The seeded workspace's config as GET settings answers it: no profile, so no hours or closures another case reads. */
-const SEED = { brain: { business_name: "Example Studio", phone_display: "(212) 555-0142" }, notifications: {} };
+/** The nightly's workspace config as GET settings answers it (e2e-workspace.mjs): no profile, so no hours or notes. */
+const SEED = parseTenantConfig(workspaceConfig());
+const NOTE = { title: "Parking", text: "Parking is behind the building." };
+/** The same with turn 1's note in it, as the settings door stores it and GET settings answers it. */
+const NOTED = parseTenantConfig(TenantConfigWriteSchema.parse(applySettingsChange(SEED, { op: "add_note", ...NOTE })));
 const ORIGIN = "https://app.example.com";
+const OUTCOME = `POST /api/v1/ask/messages/${U(81)}/proposals/p-1`;
+
+/** A teammate's save, as the settings door takes one: their phone line in the config, one version on. */
+const teammate = (state) => {
+  state.stored = TenantConfigWriteSchema.parse({
+    ...state.config,
+    brain: { ...state.config.brain, phone_display: "(212) 555-0199" },
+  });
+  state.version += 1;
+};
 
 /**
- * The settings door and a card's outcome door, as their routes answer them, over a config in memory: GET settings;
- * PUT settings, a 409 on a stale version and one version on from what it stored; POST an outcome. `hold` answers a
- * door's next request with a refusal instead; `afterWrite` answers the next saves with a refusal once they have
- * stored; `mangle` changes what a save stores.
+ * The settings door and a card's outcome door, as their routes answer them. GET settings reads the stored config back
+ * through the read schema; PUT settings takes `{ config, version }` -- a 409 on a stale version before anything is
+ * written (putTenantConfig matches on the version), a 400 when the write schema refuses -- and stores what the write
+ * schema keeps, one version on; POST records an outcome. The rest is what the test makes happen: `hold` answers a
+ * door's next request with a refusal and writes nothing; `stall` leaves it unanswered until its signal gives up;
+ * `beforePut` lands a save of someone else's just before the next PUT is judged; `afterWrite` answers the next saves,
+ * once they have stored, with a refusal or no answer at all (status 0), after `then` lands anything else; `mangle`
+ * changes what a save stores.
  */
-function doors({ version = 7, hold = {}, afterWrite = [], mangle = (c) => c } = {}) {
-  const state = { config: structuredClone(SEED), version, calls: [], outcomes: [] };
+function doors({ version = 7, hold = {}, stall = {}, beforePut = [], afterWrite = [], mangle = (c) => c } = {}) {
+  const state = {
+    stored: structuredClone(workspaceConfig()),
+    version,
+    hold,
+    stall,
+    calls: [],
+    outcomes: [],
+    /** The settings as GET settings answers them now. */
+    get config() {
+      return parseTenantConfig(this.stored);
+    },
+  };
   const answer = (status, data) =>
     new Response(JSON.stringify(status < 400 ? { data } : { error: { code: "refused", message: data } }), { status });
   const fetch = async (url, init = {}) => {
@@ -544,17 +618,31 @@ function doors({ version = 7, hold = {}, afterWrite = [], mangle = (c) => c } = 
     const body = init.body === undefined ? undefined : JSON.parse(init.body);
     const key = `${method} ${u.pathname}`;
     state.calls.push({ key, workspace: u.searchParams.get("workspace"), headers: init.headers ?? {}, body });
-    const held = hold[key]?.shift();
+    // A door that hangs holds its socket open, and so the run, until the request's own signal gives up on it.
+    if (state.stall[key]?.shift())
+      return new Promise((_, fail) => {
+        const open = setInterval(() => {}, 1_000);
+        init.signal.addEventListener("abort", () => {
+          clearInterval(open);
+          fail(init.signal.reason);
+        });
+      });
+    const held = state.hold[key]?.shift();
     if (held) return answer(held.status, held.message);
     if (key === "GET /api/v1/settings")
-      return answer(200, { config: structuredClone(state.config), version: state.version, configBroken: false });
+      return answer(200, { config: state.config, version: state.version, configBroken: false });
     if (key === "PUT /api/v1/settings") {
-      if (body.version !== state.version) return answer(409, "Someone else saved the settings since you opened them.");
-      state.config = mangle(structuredClone(body.config));
+      beforePut.shift()?.(state);
+      if (body.version !== state.version) return answer(409, "Someone else saved settings after you loaded them.");
+      const w = TenantConfigWriteSchema.safeParse(body.config);
+      if (!w.success) return answer(400, "Config rejected");
+      state.stored = mangle(w.data);
       state.version += 1;
-      const failed = afterWrite.shift();
-      if (failed) return answer(failed.status, failed.message);
-      return answer(200, { config: structuredClone(state.config), version: state.version });
+      const after = afterWrite.shift();
+      after?.then?.(state);
+      if (after?.status === 0) throw new TypeError("fetch failed");
+      if (after?.status) return answer(after.status, after.message);
+      return answer(200, { config: state.config, version: state.version });
     }
     if (method === "POST" && /^\/api\/v1\/ask\/messages\/[^/]+\/proposals\/p-[a-z0-9-]+$/.test(u.pathname)) {
       state.outcomes.push(body);
@@ -568,26 +656,24 @@ function doors({ version = 7, hold = {}, afterWrite = [], mangle = (c) => c } = 
     cookie: "sb-x-auth-token=1",
     origin: ORIGIN,
     now: () => 1000,
+    timeoutMs: 50,
   };
-  return { state, io };
+  return { state, io, keys: () => state.calls.map((c) => c.key) };
 }
 const approved = final({ text: "One card to review: Remember this.", proposals: [CARD] });
-const NOTE = { title: "Parking", text: "Parking is behind the building." };
+const SETTINGS = ["GET /api/v1/settings", "PUT /api/v1/settings"];
 
 test("a settings note approved between the turns as the Line approves it, turn 2 asked, then put back and read again", async () => {
   const d = doors();
   const a = await approveBetween(d.io, approved);
   assert.equal(a.ok, true, a.why);
-  assert.deepEqual(d.state.config, { ...SEED, brain: { ...SEED.brain, profile: { notes: [NOTE] } } }, "the note");
+  assert.deepEqual(d.state.config, NOTED, "the note, as the settings door stores it");
   const [get, put, told] = d.state.calls;
-  assert.deepEqual(
-    d.state.calls.map((c) => c.key),
-    ["GET /api/v1/settings", "PUT /api/v1/settings", `POST /api/v1/ask/messages/${U(81)}/proposals/p-1`],
-  );
+  assert.deepEqual(d.keys(), [...SETTINGS, OUTCOME]);
   assert.ok(d.state.calls.every((c) => c.workspace === "W" && c.headers.cookie === "sb-x-auth-token=1"));
   assert.equal(get.headers["x-via"], undefined, "a read is no card's");
   assert.deepEqual([put.headers.origin, put.headers["x-via"]], [ORIGIN, "ask"], "same-origin, marked as a card's");
-  assert.deepEqual(put.body.version, 7);
+  assert.equal(put.body.version, 7);
   assert.deepEqual([told.headers.origin, told.headers["x-via"]], [ORIGIN, "ask"]);
   assert.deepEqual(d.state.outcomes, [
     { state: "done", receipt: CARD.summary, atMs: 1000, undo: { config: SEED, version_after: 8 } },
@@ -597,13 +683,9 @@ test("a settings note approved between the turns as the Line approves it, turn 2
   assert.deepEqual(back, { ok: true, undone: true, recorded: true });
   assert.deepEqual(d.state.config, SEED, "the settings as they were");
   assert.deepEqual(
-    d.state.calls.slice(3).map((c) => c.key),
-    [
-      "GET /api/v1/settings",
-      "PUT /api/v1/settings",
-      `POST /api/v1/ask/messages/${U(81)}/proposals/p-1`,
-      "GET /api/v1/settings",
-    ],
+    d.keys().slice(3),
+    [...SETTINGS, "GET /api/v1/settings", OUTCOME],
+    "undone is recorded once the settings read back as they were",
   );
   assert.deepEqual(d.state.calls[4].body, { config: SEED, version: 8 }, "the card's own undo, on the version it wrote");
   assert.deepEqual(d.state.outcomes[1], {
@@ -635,61 +717,211 @@ test("only a settings note is approved between the turns, and only on a turn tha
   assert.match(unsaved.why, /was not saved/);
 });
 
-test("a stale version refuses the approval and writes nothing, so nothing is put back", async () => {
-  const d = doors({ hold: { "PUT /api/v1/settings": [{ status: 409, message: "Someone else saved the settings." }] } });
+test("a teammate who saves between the approval's read and its save is a 409: nothing was written, so theirs stands and nothing is put back", async () => {
+  const d = doors({ beforePut: [teammate] });
   const a = await approveBetween(d.io, approved);
-  assert.deepEqual([a.ok, a.approval], [false, null]);
-  assert.equal(a.why, "PUT settings 409: Someone else saved the settings.");
-  assert.deepEqual(
-    d.state.calls.map((c) => c.key),
-    ["GET /api/v1/settings", "PUT /api/v1/settings", "GET /api/v1/settings"],
-    "read again to know nothing moved; no outcome recorded",
+  assert.deepEqual([a.ok, a.approval, a.lost], [false, null, undefined]);
+  assert.equal(a.why, "PUT settings 409: Someone else saved settings after you loaded them.");
+  assert.equal(d.state.config.brain.phone_display, "(212) 555-0199", "the teammate's save stands");
+  assert.deepEqual(d.keys(), SETTINGS, "a refusal wrote nothing: no read again, no second PUT, no outcome");
+  // The same through the whole sequence: turn 2 is not asked, and nothing is put back over their save.
+  const e = doors({ beforePut: [teammate] });
+  const b = await approveThenAsk(e.io, approved, async () => assert.fail("turn 2 is not asked"));
+  assert.deepEqual([b.approval, b.back, b.second, b.stop], [null, null, null, false]);
+  assert.equal(
+    b.why,
+    "turn 1's card could not be approved: PUT settings 409: Someone else saved settings after you loaded them.",
   );
-  assert.deepEqual(d.state.config, SEED);
+  assert.deepEqual(e.keys(), SETTINGS);
+  assert.equal(e.state.config.brain.phone_display, "(212) 555-0199");
 });
 
-test("a save that failed after it wrote, or an outcome that was not recorded, is put back all the same", async () => {
-  const d = doors({ afterWrite: [{ status: 500, message: "The change was saved, and recording it failed." }] });
-  const a = await approveBetween(d.io, approved);
+test("a save the server failed, or answered not at all, is read again: put back when the note landed, and nothing when it did not", async () => {
+  // Landed, and the server failed after it: the note is the eval's, and it goes.
+  const landed = doors({ afterWrite: [{ status: 500, message: "The change was saved, and recording it failed." }] });
+  const a = await approveBetween(landed.io, approved);
   assert.equal(a.ok, false);
-  assert.match(a.why, /^PUT settings 500/);
-  assert.ok(a.approval, "the settings moved: an approval to put back");
-  assert.deepEqual(await putBack(d.io, a.approval), { ok: true, undone: true, recorded: null });
-  assert.deepEqual(d.state.config, SEED);
-  assert.deepEqual(d.state.outcomes, [], "no outcome was recorded, so none is undone");
-  const lost = doors({
-    hold: { [`POST /api/v1/ask/messages/${U(81)}/proposals/p-1`]: [{ status: 404, message: "No such card." }] },
-  });
-  const b = await approveBetween(lost.io, approved);
-  assert.equal(b.ok, false);
-  assert.equal(b.why, "the card's outcome was not recorded (404: No such card.)");
-  assert.deepEqual((await putBack(lost.io, b.approval)).ok, true);
+  assert.equal(a.why, "PUT settings 500: The change was saved, and recording it failed.");
+  assert.ok(a.approval, "the settings are the note's: an approval to put back");
+  assert.deepEqual(landed.keys(), [...SETTINGS, "GET /api/v1/settings"], "read again; no outcome recorded");
+  assert.deepEqual(await putBack(landed.io, a.approval), { ok: true, undone: true, recorded: null });
+  assert.deepEqual(landed.state.config, SEED);
+  assert.deepEqual(landed.state.outcomes, [], "no outcome was recorded, so none is undone");
+  // No answer at all, and it landed.
+  const silent = doors({ afterWrite: [{ status: 0 }] });
+  const b = await approveBetween(silent.io, approved);
+  assert.match(b.why, /^PUT settings 0: fetch failed/);
+  assert.equal((await putBack(silent.io, b.approval)).ok, true);
+  assert.deepEqual(silent.state.config, SEED);
+  // The server failed before it wrote: the settings are as they were, and nothing is put back.
+  const refused = doors({ hold: { "PUT /api/v1/settings": [{ status: 503, message: "Try again." }] } });
+  const c = await approveBetween(refused.io, approved);
+  assert.deepEqual([c.ok, c.why, c.approval, c.lost], [false, "PUT settings 503: Try again.", null, undefined]);
+  assert.deepEqual(refused.keys(), [...SETTINGS, "GET /api/v1/settings"]);
+  // An outcome that was not recorded after a save that landed: put back all the same.
+  const lost = doors({ hold: { [OUTCOME]: [{ status: 404, message: "No such card." }] } });
+  const d = await approveBetween(lost.io, approved);
+  assert.equal(d.why, "the card's outcome was not recorded (404: No such card.)");
+  assert.equal((await putBack(lost.io, d.approval)).ok, true);
   assert.deepEqual(lost.state.config, SEED);
 });
 
-test("a put back that fails says what to put back by hand: someone saved since, or the settings read again differ", async () => {
+test("a failed save beside someone else's, or settings that cannot be read again, stop the run with nothing more written", async () => {
+  // The eval's note landed, and a teammate's save after it: neither the settings before nor the note's alone.
+  const both = doors({ afterWrite: [{ status: 500, message: "Try again.", then: teammate }] });
+  const a = await approveBetween(both.io, approved);
+  assert.deepEqual([a.ok, a.approval], [false, null], "nothing is put back over the teammate's save");
+  assert.equal(
+    a.lost.why,
+    "PUT settings 500: Try again., and the settings read again are neither the ones before nor the note's",
+  );
+  assert.deepEqual(a.lost.byHand, {
+    note: NOTE,
+    config: SEED,
+    diff: ["brain.phone_display", "brain.profile"],
+    whole: false,
+  });
+  assert.deepEqual(both.keys(), [...SETTINGS, "GET /api/v1/settings"], "nothing more is written");
+  // Settings that cannot be read after a failed save: whether the note is there is not known.
+  const unread = doors({
+    afterWrite: [{ status: 500, message: "Try again." }],
+    hold: { "GET /api/v1/settings": [null, { status: 503, message: "Busy." }] },
+  });
+  const b = await approveBetween(unread.io, approved);
+  assert.equal(b.lost.why, "PUT settings 500: Try again., and GET settings 503: Busy.");
+  assert.deepEqual([b.lost.byHand.diff, b.lost.byHand.whole], [null, false]);
+  // And through the sequence: the run stops, turn 2 unasked, with the by-hand record as the put back's answer.
+  const e = doors({ afterWrite: [{ status: 500, message: "Try again.", then: teammate }] });
+  const c = await approveThenAsk(e.io, approved, async () => assert.fail("turn 2 is not asked"));
+  assert.deepEqual([c.second, c.stop, c.back.ok], [null, true, false]);
+  assert.deepEqual(c.back.byHand.diff, ["brain.phone_display", "brain.profile"]);
+});
+
+test("a put back that fails says what to put back by hand, and offers the whole config only when the note is all that differs", async () => {
+  // Someone saved between the approval and the undo: the card's undo will not write over them.
   const d = doors();
   const a = await approveBetween(d.io, approved);
-  // Someone saved the settings between the approval and the undo: the card's undo will not write over them.
-  d.state.version += 1;
-  d.state.config.brain.phone_display = "(212) 555-0199";
+  teammate(d.state);
   const back = await putBack(d.io, a.approval);
   assert.equal(back.ok, false);
   assert.equal(back.why, "Settings have changed since this card — change them in Settings.");
-  assert.deepEqual(back.byHand, { note: NOTE, config: SEED });
-  assert.equal(d.state.calls.filter((c) => c.key === "PUT /api/v1/settings").length, 1, "the undo sent nothing");
+  assert.deepEqual(back.byHand, {
+    note: NOTE,
+    config: SEED,
+    diff: ["brain.phone_display", "brain.profile"],
+    whole: false,
+  });
+  assert.equal(d.keys().filter((k) => k === "PUT /api/v1/settings").length, 1, "the undo sent nothing");
+  // An undo the server refused, with the note all that differs: the whole config may go back by hand.
+  const e = doors();
+  const b = await approveBetween(e.io, approved);
+  e.state.hold["PUT /api/v1/settings"] = [{ status: 500, message: "Try again." }];
+  const refused = await putBack(e.io, b.approval);
+  assert.equal(refused.why, "PUT settings 500: Try again.");
+  assert.deepEqual([refused.byHand.diff, refused.byHand.whole], [["brain.profile"], true]);
   // A put back whose save stored something other than what was sent: the read after it says where.
   let saves = 0;
   const mangled = doors({ mangle: (c) => (++saves === 2 ? { ...c, brain: { ...c.brain, business_name: "X" } } : c) });
   const m = await approveBetween(mangled.io, approved);
   const wrong = await putBack(mangled.io, m.approval);
-  assert.equal(wrong.ok, false);
   assert.equal(wrong.why, "the settings differ from the ones before at brain.business_name");
-  assert.deepEqual(wrong.byHand.config, SEED);
+  assert.deepEqual(
+    [wrong.byHand.config, wrong.byHand.diff, wrong.byHand.whole],
+    [SEED, ["brain.business_name"], false],
+  );
   // Settings that cannot be read are refused before anything is written.
   const unread = doors({ hold: { "GET /api/v1/settings": [{ status: 503, message: "Try again." }] } });
   const c = await approveBetween(unread.io, approved);
   assert.deepEqual([c.ok, c.why, c.approval], [false, "GET settings 503: Try again.", null]);
+});
+
+test("an undo whose answer was lost is read again, and verified when the settings are as they were", async () => {
+  const d = doors({ afterWrite: [null, { status: 0 }] });
+  const a = await approveBetween(d.io, approved);
+  assert.deepEqual(await putBack(d.io, a.approval), { ok: true, undone: true, recorded: true });
+  assert.deepEqual(d.state.config, SEED);
+  assert.deepEqual(
+    d.state.outcomes.map((o) => o.state),
+    ["done", "undone"],
+  );
+});
+
+test("a request that hangs gives up as no answer: a stalled undo is read again, and the run is told, not held", async () => {
+  const d = doors();
+  const a = await approveBetween(d.io, approved);
+  d.state.stall["PUT /api/v1/settings"] = [true];
+  const back = await putBack(d.io, a.approval);
+  assert.equal(back.ok, false);
+  assert.match(back.why, /^PUT settings 0: /);
+  assert.deepEqual([back.byHand.diff, back.byHand.whole], [["brain.profile"], true], "the note is all that is there");
+  const hung = doors({ stall: { "GET /api/v1/settings": [true] } });
+  const b = await approveBetween(hung.io, approved);
+  assert.deepEqual([b.ok, b.approval], [false, null]);
+  assert.match(b.why, /^GET settings 0: /);
+});
+
+test("approve, then turn 2, then put back: turn 2 reads the note, and the note goes whatever turn 2 did", async () => {
+  // Turn 2 is asked with the note in the settings, and the note goes as it ends.
+  const d = doors();
+  let seen = null;
+  const r = await approveThenAsk(d.io, approved, async (approval) => {
+    seen = { settings: d.state.config, card: approval.card.id };
+    return { row: "turn 2" };
+  });
+  assert.deepEqual(seen, { settings: NOTED, card: "p-1" });
+  assert.deepEqual([r.why, r.second, r.error, r.stop], [null, { row: "turn 2" }, null, false]);
+  assert.deepEqual(r.back, { ok: true, undone: true, recorded: true });
+  assert.deepEqual(d.state.config, SEED);
+  assert.deepEqual(d.keys(), [...SETTINGS, OUTCOME, ...SETTINGS, "GET /api/v1/settings", OUTCOME]);
+  // Turn 2 threw: the note goes all the same, and what it threw is handed back.
+  const t = doors();
+  const thrown = await approveThenAsk(t.io, approved, async () => {
+    throw new Error("the stream broke");
+  });
+  assert.equal(thrown.error.message, "the stream broke");
+  assert.deepEqual([thrown.back.ok, thrown.stop], [true, false]);
+  assert.deepEqual(t.state.config, SEED);
+  // A put back that fails comes back before anything else is asked, and the run stops.
+  const f = doors();
+  const failed = await approveThenAsk(f.io, approved, async () => teammate(f.state));
+  assert.deepEqual([failed.back.ok, failed.stop], [false, true]);
+  assert.deepEqual(failed.back.byHand.diff, ["brain.phone_display", "brain.profile"]);
+  assert.deepEqual(f.keys().slice(-1), ["GET /api/v1/settings"], "the undo's read is the last thing sent");
+});
+
+test("a run stopped around a note: before the approval nothing is written, as the note lands turn 2 is not asked, during turn 2 the note goes as it ends", async () => {
+  const early = doors();
+  const e = await approveThenAsk(
+    early.io,
+    approved,
+    async () => assert.fail("turn 2 is not asked"),
+    () => true,
+  );
+  assert.deepEqual([e.why, e.approval, e.back, e.stop], ["the run was stopped before it", null, null, true]);
+  assert.deepEqual(early.keys(), [], "nothing was written");
+  let stop = false;
+  const landing = doors({ afterWrite: [{ then: () => (stop = true) }] });
+  const s = await approveThenAsk(
+    landing.io,
+    approved,
+    async () => assert.fail("turn 2 is not asked"),
+    () => stop,
+  );
+  assert.deepEqual([s.why, s.second, s.back.ok, s.stop], ["the run was stopped before it", null, true, true]);
+  assert.deepEqual(landing.state.config, SEED, "the note went");
+  stop = false;
+  const during = doors();
+  const r = await approveThenAsk(
+    during.io,
+    approved,
+    async () => {
+      stop = true;
+      return { row: "turn 2" };
+    },
+    () => stop,
+  );
+  assert.deepEqual([r.second, r.back.ok, r.stop], [{ row: "turn 2" }, true, true], "turn 2 ends as it would");
+  assert.deepEqual(during.state.config, SEED);
 });
 
 /* ---- what a run cost, turn by turn ---- */
@@ -948,7 +1180,7 @@ test("the announcement counts turns: a case of two is two, each on its own surfa
       "  today: 1 case(s), 2 turn(s) × 3 = 6 turns ≈ $0.07",
       "  people: 2 case(s), 3 turn(s) (3 with the page) × 3 = 9 turns ≈ $0.11",
       "  settings: 1 case(s), 2 turn(s) (2 with the page) × 3 = 6 turns ≈ $0.07",
-      "4 cases, 7 turns × 3 = 21 turns ≈ $0.25 at the baseline $0.012 a turn (spec §9), and 12 warms (POST ask/warm, no model); 3 settings note(s) approved between the turns and put back",
+      "4 cases, 7 turns × 3 = 21 turns ≈ $0.25 at the baseline $0.012 a turn (spec §9), and 9 warms (POST ask/warm, no model); 3 settings note(s) approved between the turns and put back",
       "",
     ].join("\n"),
   );
@@ -983,8 +1215,13 @@ test("--list says every case and its second turn, its page, the turns and their 
     run.stdout.slice(-600),
   );
   assert.match(run.stdout, /\n {2}inbox: 6 case\(s\), 7 turn\(s\) \(7 with the page\) × 3 = 21 turns/);
-  for (const c of CASES.filter((x) => x.then))
-    assert.ok(run.stdout.includes(`\n    then · `) && run.stdout.includes(`\n      ${c.then.text}`), c.id);
+  // Each two-turn case's own block: its words, then its second turn's two lines, under its own id line.
+  const listed = run.stdout.split("\n");
+  for (const c of CASES.filter((x) => x.then)) {
+    const at = listed.findIndex((l) => l.startsWith(`${c.id} · `));
+    assert.ok(at >= 0, c.id);
+    assert.deepEqual(listed.slice(at + 1, at + 4), [`    ${c.text}`, ...describeSecondTurn(c).split("\n")], c.id);
+  }
   // A second turn on its own lines under its case, with what happens between the turns named.
   assert.ok(
     run.stdout.includes(

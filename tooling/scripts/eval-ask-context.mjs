@@ -34,8 +34,10 @@ import {
   ASK_CONTEXT_MAX_ROWS,
   ASK_SURFACES,
   PageContextSchema,
+  TenantConfigWriteSchema,
   answerFromV1,
   citationRoute,
+  parseTenantConfig,
   personName,
   proposalSpec,
   scopeFromRoute,
@@ -207,6 +209,10 @@ export function resolveContext(spec, answers = {}, now = Date.now()) {
   const param = rest.length ? rest.join("/") : null;
   const opened = rows.find((r) => param && param.endsWith(r.id));
   const scope = scopeFromRoute(page, param, opened?.label || null);
+  // A route opens its row as the kind the page drew it (`cv-` a call, a bare id on Conversations a conversation): one
+  // that would open a row as another kind is a page no palette sends, and a case over it asks about nothing.
+  if (opened && scope && scope.kind !== opened.kind)
+    throw new Error(`the route ${route} opens a ${scope.kind}, and the row there is a ${opened.kind}`);
   const n = ordinal(spec.focus);
   const placed = n !== null ? rows.filter((r) => SCOPE_KINDS.has(r.kind))[n - 1] : null;
   const focus = isScope(spec.focus)
@@ -242,12 +248,25 @@ const FOLLOW_UP_CHECKS = ["names_card", "opens_item", "drops_first_scope"];
 const isObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 
 /**
+ * A page as a warm reads it: everything but its focus, which the palette takes from the words as the question goes
+ * and never warms for -- it warms as the Line opens and as its route changes (ask-real.jsx).
+ */
+const warmedAs = (spec) =>
+  spec
+    ? JSON.stringify(
+        Object.entries(spec)
+          .filter(([k]) => k !== "focus")
+          .sort(([a], [b]) => (a < b ? -1 : 1)),
+      )
+    : null;
+
+/**
  * A case's second turn, as the runner asks it, or null for a case of one turn: its words and what they must do; its
  * page -- the case's own, unless `then.context` names one of its own (an object) or none (null); its surface --
  * `then.surface`, else its page's, else the case's; whether its page is warmed again, which it is only when it is a
- * page of its own that differs from turn 1's (the palette warms as the page under it changes); and what happens between
- * the turns (`between`, approveBetween). Judged under the case's id and its must-never, so pass^k holds a case to both
- * of its turns.
+ * page of its own that differs from turn 1's other than in its focus (warmedAs); and what happens between the turns
+ * (`between`, approveThenAsk). Judged under the case's id and its must-never, so pass^k holds a case to both of its
+ * turns.
  */
 export function secondTurn(c) {
   const t = c?.then;
@@ -261,7 +280,7 @@ export function secondTurn(c) {
     context,
     surface: t.surface ?? context?.surface ?? c.surface ?? "today",
     must_never: c.must_never === true,
-    warm: !!context && own && JSON.stringify(context) !== JSON.stringify(c.context ?? null),
+    warm: !!context && own && warmedAs(context) !== warmedAs(c.context ?? null),
     between: t.between ?? null,
   };
 }
@@ -275,7 +294,7 @@ export function secondScope(page, first) {
   return page?.scope ?? first ?? null;
 }
 
-/** What is wrong with a case's second turn, in words; [] for a case of one turn, or a second turn the runner can ask. */
+/** What is wrong with a case's second turn, in words; [] for a case of one turn, or one the runner can ask. */
 function secondTurnProblems(c) {
   const t = c.then;
   if (t === undefined) return [];
@@ -427,12 +446,13 @@ const itemsOf = (m) => (m ? (m.answer ?? answerFromV1(m)).show.items : []);
 
 /**
  * Why turn 2 cannot be asked, or null. `first` is turn 1 as it ended: `{ final, threadId, scope }`. Turn 2 needs an
- * answer, the thread that answer landed in, a card when it is to name or approve one, and as many items as the one it
- * opens; without them it is a failing row that asked nothing, and no refusal.
+ * answer that did not fail, the thread that answer landed in, a card when it is to name or approve one, and as many
+ * items as the one it opens; without them it is a failing row that asked nothing, and no refusal.
  */
 export function notAsked(two, first) {
   const m = first?.final;
   if (!m) return "turn 1 has no answer";
+  if (m.failed) return "turn 1 failed";
   if (!first.threadId) return "turn 1 named no thread";
   const e = two.expect ?? {};
   if (e.names_card && !(m.proposals ?? []).length) return "turn 1 made no card to name";
@@ -442,6 +462,15 @@ export function notAsked(two, first) {
     return `turn 1's answer shows ${shown} item(s), and turn 2 opens item ${e.opens_item}`;
   return null;
 }
+
+/**
+ * An answer's own words, what it quotes set aside: a span in quotes (“…”, "…", «…», or '…' opened after a space, a
+ * colon or a bracket and holding a space, which is never an apostrophe) is someone else's -- a draft to approve, a
+ * message received -- never a sentence the answer says. The headline's one-sentence check and the write claims read
+ * only this.
+ */
+export const unquoted = (s) =>
+  (s ?? "").replace(/“[^”]*”|"[^"]*"|«[^»]*»/g, "…").replace(/(^|[\s:(])'[^']*\s[^']*'/g, "$1…");
 
 /**
  * What an answer may never say: that it did something. Ask proposes and a person approves (spec §7), so a sentence
@@ -455,8 +484,8 @@ const WRITE_CLAIMS = [
   /\bdone[,.!]/i,
 ];
 
-/** Whether the words claim a write (WRITE_CLAIMS). */
-export const claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(text ?? ""));
+/** Whether the answer's own words claim a write (WRITE_CLAIMS): a draft it quotes claims nothing. */
+export const claimsWrite = (text) => WRITE_CLAIMS.some((re) => re.test(unquoted(text)));
 
 /** Words compared as a person reads them: any case, any spacing. */
 const plain = (s) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -535,11 +564,14 @@ export function followUpFails(e, r, first) {
 /* ---- a card approved between the turns, and put back ---- */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** How long one of the Line's requests is waited for before it is no answer: as long as the client waits to write. */
+const DOOR_MS = 30_000;
 
 /**
- * One of the Line's requests, made from the eval. `io` is `{ fetch, at, cookie, origin, now }`: `at(path)` names the
- * workspace as the client names it on every request. A write goes same-origin and marked as a card's (`x-via: ask`,
- * legacy-bridge/ask/api.ts viaAsk). Never throws: a request that could not be made answers status 0.
+ * One of the Line's requests, made from the eval. `io` is `{ fetch, at, cookie, origin, now, timeoutMs? }`: `at(path)`
+ * names the workspace as the client names it on every request. A write goes same-origin and marked as a card's
+ * (`x-via: ask`, legacy-bridge/ask/api.ts viaAsk). Never throws: a request that could not be made, that was not
+ * answered in DOOR_MS, or whose answer could not be read answers status 0, so a door that hangs never holds a note out.
  */
 async function send(io, method, path, body) {
   const headers = { cookie: io.cookie };
@@ -549,20 +581,22 @@ async function send(io, method, path, body) {
     const res = await io.fetch(io.at(path), {
       method,
       headers,
+      signal: AbortSignal.timeout(io.timeoutMs ?? DOOR_MS),
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
-    const json = await res.json().catch(() => null);
+    const json = await res.json().catch(() => undefined);
+    if (json === undefined && res.ok)
+      return { ok: false, status: 0, data: null, error: "its answer could not be read" };
     return { ok: res.ok, status: res.status, data: json?.data ?? null, error: json?.error?.message ?? null };
   } catch (e) {
     return { ok: false, status: 0, data: null, error: e instanceof Error ? e.message : String(e) };
   }
 }
 
-/** A spec's call, sent where its route key says: the typed client's rule ("PUT settings" is PUT /api/v1/settings). */
-async function sendCall(io, c) {
+/** A spec's call, sent where its route key says: "PUT settings" is PUT /api/v1/settings, the eval's one call. */
+function sendCall(io, c) {
   const [method, key] = c.route.split(" ");
-  const path = `/api/v1/${key.replace(/\[(\w+)\]/g, (_, n) => encodeURIComponent(c.params?.[n] ?? ""))}`;
-  return send(io, method, path, c.body);
+  return send(io, method, `/api/v1/${key}`, c.body);
 }
 
 /** The settings as GET settings answers them, `{ config, version }`, or why they could not be read. */
@@ -584,8 +618,40 @@ function configDiff(a, b, at = "") {
   );
 }
 
+/**
+ * A config as the settings door stores it and GET settings answers it: what the write schema keeps (a note is its
+ * title and its words, NoteSchema), read back by the read schema. The settings a save of the eval's would leave, so its
+ * own write is told from anyone else's.
+ */
+function asStored(config) {
+  const w = TenantConfigWriteSchema.safeParse(config);
+  return w.success ? (parseTenantConfig(w.data) ?? w.data) : config;
+}
+
 /** Where a card's outcome is recorded on the turn that proposed it (POST ask/messages/[id]/proposals/[pid]). */
 const outcomePath = (messageId, cardId) => `/api/v1/ask/messages/${messageId}/proposals/${cardId}`;
+
+/**
+ * A note the eval cannot know it has put back, and what to do by hand: why; the note; the settings before it; where
+ * the settings read last differ from those (null when they could not be read); and whether the whole config may go
+ * back, which it may only when the note is all that differs -- anything more is someone's save since the card, and a
+ * whole-config PUT would undo it. `note` is `{ card, before, ours }`: the card, the settings before it, and the
+ * settings with the note in them as the door stores them.
+ */
+function lost(note, now, why) {
+  const { title, text } = note.card.payload.change;
+  const read = !!now && !now.why;
+  return {
+    ok: false,
+    why,
+    byHand: {
+      note: { title, text },
+      config: note.before.config,
+      diff: read ? configDiff(note.before.config, now.config) : null,
+      whole: read && configDiff(note.ours, now.config).length === 0,
+    },
+  };
+}
 
 /**
  * Turn 1's card, approved between the turns as the Line approves it (ask-turn.jsx approveWith; legacy-bridge/ask/
@@ -594,8 +660,12 @@ const outcomePath = (messageId, cardId) => `/api/v1/ask/messages/${messageId}/pr
  * settings read (the tab's `__SETTINGS`), the card's own commit (proposalSpec("settings").commit) sent as the Line
  * sends it, and the outcome recorded on turn 1's message as the Line records it, with the undo's record.
  *
- * `{ ok, why?, approval }`. An approval, beside a refusal too, is a change to put back (putBack) whatever happens
- * next: a save that failed is read again, and the change it may have written is put back with the rest.
+ * `{ ok, why?, approval, lost? }`. `approval` is a note the eval wrote, to put back (putBack) whatever happens next,
+ * beside a failure too. A save refused (a 4xx) wrote nothing: a 409 is a teammate's save between the read and this
+ * one (putTenantConfig matches on the version), and theirs stands. A save the server failed, or answered not at all,
+ * is read again: settings as they were, nothing was written; settings with the note and nothing else, the note is the
+ * eval's, to put back; anything else -- settings that cannot be read, or someone's save beside the note -- is `lost`
+ * (above), and the run stops with nothing more written.
  */
 export async function approveBetween(io, message) {
   const cards = message?.proposals ?? [];
@@ -617,19 +687,22 @@ export async function approveBetween(io, message) {
   const tab = { settings: before };
   const commit = spec.commit(card, tab);
   if ("refused" in commit) return { ok: false, why: commit.refused, approval: null };
+  const ours = asStored(commit.body.config);
   const saved = await sendCall(io, commit);
   if (!saved.ok) {
+    const why = `${commit.route} ${saved.status}: ${saved.error ?? "no answer"}`;
+    if (saved.status >= 400 && saved.status < 500) return { ok: false, why, approval: null };
     const now = await readSettings(io);
-    const moved = !!now.why || configDiff(before.config, now.config).length > 0;
-    const record = { config: before.config, version_after: now.version ?? null };
-    return {
-      ok: false,
-      why: `${commit.route} ${saved.status}: ${saved.error ?? "no answer"}`,
-      approval: moved ? { messageId: message.id, card, before, record, recorded: false } : null,
-    };
+    if (!now.why && !configDiff(before.config, now.config).length) return { ok: false, why, approval: null };
+    if (!now.why && !configDiff(ours, now.config).length) {
+      const record = { config: before.config, version_after: now.version };
+      return { ok: false, why, approval: { messageId: message.id, card, before, ours, record, recorded: false } };
+    }
+    const unknown = now.why ?? "the settings read again are neither the ones before nor the note's";
+    return { ok: false, why, approval: null, lost: lost({ card, before, ours }, now, `${why}, and ${unknown}`) };
   }
   const record = spec.undo.record(card, saved.data, tab);
-  const approval = { messageId: message.id, card, before, record, recorded: false };
+  const approval = { messageId: message.id, card, before, ours, record, recorded: false };
   const told = await send(io, "POST", outcomePath(message.id, card.id), {
     state: "done",
     receipt: spec.receipt(card, saved.data),
@@ -648,23 +721,26 @@ export async function approveBetween(io, message) {
 
 /**
  * An approval put back once turn 2 has answered, as the Line undoes a card (commit.ts undoProposal): the settings read
- * again, the card's own undo (spec.undo.call, which refuses once anyone has saved since the card), the outcome
- * recorded as undone, and the settings read once more and compared, field by field, with the ones before the card
- * (the rule e2e/settings-business.spec.ts keeps). `{ ok: true, undone, recorded }`, or `{ ok: false, why, byHand }`:
- * the note to take out and the whole config before it, which the runner prints before it stops.
+ * again; the card's own undo (spec.undo.call, which refuses once anyone has saved since the card); the settings read
+ * once more and compared, field by field, with the ones before the card (the rule e2e/settings-business.spec.ts keeps),
+ * so an undo whose answer was lost is verified all the same when they read as they were; and only then the outcome
+ * recorded as undone. `{ ok: true, undone, recorded }`, or `lost` (above): what to put back by hand.
  */
 export async function putBack(io, approval) {
   const spec = proposalSpec("settings");
-  const { title, text } = approval.card.payload.change;
-  const lost = (why) => ({ ok: false, why, byHand: { note: { title, text }, config: approval.before.config } });
   const now = await readSettings(io);
-  if (now.why) return lost(now.why);
+  if (now.why) return lost(approval, now, now.why);
   // A save that failed may have written nothing after all: the settings are as they were, and nothing is sent.
   if (!configDiff(approval.before.config, now.config).length) return { ok: true, undone: false, recorded: null };
   const undo = spec.undo.call(approval.record, { settings: now });
-  if ("refused" in undo) return lost(undo.refused);
+  if ("refused" in undo) return lost(approval, now, undo.refused);
   const saved = await sendCall(io, undo);
-  if (!saved.ok) return lost(`${undo.route} ${saved.status}: ${saved.error ?? "no answer"}`);
+  const failed = saved.ok ? null : `${undo.route} ${saved.status}: ${saved.error ?? "no answer"}`;
+  const after = await readSettings(io);
+  if (after.why) return lost(approval, after, failed ? `${failed}, and ${after.why}` : after.why);
+  const differ = configDiff(approval.before.config, after.config);
+  if (differ.length)
+    return lost(approval, after, failed ?? `the settings differ from the ones before at ${differ.join(", ")}`);
   const told = approval.recorded
     ? await send(io, "POST", outcomePath(approval.messageId, approval.card.id), {
         state: "undone",
@@ -673,11 +749,36 @@ export async function putBack(io, approval) {
         undo: null,
       })
     : null;
-  const after = await readSettings(io);
-  if (after.why) return lost(after.why);
-  const differ = configDiff(approval.before.config, after.config);
-  if (differ.length) return lost(`the settings differ from the ones before at ${differ.join(", ")}`);
   return { ok: true, undone: true, recorded: told ? told.ok : null };
+}
+
+/**
+ * A second turn asked after turn 1's card is approved (`then.between: "approve"`), in the order a person goes: the
+ * card approved as the Line approves it (approveBetween), turn 2 asked (`askSecond(approval)`), and the note put back
+ * (putBack) in a finally, whatever turn 2 did -- answered, failed or threw. `interrupted()` says the run was asked to
+ * stop: before the approval, nothing is written; before turn 2, it is not asked; during it, the note goes as it ends.
+ *
+ * `{ why, approval, second, back, error, stop }`: why turn 2 was not asked (null when it was); what askSecond answered;
+ * the put back's answer, or, when the approval could not tell its own write from another's, the by-hand record with
+ * nothing put back; what turn 2 threw; and whether the run stops here -- a note not put back, or an interrupt.
+ */
+export async function approveThenAsk(io, message, askSecond, interrupted = () => false) {
+  const out = { why: null, approval: null, second: null, back: null, error: null, stop: false };
+  if (interrupted()) return { ...out, why: "the run was stopped before it", stop: true };
+  try {
+    const a = await approveBetween(io, message);
+    out.approval = a.approval;
+    out.back = a.lost ?? null;
+    if (!a.ok) out.why = `turn 1's card could not be approved: ${a.why}`;
+    else if (interrupted()) out.why = "the run was stopped before it";
+    else out.second = await askSecond(a.approval);
+  } catch (e) {
+    out.error = e;
+  } finally {
+    if (out.approval) out.back = await putBack(io, out.approval);
+  }
+  out.stop = (!!out.back && !out.back.ok) || interrupted();
+  return out;
 }
 
 /* ---- what a run cost, turn by turn ---- */
