@@ -246,7 +246,7 @@ export async function POST(request: Request): Promise<Response> {
         const row = await tenantOf(db, inv.metadata, idOf(inv.customer));
         const dup = await keep(row?.tenant_id ?? null);
         if (dup) return dup;
-        if (row) await notePayment(db, row, event.type === "invoice.paid" ? "paid" : "failed");
+        if (row) await notePayment(db, row, event.type === "invoice.paid" ? "paid" : "failed", inv.amount_paid);
         const earned =
           row && event.type === "invoice.paid" ? await earnFromInvoice(db, row.tenant_id, inv, event.id, L) : null;
         return ledgerAnswer(earned, "partner_earned");

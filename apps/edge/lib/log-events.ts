@@ -210,6 +210,7 @@ export const LOG_EVENTS = [
   "partner_card_mark_skipped",
   "partner_earned",
   "partner_earning_skipped",
+  "partner_invite_sent",
   "partner_letter_failed",
   "partner_letter_sent",
   "partner_letter_unmarked",

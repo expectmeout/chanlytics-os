@@ -3422,6 +3422,48 @@ export type Database = {
           },
         ]
       }
+      partner_invitations: {
+        Row: {
+          declined_at: string | null
+          expires_at: string
+          invited_by: string | null
+          partner_id: string
+          sent_at: string
+          tenant_id: string
+        }
+        Insert: {
+          declined_at?: string | null
+          expires_at: string
+          invited_by?: string | null
+          partner_id: string
+          sent_at?: string
+          tenant_id: string
+        }
+        Update: {
+          declined_at?: string | null
+          expires_at?: string
+          invited_by?: string | null
+          partner_id?: string
+          sent_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_invitations_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_invitations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_payouts: {
         Row: {
           created_at: string
@@ -3507,6 +3549,7 @@ export type Database = {
           handover_email: string | null
           handover_expires_at: string | null
           handover_sent_at: string | null
+          invited_by: string | null
           origin: string
           partner_id: string
           seat_held_at: string | null
@@ -3526,6 +3569,7 @@ export type Database = {
           handover_email?: string | null
           handover_expires_at?: string | null
           handover_sent_at?: string | null
+          invited_by?: string | null
           origin?: string
           partner_id: string
           seat_held_at?: string | null
@@ -3545,6 +3589,7 @@ export type Database = {
           handover_email?: string | null
           handover_expires_at?: string | null
           handover_sent_at?: string | null
+          invited_by?: string | null
           origin?: string
           partner_id?: string
           seat_held_at?: string | null
@@ -5532,6 +5577,33 @@ export type Database = {
         Args: { p_email: string; p_tenant: string }
         Returns: Json
       }
+      partner_invitations_mine: {
+        Args: never
+        Returns: {
+          expires_at: string
+          sent_at: string
+          tenant_id: string
+          workspace: string
+        }[]
+      }
+      partner_invite: {
+        Args: { p_code: string; p_tenant: string }
+        Returns: Json
+      }
+      partner_invite_accept: {
+        Args: { p_tenant: string }
+        Returns: {
+          earns: boolean
+          id: string
+          name: string
+          slug: string
+        }[]
+      }
+      partner_invite_decline: { Args: { p_tenant: string }; Returns: undefined }
+      partner_invite_withdraw: {
+        Args: { p_tenant: string }
+        Returns: undefined
+      }
       partner_letter_written: {
         Args: { p_partner: string; p_through: string }
         Returns: boolean
@@ -5863,6 +5935,7 @@ export type Database = {
           checks: Json
           code: string
           decided_by: string
+          origin: string
           partner_id: string
           standing: string
           standing_at: string
@@ -6492,6 +6565,7 @@ export type Database = {
       trigger_registration_sweep: { Args: never; Returns: number }
       trigger_sweep_health: { Args: never; Returns: number }
       wake_stale_snoozes: { Args: never; Returns: number }
+      workspace_partner: { Args: { p_tenant: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never

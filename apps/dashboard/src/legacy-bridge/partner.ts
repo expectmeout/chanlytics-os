@@ -10,18 +10,23 @@ import {
   HANDOVER_WORDS,
   handoverRoom,
   partnerHandoverVM,
+  PARTNER_INVITE_WORDS,
   PARTNER_SHARE_BP_DEFAULT,
   PARTNER_WORDS,
+  partnerInvitationWords,
+  partnerJoinedWords,
   partnerVM,
   partnerWorkspacesVM,
   shareWords,
+  workspacePartnerVM,
   type PartnerBalanceRow,
   type PartnerDto,
   type PartnerHandoverVM,
   type PartnerVM,
   type PartnerWorkspacesVM,
+  type WorkspacePartnerVM,
 } from "@chanlytics/contracts";
-import { switchWorkspace, type SurfaceOverride, type Workspace } from "./surface-data";
+import { switchWorkspace, workspaceOverride, type SurfaceOverride, type Workspace } from "./surface-data";
 import { api, read } from "./api";
 import { refreshSurfaces } from "./surface-runner";
 import { createClient } from "../lib/supabase/client";
@@ -75,6 +80,24 @@ export interface PartnerApi {
   };
   /** The daily letter on or off (0014). The surface is written from the answer, so the switch shows what is kept. */
   setLetters(on: boolean): Promise<{ ok: boolean; message: string }>;
+  inviteWords: typeof PARTNER_INVITE_WORDS;
+  /** The workspaces asking this partner to join them (0020), each as its row says it. */
+  invitations(): Promise<
+    { ok: true; rows: { workspaceId: string; sentence: string }[] } | { ok: false; message: string }
+  >;
+  /**
+   * Join a workspace that asked, or decline. `message` is the flash for a join, which says whether it earns a share:
+   * the partner stays on their pane to read it, and the workspace is in their list to open.
+   */
+  answer(workspaceId: string, join: boolean): Promise<{ ok: boolean; message: string }>;
+  /** The open workspace's partner, as its owner manages it on Team (0020). */
+  team: {
+    /** `code` is the refusal's: "forbidden" for anyone but an owner, whose Team shows no card. */
+    read(): Promise<{ ok: true; vm: WorkspacePartnerVM } | { ok: false; code: string; message: string }>;
+    /** Ask the partner with this code (or link). `sent` says whether their email went. */
+    invite(code: string): Promise<{ ok: true; sent: boolean } | { ok: false; message: string }>;
+    withdraw(): Promise<{ ok: boolean; message: string }>;
+  };
 }
 
 declare global {
@@ -179,6 +202,42 @@ export function installPartner(win: Window = window): void {
     open(tenantId) {
       const shell = (win as unknown as { __shell?: { switchWorkspace(id: string): void } }).__shell;
       if (shell) shell.switchWorkspace(tenantId);
+    },
+    inviteWords: PARTNER_INVITE_WORDS,
+    async invitations() {
+      const r = await api()("GET partner/invitations");
+      if (!r.ok) return { ok: false, message: r.message };
+      return {
+        ok: true,
+        rows: r.data.invitations.map((i) => ({ workspaceId: i.workspaceId, sentence: partnerInvitationWords(i) })),
+      };
+    },
+    async answer(workspaceId, join) {
+      if (!join) {
+        const r = await api()("POST partner/invitations/[id]/decline", { params: { id: workspaceId } });
+        return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+      }
+      const r = await api()("POST partner/invitations/[id]/accept", { params: { id: workspaceId } });
+      if (!r.ok) return { ok: false, message: r.message };
+      // The switcher reads its list again, so the workspace just joined is there to open, and the pane its count.
+      void refreshSurfaces([workspaceOverride, partnerOverride]).catch(() => {});
+      return { ok: true, message: partnerJoinedWords(r.data.workspace.name, r.data.earns) };
+    },
+    team: {
+      async read() {
+        const r = await api()("GET team/partner");
+        if (!r.ok) return { ok: false, code: r.code, message: r.message };
+        return { ok: true, vm: workspacePartnerVM(r.data) };
+      },
+      async invite(code) {
+        const r = await api()("POST team/partner", { body: { code } });
+        if (!r.ok) return { ok: false, message: r.message };
+        return { ok: true, sent: r.data.sent };
+      },
+      async withdraw() {
+        const r = await api()("DELETE team/partner");
+        return r.ok ? { ok: true, message: "" } : { ok: false, message: r.message };
+      },
     },
     async setLetters(on) {
       const r = await api()("PATCH partner", { body: { letters: on } });

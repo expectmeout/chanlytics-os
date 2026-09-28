@@ -37,14 +37,14 @@ export async function getOwnPartner(db: Db): Promise<PartnerPublicRow | null> {
 
 /**
  * How many workspaces the caller brought (their partner_tenants rows, which partner_tenants_partner_select lets them
- * read): through their link, or set up and accepted by an owner (0016); one still waiting for its owner is not
- * brought yet. The same count whether or not they still sit on each team. On a database 00214 has not reached every
+ * read): through their link, set up and accepted by an owner (0016), or joined at an owner's invitation (0020); one
+ * still waiting for its owner is not brought yet. The same count whether or not they still sit on each team. On a database 00214 has not reached every
  * row is a link's. Null when it cannot be read.
  */
 export async function getPartnerBroughtCount(db: Db, partnerId: string): Promise<number | null> {
   const of = () =>
     db.from("partner_tenants").select("tenant_id", { count: "exact", head: true }).eq("partner_id", partnerId);
-  const r = await of().or("origin.eq.link,handover_accepted_at.not.is.null");
+  const r = await of().or("origin.eq.link,origin.eq.invite,handover_accepted_at.not.is.null");
   if (!r.error) return r.count ?? 0;
   if (!/\b(origin|handover_accepted_at)\b/.test(r.error.message)) return null;
   const older = await of();
@@ -422,5 +422,158 @@ export async function getHandoverInvite(db: Db, tenantId: string): Promise<Hando
     workspace: data.tenants?.name ?? "",
     partnerCode: data.partners?.code ?? "",
     expiresAt: data.handover_expires_at,
+  };
+}
+
+/* ------------------------------------------------------------------------ a workspace asks a partner (0020) */
+
+/**
+ * An existing workspace brings in a partner (decision 0020, 00225): its owner names them by code, and they accept.
+ * Every write is a function that checks the caller; the verbs below answer the value, or the function's own code and
+ * words, as the handover's do.
+ */
+
+/** The invitation as the owner's card says it. */
+export interface PartnerInviteSent {
+  code: string;
+  sentAt: string;
+  expiresAt: string;
+}
+
+/** The owner asks the partner with this code to join the workspace (00225 partner_invite). */
+export async function invitePartner(
+  db: Db,
+  tenantId: string,
+  code: string,
+): Promise<HandoverResult<PartnerInviteSent>> {
+  const { data, error } = await db.rpc("partner_invite", { p_tenant: tenantId, p_code: code });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = (data ?? {}) as Record<string, unknown>;
+  return {
+    ok: true,
+    value: { code: String(v.code ?? code), sentAt: String(v.sent_at ?? ""), expiresAt: String(v.expires_at ?? "") },
+  };
+}
+
+/** The owner takes the invitation back before it is answered (00225 partner_invite_withdraw). */
+export async function withdrawPartnerInvite(db: Db, tenantId: string): Promise<HandoverResult<null>> {
+  const { error } = await db.rpc("partner_invite_withdraw", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: null };
+}
+
+/** The workspace's partner and the invitation waiting, as its owner reads them (00225 workspace_partner). */
+export interface WorkspacePartner {
+  partner: { code: string; origin: string; since: string; seated: boolean } | null;
+  invitation: { code: string; sentAt: string; expiresAt: string; declinedAt: string | null } | null;
+}
+
+export async function getWorkspacePartner(db: Db, tenantId: string): Promise<HandoverResult<WorkspacePartner>> {
+  const { data, error } = await db.rpc("workspace_partner", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const v = (data ?? {}) as Record<string, Record<string, unknown> | null>;
+  const p = v.partner ?? null;
+  const i = v.invitation ?? null;
+  return {
+    ok: true,
+    value: {
+      partner: p
+        ? {
+            code: String(p.code ?? ""),
+            origin: String(p.origin ?? ""),
+            since: String(p.since ?? ""),
+            seated: p.seated === true,
+          }
+        : null,
+      invitation: i
+        ? {
+            code: String(i.code ?? ""),
+            sentAt: String(i.sent_at ?? ""),
+            expiresAt: String(i.expires_at ?? ""),
+            declinedAt: i.declined_at ? String(i.declined_at) : null,
+          }
+        : null,
+    },
+  };
+}
+
+/** A workspace asking the caller, a partner, to join it. */
+export interface PartnerInvitation {
+  tenantId: string;
+  workspace: string;
+  sentAt: string;
+  expiresAt: string;
+}
+
+/**
+ * The open invitations to the calling partner (00225 partner_invitations_mine). None on a database 00225 has not
+ * reached, which is true there: nobody can have asked.
+ */
+export async function getPartnerInvitations(db: Db): Promise<PartnerInvitation[]> {
+  const { data, error } = await db.rpc("partner_invitations_mine");
+  if (error) {
+    if (noFunction(error)) return [];
+    throw new Error(`getPartnerInvitations: ${error.message}`);
+  }
+  return (data ?? []).map((r) => ({
+    tenantId: r.tenant_id,
+    workspace: r.workspace,
+    sentAt: r.sent_at,
+    expiresAt: r.expires_at,
+  }));
+}
+
+/** The workspace the partner joined, and whether its plan earns them a share. */
+export interface PartnerJoined extends HandoverWorkspace {
+  earns: boolean;
+}
+
+/** The caller, a partner, joins the workspace that asked (00225 partner_invite_accept). */
+export async function acceptPartnerInvite(db: Db, tenantId: string): Promise<HandoverResult<PartnerJoined>> {
+  const { data, error } = await db.rpc("partner_invite_accept", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  const row = data?.[0];
+  if (!row) return { ok: false, code: "P0002", message: "There is no invitation for you there." };
+  return { ok: true, value: { id: row.id, slug: row.slug, name: row.name, earns: row.earns } };
+}
+
+/** The caller, a partner, says no (00225 partner_invite_decline). */
+export async function declinePartnerInvite(db: Db, tenantId: string): Promise<HandoverResult<null>> {
+  const { error } = await db.rpc("partner_invite_decline", { p_tenant: tenantId });
+  if (error) return { ok: false, code: error.code ?? "", message: error.message };
+  return { ok: true, value: null };
+}
+
+/** What the edge needs to tell a partner a workspace asked for them: to whom, which workspace, until when. */
+export interface PartnerInviteMail {
+  email: string;
+  workspace: string;
+  partnerCode: string;
+  expiresAt: string;
+}
+
+/**
+ * An open invitation's facts, for the edge (service role): the address is the partner's own account's, read here,
+ * never one a caller passes. Null when the workspace has no open invitation, or the partner has no address left.
+ */
+export async function getPartnerInviteMail(db: Db, tenantId: string): Promise<PartnerInviteMail | null> {
+  const { data, error } = await db
+    .from("partner_invitations")
+    .select("expires_at, declined_at, tenants(name), partners(code, user_id)")
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (error) throw new Error(`getPartnerInviteMail: ${error.message}`);
+  if (!data || data.declined_at || Date.parse(data.expires_at) <= Date.now()) return null;
+  const userId = data.partners?.user_id;
+  if (!userId) return null;
+  const who = await db.auth.admin.getUserById(userId);
+  if (who.error) throw new Error(`getPartnerInviteMail: ${who.error.message}`);
+  const email = who.data.user?.email;
+  if (!email) return null;
+  return {
+    email,
+    workspace: data.tenants?.name ?? "",
+    partnerCode: data.partners?.code ?? "",
+    expiresAt: data.expires_at,
   };
 }

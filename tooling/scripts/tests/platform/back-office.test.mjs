@@ -1962,6 +1962,38 @@ test("the partner card: what each partner is owed, the workspaces held for a per
   assert.doesNotMatch(meta["Nobody's"], /Brought by/, "a workspace nobody brought says nothing about partners");
 });
 
+test("who brought it and who decided, in the back office's words: a link, a handover or an owner's invitation; the nightly check, a person, or the rule as the partner joined (0020)", () => {
+  const WHY = "The card that pays for it also pays for a workspace the partner owns.";
+  assert.equal(platformPartnerStanding(brought()).by, "Brought by ada-co", "a database before 00225 says no origin");
+  assert.equal(platformPartnerStanding(brought({ origin: "link" })).by, "Brought by ada-co");
+  assert.equal(platformPartnerStanding(brought({ origin: "handover" })).by, "Set up and handed over by ada-co");
+  assert.equal(platformPartnerStanding(brought({ origin: "invite" })).by, "ada-co, asked in by its owner");
+  const joined = platformPartnerStanding(
+    brought({
+      origin: "invite",
+      standing: "disqualified",
+      standing_why: "It was already paying for its plan when the partner joined, so it earns no share.",
+      decided_by: "joining",
+      checks: { already_paying: true },
+    }),
+  );
+  assert.equal(
+    joined.standing,
+    "Disqualified (as the partner joined): It was already paying for its plan when the partner joined, so it earns no share.",
+    "not the nightly check's: it decided nothing",
+  );
+  assert.equal(platformPartnerStanding(brought()).standing, `Under review (the nightly check): ${WHY}`);
+  assert.equal(
+    platformPartnerStanding(brought({ decided_by: "person" })).standing,
+    `Under review (decided by a person): ${WHY}`,
+  );
+  assert.equal(
+    platformPartnerStanding(brought({ decided_by: "someone-new" })).standing,
+    `Under review: ${WHY}`,
+    "a decider these words do not know is not named",
+  );
+});
+
 test("a deployment whose overview predates the partners draws no partner card, and the workspaces are still there", async () => {
   globalThis.window.__platform = partnerApi([live({ tenant_id: "a", slug: "harbor", name: "Harbor Moving" })], null);
   const page = mount(Pane);
