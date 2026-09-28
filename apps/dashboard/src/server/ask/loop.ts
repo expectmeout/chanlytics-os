@@ -5,9 +5,7 @@ import {
   ASK_MAX_TOKENS,
   ASK_TURN_BUDGET_MS,
   answerForCards,
-  answerText,
   answerWords,
-  cacheHitOf,
   cleanAnswer,
   failedAnswer,
   isUngrounded,
@@ -46,6 +44,7 @@ import { crossPagePlan, readBlock, scopedRead } from "./cross-page";
 import { shape as shapeReader } from "../readers/shape";
 import { replayBlocks, runRound, type RoundBlock } from "./round";
 import { askModel } from "./model";
+import { finishTurn, type TurnEnd } from "./memory";
 
 /**
  * One turn of the assistant.
@@ -349,62 +348,29 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ASK_TURN_BUDGET_MS);
 
-  const done = (r: {
-    answer: AskAnswer;
-    failed: boolean;
-    failure: string | null;
-    rounds: number;
-    ungrounded?: boolean;
-  }): TurnResult => {
+  const done = (r: TurnEnd): TurnResult => {
     clearTimeout(timer);
-    const shape: AskTurnShape = {
-      v: 1,
-      model: model.id,
-      effort: model.effort,
-      surface: input.surface,
-      scope_kind: input.scope?.kind ?? null,
-      follow_up: input.history.length > 0,
-      since_last_ms: input.sinceLastMs ?? null,
-      opened_ms: input.openedMs ?? null,
-      context_rows: built ? built.rows : null,
-      context_chars: built ? built.chars : null,
-      warm: built ? (built.failed ? "failed" : built.warm) : input.context ? "failed" : "none",
-      context_ms: contextMs,
-      context_dropped: dataDropped && (pageBlocks.length > 0 || crossBlocks.length > 0),
-      cross_page: plan.map((p) => calledName(p.name, p.input)),
-      rounds: r.rounds,
-      rounds_ms: roundsMs,
-      tools_ms: toolsMs,
-      first_byte_ms: firstByteMs,
-      first_text_ms: firstTextMs,
-      first_say_ms: firstSayMs,
-      final_ms: Date.now() - t0,
+    return finishTurn(r, {
+      input,
+      model,
+      t0,
+      built,
+      contextMs,
+      dataDropped,
+      pageBlocks,
+      crossBlocks,
+      plan,
+      roundsMs,
+      toolsMs,
+      firstByteMs,
+      firstTextMs,
+      firstSayMs,
       tokens,
-      cache_hit: cacheHitOf(tokens),
-      cap_hits: capHits,
+      capHits,
       format,
-      failed: r.failed,
-    };
-    console.log(
-      JSON.stringify({
-        level: "info",
-        event: "ask_turn_shape",
-        tenant: input.tenantId,
-        ...shape,
-        tools: toolsUsed,
-        form: r.answer.form,
-      }),
-    );
-    return {
-      ungrounded: false,
-      tools: toolsUsed,
+      toolsUsed,
       proposals,
-      latencyMs: Date.now() - t0,
-      ...r,
-      text: answerText(r.answer),
-      model: model.id,
-      shape,
-    };
+    });
   };
   /** A turn that could not be answered: its sentence, in the person's language, is the answer's headline. */
   const fail = (sentence: string, failure: string, rounds: number) =>
