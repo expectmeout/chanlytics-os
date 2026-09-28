@@ -267,8 +267,9 @@ is in every recording or in none. It writes every element's edges, to 1/64 of a 
 refuses a page that did not draw what it opened: an empty root, a "No surface at" card, the wrong theme, an error the
 page threw, or a request that never ended. A full recording takes about eleven minutes.
 
-`compare`, and `record` with `--against`, exits 0 when the two are equal: every edge within 1/64 of a pixel and every
-value the same. It exits 1 with the differences, what is gone or new before what moved (`--limit N` lists more), and 2
+`compare`, and `record` with `--against`, exits 0 when the two are equal: every edge within an eighth of a pixel (the
+browser once laid one line of text out 2/64 of a pixel apart in two recordings of one tree), a pseudo-element's laid-out
+lengths held the same way, and every other value the same. It exits 1 with the differences, what is gone or new before what moved (`--limit N` lists more), and 2
 when the two were recorded differently (another browser, other pages, longhands or scenes) or the command failed.
 Either way it names the rules the change touched that no page of either tree drew: nothing here proves those, so the
 pull request names them with how they were checked, says what was compared, and that it was equal.
@@ -283,7 +284,7 @@ What it cannot prove, so a pull request does not claim it:
 - motion: animations and transitions are stopped, so a change to one is not seen;
 - text: what an element says is not recorded, only its style and where it stands;
 - a width between 390 and 1440, and the 900px and 720px breaks among them;
-- an edge that moved 1/64 of a pixel or less.
+- an edge that moved an eighth of a pixel or less.
 
 It needs the network: the page loads React and Babel from unpkg and its fonts from Google. Record both runs on one
 machine, in one sitting; a new browser is a different recording, and `compare` says so rather than compare.

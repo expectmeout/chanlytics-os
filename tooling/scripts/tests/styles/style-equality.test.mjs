@@ -66,9 +66,11 @@ test("styles are compared by their values, not by where the table keeps them", (
   ]);
 });
 
-test("an edge within one step of where it was has not moved; two steps, or a box that grew as it moved, has", () => {
+test("an edge within the tolerance of where it was has not moved; twice as far, or a box that grew as it moved, has", () => {
   const at = (edges) => recording({ [PAGE]: [[button[0], edges, BLACK]] });
   const here = at([10, 20, 90, 50]);
+  // The 2/64 of a pixel one line of text was once laid out apart by, in two recordings of one tree.
+  assert.equal(compareRecordings(here, at([10, 20, 90 - 2 / 64, 50])).equal, true);
   assert.equal(compareRecordings(here, at([10 + EDGE_TOLERANCE, 20, 90, 50])).equal, true);
   assert.equal(compareRecordings(here, at([10 + 2 * EDGE_TOLERANCE, 20, 90, 50])).equal, false);
   // Half a pixel further right and half a pixel wider, each within the half pixel boxes were once allowed: the right
@@ -80,6 +82,17 @@ test("an edge within one step of where it was has not moved; two steps, or a box
   const pseudo = (edges) => recording({ [PAGE]: [["body:1>div:1::before", edges, BLACK]] });
   assert.equal(compareRecordings(pseudo(null), pseudo(null)).equal, true);
   assert.equal(compareRecordings(pseudo(null), pseudo([0, 0, 1, 1])).equal, false);
+});
+
+test("a pseudo-element's laid-out lengths are held as its edges would be; its other values exactly", () => {
+  const meta = { properties: ["width", "transform-origin", "color"], laidOut: ["width", "transform-origin"] };
+  const before = ["178px", "89px 1.5px", "rgb(0, 0, 0)"];
+  const drawn = (values) => recording({ [PAGE]: [["body:1>div:1::after", null, values]] }, { meta });
+  const compare = (values) => compareRecordings(drawn(before), drawn(values)).differences.map((d) => d.what);
+  assert.deepEqual(compare(["177.969px", "88.984px 1.5px", "rgb(0, 0, 0)"]), []);
+  assert.deepEqual(compare(["179px", "89px 1.5px", "rgb(0, 0, 0)"]), ["width"]);
+  assert.deepEqual(compare(["178px", "89px 1.5px", "rgb(0, 0, 1)"]), ["color"]);
+  assert.deepEqual(compare(["178px", "center 1.5px", "rgb(0, 0, 0)"]), ["transform-origin"]);
 });
 
 test("what is gone or new is listed before what moved, the count is exact and the list is capped", () => {

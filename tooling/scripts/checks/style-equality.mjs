@@ -128,12 +128,14 @@ const LAID_OUT = (
 const SKIPPED = ["script", "style", "link", "template", "noscript", "meta", "base", "title"];
 
 /**
- * How finely an edge is written, and how far it may move and still be where it was: one step, 1/64 of a pixel, as
- * finely as the browser lays a box out. Two recordings of one tree agree to the step; an edge a person could see
- * move moves 64 of them.
+ * How finely an edge is written: 1/64 of a pixel, as finely as the browser lays a box out. And how far an edge, or a
+ * length the layout decides for a pseudo-element (LAID_OUT), may move and still be where it was: an eighth of a pixel.
+ * The browser does not always lay one line of text out to the same 1/64: two recordings of one tree put the phone
+ * People page's `.cl-decision-narr`, beside a column as wide as its words, 2/64 of a pixel apart. An edge a person
+ * could see move moves a pixel.
  */
 const EDGE_STEP = 1 / 64;
-export const EDGE_TOLERANCE = EDGE_STEP;
+export const EDGE_TOLERANCE = 1 / 8;
 
 /**
  * The simulated seconds each route is given, one at a time, letting the requests each second started finish in real
@@ -524,11 +526,18 @@ export function setupMismatch(a = {}, b = {}) {
   );
 }
 
+const within = (a, b) => Math.abs(Number(a) - Number(b)) <= EDGE_TOLERANCE + Number.EPSILON;
+
 /** Two sets of edges are one when each edge is within EDGE_TOLERANCE; a pseudo-element has none, and two agree. */
 const sameEdges = (a, b) =>
-  a === null || b === null
-    ? a === b
-    : a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) <= EDGE_TOLERANCE + Number.EPSILON);
+  a === null || b === null ? a === b : a.length === b.length && a.every((v, i) => within(v, b[i]));
+
+/** Two laid-out values that say the same but for lengths within EDGE_TOLERANCE of each other ("12.5px 8px"). */
+const sameLaidOut = (a, b) => {
+  const x = a.split(/(-?\d*\.?\d+)px/);
+  const y = b.split(/(-?\d*\.?\d+)px/);
+  return x.length === y.length && x.every((s, i) => (i % 2 ? within(s, y[i]) : s === y[i]));
+};
 
 /** The rules the two trees' stylesheets do not hold alike, by their words in each sheet, and whether a run drew each. */
 function changedRules(a = {}, b = {}) {
@@ -595,9 +604,12 @@ export function compareRecordings(before, after, limit = LIMIT) {
     const list = STRUCTURAL.has(d.what) ? lists.structural : lists.moved;
     if (list.length < limit) list.push(d);
   };
-  // Many elements share a pair of styles, so each pair is compared once.
+  // Many elements share a pair of styles, so each pair is compared once. A value the layout decides (a pseudo-element's
+  // LAID_OUT longhands; an element's are null, its edges standing for them) is held to EDGE_TOLERANCE, as edges are.
+  const laid = names.map((n) => (before.meta.laidOut ?? []).includes(n));
+  const same = (v, w, n) => v === w || (laid[n] && v !== null && w !== null && sameLaidOut(v, w));
   const seen = new Map();
-  const apart = (x, y) => names.flatMap((_, n) => (x[n] === y[n] ? [] : [n]));
+  const apart = (x, y) => names.flatMap((_, n) => (same(x[n], y[n], n) ? [] : [n]));
   const valuesApart = (i, j) => {
     if (!seen.has(`${i},${j}`)) seen.set(`${i},${j}`, apart(before.styles[i], after.styles[j]));
     return seen.get(`${i},${j}`);
