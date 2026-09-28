@@ -159,6 +159,11 @@ const CLOCK_LEAD_MS = 10 * 60_000;
 const THEME_MS = 500;
 /** How long a scene's press may wait for its element, in real time. */
 const PRESS_TIMEOUT_MS = 10_000;
+/**
+ * How long a record's first page may take to load, in real time: it fetches React and Babel and compiles the shell,
+ * which took eight seconds on a machine busy with other work. Waiting longer changes nothing recorded.
+ */
+const LOAD_TIMEOUT_MS = 60_000;
 /** How many differences and rules `compare` lists unless told otherwise; the count is always exact. */
 const LIMIT = 25;
 const RULE_SHOWN = 160;
@@ -410,7 +415,10 @@ async function recordContext(browser, job) {
     await page.addInitScript(holdStill, STILL + (plant ?? ""));
     await page.coverage.startCSSCoverage({ resetOnNavigation: false });
     const where = `${name} ${device} ${theme}`;
-    await page.goto(`${harness.url}/w/${slug}/#/${routes[0] ?? scenes[0][1].route}`, { waitUntil: "load" });
+    await page.goto(`${harness.url}/w/${slug}/#/${routes[0] ?? scenes[0][1].route}`, {
+      waitUntil: "load",
+      timeout: LOAD_TIMEOUT_MS,
+    });
     await settle(page, quiet, where);
     // The standalone document starts dark and turns on the `t` key (legacy/Chanlytics.html).
     if (theme !== "dark") {
