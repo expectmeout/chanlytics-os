@@ -193,10 +193,10 @@ standalone mockup from this worktree's source with a fixture first in its head,
 and answers the spec's own `/api/v1` reads from a record.
 
 ```bash
-corepack pnpm e2e:local -- e2e/settings-business.spec.ts
-corepack pnpm e2e:local -- e2e/settings-business.spec.ts --scenario=salon
-corepack pnpm e2e:local -- e2e/settings-business.spec.ts --grep "fits a phone"
-corepack pnpm e2e:local -- e2e/people.spec.ts --scenario=pipeline --grep "the Pipeline is a third scope"
+corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts
+corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --scenario=salon
+corepack pnpm e2e:local -- e2e/settings/settings-business.spec.ts --grep "fits a phone"
+corepack pnpm e2e:local -- e2e/people/people.spec.ts --scenario=pipeline --grep "the Pipeline is a third scope"
 ```
 
 It takes a free port, sets what `signIn()` reads, runs the REAL spec unmodified
@@ -227,7 +227,7 @@ in the real bundle -- the harness compiles the legacy tree with Babel in the
 browser, so the runner raises the per-test timeout where production runs under
 the config's own 45s. Green here is not a green nightly.
 
-`e2e/settings-business.spec.ts` runs on it, and `e2e/people.spec.ts`'s Pipeline
+`e2e/settings/settings-business.spec.ts` runs on it, and `e2e/people/people.spec.ts`'s Pipeline
 walk on the `pipeline` record. Another
 surface needs its own globals added to `e2e-harness/fixture-src.ts` -- whatever
 that page's bridge publishes -- and any read it makes added to `answer()` in
@@ -575,6 +575,46 @@ The app signs in with Apple and Google natively (PR 3 of the phone app) and hand
    `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` and `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` in each environment, and a new build:
    the Google button and its URL scheme exist only in a build made with the ids.
 3. **Watch** `native_sign_in_failed` on the dashboard's logs: a provider that does not know the app answers there.
+
+## Walk the phone app
+
+The preview app on an Android emulator or phone, walked end to end from this computer: cleared to its sign-in screen,
+signed in as the nightly's own owner, each tab, the bell's sheet and Back, More's drawer, a chart's CSV to the share
+sheet, and More pressed again while in front. Every step leaves a screenshot, and the walk says which bundle it ran.
+The flows are Maestro's (`apps/mobile/.maestro`); the rest is `tooling/scripts/mobile`, over adb and the WebViews'
+DevTools, which a preview or development build opens and a store build does not.
+
+1. **An emulator, once**: Android Studio's SDK with an x86_64 Google APIs image, and one virtual device made from it
+   (`emulator -avd <name>` starts it). adb comes with the SDK. A phone with USB debugging on works too.
+2. **The preview APK**: the newest finished preview build's artifact, from the Expo dashboard or
+   `npx eas-cli@latest build:list --platform android --build-profile preview --status finished --limit 1`, then
+   `adb install -r <file>.apk`. An update published to the preview channel reaches it on its second launch.
+3. **Maestro, once**: its CLI from its GitHub releases, which runs on a JDK 17 or newer (Android Studio ships one).
+   `maestro` on the PATH, or the launcher's path in `MAESTRO`, and `JAVA_HOME` set.
+4. **Walk it**, with the e2e suite's three keys (`e2e/session.ts`) and the nightly owner's address:
+
+   ```bash
+   E2E_USER_EMAIL=e2e-owner@example.com node --env-file=apps/dashboard/.env.local --import tsx tooling/scripts/mobile/walk.mjs
+   ```
+
+   It ends with the bundle it walked (an update's id and when it was published, or the build's own) and where the
+   screenshots are (`--out <dir>` names the folder). `--store` takes the store listing's screenshots instead
+   (`docs/store/screenshots.md`), on a display of 1080 × 1920, and puts the display back after.
+
+5. **Time a cold start**, signed in: `node tooling/scripts/mobile/cold-start.mjs` (five runs; `--runs <n>`) says, from
+   the moment the app was started, when the system drew its first frame, when the site answered, the first paint,
+   and when Today was drawn with its data. `sign-in.mjs` on its own signs the app in and nothing else.
+
+What trips it:
+
+- **The walk comes back to the sign-in screen.** The site's sign-out is global: the nightly's specs sign its owner
+  out of every device, the emulator's app included. Run the walk (or `sign-in.mjs`) again.
+- **adb lists an `emulator-55xx` that is offline, and Maestro says the device is not connected.** Another program is
+  listening on an emulator's port (on one of our machines, an audio driver's daemon on 5563). Restart adb looking at
+  the first emulator's port only: `adb kill-server`, then `ADB_LOCAL_TRANSPORT_MAX_PORT=5555 adb start-server`
+  (PowerShell: `$env:ADB_LOCAL_TRANSPORT_MAX_PORT=5555; adb start-server`).
+- **A tab pressed again is not in the flows.** The bar's selected item takes no click, and a Maestro tap is one;
+  `walk.mjs` presses More again with a touch and hears the page ask for its drawer.
 
 ## Apply a migration
 

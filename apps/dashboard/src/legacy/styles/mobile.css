@@ -699,7 +699,7 @@
    with no calls could not be pulled at all, where Conversations, People and a long Templates could. A pixel more
    than the box is enough for a short list to give way as a long one does, and it scrolls nothing anyone can see.
    The pixel is an invisible box placed against the list itself, so the list is its containing block: none of these
-   lists holds anything placed against a box outside it (measured on each, 25 Sep). e2e/phone.spec.ts holds every
+   lists holds anything placed against a box outside it (measured on each, 25 Sep). e2e/shell/phone.spec.ts holds every
    list to it. */
 @media (pointer: coarse) {
   .ix-threads, .cv-rows, .lm-list, .lm-panel, .cl-main-scroll, .rp-body, .route-view:has(> .bc-page) { position: relative; }

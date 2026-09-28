@@ -434,8 +434,16 @@ tooling/scripts/
   checks/
   e2e-harness/
   evals/
+  mobile/
   tests/
 e2e/
+  auth/
+  campaigns/
+  conversations/
+  people/
+  settings/
+  shell/
+  today/
 supabase/migrations/
 ```
 
@@ -474,8 +482,10 @@ the suite still asserts on source text rather than behaviour;
 `tooling/scripts/tests/source-scan-baseline.json` is the ratchet that may only
 fall, keyed by each file's path relative to the tests directory. The files are
 grouped by domain under `tooling/scripts/tests/<domain>/`, the shared worlds
-and helpers at the root, and the runner globs every depth. Playwright specs in
-`e2e/` run nightly against production in the suite's own workspace.
+and helpers at the root, and the runner globs every depth. Playwright specs run
+nightly against production in the suite's own workspace. A browser spec goes in
+`e2e/<domain>/`, as `e2e/people/people.spec.ts` is; the helpers stay at the
+root, and so does a domain's only spec until its second.
 
 ## What is decided and not yet built
 
