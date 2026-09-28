@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ROLE_PERMS, frameWhisper, roleGate } from "@chanlytics/contracts";
+import { ROLE_PERMS, frameWhisper, roleGate, toCallVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "../_source.mjs";
 import { fakeDb } from "../_fake-db.mjs";
 
@@ -186,6 +186,57 @@ test("a call exports its facts, its summary, and the turns with a clock; a whisp
   assert.ok(anon.startsWith("Phone call with +19175550100\n"), "no name: the number, once");
   assert.ok(anon.includes("(no transcript)"));
   assert.ok(!anon.includes("Summary\n"));
+});
+
+test("REGRESSION: a call's length in the export is the call card's (contracts callLength), rounded to the second and none for a call with no length -- it floored, 2:04 where the card says 2:05, and printed 0:00 for a length below zero", () => {
+  const call = {
+    id: "k2",
+    retell_call_id: "r2",
+    direction: "inbound",
+    call_type: null,
+    status: "ended",
+    from_e164: "+19175550100",
+    from_raw: null,
+    to_e164: null,
+    started_at: "2026-09-05T03:00:00Z",
+    ended_at: "2026-09-05T03:02:05Z",
+    duration_ms: null,
+    disconnection_reason: null,
+    sentiment: null,
+    call_successful: null,
+    in_voicemail: false,
+    summary: null,
+    transcript_object: null,
+    recording: null,
+    conversation_id: null,
+    contact_id: "p1",
+    message_id: null,
+    created_at: "",
+    updated_at: "",
+    contact: { display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+19175550100" },
+  };
+  const header = (ms) => X.callText({ ...call, duration_ms: ms }, OPTS).split("\n")[1];
+  const saying = (length) =>
+    `Marisa's Beauty Salon · Inbound call · 2026-09-04 23:00${length ? ` · ${length}` : ""} · exported 2026-09-05 11:04 · times in America/New_York`;
+  const card = (ms) => toCallVM({ ...call, duration_ms: ms }, TZ, OPTS.exportedAt).duration;
+  for (const [ms, length] of [
+    [124_600, "2:05"],
+    [124_500, "2:05"],
+    [124_400, "2:04"],
+    [3_599_999, "60:00"],
+    [999, "0:01"],
+    [499, "0:00"],
+    [-1, undefined],
+    [-1_500, undefined],
+    [0, undefined],
+    [null, undefined],
+    [NaN, undefined],
+    [Infinity, undefined],
+    [-Infinity, undefined],
+  ]) {
+    assert.equal(header(ms), saying(length), `${ms} ms`);
+    assert.equal(card(ms), length, `${ms} ms: the call card says the same`);
+  }
 });
 
 test("the CSV quotes what must be quoted and defuses what a spreadsheet would run", () => {

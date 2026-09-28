@@ -69,7 +69,7 @@ for (const k of [
 /**
  * Every request any sweep makes, captured and answered by the case's `answer`.
  *
- * Installed BEFORE the handlers are imported, on purpose: lib/google.ts binds
+ * Installed BEFORE the handlers are imported, on purpose: lib/google/places.ts binds
  * `const http = placesFetch()` at module scope, which captures `fetch` as it
  * is at that moment. A wire installed per test would never see a Places call.
  *

@@ -17,7 +17,7 @@ import type { AskCitation } from "./citations";
 import type { ProposalNeeds } from "../ask-proposals/spec";
 import { dayPlusInZone } from "../calendar/availability";
 import { parseLeadsRoute } from "../leads/lead-plan";
-import { parsePipelineRoute } from "../deals/pipeline";
+import { parsePipelineRoute } from "../deals/pipeline/pipeline-views";
 
 /* ------------------------------------------------------------------ limits */
 

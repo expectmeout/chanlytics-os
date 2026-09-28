@@ -10,20 +10,21 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { LeadSearchPlanSchema, planVersionOf } from "../../../../../packages/contracts/src/leads/search/plan.ts";
 import {
-  LeadSearchPlanSchema,
   LEAD_COUNT_CHOICES,
-  LEAD_ROUND_ENDINGS,
-  planArea,
   planCeiling,
   planMinutes,
+} from "../../../../../packages/contracts/src/leads/search/cards.ts";
+import { LEAD_ROUND_ENDINGS } from "../../../../../packages/contracts/src/leads/search/sets.ts";
+import {
+  planArea,
   planSaid,
   planSentence,
-  planVersionOf,
   planWhere,
   planWho,
   planWords,
-} from "../../../../../packages/contracts/src/leads/lead-search.ts";
+} from "../../../../../packages/contracts/src/leads/search/sentence.ts";
 import {
   LEAD_QUESTION_WAIT_LINE,
   leadEndingLine,

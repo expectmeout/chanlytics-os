@@ -37,7 +37,7 @@ import {
   LEAD_REVIEW_WORD,
   LEAD_STAGE_WORDS,
 } from "../leads/leads";
-import { DEAL_STAGE_WORDS } from "../deals/deals";
+import { DEAL_STAGE_WORDS } from "../deals/deal-words";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];

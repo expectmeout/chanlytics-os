@@ -4,6 +4,6 @@
   "apps/dashboard/src/legacy/pages": 75,
   "apps/dashboard/src/server/readers": 32,
   "e2e": 48,
-  "packages/channels/src": 25,
+  "packages/channels/src": 23,
   "tooling/scripts": 27
 }

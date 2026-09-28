@@ -24,7 +24,7 @@
  */
 import { MIN_MS } from "../shared/time";
 import type { ReachOutRunDto } from "../reach-out/reach-out-dtos";
-import { templateTitle } from "../templates/template-library";
+import { templateTitle } from "../templates/template-titles";
 import { clockDate, clockWhen } from "../shared/clock";
 import { noNumberWords, saidYesTo, type PersonRowVM } from "../people/people";
 import type { ParamSpec } from "../templates/templates";
