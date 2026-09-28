@@ -578,7 +578,7 @@ test("with bookings held on the Autonomy tab, the link is not ready, and the row
 
 test("with replies held on the Autonomy tab, every chat ability is dark and the card says why once", () => {
   // Task 4.1b. On ask or never the WhatsApp receptionist composes no reply at all
-  // (core/inbound/answer.ts through replyPosture) and a call's booking-link send is refused
+  // (core/inbound/context.ts through replyPosture) and a call's booking-link send is refused
   // (receptionist/outbound-gate.ts, policy_hold). Six rows would otherwise all read ready at once.
   for (const mode of ["ask", "never"]) {
     const vm = abilityRows({ ...live, replyMode: mode });

@@ -455,6 +455,87 @@ test("a count of who said yes that cannot be read fails Setup's read -- a zero i
   }
 });
 
+test("Setup asks for each source once, in one order, whichever viewer reads -- a member's roster through its door, the back office's two counts instead -- and a read that failed fails Setup by the first in that order", async () => {
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const asked = (db) => db.seen.map((q) => (q.rpc ? `rpc:${q.rpc}` : `${q.table}.${q.op}`));
+  // Email is off here, so no mailbox is read.
+  const was = process.env.EMAIL_DOMAIN;
+  delete process.env.EMAIL_DOMAIN;
+  try {
+    // The order the reads reach the database: those that ask at once (the config, the last message and call, the
+    // calendar's zone, the listing and its facts, the Google connection, billing, the team), then the rest as they
+    // are awaited, and last the calendar's own read of the settings.
+    const READS = [
+      "tenant_config.select",
+      "messages.select",
+      "calls.select",
+      "tenants.select",
+      "google_listings.select",
+      "google_listings.select",
+      "google_connections.select",
+      "billing_accounts.select",
+      "invitations.select",
+      "lines.select",
+      "tenant_channels.select",
+      "templates.select",
+      "contacts.select",
+      "contacts.select",
+      "contacts.select",
+      "events.select",
+      "capability_activations.select",
+      "tenant_config.select",
+    ];
+    const member = fakeDb({}, {}, { team_roster: () => [] });
+    await setupDtoFor(member, T, { kind: "member" }, new Date(NOW));
+    assert.deepEqual(asked(member), ["rpc:team_roster", ...READS], "a member: the roster through its door");
+    const office = fakeDb({});
+    await setupDtoFor(office, T, { kind: "back_office" }, new Date(NOW));
+    assert.deepEqual(
+      asked(office),
+      [...READS.slice(0, 8), "memberships.select", ...READS.slice(8)],
+      "the back office: the members counted, and no RPC at all",
+    );
+
+    // The reads whose failure is Setup's, in the order it judges them: of two that failed, the first is the error.
+    const CHECKED = [
+      ["tenant_channels.select", 1],
+      ["messages.select", 1],
+      ["calls.select", 1],
+      ["templates.select", 1],
+      ["contacts.select", 1],
+      ["contacts.select", 2],
+      ["contacts.select", 3],
+      ["events.select", 1],
+      ["capability_activations.select", 1],
+    ];
+    /** The fake's faults, read once per query: the k-th read of a table named here fails as PostgREST fails. */
+    const failing = (...which) => {
+      const n = new Map();
+      return new Proxy(
+        {},
+        {
+          get: (_, key) => {
+            if (typeof key !== "string") return undefined;
+            const k = (n.get(key) ?? 0) + 1;
+            n.set(key, k);
+            return which.some(([t, nth]) => t === key && nth === k) ? { message: `${key} #${k} timed out` } : undefined;
+          },
+        },
+      );
+    };
+    for (let i = 0; i < CHECKED.length; i++)
+      for (let j = i + 1; j < CHECKED.length; j++)
+        await assert.rejects(
+          setupDtoFor(fakeDb({}, failing(CHECKED[j], CHECKED[i])), T, { kind: "back_office" }, new Date(NOW)),
+          { message: `${CHECKED[i][0]} #${CHECKED[i][1]} timed out` },
+          `${CHECKED[i].join(" #")} failed before ${CHECKED[j].join(" #")}`,
+        );
+  } finally {
+    if (was === undefined) delete process.env.EMAIL_DOMAIN;
+    else process.env.EMAIL_DOMAIN = was;
+  }
+});
+
 test("calls only: the sentence says what is missing, and WhatsApp can now wait for later", () => {
   const dto = live({
     channels: {

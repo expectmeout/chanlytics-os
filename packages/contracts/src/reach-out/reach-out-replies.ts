@@ -15,7 +15,7 @@
 import { isRealDate } from "../config/workspace-config/config-schema";
 import { mondayOf, shiftKey } from "../calendar/day-keys";
 import { clipAtWord } from "../conversations/message-words";
-import { siteHost } from "../leads/search/clean";
+import { isSiteRoot, siteHost } from "../leads/search/clean";
 import { wallClockAt, zoneDayKey } from "../shared/clock";
 import { DAY_MS, HOUR_MS } from "../shared/time";
 import { normalizeEmail } from "../shared/email-address";
@@ -364,25 +364,20 @@ export function rereadAt(unread: Unread, done: number, receivedAt: number, now: 
  * nobody's own); null otherwise. So one person's no closes a business's own domain, and never a shared ISP's or a
  * free-mail one, which is never a lead's own website. No free-mail list is asked. A website that is a page under the
  * host rather than the host itself (an ISP's "/~joe/", a directory's "/listing/42") is no proof the host is theirs, so
- * only a site's root owns its domain. The check's customer-domain hold (customerDomainOf, F6) is another rule and keeps
- * its own.
+ * only a site's root owns its domain. A lead keeps only its website's host, so `root` is what the finder saw of the
+ * whole address (leads.website_root, 00237): false is a page under the host, null a lead found before it was kept.
+ * The check's customer-domain hold (customerDomainOf, F6) is another rule and keeps its own.
  */
-export function ownedDomainOf(address: string | null | undefined, website: string | null | undefined): string | null {
+export function ownedDomainOf(
+  address: string | null | undefined,
+  website: string | null | undefined,
+  root: boolean | null = null,
+): string | null {
   const a = normalizeEmail(address);
   const host = siteHost(website);
-  if (!a || !host || !isSiteRoot(website)) return null;
+  if (!a || !host || root === false || !isSiteRoot(website)) return null;
   const domain = a.slice(a.lastIndexOf("@") + 1);
   return domain === host ? domain : null;
-}
-
-/** Whether a website is its host's root ("/", with or without a query), read the way siteHost reads it. */
-function isSiteRoot(website: string | null | undefined): boolean {
-  try {
-    const w = (website ?? "").trim();
-    return new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`).pathname.replace(/\/+$/, "") === "";
-  } catch {
-    return false;
-  }
 }
 
 /* ---------------------------------------------------------------- what a reading does (G6) */
@@ -407,6 +402,8 @@ export interface ReplyContext {
    */
   leadAddress: string | null;
   leadWebsite: string | null;
+  /** Whether the finder saw the website as its host's root (00237); null when it was not kept. */
+  leadWebsiteRoot?: boolean | null;
   replyFrom: string | null;
   /** A re-read of a reply that was not read when it arrived (G4). */
   reread: boolean;
@@ -535,7 +532,9 @@ export function readingPlan(reading: ReplyReading | null, c: ReplyContext): Read
         ...stopped,
         saidNo: true,
         suppressFrom: writer,
-        suppressDomain: ownedDomainOf(c.leadAddress, c.leadWebsite) ?? ownedDomainOf(c.replyFrom, c.leadWebsite),
+        suppressDomain:
+          ownedDomainOf(c.leadAddress, c.leadWebsite, c.leadWebsiteRoot) ??
+          ownedDomainOf(c.replyFrom, c.leadWebsite, c.leadWebsiteRoot),
       };
     case "wrong_person": {
       // Due the day it is read: a re-read days after the reply never makes a step already overdue.

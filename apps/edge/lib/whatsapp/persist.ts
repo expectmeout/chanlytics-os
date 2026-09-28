@@ -293,7 +293,7 @@ export function pgSink(
           )
         : Promise.resolve(),
     /**
-     * An address the customer gave in their own words (answer.ts, contracts addressInMessage): kept through the door
+     * An address the customer gave in their own words (core's ingest.ts, contracts addressInMessage): kept through the door
      * set_person_email, which takes the edge's call with no session (00171) and writes the event, only where the person
      * has none. Another person here holding the address is said in the log, never moved: the owner merges them.
      * Two invocations whose pre-reads both land before either write could overwrite each other; a batch's messages

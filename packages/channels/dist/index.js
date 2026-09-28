@@ -1423,7 +1423,7 @@ var ASK_ANSWER_CAPS = {
 var ROW_KINDS = ASK_CITATION_KINDS.filter((k) => k !== "page");
 var SOURCE = {
   type: "object",
-  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read.",
+  description: "A row or a page read this turn (the workspace block and the reads above count, as does a tool's result), or a row an earlier answer in this thread named, with the kind and the exact id it came with (a page's id is its route; a run is kind broadcast); kind none when it rests on nothing read or named.",
   properties: {
     kind: { type: "string", enum: [...ASK_CITATION_KINDS, "none"] },
     id: { type: "string" },
@@ -2142,6 +2142,8 @@ var ANSWER_OR_FORWARD = /^\s*(?:re|aw|sv|rv|antw|fwd?)\s*:/i;
 function posesAsReply(subject) {
   return ANSWER_OR_FORWARD.test(subject);
 }
+var HAND_KINDS = ["call", "note"];
+var HAND_WORDS_MAX = 280;
 var REACH_OUT_SUBJECT_MAX = 80;
 var REACH_OUT_BODY_MAX = 1200;
 var OPENING_WORDS_MAX = 40;
@@ -2157,7 +2159,9 @@ var ReachOutStepSchema = z14.object({
   id: z14.string().uuid().nullable().optional(),
   subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
   body: z14.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z14.object({ kind: z14.enum(HAND_KINDS), words: z14.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
 var ReachOutChainSchema = z14.object({
   name: z14.string().trim().min(1).max(REACH_OUT_NAME_MAX),
@@ -2740,6 +2744,9 @@ var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -3957,238 +3964,248 @@ function rowsOf(b, key) {
   const rows = b[key];
   return Array.isArray(rows) ? rows.filter((r2) => !!r2 && typeof r2 === "object" && !Array.isArray(r2)) : [];
 }
+async function createSubaccount(http, master, friendlyName) {
+  const b = need(
+    await http(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }),
+    "create subaccount"
+  );
+  const sid2 = str(b, "sid");
+  const token = str(b, "auth_token");
+  if (!sid2 || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
+  return { sid: sid2, token, status: str(b, "status") ?? "active" };
+}
+async function findSubaccount(http, master, friendlyName) {
+  const url = `${twilioUrls.subaccounts}?${new URLSearchParams({ FriendlyName: friendlyName.slice(0, 64), PageSize: "20" })}`;
+  for (const a of rowsOf(need(await http(master, "GET", url), "list subaccounts"), "accounts")) {
+    const sid2 = str(a, "sid");
+    const token = str(a, "auth_token");
+    if (sid2 && token && str(a, "status") !== "closed") return { sid: sid2, token };
+  }
+  return null;
+}
+async function findTrunk(http, acct, domainName) {
+  for (const t of rowsOf(need(await http(acct, "GET", `${twilioUrls.trunks}?PageSize=50`), "list trunks"), "trunks")) {
+    const sid2 = str(t, "sid");
+    if (sid2 && str(t, "domain_name") === domainName) return { sid: sid2, domainName };
+  }
+  return null;
+}
+async function findCredentialList(http, acct, friendlyName) {
+  const b = need(
+    await http(acct, "GET", `${twilioUrls.credentialLists(acct.sid)}?PageSize=50`),
+    "list credential lists"
+  );
+  for (const l of rowsOf(b, "credential_lists")) {
+    const sid2 = str(l, "sid");
+    if (sid2 && str(l, "friendly_name") === friendlyName.slice(0, 64)) return { sid: sid2 };
+  }
+  return null;
+}
+async function findCredential(http, acct, listSid, username) {
+  const b = need(
+    await http(acct, "GET", `${twilioUrls.credentials(acct.sid, listSid)}?PageSize=50`),
+    "list credentials"
+  );
+  for (const c of rowsOf(b, "credentials")) {
+    const sid2 = str(c, "sid");
+    if (sid2 && str(c, "username") === username) return { sid: sid2 };
+  }
+  return null;
+}
+async function deleteCredential(http, acct, listSid, credentialSid) {
+  const a = await http(acct, "DELETE", twilioUrls.credential(acct.sid, listSid, credentialSid));
+  if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete credential");
+}
+async function findOrigination(http, acct, trunkSid, sipUrl) {
+  const b = need(
+    await http(acct, "GET", `${twilioUrls.trunkOriginationUrls(trunkSid)}?PageSize=50`),
+    "list origination urls"
+  );
+  for (const o of rowsOf(b, "origination_urls")) {
+    const sid2 = str(o, "sid");
+    if (sid2 && str(o, "sip_url") === sipUrl) return { sid: sid2 };
+  }
+  return null;
+}
+async function searchLocal(http, acct, q) {
+  const url = `${twilioUrls.availableLocal(acct.sid)}?${new URLSearchParams({
+    AreaCode: String(q.areaCode),
+    VoiceEnabled: "true",
+    SmsEnabled: "true",
+    PageSize: String(Math.min(Math.max(q.limit, 1), 30))
+  }).toString()}`;
+  const b = need(await http(acct, "GET", url), "search numbers");
+  const rows = Array.isArray(b.available_phone_numbers) ? b.available_phone_numbers : [];
+  return rows.map((n) => {
+    const e164 = str(n, "phone_number");
+    if (!e164) return null;
+    const caps = n.capabilities ?? {};
+    return {
+      e164,
+      friendly: str(n, "friendly_name") ?? e164,
+      locality: str(n, "locality"),
+      region: str(n, "region"),
+      capabilities: { voice: caps.voice === true, sms: caps.sms === true, mms: caps.mms === true }
+    };
+  }).filter((n) => n !== null);
+}
+async function buyNumber(http, acct, e164, friendlyName) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), {
+      PhoneNumber: e164,
+      FriendlyName: friendlyName.slice(0, 64)
+    }),
+    "buy number"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "buy number answered without a sid");
+  return { sid: sid2, e164: str(b, "phone_number") ?? e164 };
+}
+async function ownedNumber(http, acct, e164) {
+  const a = await http(
+    acct,
+    "GET",
+    `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`
+  );
+  if (a.status === 404) return null;
+  const b = need(a, "list owned numbers");
+  const list = Array.isArray(b.incoming_phone_numbers) ? b.incoming_phone_numbers : [];
+  for (const row of list) {
+    if (!row || typeof row !== "object") continue;
+    const sid2 = str(row, "sid");
+    if (sid2) return { sid: sid2, e164: str(row, "phone_number") ?? e164 };
+  }
+  return null;
+}
+async function releaseNumber(http, acct, numberSid) {
+  const a = await http(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
+  if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "release number");
+}
+async function createTrunk(http, acct, o) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.trunks, {
+      FriendlyName: o.friendlyName.slice(0, 64),
+      DomainName: o.domainName
+    }),
+    "create trunk"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "create trunk answered without a sid");
+  return { sid: sid2, domainName: str(b, "domain_name") ?? o.domainName };
+}
+async function deleteTrunk(http, acct, trunkSid) {
+  const a = await http(acct, "DELETE", twilioUrls.trunk(trunkSid));
+  if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete trunk");
+}
+async function createCredentialList(http, acct, friendlyName) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }),
+    "create credential list"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "create credential list answered without a sid");
+  return { sid: sid2 };
+}
+async function addCredential(http, acct, listSid, username, password) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }),
+    "add credential"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "add credential answered without a sid");
+  return { sid: sid2 };
+}
+async function attachCredentialList(http, acct, trunkSid, listSid) {
+  need(
+    await http(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }),
+    "attach credential list"
+  );
+}
+async function addOrigination(http, acct, trunkSid, o) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.trunkOriginationUrls(trunkSid), {
+      SipUrl: o.sipUrl,
+      FriendlyName: o.friendlyName.slice(0, 64),
+      Weight: "10",
+      Priority: "10",
+      Enabled: "true"
+    }),
+    "add origination"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "add origination answered without a sid");
+  return { sid: sid2 };
+}
+async function attachNumber(http, acct, trunkSid, numberSid) {
+  need(
+    await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }),
+    "attach number to trunk"
+  );
+}
+async function createMessagingService(http, acct, o) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.messagingServices, {
+      FriendlyName: o.friendlyName.slice(0, 64),
+      InboundRequestUrl: o.inboundUrl,
+      InboundMethod: "POST",
+      UseInboundWebhookOnNumber: "false",
+      StickySender: "true",
+      SmartEncoding: "true"
+    }),
+    "create messaging service"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "create messaging service answered without a sid");
+  return { sid: sid2 };
+}
+async function addNumberToService(http, acct, serviceSid, numberSid) {
+  const b = need(
+    await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }),
+    "add number to messaging service"
+  );
+  const sid2 = str(b, "sid");
+  if (!sid2) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
+  return { sid: sid2 };
+}
+async function sendSms(http, acct, o) {
+  const a = await http(acct, "POST", twilioUrls.messages(acct.sid), {
+    MessagingServiceSid: o.serviceSid,
+    To: o.to,
+    Body: o.body,
+    ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
+  });
+  const ok2 = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
+  return {
+    ok: ok2,
+    sid: str(a.body, "sid"),
+    status: a.status,
+    code: typeof a.body?.code === "number" ? a.body.code : null
+  };
+}
 function twilioProvider(http = fetchTwilio) {
   return {
     name: "twilio",
-    async createSubaccount(master, friendlyName) {
-      const b = need(
-        await http(master, "POST", twilioUrls.subaccounts, { FriendlyName: friendlyName.slice(0, 64) }),
-        "create subaccount"
-      );
-      const sid2 = str(b, "sid");
-      const token = str(b, "auth_token");
-      if (!sid2 || !token) throw new TwilioError(200, b, "create subaccount answered without sid/auth_token");
-      return { sid: sid2, token, status: str(b, "status") ?? "active" };
-    },
-    async findSubaccount(master, friendlyName) {
-      const url = `${twilioUrls.subaccounts}?${new URLSearchParams({ FriendlyName: friendlyName.slice(0, 64), PageSize: "20" })}`;
-      for (const a of rowsOf(need(await http(master, "GET", url), "list subaccounts"), "accounts")) {
-        const sid2 = str(a, "sid");
-        const token = str(a, "auth_token");
-        if (sid2 && token && str(a, "status") !== "closed") return { sid: sid2, token };
-      }
-      return null;
-    },
-    async findTrunk(acct, domainName) {
-      for (const t of rowsOf(
-        need(await http(acct, "GET", `${twilioUrls.trunks}?PageSize=50`), "list trunks"),
-        "trunks"
-      )) {
-        const sid2 = str(t, "sid");
-        if (sid2 && str(t, "domain_name") === domainName) return { sid: sid2, domainName };
-      }
-      return null;
-    },
-    async findCredentialList(acct, friendlyName) {
-      const b = need(
-        await http(acct, "GET", `${twilioUrls.credentialLists(acct.sid)}?PageSize=50`),
-        "list credential lists"
-      );
-      for (const l of rowsOf(b, "credential_lists")) {
-        const sid2 = str(l, "sid");
-        if (sid2 && str(l, "friendly_name") === friendlyName.slice(0, 64)) return { sid: sid2 };
-      }
-      return null;
-    },
-    async findCredential(acct, listSid, username) {
-      const b = need(
-        await http(acct, "GET", `${twilioUrls.credentials(acct.sid, listSid)}?PageSize=50`),
-        "list credentials"
-      );
-      for (const c of rowsOf(b, "credentials")) {
-        const sid2 = str(c, "sid");
-        if (sid2 && str(c, "username") === username) return { sid: sid2 };
-      }
-      return null;
-    },
-    async deleteCredential(acct, listSid, credentialSid) {
-      const a = await http(acct, "DELETE", twilioUrls.credential(acct.sid, listSid, credentialSid));
-      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete credential");
-    },
-    async findOrigination(acct, trunkSid, sipUrl) {
-      const b = need(
-        await http(acct, "GET", `${twilioUrls.trunkOriginationUrls(trunkSid)}?PageSize=50`),
-        "list origination urls"
-      );
-      for (const o of rowsOf(b, "origination_urls")) {
-        const sid2 = str(o, "sid");
-        if (sid2 && str(o, "sip_url") === sipUrl) return { sid: sid2 };
-      }
-      return null;
-    },
-    async searchLocal(acct, q) {
-      const url = `${twilioUrls.availableLocal(acct.sid)}?${new URLSearchParams({
-        AreaCode: String(q.areaCode),
-        VoiceEnabled: "true",
-        SmsEnabled: "true",
-        PageSize: String(Math.min(Math.max(q.limit, 1), 30))
-      }).toString()}`;
-      const b = need(await http(acct, "GET", url), "search numbers");
-      const rows = Array.isArray(b.available_phone_numbers) ? b.available_phone_numbers : [];
-      return rows.map((n) => {
-        const e164 = str(n, "phone_number");
-        if (!e164) return null;
-        const caps = n.capabilities ?? {};
-        return {
-          e164,
-          friendly: str(n, "friendly_name") ?? e164,
-          locality: str(n, "locality"),
-          region: str(n, "region"),
-          capabilities: { voice: caps.voice === true, sms: caps.sms === true, mms: caps.mms === true }
-        };
-      }).filter((n) => n !== null);
-    },
-    async buyNumber(acct, e164, friendlyName) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.incomingNumbers(acct.sid), {
-          PhoneNumber: e164,
-          FriendlyName: friendlyName.slice(0, 64)
-        }),
-        "buy number"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "buy number answered without a sid");
-      return { sid: sid2, e164: str(b, "phone_number") ?? e164 };
-    },
-    // A number this subaccount already holds. Twilio filters IncomingPhoneNumbers by
-    // exact E.164, so this is one GET and no guessing.
-    //
-    // A read that FAILS must not be reported as "we do not own it": that answer sends
-    // the saga on to buy a second number. So a non-200 throws, and the step retries
-    // rather than spending.
-    async ownedNumber(acct, e164) {
-      const a = await http(
-        acct,
-        "GET",
-        `${twilioUrls.incomingNumbers(acct.sid)}?PhoneNumber=${encodeURIComponent(e164)}&PageSize=1`
-      );
-      if (a.status === 404) return null;
-      const b = need(a, "list owned numbers");
-      const list = Array.isArray(b.incoming_phone_numbers) ? b.incoming_phone_numbers : [];
-      for (const row of list) {
-        if (!row || typeof row !== "object") continue;
-        const sid2 = str(row, "sid");
-        if (sid2) return { sid: sid2, e164: str(row, "phone_number") ?? e164 };
-      }
-      return null;
-    },
-    async releaseNumber(acct, numberSid) {
-      const a = await http(acct, "DELETE", twilioUrls.incomingNumber(acct.sid, numberSid));
-      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "release number");
-    },
-    async createTrunk(acct, o) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.trunks, {
-          FriendlyName: o.friendlyName.slice(0, 64),
-          DomainName: o.domainName
-        }),
-        "create trunk"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "create trunk answered without a sid");
-      return { sid: sid2, domainName: str(b, "domain_name") ?? o.domainName };
-    },
-    async deleteTrunk(acct, trunkSid) {
-      const a = await http(acct, "DELETE", twilioUrls.trunk(trunkSid));
-      if (a.status !== 204 && a.status !== 404) throw new TwilioError(a.status, a.body, "delete trunk");
-    },
-    async createCredentialList(acct, friendlyName) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.credentialLists(acct.sid), { FriendlyName: friendlyName.slice(0, 64) }),
-        "create credential list"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "create credential list answered without a sid");
-      return { sid: sid2 };
-    },
-    async addCredential(acct, listSid, username, password) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.credentials(acct.sid, listSid), { Username: username, Password: password }),
-        "add credential"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "add credential answered without a sid");
-      return { sid: sid2 };
-    },
-    async attachCredentialList(acct, trunkSid, listSid) {
-      need(
-        await http(acct, "POST", twilioUrls.trunkCredentialLists(trunkSid), { CredentialListSid: listSid }),
-        "attach credential list"
-      );
-    },
-    async addOrigination(acct, trunkSid, o) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.trunkOriginationUrls(trunkSid), {
-          SipUrl: o.sipUrl,
-          FriendlyName: o.friendlyName.slice(0, 64),
-          Weight: "10",
-          Priority: "10",
-          Enabled: "true"
-        }),
-        "add origination"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "add origination answered without a sid");
-      return { sid: sid2 };
-    },
-    async attachNumber(acct, trunkSid, numberSid) {
-      need(
-        await http(acct, "POST", twilioUrls.trunkPhoneNumbers(trunkSid), { PhoneNumberSid: numberSid }),
-        "attach number to trunk"
-      );
-    },
-    // Messaging Services API (verified 2026-09-07): the service's own inbound
-    // URL wins over the number's; sticky sender and smart encoding on.
-    async createMessagingService(acct, o) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.messagingServices, {
-          FriendlyName: o.friendlyName.slice(0, 64),
-          InboundRequestUrl: o.inboundUrl,
-          InboundMethod: "POST",
-          UseInboundWebhookOnNumber: "false",
-          StickySender: "true",
-          SmartEncoding: "true"
-        }),
-        "create messaging service"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "create messaging service answered without a sid");
-      return { sid: sid2 };
-    },
-    async addNumberToService(acct, serviceSid, numberSid) {
-      const b = need(
-        await http(acct, "POST", twilioUrls.serviceNumbers(serviceSid), { PhoneNumberSid: numberSid }),
-        "add number to messaging service"
-      );
-      const sid2 = str(b, "sid");
-      if (!sid2) throw new TwilioError(200, b, "add number to messaging service answered without a sid");
-      return { sid: sid2 };
-    },
-    async sendSms(acct, o) {
-      const a = await http(acct, "POST", twilioUrls.messages(acct.sid), {
-        MessagingServiceSid: o.serviceSid,
-        To: o.to,
-        Body: o.body,
-        ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
-      });
-      const ok2 = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
-      return {
-        ok: ok2,
-        sid: str(a.body, "sid"),
-        status: a.status,
-        code: typeof a.body?.code === "number" ? a.body.code : null
-      };
-    }
+    createSubaccount: (master, friendlyName) => createSubaccount(http, master, friendlyName),
+    findSubaccount: (master, friendlyName) => findSubaccount(http, master, friendlyName),
+    findTrunk: (acct, domainName) => findTrunk(http, acct, domainName),
+    findCredentialList: (acct, friendlyName) => findCredentialList(http, acct, friendlyName),
+    findCredential: (acct, listSid, username) => findCredential(http, acct, listSid, username),
+    deleteCredential: (acct, listSid, credentialSid) => deleteCredential(http, acct, listSid, credentialSid),
+    findOrigination: (acct, trunkSid, sipUrl) => findOrigination(http, acct, trunkSid, sipUrl),
+    searchLocal: (acct, q) => searchLocal(http, acct, q),
+    buyNumber: (acct, e164, friendlyName) => buyNumber(http, acct, e164, friendlyName),
+    ownedNumber: (acct, e164) => ownedNumber(http, acct, e164),
+    releaseNumber: (acct, numberSid) => releaseNumber(http, acct, numberSid),
+    createTrunk: (acct, o) => createTrunk(http, acct, o),
+    deleteTrunk: (acct, trunkSid) => deleteTrunk(http, acct, trunkSid),
+    createCredentialList: (acct, friendlyName) => createCredentialList(http, acct, friendlyName),
+    addCredential: (acct, listSid, username, password) => addCredential(http, acct, listSid, username, password),
+    attachCredentialList: (acct, trunkSid, listSid) => attachCredentialList(http, acct, trunkSid, listSid),
+    addOrigination: (acct, trunkSid, o) => addOrigination(http, acct, trunkSid, o),
+    attachNumber: (acct, trunkSid, numberSid) => attachNumber(http, acct, trunkSid, numberSid),
+    createMessagingService: (acct, o) => createMessagingService(http, acct, o),
+    addNumberToService: (acct, serviceSid, numberSid) => addNumberToService(http, acct, serviceSid, numberSid),
+    sendSms: (acct, o) => sendSms(http, acct, o)
   };
 }
 
@@ -4362,205 +4379,245 @@ function nextLineStep(line) {
 function errorWords(e) {
   return (e instanceof Error ? e.message : String(e)).slice(0, 500);
 }
-async function runLineSaga(start, ports) {
-  let line = { ...start, facts: { ...start.facts ?? {} } };
-  const save = async (patch) => {
-    line = { ...line, ...patch, facts: patch.facts ? { ...patch.facts } : line.facts };
-    await ports.store.save(patch);
-  };
-  const fact2 = async (k, v) => save({ facts: { ...line.facts, [k]: v } });
-  const room = (more = 0) => {
-    if (ports.timeLeft && ports.timeLeft() <= more) throw OUT_OF_TIME;
-  };
-  const once = async (key, look, make) => {
-    const asked = `asked_${key}`;
-    room();
-    if (line.facts[asked] === true) {
-      const found = await look();
-      if (found) return found;
-      room();
-    } else {
-      await fact2(asked, true);
-    }
-    return make();
-  };
-  if (line.voice_state === "answering" && nextLineStep(line) === null) return { ok: true, line };
-  if (!line.e164) {
-    await save({ voice_state: "failed", step: "number", last_error: "no number chosen", state_since: ports.now() });
-    return { ok: false, step: "number", error: "no number chosen", line };
-  }
-  let secrets = await ports.store.getSecrets();
-  const putSecrets = async (s) => {
-    secrets = { ...secrets, ...s };
-    await ports.store.putSecrets(s);
-  };
-  const sub = () => {
-    if (!line.subaccount_sid || !secrets.auth_token)
-      throw new Error("the subaccount's token is missing from the vault");
-    return { sid: line.subaccount_sid, token: secrets.auth_token };
-  };
-  let step = nextLineStep(line);
-  await save({ voice_state: "provisioning", step, last_error: null, state_since: ports.now() });
-  try {
-    while ((step = nextLineStep(line)) !== null) {
-      room();
-      await save({ step });
-      switch (step) {
-        case "subaccount": {
-          const name = subaccountName(ports.tenant.name, line.id);
-          const acct = await once(
-            "subaccount",
-            () => ports.provider.findSubaccount(ports.master, name),
-            () => ports.provider.createSubaccount(ports.master, name)
-          );
-          await putSecrets({ auth_token: acct.token });
-          await save({ subaccount_sid: acct.sid });
-          break;
-        }
-        case "number": {
-          const held = await ports.provider.ownedNumber(sub(), line.e164);
-          if (!held) room();
-          const bought = held ?? await ports.provider.buyNumber(sub(), line.e164, `${ports.tenant.name} \xB7 Chanlytics`);
-          await save({ number_sid: bought.sid, e164: bought.e164 });
-          break;
-        }
-        case "trunk": {
-          const acct = sub();
-          if (!line.trunk_sid) {
-            const domainName = trunkDomain(line.id);
-            const t = await once(
-              "trunk",
-              () => ports.provider.findTrunk(acct, domainName),
-              () => ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} \xB7 Chanlytics`, domainName })
-            );
-            await save({ trunk_sid: t.sid, termination_uri: t.domainName });
-          }
-          if (!line.credential_list_sid) {
-            const name = `${ports.tenant.name} \xB7 Chanlytics`;
-            const cl = await once(
-              "credential_list",
-              () => ports.provider.findCredentialList(acct, name),
-              () => ports.provider.createCredentialList(acct, name)
-            );
-            await save({ credential_list_sid: cl.sid });
-          }
-          if (!secrets.sip_password || !secrets.sip_username) {
-            const username = sipUsername(line.id);
-            const password = sipPassword(ports.random);
-            if (!isValidSipPassword(password)) throw new Error("generated SIP password failed Twilio's rule");
-            await once(
-              "credential",
-              async () => {
-                const lost = await ports.provider.findCredential(acct, line.credential_list_sid, username);
-                if (lost) {
-                  room();
-                  await ports.provider.deleteCredential(acct, line.credential_list_sid, lost.sid);
-                }
-                return null;
-              },
-              () => ports.provider.addCredential(acct, line.credential_list_sid, username, password)
-            );
-            await putSecrets({ sip_username: username, sip_password: password });
-          }
-          if (line.facts.credential_list_attached !== true) {
-            room();
-            await ports.provider.attachCredentialList(acct, line.trunk_sid, line.credential_list_sid);
-            await fact2("credential_list_attached", true);
-          }
-          if (typeof line.facts.origination_sid !== "string") {
-            const o = await once(
-              "origination",
-              () => ports.provider.findOrigination(acct, line.trunk_sid, RETELL_ORIGINATION),
-              () => ports.provider.addOrigination(acct, line.trunk_sid, {
-                sipUrl: RETELL_ORIGINATION,
-                friendlyName: "Retell"
-              })
-            );
-            await fact2("origination_sid", o.sid);
-          }
-          if (line.facts.number_attached !== true) {
-            room();
-            await ports.provider.attachNumber(acct, line.trunk_sid, line.number_sid);
-            await fact2("number_attached", true);
-          }
-          await fact2("trunk_ready", true);
-          break;
-        }
-        case "agent": {
-          room(AGENT_STEP_MORE_MS);
-          const a = await ports.agent.ensure();
-          await save({ retell_agent_id: a.agentId, facts: { ...line.facts, llm_id: a.llmId, agent_pinned: a.pinned } });
-          break;
-        }
-        case "import": {
-          if (!secrets.sip_username || !secrets.sip_password)
-            throw new Error("the SIP credential is missing from the vault");
-          const body = retellImportBody({
-            e164: line.e164,
-            terminationUri: line.termination_uri,
-            username: secrets.sip_username,
-            password: secrets.sip_password,
-            agentId: line.retell_agent_id,
-            pinned: line.facts.agent_pinned === true,
-            nickname: ports.nickname,
-            inboundWebhookUrl: ports.inboundWebhookUrl
-          });
-          const r2 = await ports.retell.importNumber(body);
-          if (!r2.ok) {
-            const msg = typeof r2.body?.message === "string" ? r2.body.message : JSON.stringify(r2.body ?? {}).slice(0, 200);
-            throw new Error(`Retell import: HTTP ${r2.status} ${msg}`);
-          }
-          await save({
-            facts: {
-              ...line.facts,
-              retell_imported: true,
-              retell_number_type: typeof r2.body?.phone_number_type === "string" ? r2.body.phone_number_type : "custom"
-            }
-          });
-          break;
-        }
-        case "messaging": {
-          const acct = sub();
-          if (!line.messaging_service_sid) {
-            const svc = await ports.provider.createMessagingService(acct, {
-              friendlyName: `${ports.tenant.name} \xB7 Chanlytics`,
-              inboundUrl: ports.smsInboundUrl
-            });
-            await save({ messaging_service_sid: svc.sid });
-          }
-          if (line.facts.number_in_service !== true) {
-            room();
-            await ports.provider.addNumberToService(acct, line.messaging_service_sid, line.number_sid);
-            await fact2("number_in_service", true);
-          }
-          break;
-        }
-        case "channel": {
-          if (typeof line.facts.channel_id !== "string") {
-            const c = await ports.channel.ensure({ agentId: line.retell_agent_id, e164: line.e164, lineId: line.id });
-            await fact2("channel_id", c.channelId);
-          }
-          if (typeof line.facts.sms_channel_id !== "string") {
-            const s = await ports.smsChannel.ensure({
-              e164: line.e164,
-              lineId: line.id,
-              serviceSid: line.messaging_service_sid
-            });
-            await fact2("sms_channel_id", s.channelId);
-          }
-          break;
-        }
+function lineRun(start, ports) {
+  const run = {
+    ports,
+    line: { ...start, facts: { ...start.facts ?? {} } },
+    secrets: {},
+    async save(patch) {
+      run.line = { ...run.line, ...patch, facts: patch.facts ? { ...patch.facts } : run.line.facts };
+      await ports.store.save(patch);
+    },
+    fact: async (k, v) => run.save({ facts: { ...run.line.facts, [k]: v } }),
+    room(more = 0) {
+      if (ports.timeLeft && ports.timeLeft() <= more) throw OUT_OF_TIME;
+    },
+    async once(key, look, make) {
+      const asked = `asked_${key}`;
+      run.room();
+      if (run.line.facts[asked] === true) {
+        const found = await look();
+        if (found) return found;
+        run.room();
+      } else {
+        await run.fact(asked, true);
       }
+      return make();
+    },
+    async putSecrets(s) {
+      run.secrets = { ...run.secrets, ...s };
+      await ports.store.putSecrets(s);
+    },
+    sub() {
+      if (!run.line.subaccount_sid || !run.secrets.auth_token)
+        throw new Error("the subaccount's token is missing from the vault");
+      return { sid: run.line.subaccount_sid, token: run.secrets.auth_token };
     }
-    await save({ voice_state: "answering", step: null, last_error: null, state_since: ports.now() });
-    return { ok: true, line };
+  };
+  return run;
+}
+var ON_STEP = {
+  subaccount: subaccountStep,
+  number: numberStep,
+  trunk: trunkStep,
+  agent: agentStep,
+  import: importStep,
+  messaging: messagingStep,
+  channel: channelStep
+};
+async function runLineSaga(start, ports) {
+  const run = lineRun(start, ports);
+  if (run.line.voice_state === "answering" && nextLineStep(run.line) === null) return { ok: true, line: run.line };
+  if (!run.line.e164) {
+    await run.save({ voice_state: "failed", step: "number", last_error: "no number chosen", state_since: ports.now() });
+    return { ok: false, step: "number", error: "no number chosen", line: run.line };
+  }
+  run.secrets = await ports.store.getSecrets();
+  let step = nextLineStep(run.line);
+  await run.save({ voice_state: "provisioning", step, last_error: null, state_since: ports.now() });
+  try {
+    while ((step = nextLineStep(run.line)) !== null) {
+      run.room();
+      await run.save({ step });
+      await ON_STEP[step](run);
+    }
+    await run.save({ voice_state: "answering", step: null, last_error: null, state_since: ports.now() });
+    return { ok: true, line: run.line };
   } catch (e) {
     if (e === OUT_OF_TIME)
-      return { ok: true, later: true, step: line.step ?? step ?? "subaccount", line };
+      return { ok: true, later: true, step: run.line.step ?? step ?? "subaccount", line: run.line };
     const error = errorWords(e);
-    const at = line.step ?? step ?? "subaccount";
-    await save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
-    return { ok: false, step: at, error, line };
+    const at = run.line.step ?? step ?? "subaccount";
+    await run.save({ voice_state: "failed", step: at, last_error: error, state_since: ports.now() });
+    return { ok: false, step: at, error, line: run.line };
+  }
+}
+async function subaccountStep(run) {
+  const { ports } = run;
+  const name = subaccountName(ports.tenant.name, run.line.id);
+  const acct = await run.once(
+    "subaccount",
+    () => ports.provider.findSubaccount(ports.master, name),
+    () => ports.provider.createSubaccount(ports.master, name)
+  );
+  await run.putSecrets({ auth_token: acct.token });
+  await run.save({ subaccount_sid: acct.sid });
+}
+async function numberStep(run) {
+  const { ports } = run;
+  const held = await ports.provider.ownedNumber(run.sub(), run.line.e164);
+  if (!held) run.room();
+  const bought = held ?? await ports.provider.buyNumber(run.sub(), run.line.e164, `${ports.tenant.name} \xB7 Chanlytics`);
+  await run.save({ number_sid: bought.sid, e164: bought.e164 });
+}
+var TRUNK_PARTS = [
+  ensureTrunk,
+  ensureCredentialList,
+  ensureSipCredential,
+  ensureCredentialListAttached,
+  ensureOrigination,
+  ensureNumberAttached
+];
+async function trunkStep(run) {
+  const acct = run.sub();
+  for (const ensure of TRUNK_PARTS) await ensure(run, acct);
+  await run.fact("trunk_ready", true);
+}
+async function ensureTrunk(run, acct) {
+  if (run.line.trunk_sid) return;
+  const { ports } = run;
+  const domainName = trunkDomain(run.line.id);
+  const t = await run.once(
+    "trunk",
+    () => ports.provider.findTrunk(acct, domainName),
+    () => ports.provider.createTrunk(acct, { friendlyName: `${ports.tenant.name} \xB7 Chanlytics`, domainName })
+  );
+  await run.save({ trunk_sid: t.sid, termination_uri: t.domainName });
+}
+async function ensureCredentialList(run, acct) {
+  if (run.line.credential_list_sid) return;
+  const { ports } = run;
+  const name = `${ports.tenant.name} \xB7 Chanlytics`;
+  const cl = await run.once(
+    "credential_list",
+    () => ports.provider.findCredentialList(acct, name),
+    () => ports.provider.createCredentialList(acct, name)
+  );
+  await run.save({ credential_list_sid: cl.sid });
+}
+async function ensureSipCredential(run, acct) {
+  if (run.secrets.sip_password && run.secrets.sip_username) return;
+  const { ports } = run;
+  const username = sipUsername(run.line.id);
+  const password = sipPassword(ports.random);
+  if (!isValidSipPassword(password)) throw new Error("generated SIP password failed Twilio's rule");
+  await run.once(
+    "credential",
+    async () => {
+      const lost = await ports.provider.findCredential(acct, run.line.credential_list_sid, username);
+      if (lost) {
+        run.room();
+        await ports.provider.deleteCredential(acct, run.line.credential_list_sid, lost.sid);
+      }
+      return null;
+    },
+    () => ports.provider.addCredential(acct, run.line.credential_list_sid, username, password)
+  );
+  await run.putSecrets({ sip_username: username, sip_password: password });
+}
+async function ensureCredentialListAttached(run, acct) {
+  if (run.line.facts.credential_list_attached === true) return;
+  const { ports } = run;
+  run.room();
+  await ports.provider.attachCredentialList(acct, run.line.trunk_sid, run.line.credential_list_sid);
+  await run.fact("credential_list_attached", true);
+}
+async function ensureOrigination(run, acct) {
+  if (typeof run.line.facts.origination_sid === "string") return;
+  const { ports } = run;
+  const o = await run.once(
+    "origination",
+    () => ports.provider.findOrigination(acct, run.line.trunk_sid, RETELL_ORIGINATION),
+    () => ports.provider.addOrigination(acct, run.line.trunk_sid, {
+      sipUrl: RETELL_ORIGINATION,
+      friendlyName: "Retell"
+    })
+  );
+  await run.fact("origination_sid", o.sid);
+}
+async function ensureNumberAttached(run, acct) {
+  if (run.line.facts.number_attached === true) return;
+  const { ports } = run;
+  run.room();
+  await ports.provider.attachNumber(acct, run.line.trunk_sid, run.line.number_sid);
+  await run.fact("number_attached", true);
+}
+async function agentStep(run) {
+  const { ports } = run;
+  run.room(AGENT_STEP_MORE_MS);
+  const a = await ports.agent.ensure();
+  await run.save({ retell_agent_id: a.agentId, facts: { ...run.line.facts, llm_id: a.llmId, agent_pinned: a.pinned } });
+}
+async function importStep(run) {
+  const { ports } = run;
+  if (!run.secrets.sip_username || !run.secrets.sip_password)
+    throw new Error("the SIP credential is missing from the vault");
+  const body = retellImportBody({
+    e164: run.line.e164,
+    terminationUri: run.line.termination_uri,
+    username: run.secrets.sip_username,
+    password: run.secrets.sip_password,
+    agentId: run.line.retell_agent_id,
+    pinned: run.line.facts.agent_pinned === true,
+    nickname: ports.nickname,
+    inboundWebhookUrl: ports.inboundWebhookUrl
+  });
+  const r2 = await ports.retell.importNumber(body);
+  if (!r2.ok) {
+    const msg = typeof r2.body?.message === "string" ? r2.body.message : JSON.stringify(r2.body ?? {}).slice(0, 200);
+    throw new Error(`Retell import: HTTP ${r2.status} ${msg}`);
+  }
+  await run.save({
+    facts: {
+      ...run.line.facts,
+      retell_imported: true,
+      retell_number_type: typeof r2.body?.phone_number_type === "string" ? r2.body.phone_number_type : "custom"
+    }
+  });
+}
+async function messagingStep(run) {
+  const { ports } = run;
+  const acct = run.sub();
+  if (!run.line.messaging_service_sid) {
+    const svc = await ports.provider.createMessagingService(acct, {
+      friendlyName: `${ports.tenant.name} \xB7 Chanlytics`,
+      inboundUrl: ports.smsInboundUrl
+    });
+    await run.save({ messaging_service_sid: svc.sid });
+  }
+  if (run.line.facts.number_in_service !== true) {
+    run.room();
+    await ports.provider.addNumberToService(acct, run.line.messaging_service_sid, run.line.number_sid);
+    await run.fact("number_in_service", true);
+  }
+}
+async function channelStep(run) {
+  const { ports } = run;
+  if (typeof run.line.facts.channel_id !== "string") {
+    const c = await ports.channel.ensure({
+      agentId: run.line.retell_agent_id,
+      e164: run.line.e164,
+      lineId: run.line.id
+    });
+    await run.fact("channel_id", c.channelId);
+  }
+  if (typeof run.line.facts.sms_channel_id !== "string") {
+    const s = await ports.smsChannel.ensure({
+      e164: run.line.e164,
+      lineId: run.line.id,
+      serviceSid: run.line.messaging_service_sid
+    });
+    await run.fact("sms_channel_id", s.channelId);
   }
 }
 

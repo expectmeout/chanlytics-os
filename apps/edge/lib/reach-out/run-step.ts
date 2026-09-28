@@ -1,12 +1,12 @@
 /**
  * One reach-out step's run, planned now (Part 3's sweep loop body, moved so the sheet's Start can ask it too: Part 4
- * F11, R13). The run context, core's runReachOut, and the day stamped on the row. A step whose context cannot be read
+ * F11, R13). The run context, core's runReachOut (or runHandStep for a hand step), and the day stamped on the row. A step whose context cannot be read
  * keeps its day open for the next hour, as the sweep always did. The playbooks sweep (api/cron/playbooks.ts) and the
  * run-now door (api/admin/playbooks-run.ts) both call it.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { stampReachOutStep, type Database } from "../packages/db.js";
-import { reachOutRunIdFor, runReachOut } from "../packages/core.js";
+import { reachOutRunIdFor, runHandStep, runReachOut } from "../packages/core.js";
 import { localDate } from "../packages/contracts.js";
 import { reachOutRunContext, type ReachOutRow } from "./run-context.js";
 import type { Logger } from "../log.js";
@@ -42,7 +42,11 @@ export async function runReachOutStep(
       ? { outcome: "off", reason: "workspace_paused", planned: 0, runFor, runId: null }
       : { outcome: "failed", reason: ctx.error, planned: 0, runFor, runId: null };
   }
-  const r = await runReachOut(ctx.ports, ctx.step, { runFor });
+  // A hand step hands its leads to the team (Part 5, G20); every other step plans its emails.
+  const r =
+    "hand" in ctx.step
+      ? await runHandStep(ctx.ports, ctx.step, { runFor })
+      : await runReachOut(ctx.ports, ctx.step, { runFor });
   log.info("reach_out_ran", { tenant_id: row.tenant_id, playbook_id: row.id, ...r });
   await stampReachOutStep(db, row.id, { at: now, runFor }).catch(() => undefined);
   const reason = "reason" in r ? r.reason : undefined;
