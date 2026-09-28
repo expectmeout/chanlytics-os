@@ -100,7 +100,7 @@ as unknown as                       221
 table names outside packages/db     533
 unnamed durations                    78   in 39 files
 dead exports, types and modules     161
-source-text reads in tests          826
+source-text reads in tests          824
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      972   the shell included
 workspace route CSS, KB gzipped     123
