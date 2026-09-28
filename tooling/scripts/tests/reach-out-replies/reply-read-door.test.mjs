@@ -7,9 +7,10 @@
  * is the fake's unique index on the payload.
  *
  * It proves: the intake schedules one reading and tells nobody itself; the reading reaches the door with the plan and
- * the bare address; one notice with the reading's subject; a second run asks no model and tells nobody; a second
- * schedule of the same message is already there; and a notice whose mail failed leaves told unmarked, throws for the
- * ledger's retry, is left alone by a try inside its claim, and is told on the retry once its claim has gone stale.
+ * the bare address; the receptionist's draft (PR 5, a port the test holds) is kept on the reading before the notice,
+ * which carries it; one notice with the reading's subject; a second run asks no model, drafts nothing and tells nobody;
+ * a second schedule of the same message is already there; and a notice whose mail failed leaves told unmarked, throws
+ * for the ledger's retry, is left alone by a try inside its claim, and is told on the retry once its claim has gone stale.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -205,6 +206,9 @@ function world() {
           told_at: null,
           tell_claimed_at: null,
           undone_at: null,
+          draft: null,
+          draft_state: "none",
+          draft_why: null,
         });
         return { applied: true };
       }
@@ -220,6 +224,20 @@ function world() {
       );
 
       return { applied: true };
+    },
+    // 00222 reach_out_reply_draft: written only from none or waiting.
+    reach_out_reply_draft: (a) => {
+      const row = tables.reach_out_replies.find(
+        (r) =>
+          r.message_id === a.p_message_id &&
+          r.tenant_id === a.p_tenant_id &&
+          ["none", "waiting"].includes(r.draft_state),
+      );
+      if (!row) return false;
+      row.draft_state = a.p_state;
+      if (a.p_state === "written") row.draft = a.p_draft.slice(0, 4000);
+      if (a.p_state === "not_written") row.draft_why = a.p_why.slice(0, 60);
+      return true;
     },
     reach_out_reply_tell_claim: (a) => {
       const row = tables.reach_out_replies.find(
@@ -249,6 +267,7 @@ function world() {
     ],
   });
   const told = [];
+  const drafts = [];
   const intakeTold = [];
   let mailWorks = true;
   const ctx = (email) => ({
@@ -268,6 +287,10 @@ function world() {
         told.push({ tenantId, notice, delivered: mailWorks });
         return mailWorks;
       },
+      draft: async (tenantId, ask) => {
+        drafts.push({ tenantId, ask });
+        return { text: "Thank you for writing back. The owner will call you this week.\n\nSam" };
+      },
     }),
     schedule: async () => {},
     scheduleOnce: (kind, dueAt, payload) => scheduleJobOnce(db, { tenantId: T, kind, dueAt, payload }),
@@ -277,6 +300,7 @@ function world() {
     tables,
     applied,
     told,
+    drafts,
     intakeTold,
     ctx,
     failMail: (fails) => {
@@ -347,10 +371,18 @@ test("a person's reply: the intake schedules one reading and tells nobody; the r
     assert.equal(w.told[0].notice.subject, `${set.lead.business} wrote back · interested`);
     assert.equal(w.told[0].notice.conversationId, "conv-lead");
     assert.ok(w.tables.reach_out_replies[0].told_at, "marked told once the owner was told");
+    // Drafted before the notice, kept on the reading, and quoted in it.
+    assert.equal(w.drafts.length, 1);
+    assert.equal(w.drafts[0].ask.conversationId, "conv-lead");
+    assert.match(w.drafts[0].ask.note, /wrote back by email to a reach-out/);
+    assert.equal(w.tables.reach_out_replies[0].draft_state, "written");
+    assert.match(w.tables.reach_out_replies[0].draft, /^Thank you for writing back\./);
+    assert.match(w.told[0].notice.body, /The receptionist drafted an answer: “Thank you for writing back\./);
 
-    // A second run of the same job: no model, no second notice.
+    // A second run of the same job: no model, no second draft, no second notice.
     assert.equal(await dispatchJob(w.ctx(email), w.job("reply_read", jobs[0].payload)), "done");
     assert.equal(calls.length, 1, "a reading kept asks no model");
+    assert.equal(w.drafts.length, 1, "a draft kept is not drafted again");
     assert.equal(w.told.length, 1);
   });
 });

@@ -16,7 +16,7 @@
  * (docs/conversation-flow.md §5.1).
  */
 import { isThreadUnknown, type ThreadState } from "./thread";
-import { shortCode, optInConfirmation, phoneTail, addressInMessage } from "@chanlytics/contracts";
+import { shortCode, optInConfirmation, phoneTail, addressInMessage, tokenBudgetSpent } from "@chanlytics/contracts";
 import type { BrainConfig, BrainMeta, NotificationsConfig, SendPurpose } from "@chanlytics/contracts";
 import { isOptedOutContact, resolveSystemPrompt, describeNow, fallbackMessages } from "@chanlytics/contracts";
 // TYPES ONLY: the normalised message is the channels package's shape and this
@@ -617,7 +617,7 @@ export async function answerInbound(input: InboundInput, ports: InboundPorts): P
   const tokenCap = typeof replyLimits.max_llm_tokens_day === "number" ? replyLimits.max_llm_tokens_day : 0;
   if (tokenCap > 0 && db && tenantId) {
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
-    if (used >= tokenCap) {
+    if (tokenBudgetSpent(replyLimits, used)) {
       L.info("wa_skip_budget", { cap: tokenCap, used });
       await Promise.all([
         sink.escalate(

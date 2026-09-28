@@ -7517,6 +7517,13 @@ var DECISION_VERBS2 = [
   /** A client list brought in from a spreadsheet (00170): one row per part of fifty, subject the workspace. */
   "import"
 ];
+function tokenCapOf(limits) {
+  return typeof limits.max_llm_tokens_day === "number" ? limits.max_llm_tokens_day : 0;
+}
+function tokenBudgetSpent(limits, used) {
+  const cap2 = tokenCapOf(limits);
+  return cap2 > 0 && used >= cap2;
+}
 function dateKeyInZone(tz, at2) {
   try {
     const parts2 = new Intl.DateTimeFormat("en-US", {
@@ -8663,6 +8670,25 @@ var REACH_OUT_SHEET_PARTS2 = {
   footLine: "At the foot",
   repliesLine: "Replies"
 };
+var DRAFT_NEEDS_MS = 25e3;
+var DRAFT_NOTICE_MAX = 240;
+var flatClip = (v, max) => clipAtWord((v ?? "").replace(/\s+/g, " "), max);
+function leadReplyNote(p) {
+  const business = flatClip(p.business, 120) || "a business";
+  const answered = flatClip(p.answered, 600);
+  const signedBy = flatClip(p.signedBy, 60);
+  return [
+    `${business}, a business that wrote back by email to a reach-out this business sent them. You are drafting the email`,
+    `answer for the owner to read, change and send: it is not sent until they do.`,
+    answered ? `The reach-out they answered said: "${answered}"` : null,
+    `Write an email: plain paragraphs, no emoji, no subject line, no markdown.`,
+    signedBy ? `End it signed "${signedBy}".` : `End it signed with the business's name.`,
+    p.kind === "thanks" ? `They said not now. Write one short line thanking them, and nothing else: no offer, no question, no follow-up.` : `Answer what they asked or said from the business's own facts. When a fact is not there, say the owner will follow up.`
+  ].filter((l) => l !== null).join("\n");
+}
+function draftExcerpt(draft) {
+  return flatClip(draft, DRAFT_NOTICE_MAX);
+}
 var REPLY_INTENTS = ["interested", "question", "not_now", "no", "wrong_person", "away", "other"];
 var isReplyIntent = (v) => REPLY_INTENTS.includes(v);
 var REPLY_INTENT_WORDS = {
@@ -8974,7 +9000,7 @@ function replyNoticeWords(p) {
     quote ? `\u201C${withinChars(quote, REPLY_QUOTE_MAX)}\u201D` : null,
     doneWords(intent),
     p.unread ? `It could not be read (${UNREAD_WORDS[p.unread]}), so it is read again later.` : null,
-    p.draft ? "The receptionist drafted an answer. Nothing is sent without you." : null
+    p.draft ? `The receptionist drafted an answer: \u201C${draftExcerpt(p.draft)}\u201D Nothing is sent without you.` : null
   ].filter((l) => l !== null);
   return {
     subject: `${subjectOf({ intent, business, automatic: p.automatic })}${p.reread ? " (read again later)" : ""}`,
@@ -12879,6 +12905,7 @@ function metaOf(e) {
 }
 
 // src/messages/reply-read.ts
+var DRAFT_STAGE = "draft";
 function rereadOf(stage) {
   if (stage === void 0 || stage === null || stage === "read") return 0;
   const m = typeof stage === "string" ? /^reread-([1-3])$/.exec(stage) : null;
@@ -12908,7 +12935,48 @@ async function readNow(ports, cmd, facts) {
   }
   return { reading, unread: reading ? null : "model_failed", now };
 }
+async function draftNow(ports, cmd, facts, kind) {
+  let out;
+  try {
+    out = await ports.draft(cmd.tenantId, {
+      conversationId: facts.conversationId,
+      text: replyTextOf(facts.text),
+      note: leadReplyNote({ business: facts.business, answered: facts.answered, signedBy: facts.signedBy, kind }),
+      deadline: cmd.deadline
+    });
+  } catch {
+    out = { why: "not_drafted" };
+  }
+  const text = "text" in out ? out.text.trim() : "";
+  await ports.markDraft(
+    cmd.tenantId,
+    cmd.messageId,
+    text ? { state: "written", draft: text } : { state: "not_written", why: "why" in out ? out.why : "not_drafted" }
+  );
+}
+async function draftStage(ports, cmd, facts, kept) {
+  if (!kept.draft || kept.draftState !== "none") return kept.draftText;
+  if (cmd.deadline - ports.now() < DRAFT_NEEDS_MS) {
+    await ports.markDraft(cmd.tenantId, cmd.messageId, { state: "waiting" });
+    await ports.scheduleOnce(ports.now(), { message_id: cmd.messageId, stage: DRAFT_STAGE });
+    return null;
+  }
+  await draftNow(ports, cmd, facts, kept.draft);
+  return (await ports.reading(cmd.tenantId, cmd.messageId))?.draftText ?? null;
+}
+async function draftLater(ports, cmd) {
+  const facts = await ports.reply(cmd.tenantId, cmd.messageId);
+  if (!facts) return "not_a_reply";
+  const kept = await ports.reading(cmd.tenantId, cmd.messageId);
+  if (!kept || kept.undone || !kept.draft || kept.draftState !== "none" && kept.draftState !== "waiting")
+    return "already_read";
+  if (cmd.deadline - ports.now() < DRAFT_NEEDS_MS)
+    throw new Error("reply_read: no time left to draft; the ledger tries again");
+  await draftNow(ports, cmd, facts, kept.draft);
+  return "drafted";
+}
 async function readReply(ports, cmd) {
+  if (cmd.stage === DRAFT_STAGE) return draftLater(ports, cmd);
   const n = rereadOf(cmd.stage);
   const { tenantId, messageId } = cmd;
   const facts = await ports.reply(tenantId, messageId);
@@ -12936,6 +13004,7 @@ async function readReply(ports, cmd) {
     const at = rereadAt(kept.unread, n, facts.receivedAt, ports.now());
     if (at !== null) await ports.scheduleOnce(at, { message_id: messageId, stage: `reread-${n + 1}` });
   }
+  const draft = await draftStage(ports, cmd, facts, kept);
   if (!kept.tell || kept.told) return "read";
   const claim = await ports.claimTell(tenantId, messageId, ports.now() - cmd.tellStaleMs);
   if (!claim) throw new Error("reply_read: another run holds the notice; tried again once its claim is stale");
@@ -12944,7 +13013,7 @@ async function readReply(ports, cmd) {
     business: facts.business,
     summary: kept.summary ?? "",
     quote: replyTextOf(facts.text),
-    draft: false,
+    draft,
     unread: kept.unread,
     automatic: facts.claim === "auto_reply",
     reread: n > 0
@@ -48818,7 +48887,7 @@ async function answerInbound(input, ports) {
   const tokenCap = typeof replyLimits.max_llm_tokens_day === "number" ? replyLimits.max_llm_tokens_day : 0;
   if (tokenCap > 0 && db && tenantId) {
     const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
-    if (used >= tokenCap) {
+    if (tokenBudgetSpent(replyLimits, used)) {
       L4.info("wa_skip_budget", { cap: tokenCap, used });
       await Promise.all([
         sink.escalate(

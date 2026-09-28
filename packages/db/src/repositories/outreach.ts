@@ -205,6 +205,10 @@ export interface ReplyReadingRow {
   plan: Json;
   told_at: string | null;
   undone_at: string | null;
+  /** The receptionist's draft (PR 5): its text once written, how far it got, and why there is none. */
+  draft: string | null;
+  draft_state: string;
+  draft_why: string | null;
 }
 
 /** The reading kept for this message, if any. A read that fails throws. */
@@ -214,12 +218,38 @@ export async function replyReadingOf(
 ): Promise<ReplyReadingRow | null> {
   const { data, error } = await db
     .from("reach_out_replies")
-    .select("intent, claim, summary, unread, rereads, plan, told_at, undone_at")
+    .select("intent, claim, summary, unread, rereads, plan, told_at, undone_at, draft, draft_state, draft_why")
     .eq("tenant_id", p.tenantId)
     .eq("message_id", p.messageId)
     .maybeSingle();
   if (error) throw new Error(`cannot read the reply's reading: ${error.message}`);
   return data ?? null;
+}
+
+/**
+ * The draft's mark (00222 reach_out_reply_draft): waiting, written with its text, or not written with why. Written only
+ * from none or waiting, so a second stage never writes over the first: true when this call wrote it.
+ */
+export async function markReplyDraft(
+  db: Db,
+  p: {
+    tenantId: string;
+    messageId: string;
+    state: "waiting" | "written" | "not_written";
+    draft: string | null;
+    why: string | null;
+  },
+): Promise<boolean> {
+  // The door takes a null draft and a null why (its own left(), case); the generated Args say string for both.
+  const { data, error } = await db.rpc("reach_out_reply_draft", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_state: p.state,
+    p_draft: p.draft,
+    p_why: p.why,
+  } as never);
+  if (error) throw new Error(`cannot mark the reply's draft: ${error.message}`);
+  return data === true;
 }
 
 /** One read of the workspace's UTC day, taken if it is under `cap` (00222 reach_out_read_take): true when taken. */
