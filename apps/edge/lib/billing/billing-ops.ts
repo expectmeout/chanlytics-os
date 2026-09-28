@@ -7,7 +7,7 @@
  * on the wire, which line each op logs, and what the body may say about
  * Checkout.
  */
-import { isCheckoutReturn, type CheckoutReturn } from "../packages/contracts.js";
+import { isCheckoutReturn, type CheckoutReturn, type EdgeErrorCode, type EdgeRefusal } from "../packages/contracts.js";
 import type { LogEvent } from "../log.js";
 import type { DoorAnswer } from "../admin-door.js";
 
@@ -25,14 +25,18 @@ export type BillingOp = "checkout" | "portal" | "invoices" | "sync" | "resume" |
 
 export const UNKNOWN_BILLING_OP: DoorAnswer = {
   status: 400,
-  body: { ok: false, error: "op must be status, checkout, portal, invoices, sync, resume or start_now" },
+  body: {
+    ok: false,
+    error: "unknown_op",
+    detail: "op must be status, checkout, portal, invoices, sync, resume or start_now",
+  },
 };
 
-/** An op's outcome as billing.ts states it: what went right, or which refusal and Stripe's words. */
-export type BillingOutcome = { ok: true; status?: string } | { ok: false; error: string; detail?: string };
+/** An op's outcome as billing.ts states it: what went right, or which refusal, with Stripe's words in `detail`. */
+export type BillingOutcome = { ok: true; status?: string } | EdgeRefusal;
 
 /** What each refusal earns on the wire; a failure the list does not name is a 500. */
-const STATUS_OF: Record<string, number> = {
+const STATUS_OF: Partial<Record<EdgeErrorCode, number>> = {
   not_ready: 503,
   no_account: 404,
   direct: 409,

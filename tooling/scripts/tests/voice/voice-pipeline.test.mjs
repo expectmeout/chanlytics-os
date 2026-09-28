@@ -241,7 +241,7 @@ test("Settings collects the website and the notes; the transfer line is edited i
   assert.ok(phone.includes("export function whyNotAHandoff("));
   assert.ok(phone.includes("The transfer number needs the country code"));
   assert.ok(phone.includes("it would ring itself"), "the receptionist's own line is still refused");
-  const converge = readRaw("tooling/scripts/voice-converge.mjs");
+  const converge = readRaw("tooling/scripts/ops/voice-converge.mjs");
   assert.ok(converge.includes('const apply = process.argv.includes("--apply");'));
   assert.ok(
     converge.indexOf("writeFileSync(") < converge.indexOf("if (!apply)"),

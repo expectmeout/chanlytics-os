@@ -96,7 +96,7 @@ test.describe("the opt-in page", () => {
     await page.context().clearCookies();
     const res = await page.goto(`/yes/${slug}/sign`);
     expect(res?.status(), "public: no session, no redirect to /login").toBe(200);
-    // The nightly's workspace has a WhatsApp number (tooling/scripts/e2e-workspace.mjs), so it has a sign to print.
+    // The nightly's workspace has a WhatsApp number (tooling/scripts/ops/e2e-workspace.mjs), so it has a sign to print.
     await expectDeskSign(page);
   });
 });

@@ -2,7 +2,7 @@
  * POST /api/admin/voice-converge — the phone agent's settings, planned and
  * applied from the edge.
  *
- * The converger script (tooling/scripts/voice-converge.mjs) needs the
+ * The converger script (tooling/scripts/ops/voice-converge.mjs) needs the
  * provider key on a laptop, and the key lives here and nowhere else. This
  * endpoint plans the same agent-level settings the script does — the webhook
  * events, the webhook budget, signed recording links, the post-call analysis
@@ -16,7 +16,7 @@
  * response carries each agent as it was before any change, its webhook
  * secret stripped, as the backup. Diagnostic-key only.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import {
@@ -48,7 +48,7 @@ export async function POST(request: Request): Promise<Response> {
   const auth = authorizeAdmin(request, "/api/admin/voice-converge");
   if (!auth.ok) return auth.response;
   const apiKey = env.RETELL_API_KEY;
-  if (!apiKey) return json(503, { ok: false, error: "no_provider_key" });
+  if (!apiKey) return refuse(503, "no_provider_key");
   let body: Body = {};
   try {
     body = JSON.parse(await request.text());
@@ -64,13 +64,13 @@ export async function POST(request: Request): Promise<Response> {
     agentIds = [body.agent_id];
   } else {
     const db = pg();
-    if (!db) return json(503, { ok: false, error: "no_database" });
+    if (!db) return refuse(503, "no_database");
     const { data, error } = await db
       .from("tenant_channels")
       .select("external_id")
       .eq("kind", "voice")
       .eq("status", "active");
-    if (error) return json(503, { ok: false, error: error.message });
+    if (error) return refuse(503, "read_failed", error.message);
     agentIds = (data ?? []).map((r) => r.external_id).filter((id): id is string => typeof id === "string");
   }
 

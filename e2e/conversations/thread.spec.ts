@@ -7,7 +7,7 @@ import { activeWorkspace, scoped, apiGet } from "../workspace";
  *
  * Every verb on the thread was tested from the inside and none from the page.
  * This drives them the way an operator does, on the one conversation
- * tooling/scripts/e2e-workspace.mjs seeds: Robin Example, at a number set aside
+ * tooling/scripts/ops/e2e-workspace.mjs seeds: Robin Example, at a number set aside
  * for fiction, on a WhatsApp channel with no credentials.
  *
  * So the reply cannot leave. The job finds no wire, records the row `failed`,
@@ -28,12 +28,12 @@ import { activeWorkspace, scoped, apiGet } from "../workspace";
 const BASE = process.env.E2E_BASE_URL ?? "https://app.chanlytics.com";
 const fromTheApp = { headers: { origin: new URL(BASE).origin } };
 
-/** The seed's workspace and person (tooling/scripts/e2e-workspace.mjs). */
+/** The seed's workspace and person (tooling/scripts/ops/e2e-workspace.mjs). */
 const SLUG = "chanlytics-e2e";
 const ROBIN = { name: "Robin Example", phone: "+12125550143" };
 const ONLY_HERE =
   `this spec sends a reply, so it runs only in the nightly's own workspace (${SLUG}), on its seeded ` +
-  `conversation with ${ROBIN.name}; tooling/scripts/e2e-workspace.mjs --apply makes both`;
+  `conversation with ${ROBIN.name}; tooling/scripts/ops/e2e-workspace.mjs --apply makes both`;
 
 interface ThreadRead {
   conversation: {

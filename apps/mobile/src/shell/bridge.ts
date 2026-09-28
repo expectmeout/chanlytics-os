@@ -7,7 +7,7 @@ import { APP_KEYS_RESIZE_CLASS, parsePageMessage, type ShellMessage } from "@cha
 import type { ShellState } from "./state";
 
 /** What the Surface does beyond keeping the state: the sign-in screen and the widget follow the state and the message. */
-export type Effect = "nothing" | "badge" | "calls-over" | "theme";
+type Effect = "nothing" | "badge" | "calls-over" | "theme";
 
 /**
  * The state once the person is out, whichever way the shell learns it (the page's message, or the signed-out address

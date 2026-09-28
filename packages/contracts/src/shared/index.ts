@@ -6,6 +6,8 @@ export { ok, err } from "./envelope";
 export type { Ok, Err, Envelope } from "./envelope";
 export { ERROR_CODES, AppError } from "./errors";
 export type { ErrorCode } from "./errors";
+export { EDGE_ERROR_CODES } from "./edge-errors";
+export type { EdgeErrorCode, EdgeRefusal } from "./edge-errors";
 export {
   normalizePhone,
   samePhone,

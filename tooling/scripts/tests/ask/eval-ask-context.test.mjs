@@ -18,7 +18,7 @@ import {
   applySettingsChange,
   parseTenantConfig,
 } from "@chanlytics/contracts";
-import { workspaceConfig } from "../../e2e-workspace.mjs";
+import { workspaceConfig } from "../../ops/e2e-workspace.mjs";
 import {
   ROW_KINDS,
   announcement,

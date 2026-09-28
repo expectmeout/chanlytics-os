@@ -13,7 +13,7 @@
  * What each answer means is lib/email/sending-domains.ts's; this file is the door: who may knock, which workspace,
  * and what the body names.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { logger } from "../../lib/log.js";
@@ -63,8 +63,7 @@ export async function POST(request: Request): Promise<Response> {
   const coldKey = env.RESEND_COLD_API_KEY;
 
   if (op === "status") return json(200, { ok: true, ready: !!coldKey });
-  if (op !== "add" && op !== "check" && op !== "remove" && op !== "resume")
-    return json(400, { ok: false, error: "unknown_op" });
+  if (op !== "add" && op !== "check" && op !== "remove" && op !== "resume") return refuse(400, "unknown_op");
   if (!coldKey)
     return json(503, {
       ok: false,
@@ -72,9 +71,9 @@ export async function POST(request: Request): Promise<Response> {
       message: "Sending from your own domain isn't switched on here yet.",
     });
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
   const tenantId = ws.tenantId ?? "";
-  if (!UUID.test(tenantId)) return json(400, { ok: false, error: "tenant_id (a workspace id) is required" });
+  if (!UUID.test(tenantId)) return refuse(400, "bad_tenant", "tenant_id (a workspace id) is required");
 
   const L = logger({ door: "sending-domains", tenant: tenantId, op });
   const ports: DomainPorts = {

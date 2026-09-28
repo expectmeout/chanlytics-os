@@ -20,8 +20,8 @@
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  * Usage:
- *   node tooling/scripts/recordings-retype.mjs
- *   node tooling/scripts/recordings-retype.mjs --apply
+ *   node tooling/scripts/ops/recordings-retype.mjs
+ *   node tooling/scripts/ops/recordings-retype.mjs --apply
  */
 import { createClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -170,7 +170,7 @@ async function main() {
     return;
   }
 
-  const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "backups");
+  const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "backups");
   mkdirSync(backupsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupPath = join(backupsDir, `recordings-retype-${stamp}.jsonl`);

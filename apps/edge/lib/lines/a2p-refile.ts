@@ -5,9 +5,22 @@
  * a2p-register.ts before anything at the carrier is touched.
  */
 import { deleteCampaignRequest, updateCampaignRequest, encodeForm } from "../packages/channels.js";
+import type { EdgeErrorCode } from "../packages/contracts.js";
 import { lineAccount } from "../sms/sms.js";
 import { logger } from "../log.js";
 import { filingProblems, TWILIO_TIMEOUT_MS, type Db, type LineRow, type RecordRow } from "./a2p-register.js";
+
+/**
+ * What a refile step answers: the row as it now reads; or why not, as a code, with the pre-flight's sentences in
+ * `problems` and what the carrier or the database said in `detail`.
+ */
+export type RefileOutcome = {
+  ok: boolean;
+  error?: EdgeErrorCode;
+  detail?: string;
+  problems?: string[];
+  row?: LineRow;
+};
 
 /**
  * Take a REHEARSAL off a line so a real filing can replace it.
@@ -40,7 +53,7 @@ export async function unfileMockRegistration(
    * this path the rehearsal was already gone by the time it did.
    */
   check: { record: RecordRow; workspaceName: string; hasOptInNumber?: boolean },
-): Promise<{ ok: boolean; error?: string; problems?: string[]; row?: LineRow }> {
+): Promise<RefileOutcome> {
   const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
   const problems = await filingProblems(db, line, check);
   if (problems.length) {
@@ -62,7 +75,12 @@ export async function unfileMockRegistration(
     // one step later with a message about the wrong thing, and the row by then
     // says nothing is filed. 404 is the state we were asking for; anything else
     // stops here, with the row untouched and the reason on the caller.
-    if (!gone) return { ok: false, error: `the mock campaign would not come off (HTTP ${r?.status ?? 0})` };
+    if (!gone)
+      return {
+        ok: false,
+        error: "provider_refused",
+        detail: `the mock campaign would not come off (HTTP ${r?.status ?? 0})`,
+      };
   }
   // `single()` is the row count: a write that changed nothing errors here
   // rather than returning a success the caller would file on top of.
@@ -95,7 +113,7 @@ export async function unfileMockRegistration(
     .eq("id", line.id)
     .select("*")
     .single();
-  if (cleared.error) return { ok: false, error: cleared.error.message };
+  if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
   return { ok: true, row: cleared.data };
 }
 
@@ -135,7 +153,7 @@ export async function resubmitRejectedCampaign(
    * rejection came to be answered with the fault that caused it.
    */
   check: { record: RecordRow; workspaceName: string; hasOptInNumber?: boolean },
-): Promise<{ ok: boolean; error?: string; problems?: string[]; row?: LineRow }> {
+): Promise<RefileOutcome> {
   const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
   if (!line.messaging_service_sid || !line.campaign_sid) return { ok: false, error: "no_campaign_to_resubmit" };
 
@@ -171,7 +189,11 @@ export async function resubmitRejectedCampaign(
   if (!r || !r.ok) {
     const detail = r ? (await r.text().catch(() => "")).slice(0, 200) : "no answer";
     L.error("a2p.campaign_resubmit_refused", { status: r?.status ?? 0, detail });
-    return { ok: false, error: `the campaign could not be resubmitted (HTTP ${r?.status ?? 0}) ${detail}` };
+    return {
+      ok: false,
+      error: "provider_refused",
+      detail: `the campaign could not be resubmitted (HTTP ${r?.status ?? 0}) ${detail}`,
+    };
   }
   L.info("a2p.campaign_resubmitted", { campaign: line.campaign_sid });
 
@@ -186,7 +208,7 @@ export async function resubmitRejectedCampaign(
     .eq("id", line.id)
     .select("*")
     .single();
-  if (cleared.error) return { ok: false, error: cleared.error.message };
+  if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
   return { ok: true, row: cleared.data };
 }
 
@@ -216,7 +238,7 @@ export async function replaceRejectedCampaign(
   db: Db,
   line: LineRow,
   check: { record: RecordRow; workspaceName: string; hasOptInNumber?: boolean },
-): Promise<{ ok: boolean; error?: string; problems?: string[]; row?: LineRow }> {
+): Promise<RefileOutcome> {
   const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
   if (line.sms_state !== "rejected") return { ok: false, error: "not_rejected" };
   const problems = await filingProblems(db, line, check);
@@ -237,7 +259,12 @@ export async function replaceRejectedCampaign(
     L.info("a2p.rejected_campaign_deleted", { status: r?.status ?? 0, ok: gone, campaign: line.campaign_sid });
     // A campaign left on the service makes the new POST fail one step later
     // with a message about the wrong thing. 404 is the state asked for.
-    if (!gone) return { ok: false, error: `the rejected campaign would not come off (HTTP ${r?.status ?? 0})` };
+    if (!gone)
+      return {
+        ok: false,
+        error: "provider_refused",
+        detail: `the rejected campaign would not come off (HTTP ${r?.status ?? 0})`,
+      };
   }
   // `single()` is the row count: a write that changed nothing errors here
   // rather than returning a success the caller would file on top of. The
@@ -254,6 +281,6 @@ export async function replaceRejectedCampaign(
     .eq("id", line.id)
     .select("*")
     .single();
-  if (cleared.error) return { ok: false, error: cleared.error.message };
+  if (cleared.error) return { ok: false, error: "write_failed", detail: cleared.error.message };
   return { ok: true, row: cleared.data };
 }

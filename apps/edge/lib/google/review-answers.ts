@@ -11,6 +11,7 @@ import {
   autoReplyCandidates,
   parseTenantConfig,
   reviewReplyModeOf,
+  type EdgeRefusal,
   type ReviewReplyFacts,
   type ReviewReplyMode,
 } from "../packages/contracts.js";
@@ -50,7 +51,7 @@ export async function draftFor(
   db: Db,
   tenantId: string,
   rowId: string,
-): Promise<{ ok: true; text: string } | { ok: false; error: string; detail?: string }> {
+): Promise<{ ok: true; text: string } | EdgeRefusal> {
   const review = await db
     .from("google_reviews")
     .select("id, rating, author, body, published_at")
@@ -142,9 +143,7 @@ export async function replyOnProfile(
   rowId: string,
   comment: string,
   now = new Date(),
-): Promise<
-  { ok: true; reply_text: string | null; replied_at: string | null } | { ok: false; error: string; detail?: string }
-> {
+): Promise<{ ok: true; reply_text: string | null; replied_at: string | null } | EdgeRefusal> {
   const conn = await connectionOf(db, tenantId);
   if (!conn || !conn.location_name) return { ok: false, error: "not_connected" };
   const review = await db
@@ -157,7 +156,7 @@ export async function replyOnProfile(
   if (!review.data) return { ok: false, error: "no_review" };
   if (review.data.origin !== "profile") return { ok: false, error: "not_from_profile" };
   const t = await tokenFor(db, tenantId, now.getTime());
-  if (!t.ok) return { ok: false, error: "no_token", detail: t.error };
+  if (!t.ok) return { ok: false, error: "no_token", detail: t.detail ?? t.error };
   let reply;
   try {
     reply = await replyToReview(

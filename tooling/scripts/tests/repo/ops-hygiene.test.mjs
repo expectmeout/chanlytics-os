@@ -13,7 +13,7 @@ import { LEASE_SECONDS, YIELD_AT_MS } from "../../../../packages/jobs/src/ledger
 import { YIELD_AT_MS as DOMAINS_YIELD_AT_MS } from "../../../../apps/edge/api/cron/domains.ts";
 import { CHECK_CALLS_UNTIL_MS, CHECK_CALL_MS, CHECK_DONE_BY_MS } from "../../../../apps/edge/lib/reach-out/check.ts";
 import { PREVIEW_LIMITS } from "../../../../apps/edge/lib/reach-out/preview.ts";
-import { SEND_TIMEOUT_MS } from "../../../../packages/channels/src/email-resend.ts";
+import { SEND_TIMEOUT_MS } from "../../../../packages/channels/src/email/email-resend.ts";
 import { NOTIFY_TIMEOUT_MS } from "../../../../apps/edge/lib/ops/notify.ts";
 import { EVENT_EVIDENCE_KINDS, RETENTION_DAYS } from "@chanlytics/contracts";
 

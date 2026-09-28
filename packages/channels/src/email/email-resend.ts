@@ -22,10 +22,10 @@
  * 0) waits out the reset before it returns (Reach out C14), so the next email
  * this instance sends meets an open second rather than a 429.
  */
-import type { SendResult } from "./whatsapp";
-import { receivedEmailFrom, type ReceivedEmail } from "./email/intake";
-import { mailDomainsFrom, resendLimitOf, type MailDomainFacts } from "./email/provider-answers";
-import type { EmailRequest } from "./email/request";
+import type { SendResult } from "../whatsapp";
+import { receivedEmailFrom, type ReceivedEmail } from "./intake";
+import { mailDomainsFrom, resendLimitOf, type MailDomainFacts } from "./provider-answers";
+import type { EmailRequest } from "./request";
 
 export interface ResendConfig {
   apiKey: string;

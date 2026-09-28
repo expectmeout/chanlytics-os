@@ -7,7 +7,7 @@ import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const run = (cmd) => execSync(cmd, { stdio: "inherit", cwd: repoRoot });
 
 run('corepack pnpm --filter "./packages/*" build');

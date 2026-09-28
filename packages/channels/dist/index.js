@@ -3186,7 +3186,7 @@ async function fetchMediaBytes(cfg, providerMediaId) {
   }
 }
 
-// src/voice-retell.ts
+// src/voice/voice-retell.ts
 import crypto2 from "crypto";
 var API = "https://api.retellai.com";
 var E1642 = /^\+[1-9]\d{6,14}$/;
@@ -3460,7 +3460,7 @@ function verifyRetellSignature(rawBody, header, apiKey) {
   return a.length === b.length && crypto2.timingSafeEqual(a, b);
 }
 
-// src/voice-shell.ts
+// src/voice/voice-shell.ts
 var VOICE_SHELL_PROMPT = "{{business_facts}}\n\nWho you are speaking with:\n{{caller_context}}";
 var VOICE_SHELL_BEGIN = "{{greeting}}";
 var HANDOFF_VAR = "{{handoff_number}}";
@@ -3725,7 +3725,7 @@ function agentSettingsDrift(live) {
   return { converged: plan.drift.length === 0, drift: plan.drift };
 }
 
-// src/voice-provision.ts
+// src/voice/voice-provision.ts
 var VOICE_LLM_DEFAULTS = {
   model: "claude-4.5-haiku",
   model_temperature: 0,
@@ -3879,7 +3879,7 @@ function planVoiceProvision(st) {
   return { ok: true, errors, nothing: false, reason: null, steps, names };
 }
 
-// src/lines.ts
+// src/lines/lines.ts
 import { randomInt } from "crypto";
 var RETELL_ORIGINATION = "sip:sip.retellai.com";
 var LINE_COSTS = {
@@ -3923,7 +3923,7 @@ function isValidSipPassword(p) {
 var isE164 = (s) => typeof s === "string" && E164.test(s);
 var isAreaCode = (n) => typeof n === "number" && Number.isInteger(n) && n >= 200 && n <= 999;
 
-// src/lines-twilio.ts
+// src/lines/lines-twilio.ts
 var API2 = "https://api.twilio.com/2010-04-01";
 var TRUNKING = "https://trunking.twilio.com/v1";
 var MESSAGING = "https://messaging.twilio.com/v1";
@@ -4231,7 +4231,7 @@ function twilioProvider(http = fetchTwilio) {
   };
 }
 
-// src/lines-dry.ts
+// src/lines/lines-dry.ts
 var hex = (n, width = 32) => n.toString(16).padStart(width, "0");
 function dryProvider(seed = 1) {
   let n = seed;
@@ -4364,7 +4364,7 @@ function dryProvider(seed = 1) {
   };
 }
 
-// src/lines-saga.ts
+// src/lines/lines-saga.ts
 var LINE_STEPS = [
   "subaccount",
   "number",
@@ -4643,7 +4643,7 @@ async function channelStep(run) {
   }
 }
 
-// src/sms.ts
+// src/lines/sms.ts
 function smsInboundFrom(form2) {
   const messageSid = form2.MessageSid || form2.SmsSid || "";
   const from = form2.From || "";
@@ -5121,7 +5121,7 @@ function mailDomainsFrom(body) {
   return out;
 }
 
-// src/email-text.ts
+// src/email/email-text.ts
 import { convert } from "html-to-text";
 function emailPlainText(e) {
   const text = (e.text ?? "").replace(/\r\n/g, "\n").trim();
@@ -5137,7 +5137,7 @@ function emailPlainText(e) {
   return converted || null;
 }
 
-// src/email-resend.ts
+// src/email/email-resend.ts
 var RESEND_API = "https://api.resend.com";
 var SEND_TIMEOUT_MS2 = 15e3;
 var SEND_DEADLINE_MS = 32e3;
@@ -5280,7 +5280,7 @@ async function fetchMailDomains(cfg) {
   return domains;
 }
 
-// src/email-domains.ts
+// src/email/email-domains.ts
 var unquote = (s) => {
   const t = s.trim();
   return t.length >= 2 && t.startsWith('"') && t.endsWith('"') ? t.slice(1, -1) : t;
@@ -5386,7 +5386,7 @@ function dmarcOf(txt) {
   return txt.some((chunks) => /^v=DMARC1\s*(;|$)/i.test(chunks.join("").trim())) ? "found" : "missing";
 }
 
-// src/a2p/wire.ts
+// src/lines/a2p/wire.ts
 var A2P_POLICIES = {
   /** The bundle one customer of an ISV gets. */
   secondaryCustomerProfile: "RNdfbf3fae0e1107f8aded0e7cead80bf5",
@@ -5418,12 +5418,12 @@ function encodeForm(form2) {
   return q.toString();
 }
 
-// src/a2p/business-record.ts
+// src/lines/a2p/business-record.ts
 function brandTypeFor(r2) {
   return registrationPathOf(r2) === "sole_proprietor" ? "SOLE_PROPRIETOR" : "STANDARD";
 }
 
-// src/a2p/trust-hub.ts
+// src/lines/a2p/trust-hub.ts
 var attrs = (o) => JSON.stringify(o);
 function customerProfileRequest(o) {
   return {
@@ -5632,7 +5632,7 @@ function submitTrustProductRequest(bundleSid) {
   return { url: `${TRUSTHUB}/TrustProducts/${bundleSid}`, method: "POST", form: { Status: "pending-review" } };
 }
 
-// src/a2p/brand-campaign.ts
+// src/lines/a2p/brand-campaign.ts
 function brandRequest(o) {
   return {
     url: `${MESSAGING2}/a2p/BrandRegistrations`,
@@ -5689,7 +5689,7 @@ function deleteCampaignRequest(messagingServiceSid, campaignSid) {
   return { url: `${MESSAGING2}/Services/${messagingServiceSid}/Compliance/Usa2p/${campaignSid}`, method: "DELETE" };
 }
 
-// src/a2p/steps.ts
+// src/lines/a2p/steps.ts
 var A2P_STEPS = [
   "profile",
   "business",
@@ -5740,7 +5740,7 @@ function nextA2PStep(s, brandType = "STANDARD") {
   return null;
 }
 
-// src/a2p/verdict.ts
+// src/lines/a2p/verdict.ts
 function isBrandNotReady(error) {
   return /until Brand is registered|Brand.*Current status:\s*(IN_PROGRESS|PENDING)/i.test(error);
 }
@@ -5811,7 +5811,7 @@ function registrationVerdict(before, after, o) {
   return null;
 }
 
-// src/a2p-saga.ts
+// src/lines/a2p-saga.ts
 var sid = (a) => typeof a.body?.sid === "string" ? a.body.sid : null;
 function twilioRefusal(a, what) {
   const msg = typeof a.body?.message === "string" ? a.body.message : `HTTP ${a.status}`;
@@ -5977,7 +5977,7 @@ async function runA2PSaga(start, p) {
   }
 }
 
-// src/google-places.ts
+// src/google/google-places.ts
 var PLACES_BASE = "https://places.googleapis.com/v1";
 var PLACES_SEARCH_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.businessStatus,places.primaryTypeDisplayName";
 var PLACES_DETAILS_MASK = "id,displayName,formattedAddress,googleMapsUri,businessStatus,rating,userRatingCount,reviews,regularOpeningHours,internationalPhoneNumber,nationalPhoneNumber,websiteUri,primaryType,primaryTypeDisplayName,pureServiceAreaBusiness,timeZone";
@@ -6147,7 +6147,7 @@ function placesFetch(fetchImpl = fetch, timeoutMs = PLACES_TIMEOUT_MS) {
 }
 var PLACE_ID = /^[A-Za-z0-9_-]{10,300}$/;
 
-// src/google-sync.ts
+// src/google/google-sync.ts
 var REVIEW_BELL_MAX = 3;
 var FRESH_SLACK_MS = 2 * DAY_MS;
 function overall(rating, count) {
@@ -6243,7 +6243,7 @@ function planProfileSync(before, known, page, day, nowMs) {
   };
 }
 
-// src/google-oauth.ts
+// src/google/google-oauth.ts
 var GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 var GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 var GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
@@ -6376,7 +6376,7 @@ function newNonce() {
   return b64url(b);
 }
 
-// src/google-profile.ts
+// src/google/google-profile.ts
 var GBP_ACCOUNTS_URL = "https://mybusinessaccountmanagement.googleapis.com/v1/accounts";
 var GBP_INFO_BASE = "https://mybusinessbusinessinformation.googleapis.com/v1";
 var GBP_V4_BASE = "https://mybusiness.googleapis.com/v4";
@@ -6545,7 +6545,7 @@ function cleanReply(text) {
   return typeof text === "string" ? text.replace(/\r\n?/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n").trim().slice(0, GBP_REPLY_MAX) : "";
 }
 
-// src/edge-token.ts
+// src/tokens/edge-token.ts
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 var EDGE_TOKEN_TTL_MS = MIN_MS;
 function signEdgeToken(secret, aud, ctx = {}, nowMs = Date.now()) {
@@ -6581,7 +6581,7 @@ function verifyEdgeToken(secret, token, aud, nowMs = Date.now()) {
   return { ok: true, claims: { ...claims, ws: claims.ws ?? null, user: claims.user ?? null } };
 }
 
-// src/unsubscribe-token.ts
+// src/tokens/unsubscribe-token.ts
 import { createHmac as createHmac2, timingSafeEqual as timingSafeEqual2 } from "crypto";
 var UNSUBSCRIBE_PATH = "/u/";
 var VERSION = 1;
@@ -6626,7 +6626,7 @@ function unsubscribeUrl(origin, token) {
   return `${origin.replace(/\/+$/, "")}${UNSUBSCRIBE_PATH}${token}`;
 }
 
-// src/apify.ts
+// src/leads/apify.ts
 var APIFY_BASE = "https://api.apify.com/v2";
 var APIFY_TIMEOUT_MS = 2e4;
 var APIFY_RUN_END_EVENTS = [
@@ -6798,7 +6798,7 @@ function apifyClient(fetchImpl, token) {
   };
 }
 
-// src/lead-judge.ts
+// src/leads/lead-judge.ts
 import { createHash } from "crypto";
 var LEAD_JUDGE_MAX_TOKENS = 6e3;
 var LEAD_JUDGE_FALLBACK_BETA = "server-side-fallback-2026-07-01";

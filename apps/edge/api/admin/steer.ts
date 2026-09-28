@@ -17,7 +17,7 @@
  * RLS has proved the draft belongs to the operator's workspace and the role
  * door has been checked there. Body: { message_id, text }.
  */
-import { json } from "../../lib/http.js";
+import { json, refuse } from "../../lib/http.js";
 import { authorizeAdmin } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
@@ -59,7 +59,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   const ask = brain?.generateReply ?? generateReply;
   const auth = authorizeAdmin(request, "/api/admin/steer");
   if (!auth.ok) return auth.response;
-  if (!env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
+  if (!env.ANTHROPIC_API_KEY) return refuse(503, "no_model_key");
 
   let body: { message_id?: string; text?: string } = {};
   try {
@@ -70,22 +70,22 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
   const messageId = String(body.message_id || "");
   const text = String(body.text || "").trim();
   if (!UUID.test(messageId) || !text || text.length > MAX_CHARS) {
-    return json(400, { ok: false, error: `message_id + text (1-${MAX_CHARS} chars) required` });
+    return refuse(400, "bad_request", `message_id + text (1-${MAX_CHARS} chars) required`);
   }
 
   const db = pg();
-  if (!db) return json(503, { ok: false, error: "no_database" });
+  if (!db) return refuse(503, "no_database");
 
   const { data: m, error: mErr } = await db
     .from("messages")
     .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel")
     .eq("id", messageId)
     .maybeSingle();
-  if (mErr) return json(500, { ok: false, error: "message_read_failed" });
-  if (!m) return json(404, { ok: false, error: "not_found" });
+  if (mErr) return refuse(500, "message_read_failed");
+  if (!m) return refuse(404, "not_found");
   // A token minted for one workspace opens only that workspace's drafts.
-  if (auth.workspace && m.tenant_id !== auth.workspace) return json(403, { ok: false, error: "workspace_mismatch" });
-  if (m.sender !== "ai" || m.status !== "queued") return json(409, { ok: false, error: "not_a_held_draft" });
+  if (auth.workspace && m.tenant_id !== auth.workspace) return refuse(403, "workspace_mismatch");
+  if (m.sender !== "ai" || m.status !== "queued") return refuse(409, "not_a_held_draft");
 
   const { data: conv } = await db
     .from("conversations")
@@ -93,7 +93,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     .eq("id", m.conversation_id)
     .maybeSingle();
   const phone = conv?.contacts?.phone_e164 ?? null;
-  if (!phone) return json(409, { ok: false, error: "no_phone" });
+  if (!phone) return refuse(409, "no_phone");
 
   // The wire the draft is already on. A held reply to a text is an `sms` row,
   // and looking the tenant up on WhatsApp alone both refused every steer for a
@@ -108,7 +108,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     .eq("status", "active")
     .limit(1)
     .maybeSingle();
-  if (!ch) return json(409, { ok: false, error: "no_channel" });
+  if (!ch) return refuse(409, "no_channel");
   const routed: RoutedChannel = {
     channelId: ch.id,
     tenantId: ch.tenant_id,
@@ -119,14 +119,14 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     config: ch.config,
   };
   const rt = await loadTenantRuntime(db, routed);
-  if (!rt.brain) return json(409, { ok: false, error: rt.configBroken ? "config_broken" : "no_persona" });
+  if (!rt.brain) return refuse(409, rt.configBroken ? "config_broken" : "no_persona");
 
   // The same memory the reply was written from. The held draft itself is not
   // in it (only delivered replies are), and the customer's latest words are
   // its last turn — those are what the rewrite answers.
   const thread = await readThreadState(db, m.tenant_id, m.conversation_id, null);
   const lastUser = [...thread.history].reverse().find((t) => t.role === "user");
-  if (!lastUser) return json(409, { ok: false, error: "nothing_to_answer" });
+  if (!lastUser) return refuse(409, "nothing_to_answer");
 
   let leadNote: string | undefined;
   try {
@@ -150,13 +150,13 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     );
   } catch (e) {
     L.error("steer_brain_failed", { error: errField(e) });
-    return json(502, { ok: false, error: "brain_failed" });
+    return refuse(502, "brain_failed");
   }
   // The same second door the handler keeps: a price never goes out, and a
   // rewrite that would say one leaves the original draft where it was.
   if (violatesNoPrices(r.text)) {
     L.warn("steer_policy_block_price", { message_id: messageId });
-    return json(409, { ok: false, error: "policy_block_price" });
+    return refuse(409, "policy_block_price");
   }
 
   const delayMs =
@@ -185,7 +185,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
     },
     L,
   );
-  if (!newId) return json(502, { ok: false, error: "could_not_queue" });
+  if (!newId) return refuse(502, "could_not_queue");
 
   // Counted, not just attempted. The status filter is the whole guard: the
   // model takes seconds, and in those seconds the tick can claim the old
@@ -208,9 +208,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
       .eq("id", newId)
       .eq("status", "queued");
     await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", newId);
-    return lost
-      ? json(409, { ok: false, error: "already_sent" })
-      : json(500, { ok: false, error: "could_not_retire_old_draft" });
+    return lost ? refuse(409, "already_sent") : refuse(500, "could_not_retire_old_draft");
   }
   await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id);
 
