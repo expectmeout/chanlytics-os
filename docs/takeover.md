@@ -46,7 +46,7 @@ dead exports, types and modules     165
 source-text reads in tests          829
 lint warnings                       129   in 36 files, 128 of them exhaustive-deps
 workspace route JS, KB gzipped      962   the shell included
-workspace route CSS, KB gzipped     122
+workspace route CSS, KB gzipped     123
 ```
 
 <!-- measured:end -->
