@@ -119,15 +119,23 @@ export async function readThread(
   if (!t) return null;
   // The newest MESSAGES_CAP rows, newest first (the id breaks a tie in the clock, so every read agrees), then put back
   // in the order they were written: a thread past thirty turns reopens on its latest, and its history ends at the last.
+  // Each row's content is read key by key, by its JSON path: the keys the Line (toMessageVM) and the history
+  // (modelTurnOf) read, and never the rest -- an answer's content also holds the turn as the model was sent it
+  // (content.raw, the Phase 5 plan, D11), up to sixty of which a whole read would ship on every turn and every reopen.
+  // A key a row does not hold reads as null, which both take as absent.
   const { data: msgs, error: merr } = await ctx.supabase
     .from("ask_messages")
-    .select("id, role, content, created_at")
+    .select(
+      "id, role, created_at, v:content->v, answer:content->answer, citations:content->citations, text:content->text, followups:content->followups, navigate:content->navigate, proposals:content->proposals, language:content->language, ungrounded:content->ungrounded, tools:content->tools, latency_ms:content->latency_ms, rounds:content->rounds, failed:content->failed, answering:content->answering",
+    )
     .eq("thread_id", id)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(MESSAGES_CAP);
   if (merr) throw new Error(merr.message);
-  const rows = (msgs ?? []).reverse();
+  const rows = (msgs ?? [])
+    .reverse()
+    .map(({ id: messageId, role, created_at, ...content }) => ({ id: messageId, role, created_at, content }));
   return {
     thread: toThreadVM(t),
     messages: rows.map(toMessageVM),
@@ -210,6 +218,8 @@ export async function setProposalOutcome(
     throw new AppError("conflict", "That card was already approved.", 409);
   }
   const next = proposals.map((p, i) => (i === idx ? { ...p, outcome } : p));
+  // Read whole and written back whole, never by path: the turn as the model was sent it (content.raw) stays beside
+  // the card's outcome.
   const { data: upd, error: uerr } = await ctx.supabase
     .from("ask_messages")
     .update({ content: { ...content, proposals: next } as unknown as Json })

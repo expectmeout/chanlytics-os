@@ -1,5 +1,6 @@
 /**
- * The measures behind docs/debt.md, in one module.
+ * The measures behind docs/debt.md, in one module, and the tree docs/architecture.md
+ * draws from the files they measure (docs/docs-tree.test.mjs).
  *
  * The ratchets (repo/code-health-ratchets.test.mjs), the source-scan ratchet
  * (repo/source-scan-ratchet.test.mjs) and the register (repo/debt-register.test.mjs)
@@ -226,4 +227,49 @@ export function bankedSourceScan(counts, baseline, raise) {
       .sort()
       .map((f) => [f, out[f]]),
   );
+}
+
+/* ---- The tree docs/architecture.md draws (docs/docs-tree.test.mjs) ---- */
+
+/**
+ * The code trees the page draws, in its order, where PACKAGES stands for every package's src. Each is drawn with the
+ * folders that hold its modules (TREES: tracked, hand-written, TypeScript or JavaScript), by name and never with a
+ * count, so the drawing changes when a folder appears or disappears, not with each module a change adds or removes.
+ * `supabase/migrations/`, the schema, is drawn as its one line.
+ */
+const PACKAGES = "packages/<name>/src";
+const DRAWN = [
+  "apps/edge/api",
+  "apps/edge/lib",
+  "apps/dashboard/app",
+  "apps/dashboard/src",
+  "apps/dashboard/src/server",
+  "apps/dashboard/src/legacy-bridge",
+  "apps/dashboard/src/legacy",
+  "apps/mobile/src",
+  PACKAGES,
+  "tooling/scripts",
+  "e2e",
+];
+const MIGRATIONS = "supabase/migrations";
+
+/**
+ * One tree as the page draws it: its path, then each folder that holds one of `files`, by name. A tree that holds
+ * none is an entry of DRAWN its code has left, and fails the drawing rather than draw a tree that is not there.
+ */
+function drawn(tree, files) {
+  if (files.length === 0) throw new Error(`${tree} holds nothing to draw: DRAWN (_measures.mjs) moves with its code`);
+  const paths = files.map((f) => f.slice(tree.length + 1).split("/"));
+  const folders = [...new Set(paths.filter((parts) => parts.length > 1).map((parts) => parts[0]))].sort();
+  return [`${tree}/`, ...folders.map((folder) => `  ${folder}/`)];
+}
+
+/** The block docs/architecture.md prints between its tree markers: each code tree and its folders, by name. */
+export function drawnTree() {
+  const packages = [...new Set(TREES.map((f) => /^packages\/[^/]+\/src(?=\/)/.exec(f)?.[0]).filter(Boolean))].sort();
+  const trees = DRAWN.flatMap((tree) => (tree === PACKAGES ? packages : [tree]));
+  const modulesUnder = (tree) => TREES.filter((f) => f.startsWith(`${tree}/`));
+  const lines = trees.flatMap((tree) => drawn(tree, modulesUnder(tree)));
+  lines.push(...drawn(MIGRATIONS, repoFiles([MIGRATIONS], { keep: /\.sql$/ })));
+  return "```text\n" + lines.join("\n") + "\n```";
 }
