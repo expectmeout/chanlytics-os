@@ -3,7 +3,7 @@
  * message does to the shell's state, and the JavaScript that carries the shell's ask into a page. The WebView
  * (Surface.tsx) is the only caller, and test/bridge.test.mjs runs both without one.
  */
-import { APP_KEYS_RESIZE_CLASS, parsePageMessage, type ShellMessage } from "@chanlytics/contracts";
+import { APP_KEYS_RESIZE_CLASS, parsePageMessage, type ShellMessage } from "@chanlytics/contracts/phone-app";
 import type { ShellState } from "./state";
 
 /** What the Surface does beyond keeping the state: the sign-in screen and the widget follow the state and the message. */

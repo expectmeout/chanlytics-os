@@ -51,7 +51,7 @@ async function edgeDomains(body: Record<string, unknown>, timeoutMs = 25_000): P
   }
 }
 
-let readyCache: { at: number; ready: boolean } | null = null;
+let domainsReadyCache: { at: number; ready: boolean } | null = null;
 /** A "not ready" answer is kept briefly: a key set a minute ago must not hide the block for five. */
 const NOT_READY_TTL_MS = 30_000;
 
@@ -60,16 +60,17 @@ const NOT_READY_TTL_MS = 30_000;
  * lines' and Google's readiness are; an unreachable edge is not ready, so nothing draws a verb that cannot work.
  */
 export async function domainsReadiness(now = Date.now()): Promise<boolean> {
-  if (readyCache && now - readyCache.at < (readyCache.ready ? READY_TTL_MS : NOT_READY_TTL_MS)) return readyCache.ready;
+  if (domainsReadyCache && now - domainsReadyCache.at < (domainsReadyCache.ready ? READY_TTL_MS : NOT_READY_TTL_MS))
+    return domainsReadyCache.ready;
   const a = await edgeDomains({ op: "status" }, 4_000);
   const ready = a.status === 200 && a.body?.ok === true && a.body?.ready === true;
-  readyCache = { at: now, ready };
+  domainsReadyCache = { at: now, ready };
   return ready;
 }
 
 /** For tests, and for a route that must not read a stale answer. */
 export function forgetDomainsReadiness(): void {
-  readyCache = null;
+  domainsReadyCache = null;
 }
 
 /**
@@ -77,7 +78,7 @@ export function forgetDomainsReadiness(): void {
  * one of its codes (contracts' EdgeErrorCode), so a code it renames or drops stops this compiling; `preview` is this
  * module's own (edgeDomains).
  */
-function refusal(a: EdgeAnswer, doing: string): AppError {
+function edgeRefusal(a: EdgeAnswer, doing: string): AppError {
   const b = a.body ?? {};
   const error = typeof b.error === "string" ? b.error : "failed";
   const said = typeof b.message === "string" && b.message.trim() ? b.message.trim() : null;
@@ -118,7 +119,7 @@ export async function addSendingDomain(
     from_local: input.fromLocal,
     from_name: input.fromName,
   });
-  if (a.status !== 200 || a.body?.ok !== true) throw refusal(a, "added");
+  if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "added");
   return a.body.domain as SendingDomainDto;
 }
 
@@ -128,7 +129,7 @@ export async function checkSendingDomain(
   domainId: string,
 ): Promise<SendingDomainDto> {
   const a = await edgeDomains({ op: "check", tenant_id: tenantId, user_id: userId, domain_id: domainId });
-  if (a.status !== 200 || a.body?.ok !== true) throw refusal(a, "checked");
+  if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "checked");
   return a.body.domain as SendingDomainDto;
 }
 
@@ -138,11 +139,11 @@ export async function resumeSendingDomain(
   domainId: string,
 ): Promise<SendingDomainDto> {
   const a = await edgeDomains({ op: "resume", tenant_id: tenantId, user_id: userId, domain_id: domainId });
-  if (a.status !== 200 || a.body?.ok !== true) throw refusal(a, "resumed");
+  if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "resumed");
   return a.body.domain as SendingDomainDto;
 }
 
 export async function removeSendingDomain(tenantId: string, userId: string, domainId: string): Promise<void> {
   const a = await edgeDomains({ op: "remove", tenant_id: tenantId, user_id: userId, domain_id: domainId });
-  if (a.status !== 200 || a.body?.ok !== true) throw refusal(a, "removed");
+  if (a.status !== 200 || a.body?.ok !== true) throw edgeRefusal(a, "removed");
 }

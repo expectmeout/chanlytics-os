@@ -4,7 +4,7 @@
  * Never after every message. pg_cron asks every thirty minutes, and only when a call's analysis is in or a spell of
  * a customer's messages has been quiet for six hours (trigger_notes_sweep, 00159). Each call and each quiet spell is
  * looked at once -- note_candidates stamps what it hands over -- and most looks end with nothing: the gates are
- * contracts' (note-suggest.ts), the sweep lib/notes/suggest.ts, the transport lib/model.ts. A suggestion waits on the person's page for Keep
+ * contracts' (note-suggest.ts), the sweep lib/notes.ts, the transport lib/model.ts. A suggestion waits on the person's page for Keep
  * or Dismiss, and the receptionist reads nothing it wrote until a member keeps it.
  *
  * NOTE_SUGGESTIONS=off stops it without a deploy of the database: the clock still asks, and this answers that it is
@@ -15,7 +15,7 @@ import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
 import { env } from "../../lib/env.js";
 import { logger } from "../../lib/log.js";
-import { askNoteModel, suggestNotes } from "../../lib/notes/suggest.js";
+import { askNoteModel, suggestNotes } from "../../lib/notes.js";
 
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "notes" });

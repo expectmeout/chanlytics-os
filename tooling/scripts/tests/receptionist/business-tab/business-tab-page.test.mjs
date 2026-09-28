@@ -2320,7 +2320,7 @@ test("on a phone the sheet slot is still the page's last child: a row's sheet is
 /* ------------------------------------ motion: what the stub can see of it ------------------------------------ */
 
 // Spec §9. The stub draws no frame and runs no stylesheet, so the motions themselves are the journey's to prove, by
-// computed style (e2e/settings-business.spec.ts). What the page decides is here: WHICH line of what a save will tell
+// computed style (e2e/settings/settings-business.spec.ts). What the page decides is here: WHICH line of what a save will tell
 // the receptionist has just changed, which is the one line record.css washes.
 const saysLines = (tree, id, part = "says") =>
   all(

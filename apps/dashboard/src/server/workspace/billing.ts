@@ -58,7 +58,7 @@ interface BillingReadiness {
 }
 
 const NOT_READY: BillingReadiness = { ready: false, livemode: null, price: null, trial_days: 14 };
-let readyCache: { at: number; value: BillingReadiness } | null = null;
+let billingReadyCache: { at: number; value: BillingReadiness } | null = null;
 
 /**
  * What this deployment can charge, and the plan as Stripe states it. Cached
@@ -67,7 +67,7 @@ let readyCache: { at: number; value: BillingReadiness } | null = null;
  * nothing draws a verb that cannot work.
  */
 export async function billingReadiness(now = Date.now()): Promise<BillingReadiness> {
-  if (readyCache && now - readyCache.at < READY_TTL_MS) return readyCache.value;
+  if (billingReadyCache && now - billingReadyCache.at < READY_TTL_MS) return billingReadyCache.value;
   const a = await edgeBilling({ op: "status" }, 6_000);
   const b = a.body ?? {};
   const price = b.price && typeof b.price === "object" ? (b.price as BillingPriceDto) : null;
@@ -80,13 +80,13 @@ export async function billingReadiness(now = Date.now()): Promise<BillingReadine
           trial_days: typeof b.trial_days === "number" ? b.trial_days : 14,
         }
       : NOT_READY;
-  readyCache = { at: now, value };
+  billingReadyCache = { at: now, value };
   return value;
 }
 
 /** For tests and for a route that must not read a stale answer. */
 export function forgetBillingReadiness(): void {
-  readyCache = null;
+  billingReadyCache = null;
 }
 
 /** The words a refused op earns, by the edge's reason. */
