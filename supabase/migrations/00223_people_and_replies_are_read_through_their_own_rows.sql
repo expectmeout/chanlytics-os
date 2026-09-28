@@ -19,7 +19,7 @@
 -- Not materialised, each look is planned for its own row and can use an index
 -- for it: a person's messages messages_contact_created (00016), a question's
 -- replies messages_conversation_created (00002), or whichever the planner's
--- statistics prefer. Modelled on Postgres 16 (PGlite),
+-- statistics prefer. Modelled on PGlite (Postgres 18),
 -- people_list's three reads for 2,000 people with ten messages each took 12.9 s
 -- as written and 95 ms not materialised; first_replies over a week of 2,800
 -- questions in 24,000 messages, 21.3 s and 124 ms. The same rows, in the same
