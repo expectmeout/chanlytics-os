@@ -83,6 +83,19 @@ async function lookAtUpdates(locked: () => boolean): Promise<void> {
 
 installForegroundHandler();
 
+// Which bundle this launch runs, said once in the device's log (logcat's ReactNativeJS): an update's id, when it was
+// published and its channel, or the build's own bundle. The walk reads it to say what it walked
+// (tooling/scripts/mobile/walk.mjs). Nothing of a person's is in it.
+console.info(
+  "app_launch",
+  JSON.stringify({
+    update: Updates.updateId,
+    publishedAt: Updates.createdAt?.toISOString() ?? null,
+    embedded: Updates.isEmbeddedLaunch,
+    channel: Updates.channel,
+  }),
+);
+
 // EAS Observe: launch and per-tab timings from real phones (each tab's page marks itself interactive as it first
 // reports its route, Surface.tsx), and the app's crashes and unhandled errors. Nothing of a page's content is sent.
 Observe.configure({ integrations: { "expo-router": true } });

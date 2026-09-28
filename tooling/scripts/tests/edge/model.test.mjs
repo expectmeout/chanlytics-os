@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { at, withEnv } from "../_cron-doors-world.mjs";
 
 const { askJson, firstJson, setModelClient } = await import(at("apps/edge/lib/model.ts"));
-const { askNoteModel } = await import(at("apps/edge/lib/notes/suggest.ts"));
+const { askNoteModel } = await import(at("apps/edge/lib/notes.ts"));
 const { askReachOutModel } = await import(at("apps/edge/lib/reach-out/check.ts"));
 after(() => setModelClient(null));
 
