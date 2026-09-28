@@ -3697,11 +3697,11 @@ type Database = {
                     first_call_at?: string | null;
                     first_row_at?: string | null;
                     first_word_at?: string | null;
-                    in_touch_at?: never;
+                    in_touch_at?: string;
                     last_call_at?: string | null;
                     last_word_at?: string | null;
                     moved_in?: boolean;
-                    new_at?: never;
+                    new_at?: string | null;
                     tenant_id: string;
                 };
                 Update: {
@@ -3710,11 +3710,11 @@ type Database = {
                     first_call_at?: string | null;
                     first_row_at?: string | null;
                     first_word_at?: string | null;
-                    in_touch_at?: never;
+                    in_touch_at?: string;
                     last_call_at?: string | null;
                     last_word_at?: string | null;
                     moved_in?: boolean;
-                    new_at?: never;
+                    new_at?: string | null;
                     tenant_id?: string;
                 };
                 Relationships: [
