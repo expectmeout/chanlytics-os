@@ -4,7 +4,7 @@
  * people.ts (Reach out Part 2.5), which re-exports it.
  */
 import { type AskedPurpose, mayMessageFor } from "../consent/consent";
-import type { PersonRowVM } from "./people";
+import type { PersonRowVM } from "./person-row";
 
 export interface PersonConsent {
   state: "unknown" | "opted_in" | "opted_out";

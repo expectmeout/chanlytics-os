@@ -1,32 +1,42 @@
 /** People: the relationship record, its page, its lists, the pool every list is judged over, and what erasure leaves. */
 export { callerName } from "./person-name";
 export type { NameableContact, NameableCaller } from "./person-name";
+// What to call a person is person-name.ts's one rule; People reads it from there
+// like every other surface, and the index exports it from there.
+export { personName } from "./person-name";
+// A person's wires and where they came from, in words: the leaf the list rules read too (person-words.ts).
+export { PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS } from "./person-words";
+export type { PersonCameFrom, PersonChannel } from "./person-words";
+export type {
+  PersonRowDto,
+  PersonIdentityDto,
+  PersonEscalationDto,
+  PersonDecisionDto,
+  PersonDetailDto,
+  PersonCampaignDto,
+  PersonLeadDto,
+  PersonCampaignVM,
+} from "./person-dto";
+export { asPersonMode, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS } from "./person-receptionist";
+export type { PersonMode, ReceptionistTone, PersonReceptionist } from "./person-receptionist";
+export { reasonShort, ago } from "./person-row-facts";
+export type { PersonLastContact, PersonFirstContact } from "./person-row-facts";
 export {
-  asPersonMode,
-  reasonShort,
-  ago,
-  bookingLinkAction,
-  proposalMessage,
-  proposalAction,
-  repliesWords,
-  cameFromOf,
   personStanding,
   attentionOf,
   isOwned,
   personStateFor,
-  visitTitleFor,
-  toPersonRowVM,
-  mayReach,
-  PERSON_MODES,
-  PERSON_MODE_LABELS,
-  PERSON_MODE_WORDS,
   PERSON_STATE_LABELS,
   PEOPLE_TABS,
   NEW_WINDOW_DAYS,
   QUIET_AFTER_DAYS,
-  personName,
-  PERSON_CAME_FROM_WORDS,
-  PERSON_CHANNEL_WORDS,
+} from "./person-state";
+export type { PersonState } from "./person-state";
+export { bookingLinkAction, proposalMessage, proposalAction, repliesWords, mayReach } from "./person-reach";
+export type { PersonProposalVM } from "./person-reach";
+export { cameFromOf, visitTitleFor, toPersonRowVM } from "./person-row";
+export type { PersonRowVM } from "./person-row";
+export {
   offersYesRefusal,
   ownMessageRefusal,
   consentSourceLabel,
@@ -37,10 +47,11 @@ export {
   CONSENT_RESET_SOURCE,
   OFFERS_YES_SOURCES,
   OWN_MESSAGE_REFUSALS,
-  personNotesVM,
-  NOTE_MAX,
-  NOTE_WORDS,
-  NOTE_REFUSALS,
+} from "./person-consent";
+export type { PersonConsent, NotReceived } from "./person-consent";
+export { personNotesVM, NOTE_MAX, NOTE_WORDS, NOTE_REFUSALS } from "../notes/person-notes";
+export type { PersonNoteDto, PersonNoteTeamDto, PersonNoteVM } from "../notes/person-notes";
+export {
   peopleListAction,
   savedListAction,
   noNumberWords,
@@ -49,34 +60,8 @@ export {
   recencyCells,
   GET_YES_ROUTE,
   NO_NUMBER_REACH,
-} from "./people";
-export type {
-  PersonRowDto,
-  PersonIdentityDto,
-  PersonEscalationDto,
-  PersonDecisionDto,
-  PersonDetailDto,
-  PersonCampaignDto,
-  PersonLeadDto,
-  PersonCampaignVM,
-  PersonMode,
-  PersonState,
-  PersonCameFrom,
-  PersonChannel,
-  PersonProposalVM,
-  PersonLastContact,
-  PersonFirstContact,
-  ReceptionistTone,
-  PersonReceptionist,
-  PersonRowVM,
-  PersonConsent,
-  NotReceived,
-  PersonNoteDto,
-  PersonNoteTeamDto,
-  PersonNoteVM,
-  PeopleListAction,
-  PeopleAggregates,
-} from "./people";
+} from "./people-lists";
+export type { PeopleListAction, PeopleAggregates } from "./people-lists";
 export { attentionRow } from "./person-attention";
 export type { AttentionRowVM } from "./person-attention";
 export { filterTimeline, personActs, toPersonVM, TIMELINE_FILTERS } from "./person-profile";

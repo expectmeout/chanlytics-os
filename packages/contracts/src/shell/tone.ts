@@ -22,7 +22,8 @@
  * The toast's tones (chrome.ts) are the four of these that a flash can be.
  */
 import { BROADCAST_STATE_LABELS } from "../broadcasts/broadcasts";
-import { PERSON_MODE_WORDS, PERSON_STATE_LABELS } from "../people/people";
+import { PERSON_MODE_WORDS } from "../people/person-receptionist";
+import { PERSON_STATE_LABELS } from "../people/person-state";
 import { ROLE_WORDS } from "./identity";
 import { SETUP_STATE_WORDS } from "../setup/setup";
 import { CALENDAR_FEED_WORDS } from "../calendar/calendar-words";

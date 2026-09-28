@@ -884,7 +884,7 @@
     "branches": 49,
     "depth": 1
   },
-  "packages/contracts/src/people/people.ts::toPersonRowVM#1": {
+  "packages/contracts/src/people/person-row.ts::toPersonRowVM#1": {
     "lines": 144,
     "branches": 84,
     "depth": 0

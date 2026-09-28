@@ -3,7 +3,7 @@
  * page's aggregates. Moved whole from people.ts (Reach out Part 2.5), which re-exports it.
  */
 import type { AskedPurpose } from "../consent/consent";
-import type { PersonRowVM } from "./people";
+import type { PersonRowVM } from "./person-row";
 import { mayReceive, saidYesTo } from "./person-consent";
 import { MONTH_MS } from "./person-helpers";
 import { DAY_MS, WEEK_MS } from "../shared/time";

@@ -20,7 +20,8 @@ import {
 } from "../calendar/calendar-people";
 import { isConsultationTitle } from "../deals/deal-consultations";
 import type { ListContext } from "./lists";
-import { toPersonRowVM, type PersonRowDto, type PersonRowVM } from "./people";
+import type { PersonRowDto } from "./person-dto";
+import { toPersonRowVM, type PersonRowVM } from "./person-row";
 
 /** A People row as the calendar matches it: a name a human gave, their number, their address. */
 export function personLikeOf(

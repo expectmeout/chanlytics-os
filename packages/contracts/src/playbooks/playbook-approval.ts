@@ -4,7 +4,7 @@
  */
 import type { BroadcastDto, BroadcastRecipientDto } from "../broadcasts/broadcasts";
 import { purposeOfPlaybook } from "../consent/consent";
-import { GET_YES_ROUTE } from "../people/people";
+import { GET_YES_ROUTE } from "../people/people-lists";
 import type { RunReach } from "./playbook-reach";
 import { triggerOf } from "./playbook-triggers";
 import type { PlaybookDto } from "./playbooks";
