@@ -1464,12 +1464,19 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** the dashboard and contracts only, after PR 10.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `0289a433`). What departed from the tasks, and why:
+>
+> - **A third problem, `hand_words_long`.** 00228's CHECK holds a hand's words to 280 characters (`HAND_WORDS_MAX`), so the sheet says so before the door refuses. The three problems' words sit in `chainIssueWords` (`reach-out-words.ts`), with every other chain problem's, not in `reach-out-draft.ts`.
+> - **An email step carries no `hand` key at all.** The door reads a step with the key as a call or a note (`v_steps->v_i ? 'hand'`, which is true for a JSON null too). So `reachOutChainBodyOf` writes the key on a hand step only, and the route drops a null `hand` before the door as well, for a body the sheet did not make.
+> - **The offer is two buttons beside "Another step"**, "A call for you" and "A note for you", shown while another step may be added; once the last step is a call or a note, none is (`reachOutMayAddStep`). Remove takes it off, as it does an email.
+> - **Two door sentences joined `REACH_OUT_REFUSALS`**: 00228's "A call or a note ends the chain." and "That step has run already. Add a new step instead.", so the route says them as they are.
+> - **The open row** labels a hand step by its kind (`stepLabelOf`), in the hint, the path and the table; its table row reads "N handed to you" with no delivery counts, the sentence adds "N handed to you", and a hand run's history line says what it handed rather than "0 written". A report from before 00228 has no `handed`, and nothing is said of it.
+> - **The tests** are `reach-out-stops/hand-sheet.test.mjs` (the draft, the problems, the refusals and the open row, over contracts), a harness test in `reach-out-sheet/reach-out-sheet-page.test.mjs` (offer, write, save, and the door's refusal said at the foot; its world is that file's, so it stays there), and a route test in `reach-out-routes.test.mjs` (the hand reaches the door, an email's key does not, and both of 00228's refusals are said).
 
-- [ ] **The input.** `ReachOutStepSchema` gains `hand?: { kind, words }`. `validateReachOutChain` gains `hand_not_last` and `hand_words_empty`, with their words in `reach-out-draft.ts`.
-- [ ] **The sheet** (`reach-out-sheet.jsx`) draws a hand step as a row with its kind and its words, and no subject.
-- [ ] **The open row.** Playbooks' open row reads the report's `handed` as "handed to you".
-- [ ] **Tests:**
+- [x] **The input.** `ReachOutStepSchema` gains `hand?: { kind, words }`. `validateReachOutChain` gains `hand_not_last` and `hand_words_empty`, with their words in `reach-out-draft.ts`.
+- [x] **The sheet** (`reach-out-sheet.jsx`) draws a hand step as a row with its kind and its words, and no subject.
+- [x] **The open row.** Playbooks' open row reads the report's `handed` as "handed to you".
+- [x] **Tests:**
   - `reach-out-sheet/reach-out-sheet-words.test.mjs` gains the problems;
   - `reach-out-stops/hand-sheet-page.test.mjs` (harness): offer, save, and the refusal for a hand step not last.
 

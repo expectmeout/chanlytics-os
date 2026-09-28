@@ -5,6 +5,7 @@
  */
 import { z } from "zod";
 import { REACH_OUT_BODY_MAX, REACH_OUT_SUBJECT_MAX, SIGNED_BY_MAX, type ReachOutHold } from "./reach-out-words";
+import type { StepHand } from "./reach-out-hand";
 
 /** A step's words and place, as the sheet edits them. */
 export interface ReachOutStepDto {
@@ -16,6 +17,8 @@ export interface ReachOutStepDto {
   body: string;
   template_id: string | null;
   state: "running" | "paused";
+  /** A call or a note for the team (Part 5, G20): the chain's last step, with no words to send. Null for an email. */
+  hand: StepHand | null;
 }
 
 /** What decides the chain's next run, as the database holds it (R23): the words are nextRunWords'. */
@@ -58,6 +61,8 @@ export interface ReachOutStepCounts {
   bounced: number;
   waiting: number;
   held: number;
+  /** A hand step's leads, handed to the team (00228); absent from a report read before it. */
+  handed?: number;
 }
 
 export interface ReachOutRunLine {
@@ -68,6 +73,7 @@ export interface ReachOutRunLine {
   planned: number;
   written: number;
   held: number;
+  handed?: number;
 }
 
 /** A chain's report (00211 reach_out_chain_report): each step counted once, its last runs, whether it may go. */
