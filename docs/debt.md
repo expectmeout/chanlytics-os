@@ -93,7 +93,7 @@ files over 800 lines                 14
 directories over 20 modules           7
 window globals                      200   names
 window publishers                   446   sites in 153 files
-copies                              152   of 38 names
+copies                              149   of 37 names
 as unknown as                       221
 table names outside packages/db     533
 unnamed durations                    78   in 39 files
