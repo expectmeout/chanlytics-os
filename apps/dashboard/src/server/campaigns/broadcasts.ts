@@ -348,16 +348,21 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
   if (error) throw new Error(error.message);
   if (!row) throw new AppError("not_found", "Broadcast not found.", 404);
 
-  const { data: recipients, error: rErr } = await ctx.supabase
-    .from("broadcast_recipients")
-    .select(
-      "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta), contacts(display_name, wa_profile_name, phone_e164, email)",
-    )
-    .eq("tenant_id", tenantId)
-    .eq("broadcast_id", id)
-    .order("sent_at", { ascending: false, nullsFirst: false });
-  if (rErr) throw new Error(rErr.message);
-  const rows = (recipients ?? []) as unknown as RecipientRow[];
+  // Every person on it, a page at a time: an unbounded read answers with PostgREST's first 1,000, and a broadcast may
+  // hold BROADCAST_MAX_RECIPIENTS (2,000), so a large run's counts and rows stopped at the thousandth. The person is
+  // the tiebreak the pager needs (the key is broadcast_id, contact_id).
+  const rows = (await readAllRows("broadcast recipients", (from, to) =>
+    ctx.supabase
+      .from("broadcast_recipients")
+      .select(
+        "broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta), contacts(display_name, wa_profile_name, phone_e164, email)",
+      )
+      .eq("tenant_id", tenantId)
+      .eq("broadcast_id", id)
+      .order("sent_at", { ascending: false, nullsFirst: false })
+      .order("contact_id")
+      .range(from, to),
+  )) as unknown as RecipientRow[];
 
   const { counts, threadsOf } = countRecipients(rows, [id]);
   const threads = threadsOf.get(id);

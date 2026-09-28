@@ -46,6 +46,7 @@ import type {
   PARTNER_STATUSES,
 } from "../workspace/partner";
 import type { BROADCAST_STATES, REACH_OUT_SEND_STATES, RECIPIENT_STATES } from "../broadcasts/broadcasts";
+import type { REPLY_INTENTS, REPLY_UNREADS } from "../reach-out/reach-out-replies";
 import type { CALL_OUTCOMES } from "../voice/call-words";
 import type { POLICY_CLASSES, POLICY_MODES } from "../config/config";
 import type { DEAL_LOST_REASONS, DEAL_PERS, DEAL_SOURCES, DEAL_STAGES, SELLS_BY } from "../deals/deals";
@@ -143,6 +144,9 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof BROADCAST_STATES>, SchemaSet<"broadcasts.state">>>,
   Holds<Exactly<Of<typeof RECIPIENT_STATES>, SchemaSet<"broadcast_recipients.state">>>,
   Holds<Exactly<Of<typeof REACH_OUT_SEND_STATES>, SchemaSet<"reach_out_sends.state">>>,
+  // A reply's reading (00222): the seven intents the reader answers in, and the table that keeps them.
+  Holds<Exactly<Of<typeof REPLY_INTENTS>, SchemaSet<"reach_out_replies.intent">>>,
+  Holds<Exactly<Of<typeof REPLY_UNREADS>, SchemaSet<"reach_out_replies.unread">>>,
   Holds<Exactly<Of<typeof PLAYBOOK_STATES>, SchemaSet<"playbooks.state">>>,
   Holds<Exactly<(typeof PLAYBOOK_TRIGGERS)[number]["id"], SchemaSet<"playbooks.trigger">>>,
   Holds<Within<SchemaSet<"playbooks.policy_class">, Of<typeof POLICY_CLASSES>>>,

@@ -118,7 +118,7 @@ before(async () => {
   });
   ctx.conversation = await seed("conversations", { tenant_id: A, contact_id: ctx.contact });
   ctx.conversation2 = await seed("conversations", { tenant_id: A, contact_id: ctx.contact2 });
-  await seed("messages", {
+  ctx.message = await seed("messages", {
     tenant_id: A,
     conversation_id: ctx.conversation,
     contact_id: ctx.contact,
@@ -277,6 +277,12 @@ before(async () => {
   });
   // The check's model spend per UTC day (00197): the service role's alone.
   await seed("reach_out_check_spend", { tenant_id: A, day: "2026-09-26", attempts: 1 }, null);
+  // A reply's reading (00222): the service role's doors write it, members read it.
+  await seed(
+    "reach_out_replies",
+    { message_id: ctx.message, tenant_id: A, conversation_id: ctx.conversation, claim: "person", intent: "other" },
+    null,
+  );
   await seed(
     "reach_out_sends",
     {
@@ -477,6 +483,11 @@ const TENANT_TABLES = {
   ],
   // Reach out (00197): the check's spend is the service role's, read by no member.
   reach_out_check_spend: ["none", () => ({ tenant_id: A, day: "2026-09-27" })],
+  // Reach out, Part 5 (00222): members read a reply's reading; only its doors write one.
+  reach_out_replies: [
+    "member",
+    () => ({ message_id: ctx.message, tenant_id: A, conversation_id: ctx.conversation, claim: "person", intent: "no" }),
+  ],
   playbooks: [
     "member",
     () => ({

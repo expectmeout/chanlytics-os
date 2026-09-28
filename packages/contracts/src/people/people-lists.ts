@@ -115,7 +115,7 @@ export function savedListAction(id: string, members: PersonRowVM[]): PeopleListA
 
 /**
  * Why nobody can be sent a thing when somebody said the yes it needs: what a broadcast reaches. The reason in
- * `noNumberWords`, and the arithmetic under Today's reach row (today.ts todayLeaks), in one spelling.
+ * `noNumberWords`, and the arithmetic under Today's reach row (today-leaks.ts todayLeaks), in one spelling.
  */
 export const NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
 
