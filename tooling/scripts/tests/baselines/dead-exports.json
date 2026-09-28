@@ -2,7 +2,7 @@
   "apps/dashboard/src/server/ask/context.ts": 4,
   "apps/dashboard/src/server/ask/cross-page.ts": 1,
   "apps/dashboard/src/server/ask/gateway.ts": 3,
-  "apps/dashboard/src/server/ask/loop.ts": 4,
+  "apps/dashboard/src/server/ask/loop.ts": 3,
   "apps/dashboard/src/server/ask/openings.ts": 2,
   "apps/dashboard/src/server/ask/prompt.ts": 6,
   "apps/dashboard/src/server/ask/round.ts": 1,

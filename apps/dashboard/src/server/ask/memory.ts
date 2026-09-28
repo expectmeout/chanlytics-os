@@ -161,7 +161,7 @@ export async function threadForTurn(
 /**
  * The thread's chain when it is warm (the Phase 5 plan, D1–D3), read cheaply: which answers it follows is decided from
  * the thread's rows first (chainIds) -- no raw is read for a thread gone cold, a previous turn that failed, or a
- * question left last -- and only then their raw turns, by id; then every raw's own word (chainOf). Any doubt is cold.
+ * question left last -- and only then their raw turns, by id; then every raw's own word (chainFrom). Any doubt is cold.
  */
 async function chainFor(
   ctx: RouteContext,
@@ -177,7 +177,7 @@ async function chainFor(
   });
   if (!raws) return null;
   const kept = ids.map((id) => keptOf(raws.get(id)));
-  return chainOf(kept, ids, now, rows);
+  return chainFrom(kept, ids, now, rows);
 }
 
 /**
@@ -247,7 +247,7 @@ function keptOf(v: unknown): Kept | null {
  * oldest first -- the base's history, then each turn's question, rounds and final -- with every marker a request carried
  * taken off, and held to LIVE_MESSAGES. What happened since is read off the chain's cards, on `rows`.
  */
-function chainOf(kept: Array<Kept | null>, ids: string[], now: number, rows: AskMessageVM[]): Chain | null {
+function chainFrom(kept: Array<Kept | null>, ids: string[], now: number, rows: AskMessageVM[]): Chain | null {
   const turns = kept.filter((k): k is Kept => !!k);
   const [newest] = turns;
   const base = turns.at(-1)?.base;
