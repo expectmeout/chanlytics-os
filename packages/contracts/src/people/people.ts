@@ -44,9 +44,32 @@ import type { RecipientState } from "../broadcasts/broadcasts";
 import { consentSourceLabel, mayReceive, type PersonConsent, saidYesTo } from "./person-consent";
 import { fmtDate, MONTH_MS, ts } from "./person-helpers";
 import type { PersonNoteDto, PersonNoteTeamDto } from "../notes/person-notes";
-export * from "./person-consent";
-export * from "../notes/person-notes";
-export * from "./people-lists";
+export {
+  CONSENT_SOURCES,
+  CONSENT_RESET_SOURCE,
+  OFFERS_YES_SOURCES,
+  offersYesRefusal,
+  OWN_MESSAGE_REFUSALS,
+  ownMessageRefusal,
+  consentSourceLabel,
+  mayReceive,
+  whyNotReceive,
+  saidYesTo,
+} from "./person-consent";
+export type { PersonConsent, NotReceived } from "./person-consent";
+export { NOTE_MAX, NOTE_WORDS, NOTE_REFUSALS, personNotesVM } from "../notes/person-notes";
+export type { PersonNoteDto, PersonNoteTeamDto, PersonNoteVM } from "../notes/person-notes";
+export {
+  GET_YES_ROUTE,
+  peopleListAction,
+  savedListAction,
+  NO_NUMBER_REACH,
+  noNumberWords,
+  saidYesWords,
+  peopleAggregates,
+  recencyCells,
+} from "./people-lists";
+export type { PeopleListAction, PeopleAggregates } from "./people-lists";
 
 /* --------------------------------- DTOs ---------------------------------- */
 
