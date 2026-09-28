@@ -17,16 +17,16 @@
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  * Usage:
- *   node --import tsx tooling/scripts/lead-marks-backfill.mjs
- *   node --import tsx tooling/scripts/lead-marks-backfill.mjs --apply
+ *   node --import tsx tooling/scripts/ops/lead-marks-backfill.mjs
+ *   node --import tsx tooling/scripts/ops/lead-marks-backfill.mjs --apply
  */
 import { createClient } from "@supabase/supabase-js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { LEAD_MARKS_BUCKET } from "@chanlytics/contracts";
-import { JUDGE_MARGIN_MS, MARK_AT_ONCE, markPlaces } from "../../packages/core/src/leads/index.ts";
-import { imageBytes, leadMarkPath, pageText, storeLeadMark } from "../../apps/edge/lib/leads/lead-marks.ts";
+import { JUDGE_MARGIN_MS, MARK_AT_ONCE, markPlaces } from "../../../packages/core/src/leads/index.ts";
+import { imageBytes, leadMarkPath, pageText, storeLeadMark } from "../../../apps/edge/lib/leads/lead-marks.ts";
 
 const COLUMNS = "id, tenant_id, website_host, logo_url, mark_path, blanked_at, erased_at";
 
@@ -154,7 +154,7 @@ async function main() {
     return;
   }
 
-  const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "backups");
+  const backupsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "backups");
   mkdirSync(backupsDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const backupPath = join(backupsDir, `lead-marks-backfill-${stamp}.jsonl`);

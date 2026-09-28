@@ -15,7 +15,7 @@
  * Patterns read the way GitHub reads `paths` filters: `**` crosses directories,
  * `*` does not, and a pattern with no directory matches at the root only.
  *
- * Usage: git diff --name-only origin/main...HEAD | node tooling/scripts/db-paths-changed.mjs
+ * Usage: git diff --name-only origin/main...HEAD | node tooling/scripts/checks/db-paths-changed.mjs
  * Prints db=true or db=false on stdout, for $GITHUB_OUTPUT, and the reason on
  * stderr, for the log. The answer is never an exit code: a crash exits non-zero
  * too, and a crash read as "not needed" would skip the replay it exists to run.
@@ -40,12 +40,12 @@ export const DB_PATHS = [
   "packages/jobs/src/handlers.ts",
   "apps/dashboard/src/server/ports/campaign-ports.ts",
   // what the two --check steps compare with the database
-  "tooling/scripts/gen-schema-sets.mjs",
+  "tooling/scripts/gen/schema-sets.mjs",
   "packages/contracts/src/schema-sets.generated.ts",
-  "tooling/scripts/check-db-types.mjs",
+  "tooling/scripts/gen/db-types.mjs",
   // the workflow, this decision, and what the workflow installs
   ".github/workflows/database.yml",
-  "tooling/scripts/db-paths-changed.mjs",
+  "tooling/scripts/checks/db-paths-changed.mjs",
   "package.json",
   "pnpm-lock.yaml",
 ];

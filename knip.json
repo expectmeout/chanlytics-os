@@ -35,7 +35,8 @@
         "next.config.ts",
         "src/*.ts",
         "src/legacy-bridge/manifest.ts",
-        "src/legacy-bridge/**/*.{ts,tsx}"
+        "src/legacy-bridge/**/*.{ts,tsx}",
+        "src/**/*.type-test.ts"
       ],
       "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "*.{ts,mjs}"]
     },
@@ -43,17 +44,19 @@
       "entry": ["src/**/*.ios.{ts,tsx}"]
     },
     "packages/channels": {
-      "entry": ["src/index.ts", "src/schema-agreement.ts"],
+      "entry": ["src/index.ts", "src/schema-agreement.ts", "src/**/*.type-test.ts"],
       "project": ["src/**/*.ts"]
     },
     "packages/*": {
-      "entry": ["src/index.ts"],
+      "entry": ["src/index.ts", "src/**/*.type-test.ts"],
       "project": ["src/**/*.ts"]
     },
     "tooling/scripts": {
       "entry": [
         "*.mjs",
         "checks/*.mjs",
+        "gen/*.mjs",
+        "ops/*.mjs",
         "tests/**/*.mjs",
         "e2e-harness/**/*.{ts,mjs}",
         "mobile/{sign-in,cold-start,walk}.mjs"

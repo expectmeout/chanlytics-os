@@ -438,7 +438,9 @@ tooling/scripts/
   checks/
   e2e-harness/
   evals/
+  gen/
   mobile/
+  ops/
   tests/
 e2e/
   auth/

@@ -192,7 +192,7 @@ design. Run them locally with credentials before shipping anything that touches
 the database. They create throwaway rows against a smoke tenant and clean up
 after themselves.
 
-`tooling/scripts/golden-edge.mjs` is the frozen-contract check for the edge's
+`tooling/scripts/ops/golden-edge.mjs` is the frozen-contract check for the edge's
 HTTP surface. It needs `BASE_URL` plus the Meta and Retell secrets.
 
 ### End-to-end, in a real browser
@@ -231,7 +231,7 @@ allows 30 token verifications an hour, and a session per test spent a third of
 that budget in one go.
 
 The signed-in specs run in the suite's own workspace, never a customer's.
-`tooling/scripts/e2e-workspace.mjs --apply` makes it, or puts it back, before
+`tooling/scripts/ops/e2e-workspace.mjs --apply` makes it, or puts it back, before
 each nightly run: a test owner and a teammate at example.com, two fictional
 people, one conversation, one call, and a WhatsApp channel with no credentials.
 Every row is one the production sweeps leave alone, and the script refuses an

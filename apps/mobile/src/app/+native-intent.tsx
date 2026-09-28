@@ -5,7 +5,7 @@
  * page to open (Surface.tsx pendingRoute); anything else is left to the router as it came. Nothing here may throw.
  */
 import { workspaceLinkOf } from "@/site";
-import { tabOf } from "@/shell/notifications-pure";
+import { tabHrefOf } from "@/shell/notifications-pure";
 import { setState } from "@/shell/state";
 
 export function redirectSystemPath({ path }: { path: string; initial: boolean }): string | null {
@@ -13,7 +13,7 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
     const link = workspaceLinkOf(path);
     if (!link) return null;
     setState({ pendingRoute: link.route });
-    return `/(tabs)/${tabOf(link.route)}`;
+    return tabHrefOf(link.route);
   } catch {
     return null;
   }
