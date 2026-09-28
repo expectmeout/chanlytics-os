@@ -6997,3 +6997,39 @@ test("the row the words point at is said in the turn's words when it is not the 
   assert.ok((await said(onPage, { cited })).includes(held(onPage)), "an earlier answer's item (D5)");
   assert.ok(!(await said(rosa)).join("\n").includes("Their words point at"), "the scope's own row");
 });
+
+test("every round names the message it follows on, for the cache diagnostics (the Phase 6 plan, D2): a thread's first turn starts with null and each later round names the one before it; the answer keeps its last id, and a live follow-up's first round names it; the shape keeps each round's id, its miss and the first round's hop (D3); none of it is the prefix a replay is matched on", async () => {
+  const { world, ctx } = threadWorld();
+  const used = (messageId, cacheMiss = null) => ({
+    usage: { messageId, cacheMiss, inputTokens: 100, cacheReadTokens: 800, cacheCreationTokens: 0, outputTokens: 20 },
+  });
+  const t1 = sentAs([
+    ROUND([tool("inbox", { action: "search", words: "parking" }, "t-s")], {
+      ...used("msg_t1a"),
+      timing: { firstEventMs: 3, firstTextMs: null, totalMs: 20, hopMs: 45 },
+    }),
+    ROUND([answer("Nobody asked about parking.")], used("msg_t1b", "pending")),
+  ]);
+  const r1 = await runAskTurn(turn(ctx, { text: "Who asked about parking?" }).input, ports(t1.round));
+  assert.equal(r1.failed, false, r1.failure ?? "");
+  assert.deepEqual(
+    t1.requests.map((q) => q.diagnostics),
+    [{ previous_message_id: null }, { previous_message_id: "msg_t1a" }],
+    "the first round starts a comparison; the second names the first",
+  );
+  assert.deepEqual(
+    [r1.shape.message_ids, r1.shape.cache_miss, r1.shape.hop_ms],
+    [["msg_t1a", "msg_t1b"], [null, "pending"], 45],
+  );
+  const answered = await keep(ctx, "Who asked about parking?", r1);
+  assert.equal(
+    world.ask_messages.find((m) => m.id === answered).content.raw.id,
+    "msg_t1b",
+    "the raw keeps its last id",
+  );
+
+  const { r, s } = await nextTurn(ctx, [ROUND([answer("Nobody tomorrow either.")], used("msg_t2a"))]);
+  assert.equal(r.shape.replay, "live", "a request's diagnostics are never its prefix: the thread still replays");
+  assert.deepEqual(s.requests[0].diagnostics, { previous_message_id: "msg_t1b" }, "the previous turn's last message");
+  assert.deepEqual(r.shape.message_ids, ["msg_t2a"]);
+});

@@ -239,14 +239,65 @@ menu is an `escape` `MoreMenu`, which closes on any captured scroll event
 being clicked closes it and the item is never there -- rare, likelier on the
 harness because its page is slower, and the nightly can hit it too.
 
+### Prove a style change
+
+A change that must not move anything on screen (a literal that becomes its token, a rule that moves into the kit, a
+class a page trades for the kit's) is proven by recording the pages before it and after it and comparing the two
+(`docs/plans/2026-09-28-the-interface-kit-and-its-looks.md`, §3.5):
+
+```bash
+corepack pnpm check:style-equality -- record before-my-branch.json      # on the base, before you change anything
+corepack pnpm check:style-equality -- record after-my-branch.json --against before-my-branch.json   # with the change
+corepack pnpm check:style-equality -- compare before-my-branch.json after-my-branch.json   # the two again, later
+corepack pnpm check:style-equality -- self-test   # two recordings of one tree agree, and a planted token does not
+```
+
+A bare file name is written to and read from the system's temporary directory (the command prints where), and a path
+inside the repository is refused: recordings stay out of it. Name them for the branch, since every worktree shares
+that directory. Record the base first, before you edit: the harness reads the pages and the stylesheets from disk on
+every request, so what is recorded is the working tree as it stands.
+
+`record` starts the harness above for each record and opens each route at 1440 by 900 and at a phone's 390 by 844 with
+a coarse pointer, dark and light: the salon's pages, a seeded person and every Settings pane; the pipeline's People,
+Pipeline, Leads and person's page; the nightly's empty Business pane. Then five scenes, each a route and a press or two:
+a menu open, a Confirm, a toast, a record sheet and a tooltip. Motion is stopped before a page draws, and its clock
+stands still at one moment and moves only as the recorder steps it, ten simulated seconds a route, so a timer's work
+is in every recording or in none. It writes every element's edges, to 1/64 of a pixel, and every computed longhand, a
+`::before`, `::after`, `::marker` and `::placeholder`'s included, and which rules of each stylesheet the pages drew. It
+refuses a page that did not draw what it opened: an empty root, a "No surface at" card, the wrong theme, an error the
+page threw, or a request that never ended. A full recording takes about eleven minutes.
+
+`compare`, and `record` with `--against`, exits 0 when the two are equal: every edge within an eighth of a pixel (the
+browser once laid one line of text out 2/64 of a pixel apart in two recordings of one tree), a pseudo-element's laid-out
+lengths held the same way, and every other value the same. It exits 1 with the differences, what is gone or new before
+what moved (`--limit N` lists more), and 2 when the two were recorded differently (another browser, other pages,
+longhands or scenes) or the command failed.
+Either way it names the rules the change touched that no page of either tree drew: nothing here proves those, so the
+pull request names them with how they were checked, says what was compared, and that it was equal.
+
+What it cannot prove, so a pull request does not claim it:
+
+- a state no scene reaches: hover and focus but the tooltip's, a menu, sheet or toast other than the five, anything
+  after typing;
+- a route it does not record, and the real surfaces the mockup stubs: Today, the Inbox, the Calendar and Live draw the
+  seeded page, and Leads waits and then says it could not be read;
+- what the three's canvas draws, or any canvas;
+- motion: animations and transitions are stopped, so a change to one is not seen;
+- text: what an element says is not recorded, only its style and where it stands;
+- a width between 390 and 1440, and the 900px and 720px breaks among them;
+- an edge that moved an eighth of a pixel or less.
+
+It needs the network: the page loads React and Babel from unpkg and its fonts from Google. Record both runs on one
+machine, in one sitting; a new browser is a different recording, and `compare` says so rather than compare.
+
 ## What CI proves
 
-| Workflow                          | On                                                    | Proves                                                                                                                                                                                                 |
-| --------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ci.yml`, Secret scan             | every pull request and push to main                   | No secret in what the pull request adds                                                                                                                                                                |
-| `ci.yml`, Typecheck               | same                                                  | `dist` matches the sources; typecheck; lint, which includes the layer boundaries and the edge's env and log rules; the formatting check; the node suite; the dashboard builds the way Vercel builds it |
-| `database.yml`, Migrations replay | same, and it replays only when database paths changed | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack                                    |
-| `nightly-e2e.yml`                 | 09:00 UTC                                             | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace                                                                                    |
+| Workflow                          | On                                                    | Proves                                                                                                                                                                                                                                                                             |
+| --------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`, Secret scan             | every pull request and push to main                   | No secret in what the pull request adds                                                                                                                                                                                                                                            |
+| `ci.yml`, Typecheck               | same                                                  | On a pull request, its title first (`tooling/scripts/checks/pr-title.mjs`); `dist` matches the sources; typecheck; lint, which includes the layer boundaries and the edge's env and log rules; the formatting check; the node suite; the dashboard builds the way Vercel builds it |
+| `database.yml`, Migrations replay | same, and it replays only when database paths changed | Every migration from zero on a fresh Postgres; the closed sets and `database.types.ts` regenerate to what is committed; the database suites pass against that stack                                                                                                                |
+| `nightly-e2e.yml`                 | 09:00 UTC                                             | The integration suites against real Postgres and the browser suite against production, in the suite's own workspace                                                                                                                                                                |
 
 Branch protection requires three checks by name: `Secret scan`, `Typecheck`
 and `Migrations replay, SQL rules hold`. The replay is required because the

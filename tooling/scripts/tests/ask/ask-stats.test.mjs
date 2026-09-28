@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spread, wilson, pct, ms } from "../../ask-stats.mjs";
+import { spread, wilson, pct, ms, missTally } from "../../ask-stats.mjs";
 
 test("the stats: a spread is the median and the slowest tenth over the numbers that exist; a Wilson interval brackets a pass rate and never leaves 0..1", () => {
   assert.deepEqual(spread([5, 1, 3, null, undefined, NaN]), { n: 3, median: 3, p90: 5 });
@@ -18,4 +18,22 @@ test("the stats: a spread is the median and the slowest tenth over the numbers t
   );
   assert.equal(pct(0.964), "96%");
   assert.deepEqual([ms(1234.4), ms(null)], ["1234 ms", "—"]);
+});
+
+test("why rounds missed the cache (the Phase 6 plan, D2): each reason the API gave, counted by round, the most first; a round that said nothing, and a turn from before, are not counted", () => {
+  assert.deepEqual(
+    missTally([
+      { cache_miss: [null, "tools_changed"] },
+      { cache_miss: ["tools_changed", "pending"] },
+      { cache_miss: ["system_changed"] },
+      {},
+      { cache_miss: null },
+    ]),
+    [
+      { reason: "tools_changed", rounds: 2 },
+      { reason: "pending", rounds: 1 },
+      { reason: "system_changed", rounds: 1 },
+    ],
+  );
+  assert.deepEqual(missTally([]), []);
 });

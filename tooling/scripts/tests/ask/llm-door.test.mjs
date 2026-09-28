@@ -182,12 +182,13 @@ const usage = (ws, input, output, agoMs) => ({
   },
   created_at: ago(agoMs),
 });
-function use(tables = { events: [] }, faults = {}) {
-  const db = fakeDb(tables, faults);
+function use(tables = { events: [] }, faults = {}, rpcs = {}) {
+  const db = fakeDb(tables, faults, rpcs);
   setPg(db);
   return db;
 }
-const counted = (db) => db.seen.filter((q) => q.table === "events" && q.op === "select");
+/** The day's count, asked of the database: one call of ask_tokens_day (00240) per read, never a read of the rows. */
+const counted = (db) => db.seen.filter((q) => q.rpc === "ask_tokens_day");
 
 /* -------------------------------- the model ------------------------------- */
 
@@ -413,24 +414,11 @@ test("under the budget: the day's usage is read once for this workspace and Ask'
 
   const reads = counted(db);
   assert.equal(reads.length, 1, "the count is read once");
-  assert.deepEqual(
-    reads[0].filters.map(([op, col]) => [op, col]),
-    [
-      ["eq", "tenant_id"],
-      ["eq", "kind"],
-      ["gte", "created_at"],
-    ],
-    "this workspace, one kind, since a moment",
-  );
-  assert.deepEqual(
-    [reads[0].filters[0][2], reads[0].filters[1][2]],
-    [ws, ASK_USAGE_KIND],
-    "Ask's own kind: the receptionist's usage.llm_tokens is never counted here, nor this there",
-  );
-  const since = Date.parse(reads[0].filters[2][2]);
-  assert.ok(
-    since >= t0 - 24 * HOUR - 5_000 && since <= t0 - 24 * HOUR + 5_000,
-    "the last twenty-four hours: the five-million-token row from yesterday is not the day's",
+  assert.deepEqual(reads[0].args, { p_tenant: ws }, "this workspace's day, summed by the database (00240)");
+  assert.equal(
+    db.seen.filter((q) => q.table === "events" && q.op === "select").length,
+    0,
+    "no usage row is read: the day is one sum, not a page of rows",
   );
 
   const written = tables.events.filter((e) => e.tenant_id === ws && Date.parse(e.created_at) >= t0);
@@ -515,7 +503,7 @@ test("the budget spent: the day's rows add up to the cap, so the knock is refuse
   await res.text();
   assert.equal(m.calls.length, 1);
   assert.deepEqual(
-    counted(db).map((q) => q.filters[0][2]),
+    counted(db).map((q) => q.args.p_tenant),
     [ws, other],
     "each read once, its own",
   );
@@ -571,7 +559,15 @@ test("the model's refusal is forwarded as it came -- its status and its body, as
 test("a count that cannot be read is zero, never a refusal: the turn goes through, and its row is still written for the next read to count", async () => {
   const ws = T(5);
   const tables = { events: [] };
-  use(tables, { "events.select": { message: "permission denied for table events" } });
+  use(
+    tables,
+    {},
+    {
+      ask_tokens_day: () => {
+        throw new Error("permission denied for function ask_tokens_day");
+      },
+    },
+  );
   const net = model();
   const res = await knock(ws, turn());
   assert.equal(res.status, 200);
@@ -583,7 +579,7 @@ test("a count that cannot be read is zero, never a refusal: the turn goes throug
   );
 });
 
-test("a day past a thousand turns is counted whole: the read pages past PostgREST's 1,000 rows, where .limit(2000) stopped at the thousandth", async () => {
+test("a day past a thousand turns is counted whole: the database sums the day (00240), so no page of 1,000 rows can cut it, where .limit(2000) once stopped at the thousandth", async () => {
   const ws = T(6);
   const events = Array.from({ length: 1500 }, (_, i) => usage(ws, 100, 10, (i % 600) * 60_000));
   const db = fakeDb({ events }, {}, {}, { maxRows: 1000 });
@@ -592,6 +588,48 @@ test("a day past a thousand turns is counted whole: the read pages past PostgRES
     1500 * 110,
     "REGRESSION: the budget counted the first 1,000 turns and let the platform key spend on",
   );
+});
+
+test("the line is the cap: a workspace one token under it is served, one at it is refused, with the sum the database gave", async () => {
+  const under = T(7);
+  const at = T(8);
+  const tables = { events: [usage(under, ASK_TOKENS_DAY - 1, 0, HOUR), usage(at, ASK_TOKENS_DAY - 1, 1, HOUR)] };
+  use(tables);
+  const net = model();
+  const ok = await knock(under, turn());
+  assert.equal(ok.status, 200, "one token under the cap: the round runs");
+  await ok.text();
+  const no = await knock(at, turn());
+  assert.deepEqual(
+    [no.status, await no.json()],
+    [429, { ok: false, error: "ask_budget", used: ASK_TOKENS_DAY, cap: ASK_TOKENS_DAY }],
+    "at the cap: refused before the key is spent",
+  );
+  assert.equal(net.calls.length, 1, "only the round under the cap reached the model");
+});
+
+test("the cache diagnostics ride through (the Phase 6 plan, D2): an id the API wrote or null passes; anything else is dropped, never refused; and the answer says in server-timing what this edge took and what the model took to its headers (D3)", async () => {
+  const ask = (diagnostics) => validateGatewayRequest({ ...REQUEST, diagnostics }, "ask");
+  assert.deepEqual(ask({ previous_message_id: "msg_01AbC-d_9" }).request.diagnostics, {
+    previous_message_id: "msg_01AbC-d_9",
+  });
+  assert.deepEqual(ask({ previous_message_id: null }).request.diagnostics, { previous_message_id: null });
+  for (const bad of [{ previous_message_id: "not a message" }, { previous_message_id: 7 }, {}, "msg_01", null]) {
+    const v = ask(bad);
+    assert.equal(v.ok, true, "diagnostics change nothing the model answers: never a refusal");
+    assert.equal("diagnostics" in v.request, false, `dropped: ${JSON.stringify(bad)}`);
+  }
+  assert.equal("diagnostics" in validateGatewayRequest(REQUEST, "ask").request, false, "none asked, none sent");
+
+  const ws = T(10);
+  use({ events: [] });
+  const net = model();
+  const res = await knock(ws, turn({ request: { ...REQUEST, diagnostics: { previous_message_id: "msg_prev" } } }));
+  assert.equal(res.status, 200);
+  await res.text();
+  assert.deepEqual(net.calls[0].body.diagnostics, { previous_message_id: "msg_prev" }, "sent on to the model");
+  const timing = res.headers.get("server-timing");
+  assert.match(timing, /^gateway;dur=\d+, model;dur=\d+$/, "both durations, in whole milliseconds");
 });
 
 test("what the Line needs from the gateway: Opus 5.5 is a model Ask may name, Ask's turn may carry its answer format under 8,000 characters, and Ask is clamped to ASK_MAX_TOKENS while the lead purposes keep their ceiling", async () => {

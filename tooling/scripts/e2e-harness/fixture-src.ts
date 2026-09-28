@@ -83,6 +83,8 @@ w.__ME = {
 installClock();
 w.__chrome = {
   themes: C.THEME_OPTIONS,
+  looks: C.LOOK_OPTIONS,
+  lookOffered: C.LOOK_OFFERED,
   shortcuts: C.SHORTCUTS,
   shortcutGroups: C.shortcutGroups,
   statusLine: C.shellStatusLine,

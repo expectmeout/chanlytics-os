@@ -12,7 +12,7 @@
  *   NEXT_PUBLIC_SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… [HOURS=24] [TENANT=<uuid>] node tooling/scripts/ops/ask-day.mjs [--json]
  */
 import { writeFileSync, mkdirSync } from "node:fs";
-import { spread, pct, ms } from "../ask-stats.mjs";
+import { spread, pct, ms, missTally } from "../ask-stats.mjs";
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -118,6 +118,9 @@ function summarise(group) {
     cap_hits: sh.reduce((n, s) => n + num(s.cap_hits), 0),
     opened: spread(sh.map((s) => s.opened_ms)),
     since_last: spread(sh.map((s) => s.since_last_ms)),
+    // The Phase 6 plan: why rounds missed the cache (D2), and the first round's hop through the edge (D3).
+    misses: missTally(sh),
+    hop: spread(sh.map((s) => s.hop_ms)),
   };
 }
 const key = (t) => `${t.shape.model} · ${t.shape.surface ?? "none"}`;
@@ -151,6 +154,11 @@ for (const [model, group] of Object.entries(byModel)) {
     .sort((a, b) => b[1].length - a[1].length))
     console.log(line(`  ${k.slice(model.length + 3)}`, summarise(g)));
 }
+const whole = summarise(turns);
+console.log(
+  `\ncache misses by reason: ${whole.misses.length ? whole.misses.map((m) => `${m.reason} ${m.rounds}`).join(", ") : "none said"}` +
+    ` · the hop through the edge, median ${ms(whole.hop.median)}, p90 ${ms(whole.hop.p90)}`,
+);
 for (const [model, c] of Object.entries(cost))
   if (!byModel[model])
     console.log(

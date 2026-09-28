@@ -494,13 +494,13 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
     'there is no "never"',
   );
   await refused(
-    policies.PUT.run(send("PUT", { class: "reply", replyDelayMs: 5 }, inB), ctxFor(tables)),
+    policies.PUT.run(send("PUT", { class: "reply", reply_delay_ms: 5 }, inB), ctxFor(tables)),
     "validation",
     400,
     "The reply delay must be between",
   );
   const changed = await policies.PUT.run(
-    send("PUT", { class: "reply", mode: "ask", replyDelayMs: 30000 }, inB),
+    send("PUT", { class: "reply", mode: "ask", reply_delay_ms: 30000 }, inB),
     ctxFor(tables),
   );
   assert.deepEqual(
@@ -508,7 +508,7 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
     ["reply", "ask", { max_replies_day: 50, reply_delay_ms: 30000 }],
     "the delay set, the day's cap kept",
   );
-  const delayOnly = await policies.PUT.run(send("PUT", { class: "reply", replyDelayMs: 45000 }, inB), ctxFor(tables));
+  const delayOnly = await policies.PUT.run(send("PUT", { class: "reply", reply_delay_ms: 45000 }, inB), ctxFor(tables));
   assert.deepEqual(
     [delayOnly.policy.mode, delayOnly.policy.limits.reply_delay_ms],
     ["ask", 45000],
@@ -516,43 +516,47 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
   );
   // The confidence dial and the day's budget, through the same door: each
   // alone, the mode and the other limits kept, each refusal in its words.
-  const dial = await policies.PUT.run(send("PUT", { class: "reply", minConfidence: 0.75 }, inB), ctxFor(tables));
+  // The dial is kept to two places: 0.754 is stored as 0.75.
+  const dial = await policies.PUT.run(send("PUT", { class: "reply", min_confidence: 0.754 }, inB), ctxFor(tables));
   assert.deepEqual(
     [dial.policy.mode, dial.policy.limits.min_confidence, dial.policy.limits.reply_delay_ms],
     ["ask", 0.75, 45000],
-    "the dial set, the mode and the delay kept",
+    "the dial set to two places, the mode and the delay kept",
   );
   await refused(
-    policies.PUT.run(send("PUT", { class: "reply", minConfidence: 2 }, inB), ctxFor(tables)),
+    policies.PUT.run(send("PUT", { class: "reply", min_confidence: 2 }, inB), ctxFor(tables)),
     "validation",
     400,
     "The confidence dial is a number from 0 (off) to 1.",
   );
   await refused(
-    policies.PUT.run(send("PUT", { class: "booking", minConfidence: 0.5 }, inB), ctxFor(tables)),
+    policies.PUT.run(send("PUT", { class: "booking", min_confidence: 0.5 }, inB), ctxFor(tables)),
     "validation",
     400,
     "The confidence dial only applies to the reply policy.",
   );
-  const budget = await policies.PUT.run(send("PUT", { class: "reply", maxTokensDay: 250000 }, inB), ctxFor(tables));
+  const budget = await policies.PUT.run(
+    send("PUT", { class: "reply", max_llm_tokens_day: 250000 }, inB),
+    ctxFor(tables),
+  );
   assert.deepEqual(
     [budget.policy.mode, budget.policy.limits.max_llm_tokens_day, budget.policy.limits.min_confidence],
     ["ask", 250000, 0.75],
     "the budget set, the dial kept",
   );
   await refused(
-    policies.PUT.run(send("PUT", { class: "reply", maxTokensDay: 10 }, inB), ctxFor(tables)),
+    policies.PUT.run(send("PUT", { class: "reply", max_llm_tokens_day: 10 }, inB), ctxFor(tables)),
     "validation",
     400,
     "The token budget is a whole number from 1,000 to 5,000,000, or 0 to turn it off.",
   );
   await refused(
-    policies.PUT.run(send("PUT", { class: "booking", maxTokensDay: 1000 }, inB), ctxFor(tables)),
+    policies.PUT.run(send("PUT", { class: "booking", max_llm_tokens_day: 1000 }, inB), ctxFor(tables)),
     "validation",
     400,
     "The token budget only applies to the reply policy.",
   );
-  const off = await policies.PUT.run(send("PUT", { class: "reply", maxTokensDay: 0 }, inB), ctxFor(tables));
+  const off = await policies.PUT.run(send("PUT", { class: "reply", max_llm_tokens_day: 0 }, inB), ctxFor(tables));
   assert.equal(off.policy.limits.max_llm_tokens_day, 0, "0 is off, and is written as such rather than dropped");
   // Every change is on the events ledger: the class, the mode, the limit keys
   // that moved -- never their values -- and who; a card's commit says so.
@@ -581,13 +585,13 @@ test("REGRESSION (S6): the reply cap and the pause are the owner's to set, throu
     memberships: both("viewer", "operator"),
     policies: [policy(B, "reply", "auto", { reply_delay_ms: 15000 }), policy(B, "booking", "auto")],
   };
-  const cap = await policies.PUT.run(send("PUT", { class: "reply", maxRepliesDay: 40 }, inB), ctxFor(tables));
+  const cap = await policies.PUT.run(send("PUT", { class: "reply", max_replies_day: 40 }, inB), ctxFor(tables));
   assert.deepEqual(
     [cap.policy.mode, cap.policy.limits.max_replies_day, cap.policy.limits.reply_delay_ms],
     ["auto", 40, 15000],
     "REGRESSION: the cap was not set; the mode and the delay are kept",
   );
-  const pause = await policies.PUT.run(send("PUT", { class: "reply", pauseHours: 4 }, inB), ctxFor(tables));
+  const pause = await policies.PUT.run(send("PUT", { class: "reply", pause_hours: 4 }, inB), ctxFor(tables));
   assert.deepEqual(
     [pause.policy.limits.pause_hours, pause.policy.limits.max_replies_day],
     [4, 40],
@@ -595,7 +599,7 @@ test("REGRESSION (S6): the reply cap and the pause are the owner's to set, throu
   );
   for (const bad of [0, 2.5, 201, "many"]) {
     await refused(
-      policies.PUT.run(send("PUT", { class: "reply", maxRepliesDay: bad }, inB), ctxFor(tables)),
+      policies.PUT.run(send("PUT", { class: "reply", max_replies_day: bad }, inB), ctxFor(tables)),
       "validation",
       400,
       "The reply cap is a whole number from 1 to 200.",
@@ -603,26 +607,26 @@ test("REGRESSION (S6): the reply cap and the pause are the owner's to set, throu
   }
   for (const bad of [0, 1.5, 169]) {
     await refused(
-      policies.PUT.run(send("PUT", { class: "reply", pauseHours: bad }, inB), ctxFor(tables)),
+      policies.PUT.run(send("PUT", { class: "reply", pause_hours: bad }, inB), ctxFor(tables)),
       "validation",
       400,
       "The pause is a whole number of hours from 1 to 168.",
     );
   }
   await refused(
-    policies.PUT.run(send("PUT", { class: "booking", maxRepliesDay: 40 }, inB), ctxFor(tables)),
+    policies.PUT.run(send("PUT", { class: "booking", max_replies_day: 40 }, inB), ctxFor(tables)),
     "validation",
     400,
     "The reply cap only applies to the reply policy.",
   );
   await refused(
-    policies.PUT.run(send("PUT", { class: "booking", pauseHours: 4 }, inB), ctxFor(tables)),
+    policies.PUT.run(send("PUT", { class: "booking", pause_hours: 4 }, inB), ctxFor(tables)),
     "validation",
     400,
     "The pause only applies to the reply policy.",
   );
   await refused(
-    policies.PUT.run(send("PUT", { class: "reply", pauseHours: 4 }, inA), ctxFor(tables)),
+    policies.PUT.run(send("PUT", { class: "reply", pause_hours: 4 }, inA), ctxFor(tables)),
     "forbidden",
     403,
   );
@@ -631,6 +635,59 @@ test("REGRESSION (S6): the reply cap and the pause are the owner's to set, throu
     ev.map((e) => e.data.fields),
     [["max_replies_day"], ["pause_hours"]],
     "each change names the key it moved, never the value",
+  );
+});
+
+// Decision 0022: the wire is snake_case. The dials were camelCase here until 28 September 2026, and a tab opened
+// before that deploy, and Ask's autonomy card, still send them, so for one release the route reads both spellings.
+test("the autonomy change takes the row's own snake_case names, and for one release the old camelCase ones: the same dials land either way, and the new name wins", async () => {
+  const tables = {
+    memberships: both("viewer", "operator"),
+    policies: [policy(B, "reply", "auto", { reply_delay_ms: 15000 }), policy(B, "booking", "auto")],
+  };
+  const dials = {
+    reply_delay_ms: 30000,
+    min_confidence: 0.6,
+    max_llm_tokens_day: 250000,
+    max_replies_day: 40,
+    pause_hours: 4,
+  };
+  const now = await policies.PUT.run(send("PUT", { class: "reply", ...dials }, inB), ctxFor(tables));
+  assert.deepEqual([now.policy.mode, now.policy.limits], ["auto", dials], "each dial under the name its row keeps");
+
+  const old = await policies.PUT.run(
+    send(
+      "PUT",
+      { class: "reply", replyDelayMs: 45000, minConfidence: 0.75, maxTokensDay: 0, maxRepliesDay: 20, pauseHours: 8 },
+      inB,
+    ),
+    ctxFor(tables),
+  );
+  assert.deepEqual(
+    old.policy.limits,
+    { reply_delay_ms: 45000, min_confidence: 0.75, max_llm_tokens_day: 0, max_replies_day: 20, pause_hours: 8 },
+    "the old names still land, each under the new one: maxTokensDay is the row's max_llm_tokens_day",
+  );
+
+  const twice = await policies.PUT.run(
+    send("PUT", { class: "reply", reply_delay_ms: 20000, replyDelayMs: 90000 }, inB),
+    ctxFor(tables),
+  );
+  assert.equal(twice.policy.limits.reply_delay_ms, 20000, "a body that says both is read by its snake_case name");
+
+  // A refusal is its dial's sentence under either name, and a dial that is not a number is refused in the same words.
+  for (const body of [{ pauseHours: 0 }, { pause_hours: 0 }, { pause_hours: "many" }]) {
+    await refused(
+      policies.PUT.run(send("PUT", { class: "reply", ...body }, inB), ctxFor(tables)),
+      "validation",
+      400,
+      "The pause is a whole number of hours from 1 to 168.",
+    );
+  }
+  // The ledger names the stored keys, whichever spelling arrived.
+  assert.deepEqual(
+    tables.events.filter((e) => e.kind === "policy.changed").map((e) => e.data.fields),
+    [Object.keys(dials), Object.keys(dials), ["reply_delay_ms"]],
   );
 });
 

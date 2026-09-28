@@ -20,8 +20,8 @@
     "depth": 2
   },
   "apps/dashboard/app/api/v1/policies/route.ts::handle#2": {
-    "lines": 136,
-    "branches": 59,
+    "lines": 125,
+    "branches": 46,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/segments/[id]/route.ts::handle#1": {
@@ -55,7 +55,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy-bridge/LegacyApp.tsx::LegacyApp#1": {
-    "lines": 181,
+    "lines": 172,
     "branches": 11,
     "depth": 1
   },
@@ -140,7 +140,7 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/components/sidebar.jsx::Sidebar#1": {
-    "lines": 209,
+    "lines": 210,
     "branches": 35,
     "depth": 0
   },
@@ -586,7 +586,7 @@
   },
   "apps/dashboard/src/server/ask/sse.ts::parseFrame#1": {
     "lines": 67,
-    "branches": 43,
+    "branches": 41,
     "depth": 2
   },
   "apps/dashboard/src/server/ask/tools/act/broadcast.ts::proposeBroadcast#1": {

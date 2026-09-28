@@ -429,14 +429,14 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
+  height: var(--control-h-md);
   padding: 0 11px;
-  border-radius: var(--radius-md);
+  border-radius: var(--control-radius);
   font-size: 12.5px;
   font-weight: 500;
   letter-spacing: -0.005em;
   color: var(--ink);
-  background: var(--bg-raised);
+  background: var(--secondary-fill);
   border: 1px solid var(--line);
   /* Named, not `all`: a button's size or padding changing class must not animate, and every row of a list carries several. */
   transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out);
@@ -450,17 +450,17 @@
 a.btn { text-decoration: none; }
 
 .btn-primary {
-  background: var(--ink);
-  color: var(--bg);
-  border-color: var(--ink);
+  background: var(--primary-fill);
+  color: var(--primary-ink);
+  border-color: var(--primary-fill);
 }
-.btn-primary:hover { background: oklch(from var(--ink) calc(l + 0.08) c h); }
-.btn-primary .icon { color: var(--bg); }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-primary .icon { color: var(--primary-ink); }
 
 .btn-ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--ink-muted);
+  color: var(--quiet-ink);
 }
 .btn-ghost:hover { background: var(--bg-hover); color: var(--ink); }
 
@@ -475,23 +475,23 @@ a.btn { text-decoration: none; }
 .btn.danger { color: var(--danger); }
 .btn.danger:hover { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
 
-.btn-sm { height: 26px; padding: 0 9px; font-size: 12px; border-radius: var(--radius-sm); }
+.btn-sm { height: var(--control-h-sm); padding: 0 9px; font-size: 12px; border-radius: var(--control-radius-sm); }
 .btn-icon {
-  width: 30px; padding: 0;
+  width: var(--control-h-md); padding: 0;
   display: grid; place-items: center;
 }
-.btn-icon.btn-sm { width: 26px; }
+.btn-icon.btn-sm { width: var(--control-h-sm); }
 
 /* ---------- Search / Input ---------- */
 .input {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 30px;
+  height: var(--control-h-md);
   padding: 0 10px;
   background: var(--bg-raised);
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-radius: var(--control-radius);
   color: var(--ink);
   font-size: 12.5px;
   transition: border-color var(--duration-fast) var(--ease-out);
@@ -520,23 +520,6 @@ a.btn { text-decoration: none; }
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
-.card-header {
-  display: flex; align-items: center; gap: 10px;
-  padding: 14px 18px 12px;
-  border-bottom: 1px solid var(--line);
-}
-.card-title {
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--ink);
-  letter-spacing: -0.005em;
-}
-.card-sub {
-  font-size: 11.5px;
-  color: var(--ink-dim);
-  margin-top: 2px;
-}
-.card-body { padding: 16px 18px; }
 
 /* ---------- Badges: one shape per job ----------
    docs/superpowers/specs/2026-09-23-one-badge-system-design.md. Five shapes, one size each; no page keeps its own.
@@ -550,13 +533,13 @@ a.btn { text-decoration: none; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 20px;
+  height: var(--chip-h);
   padding: 0;
   font-size: 11px;
   font-weight: 500;
   letter-spacing: -0.005em;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--chip-radius);
   background: none;
   color: var(--ink-muted);
   white-space: nowrap;
@@ -581,10 +564,10 @@ a.btn { text-decoration: none; }
   align-items: center;
   gap: 4px;
   max-width: 100%;
-  height: 20px;
+  height: var(--chip-h);
   padding: 0 8px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--chip-radius);
   background: none;
   font: inherit;
   font-size: 11px;
@@ -606,7 +589,7 @@ button.chip:focus-visible, a.chip:focus-visible { outline: none; box-shadow: var
 .chip > .chip-x:hover { color: var(--ink); background: var(--bg-hover); }
 .chip > .chip-x:focus-visible { border-radius: 50%; }
 /* A chip whose name can outrun its column (a list's name, a rule's words) wraps rather than running past the edge. */
-.chip-wrap { height: auto; min-height: 20px; padding-block: 2px; line-height: 14px; white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.chip-wrap { height: auto; min-height: var(--chip-h); padding-block: 2px; line-height: 14px; white-space: normal; text-align: left; overflow-wrap: anywhere; }
 
 .tally {
   display: inline-flex;
@@ -814,24 +797,6 @@ button.chip:focus-visible, a.chip:focus-visible { outline: none; box-shadow: var
   color: var(--ink-dim);
 }
 
-/* ---------- Page header ---------- */
-.page-head {
-  padding: 32px 32px 24px;
-  display: flex; align-items: flex-end; gap: 16px;
-}
-.page-title {
-  font-size: 24px;
-  font-weight: 500;
-  letter-spacing: -0.025em;
-  color: var(--ink);
-  line-height: 1.2;
-}
-.page-sub {
-  font-size: 13px;
-  color: var(--ink-muted);
-  margin-top: 4px;
-}
-.page-actions { margin-left: auto; display: flex; gap: 8px; }
 
 /* ---------- Agent activity rail ---------- */
 .agent-rail {
@@ -870,18 +835,6 @@ button.chip:focus-visible, a.chip:focus-visible { outline: none; box-shadow: var
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- Empty / placeholder ---------- */
-.placeholder {
-  display: grid;
-  place-items: center;
-  padding: 48px 24px;
-  text-align: center;
-  color: var(--ink-dim);
-  font-size: 12.5px;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--bg-sunken);
-}
 
 
 /* ============================================================
@@ -1195,9 +1148,9 @@ button.chip:focus-visible, a.chip:focus-visible { outline: none; box-shadow: var
 }
 
 .btn:disabled { opacity: 0.6; cursor: default; }
-.btn:disabled:hover { background: var(--bg-raised); border-color: var(--line); }
-.btn-primary:disabled:hover { background: var(--ink); border-color: var(--ink); }
-.btn-ghost:disabled:hover { background: transparent; color: var(--ink-muted); }
+.btn:disabled:hover { background: var(--secondary-fill); border-color: var(--line); }
+.btn-primary:disabled:hover { background: var(--primary-fill); border-color: var(--primary-fill); }
+.btn-ghost:disabled:hover { background: transparent; color: var(--quiet-ink); }
 
 .crumb-link {
   background: none; border: none; padding: 0;
@@ -1771,9 +1724,9 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   min-width: 232px;
   max-width: 292px;
   padding: 6px;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  background: var(--surface-pop-fill);
+  border: 1px solid var(--surface-pop-edge);
+  border-radius: var(--surface-pop-radius);
   box-shadow: 0 1px 2px oklch(0 0 0 / 0.08), 0 18px 44px -12px oklch(0 0 0 / 0.36);
   transform-origin: top right;
   animation: more-in 150ms var(--ease-out);
@@ -1827,7 +1780,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .confirm-q { color: var(--ink); font-weight: 500; }
 .confirm-detail { color: var(--ink-dim); margin-left: 4px; }
 .confirm-acts { display: inline-flex; align-items: center; gap: 8px; }
-.confirm-block { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 12px; margin-top: 6px; max-width: 440px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-sunken); }
+.confirm-block { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 12px; margin-top: 6px; max-width: 440px; border: 1px solid var(--surface-inset-edge); border-radius: var(--surface-inset-radius); background: var(--surface-inset-fill); }
 .confirm-block .confirm-words { display: block; }
 .confirm-block .confirm-detail { display: block; margin: 2px 0 0; }
 .confirm-typed { width: 100%; max-width: 280px; height: 28px; padding: 0 9px; font-size: 12.5px; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); }
@@ -1858,7 +1811,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .empty-page .empty-title { font-size: 16px; }
 .empty-page .empty-body { margin: 0 auto; max-width: 320px; }
 .empty-page .empty-acts { justify-content: center; margin-top: 8px; }
-.empty-card { flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 16px; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--bg-sunken); }
+.empty-card { flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px 16px; border: 1px dashed var(--line-strong); border-radius: var(--radius-lg); background: var(--surface-inset-fill); }
 .empty-card .empty-glyph { width: 30px; height: 30px; border-radius: 8px; background: var(--bg-raised); border: 1px solid var(--line); }
 .empty-card .empty-title { font-size: 13px; }
 .empty-line { align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 12px 0; }
@@ -1894,10 +1847,10 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   align-items: center;
   gap: 10px;
   max-width: min(560px, calc(100vw - 32px));
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  background: var(--surface-pop-fill);
+  border: 1px solid var(--surface-pop-edge);
+  border-radius: var(--surface-pop-radius);
+  box-shadow: var(--surface-pop-depth);
   padding: 10px 14px;
   font-size: 12px;
   color: var(--ink-muted);
@@ -2040,7 +1993,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
    under the strip, with the tab 1px over it, lay outside what a strip that scrolls across can show (a phone's): the
    Inbox's and Campaigns' underlines drew 1px of their 2 and the strip scrolled 1px up and down under a thumb, where
    People's clipped instead. */
-.stabs { display: flex; align-items: center; gap: 4px; padding: 6px 18px 0; background: var(--bg); box-shadow: inset 0 -1px 0 var(--line); flex: none; position: relative; }
+.stabs { display: flex; align-items: center; gap: 4px; padding: 6px 18px 0; background: var(--surface-page-fill); box-shadow: inset 0 -1px 0 var(--line); flex: none; position: relative; }
 .stabs-tab { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink-dim); border-bottom: 2px solid transparent; transition: color 110ms; }
 .stabs-tab:hover { color: var(--ink); }
 .stabs-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
@@ -2055,13 +2008,6 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .conf-word.conf-high { color: var(--ok); background: var(--ok-soft); }
 .conf-word.conf-med { color: var(--ink-muted); background: var(--bg-sunken); border: 1px solid var(--line); }
 .conf-word.conf-low { color: var(--warn); background: color-mix(in oklab, var(--warn) 12%, transparent); }
-/* Zero-state = demo-state */
-.ac-empty { flex-direction: column; }
-.ac-empty-line { display: flex; align-items: center; gap: 10px; }
-.ghost-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-faint); border: 1px dashed var(--line-strong); border-radius: var(--radius-md); padding: 10px 14px; opacity: 0.75; }
-.ghost-row .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-faint); }
-.ghost-tag { margin-left: 8px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
-.ac-bar-r { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 @media (max-width: 900px) { .stabs { padding: 4px 12px 0; overflow-x: auto; scrollbar-width: none; } }
 /* On a phone every strip's sides are the rows' 16px gutter, and it sits flush under the bar: a tab is a thumb tall on a
    touch screen already (legacy.css), so the strip adds nothing over it. */
@@ -2359,8 +2305,22 @@ html.legacy-on .tl-msg-why { position: relative; min-height: 0; }
 .sb-sheet-keys { display: inline-flex; align-items: center; gap: 4px; }
 .sb-sheet-sep { font-size: 11px; color: var(--ink-dim); padding: 0 2px; }
 
-/* ---- Campaigns › Templates: one card per template, the bubble the customer sees ---- */
+/* ---- The quiet link button ----
+   Words that act, with no ground. Drawn by Confirm, EmptyState and FailedRead and by pages across the shell; its name
+   is People's, where it began, and the kit renames it once pages draw from the kit. Its danger form is red at rest
+   and ink when hovered, so the hover comes after it. */
+.cl-bucket-link {
+  font-size: 11px;
+  color: var(--ink-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
 .cl-bucket-link.danger { color: var(--danger); }
+.cl-bucket-link:hover { color: var(--ink); }
 .int-soon-list { font-style: normal; line-height: 1.6; }
 .int-soon-list b { color: var(--ink); font-weight: 500; }
 /* ---- Campaigns, as the canvas draws it ----

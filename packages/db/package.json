@@ -13,7 +13,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --no-splitting",
+    "build": "tsup src/index.ts --format esm --no-splitting",
     "typecheck": "tsc --noEmit",
     "gen:types": "node ../../tooling/scripts/gen/db-types.mjs"
   },
@@ -24,6 +24,6 @@
   },
   "devDependencies": {
     "tsup": "^8.3.0",
-    "typescript": "^5.7.0"
+    "typescript": "catalog:"
   }
 }
