@@ -15,8 +15,8 @@
     "depth": 2
   },
   "apps/dashboard/app/api/v1/contacts/[id]/route.ts::handle#1": {
-    "lines": 232,
-    "branches": 31,
+    "lines": 230,
+    "branches": 29,
     "depth": 2
   },
   "apps/dashboard/app/api/v1/policies/route.ts::handle#2": {
