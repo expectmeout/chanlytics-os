@@ -675,7 +675,7 @@ function isRealDate(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES2 = {
+var DAY_NAMES = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -684,7 +684,7 @@ var DAY_NAMES2 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME = DAY_NAMES2;
+var DAY_NAME = DAY_NAMES;
 function dayProblems(h, day) {
   const name2 = DAY_NAME[day] ?? day;
   const out = [];
@@ -1549,16 +1549,12 @@ var PEOPLE_LISTS = BUILTIN_LISTS.map((l2) => {
 var PeopleExportQuerySchema = z9.object({
   list: z9.string().max(80).refine((t2) => parseListToken(t2) !== null, "Name a list by its token.").optional()
 });
-var WA_WINDOW_MS = 24 * HOUR_MS;
-var REPLY_LIMITS = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS = 10 * MIN_MS;
-var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var MONTH_MS = 30 * DAY_MS;
+var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS = {
+  ...PERSON_MODE_LABELS,
+  inherit: "Follow the workspace"
+};
 var NOTE_MAX = 600;
 var NOTE_REFUSALS = {
   empty: "Write something first.",
@@ -1571,11 +1567,6 @@ var NOTE_REFUSALS = {
   bad_source: "Could not save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done."
-};
-var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS = {
-  ...PERSON_MODE_LABELS,
-  inherit: "Follow the workspace"
 };
 var ASK_ANSWER_CAPS = {
   headline: 160,
@@ -1905,6 +1896,15 @@ var BROADCAST_THROTTLE_WAITS_MS = [
   30 * MIN_MS
 ];
 var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var WA_WINDOW_MS = 24 * HOUR_MS;
+var REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS = 10 * MIN_MS;
+var REPLY_DELAY_MAX_MS = 10 * MIN_MS;
 var EVENT_KINDS = [
   "message.received",
   "message.sent",
@@ -8436,7 +8436,7 @@ function isRealDate2(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES22 = {
+var DAY_NAMES2 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -8445,7 +8445,7 @@ var DAY_NAMES22 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME2 = DAY_NAMES22;
+var DAY_NAME2 = DAY_NAMES2;
 function dayProblems2(h, day) {
   const name2 = DAY_NAME2[day] ?? day;
   const out = [];
@@ -9298,16 +9298,12 @@ var PEOPLE_LISTS2 = BUILTIN_LISTS2.map((l2) => {
 var PeopleExportQuerySchema2 = z92.object({
   list: z92.string().max(80).refine((t2) => parseListToken2(t2) !== null, "Name a list by its token.").optional()
 });
-var WA_WINDOW_MS2 = 24 * HOUR_MS2;
-var REPLY_LIMITS2 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS2 = 10 * MIN_MS2;
-var REPLY_DELAY_MAX_MS2 = 10 * MIN_MS2;
 var MONTH_MS2 = 30 * DAY_MS2;
+var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS2 = {
+  ...PERSON_MODE_LABELS2,
+  inherit: "Follow the workspace"
+};
 var NOTE_MAX2 = 600;
 var NOTE_REFUSALS2 = {
   empty: "Write something first.",
@@ -9320,11 +9316,6 @@ var NOTE_REFUSALS2 = {
   bad_source: "Could not save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done."
-};
-var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS2 = {
-  ...PERSON_MODE_LABELS2,
-  inherit: "Follow the workspace"
 };
 var ASK_ANSWER_CAPS2 = {
   headline: 160,
@@ -9654,6 +9645,15 @@ var BROADCAST_THROTTLE_WAITS_MS2 = [
   30 * MIN_MS2
 ];
 var SHORT2 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var WA_WINDOW_MS2 = 24 * HOUR_MS2;
+var REPLY_LIMITS2 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS2 = 10 * MIN_MS2;
+var REPLY_DELAY_MAX_MS2 = 10 * MIN_MS2;
 var EVENT_KINDS2 = [
   "message.received",
   "message.sent",
@@ -12267,7 +12267,7 @@ function isRealDate3(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES23 = {
+var DAY_NAMES3 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -12276,7 +12276,7 @@ var DAY_NAMES23 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME3 = DAY_NAMES23;
+var DAY_NAME3 = DAY_NAMES3;
 function dayProblems3(h, day) {
   const name2 = DAY_NAME3[day] ?? day;
   const out = [];
@@ -13129,16 +13129,12 @@ var PEOPLE_LISTS3 = BUILTIN_LISTS3.map((l2) => {
 var PeopleExportQuerySchema3 = z93.object({
   list: z93.string().max(80).refine((t2) => parseListToken3(t2) !== null, "Name a list by its token.").optional()
 });
-var WA_WINDOW_MS3 = 24 * HOUR_MS3;
-var REPLY_LIMITS3 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY3 = Math.max(...Object.values(REPLY_LIMITS3).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS3 = 10 * MIN_MS3;
-var REPLY_DELAY_MAX_MS3 = 10 * MIN_MS3;
 var MONTH_MS3 = 30 * DAY_MS3;
+var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS3 = {
+  ...PERSON_MODE_LABELS3,
+  inherit: "Follow the workspace"
+};
 var NOTE_MAX3 = 600;
 var NOTE_REFUSALS3 = {
   empty: "Write something first.",
@@ -13151,11 +13147,6 @@ var NOTE_REFUSALS3 = {
   bad_source: "Could not save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done."
-};
-var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS3 = {
-  ...PERSON_MODE_LABELS3,
-  inherit: "Follow the workspace"
 };
 var ASK_ANSWER_CAPS3 = {
   headline: 160,
@@ -13485,6 +13476,15 @@ var BROADCAST_THROTTLE_WAITS_MS3 = [
   30 * MIN_MS3
 ];
 var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var WA_WINDOW_MS3 = 24 * HOUR_MS3;
+var REPLY_LIMITS3 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY3 = Math.max(...Object.values(REPLY_LIMITS3).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS3 = 10 * MIN_MS3;
+var REPLY_DELAY_MAX_MS3 = 10 * MIN_MS3;
 var EVENT_KINDS3 = [
   "message.received",
   "message.sent",
@@ -15270,7 +15270,7 @@ function isRealDate22(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES222 = {
+var DAY_NAMES22 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -15279,7 +15279,7 @@ var DAY_NAMES222 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME22 = DAY_NAMES222;
+var DAY_NAME22 = DAY_NAMES22;
 function dayProblems22(h, day) {
   const name2 = DAY_NAME22[day] ?? day;
   const out = [];
@@ -16132,6 +16132,7 @@ var PEOPLE_LISTS22 = BUILTIN_LISTS22.map((l2) => {
 var PeopleExportQuerySchema22 = z922.object({
   list: z922.string().max(80).refine((t2) => parseListToken22(t2) !== null, "Name a list by its token.").optional()
 });
+var MONTH_MS22 = 30 * DAY_MS22;
 function isOptedOutContact(c2) {
   return c2.consent === "opted_out" || c2.dnc === true;
 }
@@ -16148,17 +16149,12 @@ function mayMessageFor(c2, purpose, opts = {}) {
 function purposeOfTemplate(category) {
   return category === "utility" || category === "authentication" ? "conversational" : "marketing";
 }
-var WA_WINDOW_MS22 = 24 * HOUR_MS22;
-var REPLY_LIMITS22 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY22 = Math.max(...Object.values(REPLY_LIMITS22).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS22 = 10 * MIN_MS22;
-var REPLY_DELAY_MAX_MS22 = 10 * MIN_MS22;
 var CARRIER_CONSENT_SOURCE = "carrier";
-var MONTH_MS22 = 30 * DAY_MS22;
+var PERSON_MODE_LABELS22 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS22 = {
+  ...PERSON_MODE_LABELS22,
+  inherit: "Follow the workspace"
+};
 var NOTE_MAX22 = 600;
 var NOTE_REFUSALS22 = {
   empty: "Write something first.",
@@ -16171,11 +16167,6 @@ var NOTE_REFUSALS22 = {
   bad_source: "Could not save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done."
-};
-var PERSON_MODE_LABELS22 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS22 = {
-  ...PERSON_MODE_LABELS22,
-  inherit: "Follow the workspace"
 };
 var ASK_ANSWER_CAPS22 = {
   headline: 160,
@@ -16570,11 +16561,20 @@ function mondayOf(key) {
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
   return shiftKey(key, -((dow + 6) % 7));
 }
-var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 function zoneMidnight(tz, key) {
   const { y, m, d } = keyParts(key);
   return localToUtcMs(tz, y, m, d, 0, 0);
 }
+var SHORT22 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var WA_WINDOW_MS22 = 24 * HOUR_MS22;
+var REPLY_LIMITS22 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY22 = Math.max(...Object.values(REPLY_LIMITS22).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS22 = 10 * MIN_MS22;
+var REPLY_DELAY_MAX_MS22 = 10 * MIN_MS22;
 var EVENT_KINDS22 = [
   "message.received",
   "message.sent",
@@ -18500,7 +18500,7 @@ function isRealDate32(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES232 = {
+var DAY_NAMES32 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -18509,7 +18509,7 @@ var DAY_NAMES232 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME32 = DAY_NAMES232;
+var DAY_NAME32 = DAY_NAMES32;
 function dayProblems32(h, day) {
   const name2 = DAY_NAME32[day] ?? day;
   const out = [];
@@ -19362,17 +19362,13 @@ var PEOPLE_LISTS32 = BUILTIN_LISTS32.map((l2) => {
 var PeopleExportQuerySchema32 = z932.object({
   list: z932.string().max(80).refine((t2) => parseListToken32(t2) !== null, "Name a list by its token.").optional()
 });
-var WA_WINDOW_MS32 = 24 * HOUR_MS32;
-var REPLY_LIMITS32 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY32 = Math.max(...Object.values(REPLY_LIMITS32).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS32 = 10 * MIN_MS32;
-var REPLY_DELAY_MAX_MS32 = 10 * MIN_MS32;
-var CARRIER_CONSENT_SOURCE2 = "carrier";
 var MONTH_MS32 = 30 * DAY_MS32;
+var CARRIER_CONSENT_SOURCE2 = "carrier";
+var PERSON_MODE_LABELS32 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS32 = {
+  ...PERSON_MODE_LABELS32,
+  inherit: "Follow the workspace"
+};
 var NOTE_MAX32 = 600;
 var NOTE_REFUSALS32 = {
   empty: "Write something first.",
@@ -19385,11 +19381,6 @@ var NOTE_REFUSALS32 = {
   bad_source: "Could not save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done."
-};
-var PERSON_MODE_LABELS32 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS32 = {
-  ...PERSON_MODE_LABELS32,
-  inherit: "Follow the workspace"
 };
 var ASK_ANSWER_CAPS32 = {
   headline: 160,
@@ -19719,6 +19710,15 @@ var BROADCAST_THROTTLE_WAITS_MS32 = [
   30 * MIN_MS32
 ];
 var SHORT32 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var WA_WINDOW_MS32 = 24 * HOUR_MS32;
+var REPLY_LIMITS32 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY32 = Math.max(...Object.values(REPLY_LIMITS32).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS32 = 10 * MIN_MS32;
+var REPLY_DELAY_MAX_MS32 = 10 * MIN_MS32;
 var EVENT_KINDS32 = [
   "message.received",
   "message.sent",
@@ -22197,7 +22197,7 @@ function isRealDate4(key) {
   const at2 = /* @__PURE__ */ new Date(`${key}T12:00:00Z`);
   return !Number.isNaN(at2.getTime()) && at2.toISOString().slice(0, 10) === key;
 }
-var DAY_NAMES24 = {
+var DAY_NAMES4 = {
   mon: "Monday",
   tue: "Tuesday",
   wed: "Wednesday",
@@ -22206,7 +22206,7 @@ var DAY_NAMES24 = {
   sat: "Saturday",
   sun: "Sunday"
 };
-var DAY_NAME4 = DAY_NAMES24;
+var DAY_NAME4 = DAY_NAMES4;
 function dayProblems4(h, day) {
   const name2 = DAY_NAME4[day] ?? day;
   const out = [];
@@ -23059,16 +23059,12 @@ var PEOPLE_LISTS4 = BUILTIN_LISTS4.map((l2) => {
 var PeopleExportQuerySchema4 = z94.object({
   list: z94.string().max(80).refine((t2) => parseListToken4(t2) !== null, "Name a list by its token.").optional()
 });
-var WA_WINDOW_MS4 = 24 * HOUR_MS4;
-var REPLY_LIMITS4 = {
-  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
-  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
-  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
-};
-var REPLY_MAX_ANY4 = Math.max(...Object.values(REPLY_LIMITS4).map((l2) => l2.max));
-var CALL_HEARTBEAT_MS4 = 10 * MIN_MS4;
-var REPLY_DELAY_MAX_MS4 = 10 * MIN_MS4;
 var MONTH_MS4 = 30 * DAY_MS4;
+var PERSON_MODE_LABELS4 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS4 = {
+  ...PERSON_MODE_LABELS4,
+  inherit: "Follow the workspace"
+};
 var NOTE_MAX4 = 600;
 var NOTE_REFUSALS4 = {
   empty: "Write something first.",
@@ -23081,11 +23077,6 @@ var NOTE_REFUSALS4 = {
   bad_source: "Could not save this note.",
   bad_deal: "That deal is not this person's.",
   not_a_step: "Only a note with a day can be done."
-};
-var PERSON_MODE_LABELS4 = { auto: "Answer", ask: "Ask me first", never: "Never" };
-var PERSON_MODE_WORDS4 = {
-  ...PERSON_MODE_LABELS4,
-  inherit: "Follow the workspace"
 };
 var ASK_ANSWER_CAPS4 = {
   headline: 160,
@@ -23415,6 +23406,15 @@ var BROADCAST_THROTTLE_WAITS_MS4 = [
   30 * MIN_MS4
 ];
 var SHORT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var WA_WINDOW_MS4 = 24 * HOUR_MS4;
+var REPLY_LIMITS4 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY4 = Math.max(...Object.values(REPLY_LIMITS4).map((l2) => l2.max));
+var CALL_HEARTBEAT_MS4 = 10 * MIN_MS4;
+var REPLY_DELAY_MAX_MS4 = 10 * MIN_MS4;
 var EVENT_KINDS4 = [
   "message.received",
   "message.sent",

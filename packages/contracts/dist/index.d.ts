@@ -883,13 +883,13 @@ declare const INSTRUCTIONS_MAX = 20000;
 declare const BusinessProfileSchema: z.ZodObject<{
     address: z.ZodOptional<z.ZodString>;
     hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+        sun: "sun";
         mon: "mon";
         tue: "tue";
         wed: "wed";
         thu: "thu";
         fri: "fri";
         sat: "sat";
-        sun: "sun";
     }> & z.core.$partial, z.ZodObject<{
         open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
         close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -2026,13 +2026,13 @@ declare const TenantConfigSchema: z.ZodObject<{
         profile: z.ZodOptional<z.ZodObject<{
             address: z.ZodOptional<z.ZodString>;
             hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+                sun: "sun";
                 mon: "mon";
                 tue: "tue";
                 wed: "wed";
                 thu: "thu";
                 fri: "fri";
                 sat: "sat";
-                sun: "sun";
             }> & z.core.$partial, z.ZodObject<{
                 open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                 close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -2130,13 +2130,13 @@ declare const TenantConfigWriteSchema: z.ZodPipe<z.ZodUnknown, z.ZodObject<{
         profile: z.ZodOptional<z.ZodObject<{
             address: z.ZodOptional<z.ZodString>;
             hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+                sun: "sun";
                 mon: "mon";
                 tue: "tue";
                 wed: "wed";
                 thu: "thu";
                 fri: "fri";
                 sat: "sat";
-                sun: "sun";
             }> & z.core.$partial, z.ZodObject<{
                 open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                 close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -3686,96 +3686,6 @@ interface ReachOutRunDto {
 }
 
 /**
- * Who has a thread — decided once.
- *
- * Three surfaces used to answer this three ways. The Inbox counted a paused
- * thread with an open escalation as "needs you"; People counted the same
- * pause as ownership and called it "waiting on you"; Today counted every open
- * escalation, including the ones a person had already taken over. One word,
- * three numbers. Everything below reads this function, so a thread has one
- * standing wherever it is shown.
- *
- *   needs_you  flagged for a person, and nobody has it
- *   yours      flagged, and you have it — you took it, or you replied and the
- *              receptionist paused for you
- *   theirs     flagged, and a teammate has it
- *   snoozed    put aside until it wakes; whatever it was waits with it
- *   quiet      nothing open — the receptionist is answering, or nothing is
- *              happening
- */
-interface StandingInput {
-    /** The conversation's state column. */
-    state: string;
-    paused_until?: string | null;
-    assignee_user_id?: string | null;
-    /** Unknown (undefined) reads as "mine": a row that cannot say whose claim it is does not accuse a teammate. */
-    assignee_is_me?: boolean | null;
-    /** An escalation row still open on the thread. */
-    open_escalation: boolean;
-}
-type Standing = "needs_you" | "yours" | "theirs" | "snoozed" | "quiet";
-interface StandingVerdict {
-    standing: Standing;
-    /** Something asked for a person: an open escalation, the needs_human state, or a live pause. */
-    flagged: boolean;
-    /** The receptionist is paused on this thread right now. */
-    paused: boolean;
-    /** You have it. */
-    takenOver: boolean;
-    /** A teammate has it. */
-    claimedByOther: boolean;
-}
-declare function standingOf(i: StandingInput, nowMs: number): StandingVerdict;
-/**
- * A reply counting down to send waits on you while it can still be stopped: after its seconds it goes in your name.
- * One rule for the Inbox's Needs you, its buckets and the sidebar's badge (through the shell's courier, inbox.jsx
- * ixSending) and for People's Needs you. The Inbox knows the reply's deadline (`endsAtMs`) and whether this tab held it;
- * People knows only that one is queued, which it is exactly while it can still be stopped. It lived in inbox.jsx, and
- * People counted a thread the Inbox said waited on you as not waiting on anyone.
- */
-declare function replyWaitsOnYou(r: {
-    endsAtMs?: number | null;
-    queued?: boolean;
-    held?: boolean;
-}, nowMs: number): boolean;
-
-/** The fields a name is made from. Any of them may be missing; each is null or absent when it is. */
-interface NameableContact {
-    display_name?: string | null;
-    wa_profile_name?: string | null;
-    phone_e164?: string | null;
-    email?: string | null;
-}
-/**
- * The fields a caller's name is made from: what the line showed, and the
- * person the number is, when it is someone's. A call as the Calls page reads it
- * (CallDto) is one. Declared here, not imported, so this file stays below
- * everything that names a person.
- */
-interface NameableCaller {
-    from_e164?: string | null;
-    from_raw?: string | null;
-    contact?: {
-        display_name?: string | null;
-        wa_profile_name?: string | null;
-    } | null;
-}
-/**
- * The name a human typed, else their WhatsApp name, else their number, else
- * their email address. "Unknown" is a person with none of them — never a person
- * whose only identifier is an address.
- */
-declare function personName(c: NameableContact | null | undefined): string;
-/**
- * Who a call is with, as every call surface names them: the person's name when
- * the number is someone's, else the number the phone showed, else what the line
- * handed over raw; "Caller ID withheld" when it handed over nothing. The Calls
- * page (toCallVM), Live (toLiveCallVM) and a call a citation names read it
- * here, so the three cannot drift.
- */
-declare function callerName(c: NameableCaller): string;
-
-/**
  * A person's wires and where they came from, in the owner's words: the leaf both the person's view model (people.ts)
  * and the list rule language (list-rules.ts) read, so neither loads the other to name a channel (decision 0009).
  */
@@ -3792,147 +3702,6 @@ declare const PERSON_CHANNEL_WORDS: Record<PersonChannel, string>;
 type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manual" | "import" | "lead";
 /** The words for each, once: the three wires say what a reply on them says (REPLY_VIA), and a call says what its glyph says (PERSON_CHANNEL_WORDS.voice). */
 declare const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string>;
-
-/**
- * May we contact this person?
- *
- * One predicate, because this rule was hand-inlined in five places — the
- * webhook's consent gate, the reply route, the send job, the voice booking-link
- * function and the view model — and a rule about not contacting people who
- * asked to be left alone is the last one that should drift. Five copies is five
- * chances for the next send path to check only `consent` and miss `dnc`.
- *
- * Both columns matter and either alone is decisive:
- *   consent  the state machine the customer drives — 'unknown' | 'opted_in'
- *            | 'opted_out', written by ingest when they text STOP or START.
- *   dnc      the operator-settable override, for a request made by phone, in
- *            person, or by a regulator.
- *
- * Absence is NOT an opt-out. Both fields are optional here because a caller may
- * be holding a row selected before these columns were projected, and reading a
- * missing value as a block would silence every contact the moment somebody
- * forgot a column in a SELECT.
- */
-interface ConsentBearing {
-    consent?: string | null;
-    dnc?: boolean | null;
-}
-declare function isOptedOutContact(c: ConsentBearing): boolean;
-/** The customer-facing reason, used wherever a refusal is explained. */
-declare const OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
-/**
- * "outreach" is a cold email to a business the finder found (Reach out): its own lane, with its own rules at the
- * wire (deliver.ts), and never on a phone's channel.
- */
-type SendPurpose = "conversational" | "marketing" | "outreach";
-/** The two questions a person is asked, and answers (the consent page, their profile, an audience). Outreach asks nobody. */
-type AskedPurpose = Exclude<SendPurpose, "outreach">;
-interface PurposeBearing extends ConsentBearing {
-    marketing_consent?: string | null;
-    /** Email's own answer (00174): opted_out once the person pressed Unsubscribe. */
-    email_marketing?: string | null;
-}
-/**
- * May a message of this purpose go to this person?
- *
- * `proactive` is the existing distinction, kept: answering somebody who wrote to
- * you needs only that they have not asked you to stop, while starting a
- * conversation needs their recorded yes.
- *
- * Marketing needs its own yes on top, and it FAILS CLOSED -- a row selected
- * without the column reads as `undefined`, which is not `'opted_in'`, so a
- * forgotten SELECT withholds an offer rather than sending one. That asymmetry
- * is deliberate and is the opposite of `isOptedOutContact`'s, which fails open
- * for the same reason in the other direction: a missing column must never
- * silence a reply, and must never authorise a promotion.
- */
-/** Why the predicate said no: a closed set, so a door cannot admit a reason that has no words. */
-type PurposeRefusal = "opted_out" | "no_marketing_consent" | "not_opted_in" | "unsubscribed";
-declare function mayMessageFor(c: PurposeBearing, purpose: SendPurpose, opts?: {
-    proactive?: boolean;
-}): {
-    ok: true;
-    reason: null;
-} | {
-    ok: false;
-    reason: PurposeRefusal;
-};
-/**
- * Every reason the send door (core deliver.ts) stays shut: a closed list, so a reason cannot reach a thread or a run's
- * report without its words (both maps below are typed against it). Each is a fact about the person, the thread or
- * the workspace, never about us.
- */
-declare const DELIVERY_REFUSALS: readonly ["opted_out", "not_opted_in", "no_marketing_consent", "erased", "paused", "human_has_it", "superseded_by_human", "sms_carries_no_promotions", "email_marketing_disabled", "email_suppressed", "recipient_changed", "unsubscribed", "outreach_is_email_only", "outreach_not_a_lead", "outreach_lead_closed", "outreach_suppressed", "outreach_wrote_back", "outreach_away", "outreach_without_unsubscribe", "outreach_needs_own_domain", "sending_domain_not_ready", "sending_domain_at_cap"];
-type DeliveryRefusal = (typeof DELIVERY_REFUSALS)[number];
-/** Why a send was withheld, in the operator's words: every door refusal (the compiler holds it), and the job's own. */
-declare const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, string>;
-/**
- * Said once on the Broadcasts page, where an owner picks an offer to send.
- * The refusal above is per customer, at the wire; this is the rule, for the
- * page, so a customer who only ever texted being absent from an offer's count
- * reads as the rule it is and not as a bug.
- */
-declare const OFFERS_BY_WHATSAPP_NOTE = "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
-/**
- * One change to one of the two answers, as the ledger recorded it.
- *
- * The events row is the proof: which question, what was said, how, by whom,
- * and -- for an answer the customer texted -- the channel, the provider's own
- * id of the message and the customer's words (00110). "When did she say yes,
- * to what, and how do we know" is answered from these and nothing else; the
- * profile's timeline and the workspace export both read this shape.
- */
-interface ConsentChange {
-    id: string;
-    contact_id: string | null;
-    at: string;
-    /** Which question: messages about their visit, offers, or marketing email (an unsubscribe, 00174). */
-    purpose: "conversational" | "marketing" | "email_marketing";
-    consent: string | null;
-    previous: string | null;
-    /** How it was given: in person, on the phone, a signed form, their own message; "operator" is the reset. */
-    source: string | null;
-    /** The member who recorded it (their user id), or null when the customer's own message did. */
-    by: string | null;
-    note: string | null;
-    /** For an answer the customer texted: where it came from, which message, and what they wrote. */
-    channel: string | null;
-    message_external_id: string | null;
-    words: string | null;
-}
-/** An events row of kind contact.consent_changed, as the doors write it (00043, 00013, 00095, 00110). */
-declare function consentChangeOf(e: {
-    id: string;
-    subject_id: string | null;
-    created_at: string;
-    data: unknown;
-}): ConsentChange;
-/**
- * What kind of message a WhatsApp template is, from the category META assigned
- * it — which is the authority, not what the workspace asked for, and which Meta
- * can change on a live template.
- *
- * FAILS CLOSED, and this is the whole subtlety. `templates.category` is NULL for
- * exactly the rows most likely to matter: `booking_link` was seeded by hand
- * before the column existed, any workspace that has never run a template sync
- * has NULL throughout, and the mapper returns null for anything Meta names that
- * we do not recognise. Written the obvious way -- `category === 'marketing'` --
- * the gate would let every one of those through as if it were transactional.
- * So only the two categories that are POSITIVELY not marketing count as
- * conversational, and everything else, NULL included, is treated as marketing.
- */
-declare function purposeOfTemplate(category: string | null | undefined): AskedPurpose;
-/**
- * What kind of message a playbook sends, from the class it already declares.
- *
- * `booking` is a reminder about an appointment the customer made, and `follow_up` a
- * nudge on the proposal they asked for (0006): each answers the person's own request.
- * `reengage` and
- * `campaign` are promotional by definition -- reaching somebody who has gone
- * quiet, or running an offer. Unknown classes are marketing, for the same
- * fail-closed reason as templates.
- */
-declare function purposeOfPlaybook(policyClass: string | null | undefined): AskedPurpose;
 
 /**
  * The languages a template may be written in: every one WhatsApp takes
@@ -4204,21 +3973,6 @@ interface TemplateSentWords {
  */
 declare function templateSentWords(s: TemplateSends | null | undefined, tz: string, nowMs: number): TemplateSentWords;
 
-/**
- * Read-only availability: what is open, from a calendar feed and the rules.
- *
- * The receptionist never books. It may SEE the calendar — the owner's
- * appointments as an iCal feed, which every booking tool that syncs to
- * Google, Apple or Outlook can produce (Booksy Biz syncs two-way with Google
- * and Apple; Calendly, Square and the rest do the same) — subtract what is
- * taken from the opening hours, apply the owner's booking rules, and say
- * which windows are open before sending the booking link. The link is the
- * only way anything gets booked, whatever provider stands behind it.
- *
- * Pure: the feed text comes in, the windows come out, nothing is fetched
- * here. The edge fetches and caches; tests feed fixtures.
- */
-
 /** A taken stretch of time, epoch milliseconds. */
 interface BusyBlock {
     start: number;
@@ -4267,56 +4021,6 @@ interface ParseOptions {
         to: number;
     };
 }
-/** Offset of `tz` from UTC at the instant `atMs`, in milliseconds. */
-declare function zoneOffsetMs(tz: string, atMs: number): number;
-/** The instant a wall-clock time in `tz` refers to. Two passes cover a DST edge. */
-declare function localToUtcMs(tz: string, y: number, m: number, d: number, hh: number, mm: number): number;
-/** The wall clock of an instant in `tz`. */
-declare function clockInZone(tz: string, atMs: number): {
-    hh: number;
-    mm: number;
-    ss: number;
-};
-/** "YYYY-MM-DD" and the weekday key ("mon".."sun") of an instant in `tz`. */
-declare function dayInZone(tz: string, atMs: number): {
-    key: string;
-    weekday: string;
-    y: number;
-    m: number;
-    d: number;
-};
-/** The weekday keys in the order getUTCDay() numbers them, which is Sunday first. */
-/** The days of the week by their number from Sunday (Date.getUTCDay, and Google's Point.day). */
-declare const WEEKDAY_KEYS: readonly ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-/**
- * The local day `days` after the one `atMs` falls on -- BY THE CALENDAR, not by
- * the clock.
- *
- * THE DEFECT THIS EXISTS FOR. Every one of these used to be written as
- * `dayInZone(tz, now + n * 86_400_000)`: add a fixed number of milliseconds,
- * then ask which local day that landed on. Two days a year that is not the
- * next day. On 8 March 2026 New York loses an hour, so a customer asking at
- * 23:30 the night before was offered 9 March next and **8 March was never
- * offered at all**; on 1 November it gains one, so a read at 00:30 emitted
- * 1 November twice and lost a day off the far end of the horizon. Nobody sees
- * an error: the receptionist simply says the wrong days out loud.
- *
- * A calendar day is a count of days, so it is counted in days. The date is
- * read in the business's zone, stepped over UTC midnights (which never shift),
- * and handed back as a date -- no instant is carried across the boundary, so
- * there is nothing for an hour to move. The RRULE expander below has always
- * stepped this way, which is why a weekly appointment stays at 2 PM across a
- * change and the offered days did not. `calendar.ts shiftKey` is the twin that
- * steps a DATE to a date; this is the one that starts from an instant, which
- * is where reading "now" went wrong.
- */
-declare function dayPlusInZone(tz: string, atMs: number, days: number): {
-    key: string;
-    weekday: string;
-    y: number;
-    m: number;
-    d: number;
-};
 /**
  * The taken time in a feed. Cancelled events and events marked transparent
  * (free) are not taken. A recurring event is expanded when its rule is one a
@@ -4328,156 +4032,6 @@ declare function dayPlusInZone(tz: string, atMs: number, days: number): {
  * is what Google writes when one appointment in a weekly series is moved.
  */
 declare function parseIcs(text: string, fallbackTz: string, opts?: ParseOptions): ParsedFeed;
-interface BookingRulesLike {
-    lead_hours?: number;
-    buffer_min?: number;
-    max_days_ahead?: number;
-    slot_min?: number;
-}
-interface Opening {
-    key: string;
-    /** "mon".."sun" in the business's zone. */
-    weekday: string;
-    /** "Tuesday, September 9" */
-    label: string;
-    windows: Array<{
-        start: number;
-        end: number;
-    }>;
-}
-interface FreeWindowsInput {
-    hours: Record<string, Hours | undefined> | undefined;
-    closures?: Closure[];
-    tz: string;
-    busy: BusyBlock[];
-    rules?: BookingRulesLike | null;
-    now: Date;
-}
-/** The booking rules a workspace has until it sets its own. */
-declare const BOOKING_DEFAULTS: {
-    lead_hours: number;
-    buffer_min: number;
-    max_days_ahead: number;
-    slot_min: number;
-};
-/**
- * When a day is open, as one list of [open, close] spans.
- *
- * open/close and intervals are UNIONED, merged where they touch or overlap,
- * and a span that runs backwards is dropped. This is the ONE reader: the
- * prompt (config.ts), the free windows a caller is offered and the calendar
- * board all read a day through it. It used to have two readers -- the prompt
- * unioned the two, this one let intervals win -- so a row holding both could
- * be described two ways, and "are you open at nine?" had two answers.
- */
-declare function dayIntervals(h: Hours | undefined): Array<[string, string]>;
-declare function closedOn(closures: Closure[] | undefined, key: string): boolean;
-/**
- * The open windows, day by day: opening hours minus what is taken (each
- * taken block widened by the buffer), never earlier than now plus the lead
- * time, never shorter than one slot, never on a closed date.
- */
-declare function freeWindows(input: FreeWindowsInput): Opening[];
-/**
- * The openings a caller actually asked about: one day (a date or a weekday
- * name), and only windows long enough for the service they want. Days with
- * nothing left are dropped.
- */
-declare function filterOpenings(openings: Opening[], by: {
-    day?: string | null;
-    minMinutes?: number | null;
-}): Opening[];
-/**
- * The openings as the receptionist is told them: a few days, the windows on
- * each, and the rule that the calendar decides. Text on both channels; the
- * phone agent reads it aloud in its own words.
- *
- * `hasBookingLink` is required: what follows an opening is the link, or for a
- * business with none, the details the team needs (NO_LINK_DETAILS).
- */
-declare function describeOpenings(openings: Opening[], tz: string, opts: {
-    maxDays?: number;
-    daysAhead?: number;
-    hasBookingLink: boolean;
-}): string;
-/** A service the business lists, as far as matching one needs it. */
-interface ServiceLike {
-    name: string;
-    duration_min?: number;
-}
-declare const foldName: (s: string) => string;
-/**
- * Whether two names on one of the business's lists (its services, its languages) are one: accents, case and the space
- * around a name are not the name (foldName). The one test for "already there" on such a list: the first run's chips and
- * the Business tab's languages box both ask it, so a language chosen as "Haitian Créole" is the chip "Haitian Creole",
- * and is not offered again beside it. An empty name is no name, and the same as none. A business's own name is
- * facts.ts sameName's, which lets punctuation go too.
- */
-declare function sameListed(a: string, b: string): boolean;
-/**
- * The listed service somebody means, from what they said ("a haircut", "the
- * balayage thing", "uñas"): exact first, then one name containing the other,
- * then the service sharing the most words of four letters or more.
- *
- * One function for the phone tool and the assistant. The two copies it
- * replaced split words differently, and the phone's cut "uñas" at the ñ into
- * two pieces too short to count, so a caller asking for nails matched nothing.
- */
-declare function matchService<S extends ServiceLike>(services: readonly S[] | undefined, asked: unknown): S | null;
-/** The booking rules as far as a consultation needs them. */
-interface ConsultRules {
-    consult_first?: readonly string[];
-}
-/**
- * Whether a listed service needs a consultation before it can be booked, as Business lists them. Accents, case and the
- * spaces around a name are not the name, as in matchService; the board matched them exactly, lower-cased.
- */
-declare function needsConsultation(name: string, rules: ConsultRules | null | undefined): boolean;
-/** What an asked-for service is offered as: itself, or a consultation first. */
-interface ServiceOffer<S extends ServiceLike = ServiceLike> {
-    /** The listed service asked about. */
-    service: S;
-    /** Offered as a consultation, never as itself. */
-    consultation: boolean;
-    /** The listed service a consultation is, when the business lists one: the one sharing the service's words first. */
-    consultationService: S | null;
-    /** How long an open time has to be: the service's own length, a consultation's, or null for any open time. */
-    minMinutes: number | null;
-}
-/**
- * The one rule for a service asked about, for the phone tool, the assistant and the board. A service that needs a
- * consultation first is never offered itself: the consultation is, sized by the consultation the business lists
- * ("Consultation", "Consulta"), or any open time when it lists none. All three sized a three-hour color correction by
- * its own length while the prompt said a consultation comes first (C5b). A client is past the consultation, and is
- * offered the service itself (0004).
- */
-declare function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown, opts?: {
-    client?: boolean;
-}): ServiceOffer<S> | null;
-/**
- * The words before the open times, the phone's and the assistant's alike: a service's length, or that it needs a
- * consultation first and what is offered instead.
- */
-declare function offerLead(offer: ServiceOffer | null): string;
-
-/**
- * The people in a calendar: who an appointment is for, read from the words
- * a booking tool wrote into the owner's calendar and matched against People.
- *
- * Booksy, Square, Fresha, Acuity and Google's own appointment schedules all
- * put the client's name and the service in the title; some add a phone or
- * an email in the description, and a booking made through Google adds the
- * booker as a guest. None of it is structured, so the match goes by
- * evidence: a phone number found anywhere in the event beats an address, an
- * address beats a name, and a name only counts when it is a whole saved name
- * of four letters or more. A number and an address are exact — they are the
- * person, or nobody; a name is a guess, and a name match is the only one that
- * says so. People has held an address since 00125, so the customer a booking
- * through Google adds as a guest is now someone, not an unmatched block.
- *
- * Pure. The dashboard's calendar, the person's profile, both receptionists
- * and the tests share it, so an appointment is the same person everywhere.
- */
 
 interface EventContacts {
     /** E.164. */
@@ -6384,6 +5938,147 @@ declare function triggerOffered(t: {
 declare function policyClassOffered(cls: string, dealsOn: boolean): boolean;
 
 /**
+ * May we contact this person?
+ *
+ * One predicate, because this rule was hand-inlined in five places — the
+ * webhook's consent gate, the reply route, the send job, the voice booking-link
+ * function and the view model — and a rule about not contacting people who
+ * asked to be left alone is the last one that should drift. Five copies is five
+ * chances for the next send path to check only `consent` and miss `dnc`.
+ *
+ * Both columns matter and either alone is decisive:
+ *   consent  the state machine the customer drives — 'unknown' | 'opted_in'
+ *            | 'opted_out', written by ingest when they text STOP or START.
+ *   dnc      the operator-settable override, for a request made by phone, in
+ *            person, or by a regulator.
+ *
+ * Absence is NOT an opt-out. Both fields are optional here because a caller may
+ * be holding a row selected before these columns were projected, and reading a
+ * missing value as a block would silence every contact the moment somebody
+ * forgot a column in a SELECT.
+ */
+interface ConsentBearing {
+    consent?: string | null;
+    dnc?: boolean | null;
+}
+declare function isOptedOutContact(c: ConsentBearing): boolean;
+/** The customer-facing reason, used wherever a refusal is explained. */
+declare const OPT_OUT_REFUSAL = "This customer asked to stop receiving messages. They can text START to opt back in.";
+/**
+ * "outreach" is a cold email to a business the finder found (Reach out): its own lane, with its own rules at the
+ * wire (deliver.ts), and never on a phone's channel.
+ */
+type SendPurpose = "conversational" | "marketing" | "outreach";
+/** The two questions a person is asked, and answers (the consent page, their profile, an audience). Outreach asks nobody. */
+type AskedPurpose = Exclude<SendPurpose, "outreach">;
+interface PurposeBearing extends ConsentBearing {
+    marketing_consent?: string | null;
+    /** Email's own answer (00174): opted_out once the person pressed Unsubscribe. */
+    email_marketing?: string | null;
+}
+/**
+ * May a message of this purpose go to this person?
+ *
+ * `proactive` is the existing distinction, kept: answering somebody who wrote to
+ * you needs only that they have not asked you to stop, while starting a
+ * conversation needs their recorded yes.
+ *
+ * Marketing needs its own yes on top, and it FAILS CLOSED -- a row selected
+ * without the column reads as `undefined`, which is not `'opted_in'`, so a
+ * forgotten SELECT withholds an offer rather than sending one. That asymmetry
+ * is deliberate and is the opposite of `isOptedOutContact`'s, which fails open
+ * for the same reason in the other direction: a missing column must never
+ * silence a reply, and must never authorise a promotion.
+ */
+/** Why the predicate said no: a closed set, so a door cannot admit a reason that has no words. */
+type PurposeRefusal = "opted_out" | "no_marketing_consent" | "not_opted_in" | "unsubscribed";
+declare function mayMessageFor(c: PurposeBearing, purpose: SendPurpose, opts?: {
+    proactive?: boolean;
+}): {
+    ok: true;
+    reason: null;
+} | {
+    ok: false;
+    reason: PurposeRefusal;
+};
+/**
+ * Every reason the send door (core deliver.ts) stays shut: a closed list, so a reason cannot reach a thread or a run's
+ * report without its words (both maps below are typed against it). Each is a fact about the person, the thread or
+ * the workspace, never about us.
+ */
+declare const DELIVERY_REFUSALS: readonly ["opted_out", "not_opted_in", "no_marketing_consent", "erased", "paused", "human_has_it", "superseded_by_human", "sms_carries_no_promotions", "email_marketing_disabled", "email_suppressed", "recipient_changed", "unsubscribed", "outreach_is_email_only", "outreach_not_a_lead", "outreach_lead_closed", "outreach_suppressed", "outreach_wrote_back", "outreach_away", "outreach_without_unsubscribe", "outreach_needs_own_domain", "sending_domain_not_ready", "sending_domain_at_cap"];
+type DeliveryRefusal = (typeof DELIVERY_REFUSALS)[number];
+/** Why a send was withheld, in the operator's words: every door refusal (the compiler holds it), and the job's own. */
+declare const PURPOSE_REFUSALS: Record<DeliveryRefusal, string> & Record<string, string>;
+/**
+ * Said once on the Broadcasts page, where an owner picks an offer to send.
+ * The refusal above is per customer, at the wire; this is the rule, for the
+ * page, so a customer who only ever texted being absent from an offer's count
+ * reads as the rule it is and not as a bug.
+ */
+declare const OFFERS_BY_WHATSAPP_NOTE = "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
+/**
+ * One change to one of the two answers, as the ledger recorded it.
+ *
+ * The events row is the proof: which question, what was said, how, by whom,
+ * and -- for an answer the customer texted -- the channel, the provider's own
+ * id of the message and the customer's words (00110). "When did she say yes,
+ * to what, and how do we know" is answered from these and nothing else; the
+ * profile's timeline and the workspace export both read this shape.
+ */
+interface ConsentChange {
+    id: string;
+    contact_id: string | null;
+    at: string;
+    /** Which question: messages about their visit, offers, or marketing email (an unsubscribe, 00174). */
+    purpose: "conversational" | "marketing" | "email_marketing";
+    consent: string | null;
+    previous: string | null;
+    /** How it was given: in person, on the phone, a signed form, their own message; "operator" is the reset. */
+    source: string | null;
+    /** The member who recorded it (their user id), or null when the customer's own message did. */
+    by: string | null;
+    note: string | null;
+    /** For an answer the customer texted: where it came from, which message, and what they wrote. */
+    channel: string | null;
+    message_external_id: string | null;
+    words: string | null;
+}
+/** An events row of kind contact.consent_changed, as the doors write it (00043, 00013, 00095, 00110). */
+declare function consentChangeOf(e: {
+    id: string;
+    subject_id: string | null;
+    created_at: string;
+    data: unknown;
+}): ConsentChange;
+/**
+ * What kind of message a WhatsApp template is, from the category META assigned
+ * it — which is the authority, not what the workspace asked for, and which Meta
+ * can change on a live template.
+ *
+ * FAILS CLOSED, and this is the whole subtlety. `templates.category` is NULL for
+ * exactly the rows most likely to matter: `booking_link` was seeded by hand
+ * before the column existed, any workspace that has never run a template sync
+ * has NULL throughout, and the mapper returns null for anything Meta names that
+ * we do not recognise. Written the obvious way -- `category === 'marketing'` --
+ * the gate would let every one of those through as if it were transactional.
+ * So only the two categories that are POSITIVELY not marketing count as
+ * conversational, and everything else, NULL included, is treated as marketing.
+ */
+declare function purposeOfTemplate(category: string | null | undefined): AskedPurpose;
+/**
+ * What kind of message a playbook sends, from the class it already declares.
+ *
+ * `booking` is a reminder about an appointment the customer made, and `follow_up` a
+ * nudge on the proposal they asked for (0006): each answers the person's own request.
+ * `reengage` and
+ * `campaign` are promotional by definition -- reaching somebody who has gone
+ * quiet, or running an offer. Unknown classes are marketing, for the same
+ * fail-closed reason as templates.
+ */
+declare function purposeOfPlaybook(policyClass: string | null | undefined): AskedPurpose;
+
+/**
  * A deal's closed sets and their words (0004, 0008): its stages, how an amount recurs, where it came from and why
  * someone passed, each with the word a page says; the acts a deal offers and their labels; and the door's
  * refusals. The deal as a page says it is deal-vm.ts; how a workspace sells is sells-by.ts.
@@ -7191,6 +6886,286 @@ declare function todayStepsDue<T extends {
 };
 
 /**
+ * The service somebody means and what it is offered as: names folded one way (foldName, sameListed), the listed
+ * service a caller or the assistant asked for (matchService), and whether it needs a consultation first
+ * (needsConsultation, offerFor, offerLead). The phone tool, the assistant and the board read the one rule here.
+ */
+/** A service the business lists, as far as matching one needs it. */
+interface ServiceLike {
+    name: string;
+    duration_min?: number;
+}
+declare const foldName: (s: string) => string;
+/**
+ * Whether two names on one of the business's lists (its services, its languages) are one: accents, case and the space
+ * around a name are not the name (foldName). The one test for "already there" on such a list: the first run's chips and
+ * the Business tab's languages box both ask it, so a language chosen as "Haitian Créole" is the chip "Haitian Creole",
+ * and is not offered again beside it. An empty name is no name, and the same as none. A business's own name is
+ * facts.ts sameName's, which lets punctuation go too.
+ */
+declare function sameListed(a: string, b: string): boolean;
+/**
+ * The listed service somebody means, from what they said ("a haircut", "the
+ * balayage thing", "uñas"): exact first, then one name containing the other,
+ * then the service sharing the most words of four letters or more.
+ *
+ * One function for the phone tool and the assistant. The two copies it
+ * replaced split words differently, and the phone's cut "uñas" at the ñ into
+ * two pieces too short to count, so a caller asking for nails matched nothing.
+ */
+declare function matchService<S extends ServiceLike>(services: readonly S[] | undefined, asked: unknown): S | null;
+/** The booking rules as far as a consultation needs them. */
+interface ConsultRules {
+    consult_first?: readonly string[];
+}
+/**
+ * Whether a listed service needs a consultation before it can be booked, as Business lists them. Accents, case and the
+ * spaces around a name are not the name, as in matchService; the board matched them exactly, lower-cased.
+ */
+declare function needsConsultation(name: string, rules: ConsultRules | null | undefined): boolean;
+/** What an asked-for service is offered as: itself, or a consultation first. */
+interface ServiceOffer<S extends ServiceLike = ServiceLike> {
+    /** The listed service asked about. */
+    service: S;
+    /** Offered as a consultation, never as itself. */
+    consultation: boolean;
+    /** The listed service a consultation is, when the business lists one: the one sharing the service's words first. */
+    consultationService: S | null;
+    /** How long an open time has to be: the service's own length, a consultation's, or null for any open time. */
+    minMinutes: number | null;
+}
+/**
+ * The one rule for a service asked about, for the phone tool, the assistant and the board. A service that needs a
+ * consultation first is never offered itself: the consultation is, sized by the consultation the business lists
+ * ("Consultation", "Consulta"), or any open time when it lists none. All three sized a three-hour color correction by
+ * its own length while the prompt said a consultation comes first (C5b). A client is past the consultation, and is
+ * offered the service itself (0004).
+ */
+declare function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown, opts?: {
+    client?: boolean;
+}): ServiceOffer<S> | null;
+/**
+ * The words before the open times, the phone's and the assistant's alike: a service's length, or that it needs a
+ * consultation first and what is offered instead.
+ */
+declare function offerLead(offer: ServiceOffer | null): string;
+
+/**
+ * Consultations, the step before a deal (0008): which consult-first service a calendar title names, whether a
+ * consultation has had no proposal since, and where a person stands on the way to a deal (dealStageOf), the one
+ * rule the Pipeline's groups and People's deal lists both read.
+ */
+
+/** A consultation this recent with no proposal after it is the next step to take. */
+declare const CONSULT_FOLLOW_DAYS = 7;
+/**
+ * The consult-first service a calendar title names, as Settings spells it: what a proposal started from that
+ * consultation is for (0008). The longest name the title holds, so "Kitchen remodel" wins over "Remodel"; null where
+ * it names none. The fold is availability's.
+ */
+declare function consultServiceOf(title: string | null | undefined, services: readonly {
+    name: string;
+}[] | undefined, rules: ConsultRules | null | undefined): string | null;
+/** A calendar title that is a consultation: it says so, or it names a consult-first service (consultServiceOf). */
+declare function isConsultationTitle(title: string | null | undefined, services: readonly {
+    name: string;
+}[] | undefined, rules: ConsultRules | null | undefined): boolean;
+/**
+ * Whether a consultation that ended at `endedMs` has had no proposal since (0008), given the person's deal: none on
+ * file, or one that passed or ended before it, which the consultation then began again. An open deal has had its
+ * proposal; a pass or an end at or after the consultation answered one. The one rule for the step not taken, which
+ * the week's count (consultationsWithoutProposal) and the Calendar's peek (calendarPeekDeal) both ask.
+ */
+declare function noProposalSince(deal: Pick<DealVM, "stage" | "sinceMs"> | null | undefined, endedMs: number): boolean;
+/**
+ * One person's consultation waits on the business (0008): it ended in the last CONSULT_FOLLOW_DAYS days and no proposal
+ * came after it (noProposalSince). The one row-level rule the week's count (consultationsWithoutProposal) and the deal
+ * stage a list reads (dealStageOf) both ask.
+ */
+declare function consultationHeld(r: {
+    consultedMs: number | null;
+    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+}, nowMs: number): boolean;
+/** Where a person stands on the way to a deal, as the Pipeline groups them: a consultation, or their deal's stage. */
+type DealStandingStage = "consultation" | DealStage;
+/**
+ * Which of the Pipeline's groups a person is in (pipeline.ts pipelineOf), and so what a list's deal stage fact reads
+ * (decision 0009): a consultation held with no proposal since, then a proposal out or a client, then a consultation
+ * ahead of someone with nothing open (something new begins, whatever they passed on or ended before), then the stage of
+ * a deal that passed or ended. Null for someone with none of these. One rule, so the Pipeline's Consultations and
+ * People's Consultations list are one set of people.
+ */
+declare function dealStageOf(r: {
+    consultedMs: number | null;
+    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+    consultAhead: {
+        startMs: number;
+        allDay: boolean;
+    } | null;
+}, nowMs: number): DealStandingStage | null;
+/**
+ * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days with no
+ * proposal since (noProposalSince), the oldest first, a tie by name and then id, which is the order the Pipeline lists
+ * them in and Today names its first two. `consultedMs` is when their last visit, a consultation, ended; a row without
+ * a number there has no consultation to follow.
+ */
+declare function consultationsWithoutProposal<T extends {
+    id?: string;
+    name?: string;
+    consultedMs: number | null;
+    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
+}>(rows: readonly T[], nowMs: number): T[];
+/**
+ * Their count, in the one sentence the Pipeline's Consultations say it in and Today's row re-prints word for word:
+ * "2 held in the last week, no proposal yet". The week is the rule's own (CONSULT_FOLLOW_DAYS).
+ */
+declare function consultsHeldWords(n: number): string;
+
+/**
+ * What a person said yes or no to, and who may send them what: the consent sources, the refusals, and the three
+ * predicates a broadcast, a playbook and a list read (mayReceive, whyNotReceive, saidYesTo). Moved whole from
+ * people.ts (Reach out Part 2.5); people/index.ts names it.
+ */
+
+interface PersonConsent {
+    state: "unknown" | "opted_in" | "opted_out";
+    dnc: boolean;
+    label: string;
+    /** The answer in its control's words: "Yes", "Not asked" or "No". */
+    answerLabel: "Yes" | "Not asked" | "No";
+    sub: string;
+    /** How the answer was given, raw: in_person | phone | form | customer_message | operator | null. */
+    source: string | null;
+    /**
+     * The OTHER answer: offers, specifically.
+     *
+     * Separate because the carriers require it separate (error 30913) and because
+     * the two mean different things -- a person can want to hear about their own
+     * appointment and not want to hear about a sale. An opt-out or a do-not-call
+     * on the main answer overrides this one; the reverse does not.
+     */
+    marketing: "unknown" | "opted_in" | "opted_out";
+    marketingSource: string | null;
+    /** One line for the person's profile: what they said about offers, and when. */
+    marketingSub: string;
+    /** The offers answer in a word, as People's Offers column says it: Yes, No or Not asked. */
+    marketingLabel: string;
+}
+/**
+ * How a customer's answer about marketing messages was given. The ingest
+ * writes 'customer_message' for STOP and START; a person at the desk picks
+ * one of these four. 'operator' is the reset to "not asked" and is never
+ * offered as a source.
+ */
+declare const CONSENT_SOURCES: readonly {
+    id: string;
+    label: string;
+}[];
+declare const CONSENT_RESET_SOURCE = "operator";
+/**
+ * The carrier's report of a STOP we never heard: a text refused with Twilio
+ * 21610, the person having replied STOP to the number before it reached us. A
+ * source the ledger holds and the send door writes (core deliver.ts), never
+ * one a member is offered -- no member heard this answer, the carrier did.
+ */
+declare const CARRIER_CONSENT_SOURCE = "carrier";
+/**
+ * The ways a yes to OFFERS may have been given: in writing, and only in writing.
+ *
+ * Promotional texts need the customer's express WRITTEN consent. The carriers
+ * refuse a campaign whose opt-in "relies on verbal consent instead of written
+ * consent" -- Twilio lists it among the causes of error 30913 -- and CTIA's
+ * principles require written consent for marketing. So a yes to offers is a
+ * sign-up form the customer signed, or their own message; a spoken yes, in person
+ * or on the phone, is a yes to messages about their visit and nothing more.
+ *
+ * 00095 said this in its own comment ("both are express written consent") while
+ * its check let a spoken yes through. 00100 closes that in the database; this is
+ * the same rule for the route and the menus, so all three say one thing.
+ *
+ * Only the YES is narrowed. A "no more offers" is honoured however it is said.
+ */
+declare const OFFERS_YES_SOURCES: readonly string[];
+/** Why a yes to offers given this way cannot be recorded -- or null when it can. */
+declare function offersYesRefusal(source: string | null | undefined): string | null;
+/**
+ * "Their own message" names the message (00137).
+ *
+ * A desk could record an answer "in their own message" with nothing behind it:
+ * both doors took the source from any signed-in member, and the ledger then
+ * said a customer had written something nobody had looked for. When the
+ * conversation is in Chanlytics the desk now names the message they sent, and
+ * the door copies its id and words into the evidence. An answer given
+ * somewhere Chanlytics does not see is a sign-up form, with a note saying where.
+ *
+ * The database says these sentences too, so a refusal reads the same whichever
+ * of the two gives it; their-own-message.db.test.mjs holds the two equal.
+ */
+declare const OWN_MESSAGE_REFUSALS: {
+    /** Their own message, with no message named. */
+    readonly missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.";
+    /** The message named is not one this person sent this workspace. */
+    readonly notTheirs: "That isn't a message this person sent you. Choose one of theirs.";
+    /** The message named has nothing written in it. */
+    readonly wordless: "That message has no words in it to show their answer. Choose the one where they said it.";
+    /** A message named beside another way of answering. */
+    readonly notOwnMessage: "Only an answer in their own message names a message.";
+    /** Their own message, for many people at once: one message cannot be every person's. */
+    readonly batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form.";
+};
+/** Why an answer given this way cannot be recorded with this message -- or null when it can. */
+declare function ownMessageRefusal(source: string | null | undefined, messageId: string | null | undefined): string | null;
+/** The words for a source; the reset has none, the carrier's report its own, an unknown one is shown as itself. */
+declare function consentSourceLabel(source: string | null | undefined): string | null;
+/**
+ * May a message of this purpose reach this person? A number to send to, and the
+ * yes THIS message needs.
+ *
+ * IT LIVES HERE, beside `consentOf`, because it is a question about a person, and
+ * because this module's own lists were answering it by hand. `offers_ok` and
+ * `peopleListAction` each spelled "said yes to offers" as a bare
+ * `consent.marketing === "opted_in"` -- no phone check -- while the broadcast route
+ * enrolled with this. So a list could promise "4 said yes to offers -- a broadcast
+ * reaches them" about people with no number the route would then leave out. It was
+ * one rule in the commit message and three in the code.
+ *
+ * ONE RULE, NOT TWO. This used to restate `mayMessageFor`'s logic by hand,
+ * because the two sides of one pipeline hold the person in two different shapes:
+ * the route and the page hold a `PersonRowVM`, the send job holds the database
+ * row. Two hand-written copies of a consent rule is the thing this file's own
+ * header calls a defect, and it duly drifted -- the enrolment half asked for
+ * marketing consent while the sending half asked what the template implied. So
+ * the shape is adapted here and the QUESTION is answered in exactly one place.
+ *
+ * `proactive` is always true: a broadcast starts a conversation. Nobody wrote to
+ * us to ask for it.
+ *
+ * THE PURPOSE IS REQUIRED, and that is the fix rather than a detail of it. It
+ * used to default to marketing, described as "the safe answer for a caller that
+ * has not thought about it" -- and every caller but one then failed to think
+ * about it, so a utility message was refused to the very people migration 00095
+ * exists to reach. A default cannot be audited; a required argument is checked
+ * by the compiler at every call site, the way `businessRecordProblems` requires
+ * its registration path.
+ */
+declare function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): boolean;
+/**
+ * Why a broadcast may not reach this person, or null when it may: the same one
+ * rule as `mayReceive`, with its answer kept. A run that leaves someone out can
+ * then say which of three things it was -- no number to send to, a stop (asked
+ * to, or on the do-not-contact list), or never having said yes -- instead of
+ * one count that hides the one an owner can do something about.
+ */
+type NotReceived = "no_number" | "stopped" | "no_yes";
+declare function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): NotReceived | null;
+/**
+ * Whether this person's yes covers a message of this purpose, a number to send it to aside: the half of
+ * `mayReceive` that is an answer they gave. When nobody on a list can be sent a thing and somebody on it said yes,
+ * what is missing is a number, not an answer -- and asking them for their yes asks for one they already gave.
+ */
+declare function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: AskedPurpose): boolean;
+
+/**
  * A call on the wire: the call DTO, whether an inbound caller left with nothing (`abandonedCall`), and why a
  * call ended, in the owner's words. The call's row is call-vm.ts; Live and Today read these too.
  */
@@ -7347,221 +7322,6 @@ interface ConversationDto {
  *  ./consent so the view model and every send path cannot disagree. */
 declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
 
-/**
- * Consultations, the step before a deal (0008): which consult-first service a calendar title names, whether a
- * consultation has had no proposal since, and where a person stands on the way to a deal (dealStageOf), the one
- * rule the Pipeline's groups and People's deal lists both read.
- */
-
-/** A consultation this recent with no proposal after it is the next step to take. */
-declare const CONSULT_FOLLOW_DAYS = 7;
-/**
- * The consult-first service a calendar title names, as Settings spells it: what a proposal started from that
- * consultation is for (0008). The longest name the title holds, so "Kitchen remodel" wins over "Remodel"; null where
- * it names none. The fold is availability's.
- */
-declare function consultServiceOf(title: string | null | undefined, services: readonly {
-    name: string;
-}[] | undefined, rules: ConsultRules | null | undefined): string | null;
-/** A calendar title that is a consultation: it says so, or it names a consult-first service (consultServiceOf). */
-declare function isConsultationTitle(title: string | null | undefined, services: readonly {
-    name: string;
-}[] | undefined, rules: ConsultRules | null | undefined): boolean;
-/**
- * Whether a consultation that ended at `endedMs` has had no proposal since (0008), given the person's deal: none on
- * file, or one that passed or ended before it, which the consultation then began again. An open deal has had its
- * proposal; a pass or an end at or after the consultation answered one. The one rule for the step not taken, which
- * the week's count (consultationsWithoutProposal) and the Calendar's peek (calendarPeekDeal) both ask.
- */
-declare function noProposalSince(deal: Pick<DealVM, "stage" | "sinceMs"> | null | undefined, endedMs: number): boolean;
-/**
- * One person's consultation waits on the business (0008): it ended in the last CONSULT_FOLLOW_DAYS days and no proposal
- * came after it (noProposalSince). The one row-level rule the week's count (consultationsWithoutProposal) and the deal
- * stage a list reads (dealStageOf) both ask.
- */
-declare function consultationHeld(r: {
-    consultedMs: number | null;
-    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
-}, nowMs: number): boolean;
-/** Where a person stands on the way to a deal, as the Pipeline groups them: a consultation, or their deal's stage. */
-type DealStandingStage = "consultation" | DealStage;
-/**
- * Which of the Pipeline's groups a person is in (pipeline.ts pipelineOf), and so what a list's deal stage fact reads
- * (decision 0009): a consultation held with no proposal since, then a proposal out or a client, then a consultation
- * ahead of someone with nothing open (something new begins, whatever they passed on or ended before), then the stage of
- * a deal that passed or ended. Null for someone with none of these. One rule, so the Pipeline's Consultations and
- * People's Consultations list are one set of people.
- */
-declare function dealStageOf(r: {
-    consultedMs: number | null;
-    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
-    consultAhead: {
-        startMs: number;
-        allDay: boolean;
-    } | null;
-}, nowMs: number): DealStandingStage | null;
-/**
- * The next step nobody has taken (0008): a consultation that ended in the last CONSULT_FOLLOW_DAYS days with no
- * proposal since (noProposalSince), the oldest first, a tie by name and then id, which is the order the Pipeline lists
- * them in and Today names its first two. `consultedMs` is when their last visit, a consultation, ended; a row without
- * a number there has no consultation to follow.
- */
-declare function consultationsWithoutProposal<T extends {
-    id?: string;
-    name?: string;
-    consultedMs: number | null;
-    deal: Pick<DealVM, "stage" | "sinceMs"> | null;
-}>(rows: readonly T[], nowMs: number): T[];
-/**
- * Their count, in the one sentence the Pipeline's Consultations say it in and Today's row re-prints word for word:
- * "2 held in the last week, no proposal yet". The week is the rule's own (CONSULT_FOLLOW_DAYS).
- */
-declare function consultsHeldWords(n: number): string;
-
-/**
- * What a person said yes or no to, and who may send them what: the consent sources, the refusals, and the three
- * predicates a broadcast, a playbook and a list read (mayReceive, whyNotReceive, saidYesTo). Moved whole from
- * people.ts (Reach out Part 2.5), which re-exports it.
- */
-
-interface PersonConsent {
-    state: "unknown" | "opted_in" | "opted_out";
-    dnc: boolean;
-    label: string;
-    /** The answer in its control's words: "Yes", "Not asked" or "No". */
-    answerLabel: "Yes" | "Not asked" | "No";
-    sub: string;
-    /** How the answer was given, raw: in_person | phone | form | customer_message | operator | null. */
-    source: string | null;
-    /**
-     * The OTHER answer: offers, specifically.
-     *
-     * Separate because the carriers require it separate (error 30913) and because
-     * the two mean different things -- a person can want to hear about their own
-     * appointment and not want to hear about a sale. An opt-out or a do-not-call
-     * on the main answer overrides this one; the reverse does not.
-     */
-    marketing: "unknown" | "opted_in" | "opted_out";
-    marketingSource: string | null;
-    /** One line for the person's profile: what they said about offers, and when. */
-    marketingSub: string;
-    /** The offers answer in a word, as People's Offers column says it: Yes, No or Not asked. */
-    marketingLabel: string;
-}
-/**
- * How a customer's answer about marketing messages was given. The ingest
- * writes 'customer_message' for STOP and START; a person at the desk picks
- * one of these four. 'operator' is the reset to "not asked" and is never
- * offered as a source.
- */
-declare const CONSENT_SOURCES: readonly {
-    id: string;
-    label: string;
-}[];
-declare const CONSENT_RESET_SOURCE = "operator";
-/**
- * The carrier's report of a STOP we never heard: a text refused with Twilio
- * 21610, the person having replied STOP to the number before it reached us. A
- * source the ledger holds and the send door writes (core deliver.ts), never
- * one a member is offered -- no member heard this answer, the carrier did.
- */
-declare const CARRIER_CONSENT_SOURCE = "carrier";
-/**
- * The ways a yes to OFFERS may have been given: in writing, and only in writing.
- *
- * Promotional texts need the customer's express WRITTEN consent. The carriers
- * refuse a campaign whose opt-in "relies on verbal consent instead of written
- * consent" -- Twilio lists it among the causes of error 30913 -- and CTIA's
- * principles require written consent for marketing. So a yes to offers is a
- * sign-up form the customer signed, or their own message; a spoken yes, in person
- * or on the phone, is a yes to messages about their visit and nothing more.
- *
- * 00095 said this in its own comment ("both are express written consent") while
- * its check let a spoken yes through. 00100 closes that in the database; this is
- * the same rule for the route and the menus, so all three say one thing.
- *
- * Only the YES is narrowed. A "no more offers" is honoured however it is said.
- */
-declare const OFFERS_YES_SOURCES: readonly string[];
-/** Why a yes to offers given this way cannot be recorded -- or null when it can. */
-declare function offersYesRefusal(source: string | null | undefined): string | null;
-/**
- * "Their own message" names the message (00137).
- *
- * A desk could record an answer "in their own message" with nothing behind it:
- * both doors took the source from any signed-in member, and the ledger then
- * said a customer had written something nobody had looked for. When the
- * conversation is in Chanlytics the desk now names the message they sent, and
- * the door copies its id and words into the evidence. An answer given
- * somewhere Chanlytics does not see is a sign-up form, with a note saying where.
- *
- * The database says these sentences too, so a refusal reads the same whichever
- * of the two gives it; their-own-message.db.test.mjs holds the two equal.
- */
-declare const OWN_MESSAGE_REFUSALS: {
-    /** Their own message, with no message named. */
-    readonly missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.";
-    /** The message named is not one this person sent this workspace. */
-    readonly notTheirs: "That isn't a message this person sent you. Choose one of theirs.";
-    /** The message named has nothing written in it. */
-    readonly wordless: "That message has no words in it to show their answer. Choose the one where they said it.";
-    /** A message named beside another way of answering. */
-    readonly notOwnMessage: "Only an answer in their own message names a message.";
-    /** Their own message, for many people at once: one message cannot be every person's. */
-    readonly batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form.";
-};
-/** Why an answer given this way cannot be recorded with this message -- or null when it can. */
-declare function ownMessageRefusal(source: string | null | undefined, messageId: string | null | undefined): string | null;
-/** The words for a source; the reset has none, the carrier's report its own, an unknown one is shown as itself. */
-declare function consentSourceLabel(source: string | null | undefined): string | null;
-/**
- * May a message of this purpose reach this person? A number to send to, and the
- * yes THIS message needs.
- *
- * IT LIVES HERE, beside `consentOf`, because it is a question about a person, and
- * because this module's own lists were answering it by hand. `offers_ok` and
- * `peopleListAction` each spelled "said yes to offers" as a bare
- * `consent.marketing === "opted_in"` -- no phone check -- while the broadcast route
- * enrolled with this. So a list could promise "4 said yes to offers -- a broadcast
- * reaches them" about people with no number the route would then leave out. It was
- * one rule in the commit message and three in the code.
- *
- * ONE RULE, NOT TWO. This used to restate `mayMessageFor`'s logic by hand,
- * because the two sides of one pipeline hold the person in two different shapes:
- * the route and the page hold a `PersonRowVM`, the send job holds the database
- * row. Two hand-written copies of a consent rule is the thing this file's own
- * header calls a defect, and it duly drifted -- the enrolment half asked for
- * marketing consent while the sending half asked what the template implied. So
- * the shape is adapted here and the QUESTION is answered in exactly one place.
- *
- * `proactive` is always true: a broadcast starts a conversation. Nobody wrote to
- * us to ask for it.
- *
- * THE PURPOSE IS REQUIRED, and that is the fix rather than a detail of it. It
- * used to default to marketing, described as "the safe answer for a caller that
- * has not thought about it" -- and every caller but one then failed to think
- * about it, so a utility message was refused to the very people migration 00095
- * exists to reach. A default cannot be audited; a required argument is checked
- * by the compiler at every call site, the way `businessRecordProblems` requires
- * its registration path.
- */
-declare function mayReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): boolean;
-/**
- * Why a broadcast may not reach this person, or null when it may: the same one
- * rule as `mayReceive`, with its answer kept. A run that leaves someone out can
- * then say which of three things it was -- no number to send to, a stop (asked
- * to, or on the do-not-contact list), or never having said yes -- instead of
- * one count that hides the one an owner can do something about.
- */
-type NotReceived = "no_number" | "stopped" | "no_yes";
-declare function whyNotReceive(r: Pick<PersonRowVM, "consent" | "phone">, purpose: AskedPurpose): NotReceived | null;
-/**
- * Whether this person's yes covers a message of this purpose, a number to send it to aside: the half of
- * `mayReceive` that is an answer they gave. When nobody on a list can be sent a thing and somebody on it said yes,
- * what is missing is a number, not an answer -- and asking them for their yes asks for one they already gave.
- */
-declare function saidYesTo(r: Pick<PersonRowVM, "consent">, purpose: AskedPurpose): boolean;
-
 /** One note on a person, as the person read sends it (0007, 00157): its words, who wrote it and when, who it is for. */
 interface PersonNoteDto {
     id: string;
@@ -7695,87 +7455,11 @@ declare const NOTE_REFUSALS: Record<string, string>;
 declare function personNotesVM(notes: readonly PersonNoteDto[] | null | undefined, tz: string, nowMs: number): PersonNoteVM[];
 
 /**
- * What a People list offers to do next (a broadcast to the ones who said yes, the step that gets more), and the
- * page's aggregates. Moved whole from people.ts (Reach out Part 2.5), which re-exports it.
+ * A person as the wire carries them: one People row (people_list, and what the API attaches to it), a person's page
+ * with everything it reads (identities, escalations, decisions, the runs that named them, the lead they were found
+ * as), and PersonCampaignVM, a run as that page draws it, beside the run it is drawn from. Types only: the row's
+ * view model is person-row.ts, the page's person-profile.ts.
  */
-
-interface PeopleListAction {
-    /** The sentence under the list: what the step reaches, or why it cannot yet. */
-    text: string;
-    /** The button's words. */
-    cta: string;
-    /** A route. */
-    to: string;
-    enabled: boolean;
-}
-/**
- * Where a person's yes to offers is got: Broadcasts' "Get their yes" section,
- * brought into view -- the QR for the desk, the phrase, the link for a bio, the
- * paper form.
- *
- * Five places said the fix was there -- "The phrase and the QR are on
- * Broadcasts" -- and none of them went there: two steps opened the TOP of
- * Broadcasts, where the composer is and the QR is below the fold, and three
- * printed the sentence beside a disabled button. One route, one spelling.
- */
-declare const GET_YES_ROUTE = "broadcasts/get-yes";
-/**
- * The obvious next step for a list, when it has one. A broadcast reaches
- * only a recorded yes, so the sentence says how many of the list said it,
- * and the button waits until someone has.
- *
- * WHICH yes it counts is the MARKETING one, because these steps all open the
- * composer on a promotional send (win them back, reach the quiet ones, run an
- * offer). Counting the conversational answer here promised an audience the
- * composer would then refuse -- the same mismatch, one screen earlier.
- */
-declare function peopleListAction(id: string, members: PersonRowVM[]): PeopleListAction | null;
-/**
- * A list kept by hand has one onward step: a broadcast to the people on it who said yes to offers. The same
- * sentence and the same rule as a smart list's broadcast step, so the two kinds of list read alike on People,
- * which is where both live now (the Lists page folded into it).
- */
-declare function savedListAction(id: string, members: PersonRowVM[]): PeopleListAction;
-/**
- * Why nobody can be sent a thing when somebody said the yes it needs: what a broadcast reaches. The reason in
- * `noNumberWords`, and the arithmetic under Today's reach row (today-leaks.ts todayLeaks), in one spelling.
- */
-declare const NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
-/**
- * Nobody on a list can be sent this, and somebody on it said yes: what is missing is a number to send it to. People's
- * list step says it of a list (#663) and the send screen of the audience it has open -- `who` is "this list" or the
- * audience's name -- so the two say it in one spelling.
- */
-declare function noNumberWords(who: string, purpose: AskedPurpose): string;
-/**
- * How many on an audience said yes to what a message needs, as the send screen's line under the audience says it.
- * The number is who it reaches (`sending`: a yes and a number), in the shorthand People's list step uses ("N of M on
- * this list said yes to offers — a broadcast reaches them") -- except when that is 0 and somebody DID say yes
- * (`saidYes`, audiencePreview's): "0 people … said yes" stood over `noNumberWords` and was false, so it says how many
- * did, and what they are missing.
- */
-declare function saidYesWords(who: string, purpose: AskedPurpose, sending: number, saidYes: number): string;
-interface PeopleAggregates {
-    total: number;
-    needsYou: number;
-    needsYouOldestMs: number | null;
-    /** First contact within 30 days, by evidence. */
-    newThisMonth: number;
-    /** Any message or call within 7 days. */
-    reachedWeek: number;
-    reachedWeekNew: number;
-    /** An appointment ahead on the calendar. */
-    booked: number;
-    /** Wrote or called this month; the calendar has never had them. */
-    askedNotBooked: number;
-}
-declare function peopleAggregates(rows: PersonRowVM[], nowMs: number): PeopleAggregates;
-/** Days since last contact, bucketed — the honest replacement for the
- *  mockup's temperature strip. */
-declare function recencyCells(rows: PersonRowVM[], nowMs: number): {
-    label: string;
-    count: number;
-}[];
 
 /** One row of `people_list(tenant, contact?)`. Every column is nullable on
  *  the wire (RETURNS TABLE), so readers coalesce. */
@@ -7975,6 +7659,7 @@ interface PersonCampaignVM {
     /** The run's own report. */
     to: string;
 }
+
 /** What an owner may set for one person: answer, ask first, or stay out. */
 type PersonMode = "auto" | "ask" | "never";
 declare const PERSON_MODES: readonly PersonMode[];
@@ -7986,6 +7671,87 @@ declare const PERSON_MODE_LABELS: Record<PersonMode, string>;
  */
 declare const PERSON_MODE_WORDS: Record<PersonMode | "inherit", string>;
 declare function asPersonMode(s: string | null | undefined): PersonMode | null;
+type ReceptionistTone = "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent";
+interface PersonReceptionist {
+    tone: ReceptionistTone;
+    label: string;
+}
+
+declare function reasonShort(reason: string | null | undefined): string;
+/** "just now" · "5m ago" · "3h ago" · "2d ago", the business's date past a week — the one family (time.ts, clock.ts). */
+declare function ago(ms: number, tz: string, nowMs: number): string;
+interface PersonLastContact {
+    ts: number | null;
+    at: string | null;
+    kind: "message" | "call" | null;
+    who: "they" | "receptionist" | "you" | "system" | null;
+    /** "They wrote · 2h ago" */
+    label: string;
+}
+interface PersonFirstContact {
+    ts: number | null;
+    /** "Jul 14", "Before Aug 27", or "—" */
+    label: string;
+    /** True when the only history is an undated import: we know a floor, not a date. */
+    estimate: boolean;
+    /** True when this date may count as "new" (no imported history). */
+    evidence: boolean;
+}
+
+/**
+ * Who has a thread — decided once.
+ *
+ * Three surfaces used to answer this three ways. The Inbox counted a paused
+ * thread with an open escalation as "needs you"; People counted the same
+ * pause as ownership and called it "waiting on you"; Today counted every open
+ * escalation, including the ones a person had already taken over. One word,
+ * three numbers. Everything below reads this function, so a thread has one
+ * standing wherever it is shown.
+ *
+ *   needs_you  flagged for a person, and nobody has it
+ *   yours      flagged, and you have it — you took it, or you replied and the
+ *              receptionist paused for you
+ *   theirs     flagged, and a teammate has it
+ *   snoozed    put aside until it wakes; whatever it was waits with it
+ *   quiet      nothing open — the receptionist is answering, or nothing is
+ *              happening
+ */
+interface StandingInput {
+    /** The conversation's state column. */
+    state: string;
+    paused_until?: string | null;
+    assignee_user_id?: string | null;
+    /** Unknown (undefined) reads as "mine": a row that cannot say whose claim it is does not accuse a teammate. */
+    assignee_is_me?: boolean | null;
+    /** An escalation row still open on the thread. */
+    open_escalation: boolean;
+}
+type Standing = "needs_you" | "yours" | "theirs" | "snoozed" | "quiet";
+interface StandingVerdict {
+    standing: Standing;
+    /** Something asked for a person: an open escalation, the needs_human state, or a live pause. */
+    flagged: boolean;
+    /** The receptionist is paused on this thread right now. */
+    paused: boolean;
+    /** You have it. */
+    takenOver: boolean;
+    /** A teammate has it. */
+    claimedByOther: boolean;
+}
+declare function standingOf(i: StandingInput, nowMs: number): StandingVerdict;
+/**
+ * A reply counting down to send waits on you while it can still be stopped: after its seconds it goes in your name.
+ * One rule for the Inbox's Needs you, its buckets and the sidebar's badge (through the shell's courier, inbox.jsx
+ * ixSending) and for People's Needs you. The Inbox knows the reply's deadline (`endsAtMs`) and whether this tab held it;
+ * People knows only that one is queued, which it is exactly while it can still be stopped. It lived in inbox.jsx, and
+ * People counted a thread the Inbox said waited on you as not waiting on anyone.
+ */
+declare function replyWaitsOnYou(r: {
+    endsAtMs?: number | null;
+    queued?: boolean;
+    held?: boolean;
+}, nowMs: number): boolean;
+
 type PersonState = "needs_you" | "waiting_on_you" | "opted_out" | "new" | "quiet" | "active" | "unheard";
 declare const PERSON_STATE_LABELS: Record<PersonState, string>;
 /** The list's tabs: the states, in the order the rule evaluates them. */
@@ -7997,73 +7763,6 @@ declare const PEOPLE_TABS: readonly {
 declare const NEW_WINDOW_DAYS = 7;
 /** Heard from, then nothing from them for more than this many days, is "quiet" (Quiet 30+ days' rule). */
 declare const QUIET_AFTER_DAYS = 30;
-declare function reasonShort(reason: string | null | undefined): string;
-/** "just now" · "5m ago" · "3h ago" · "2d ago", the business's date past a week — the one family (time.ts, clock.ts). */
-declare function ago(ms: number, tz: string, nowMs: number): string;
-
-/**
- * What the booking-link button says, by the wire a reply goes out on.
- *
- * Nothing is sent from the button: it opens the thread with the link ready in
- * the composer, or, where WhatsApp's window has shut, lets the thread offer the
- * approved template. Three pages carried their own two-way copy of these words,
- * so on an email-only person they read "Text the booking link" -- and before
- * the window was channel-aware, "Send the booking-link template", a template
- * that person cannot receive. `ready` is whether the composer may be filled.
- */
-declare function bookingLinkAction(replyVia: "WhatsApp" | "Text" | "Email" | null, win: {
-    open: boolean;
-    hoursLeft: number;
-} | null): {
-    label: string;
-    title: string;
-    ready: boolean;
-};
-/** The owner's proposal for a person (00154), for the page: the address, where it lives, and whether it went out. */
-interface PersonProposalVM {
-    url: string;
-    host: string;
-    /** The newest message that carried the address and went out: when, and on which wire. */
-    sent: {
-        at: string;
-        via: string | null;
-    } | null;
-}
-/** The words the one-step send carries into the composer — once, for the page and the thread. */
-declare function proposalMessage(url: string): string;
-/**
- * What the send-the-proposal button says, by the wire a reply goes out on:
- * bookingLinkAction's twin. Nothing is sent from the button: it opens the
- * thread with the address ready in the composer. There is no template for a
- * proposal, so where WhatsApp's window has shut there is no button (`ready`
- * false) -- the About rail's Replies row already says why. "again" once
- * the address has gone out, so the page says what it knows without a second line.
- */
-declare function proposalAction(replyVia: "WhatsApp" | "Text" | "Email" | null, win: {
-    open: boolean;
-    hoursLeft: number;
-} | null, sentWords: string | null): {
-    label: string;
-    title: string;
-    ready: boolean;
-};
-/**
- * What a reply to them may be, in the owner's words: the person page's Replies and the Pipeline peek's, one sentence.
- * WhatsApp takes any message for a day after they last wrote, and after that only a message WhatsApp approved ahead
- * of time; a text or an email goes any time. It said "Reply window · Closed · template only", and before it was
- * channel-aware it said so to a person who had only ever emailed. Null with no wire a reply goes out on.
- */
-declare function repliesWords(via: "WhatsApp" | "Text" | "Email" | null, window: {
-    open: boolean;
-    hoursLeft: number;
-} | null): string | null;
-/** A row's came_from in words, or null: nothing known, a row read before 00138, or a value this build does not know. */
-declare function cameFromOf(r: {
-    came_from?: string | null;
-}): {
-    key: PersonCameFrom;
-    label: string;
-} | null;
 type StandingRow = Pick<PersonRowDto, "latest_state" | "latest_paused_until" | "latest_assignee_user_id" | "needs_human" | "open_escalation_reason">;
 /**
  * The latest thread's standing, from the one rule every surface reads (standing.ts), for `viewerId` when someone is
@@ -8086,28 +7785,14 @@ declare function isOwned(r: StandingRow, nowMs: number): boolean;
  * heard from, quiet by Quiet 30+ days' rule, else active. Days are the workspace's own dates (`tz`).
  */
 declare function personStateFor(r: PersonRowDto, nowMs: number, tz: string, viewerId?: string | null): PersonState;
-interface PersonLastContact {
-    ts: number | null;
-    at: string | null;
-    kind: "message" | "call" | null;
-    who: "they" | "receptionist" | "you" | "system" | null;
-    /** "They wrote · 2h ago" */
+
+/** A row's came_from in words, or null: nothing known, a row read before 00138, or a value this build does not know. */
+declare function cameFromOf(r: {
+    came_from?: string | null;
+}): {
+    key: PersonCameFrom;
     label: string;
-}
-interface PersonFirstContact {
-    ts: number | null;
-    /** "Jul 14", "Before Aug 27", or "—" */
-    label: string;
-    /** True when the only history is an undated import: we know a floor, not a date. */
-    estimate: boolean;
-    /** True when this date may count as "new" (no imported history). */
-    evidence: boolean;
-}
-type ReceptionistTone = "answering" | "escalated" | "queued" | "snoozed" | "paused" | "silent";
-interface PersonReceptionist {
-    tone: ReceptionistTone;
-    label: string;
-}
+} | null;
 interface PersonRowVM {
     id: string;
     real: true;
@@ -8252,19 +7937,6 @@ declare function visitTitleFor(title: string, name: string): string;
  * its words, and the facts a list's rule reads (list-rules.ts), each worked out once here in the workspace's own dates.
  */
 declare function toPersonRowVM(r: PersonRowDto, tz: string, now?: Date, viewerId?: string | null): PersonRowVM;
-/**
- * Whether the page may reach them at all: a conversation to write in, no stop, and no do-not-contact. It is not
- * whether free text can go now (proposalAction's and bookingLinkAction's `ready`): where WhatsApp takes only an
- * approved message, their thread offers one. Every send the page offers asks this one rule: the More menu's
- * (personActs) and the deal card's (deal-sheet.ts dealSendOf).
- */
-declare function mayReach(p: {
-    openThread: string | null;
-    consent: {
-        state: string;
-        dnc: boolean;
-    };
-}): boolean;
 
 /**
  * Who a broadcast is for: the audience kinds, who on it may receive, and the preview before sending. Moved whole from
@@ -10258,13 +9930,13 @@ declare const AskSettingsChangeSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
 }, z.core.$strip>, z.ZodObject<{
     op: z.ZodLiteral<"set_hours">;
     day: z.ZodEnum<{
+        sun: "sun";
         mon: "mon";
         tue: "tue";
         wed: "wed";
         thu: "thu";
         fri: "fri";
         sat: "sat";
-        sun: "sun";
     }>;
     open: z.ZodNullable<z.ZodString>;
     close: z.ZodNullable<z.ZodString>;
@@ -10822,6 +10494,150 @@ declare const PERSON_DETAIL_WORDS: {
     none: Record<DetailField, (shows: string | null) => string>;
 };
 
+/** Offset of `tz` from UTC at the instant `atMs`, in milliseconds. */
+declare function zoneOffsetMs(tz: string, atMs: number): number;
+/** The instant a wall-clock time in `tz` refers to. Two passes cover a DST edge. */
+declare function localToUtcMs(tz: string, y: number, m: number, d: number, hh: number, mm: number): number;
+/** The wall clock of an instant in `tz`. */
+declare function clockInZone(tz: string, atMs: number): {
+    hh: number;
+    mm: number;
+    ss: number;
+};
+/** "YYYY-MM-DD" and the weekday key ("mon".."sun") of an instant in `tz`. */
+declare function dayInZone(tz: string, atMs: number): {
+    key: string;
+    weekday: string;
+    y: number;
+    m: number;
+    d: number;
+};
+/** The weekday keys in the order getUTCDay() numbers them, which is Sunday first. */
+/** The days of the week by their number from Sunday (Date.getUTCDay, and Google's Point.day). */
+declare const WEEKDAY_KEYS: readonly ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+/**
+ * The local day `days` after the one `atMs` falls on -- BY THE CALENDAR, not by
+ * the clock.
+ *
+ * THE DEFECT THIS EXISTS FOR. Every one of these used to be written as
+ * `dayInZone(tz, now + n * 86_400_000)`: add a fixed number of milliseconds,
+ * then ask which local day that landed on. Two days a year that is not the
+ * next day. On 8 March 2026 New York loses an hour, so a customer asking at
+ * 23:30 the night before was offered 9 March next and **8 March was never
+ * offered at all**; on 1 November it gains one, so a read at 00:30 emitted
+ * 1 November twice and lost a day off the far end of the horizon. Nobody sees
+ * an error: the receptionist simply says the wrong days out loud.
+ *
+ * A calendar day is a count of days, so it is counted in days. The date is
+ * read in the business's zone, stepped over UTC midnights (which never shift),
+ * and handed back as a date -- no instant is carried across the boundary, so
+ * there is nothing for an hour to move. The RRULE expander below has always
+ * stepped this way, which is why a weekly appointment stays at 2 PM across a
+ * change and the offered days did not. `calendar.ts shiftKey` is the twin that
+ * steps a DATE to a date; this is the one that starts from an instant, which
+ * is where reading "now" went wrong.
+ */
+declare function dayPlusInZone(tz: string, atMs: number, days: number): {
+    key: string;
+    weekday: string;
+    y: number;
+    m: number;
+    d: number;
+};
+
+/**
+ * Read-only availability: what is open, from a calendar feed and the rules.
+ *
+ * The receptionist never books. It may SEE the calendar — the owner's
+ * appointments as an iCal feed, which every booking tool that syncs to
+ * Google, Apple or Outlook can produce (Booksy Biz syncs two-way with Google
+ * and Apple; Calendly, Square and the rest do the same) — subtract what is
+ * taken from the opening hours, apply the owner's booking rules, and say
+ * which windows are open before sending the booking link. The link is the
+ * only way anything gets booked, whatever provider stands behind it.
+ *
+ * Pure: the feed text comes in, the windows come out, nothing is fetched
+ * here. The edge fetches and caches; tests feed fixtures.
+ *
+ * This module holds the windows: the booking rules, the one reader of a day's hours (dayIntervals), the open
+ * times (freeWindows), the ones a caller asked about (filterOpenings) and the words the receptionist is told
+ * them in (describeOpenings). The feed is read in feed.ts and its text in ics-text.ts, the clock is
+ * zone-math.ts, and the service a caller means, and what it is offered as, is service-offer.ts.
+ */
+
+interface BookingRulesLike {
+    lead_hours?: number;
+    buffer_min?: number;
+    max_days_ahead?: number;
+    slot_min?: number;
+}
+interface Opening {
+    key: string;
+    /** "mon".."sun" in the business's zone. */
+    weekday: string;
+    /** "Tuesday, September 9" */
+    label: string;
+    windows: Array<{
+        start: number;
+        end: number;
+    }>;
+}
+interface FreeWindowsInput {
+    hours: Record<string, Hours | undefined> | undefined;
+    closures?: Closure[];
+    tz: string;
+    busy: BusyBlock[];
+    rules?: BookingRulesLike | null;
+    now: Date;
+}
+/** The booking rules a workspace has until it sets its own. */
+declare const BOOKING_DEFAULTS: {
+    lead_hours: number;
+    buffer_min: number;
+    max_days_ahead: number;
+    slot_min: number;
+};
+/**
+ * When a day is open, as one list of [open, close] spans.
+ *
+ * open/close and intervals are UNIONED, merged where they touch or overlap,
+ * and a span that runs backwards is dropped. This is the ONE reader: the
+ * prompt (config.ts), the free windows a caller is offered and the calendar
+ * board all read a day through it. It used to have two readers -- the prompt
+ * unioned the two, this one let intervals win -- so a row holding both could
+ * be described two ways, and "are you open at nine?" had two answers.
+ */
+declare function dayIntervals(h: Hours | undefined): Array<[string, string]>;
+declare function closedOn(closures: Closure[] | undefined, key: string): boolean;
+/**
+ * The open windows, day by day: opening hours minus what is taken (each
+ * taken block widened by the buffer), never earlier than now plus the lead
+ * time, never shorter than one slot, never on a closed date.
+ */
+declare function freeWindows(input: FreeWindowsInput): Opening[];
+/**
+ * The openings a caller actually asked about: one day (a date or a weekday
+ * name), and only windows long enough for the service they want. Days with
+ * nothing left are dropped.
+ */
+declare function filterOpenings(openings: Opening[], by: {
+    day?: string | null;
+    minMinutes?: number | null;
+}): Opening[];
+/**
+ * The openings as the receptionist is told them: a few days, the windows on
+ * each, and the rule that the calendar decides. Text on both channels; the
+ * phone agent reads it aloud in its own words.
+ *
+ * `hasBookingLink` is required: what follows an opening is the link, or for a
+ * business with none, the details the team needs (NO_LINK_DETAILS).
+ */
+declare function describeOpenings(openings: Opening[], tz: string, opts: {
+    maxDays?: number;
+    daysAhead?: number;
+    hasBookingLink: boolean;
+}): string;
+
 /** Only an address on the public internet, over https or http; webcal is https in a hat. Null when it is not one. */
 declare function feedUrlOk(raw: string | null | undefined): string | null;
 /**
@@ -10914,21 +10730,9 @@ declare function seasonHorizon(now: Date, daysAhead?: number): FeedHorizon;
 declare function previewHorizon(now: Date): FeedHorizon;
 
 /**
- * Calendar — the owner's calendar as the receptionist reads it.
- *
- * A viewer, never a scheduler: what the feed says is taken, the hours and
- * closures the business keeps, and the windows the receptionist would offer
- * a caller — the same windows the phone tool and the assistant compute
- * (availability.ts), so the page shows what callers are told. Nothing is
- * booked here; the booking link does that, whichever tool stands behind it.
- *
- * The DTO is what the route returns for one span of days; the view model is
- * what the page draws — a week or a day on the mockup's own geometry (hours
- * down, days across), a month of counts, or an agenda — with bands where
- * the business is closed, blocks where the calendar is taken, dashed
- * windows where it is open, and the words Settings gave it: the hours, the
- * closures ahead, the booking rules, the services and how long they take.
- * Pure; tests feed fixtures.
+ * What `GET /api/v1/calendar` returns for one span of days (CalendarWeekDto): each day's appointments and the
+ * windows the receptionist would offer, the feed's state, and the hours, closures, rules and services Settings
+ * keeps. The page's view model is made from it in calendar.ts.
  */
 
 interface CalendarItemDto {
@@ -11026,6 +10830,7 @@ interface CalendarWeekDto {
     days: CalendarDayDto[];
     error?: string;
 }
+
 /** The key `n` days after `key`. */
 declare function shiftKey(key: string, n: number): string;
 /** The Monday of the week `key` is in. */
@@ -11040,6 +10845,20 @@ declare function monthSpan(key: string): {
 declare function shiftMonth(key: string, n: number): string;
 /** "September 2026" */
 declare function monthLabelOf(key: string): string;
+/** Midnight of a day key in `tz`, as an instant. */
+/**
+ * Midnight of a day key, in the business's zone.
+ *
+ * ONE CLOCK, NOT TWO. This was a hand-written two-pass guess over a private
+ * `zoneOffsetOf`, which computed the same offset `zoneOffsetMs` in
+ * availability.ts already computed, by a different route — and the two passes
+ * were `localToUtcMs` spelled out again, in a file that already imported from
+ * that module. Daylight saving is the one piece of arithmetic in this product
+ * it is least affordable to have two of: a second copy does not fail, it
+ * disagrees, twice a year, about which hour a day starts.
+ */
+declare function zoneMidnight(tz: string, key: string): number;
+
 /** "9 AM", "2:30 PM". */
 declare function clockLabel(t: number): string;
 /**
@@ -11073,6 +10892,31 @@ declare function feedNotes(feed: Pick<CalendarFeedDto, "state" | "skipped_recurr
  * with half its hours said the prompt's "ask them to call" to the owner (C3).
  */
 declare function hoursLines(hours: Record<string, Hours | undefined> | null | undefined): string[];
+/** Something a read of the calendar left out, said so the owner can act on it. */
+interface CalendarFeedNoteVM {
+    id: "repeats" | "undrawn";
+    /** "2 repeating events count only once." */
+    title: string;
+    body: string;
+}
+/**
+ * The calendar feed's state, in the words the Calendar's pill, Connections and Setup all use (C3): the page drew a
+ * coloured dot where Connections said "Readable". `stale` is a read that landed before a refresh that didn't.
+ */
+declare const CALENDAR_FEED_WORDS: {
+    readonly ok: "Readable";
+    readonly stale: "Last good read";
+    readonly unavailable: "Could not be read";
+    readonly none: "Not connected";
+};
+type CalendarFeedHealth = keyof typeof CALENDAR_FEED_WORDS;
+
+/**
+ * The Calendar's view model (CalendarVM): the span the page draws, its days with their bands, blocks and open
+ * windows, the feed as the pill and the bar say it, and the hours, closures, rules and services beside them.
+ * Types only; calendar.ts builds it (toCalendarVM).
+ */
+
 interface CalendarBlockVM {
     id: string;
     /** Hours from midnight in the business's zone, fractional. */
@@ -11160,24 +11004,6 @@ interface CalendarClosureVM {
     label: string;
     note: string | null;
 }
-/** Something a read of the calendar left out, said so the owner can act on it. */
-interface CalendarFeedNoteVM {
-    id: "repeats" | "undrawn";
-    /** "2 repeating events count only once." */
-    title: string;
-    body: string;
-}
-/**
- * The calendar feed's state, in the words the Calendar's pill, Connections and Setup all use (C3): the page drew a
- * coloured dot where Connections said "Readable". `stale` is a read that landed before a refresh that didn't.
- */
-declare const CALENDAR_FEED_WORDS: {
-    readonly ok: "Readable";
-    readonly stale: "Last good read";
-    readonly unavailable: "Could not be read";
-    readonly none: "Not connected";
-};
-type CalendarFeedHealth = keyof typeof CALENDAR_FEED_WORDS;
 interface CalendarVM {
     timezone: string;
     /** "New York": the zone by the name Settings gives it (C3). */
@@ -11245,6 +11071,7 @@ interface CalendarVM {
     services: CalendarServiceVM[];
     bookingLink: string | null;
 }
+
 /**
  * The appointment's title with the person's name taken out of it, so a row that names them does not say them
  * twice: "Gloss · Emily Chen" beside Emily Chen is "Gloss". A salon writes the customer into the event title,
@@ -11261,19 +11088,7 @@ declare function serviceOf(title: string, personName: string | null | undefined)
  * days are past, the next open time and the closures ahead.
  */
 declare function toCalendarVM(dto: CalendarWeekDto, now?: Date): CalendarVM;
-/** Midnight of a day key in `tz`, as an instant. */
-/**
- * Midnight of a day key, in the business's zone.
- *
- * ONE CLOCK, NOT TWO. This was a hand-written two-pass guess over a private
- * `zoneOffsetOf`, which computed the same offset `zoneOffsetMs` in
- * availability.ts already computed, by a different route — and the two passes
- * were `localToUtcMs` spelled out again, in a file that already imported from
- * that module. Daylight saving is the one piece of arithmetic in this product
- * it is least affordable to have two of: a second copy does not fail, it
- * disagrees, twice a year, about which hour a day starts.
- */
-declare function zoneMidnight(tz: string, key: string): number;
+
 type CalendarView = "week" | "day" | "month" | "agenda";
 /** The days a view needs, from the day it looks at: a week (the day's week), six weeks for a month, two weeks for the agenda. */
 declare function spanForView(view: CalendarView, anchor: string): {
@@ -11556,13 +11371,13 @@ declare const BrainConfigSchema: z.ZodObject<{
     profile: z.ZodOptional<z.ZodObject<{
         address: z.ZodOptional<z.ZodString>;
         hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+            sun: "sun";
             mon: "mon";
             tue: "tue";
             wed: "wed";
             thu: "thu";
             fri: "fri";
             sat: "sat";
-            sun: "sun";
         }> & z.core.$partial, z.ZodObject<{
             open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
             close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -12676,9 +12491,9 @@ declare const BrainOutputSchema: z.ZodObject<{
         other: "other";
         booking: "booking";
         complaint: "complaint";
+        location: "location";
         hours: "hours";
         services: "services";
-        location: "location";
         pricing: "pricing";
         smalltalk: "smalltalk";
     }>>;
@@ -14681,6 +14496,82 @@ declare const PIPELINE_WORDS: {
  * groups hold only its rows, and the line stays the whole Pipeline's.
  */
 declare function pipelineOf<T extends PipelineSource>(rows: readonly T[], nowMs: number, tz: string, pace: DealPaceVM | null, view?: PipelineView): PipelineVM<T>;
+
+/**
+ * Whether and how a person may be reached from their page: the booking link's and the proposal's buttons by the wire
+ * a reply goes out on, what a reply may be in the owner's words, the words a proposal goes with, and the one rule
+ * every send the page offers asks (mayReach). It imports nothing; the row (person-row.ts), the page and the deal
+ * sheet read it.
+ */
+/**
+ * What the booking-link button says, by the wire a reply goes out on.
+ *
+ * Nothing is sent from the button: it opens the thread with the link ready in
+ * the composer, or, where WhatsApp's window has shut, lets the thread offer the
+ * approved template. Three pages carried their own two-way copy of these words,
+ * so on an email-only person they read "Text the booking link" -- and before
+ * the window was channel-aware, "Send the booking-link template", a template
+ * that person cannot receive. `ready` is whether the composer may be filled.
+ */
+declare function bookingLinkAction(replyVia: "WhatsApp" | "Text" | "Email" | null, win: {
+    open: boolean;
+    hoursLeft: number;
+} | null): {
+    label: string;
+    title: string;
+    ready: boolean;
+};
+/** The owner's proposal for a person (00154), for the page: the address, where it lives, and whether it went out. */
+interface PersonProposalVM {
+    url: string;
+    host: string;
+    /** The newest message that carried the address and went out: when, and on which wire. */
+    sent: {
+        at: string;
+        via: string | null;
+    } | null;
+}
+/** The words the one-step send carries into the composer — once, for the page and the thread. */
+declare function proposalMessage(url: string): string;
+/**
+ * What the send-the-proposal button says, by the wire a reply goes out on:
+ * bookingLinkAction's twin. Nothing is sent from the button: it opens the
+ * thread with the address ready in the composer. There is no template for a
+ * proposal, so where WhatsApp's window has shut there is no button (`ready`
+ * false) -- the About rail's Replies row already says why. "again" once
+ * the address has gone out, so the page says what it knows without a second line.
+ */
+declare function proposalAction(replyVia: "WhatsApp" | "Text" | "Email" | null, win: {
+    open: boolean;
+    hoursLeft: number;
+} | null, sentWords: string | null): {
+    label: string;
+    title: string;
+    ready: boolean;
+};
+/**
+ * What a reply to them may be, in the owner's words: the person page's Replies and the Pipeline peek's, one sentence.
+ * WhatsApp takes any message for a day after they last wrote, and after that only a message WhatsApp approved ahead
+ * of time; a text or an email goes any time. It said "Reply window · Closed · template only", and before it was
+ * channel-aware it said so to a person who had only ever emailed. Null with no wire a reply goes out on.
+ */
+declare function repliesWords(via: "WhatsApp" | "Text" | "Email" | null, window: {
+    open: boolean;
+    hoursLeft: number;
+} | null): string | null;
+/**
+ * Whether the page may reach them at all: a conversation to write in, no stop, and no do-not-contact. It is not
+ * whether free text can go now (proposalAction's and bookingLinkAction's `ready`): where WhatsApp takes only an
+ * approved message, their thread offers one. Every send the page offers asks this one rule: the More menu's
+ * (personActs) and the deal card's (deal-sheet.ts dealSendOf).
+ */
+declare function mayReach(p: {
+    openThread: string | null;
+    consent: {
+        state: string;
+        dnc: boolean;
+    };
+}): boolean;
 
 interface PersonRightNow {
     tone: ReceptionistTone;
@@ -18149,6 +18040,125 @@ declare function stepSheetDirty(draft: StepDraft, opened: StepDraft): boolean;
  * only what was typed here.
  */
 declare function stepSheetMerge(draft: StepDraft, opened: StepDraft, fresh: StepDraft): StepDraft;
+
+/** The fields a name is made from. Any of them may be missing; each is null or absent when it is. */
+interface NameableContact {
+    display_name?: string | null;
+    wa_profile_name?: string | null;
+    phone_e164?: string | null;
+    email?: string | null;
+}
+/**
+ * The fields a caller's name is made from: what the line showed, and the
+ * person the number is, when it is someone's. A call as the Calls page reads it
+ * (CallDto) is one. Declared here, not imported, so this file stays below
+ * everything that names a person.
+ */
+interface NameableCaller {
+    from_e164?: string | null;
+    from_raw?: string | null;
+    contact?: {
+        display_name?: string | null;
+        wa_profile_name?: string | null;
+    } | null;
+}
+/**
+ * The name a human typed, else their WhatsApp name, else their number, else
+ * their email address. "Unknown" is a person with none of them — never a person
+ * whose only identifier is an address.
+ */
+declare function personName(c: NameableContact | null | undefined): string;
+/**
+ * Who a call is with, as every call surface names them: the person's name when
+ * the number is someone's, else the number the phone showed, else what the line
+ * handed over raw; "Caller ID withheld" when it handed over nothing. The Calls
+ * page (toCallVM), Live (toLiveCallVM) and a call a citation names read it
+ * here, so the three cannot drift.
+ */
+declare function callerName(c: NameableCaller): string;
+
+/**
+ * What a People list offers to do next (a broadcast to the ones who said yes, the step that gets more), and the
+ * page's aggregates. Moved whole from people.ts (Reach out Part 2.5); people/index.ts names it.
+ */
+
+interface PeopleListAction {
+    /** The sentence under the list: what the step reaches, or why it cannot yet. */
+    text: string;
+    /** The button's words. */
+    cta: string;
+    /** A route. */
+    to: string;
+    enabled: boolean;
+}
+/**
+ * Where a person's yes to offers is got: Broadcasts' "Get their yes" section,
+ * brought into view -- the QR for the desk, the phrase, the link for a bio, the
+ * paper form.
+ *
+ * Five places said the fix was there -- "The phrase and the QR are on
+ * Broadcasts" -- and none of them went there: two steps opened the TOP of
+ * Broadcasts, where the composer is and the QR is below the fold, and three
+ * printed the sentence beside a disabled button. One route, one spelling.
+ */
+declare const GET_YES_ROUTE = "broadcasts/get-yes";
+/**
+ * The obvious next step for a list, when it has one. A broadcast reaches
+ * only a recorded yes, so the sentence says how many of the list said it,
+ * and the button waits until someone has.
+ *
+ * WHICH yes it counts is the MARKETING one, because these steps all open the
+ * composer on a promotional send (win them back, reach the quiet ones, run an
+ * offer). Counting the conversational answer here promised an audience the
+ * composer would then refuse -- the same mismatch, one screen earlier.
+ */
+declare function peopleListAction(id: string, members: PersonRowVM[]): PeopleListAction | null;
+/**
+ * A list kept by hand has one onward step: a broadcast to the people on it who said yes to offers. The same
+ * sentence and the same rule as a smart list's broadcast step, so the two kinds of list read alike on People,
+ * which is where both live now (the Lists page folded into it).
+ */
+declare function savedListAction(id: string, members: PersonRowVM[]): PeopleListAction;
+/**
+ * Why nobody can be sent a thing when somebody said the yes it needs: what a broadcast reaches. The reason in
+ * `noNumberWords`, and the arithmetic under Today's reach row (today-leaks.ts todayLeaks), in one spelling.
+ */
+declare const NO_NUMBER_REACH = "a broadcast reaches only a recorded yes with a number to send to";
+/**
+ * Nobody on a list can be sent this, and somebody on it said yes: what is missing is a number to send it to. People's
+ * list step says it of a list (#663) and the send screen of the audience it has open -- `who` is "this list" or the
+ * audience's name -- so the two say it in one spelling.
+ */
+declare function noNumberWords(who: string, purpose: AskedPurpose): string;
+/**
+ * How many on an audience said yes to what a message needs, as the send screen's line under the audience says it.
+ * The number is who it reaches (`sending`: a yes and a number), in the shorthand People's list step uses ("N of M on
+ * this list said yes to offers — a broadcast reaches them") -- except when that is 0 and somebody DID say yes
+ * (`saidYes`, audiencePreview's): "0 people … said yes" stood over `noNumberWords` and was false, so it says how many
+ * did, and what they are missing.
+ */
+declare function saidYesWords(who: string, purpose: AskedPurpose, sending: number, saidYes: number): string;
+interface PeopleAggregates {
+    total: number;
+    needsYou: number;
+    needsYouOldestMs: number | null;
+    /** First contact within 30 days, by evidence. */
+    newThisMonth: number;
+    /** Any message or call within 7 days. */
+    reachedWeek: number;
+    reachedWeekNew: number;
+    /** An appointment ahead on the calendar. */
+    booked: number;
+    /** Wrote or called this month; the calendar has never had them. */
+    askedNotBooked: number;
+}
+declare function peopleAggregates(rows: PersonRowVM[], nowMs: number): PeopleAggregates;
+/** Days since last contact, bucketed — the honest replacement for the
+ *  mockup's temperature strip. */
+declare function recencyCells(rows: PersonRowVM[], nowMs: number): {
+    label: string;
+    count: number;
+}[];
 
 interface AttentionRowVM {
     /** Where they last reached us: "WhatsApp" or "Phone"; null with no contact. */

@@ -5,7 +5,7 @@
  */
 import { leadAnd } from "../leads/leads";
 import { plural } from "../shared/words";
-import type { PersonCameFrom } from "../people/people";
+import type { PersonCameFrom } from "../people/person-words";
 import { isDealLostReason, type DealLostReason } from "./deal-words";
 import { amountTotalsWords, amountWords, type AmountFact } from "./deal-amount";
 import { yesWaitWords } from "./deal-waits";

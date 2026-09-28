@@ -2,7 +2,7 @@
  * The Pipeline's view model (0008): the shape of its groups, its rows with their chips, steps and next steps, and
  * the line over them. Types and the groups' order only; pipeline.ts builds it (pipelineOf).
  */
-import type { PersonRowVM } from "../../people/people";
+import type { PersonRowVM } from "../../people/person-row";
 import type { StepDue } from "../../notes/steps";
 import type { Tone } from "../../shell/tone";
 import type { DealPaceVM } from "../deal-waits";
