@@ -48861,11 +48861,12 @@ function noModelPlan(fallbacks) {
   };
 }
 
-// src/inbound/answer.ts
+// src/inbound/context.ts
 function errField(e) {
   return e instanceof Error ? `${e.name}: ${e.message}` : String(e);
 }
-async function answerInbound(input, ports) {
+var GO = /* @__PURE__ */ Symbol("go on");
+async function openInbound(input, ports) {
   const { message: n, raw, tenantId, routed, isEnvDefault, carrier } = input;
   const from = raw.from;
   const channel = carrier?.channel ?? "whatsapp";
@@ -48877,8 +48878,6 @@ async function answerInbound(input, ports) {
     runtimeUsable: !!rt && !rt.loadFailed,
     policyMode: rt?.policy["reply"]?.mode
   });
-  let replyMode = posture.replyMode;
-  let personMode = null;
   const brainCfg = rt?.brain ?? null;
   const fallbacks = brainCfg ? fallbackMessages(brainCfg, rt?.known) : null;
   const notif = rt?.notifications ?? null;
@@ -48887,26 +48886,55 @@ async function answerInbound(input, ports) {
   const maxRepliesDay = replyLimits.max_replies_day ?? MAX_REPLIES_PER_DAY;
   const pauseMs = replyLimits.pause_hours ? replyLimits.pause_hours * 3600 * 1e3 : PAUSE_MS;
   const pauseHours = Math.round(pauseMs / 36e5);
-  const recordOrSay = async () => {
-    try {
-      return await ports.persist.ingest(db, tenantId, n, channel);
-    } catch (e) {
-      if (e instanceof IngestFailed) {
-        try {
-          await ports.alertStaff(
-            from,
-            n.body ?? `[${raw.type} message]`,
-            "(NOT recorded: the database did not accept the message; the provider will retry)",
-            "message not recorded",
-            { target: notifyTarget, channel, who: n.profileName ?? null }
-          );
-        } catch (alertErr) {
-          L4.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
-        }
-      }
-      throw e;
-    }
+  return {
+    ports,
+    n,
+    raw,
+    tenantId,
+    isEnvDefault,
+    carrier,
+    from,
+    channel,
+    db,
+    t0,
+    L: L4,
+    rt,
+    posture,
+    brainCfg,
+    fallbacks,
+    notifyTarget,
+    replyLimits,
+    maxRepliesDay,
+    pauseMs,
+    pauseHours
   };
+}
+
+// src/inbound/ingest.ts
+async function ingestOrSay(cx) {
+  const { ports, db, tenantId, n, channel, from, raw, notifyTarget, L: L4 } = cx;
+  try {
+    return await ports.persist.ingest(db, tenantId, n, channel);
+  } catch (e) {
+    if (e instanceof IngestFailed) {
+      try {
+        await ports.alertStaff(
+          from,
+          n.body ?? `[${raw.type} message]`,
+          "(NOT recorded: the database did not accept the message; the provider will retry)",
+          "message not recorded",
+          { target: notifyTarget, channel, who: n.profileName ?? null }
+        );
+      } catch (alertErr) {
+        L4.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
+      }
+    }
+    throw e;
+  }
+}
+async function ingestMessage(cx) {
+  const { ports, n, tenantId, isEnvDefault, carrier, from, channel, db, t0, L: L4, rt, notifyTarget } = cx;
+  const recordOrSay = () => ingestOrSay(cx);
   if (shortCode(from)) {
     const ing2 = await recordOrSay();
     const sink2 = ports.persist.sink(db, tenantId, ing2, rt, channel);
@@ -48951,6 +48979,14 @@ async function answerInbound(input, ports) {
     L4.info("wa_skip_pg_dupe");
     return;
   }
+  return { ing, thread, ingestMs, sink, wire, send, tell };
+}
+
+// src/inbound/gates.ts
+async function modeInForce(cx, ing) {
+  const { db, tenantId, ports, posture, L: L4 } = cx;
+  let replyMode = posture.replyMode;
+  let personMode = null;
   if (db && tenantId && ing?.contact_id) {
     try {
       personMode = await ports.leads.personReplyMode(db, tenantId, ing.contact_id);
@@ -48959,6 +48995,10 @@ async function answerInbound(input, ports) {
       L4.warn("wa_person_mode_lookup_failed", { error: e instanceof Error ? e.message : String(e) });
     }
   }
+  return { replyMode, personMode };
+}
+async function firstGates(at) {
+  const { thread, L: L4, sink, tell, n, raw, ing, carrier } = at;
   if (isThreadUnknown(thread)) {
     L4.error("wa_state_unavailable");
     await Promise.all([
@@ -49031,6 +49071,12 @@ async function answerInbound(input, ports) {
     L4.info("wa_escalate_readable_nontext", { kind: n.kind });
     return;
   }
+  return GO;
+}
+
+// src/inbound/unreadable.ts
+function seeingOf(at) {
+  const { n, rt, brainCfg, replyMode, thread, send, fallbacks, personMode, pauseMs, sink, raw, tell, pauseHours, L: L4 } = at;
   const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type) && !!brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil;
   const sayUnreadable = async (pausedUntilNow) => {
     if (Date.now() <= pausedUntilNow) return 0;
@@ -49049,13 +49095,47 @@ async function answerInbound(input, ports) {
     L4.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
     return pausedUntil;
   };
+  return { maySee, sayUnreadable };
+}
+async function unreadableGate(at, seen) {
+  const { n, sink, thread } = at;
+  const { maySee, sayUnreadable } = seen;
   if (!maySee && (n.type !== "text" || !n.body)) {
     const media = sink.media(n);
     await sayUnreadable(thread.pausedUntil);
     await Promise.all([media, sink.processed()]);
     return;
   }
+  return GO;
+}
+function wordsOf(at, seen) {
+  const { n } = at;
+  const { maySee } = seen;
   const bodyText = maySee ? n.media?.caption?.trim() || "[photo]" : n.body ?? "";
+  return bodyText;
+}
+async function photoOf(at, seen) {
+  const { sink, n, L: L4, thread } = at;
+  const { maySee, sayUnreadable } = seen;
+  let photo = null;
+  if (maySee) {
+    const got = await sink.media(n);
+    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
+      photo = { mime: got.mime, base64: toBase64(got.bytes) };
+      L4.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
+    } else {
+      L4.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
+      await sayUnreadable(thread.pausedUntil);
+      await sink.processed();
+      return;
+    }
+  }
+  return { photo };
+}
+
+// src/inbound/reply-gates.ts
+async function lateOrConfirmed(at, bodyText) {
+  const { raw, sink, tell, n, L: L4, channel, brainCfg, rt, send } = at;
   const { ageMs, verdict: age } = ageVerdict(raw.timestamp ?? void 0);
   if (age === "stale") {
     await Promise.all([
@@ -49093,6 +49173,24 @@ async function answerInbound(input, ports) {
     });
     return;
   }
+  return GO;
+}
+async function heldForThePerson(at, bodyText) {
+  const {
+    thread,
+    maxRepliesDay,
+    L: L4,
+    sink,
+    tell,
+    replyLimits,
+    db,
+    tenantId,
+    ports,
+    rt,
+    brainCfg,
+    replyMode,
+    personMode
+  } = at;
   const gate = threadVerdict(thread, maxRepliesDay);
   if (gate === "paused") {
     L4.info("wa_skip_paused", { paused_until: thread.pausedUntil });
@@ -49161,19 +49259,30 @@ async function answerInbound(input, ports) {
     });
     return;
   }
-  let photo = null;
-  if (maySee) {
-    const got = await sink.media(n);
-    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
-      photo = { mime: got.mime, base64: toBase64(got.bytes) };
-      L4.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
-    } else {
-      L4.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
-      await sayUnreadable(thread.pausedUntil);
-      await sink.processed();
-      return;
+  return GO;
+}
+
+// src/inbound/model-turn.ts
+async function leadNoteFor(at) {
+  const { db, tenantId, from, ports, rt, L: L4 } = at;
+  let leadNote;
+  if (db && tenantId) {
+    try {
+      const e164 = from.startsWith("+") ? from : `+${from}`;
+      const lead = await ports.leads.read(db, tenantId, e164, 1);
+      leadNote = ports.leads.describe(lead, /* @__PURE__ */ new Date(), rt?.timezone ?? "UTC");
+      const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
+      if (visits) leadNote = `${leadNote}
+${visits}`;
+    } catch (e) {
+      L4.warn("lead_context_unavailable", { error: errField(e) });
     }
   }
+  return leadNote;
+}
+async function modelTurn(at, bodyText, photo) {
+  const { ports, db, rt, thread, n, fallbacks, L: L4 } = at;
+  const brainCfg = at.brainCfg;
   let replyText;
   let escalate;
   let escalationReason = "human_token";
@@ -49184,19 +49293,7 @@ async function answerInbound(input, ports) {
   if (ports.env.modelKey) {
     try {
       const { generateReply } = await ports.brain();
-      let leadNote;
-      if (db && tenantId) {
-        try {
-          const e164 = from.startsWith("+") ? from : `+${from}`;
-          const lead = await ports.leads.read(db, tenantId, e164, 1);
-          leadNote = ports.leads.describe(lead, /* @__PURE__ */ new Date(), rt?.timezone ?? "UTC");
-          const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;
-          if (visits) leadNote = `${leadNote}
-${visits}`;
-        } catch (e) {
-          L4.warn("lead_context_unavailable", { error: errField(e) });
-        }
-      }
+      const leadNote = await leadNoteFor(at);
       const openings = rt ? await ports.calendar.openings(rt) : null;
       const tBrain = Date.now();
       const r4 = await generateReply(
@@ -49259,6 +49356,13 @@ ${openings}` : ""}`,
       }
     }
   }
+  return { replyText, escalate, escalationReason, usage, brainMeta, fallback, brainMs, photo };
+}
+
+// src/inbound/dispatch.ts
+async function planTheHold(at, turn) {
+  const { replyMode, replyLimits, L: L4, ports, db, tenantId, ing, from, wire, channel } = at;
+  const { brainMeta, replyText, brainMs, escalate, photo } = turn;
   const plan = holdPlan(replyMode, replyLimits, brainMeta);
   const { delayMs, heldForConfidence } = plan;
   if (heldForConfidence)
@@ -49288,6 +49392,12 @@ ${openings}` : ""}`,
     escalate,
     photo: !!photo
   };
+  return { plan, delayMs, heldForConfidence, queued, replyQuality };
+}
+async function heldOrKept(at, turn, hold, bodyText) {
+  const { sink, pauseMs, tell, pauseHours, L: L4 } = at;
+  const { usage, brainMeta, replyText, escalate, escalationReason, fallback } = turn;
+  const { plan, delayMs, heldForConfidence, queued, replyQuality } = hold;
   if (delayMs > 0 && !queued) {
     await sink.vetoFallback(delayMs, plan.source);
   }
@@ -49334,6 +49444,12 @@ ${openings}` : ""}`,
     L4.info("wa_reply_queued", { delay_ms: delayMs, escalate });
     return;
   }
+  return GO;
+}
+async function sendNow(at, turn, hold, bodyText) {
+  const { send, sink, pauseMs, tell, pauseHours, L: L4, ingestMs } = at;
+  const { replyText, fallback, brainMeta, usage, escalate, escalationReason } = turn;
+  const { replyQuality } = hold;
   const sent = await send(
     replyText,
     fallback ? fallback.meta : brainMeta
@@ -49372,6 +49488,26 @@ ${openings}` : ""}`,
     ingest_ms: ingestMs,
     post_ms: Date.now() - tSent
   });
+}
+
+// src/inbound/answer.ts
+async function answerInbound(input, ports) {
+  const cx = await openInbound(input, ports);
+  const kept = await ingestMessage(cx);
+  if (!kept) return;
+  const at = { ...cx, ...kept, ...await modeInForce(cx, kept.ing) };
+  if (await firstGates(at) !== GO) return;
+  const seen = seeingOf(at);
+  if (await unreadableGate(at, seen) !== GO) return;
+  const bodyText = wordsOf(at, seen);
+  if (await lateOrConfirmed(at, bodyText) !== GO) return;
+  if (await heldForThePerson(at, bodyText) !== GO) return;
+  const shown = await photoOf(at, seen);
+  if (!shown) return;
+  const turn = await modelTurn(at, bodyText, shown.photo);
+  const hold = await planTheHold(at, turn);
+  if (await heldOrKept(at, turn, hold, bodyText) !== GO) return;
+  await sendNow(at, turn, hold, bodyText);
 }
 
 // src/booking-page.ts
