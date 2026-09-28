@@ -12996,6 +12996,21 @@ function posesAsReply(subject) {
   return ANSWER_OR_FORWARD.test(subject);
 }
 
+// src/reach-out/reach-out-hand.ts
+var HAND_KINDS = ["call", "note"];
+var HAND_WORDS_MAX = 280;
+function handOf(v) {
+  if (!v || typeof v !== "object") return null;
+  const h = v;
+  if (!HAND_KINDS.includes(h.kind) || typeof h.words !== "string") return null;
+  const words4 = h.words.trim();
+  return words4 ? { kind: h.kind, words: words4 } : null;
+}
+function handStepWords(kind, business, words4) {
+  const who = business.trim() || "This business";
+  return kind === "call" ? `Call ${who}: ${words4.trim()}` : `${who}: ${words4.trim()}`;
+}
+
 // src/reach-out/reach-out-words.ts
 var REACH_OUT_SLOTS = ["opening", "business", "city", "your name", "your business", "booking link"];
 var REACH_OUT_SLOT_WORDS = {
@@ -13159,7 +13174,9 @@ var ReachOutStepSchema = z14.object({
   id: z14.string().uuid().nullable().optional(),
   subject: z14.string().max(REACH_OUT_SUBJECT_MAX * 2).nullable(),
   body: z14.string().max(REACH_OUT_BODY_MAX * 2),
-  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable()
+  after_days: z14.number().int().min(REACH_OUT_AFTER_DAYS.min).max(REACH_OUT_AFTER_DAYS.max).nullable(),
+  /** A call or a note for the team instead of an email (Part 5, G20): the chain's last step only. */
+  hand: z14.object({ kind: z14.enum(HAND_KINDS), words: z14.string().max(HAND_WORDS_MAX * 2) }).nullable().optional()
 });
 var ReachOutChainSchema = z14.object({
   name: z14.string().trim().min(1).max(REACH_OUT_NAME_MAX),
@@ -13177,11 +13194,13 @@ var ReachOutChainSchema = z14.object({
 function validateReachOutChain(c, has3) {
   const out = [];
   c.steps.forEach((s, i) => {
-    for (const w of validateReachOutWords({ subject: s.subject, body: s.body }, i === 0)) out.push({ step: i, ...w });
+    if (s.hand) out.push(...handIssues(s.hand, i, c.steps.length));
+    else
+      for (const w of validateReachOutWords({ subject: s.subject, body: s.body }, i === 0)) out.push({ step: i, ...w });
     if (i === 0 && s.after_days !== null) out.push({ step: 0, field: "after_days", problem: "first_has_a_delay" });
     if (i > 0 && s.after_days === null) out.push({ step: i, field: "after_days", problem: "step_needs_a_delay" });
   });
-  const said = c.steps.map((s, i) => `${i === 0 ? s.subject ?? "" : ""}
+  const said = c.steps.filter((s) => !s.hand).map((s, i) => `${i === 0 ? s.subject ?? "" : ""}
 ${s.body}`).join("\n");
   if (slotCount(said, "your name") > 0 && !c.signed_by?.trim())
     out.push({ step: null, field: "signed_by", problem: "no_name_to_sign" });
@@ -13189,8 +13208,22 @@ ${s.body}`).join("\n");
     out.push({ step: null, field: "body", problem: "no_booking_link" });
   return out;
 }
+function handIssues(hand, i, steps) {
+  const out = [];
+  if (i === 0 || i < steps - 1) out.push({ step: i, field: "body", problem: "hand_not_last" });
+  const words4 = hand.words.trim();
+  if (!words4) out.push({ step: i, field: "body", problem: "hand_words_empty" });
+  else if (words4.length > HAND_WORDS_MAX) out.push({ step: i, field: "body", problem: "hand_words_long" });
+  return out;
+}
 function chainIssueWords(i) {
   switch (i.problem) {
+    case "hand_not_last":
+      return "A call or a note ends the chain.";
+    case "hand_words_empty":
+      return "Say what to do when they come up.";
+    case "hand_words_long":
+      return `Keep it under ${HAND_WORDS_MAX} characters.`;
     case "first_has_a_delay":
       return "Your email goes on day one.";
     case "step_needs_a_delay":
@@ -20923,6 +20956,12 @@ var REACH_OUT_SHEET_WORDS = {
   noDomain: "Add a domain you send from in Settings \u203A Connections \u203A Email first.",
   anotherStep: "Another step",
   anotherStepHint: "\xB7 another email",
+  /** The last step may hand each business it reaches to you instead (Part 5, G20). */
+  anotherCall: "A call for you",
+  anotherNote: "A note for you",
+  handHint: "\xB7 ends the chain: each business it reaches is a step on your Today",
+  handWords: "What to do",
+  handPlaceholder: "Ask whether our quote suited them",
   remove: "Remove",
   removeNote: "Removes the reach-out and its words. Only before its first email goes; after that, pause it.",
   recheck: "Check the held again"
@@ -20931,6 +20970,9 @@ var REACH_OUT_REFUSALS = {
   exists: "This search has a reach-out already.",
   wrote: "This reach-out has written already. Pause it instead.",
   stepWrote: "That step has written already. Pause the reach-out instead.",
+  /** 00228's: a call or a note anywhere but last, and a step changed from one to the other once it has run. */
+  handLast: "A call or a note ends the chain.",
+  stepRan: "That step has run already. Add a new step instead.",
   outOfPlace: "A step is out of its place. Open the reach-out again.",
   notFound: "Reach-out not found.",
   workspaceNotFound: "Workspace not found.",
@@ -21009,6 +21051,10 @@ function sheetFootWords(p) {
 }
 function stepLabel(n) {
   return n === 0 ? "Your email" : n === 1 ? "A short nudge" : `Email ${n + 1}`;
+}
+function stepLabelOf(s) {
+  if (!s.hand) return stepLabel(s.n);
+  return s.hand.kind === "call" ? REACH_OUT_SHEET_WORDS.anotherCall : REACH_OUT_SHEET_WORDS.anotherNote;
 }
 function stepWhenWords(n, afterDays) {
   return n === 0 ? "Day one, in their hours" : `After ${afterDays ?? "?"} days with nothing back \xB7 in the same thread`;
@@ -21140,7 +21186,7 @@ function chainPathWords(c) {
   return {
     steps: c.steps.map((s) => ({
       id: s.id,
-      label: stepLabel(s.n),
+      label: stepLabelOf(s),
       after: s.n === 0 ? null : `after ${s.after_days ?? "?"} days, nothing back`
     })),
     stops: "Stops for anyone who writes back, books or says no."
@@ -21162,22 +21208,38 @@ var REACH_OUT_ROW_WORDS = {
   edit: "Edit"
 };
 function chainHintOf(c, host) {
-  const labels = c.steps.map((s) => stepLabel(s.n).toLowerCase());
+  const labels = c.steps.map((s) => stepLabelOf(s).toLowerCase());
   return `${labels.join(", ").replace(/^your email/, "Your email")}${host ? ` \xB7 from ${host}` : ""}`;
 }
+function reportRowOf(s, step2) {
+  const label = stepLabelOf({ n: s.n, hand: step2?.hand ?? null });
+  const when = s.n === 0 ? "Day one, in their hours" : `After ${step2?.after_days ?? "?"} days with nothing back`;
+  if (step2?.hand) return [label, when, `${s.handed ?? 0} handed to you`, "\u2014", "\u2014", "\u2014", "\u2014"];
+  return [
+    label,
+    when,
+    String(s.written),
+    `${s.delivered} (${pct(s.delivered, s.written)}%)`,
+    `${s.wrote_back} (${pct(s.wrote_back, s.written)}%)`,
+    String(s.said_no),
+    String(s.bounced)
+  ];
+}
 function chainReportWordsOf(c, report, reach, p) {
-  const sum3 = (k) => report.steps.reduce((t, s) => t + s[k], 0);
+  const sum3 = (k) => report.steps.reduce((t, s) => t + (s[k] ?? 0), 0);
   const written = sum3("written");
   const wroteBack = sum3("wrote_back");
   const saidNo = sum3("said_no");
   const bounced = sum3("bounced");
   const held = sum3("held");
+  const handed = sum3("handed");
   const clauses = [`${written} written`];
+  if (handed > 0) clauses.push(`${handed} handed to you`);
   if (wroteBack > 0) clauses.push(`${wroteBack} wrote back`);
   if (saidNo > 0) clauses.push(`${saidNo} said no`);
   if (bounced > 0) clauses.push(`${bounced} bounced and their addresses were dropped`);
   const first = report.steps.find((s) => s.n === 0);
-  const afterOf = new Map(c.steps.map((s) => [s.id, s.after_days]));
+  const stepOf = new Map(c.steps.map((s) => [s.id, s]));
   return {
     // Who the chain has reached or will: its first step's written, waiting and held, and the search's still ready.
     reaches: {
@@ -21185,21 +21247,13 @@ function chainReportWordsOf(c, report, reach, p) {
       of: `of ${reach.of} on the search`
     },
     head: ["Step", "When", "Written", "Delivered", "Wrote back", "Said no", "Bounced"],
-    table: report.steps.map((s) => [
-      stepLabel(s.n),
-      s.n === 0 ? "Day one, in their hours" : `After ${afterOf.get(s.id) ?? "?"} days with nothing back`,
-      String(s.written),
-      `${s.delivered} (${pct(s.delivered, s.written)}%)`,
-      `${s.wrote_back} (${pct(s.wrote_back, s.written)}%)`,
-      String(s.said_no),
-      String(s.bounced)
-    ]),
+    table: report.steps.map((s) => reportRowOf(s, stepOf.get(s.id))),
     sentence: p.share > 0 ? `${p.share} a day${p.host ? ` from ${p.host}` : ""}, one every ${c.gap_minutes} minutes in each business's hours. ${clauses.join("; ")}.` : `${REACH_OUT_SHEET_WORDS.noDomain} ${clauses.join("; ")}.`,
     // The held wait for their owner in their run (R20): the newest run that holds some opens them.
     waiting: held > 0 ? { text: `${held} wait for your say`, run_id: report.runs.find((r2) => r2.held > 0)?.id ?? null } : null,
     history: report.runs.map((r2) => ({
       id: r2.id,
-      text: `${r2.run_for ? runDayWords(r2.run_for) : "A run"} \xB7 ${r2.written} written${r2.held > 0 ? ` \xB7 ${r2.held} held` : ""}`
+      text: `${r2.run_for ? runDayWords(r2.run_for) : "A run"} \xB7 ${(r2.handed ?? 0) > 0 ? `${r2.handed} handed to you` : `${r2.written} written`}${r2.held > 0 ? ` \xB7 ${r2.held} held` : ""}`
     })),
     stopOne: REACH_OUT_SHEET_WORDS.stopOne,
     canRemove: report.can_remove,
@@ -21267,7 +21321,8 @@ function reachOutDraftOf(p) {
         id: s.id,
         subject: s.n === 0 ? s.subject : null,
         body: s.body,
-        after_days: s.n === 0 ? null : s.after_days
+        after_days: s.n === 0 ? null : s.after_days,
+        hand: s.hand
       }))
     };
   return {
@@ -21276,16 +21331,40 @@ function reachOutDraftOf(p) {
     gap_minutes: REACH_OUT_GAP_FIRST,
     domain_ids: [],
     signed_by: p.signedBy ?? "",
-    steps: [{ id: null, subject: REACH_OUT_FIRST_WORDS.subject, body: REACH_OUT_FIRST_WORDS.body, after_days: null }]
+    steps: [
+      {
+        id: null,
+        subject: REACH_OUT_FIRST_WORDS.subject,
+        body: REACH_OUT_FIRST_WORDS.body,
+        after_days: null,
+        hand: null
+      }
+    ]
   };
 }
 function reachOutMayAddStep(d) {
-  return d.steps.length < REACH_OUT_STEPS_MAX;
+  return d.steps.length < REACH_OUT_STEPS_MAX && !d.steps[d.steps.length - 1]?.hand;
 }
 function reachOutAddStep(d) {
   if (!reachOutMayAddStep(d)) return d;
-  const step2 = { id: null, subject: null, body: REACH_OUT_FIRST_WORDS.nudge, after_days: REACH_OUT_AFTER_DAYS.first };
+  const step2 = {
+    id: null,
+    subject: null,
+    body: REACH_OUT_FIRST_WORDS.nudge,
+    after_days: REACH_OUT_AFTER_DAYS.first,
+    hand: null
+  };
   return { ...d, steps: [...d.steps, step2] };
+}
+function reachOutAddHandStep(d, kind) {
+  if (!reachOutMayAddStep(d)) return d;
+  const step2 = { id: null, subject: null, body: "", after_days: REACH_OUT_AFTER_DAYS.first, hand: { kind, words: "" } };
+  return { ...d, steps: [...d.steps, step2] };
+}
+function reachOutSetHandWords(d, i, words4) {
+  const s = d.steps[i];
+  if (!s?.hand) return d;
+  return { ...d, steps: d.steps.map((x, j) => j === i ? { ...x, hand: { kind: s.hand.kind, words: words4 } } : x) };
 }
 function reachOutDropStep(d) {
   return d.steps.length > 1 ? { ...d, steps: d.steps.slice(0, -1) } : d;
@@ -21303,11 +21382,13 @@ function reachOutChainBodyOf(d, searchId) {
     gap_minutes: d.gap_minutes,
     domain_ids: d.domain_ids,
     signed_by: d.signed_by.trim() || null,
+    // An email carries no hand at all: the door reads a step with the key as a hand step (00228).
     steps: d.steps.map((s, i) => ({
       ...s.id ? { id: s.id } : {},
       subject: i === 0 ? s.subject ?? "" : null,
-      body: s.body,
-      after_days: i === 0 ? null : s.after_days
+      body: s.hand ? "" : s.body,
+      after_days: i === 0 ? null : s.after_days,
+      ...s.hand ? { hand: { kind: s.hand.kind, words: s.hand.words } } : {}
     }))
   };
 }
@@ -21565,21 +21646,6 @@ function bookedSeenOf(items, own) {
     if (out.length >= BOOKED_SEEN_CAP) break;
   }
   return out.slice(0, BOOKED_SEEN_CAP);
-}
-
-// src/reach-out/reach-out-hand.ts
-var HAND_KINDS = ["call", "note"];
-var HAND_WORDS_MAX = 280;
-function handOf(v) {
-  if (!v || typeof v !== "object") return null;
-  const h = v;
-  if (!HAND_KINDS.includes(h.kind) || typeof h.words !== "string") return null;
-  const words4 = h.words.trim();
-  return words4 ? { kind: h.kind, words: words4 } : null;
-}
-function handStepWords(kind, business, words4) {
-  const who = business.trim() || "This business";
-  return kind === "call" ? `Call ${who}: ${words4.trim()}` : `${who}: ${words4.trim()}`;
 }
 
 // src/reports/campaign-report.ts
@@ -22808,359 +22874,309 @@ function smsStateRow(line, nowMs) {
       };
   }
 }
-function connectionRows(i, nowMs = Date.now()) {
-  const out = [];
+function connectionFactsOf(i, nowMs) {
   const channel = (kind) => channelFor(i.channels, kind);
-  const wa = channel("whatsapp");
+  return {
+    nowMs,
+    wa: channel("whatsapp"),
+    voice: channel("voice"),
+    own: i.lines.rows.find((l) => l.provider !== "carrier") ?? null,
+    connection: i.google?.connection ?? null,
+    listing: i.google?.listing ?? null
+  };
+}
+function whatsappRow2(i, { wa }) {
+  const base = { kind: "whatsapp", icon: "chat", title: "WhatsApp Business" };
   if (wa) {
     const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
     const flagged = wa.on && h.tone === "danger";
     const health = wa.on && h.tone !== "unknown" ? ` \xB7 ${h.label}` : "";
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: wa.number,
-        state: !wa.on ? "off" : flagged ? "attention" : "connected",
-        stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On",
-        sentence: `${wa.healthLabel}${health}`,
-        verb: { label: "Templates", to: "messages", who: "operator" }
-      })
-    );
-  } else if (i.whatsapp === void 0) {
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: "Checking whether Chanlytics can connect a number\u2026",
-        verb: null
-      })
-    );
-  } else if (i.whatsapp?.ready) {
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
-        verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" }
-      })
-    );
-  } else {
-    const why = i.whatsapp?.reason === "no_config_id" ? " \u2014 the Embedded Signup configuration is missing on the Chanlytics side" : i.whatsapp?.reason === "preview" ? " \u2014 only on the production dashboard" : "";
-    out.push(
-      row({
-        kind: "whatsapp",
-        icon: "chat",
-        title: "WhatsApp Business",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: `Chanlytics isn't set up to connect numbers yet${why}.`,
-        verb: null
-      })
-    );
+    return {
+      ...base,
+      detail: wa.number,
+      state: !wa.on ? "off" : flagged ? "attention" : "connected",
+      stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On",
+      sentence: `${wa.healthLabel}${health}`,
+      verb: { label: "Templates", to: "messages", who: "operator" }
+    };
   }
-  const voice = channel("voice");
-  const own = i.lines.rows.find((l2) => l2.provider !== "carrier") ?? null;
-  if (voice) {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: voice.number,
-        state: voice.on ? "connected" : "off",
-        stateWords: voice.on ? "On" : "Off",
-        sentence: voice.healthLabel,
-        verb: null
-      })
-    );
-  } else if (own && own.voice_state === "provisioning") {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: formatPhoneDisplay(own.e164),
-        state: "waiting_them",
-        stateWords: "Waiting on us",
-        sentence: `Setting up \u2014 ${LINE_STEP_WORDS[own.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(own.state_since), nowMs)}. Usually a minute or two.`,
-        verb: null
-      })
-    );
-  } else if (own && own.voice_state === "failed") {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: formatPhoneDisplay(own.e164),
-        state: "waiting_them",
-        stateWords: "Waiting on us",
-        sentence: "Setting up stopped. A person at Chanlytics has it, or you can retry it.",
-        verb: { label: "Retry it", to: firstRunStepRoute("phone"), who: "owner" }
-      })
-    );
-  } else if (i.lineRequestedAt) {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: null,
-        state: "waiting_them",
-        stateWords: "Waiting on us",
-        sentence: `Requested ${agoWords(Date.parse(i.lineRequestedAt), nowMs)} \u2014 a person at Chanlytics will set up your line with you and reach you by email.`,
-        verb: null
-      })
-    );
-  } else if (i.lines.ready) {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: "Get a number the receptionist answers, or keep the one you have.",
-        verb: { label: "Get a line", to: firstRunStepRoute("phone"), who: "owner" }
-      })
-    );
-  } else {
-    out.push(
-      row({
-        kind: "phone",
-        icon: "phone",
-        title: "Phone line",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: "We set up your phone line with you.",
-        verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" }
-      })
-    );
-  }
-  out.push(row(smsStateRow(own, nowMs)));
-  const g = i.google;
-  const c = g?.connection ?? null;
-  const l = g?.listing ?? null;
-  if (c && c.location_name) {
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: c.location_title,
-        state: c.sync_error ? "attention" : "connected",
-        stateWords: c.sync_error ? "Could not sync" : "Connected",
-        sentence: connectionWords(c, nowMs),
-        verb: { label: "Disconnect", to: "verb:google-disconnect", who: "owner" }
-      })
-    );
-  } else if (c) {
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: null,
-        state: "waiting_you",
-        stateWords: "Waiting on you",
-        sentence: `${connectionWords(c, nowMs)}.`,
-        verb: null,
-        body: "google_choose"
-      })
-    );
-  } else if (g?.ready.profile) {
-    const note = googleAudienceWords(g.ready.audience);
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: null,
-        state: "none",
-        stateWords: "Not connected",
-        sentence: `Sign in to Google once; every review and the right to answer them follow.${note ? ` ${note}` : ""}`,
-        verb: { label: "Connect Google", to: "verb:google-connect", who: "owner" }
-      })
-    );
-  } else {
-    out.push(
-      row({
-        kind: "google_profile",
-        icon: "shield",
-        title: "Google Business Profile",
-        detail: null,
-        state: "later",
-        stateWords: "Later",
-        sentence: "Every review and the replies you send from Reports arrive with the Business Profile connection.",
-        verb: null
-      })
-    );
-  }
-  if (l) {
-    out.push(
-      row({
-        kind: "google_listing",
-        icon: "star",
-        title: "Your listing on Google",
-        detail: l.address,
-        state: l.check_error ? "attention" : "connected",
-        stateWords: l.check_error ? "Could not be read" : "Watched",
-        sentence: `${listingLine(l)} \xB7 ${checkedWords(l, nowMs)}`,
-        verb: { label: c && c.location_name ? "Sync now" : "Check now", to: "verb:google-check", who: "operator" }
-      })
-    );
-  } else if (g?.ready.places) {
-    out.push(
-      row({
-        kind: "google_listing",
-        icon: "star",
-        title: "Your listing on Google",
-        detail: null,
-        state: "none",
-        stateWords: "Not watched",
-        sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
-        verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE, who: "owner" }
-      })
-    );
-  } else {
-    out.push(
-      row({
-        kind: "google_listing",
-        icon: "star",
-        title: "Your listing on Google",
-        detail: null,
-        state: "later",
-        stateWords: "Later",
-        sentence: "Your public listing on Google Maps, read once a day for new reviews.",
-        verb: null
-      })
-    );
-  }
-  const cal = i.calendar?.state ?? "none";
-  if (cal === "ok") {
-    out.push(
-      row({
-        kind: "calendar",
-        icon: "calendar",
-        title: "Calendar",
-        detail: "iCal feed",
-        state: "connected",
-        stateWords: CALENDAR_FEED_WORDS.ok,
-        sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.",
-        verb: { label: "Open Calendar", to: "calendar", who: "operator" }
-      })
-    );
-  } else if (cal === "unavailable") {
-    out.push(
-      row({
-        kind: "calendar",
-        icon: "calendar",
-        title: "Calendar",
-        detail: "iCal feed",
-        state: "attention",
-        stateWords: CALENDAR_FEED_WORDS.unavailable,
-        sentence: "Your calendar could not be read. Check the address in Settings \u203A Business.",
-        verb: { label: "Check the address", to: "admin/workspace", who: "owner" }
-      })
-    );
-  } else {
-    out.push(
-      row({
-        kind: "calendar",
-        icon: "calendar",
-        title: "Calendar",
-        detail: null,
-        state: "none",
-        stateWords: CALENDAR_FEED_WORDS.none,
-        sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.",
-        verb: { label: "Paste the address", to: "admin/workspace", who: "owner" }
-      })
-    );
-  }
-  out.push(
-    row({
-      kind: "instagram",
-      icon: "instagram",
-      title: "Instagram",
+  if (i.whatsapp === void 0) {
+    return {
+      ...base,
       detail: null,
-      state: "later",
-      stateWords: "Later",
-      sentence: "Direct messages, answered by the receptionist like WhatsApp.",
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Checking whether Chanlytics can connect a number\u2026",
       verb: null
-    })
-  );
+    };
+  }
+  if (i.whatsapp?.ready) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Sign in to Meta, pick the number, and the receptionist answers on it. Nothing here touches a phone line.",
+      verb: { label: "Connect WhatsApp", to: "verb:whatsapp-connect", who: "owner" }
+    };
+  }
+  const why = i.whatsapp?.reason === "no_config_id" ? " \u2014 the Embedded Signup configuration is missing on the Chanlytics side" : i.whatsapp?.reason === "preview" ? " \u2014 only on the production dashboard" : "";
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: "Not connected",
+    sentence: `Chanlytics isn't set up to connect numbers yet${why}.`,
+    verb: null
+  };
+}
+function phoneRow(i, { voice, own, nowMs }) {
+  const base = { kind: "phone", icon: "phone", title: "Phone line" };
+  if (voice) {
+    return {
+      ...base,
+      detail: voice.number,
+      state: voice.on ? "connected" : "off",
+      stateWords: voice.on ? "On" : "Off",
+      sentence: voice.healthLabel,
+      verb: null
+    };
+  }
+  if (own && own.voice_state === "provisioning") {
+    return {
+      ...base,
+      detail: formatPhoneDisplay(own.e164),
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: `Setting up \u2014 ${LINE_STEP_WORDS[own.step ?? ""] ?? "working on it"}, since ${agoWords(Date.parse(own.state_since), nowMs)}. Usually a minute or two.`,
+      verb: null
+    };
+  }
+  if (own && own.voice_state === "failed") {
+    return {
+      ...base,
+      detail: formatPhoneDisplay(own.e164),
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: "Setting up stopped. A person at Chanlytics has it, or you can retry it.",
+      verb: { label: "Retry it", to: firstRunStepRoute("phone"), who: "owner" }
+    };
+  }
+  if (i.lineRequestedAt) {
+    return {
+      ...base,
+      detail: null,
+      state: "waiting_them",
+      stateWords: "Waiting on us",
+      sentence: `Requested ${agoWords(Date.parse(i.lineRequestedAt), nowMs)} \u2014 a person at Chanlytics will set up your line with you and reach you by email.`,
+      verb: null
+    };
+  }
+  if (i.lines.ready) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: "Get a number the receptionist answers, or keep the one you have.",
+      verb: { label: "Get a line", to: firstRunStepRoute("phone"), who: "owner" }
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: "Not connected",
+    sentence: "We set up your phone line with you.",
+    verb: { label: "Ask for a line", to: firstRunStepRoute("phone"), who: "owner" }
+  };
+}
+function smsRow(_i, { own, nowMs }) {
+  return smsStateRow(own, nowMs);
+}
+function googleProfileRow(i, { connection: c, nowMs }) {
+  const g = i.google;
+  const base = { kind: "google_profile", icon: "shield", title: "Google Business Profile" };
+  if (c && c.location_name) {
+    return {
+      ...base,
+      detail: c.location_title,
+      state: c.sync_error ? "attention" : "connected",
+      stateWords: c.sync_error ? "Could not sync" : "Connected",
+      sentence: connectionWords(c, nowMs),
+      verb: { label: "Disconnect", to: "verb:google-disconnect", who: "owner" }
+    };
+  }
+  if (c) {
+    return {
+      ...base,
+      detail: null,
+      state: "waiting_you",
+      stateWords: "Waiting on you",
+      sentence: `${connectionWords(c, nowMs)}.`,
+      verb: null,
+      body: "google_choose"
+    };
+  }
+  if (g?.ready.profile) {
+    const note = googleAudienceWords(g.ready.audience);
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not connected",
+      sentence: `Sign in to Google once; every review and the right to answer them follow.${note ? ` ${note}` : ""}`,
+      verb: { label: "Connect Google", to: "verb:google-connect", who: "owner" }
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Every review and the replies you send from Reports arrive with the Business Profile connection.",
+    verb: null
+  };
+}
+function googleListingRow(i, { connection: c, listing: l, nowMs }) {
+  const g = i.google;
+  const base = { kind: "google_listing", icon: "star", title: "Your listing on Google" };
+  if (l) {
+    return {
+      ...base,
+      detail: l.address,
+      state: l.check_error ? "attention" : "connected",
+      stateWords: l.check_error ? "Could not be read" : "Watched",
+      sentence: `${listingLine(l)} \xB7 ${checkedWords(l, nowMs)}`,
+      verb: { label: c && c.location_name ? "Sync now" : "Check now", to: "verb:google-check", who: "operator" }
+    };
+  }
+  if (g?.ready.places) {
+    return {
+      ...base,
+      detail: null,
+      state: "none",
+      stateWords: "Not watched",
+      sentence: "Find it from the name and address on record; new reviews then reach your bell and Reports.",
+      verb: { label: "Find it", to: FIRST_RUN_FIND_ROUTE, who: "owner" }
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Your public listing on Google Maps, read once a day for new reviews.",
+    verb: null
+  };
+}
+function calendarRow2(i) {
+  const cal = i.calendar?.state ?? "none";
+  const base = { kind: "calendar", icon: "calendar", title: "Calendar" };
+  if (cal === "ok") {
+    return {
+      ...base,
+      detail: "iCal feed",
+      state: "connected",
+      stateWords: CALENDAR_FEED_WORDS.ok,
+      sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.",
+      verb: { label: "Open Calendar", to: "calendar", who: "operator" }
+    };
+  }
+  if (cal === "unavailable") {
+    return {
+      ...base,
+      detail: "iCal feed",
+      state: "attention",
+      stateWords: CALENDAR_FEED_WORDS.unavailable,
+      sentence: "Your calendar could not be read. Check the address in Settings \u203A Business.",
+      verb: { label: "Check the address", to: "admin/workspace", who: "owner" }
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "none",
+    stateWords: CALENDAR_FEED_WORDS.none,
+    sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.",
+    verb: { label: "Paste the address", to: "admin/workspace", who: "owner" }
+  };
+}
+function instagramRow() {
+  return {
+    kind: "instagram",
+    icon: "instagram",
+    title: "Instagram",
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Direct messages, answered by the receptionist like WhatsApp.",
+    verb: null
+  };
+}
+function emailRow2(i, { nowMs }) {
+  const base = { kind: "email", icon: "mail", title: "Email" };
   const mailbox = i.email?.mailbox ?? null;
   if (mailbox) {
     const last = mailbox.last_received_at ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.` : "";
     const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
     const heldDomains = (i.email?.sending?.domains ?? []).filter((d) => d.state === "held").length;
-    out.push(
-      row({
-        kind: "email",
-        icon: "mail",
-        title: "Email",
-        detail: mailbox.address,
-        state: mailbox.last_error || heldDomains ? "attention" : "connected",
-        stateWords: mailbox.last_error ? "Waiting on us" : heldDomains ? `On \xB7 ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held` : "On",
-        sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
-        verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
-        body: "email_setup"
-      })
-    );
-  } else if (i.email?.ready) {
-    out.push(
-      row({
-        kind: "email",
-        icon: "mail",
-        title: "Email",
-        detail: null,
-        state: "none",
-        stateWords: "Not set up",
-        sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
-        verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
-        body: "email_setup"
-      })
-    );
-  } else {
-    out.push(
-      row({
-        kind: "email",
-        icon: "mail",
-        title: "Email",
-        detail: null,
-        state: "later",
-        stateWords: "Later",
-        sentence: "An address customers write to, answered from your Inbox.",
-        verb: null
-      })
-    );
+    return {
+      ...base,
+      detail: mailbox.address,
+      state: mailbox.last_error || heldDomains ? "attention" : "connected",
+      stateWords: mailbox.last_error ? "Waiting on us" : heldDomains ? `On \xB7 ${heldDomains} domain${heldDomains === 1 ? "" : "s"} held` : "On",
+      sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working,
+      verb: { label: "Change the name", to: "verb:email-setup", who: "owner" },
+      body: "email_setup"
+    };
   }
-  out.push(
-    row({
-      kind: "deposits",
-      icon: "money",
-      title: "Deposits",
+  if (i.email?.ready) {
+    return {
+      ...base,
       detail: null,
-      state: "later",
-      stateWords: "Later",
-      sentence: "Deposits and payments taken by the receptionist.",
-      verb: null
-    })
-  );
-  return out.sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
+      state: "none",
+      stateWords: "Not set up",
+      sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`,
+      verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" },
+      body: "email_setup"
+    };
+  }
+  return {
+    ...base,
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "An address customers write to, answered from your Inbox.",
+    verb: null
+  };
+}
+function depositsRow() {
+  return {
+    kind: "deposits",
+    icon: "money",
+    title: "Deposits",
+    detail: null,
+    state: "later",
+    stateWords: "Later",
+    sentence: "Deposits and payments taken by the receptionist.",
+    verb: null
+  };
+}
+var ROW_BUILDERS = [
+  whatsappRow2,
+  phoneRow,
+  smsRow,
+  googleProfileRow,
+  googleListingRow,
+  calendarRow2,
+  instagramRow,
+  emailRow2,
+  depositsRow
+];
+function connectionRows(i, nowMs = Date.now()) {
+  const facts = connectionFactsOf(i, nowMs);
+  return ROW_BUILDERS.map((build) => row(build(i, facts))).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
 }
 var CONNECTION_GROUP_WORDS = {
   connected: {
@@ -29224,6 +29240,7 @@ export {
   ratingWords,
   reachLineOf,
   reachLines,
+  reachOutAddHandStep,
   reachOutAddStep,
   reachOutAfterDayChoices,
   reachOutChainBodyOf,
@@ -29238,6 +29255,7 @@ export {
   reachOutRunWordsOf,
   reachOutSavedWords,
   reachOutSendsFrom,
+  reachOutSetHandWords,
   reachOutSheetPaceOf,
   reachOutSheetUnreadOf,
   reachOutSlots,
@@ -29402,6 +29420,7 @@ export {
   stepDays,
   stepIsDue,
   stepLabel,
+  stepLabelOf,
   stepSheetBody,
   stepSheetDirty,
   stepSheetFor,

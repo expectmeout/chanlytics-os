@@ -66,7 +66,18 @@ Everything the pages say comes from contracts view models, over two new routes a
 
 | PR  | Pull request | Migration | What it shipped |
 | --- | ------------ | --------- | --------------- |
-| —   | —            | —         | —               |
+| 1 | #1197 | — | The reading, pure: intents, the reader's prompt and its parse, the plan a reading makes, the notice's words, the fixtures and the live eval; decision 0017 |
+| 2 | #1204 | 00220 | A no reaches the business's own domain, never an ISP's (N6); the finder asks the one predicate |
+| 3 | #1216 | 00222 | A reply is read: `reply_read`, scheduled once by the intake; the reading's door, the notice, the undo's door |
+| 4 | #1237 | 00226 | The door learns two things: an automatic away pauses a lead until its day; a person's reply may leave by the thread's own domain, else the mailbox |
+| 5 | #1242 | — | The receptionist drafts an answer on the reading (G14's gates, one budget) |
+| 6 | #1243 | — | The dashboard's doors: the reply from the thread's own domain, the readings' read, the undo route |
+| 7 | #1245 | — | The Inbox: the reading's strip, the composer's from line, the draft |
+| 8 | #1250 | — | Today's reply row and the run, the bell and the phone, Settings › Notifications' Reach-outs group (N2) |
+| 9 | #1263 | 00227 | A booking or a deal stops a reach-out |
+| 10 | #1271 | 00228 | A call or a note for you, the engine: a chain's last step hands each lead it reaches to the team |
+| 11 | #1273 | — | A call or a note for you, in the sheet, and on Playbooks' open row |
+| 12 | this PR | — | The proof on a stack (`replies.integration.db.test.mjs`), and the docs |
 
 Each PR runs this sequence:
 1. Branch from `main` after the one before it merges.
@@ -1464,12 +1475,19 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** the dashboard and contracts only, after PR 10.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `0289a433`). What departed from the tasks, and why:
+>
+> - **A third problem, `hand_words_long`.** 00228's CHECK holds a hand's words to 280 characters (`HAND_WORDS_MAX`), so the sheet says so before the door refuses. The three problems' words sit in `chainIssueWords` (`reach-out-words.ts`), with every other chain problem's, not in `reach-out-draft.ts`.
+> - **An email step carries no `hand` key at all.** The door reads a step with the key as a call or a note (`v_steps->v_i ? 'hand'`, which is true for a JSON null too). So `reachOutChainBodyOf` writes the key on a hand step only, and the route drops a null `hand` before the door as well, for a body the sheet did not make.
+> - **The offer is two buttons beside "Another step"**, "A call for you" and "A note for you", shown while another step may be added; once the last step is a call or a note, none is (`reachOutMayAddStep`). Remove takes it off, as it does an email.
+> - **Two door sentences joined `REACH_OUT_REFUSALS`**: 00228's "A call or a note ends the chain." and "That step has run already. Add a new step instead.", so the route says them as they are.
+> - **The open row** labels a hand step by its kind (`stepLabelOf`), in the hint, the path and the table; its table row reads "N handed to you" with no delivery counts, the sentence adds "N handed to you", and a hand run's history line says what it handed rather than "0 written". A report from before 00228 has no `handed`, and nothing is said of it.
+> - **The tests** are `reach-out-stops/hand-sheet.test.mjs` (the draft, the problems, the refusals and the open row, over contracts), a harness test in `reach-out-sheet/reach-out-sheet-page.test.mjs` (offer, write, save, and the door's refusal said at the foot; its world is that file's, so it stays there), and a route test in `reach-out-routes.test.mjs` (the hand reaches the door, an email's key does not, and both of 00228's refusals are said).
 
-- [ ] **The input.** `ReachOutStepSchema` gains `hand?: { kind, words }`. `validateReachOutChain` gains `hand_not_last` and `hand_words_empty`, with their words in `reach-out-draft.ts`.
-- [ ] **The sheet** (`reach-out-sheet.jsx`) draws a hand step as a row with its kind and its words, and no subject.
-- [ ] **The open row.** Playbooks' open row reads the report's `handed` as "handed to you".
-- [ ] **Tests:**
+- [x] **The input.** `ReachOutStepSchema` gains `hand?: { kind, words }`. `validateReachOutChain` gains `hand_not_last` and `hand_words_empty`, with their words in `reach-out-draft.ts`.
+- [x] **The sheet** (`reach-out-sheet.jsx`) draws a hand step as a row with its kind and its words, and no subject.
+- [x] **The open row.** Playbooks' open row reads the report's `handed` as "handed to you".
+- [x] **Tests:**
   - `reach-out-sheet/reach-out-sheet-words.test.mjs` gains the problems;
   - `reach-out-stops/hand-sheet-page.test.mjs` (harness): offer, save, and the refusal for a hand step not last.
 
@@ -1477,13 +1495,24 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 ## PR 12 — The proof, and the docs (`reach-out-5l-proof`)
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` after PR 11). What departed from the tasks, and why:
+>
+> - **The proof runs the real doors, and scripts only what is outside the product.** Those are the reader's `ask`, the receptionist's brain, the received emails the provider hands the intake, and the mail provider's HTTP. The intake is a real `email_ingest` job through the jobs dispatcher, over the edge's `emailIntake` with its fetch answering. The reading is the edge's `replyReader`, so the spend, the draft's gates (`replyDrafter`) and the notice (`notifyOnce`, through the stubbed provider) are the real ones. The owner's reply and the undo are the dashboard's own routes, run through `route()` on the owner's signed-in session. Jobs are claimed and dispatched for the suite's own workspace, as Part 4's proof does, rather than by the edge's tick, which would take any workspace's jobs on a shared stack.
+> - **One addition:** after the away's day, the nudge is also run through the tick and its job, to show it leaves to the away business, threaded under the first email.
+> - **The mailbox's reason for a held domain is `no_own_route`,** not `domain_has_no_route`. A held domain drops out of the edge's own routes entirely, so when it is the workspace's only domain, no own route is bound. The test asserts what the wire records, and the runbook says so. It is accurate, but it does not name the hold; a reason that does is a small follow-up in `wire-senders.ts`.
+> - **A notice without a sender address counts as told.** `notifyOnce` answers true with only the bell's row when the workspace has escalation addresses but the deployment has no `LEAD_FROM` (and the workspace no `notifications.from`). The suite sets `LEAD_FROM`, so the proof covers the mail itself.
+> - **Where it runs.** With the database suites: `corepack pnpm test:db` on a local stack, and the Migrations replay when a database path changes. The nightly's integration step does not run it: it makes a workspace and signs its owner in, so it refuses a database that is not on its machine, as Part 4's proof does.
+> - **The docs** (the spec, the PRD, the runbook, the glossary, the architecture, 0017 and the decisions index) follow the code where the plan's task text and the code disagree:
+>   - `REACH_OUT_MODEL` is a contracts constant, and only `ANTHROPIC_API_KEY` is set;
+>   - `reach_out.replied` is written by the reading's door for every applied reading, told or not;
+>   - the undo admits a partner (`is_acting_member`), which §0.6 still leaves for Ruben to confirm;
+>   - `ownedDomainOf` sees only the lead's website host, so a no from an ISP's user page closes that ISP's domain for the workspace. The spec records this as owed.
 
 ### Task 12.1: The end-to-end test
 
 **Files:** Create `tooling/scripts/tests/reach-out-replies/replies.integration.db.test.mjs`.
 
-- [ ] On its own workspace, over a scripted reader and a scripted brain:
+- [x] On its own workspace, over a scripted reader and a scripted brain:
   1. A chain writes to four businesses (Part 4's path).
   2. Each replies (the intake's own job): one interested, one no, one with an automatic away, one with an automatic "remove us".
   3. The jobs tick runs `reply_read` for each, and they read:
@@ -1499,17 +1528,17 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 ### Task 12.2: The docs
 
-- [ ] **The spec:**
+- [x] **The spec:**
   - its status (Part 5 shipped; Part 6 next);
   - "As built (Part 5)" notes in §4.7 (the readings, G6–G10, N1, N6), §4.9 (the notice, Today, the dated-step door) and §4.11 (the strip);
   - §6's Part 5 line with its PRs and migrations;
   - §9 gains N1–N6, decided 27 Sep 2026.
-- [ ] **The PRD** (`docs/system-prd.md`): S-14.4 gains the reading, the draft, the undo and the hand step; the routes table gains the two routes; the Inbox, Today and Settings sheets say what they draw.
-- [ ] **The runbook:** what `reply_read` is, its once-per-message index, and how to cancel its jobs; the model the reading needs; what "unread" means on a reading and when it is read again; a reply that left from the mailbox and why; that the nightly proof is the stack test.
-- [ ] **The glossary:** Reading (of a reply), Intent, Away (an automatic reply's), Dated step, Handed (a hand step's send).
-- [ ] **The architecture:** the intake's hand-off to `reply_read`, and a person's reply by its own domain with the mailbox's twin.
-- [ ] **Decision 0017:** its status line, "built (PR 5)".
-- [ ] **This plan:** the As-built table at its head, and each PR's note.
+- [x] **The PRD** (`docs/system-prd.md`): S-14.4 gains the reading, the draft, the undo and the hand step; the routes table gains the two routes; the Inbox, Today and Settings sheets say what they draw.
+- [x] **The runbook:** what `reply_read` is, its once-per-message index, and how to cancel its jobs; the model the reading needs; what "unread" means on a reading and when it is read again; a reply that left from the mailbox and why; that the nightly proof is the stack test.
+- [x] **The glossary:** Reading (of a reply), Intent, Away (an automatic reply's), Dated step, Handed (a hand step's send).
+- [x] **The architecture:** the intake's hand-off to `reply_read`, and a person's reply by its own domain with the mailbox's twin.
+- [x] **Decision 0017:** its status line, "built (PR 5)".
+- [x] **This plan:** the As-built table at its head, and each PR's note.
 
 ---
 

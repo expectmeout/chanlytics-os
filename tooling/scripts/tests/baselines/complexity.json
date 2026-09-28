@@ -884,11 +884,6 @@
     "branches": 36,
     "depth": 3
   },
-  "packages/contracts/src/setup/connections.ts::connectionRows#1": {
-    "lines": 394,
-    "branches": 67,
-    "depth": 1
-  },
   "packages/contracts/src/setup/first-run-try.ts::firstRunTryOf#1": {
     "lines": 127,
     "branches": 54,
