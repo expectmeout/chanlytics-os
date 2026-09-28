@@ -1361,6 +1361,139 @@ test("what happened since, through the route (the Phase 5 plan, D8): a card appr
   }
 });
 
+test("a cold follow-up through the route (the Phase 5 plan, PR 5.5): turn 1 -- a card beside an answer naming a row of the page -- gone cold, turn 2 is asked with it as one line and rebuilt, its row keeping the lines as its base and what they told, through jsonb; the card approved, turn 3 at once replays turn 2 as it was sent and tells the approval once", async () => {
+  const tables = askWorld();
+  const ROSA = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
+  const rosa = { kind: "thread", id: ROSA, label: "Rosa" };
+  const page = {
+    blocks: [
+      {
+        type: "search_result",
+        source: "page://inbox",
+        title: "Inbox",
+        content: [{ type: "text", text: `Rosa · needs you · route: inbox/th-${ROSA}` }],
+        citations: { enabled: false },
+      },
+    ],
+    refs: [
+      { kind: "page", id: "inbox", route: "inbox", label: "Inbox" },
+      { kind: "thread", id: ROSA, route: `inbox/th-${ROSA}`, label: "Rosa" },
+    ],
+    rows: 1,
+    chars: 40,
+    stamp: 1,
+    failed: false,
+    warm: "hit",
+  };
+  const REPLY = {
+    id: "p-1",
+    kind: "reply",
+    needs: "operator",
+    title: "Reply to Rosa",
+    summary: "We open at nine on Saturday.",
+    payload: { conversation_id: ROSA, text: "We open at nine on Saturday." },
+    undo: null,
+  };
+  const naming = JSON.stringify({
+    say: { headline: "Rosa needs you.", detail: "She asked first." },
+    show: {
+      figures: [],
+      items: [{ title: "Rosa", meta: "WhatsApp", line: "Asked about Saturday.", source: rosa }],
+      breakdown: { label: "", total: 0, parts: [], source: nothing },
+    },
+    do: { open: { source: nothing, label: "", now: false }, next: [] },
+    language: "en",
+  });
+  const requests = [];
+  setAskPorts({
+    round: async (call, onText) => {
+      requests.push(JSON.parse(JSON.stringify(call.request)));
+      const first = requests.length === 1;
+      const words = first ? naming : answered;
+      onText(words);
+      const draft = {
+        type: "tool_use",
+        id: "t-card",
+        name: "propose_reply",
+        text: "",
+        json: JSON.stringify({ action: "draft", conversation_id: ROSA, text: REPLY.summary }),
+      };
+      return {
+        blocks: [...(first ? [draft] : []), { type: "text", id: "", name: "", text: words, json: "" }],
+        stopReason: "end_turn",
+        streamError: null,
+      };
+    },
+    shape: async () => "",
+    context: async () => page,
+    propose: async () => ({
+      proposal: REPLY,
+      result: JSON.stringify({ proposed: true, id: REPLY.id }),
+      isError: false,
+    }),
+  });
+  const onInbox = { v: 1, surface: "inbox", route: "inbox", view: null, focus: null, rows: [], askedAt: 1 };
+  const SINCE = "Since the last answer, the person acted on cards from earlier in this thread:";
+  const wordsOf = (req) =>
+    req.messages
+      .at(-1)
+      .content.find((b) => b.type === "text" && b.text.includes("You are speaking with"))
+      .text.split("\n");
+  try {
+    const [opened] = await linesOf(
+      await ask.POST.run(send("POST", { text: "Who needs me?", context: onInbox }, inA), asJsonb(tables)),
+    );
+    // Ten minutes go by: turn 1's round began then, and its rows were saved then.
+    const tenAgo = Date.now() - 10 * 60_000;
+    const [question, first] = tables.ask_messages;
+    question.created_at = new Date(tenAgo - 1_000).toISOString();
+    first.created_at = new Date(tenAgo).toISOString();
+    first.content.raw.at = tenAgo;
+    const asked = (text) => ({ text, thread_id: opened.id, context: onInbox });
+    await linesOf(await ask.POST.run(send("POST", asked("What did she ask?"), inA), asJsonb(tables)));
+
+    const line = `Rosa needs you. Cards: p-1 · reply · Reply to Rosa · not pressed yet. Rows, in order: 1. thread ${ROSA} Rosa.`;
+    assert.deepEqual(
+      requests[1].messages.slice(0, -1).map((m) => [m.role, m.content]),
+      [
+        ["user", "Who needs me?"],
+        ["assistant", line],
+      ],
+      "turn 1's question as it was asked, its answer one line",
+    );
+    const second = tables.ask_messages[3];
+    assert.equal(second.content.shape.replay, "rebuilt");
+    assert.deepEqual(Object.keys(second.content.raw), ["at", "told", "model", "blocks", "prefix"], "no link, `told`");
+    assert.deepEqual(second.content.raw.told, [], "nothing was recorded on turn 1's card when it read");
+    assert.equal(
+      JSON.stringify(JSON.parse(second.content.raw.blocks).base),
+      JSON.stringify(unmark(requests[1].messages.slice(0, -1))),
+      "its base: the lines as sent, byte for byte",
+    );
+
+    const outcome = asJsonb(tables, { id: first.id, pid: REPLY.id });
+    await proposals.POST.run(send("POST", { state: "done", receipt: "Sent to Rosa", atMs: 1_000 }), outcome);
+    await linesOf(await ask.POST.run(send("POST", asked("Did it go?"), inA), asJsonb(tables)));
+    await linesOf(await ask.POST.run(send("POST", asked("And tomorrow?"), inA), asJsonb(tables)));
+    const [, , third, fourth] = requests;
+    const answers = tables.ask_messages.filter((m) => m.role === "assistant");
+    assert.deepEqual(
+      answers.map((m) => m.content.shape.replay),
+      ["none", "rebuilt", "live", "live"],
+    );
+    assert.equal(
+      JSON.stringify(unmark(third.messages.slice(0, requests[1].messages.length))),
+      JSON.stringify(unmark(requests[1].messages)),
+      "turn 3 begins with turn 2's request, byte for byte: the line as it was made",
+    );
+    assert.equal(wordsOf(third)[1], `${SINCE} “Reply to Rosa” (p-1) was approved: Sent to Rosa.`, "told once");
+    assert.deepEqual([answers[2].content.raw.after, answers[2].content.raw.told], [answers[1].id, ["p-1:done:1000"]]);
+    assert.ok(!wordsOf(fourth).some((l) => l.startsWith(SINCE)), "and never again");
+  } finally {
+    setAskPorts(null);
+  }
+});
+
 test("the database in memory keeps a column named jsonb as jsonb keeps it: what is written comes back with every object's keys, at every depth, shortest first, then by their bytes -- a call's input and a card's reordered -- and a string as it went; a column not named keeps the writer's order", async () => {
   const world = { t: [] };
   const db = fakeDb(world, {}, {}, { jsonb: ["t.content"] });
@@ -1407,6 +1540,7 @@ function readByPath(ctx) {
 
 test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET ask/threads/[id] and the history a follow-up is asked with read each key of a turn they read by its JSON path, never the whole content, and answer what the whole rows give, byte for byte; a card's outcome recorded later writes the row back whole, the raw turn beside it", async () => {
   const { toMessageVM, modelTurnOf } = await import(at("apps/dashboard/src/server/ask/store.ts"));
+  const { answerLine } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
   const raw = {
     at: Date.parse("2026-09-10T00:00:01Z"),
     model: ASK_MODEL,
@@ -1476,10 +1610,19 @@ test("the Line's reads never select the raw turn (the Phase 5 plan, D11): GET as
   try {
     const asker = asJsonb(tables);
     await linesOf(await ask.POST.run(send("POST", { text: "And tomorrow?", thread_id: T1 }, inA), asker));
+    // The question in the person's words (modelTurnOf), the answer one line (answerLine, the Phase 5 plan, D4).
     assert.deepEqual(
       requests[0].messages.slice(0, -1).map((m) => [m.role, m.content]),
-      whole.map(modelTurnOf).map((t) => [t.role, t.text.slice(0, 1200)]),
+      whole.map((r) =>
+        r.role === "assistant"
+          ? ["assistant", answerLine(toMessageVM(r), 1200)]
+          : [r.role, modelTurnOf(r).text.slice(0, 1200)],
+      ),
       "the history a follow-up is asked with: what the whole rows give",
+    );
+    assert.equal(
+      requests[0].messages[1].content,
+      "(This turn failed.) Dos borradores esperan. Cards: p-1 · policy · Autonomy: reply · not pressed yet.",
     );
     assert.ok(requests[0].messages[0].content.includes("Pilates studios · Denver"), "the search an answer answered");
     readByPath(asker);
