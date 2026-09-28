@@ -483,9 +483,14 @@ interface EmailReplyPorts {
         id: string;
         tenant_id: TenantId;
     }): Promise<EmailParentFacts | null>;
-    /** The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send from. */
+    /**
+     * The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send
+     * from. A reply to a reach-out on one of the workspace's own domains, verified now, is frozen a second time on that
+     * domain (`own`, C15): the edge sends it when that route still holds it, and the mailbox's request otherwise (N5).
+     */
     freeze(input: {
         tenantId: TenantId;
+        conversationId: string;
         messageId: string;
         to: string;
         parent: EmailParentFacts;
@@ -493,6 +498,7 @@ interface EmailReplyPorts {
     }): Promise<{
         request: Json;
         subject: string;
+        own?: Json | null;
     } | null>;
     /** The row's id before the row exists. */
     newId(): string;

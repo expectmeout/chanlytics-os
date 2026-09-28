@@ -1160,7 +1160,31 @@ The readings a page reads, the undo, and C15's freeze with its twin.
 
 **Deploy order:** the dashboard only, and either order with the edge: the row's `meta.email.request` is the mailbox's, which every edge sends, and only an edge with PR 4 sends the twin. **Reverting** removes the twin; replies leave from the mailbox, as before Part 5.
 
-> **As built:** _(filled in when the PR merges)_
+> **As built** (28 Sep 2026, on `main` at `0c8225d5`). What departed from the tasks, and why:
+>
+> - **`replyIdentityOf(supabase, { tenantId, conversationId, references, domains? })`** lives in `connections/email.ts`.
+>   - It takes the client rather than the route's context, so the readings' read can hand it the domains read once for many threads.
+>   - Lint holds a function to four parameters, so the rest ride in one object.
+>   - `replyFromOf` turns its answer into what the composer is told: the address, never the domain's row.
+> - **The freeze port is handed the thread** (`conversationId`) and answers `own` beside `request`. Core's reply keeps it as `meta.email.own_request`, and only when there is one.
+> - **Which reach-out email is answered.** `answeredReachOutEmail` reads the thread's latest 50 outbound emails and picks in TypeScript:
+>   - it keeps those whose `meta.source` is `reach_out` and that left (sent, delivered or read);
+>   - it takes the one the References name, else the latest.
+>
+>   A thread is one person's, so "on the thread" is "to this person". An email that never left is never the one answered.
+> - **The twin's reply domain** is the host of the answered email's Reply-To, as it was frozen (the mail domain when that cannot be read). A domain whose state is anything but `verified` (records, verifying, held) is `domain_held`, and one no longer among the workspace's is `domain_removed`.
+> - **`can_undo` is asked of the door for each no not undone, one call each, not selected with the row.**
+>   - PostgREST calls a function per row only as a computed column, and `reach_out_reply_undoable` takes a message id, not the row.
+>   - The calls are bounded by the noes among the page's 200 rows.
+>   - Its seven days, who asks, and what moved since stay the door's alone; nothing in TypeScript restates them.
+> - **Each thread's `reply_from` is computed as the freeze computes it:** from that thread's latest inbound email's References, once per thread.
+> - **`GET reach-out-replies` declares no role and no rate.** Every member reads, as every workspace read here declares: there is no `read` rate bucket.
+> - **The undo's refusal words are the door's own exception texts** (`REPLY_UNDO_REFUSALS`), answered as 404 for `not_found`, 403 for `role`, and 409 for the rest. The door's test is asked before the undo, and again if the undo refuses, so the member hears the reason that held when it refused.
+> - **The route-policy rows were added by hand.** `UPDATE_ROUTE_POLICY=1` would have rewritten the whole file in a new order; the test compares the rows, not their order.
+> - **Tests:**
+>   - `reach-out-replies/reply-freeze.test.mjs` (4): the dashboard's freeze over a database in memory;
+>   - `reach-out-replies/reply-routes.test.mjs` (5): the routes through `route()`;
+>   - `conversations/core-reply.test.mjs`: the freeze's input and the twin kept.
 
 ### Task 6.1: The reply from the thread's own domain
 

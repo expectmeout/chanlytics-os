@@ -62,6 +62,7 @@ export const ROUTES = {
   "GET platform/tenants/[id]": { method: "GET", path: "/api/v1/platform/tenants/[id]" },
   "GET playbooks": { method: "GET", path: "/api/v1/playbooks" },
   "GET policies": { method: "GET", path: "/api/v1/policies" },
+  "GET reach-out-replies": { method: "GET", path: "/api/v1/reach-out-replies" },
   "GET reach-outs": { method: "GET", path: "/api/v1/reach-outs" },
   "GET reach-outs/[id]": { method: "GET", path: "/api/v1/reach-outs/[id]" },
   "GET reach-outs/reach": { method: "GET", path: "/api/v1/reach-outs/reach" },
@@ -158,6 +159,7 @@ export const ROUTES = {
   "POST platform/waitlist/invited": { method: "POST", path: "/api/v1/platform/waitlist/invited" },
   "POST playbooks": { method: "POST", path: "/api/v1/playbooks" },
   "POST playbooks/[id]/run": { method: "POST", path: "/api/v1/playbooks/[id]/run" },
+  "POST reach-out-replies/[id]/undo": { method: "POST", path: "/api/v1/reach-out-replies/[id]/undo" },
   "POST reach-out-sends/[id]/decide": { method: "POST", path: "/api/v1/reach-out-sends/[id]/decide" },
   "POST reach-outs": { method: "POST", path: "/api/v1/reach-outs" },
   "POST reach-outs/preview": { method: "POST", path: "/api/v1/reach-outs/preview" },
@@ -260,6 +262,7 @@ export type Routes = {
   "GET platform/tenants/[id]": typeof import("../../app/api/v1/platform/tenants/[id]/route").GET;
   "GET playbooks": typeof import("../../app/api/v1/playbooks/route").GET;
   "GET policies": typeof import("../../app/api/v1/policies/route").GET;
+  "GET reach-out-replies": typeof import("../../app/api/v1/reach-out-replies/route").GET;
   "GET reach-outs": typeof import("../../app/api/v1/reach-outs/route").GET;
   "GET reach-outs/[id]": typeof import("../../app/api/v1/reach-outs/[id]/route").GET;
   "GET reach-outs/reach": typeof import("../../app/api/v1/reach-outs/reach/route").GET;
@@ -356,6 +359,7 @@ export type Routes = {
   "POST platform/waitlist/invited": typeof import("../../app/api/v1/platform/waitlist/invited/route").POST;
   "POST playbooks": typeof import("../../app/api/v1/playbooks/route").POST;
   "POST playbooks/[id]/run": typeof import("../../app/api/v1/playbooks/[id]/run/route").POST;
+  "POST reach-out-replies/[id]/undo": typeof import("../../app/api/v1/reach-out-replies/[id]/undo/route").POST;
   "POST reach-out-sends/[id]/decide": typeof import("../../app/api/v1/reach-out-sends/[id]/decide/route").POST;
   "POST reach-outs": typeof import("../../app/api/v1/reach-outs/route").POST;
   "POST reach-outs/preview": typeof import("../../app/api/v1/reach-outs/preview/route").POST;
