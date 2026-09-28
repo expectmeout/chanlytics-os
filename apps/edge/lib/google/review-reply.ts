@@ -15,12 +15,12 @@ export const REVIEW_REPLY_MODEL = "claude-sonnet-5";
 /** How long the model may take to draft a review's reply. */
 const DRAFT_TIMEOUT_MS = 15_000;
 
-let client: Anthropic | null = null;
+let anthropicClient: Anthropic | null = null;
 function anthropic(): Anthropic {
   // Built on first use, not at import: this module rides along with the
   // sweep, which must keep reading listings on a deployment without a key.
-  if (!client) client = new Anthropic({ timeout: DRAFT_TIMEOUT_MS, maxRetries: 1 });
-  return client;
+  if (!anthropicClient) anthropicClient = new Anthropic({ timeout: DRAFT_TIMEOUT_MS, maxRetries: 1 });
+  return anthropicClient;
 }
 
 type DraftResult =

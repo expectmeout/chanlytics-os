@@ -161,7 +161,7 @@ async function resolve(
 }
 
 /** An empty body is `{}`, so a schema whose fields are all optional still passes; an unreadable one is refused. */
-async function bodyOf(req: Request): Promise<unknown> {
+async function requestBodyOf(req: Request): Promise<unknown> {
   const text = await req.text();
   if (!text.trim()) return {};
   try {
@@ -205,7 +205,7 @@ interface Spec<S extends Scope, I, O> {
   handle: (call: Call<S, I>) => Promise<O>;
 }
 
-function build<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>) {
+function buildRoute<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>) {
   const policy: Policy = Object.freeze({
     kind,
     scope: spec.scope.kind,
@@ -232,7 +232,7 @@ function build<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>)
     const input =
       kind === "write"
         ? spec.input
-          ? parse(spec.input, await bodyOf(req))
+          ? parse(spec.input, await requestBodyOf(req))
           : undefined
         : spec.query
           ? parse(spec.query, Object.fromEntries([...new URL(req.url).searchParams].filter(([k]) => k !== "workspace")))
@@ -249,10 +249,10 @@ function build<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>)
 
 /** A GET. */
 export function read<S extends Scope, Q = undefined, O = unknown>(spec: ReadSpec<S, Q, O>) {
-  return build<S, Q, O>("read", spec);
+  return buildRoute<S, Q, O>("read", spec);
 }
 
 /** A POST, PUT, PATCH or DELETE. */
 export function write<S extends Scope, I = undefined, O = unknown>(spec: WriteSpec<S, I, O>) {
-  return build<S, I, O>("write", spec);
+  return buildRoute<S, I, O>("write", spec);
 }
