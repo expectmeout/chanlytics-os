@@ -259,7 +259,7 @@ export async function listCalls(
  * sixty-second function, twenty-five rows a tick: a read that never answered
  * used to be waited for until the platform cut the function off.
  */
-export const RETELL_READ_TIMEOUT_MS = 10_000;
+const RETELL_READ_TIMEOUT_MS = 10_000;
 
 /**
  * What a read of one call came back as. `null` once stood for every non-2xx
