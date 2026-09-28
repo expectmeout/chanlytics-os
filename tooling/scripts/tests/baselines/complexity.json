@@ -39,11 +39,6 @@
     "branches": 1,
     "depth": 0
   },
-  "apps/dashboard/app/signup/page.tsx::SignupPage#1": {
-    "lines": 256,
-    "branches": 19,
-    "depth": 1
-  },
   "apps/dashboard/app/yes/[slug]/page.tsx::ConsentPage#1": {
     "lines": 155,
     "branches": 13,

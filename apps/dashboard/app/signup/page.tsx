@@ -29,8 +29,25 @@ import AuthShell from "@/auth/AuthShell";
  * already known — the form is not an oracle for who has an account, and with
  * confirmation on that is Supabase's own behaviour rather than something this
  * page reconstructs (see /login for the same stance).
+ *
+ * The screen is its parts: its state and its arrival (useSignupState), the
+ * press (submitFor), and one card per outcome, in the order they win: the
+ * code that did not go out, the waitlist joined, the code step, the form.
  */
 export default function SignupPage() {
+  const s = useSignupState();
+  if (s.unsent) return unsentCard(s.unsent, s.email);
+  if (s.joined) return joinedCard(s.email);
+  if (s.stage === "confirm") return confirmCard(s);
+  return formCard(s, submitFor(s));
+}
+
+/**
+ * The screen's state, and the one thing it does on arrival: ask the server
+ * which door this is. The hooks are called in the order the screen always
+ * called them, so each keeps its place.
+ */
+function useSignupState() {
   const supabase = createClient();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -64,139 +81,190 @@ export default function SignupPage() {
       .catch(() => setPosture("open"));
   }, []);
 
-  async function submit(e: React.FormEvent) {
+  return {
+    supabase,
+    name,
+    setName,
+    email,
+    setEmail,
+    password,
+    setPassword,
+    code,
+    setCode,
+    posture,
+    stage,
+    setStage,
+    joined,
+    setJoined,
+    unsent,
+    setUnsent,
+    busy,
+    setBusy,
+    error,
+    setError,
+    tz,
+    fieldRef,
+  };
+}
+
+/** One draw's state: what every part below reads. */
+type SignupState = ReturnType<typeof useSignupState>;
+
+/** What the sign-up route answers, when it answers JSON at all. */
+type SignupAnswer = {
+  ok?: boolean;
+  data?: { next?: string | null; waitlisted?: boolean; sent?: boolean; message?: string };
+  error?: { message?: string };
+} | null;
+
+/** The form's press, over one draw's state: the password checked, the details sent, the answer taken. */
+function submitFor(s: SignupState) {
+  return async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
-    setError(null);
+    s.setBusy(true);
+    s.setError(null);
     // Checked here so the answer is instant and names the field, and again by
     // the route and by Supabase, where it is the rule rather than a courtesy.
     // One function, so the browser's rule and the server's cannot drift.
-    const weak = posture === "waitlist" ? null : passwordProblem(password);
+    const weak = s.posture === "waitlist" ? null : passwordProblem(s.password);
     if (weak) {
-      setError(weak);
-      setBusy(false);
+      s.setError(weak);
+      s.setBusy(false);
       return;
     }
     try {
       const res = await fetch("/api/v1/signup", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          // A waitlist takes details and creates no account, so it is sent no
-          // credential at all.
-          ...(posture === "waitlist" ? {} : { password }),
-          ...(tz ? { timezone: tz } : {}),
-          ...(posture === "invite" ? { code: code.trim() } : {}),
-        }),
+        body: signupBody(s),
       });
-      const j = (await res.json().catch(() => null)) as {
-        ok?: boolean;
-        data?: { next?: string | null; waitlisted?: boolean; sent?: boolean; message?: string };
-        error?: { message?: string };
-      } | null;
-      if (!res.ok || !j?.ok) {
-        setError(j?.error?.message ?? "Something went wrong. Try again.");
-        return;
-      }
-      // A waitlist submission has nowhere to go: no code is coming and there is
-      // no screen to enter one on. Say so here rather than navigating somewhere
-      // that would ask for one.
-      if (j.data?.waitlisted) {
-        setJoined(true);
-        return;
-      }
-      // THE CODE DID NOT GO OUT. Showing the confirm step would put a person in
-      // front of a box asking for six digits that are not coming.
-      if (j.data?.sent === false) {
-        setUnsent(j.data.message ?? SIGNUP_WORDS.notSent);
-        return;
-      }
-      setStage("confirm");
+      const j = (await res.json().catch(() => null)) as SignupAnswer;
+      takeSignupAnswer(s, res, j);
     } catch {
-      setError(SIGNUP_WORDS.unreachable);
+      s.setError(SIGNUP_WORDS.unreachable);
     } finally {
-      setBusy(false);
+      s.setBusy(false);
     }
-  }
+  };
+}
 
+/** What the form sends: trimmed, the device's zone when it gave one, and the code only behind the invite door. */
+function signupBody({ name, email, password, code, posture, tz }: SignupState) {
+  return JSON.stringify({
+    name: name.trim(),
+    email: email.trim(),
+    // A waitlist takes details and creates no account, so it is sent no
+    // credential at all.
+    ...(posture === "waitlist" ? {} : { password }),
+    ...(tz ? { timezone: tz } : {}),
+    ...(posture === "invite" ? { code: code.trim() } : {}),
+  });
+}
+
+/** Where the route's answer leaves the screen: its refusal's words, the waitlist, the code not sent, or the code step. */
+function takeSignupAnswer({ setError, setJoined, setUnsent, setStage }: SignupState, res: Response, j: SignupAnswer) {
+  if (!res.ok || !j?.ok) {
+    setError(j?.error?.message ?? "Something went wrong. Try again.");
+    return;
+  }
+  // A waitlist submission has nowhere to go: no code is coming and there is
+  // no screen to enter one on. Say so here rather than navigating somewhere
+  // that would ask for one.
+  if (j.data?.waitlisted) {
+    setJoined(true);
+    return;
+  }
+  // THE CODE DID NOT GO OUT. Showing the confirm step would put a person in
+  // front of a box asking for six digits that are not coming.
+  if (j.data?.sent === false) {
+    setUnsent(j.data.message ?? SIGNUP_WORDS.notSent);
+    return;
+  }
+  setStage("confirm");
+}
+
+/** The code did not go out: the route's sentence, and the way to ask for it at sign-in. */
+function unsentCard(unsent: string, email: string) {
+  return (
+    <AuthShell>
+      <div className="auth-card" data-testid="signup-unsent">
+        <h1>{SIGNUP_WORDS.notSentTitle}</h1>
+        <p>{unsent}</p>
+        <div className="hint">
+          <a href={`/login?email=${encodeURIComponent(email.trim())}`}>Go to sign-in</a> and ask for the code there.
+        </div>
+      </div>
+    </AuthShell>
+  );
+}
+
+/** On the waitlist: the address it will hear at, and nothing more to do here. */
+function joinedCard(email: string) {
+  return (
+    <AuthShell>
+      <div className="auth-card" data-testid="signup-joined">
+        <h1>{SIGNUP_WORDS.waitlistTitle}</h1>
+        <p>{SIGNUP_WORDS.waitlistSent(email.trim())}</p>
+        <div className="hint">
+          Already have a workspace? <a href="/login">Sign in</a>
+        </div>
+      </div>
+    </AuthShell>
+  );
+}
+
+/**
+ * The code step. The address is what is unproved, so this screen says so --
+ * and the password they just chose is already theirs, which is why nothing
+ * here asks for it again.
+ */
+function confirmCard({ supabase, email, setStage, setError }: SignupState) {
+  return (
+    <AuthShell>
+      <div className="auth-card" data-testid="signup-confirm">
+        <h1>{SIGNUP_WORDS.confirmTitle}</h1>
+        <p>{SIGNUP_WORDS.confirmLead(email.trim())}</p>
+        <CodeStep
+          email={email.trim()}
+          label="6-digit code"
+          submitLabel={SIGNUP_WORDS.confirmSubmit}
+          onSubmit={async (typed) => {
+            const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "email" });
+            if (error) return verifyCodeWords(error.message);
+            clearSurfaceCache();
+            // No workspace exists yet: the create screen opens next, with the
+            // name and clock from this form already in it.
+            window.location.assign("/");
+            return null;
+          }}
+          onResend={async () => {
+            // A confirmation is resent as a confirmation. Asking for a sign-in
+            // code instead would be a different credential for a different
+            // door, on an account that is not confirmed yet.
+            const { error } = await supabase.auth.resend({ type: "signup", email: email.trim() });
+            return error ? requestCodeWords(error) : null;
+          }}
+          onBack={() => {
+            setStage("form");
+            setError(null);
+          }}
+        />
+        {/* The cost of answering a known address exactly as a new one: somebody
+            who already had an account is standing at a code screen waiting for
+            a code nobody sent. This is the way out, and it gives nothing away —
+            it is shown to everyone who reaches this step. */}
+        <div className="hint">
+          {SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a>
+        </div>
+      </div>
+    </AuthShell>
+  );
+}
+
+/** The form, in the posture the server named: its words, Google's door, the fields and the hints. */
+function formCard(s: SignupState, submit: (e: React.FormEvent) => Promise<void>) {
+  const { posture, tz, error } = s;
   const waiting = posture === "waitlist";
-
-  if (unsent) {
-    return (
-      <AuthShell>
-        <div className="auth-card" data-testid="signup-unsent">
-          <h1>{SIGNUP_WORDS.notSentTitle}</h1>
-          <p>{unsent}</p>
-          <div className="hint">
-            <a href={`/login?email=${encodeURIComponent(email.trim())}`}>Go to sign-in</a> and ask for the code there.
-          </div>
-        </div>
-      </AuthShell>
-    );
-  }
-
-  if (joined) {
-    return (
-      <AuthShell>
-        <div className="auth-card" data-testid="signup-joined">
-          <h1>{SIGNUP_WORDS.waitlistTitle}</h1>
-          <p>{SIGNUP_WORDS.waitlistSent(email.trim())}</p>
-          <div className="hint">
-            Already have a workspace? <a href="/login">Sign in</a>
-          </div>
-        </div>
-      </AuthShell>
-    );
-  }
-
-  // The address is what is unproved, so this screen says so — and the password
-  // they just chose is already theirs, which is why nothing here asks for it
-  // again.
-  if (stage === "confirm") {
-    return (
-      <AuthShell>
-        <div className="auth-card" data-testid="signup-confirm">
-          <h1>{SIGNUP_WORDS.confirmTitle}</h1>
-          <p>{SIGNUP_WORDS.confirmLead(email.trim())}</p>
-          <CodeStep
-            email={email.trim()}
-            label="6-digit code"
-            submitLabel={SIGNUP_WORDS.confirmSubmit}
-            onSubmit={async (typed) => {
-              const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "email" });
-              if (error) return verifyCodeWords(error.message);
-              clearSurfaceCache();
-              // No workspace exists yet: the create screen opens next, with the
-              // name and clock from this form already in it.
-              window.location.assign("/");
-              return null;
-            }}
-            onResend={async () => {
-              // A confirmation is resent as a confirmation. Asking for a sign-in
-              // code instead would be a different credential for a different
-              // door, on an account that is not confirmed yet.
-              const { error } = await supabase.auth.resend({ type: "signup", email: email.trim() });
-              return error ? requestCodeWords(error) : null;
-            }}
-            onBack={() => {
-              setStage("form");
-              setError(null);
-            }}
-          />
-          {/* The cost of answering a known address exactly as a new one: somebody
-              who already had an account is standing at a code screen waiting for
-              a code nobody sent. This is the way out, and it gives nothing away —
-              it is shown to everyone who reaches this step. */}
-          <div className="hint">
-            {SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a>
-          </div>
-        </div>
-      </AuthShell>
-    );
-  }
-
   return (
     <AuthShell>
       <div className="auth-card" data-testid="signup" data-posture={posture ?? "unknown"}>
@@ -206,72 +274,7 @@ export default function SignupPage() {
             and asks the invite code there, when sign-up is by invitation. Not on
             the waitlist: a list takes details, not accounts. */}
         {posture !== null && !waiting && <GoogleSignIn next="/" hint={SIGNUP_WORDS.googleNext} />}
-        <form onSubmit={submit}>
-          <label htmlFor="name">Business name</label>
-          <input
-            id="name"
-            type="text"
-            autoComplete="organization"
-            required
-            minLength={2}
-            maxLength={120}
-            ref={fieldRef}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Luna Studio"
-          />
-          <label htmlFor="email">Work email</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="username"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@business.com"
-          />
-          {/* Not on the waitlist, which makes no account to hold one. */}
-          {!waiting && (
-            <>
-              <label htmlFor="password">{PASSWORD_WORDS.chooseLabel}</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-              />
-              <div className="auth-field-hint">{PASSWORD_WORDS.hint}</div>
-            </>
-          )}
-          {posture === "invite" && (
-            <>
-              <label htmlFor="code">Invite code</label>
-              <input
-                id="code"
-                type="text"
-                autoComplete="off"
-                required
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="From your Chanlytics contact"
-              />
-            </>
-          )}
-          <button disabled={busy || posture === null}>
-            {busy
-              ? waiting
-                ? "Adding you…"
-                : "Creating your workspace…"
-              : waiting
-                ? SIGNUP_WORDS.waitlistCta
-                : "Create workspace"}
-          </button>
-        </form>
+        {detailsForm(s, submit)}
         {/* The device clock is read to set the workspace's timezone. On the
             waitlist there is no workspace yet, so saying so would be noise. */}
         {tz && !waiting && <div className="hint">{SIGNUP_WORDS.clock(tz)}</div>}
@@ -284,5 +287,84 @@ export default function SignupPage() {
         </div>
       </div>
     </AuthShell>
+  );
+}
+
+/** The fields: a name and an address always, a password where an account is made, a code behind the invite door. */
+function detailsForm(s: SignupState, submit: (e: React.FormEvent) => Promise<void>) {
+  const { name, setName, email, setEmail, code, setCode, posture, busy, fieldRef } = s;
+  const waiting = posture === "waitlist";
+  return (
+    <form onSubmit={submit}>
+      <label htmlFor="name">Business name</label>
+      <input
+        id="name"
+        type="text"
+        autoComplete="organization"
+        required
+        minLength={2}
+        maxLength={120}
+        ref={fieldRef}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Luna Studio"
+      />
+      <label htmlFor="email">Work email</label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        autoComplete="username"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="you@business.com"
+      />
+      {/* Not on the waitlist, which makes no account to hold one. */}
+      {!waiting && passwordFields(s)}
+      {posture === "invite" && (
+        <>
+          <label htmlFor="code">Invite code</label>
+          <input
+            id="code"
+            type="text"
+            autoComplete="off"
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="From your Chanlytics contact"
+          />
+        </>
+      )}
+      <button disabled={busy || posture === null}>
+        {busy
+          ? waiting
+            ? "Adding you…"
+            : "Creating your workspace…"
+          : waiting
+            ? SIGNUP_WORDS.waitlistCta
+            : "Create workspace"}
+      </button>
+    </form>
+  );
+}
+
+/** The password an account is made with, and the rule it is held to. */
+function passwordFields({ password, setPassword }: SignupState) {
+  return (
+    <>
+      <label htmlFor="password">{PASSWORD_WORDS.chooseLabel}</label>
+      <input
+        id="password"
+        name="password"
+        type="password"
+        autoComplete="new-password"
+        required
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder="••••••••••••"
+      />
+      <div className="auth-field-hint">{PASSWORD_WORDS.hint}</div>
+    </>
   );
 }
