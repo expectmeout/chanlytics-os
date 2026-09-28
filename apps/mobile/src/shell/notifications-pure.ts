@@ -2,7 +2,7 @@
  * The pure part of being told: which tab a route belongs to, and what a push carries. No native import, so the
  * rules run under node (test/notifications.test.mjs); notifications.ts wraps them in the effects.
  */
-import { APP_ROUTE_RE, UUID } from "@chanlytics/contracts";
+import { APP_ROUTE_RE, UUID } from "@chanlytics/contracts/phone-app";
 import type { Tab } from "./state";
 
 /** The tab a hash route lives in: the four the bar names, else More, where the drawer reaches everything. */

@@ -3,11 +3,25 @@
 # screens, the bridge or the contracts they bundle reaches the installed preview app as an update on its channel, on
 # the next launch. iOS has no preview build until the Apple account exists (an internal iOS build needs its
 # credentials); a simulator build is asked for by hand with the development-simulator profile.
+#
+# It runs only for what the app is made of: its own tree, the versions it is built with, the entry it imports
+# contracts through (the package's exports) and the modules that entry reaches. The rest of contracts is the web's,
+# and publishing an update for every change to it (most pull requests) spent a run on an app nothing had changed in.
+# apps/mobile/test/preview-paths.test.mjs holds the contracts lines to what src/mobile/phone-app.ts imports.
 name: Preview
 on:
   push:
     branches: [main]
-    paths: ["apps/mobile/**", "packages/contracts/**"]
+    paths:
+      - apps/mobile/**
+      - pnpm-lock.yaml
+      - packages/contracts/package.json
+      - packages/contracts/src/mobile/**
+      - packages/contracts/src/shared/identity.ts
+      - packages/contracts/src/shared/phone.ts
+      - packages/contracts/src/shared/time.ts
+      - packages/contracts/src/shell/chrome.ts
+      - packages/contracts/src/workspace/billing.ts
 jobs:
   fingerprint:
     type: fingerprint
