@@ -30,22 +30,18 @@ import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
 // 254KB design system ships as document <link>s and downloads in parallel
 // with this chunk, rather than serially behind it.
-import {
-  workspaceOverride,
-  conversationsOverride,
-  inboxOverride,
-  todayOverride,
-  settingsOverride,
-  peopleOverride,
-  reportsOverride,
-  liveOverride,
-  switchWorkspace,
-  type Workspace,
-  broadcastsOverride,
-  playbooksOverride,
-  calendarOverride,
-  notificationsOverride,
-} from "./surface-data";
+import { workspaceOverride, switchWorkspace, type Workspace } from "./surface-data";
+import { conversationsOverride } from "./surfaces/conversations";
+import { inboxOverride } from "./surfaces/inbox";
+import { todayOverride } from "./surfaces/today";
+import { settingsOverride } from "./surfaces/settings";
+import { peopleOverride } from "./surfaces/people";
+import { reportsOverride } from "./surfaces/reports";
+import { liveOverride } from "./surfaces/live";
+import { broadcastsOverride } from "./surfaces/broadcasts";
+import { playbooksOverride } from "./surfaces/playbooks";
+import { calendarOverride } from "./surfaces/calendar";
+import { notificationsOverride } from "./surfaces/notifications";
 import {
   getConnection,
   getSurfaceStatuses,

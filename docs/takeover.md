@@ -34,10 +34,10 @@ rows (`docs/debt.md`).
 
 ```text
 functions over the limit            202   of which over 200 lines: 60
-files over 800 lines                 14
+files over 800 lines                 13
 directories over 20 modules           7
 window globals                      200   names
-window publishers                   446   sites in 153 files
+window publishers                   446   sites in 164 files
 copies                              152   of 38 names
 as unknown as                       221
 table names outside packages/db     533

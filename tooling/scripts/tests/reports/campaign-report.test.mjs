@@ -198,7 +198,7 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
     (e) => e.status === 400 && e.message === "days must be 7, 30 or 90.",
     "the same three presets as the receptionist's report",
   );
-  const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const s = readCode("apps/dashboard/src/legacy-bridge/surfaces/reports.ts");
   assert.ok(
     s.includes('read("GET reports/campaigns", { query: { days: String(days) } })'),
     "fetched with the same period, beside the receptionist's numbers",

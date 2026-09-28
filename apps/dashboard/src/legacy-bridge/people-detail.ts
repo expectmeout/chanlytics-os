@@ -43,7 +43,7 @@ import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
 import { workspaceZone } from "./zone";
 import { readCache, staleReadCaches } from "./read-cache";
-import { keepSavedView, placeDeal } from "./surface-data";
+import { keepSavedView, placeDeal } from "./surfaces/people";
 import { personRouteId } from "./surface-registry";
 import { afterBoot, bootWaitsFor } from "./surface-runner";
 import { getActiveWorkspace } from "./workspace";

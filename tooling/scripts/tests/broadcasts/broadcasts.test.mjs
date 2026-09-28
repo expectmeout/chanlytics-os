@@ -485,7 +485,7 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   );
   assert.equal(reg.SURFACE_STATES.broadcasts, "real");
   assert.equal(reg.ROUTE_SURFACE.broadcasts, "broadcasts");
-  const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const s = readCode("apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts");
   assert.ok(s.includes('key: "broadcasts",'));
   // BOTH sizes per audience, because there is no one number any more: the chip's
   // count depends on the purpose of the template the composer has selected, which
@@ -578,7 +578,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));
   // The number's refusals are run: core-campaigns.test.mjs. Its quality, read from the row's config, is run through the
   // channels route in reads-routes.test.mjs ("the channels read") and through its reader in readers.test.mjs.
-  const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const sd = readCode("apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts");
   assert.match(
     sd,
     /health: numberHealth\(\{\s*quality: wa\?\.quality \?\? null,\s*event: wa\?\.quality_event \?\? null,\s*limit: wa\?\.messaging_limit \?\? null,?\s*\}\),/,
@@ -631,7 +631,7 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
     "the code encodes one link and nothing a caller chooses",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes(
+    readCode("apps/dashboard/src/legacy-bridge/surfaces/broadcasts.ts").includes(
       'qrPath: optInLink(wa?.number_e164) ? api().url("GET consent/qr") : null,',
     ),
   );

@@ -148,7 +148,13 @@ test("nothing outside the runner calls activateOverride directly", () => {
 {
   const { readCode } = await import("../../_source.mjs");
   const runner = readCode("apps/dashboard/src/legacy-bridge/surface-runner.ts");
-  const seam = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
+  // The seam and each surface's module beside it (legacy-bridge/surfaces/), read as one text.
+  const seam = [
+    "apps/dashboard/src/legacy-bridge/surface-data.ts",
+    ...fs.readdirSync(path.join(BRIDGE, "surfaces")).map((f) => `apps/dashboard/src/legacy-bridge/surfaces/${f}`),
+  ]
+    .map((p) => readCode(p))
+    .join("\n");
   const verbs = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   const wrapper = readCode("apps/dashboard/src/server/with-route.ts");
 
