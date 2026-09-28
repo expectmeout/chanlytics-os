@@ -199,12 +199,12 @@
     "branches": 132,
     "depth": 0
   },
-  "apps/dashboard/src/legacy/demo/pages/broadcasts.jsx::BroadcastsPage#1": {
+  "apps/dashboard/src/legacy/demo/pages/broadcasts.jsx::BroadcastsSeed#1": {
     "lines": 353,
     "branches": 22,
     "depth": 0
   },
-  "apps/dashboard/src/legacy/demo/pages/calendar.jsx::CalendarPage#1": {
+  "apps/dashboard/src/legacy/demo/pages/calendar.jsx::CalendarSeed#1": {
     "lines": 340,
     "branches": 23,
     "depth": 1
@@ -224,9 +224,19 @@
     "branches": 25,
     "depth": 0
   },
-  "apps/dashboard/src/legacy/demo/pages/outbound.jsx::OutboundPage#1": {
+  "apps/dashboard/src/legacy/demo/pages/outbound.jsx::OutboundSeed#1": {
     "lines": 198,
     "branches": 3,
+    "depth": 0
+  },
+  "apps/dashboard/src/legacy/demo/pages/segments.jsx::SegmentDetail#1": {
+    "lines": 274,
+    "branches": 37,
+    "depth": 1
+  },
+  "apps/dashboard/src/legacy/demo/pages/segments.jsx::SegmentsPage#1": {
+    "lines": 236,
+    "branches": 14,
     "depth": 0
   },
   "apps/dashboard/src/legacy/demo/pages/tasks.jsx::TasksPage#1": {
@@ -375,13 +385,13 @@
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-list.jsx::InboxList#1": {
-    "lines": 409,
+    "lines": 410,
     "branches": 58,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-list.jsx::InboxList/map(fn)#6": {
-    "lines": 110,
-    "branches": 49,
+    "lines": 111,
+    "branches": 50,
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-rail.jsx::InboxAgentRail#1": {
@@ -395,13 +405,13 @@
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::Composer#1": {
-    "lines": 227,
-    "branches": 36,
+    "lines": 228,
+    "branches": 37,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::InboxThread#1": {
-    "lines": 119,
-    "branches": 54,
+    "lines": 117,
+    "branches": 56,
     "depth": 1
   },
   "apps/dashboard/src/legacy/pages/inbox-thread.jsx::TemplateSendButton#1": {
@@ -552,16 +562,6 @@
   "apps/dashboard/src/legacy/pages/reports-sections.jsx::ReportsSections#1": {
     "lines": 206,
     "branches": 39,
-    "depth": 0
-  },
-  "apps/dashboard/src/legacy/pages/segments.jsx::SegmentDetail#1": {
-    "lines": 274,
-    "branches": 37,
-    "depth": 1
-  },
-  "apps/dashboard/src/legacy/pages/segments.jsx::SegmentsPage#1": {
-    "lines": 236,
-    "branches": 14,
     "depth": 0
   },
   "apps/dashboard/src/legacy/pages/settings.jsx::PaneAutonomyReal#1": {

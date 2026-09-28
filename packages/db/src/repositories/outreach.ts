@@ -330,6 +330,9 @@ export interface ReplyListRow {
   draft: string | null;
   draft_state: string;
   draft_why: string | null;
+  /** What the reading did (contracts ReadingPlan, as JSON), and an automatic away's day back. */
+  plan: Json;
+  until_at: string | null;
   business: string | null;
   /** The step the reply answers (reach_out_sends.playbook_id), and its chain's first step. */
   playbook_id: string | null;
@@ -337,7 +340,7 @@ export interface ReplyListRow {
 }
 
 const REPLY_LIST_COLUMNS =
-  "message_id, conversation_id, read_at, intent, claim, summary, named_day, refer_to, unread, rereads, undone_at, draft, draft_state, draft_why, lead_id, send_id";
+  "message_id, conversation_id, read_at, intent, claim, summary, named_day, refer_to, unread, rereads, undone_at, draft, draft_state, draft_why, plan, until_at, lead_id, send_id";
 
 /**
  * A workspace's readings since a moment, newest first and at most `limit`, on the caller's client (RLS decides): with

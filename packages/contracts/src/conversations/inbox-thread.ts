@@ -14,6 +14,7 @@ import { contactName, contactMeta, initialsOf } from "./thread-contact";
 import { shortTime, bubbleTime, formatWaited } from "./thread-clock";
 import { mediaVM } from "./message-media";
 import { emailSubjectOf, emailLeftOutOf, splitQuotedReply } from "./message-email";
+import { replyLeftAsOf } from "../reach-out/reach-out-reply-words";
 import {
   messageStatusLabel,
   reachedCustomer,
@@ -121,7 +122,7 @@ export function toInboxThreadVM(
     const media = mediaVM(m);
     const why = m.sender === "ai" ? replyWhy(m.meta) : null;
     const subject = m.channel === "email" ? emailSubjectOf(m) : null;
-    const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) : null;
+    const leftOut = m.channel === "email" ? (emailLeftOutOf(m.meta) ?? replyLeftAsOf(m.meta)) : null;
     // Only an email quotes; a WhatsApp message that happens to start a line with ">" is words.
     const said = m.channel === "email" ? splitQuotedReply(messageText(m)) : null;
     return {

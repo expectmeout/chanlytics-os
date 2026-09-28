@@ -229,8 +229,20 @@ export {
   REPLY_UNDO_REFUSALS,
   isReplyUndoRefusal,
   ReachOutRepliesQuerySchema,
+  replyStripOf,
+  replyChipOf,
+  replyFromLineOf,
+  replyLeftAsOf,
 } from "./reach-out-reply-words";
-export type { ReplyUndoRefusal, ReplyFrom, ReachOutReplyDto, ReachOutRepliesQuery } from "./reach-out-reply-words";
+export type {
+  ReplyUndoRefusal,
+  ReplyFrom,
+  ReachOutReplyDto,
+  ReachOutRepliesQuery,
+  ReachOutRepliesDto,
+  ReplyStrip,
+  ReplyDoor,
+} from "./reach-out-reply-words";
 export type {
   ReplyIntent,
   ReplyReading,

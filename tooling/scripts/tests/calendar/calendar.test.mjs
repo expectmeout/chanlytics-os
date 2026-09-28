@@ -292,7 +292,7 @@ test("the doors and the page: read-only, the feed's address never in the browser
     "a viewer: nothing moved, cancelled, synced two ways, or priced",
   );
   assert.ok(
-    readCode("apps/dashboard/src/legacy/demo/pages/calendar.jsx").includes("window.CalendarSeed = CalendarPage;"),
+    readCode("apps/dashboard/src/legacy/demo/pages/calendar.jsx").includes("window.CalendarSeed = CalendarSeed;"),
   );
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes('key: "calendar"') && sd.includes('read("GET calendar"'), "one override, fed by the route");
