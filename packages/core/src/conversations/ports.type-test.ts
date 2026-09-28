@@ -22,6 +22,8 @@ type _Ports = [
   Holds<Exactly<Parameters<typeof snooze>[1]["conv"]["tenant_id"], TenantId>>,
   Holds<Exactly<Parameters<ThreadPorts["record"]>[0], TenantId>>,
   Holds<Exactly<ReplyThread["contact_id"], ContactId | null>>,
+  // @ts-expect-error had ReplyThread's contact_id been typed any, its positive would read so, and Exactly refuses any
+  Holds<Exactly<any, ContactId | null>>,
   // @ts-expect-error a thread read without asTenantId carries a bare string, and no verb takes it
   Holds<Within<Unchecked, Thread>>,
   // @ts-expect-error a person's id does not stand in for the workspace's where a decision is recorded

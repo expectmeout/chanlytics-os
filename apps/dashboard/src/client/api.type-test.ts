@@ -1,9 +1,13 @@
 /**
  * What a route takes and answers, proved where the compiler reads it. A handler made by `read` or `write`
  * (server/route.ts) carries its schema's input and its handle's output as a phantom `Shape`; the generated registry
- * (routes.generated.ts) keys each handler; and the typed client (api.ts) reads both from the key. So a body the route
- * never reads, a body short of what it requires, a path without its parameter, a body on a read and a query on a
- * write each stop compiling, and an answer is read as data only once `ok` says there is some.
+ * (routes.generated.ts) keys each handler; and the typed client (api.ts) reads both from the key. So a call through
+ * the client (`api`, and `api.raw`) stops compiling when it leaves out the options a route needs, when its path lacks
+ * its parameters or its write the body the schema declares, when the body falls short of the schema or carries a
+ * field the route never reads, and when it puts a body on a read or a query on a write; and an answer is read as data
+ * only once `ok` says there is some. Two things it does not hold: options handed on as `undefined`, as a courier
+ * that takes them optionally does (the shell's `read`), and `api.url`, which builds a link from what it is given
+ * (the shell's `href` hands on a page's).
  *
  * A type test: the positives are `Holds<Exactly<…>>` (contracts' schema-sets.ts), and each line under
  * `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the
@@ -52,6 +56,20 @@ type _Shapes = [
 async function _sendsAndReads(api: Api, id: string, until: string): Promise<void> {
   const answer = await api("POST conversations/[id]/snooze", { params: { id }, body: { until } });
   type _Sent = Holds<Exactly<typeof answer, ApiResult<SnoozeResult>>>;
+  // What a route needs is exactly what it declares: a read with no parameters needs no options, and a write that
+  // declares no schema no body.
+  void api("GET conversations");
+  void api("POST conversations/[id]/wake", { params: { id } });
+  // @ts-expect-error a route whose path has a parameter and whose schema declares a body needs its options
+  void api("POST conversations/[id]/snooze");
+  // @ts-expect-error nor with the body and not the parameters: the request would ask for conversations//snooze
+  void api("POST conversations/[id]/snooze", { body: { until } });
+  // @ts-expect-error nor with the parameters and not the body the schema declares
+  void api("POST conversations/[id]/snooze", { params: { id } });
+  // @ts-expect-error nor with the body said to be undefined
+  void api("POST conversations/[id]/snooze", { params: { id }, body: undefined });
+  // @ts-expect-error and the call that answers the Response itself is held the same way
+  void api.raw("POST conversations/[id]/snooze");
   // @ts-expect-error a body the route never reads stops compiling rather than being sent
   void api("POST conversations/[id]/snooze", { params: { id }, body: { until, note: "call first" } });
   // @ts-expect-error a body short of what the schema requires

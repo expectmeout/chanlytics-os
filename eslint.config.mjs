@@ -43,7 +43,8 @@ const OUR_TS_RULES = {
   "no-empty": ["error", { allowEmptyCatch: true }],
   // A line that must not compile says why: the type tests' negatives (`*.type-test.ts`) are `@ts-expect-error <why>`,
   // and one whose line starts to compile is TS2578, an unused directive, so the typecheck fails. `@ts-ignore` stays
-  // silent when the line it hides is fixed, and `@ts-nocheck` hides a whole file: neither is written.
+  // silent when the line it hides is fixed, and `@ts-nocheck` hides a whole file: neither is written. The phone app
+  // (apps/mobile) lints under Expo's config, not this one, so the rule does not reach its files.
   "@typescript-eslint/ban-ts-comment": [
     "error",
     {

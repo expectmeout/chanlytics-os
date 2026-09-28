@@ -26,6 +26,10 @@ type _Envelope = [
   Holds<Exactly<Parameters<typeof err>[0], ErrorCode>>,
   Holds<Exactly<ConstructorParameters<typeof AppError>[0], ErrorCode>>,
   Holds<Exactly<AppError["code"], ErrorCode>>,
+  // @ts-expect-error had ok answered any, the first positive would read so, and Exactly refuses any
+  Holds<Exactly<any, Ok<{ id: string }>>>,
+  // @ts-expect-error had Err's code or AppError's been typed any, their positives would read so: any is no ErrorCode
+  Holds<Exactly<any, ErrorCode>>,
   // @ts-expect-error a code outside ERROR_CODES is not an ErrorCode: no client has words for it
   Holds<Within<"teapot", ErrorCode>>,
   // @ts-expect-error nor may an error be made with one

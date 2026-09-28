@@ -127,6 +127,7 @@ Copy the shape of these; do not invent a second one.
 | A test of a verb                              | `tooling/scripts/tests/conversations/core-thread-verbs.test.mjs`                       | Fakes for the ports                                                                                     |
 | A ratchet                                     | `tooling/scripts/tests/repo/code-health-ratchets.test.mjs`, `_ratchet.mjs`, `_ast.mjs` | Measure the syntax tree, never the text; the baseline may only fall; a row in `docs/debt.md`            |
 | A database test                               | `tooling/scripts/tests/<domain>/*.db.test.mjs`                                         | Runs against the replayed stack in CI when database paths change; skips without credentials             |
+| A type test                                   | `packages/contracts/src/shared/identity.type-test.ts`                                  | Positives are `Holds<Exactly<…>>`; a negative is one line under `// @ts-expect-error <why>`             |
 | A design that changes the shape of the system | `docs/decisions/0002-appointments-record.md`                                           | Written against a named commit, steps shippable in either deploy order                                  |
 
 ## Where new code goes
@@ -145,6 +146,10 @@ Copy the shape of these; do not invent a second one.
 - Something a page draws: `apps/dashboard/src/legacy/pages`, fed through `src/legacy-bridge`.
 - A test: `tooling/scripts/tests/<domain>/`, named for what it proves; a world or helper it
   shares stays at the root as `_name.mjs`.
+- A promise only the compiler can check (a brand, a closed set, a route's shape): a type test beside the module it
+  proves, named for it, as `packages/contracts/src/shared/identity.type-test.ts` is for
+  `packages/contracts/src/shared/identity.ts`. Its project's `tsc --noEmit` compiles it; nothing compiles
+  TypeScript under `tooling/scripts/tests/`, so one written there could never fail.
 
 ## What not to introduce
 

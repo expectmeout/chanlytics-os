@@ -1,7 +1,8 @@
 /**
  * Whose id this is, proved where the compiler reads it (identity.ts): what each check makes is its brand, a branded
- * id is still a string wherever one is read, and nothing else is a TenantId or a ContactId -- not a bare string, not
- * the other id, not a lookalike brand under a symbol of its own.
+ * id is still a string wherever one is read, the brand is keyed by a symbol rather than a property a copy could
+ * forge, and nothing else is a TenantId or a ContactId -- not a bare string, not the other id, not a lookalike brand
+ * under a symbol of its own.
  *
  * A type test: the positives are `Holds<Exactly<…>>` and `Holds<Within<…>>` (schema-sets.ts), and each line under
  * `@ts-expect-error <why>` must not compile. One that starts to compile is TS2578, an unused directive, so the
@@ -21,6 +22,11 @@ type _Brands = [
   // A branded id is still a string wherever one is read: a query's filter, a log line, a map's key.
   Holds<Within<TenantId, string>>,
   Holds<Within<ContactId, string>>,
+  // The brand is keyed by a symbol: under a string property (`__brand`), any copy of the declaration would be it.
+  Holds<Within<Exclude<keyof TenantId, keyof string>, symbol>>,
+  Holds<Within<Exclude<keyof ContactId, keyof string>, symbol>>,
+  // @ts-expect-error had asTenantId answered any, the first positive would read so, and Exactly refuses any
+  Holds<Exactly<any, TenantId>>,
   // @ts-expect-error a bare string is not a TenantId: it becomes one where it enters, through asTenantId
   Holds<Within<string, TenantId>>,
   // @ts-expect-error nor a ContactId: that is asContactId's to make
