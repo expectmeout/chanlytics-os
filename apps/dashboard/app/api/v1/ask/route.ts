@@ -20,7 +20,7 @@ import { requireUuid } from "@/server/request-guards";
 import { load, readerContext } from "@/server/readers";
 import * as readers from "@/server/readers/facts";
 import { runAskTurn, type TurnEvent } from "@/server/ask/loop";
-import { threadForTurn } from "@/server/ask/memory";
+import { storedRaw, threadForTurn } from "@/server/ask/memory";
 import { askTurnText, workspaceFacts, type SearchAnswering } from "@/server/ask/prompt";
 import { searchRow } from "@/server/leads/leads";
 import { appendMessage, touchThread } from "@/server/ask/store";
@@ -51,6 +51,11 @@ import { appendMessage, touchThread } from "@/server/ask/store";
  * planned in; a thread that is not the caller's -- a teammate planned it, or
  * it is gone -- is not an error for an answer: it starts one of the caller's
  * own, titled by the search's name (titleFromSearch).
+ *
+ * The answer's row also keeps the turn as the model was sent it, at
+ * `content.raw` (server/ask/memory.ts, storedRaw; the Phase 5 plan, D11), for
+ * a later turn to replay: the final line is built from the turn, never from
+ * the row, so it never carries it, and the thread's reads never select it.
  *
  * withRoute's envelope is for JSON; a stream is returned as-is, and withRoute
  * still refuses a cross-site POST and still verifies the session first.
@@ -164,7 +169,8 @@ export const POST = write({
     // The thread, before anything else: a question that could not be saved is
     // not answered, so a person never sees an answer they cannot find again.
     const kept = await threadForTurn(ctx, { tenantId, threadId, text, scope: askedScope, answering });
-    const { thread: turn, history, sinceLastMs, scope } = kept;
+    // The thread's earlier turns: their words, the time since the last, and while it is warm the turns as sent.
+    const { thread: turn, scope, ...earlier } = kept;
     await appendMessage(ctx, turn.id, tenantId, "user", { text, ...(answering ? { answering } : {}) });
 
     // A turn keeps what may be kept across turns (the workspace's name and zone, five minutes): the next question of
@@ -208,10 +214,9 @@ export const POST = write({
           language,
           scope,
           surface,
-          history,
+          ...earlier,
           text: askTurnText(text, answering),
           openedMs,
-          sinceLastMs,
           context,
           emit: (ev) => send(line(ev)),
           // One clock for the turn: the tools' today is the readers' today.
@@ -243,7 +248,7 @@ export const POST = write({
         };
         let saved: { id: string; created_at: string } | null = null;
         try {
-          saved = await appendMessage(ctx, turn.id, tenantId, "assistant", content);
+          saved = await appendMessage(ctx, turn.id, tenantId, "assistant", { ...content, raw: storedRaw(result.raw) });
           // A thread keeps its first question as its title; an answer moves it up the list, and it keeps the scope
           // this turn ran with (the Phase 5 plan, D9), so the next question sent with none is asked about the same.
           await touchThread(ctx, turn.id, scope);

@@ -1326,6 +1326,12 @@ test("a person's reply leaves by its own domain when that route still holds it, 
       identity: ownDomainIdentity({ ...OWN, host: "other.example" }, MAILBOX, "mail.chanlytics.com"),
     });
     await asMailbox(both, elsewhere, "domain_has_no_route");
+    // A domain of the workspace's that is held has no route either, and the row says it was held: its only one, or
+    // one beside a domain that still sends.
+    const heldAt = /<([^<>]+)>/.exec(elsewhere.from)[1];
+    await asMailbox(emailSender([hosted], [heldAt]), elsewhere, "domain_held");
+    await asMailbox(emailSender([hosted, own], [heldAt]), elsewhere, "domain_held");
+    await asMailbox(emailSender([hosted, own], [heldAt]), ownTwin({ to: OWNER }), "twin_names_another_recipient");
     // The route refuses the twin's Reply-To: a retired reply route.
     const retired = ownTwin({
       identity: {

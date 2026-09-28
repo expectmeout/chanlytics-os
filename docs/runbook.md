@@ -440,10 +440,11 @@ the workspace once (`reach_out_replied`). The readings are rows of
   sends the twin when it can and records which left on the row:
   `meta.email.left_as` is `own` or `mailbox`, with the reason
   (00226 `stamp_email_left_as`). The reasons for `mailbox` are
-  `no_own_route` (no own domain is bound: the cold lane's keys are unset, the
-  domains could not be read that tick, `email_own_domains_unread`, or none is
-  verified now), `domain_has_no_route` (the twin's domain was held or removed
-  after the freeze), `route_refuses_twin` (its Reply-To is on a reply domain
+  `domain_held` (the twin's domain was held after the freeze; the Inbox line
+  says so), `no_own_route` (no own domain is bound: the cold lane's keys are
+  unset, the domains could not be read that tick, `email_own_domains_unread`,
+  or none is verified now), `domain_has_no_route` (the twin's domain was
+  removed after the freeze, or is being verified again), `route_refuses_twin` (its Reply-To is on a reply domain
   the edge has retired) and `twin_names_another_recipient`. A reply with no
   `left_as` left as every reply did before: the dashboard froze no twin
   (the domain held or removed at Send, or no reach-out email on the thread),

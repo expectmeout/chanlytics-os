@@ -11,7 +11,9 @@
  * the WhatsApp token's permanence asked of Meta as the app this deployment
  * speaks for, each voice line's live settings and shell read from Retell with
  * nothing but a fingerprint of the key, the two gates that decide who is
- * answered, and the receptionist's last day from its usage events.
+ * answered, and the receptionist's last day from its usage events. And the
+ * report as a whole: the knock read before any part of it, the parts in one
+ * order, each failing in its own line while the others answer.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -761,4 +763,190 @@ test("where cold mail's links and replies go (D17), as values: what the edge use
     ["https://app.chanlytics.com", true, [], true],
     "set and unreadable: ignored, and said so",
   );
+});
+
+/* -------------------------------- the report ------------------------------ */
+
+test("the knock comes first: a refused request reads no more of the environment than its two credentials, so no part of the report runs before the check, not even one asking for the database", async () => {
+  // No database handed in: pg() then reads SUPABASE_URL to find there is none, so a part that asked for the database
+  // before the check would show here as plainly as one that read a variable of its own.
+  setPg(null);
+  const net = unreachable("a refused request must reach no provider");
+  const refused = [
+    ["no credential", {}],
+    ["a wrong key", { "x-diag-key": "not-the-key" }],
+    ["a token for another door", { "x-edge-token": token({ aud: "/api/admin/lines" }) }],
+    [
+      "a forgery beside the right key",
+      { "x-edge-token": token({ secret: "not-the-secret" }), "x-diag-key": process.env.DIAG_KEY },
+    ],
+  ].map(([why, headers]) => [why, new Request(`http://edge${AUD}`, { headers })]);
+  const letIn = new Request(`http://edge${AUD}`, { headers: { "x-diag-key": process.env.DIAG_KEY } });
+  const real = process.env;
+  const asked = [];
+  process.env = new Proxy(real, {
+    get(t, k) {
+      if (typeof k === "string") asked.push(k);
+      return t[k];
+    },
+  });
+  try {
+    for (const [why, request] of refused) {
+      asked.length = 0;
+      assert.equal((await GET(request)).status, 403, why);
+      assert.deepEqual(
+        asked.filter((k) => k !== "EDGE_CALL_SECRET" && k !== "DIAG_KEY"),
+        [],
+        `${why}: the knock was read, and nothing past it`,
+      );
+    }
+    asked.length = 0;
+    assert.equal((await GET(letIn)).status, 200);
+    assert.ok(
+      asked.includes("SUPABASE_URL") && asked.includes("RETELL_API_KEY"),
+      "past the knock the report reads what it reports on, so the watch above sees what it must",
+    );
+  } finally {
+    process.env = real;
+    net.restore();
+  }
+});
+
+test("the report answers part by part in one order; a part that cannot read says so in its own line, without the key that needed its read, and the others still answer", async () => {
+  const order = [
+    "memory",
+    "env",
+    "coldMail",
+    "sweeps",
+    "jobs_backlog",
+    "pages",
+    "numbers",
+    "waTokenCheck",
+    "voiceAgents",
+    "retellAuth",
+    "whatsapp",
+    "brain",
+  ];
+  const every = {
+    WHATSAPP_ACCESS_TOKEN: "wa-token-value-nobody-may-see",
+    META_APP_SECRET: "meta-secret-value-nobody-may-see",
+    RETELL_API_KEY: KEY,
+  };
+  const line = {
+    id: "ch-1",
+    tenant_id: A,
+    kind: "voice",
+    external_id: "agent_ok",
+    status: "active",
+    number_e164: "+13055550100",
+  };
+  use({ tenant_channels: [line] });
+  const up = wire((req) => {
+    if (req.url.startsWith("https://graph.facebook.com/"))
+      return { body: { data: { is_valid: true, expires_at: 0, type: "SYSTEM_USER" } } };
+    if (req.url.endsWith("/get-agent/agent_ok")) return { body: agentOnShell("agent_ok", "llm_ok") };
+    if (req.url.endsWith("/get-retell-llm/llm_ok?version=1")) return { body: llmOnShell("llm_ok") };
+    throw new Error(`unexpected request ${req.method} ${req.url}`);
+  });
+  try {
+    assert.deepEqual(Object.keys(await withEnv(every, read)), order, "every part, in the report's order");
+  } finally {
+    up.restore();
+  }
+
+  use(
+    { tenant_channels: [line] },
+    {
+      sweep_health: () => {
+        throw new Error("permission denied for schema cron");
+      },
+      number_drift: () => {
+        throw new Error("function public.number_drift() does not exist");
+      },
+    },
+    {
+      "operator_pages.select": { message: "relation does not exist" },
+      "events.select": { message: "canceling statement due to statement timeout" },
+    },
+  );
+  const down = wire(() => {
+    throw new Error("getaddrinfo ENOTFOUND");
+  });
+  try {
+    const res = await withEnv(every, knock);
+    assert.equal(res.status, 200, "every read failed, and the report still answers");
+    const body = await res.json();
+    assert.deepEqual(
+      Object.keys(body),
+      order.filter((k) => k !== "jobs_backlog" && k !== "retellAuth"),
+      "no backlog without the clocks, no auth evidence without the agents",
+    );
+    assert.deepEqual(
+      [body.sweeps, body.pages, body.numbers, body.waTokenCheck, body.voiceAgents, body.brain],
+      [
+        { error: "permission denied for schema cron" },
+        { error: "relation does not exist" },
+        { error: "function public.number_drift() does not exist" },
+        { error: "getaddrinfo ENOTFOUND" },
+        { error: "getaddrinfo ENOTFOUND" },
+        { error: "canceling statement due to statement timeout" },
+      ],
+      "each part's failure in its own line",
+    );
+    assert.deepEqual(
+      body.whatsapp,
+      { allowlist_numbers: 0, env_fallback_token: true, signup_ready: false },
+      "and the part that reads nothing still answers",
+    );
+  } finally {
+    down.restore();
+  }
+});
+
+test("a voice line whose agent runs on no Retell LLM, or whose LLM cannot be read, says which of the two: its shell is never guessed", async () => {
+  use({
+    tenant_channels: [
+      {
+        id: "ch-1",
+        tenant_id: A,
+        kind: "voice",
+        external_id: "agent_flow",
+        status: "active",
+        number_e164: "+13055550100",
+      },
+      {
+        id: "ch-2",
+        tenant_id: B,
+        kind: "voice",
+        external_id: "agent_lost",
+        status: "active",
+        number_e164: "+13055550101",
+      },
+    ],
+  });
+  const retell = wire((req) => {
+    if (req.url.endsWith("/get-agent/agent_flow"))
+      return { body: { ...agentOnShell("agent_flow", null), response_engine: { type: "conversation-flow" } } };
+    if (req.url.endsWith("/get-agent/agent_lost")) return { body: agentOnShell("agent_lost", "llm_lost") };
+    if (req.url.endsWith("/get-retell-llm/llm_lost?version=1"))
+      return { status: 404, body: { message: "no such llm" } };
+    throw new Error(`unexpected request ${req.method} ${req.url}`);
+  });
+  try {
+    const body = await withEnv({ RETELL_API_KEY: KEY }, read);
+    assert.deepEqual(
+      body.voiceAgents.map((a) => [a.agent_id, a.model, a.shell]),
+      [
+        ["agent_flow", null, { error: "not_a_retell_llm" }],
+        ["agent_lost", null, { error: "llm_unreadable" }],
+      ],
+    );
+    assert.deepEqual(
+      retell.seen.map((r) => r.url.replace("https://api.retellai.com", "")),
+      ["/get-agent/agent_flow", "/get-agent/agent_lost", "/get-retell-llm/llm_lost?version=1"],
+      "an agent on no Retell LLM has none to read",
+    );
+  } finally {
+    retell.restore();
+  }
 });

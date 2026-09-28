@@ -42,7 +42,7 @@
     "lines/a2p-refile.test.mjs": 17,
     "lines/a2p.test.mjs": 17,
     "lines/forwarding.test.mjs": 4,
-    "lines/line-recovery.test.mjs": 6,
+    "lines/line-recovery.test.mjs": 5,
     "lines/lines-saga.test.mjs": 8,
     "lines/numbers-two-tables.test.mjs": 1,
     "lines/registration-path.test.mjs": 8,

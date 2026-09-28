@@ -161,3 +161,24 @@ export function replayBlocks(blocks: RoundBlock[]): unknown[] {
     }
   });
 }
+
+/** A call a round made, and what it answered: a read's rows or an act's card, or the error said in words. */
+export interface CallOutcome {
+  block: RoundBlock;
+  out: { result: string; isError: boolean };
+}
+
+/**
+ * What a round's calls answered, as the next request carries it: one result
+ * under each call's id, in the order of the calls, an error marked as one. The
+ * loop sends them back when the round goes on; a turn that ends on its round
+ * keeps them for the next turn to send (memory.ts, the raw turn).
+ */
+export function resultBlocks(outcomes: CallOutcome[]): unknown[] {
+  return outcomes.map(({ block, out }) => ({
+    type: "tool_result",
+    tool_use_id: block.id,
+    content: out.result,
+    is_error: out.isError,
+  }));
+}
