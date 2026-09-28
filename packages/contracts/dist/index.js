@@ -21318,6 +21318,37 @@ function heldNoticeWords(p) {
   };
 }
 
+// src/reach-out/reach-out-reply-today.ts
+function rowWorthy(r2) {
+  return !r2.undone && r2.claim !== "auto_reply" && r2.intent !== "no";
+}
+var drafted = (r2) => r2.draft_state === "written" && !!r2.draft;
+function replyRowOf(row2, r2) {
+  const read = !r2.unread && r2.intent !== "other";
+  return {
+    ...row2,
+    kind: "reply",
+    channel: "Email",
+    status: read ? ["Wrote back", REPLY_INTENT_WORDS[r2.intent]] : ["Wrote back"],
+    sentence: r2.summary ?? row2.sentence,
+    quoted: false,
+    cta: { label: drafted(r2) ? "Read the draft" : "Open and reply", to: row2.cta.to }
+  };
+}
+function withReplies(rows, readings) {
+  const newest = /* @__PURE__ */ new Map();
+  for (const r2 of readings) if (!newest.has(r2.conversation_id)) newest.set(r2.conversation_id, r2);
+  return rows.map((row2) => {
+    const r2 = row2.kind === "handoff" && row2.conversationId ? newest.get(row2.conversationId) : void 0;
+    return r2 && rowWorthy(r2) ? replyRowOf(row2, r2) : row2;
+  });
+}
+function bellActionOf(row2, readings) {
+  if (row2.kind !== "reach_out_replied" || !row2.about || row2.about.type !== "conversation") return row2.action;
+  const r2 = readings.find((x) => x.conversation_id === row2.about?.id);
+  return r2 && !r2.undone && drafted(r2) ? "Read the draft" : row2.action;
+}
+
 // src/reports/campaign-report.ts
 var sum2 = (xs) => xs.reduce((a, b) => a + b, 0);
 var pct2 = (n, d) => d ? Math.round(n / d * 100) : null;
@@ -25271,13 +25302,20 @@ function todayPeriodLine(r2) {
 
 // src/today/today-runs.ts
 function todayRunWords(r2) {
-  const people = `${r2.recipient_count} ${r2.recipient_count === 1 ? "person" : "people"}`;
+  const reach = isReachOutRun(r2.audience);
+  const one = r2.recipient_count === 1;
+  const people = reach ? `${r2.recipient_count} ${one ? "business" : "businesses"}` : `${r2.recipient_count} ${one ? "person" : "people"}`;
+  const kind = reach ? "Reach-out" : "Playbook";
   const sent = `${r2.counts.sent} sent`;
   return {
     people,
-    waiting: { sentence: `${people}. Nothing sends until you say so.`, status: ["Waiting for your approval"] },
+    waiting: {
+      meta: `${kind} \xB7 ready`,
+      sentence: `${people}. Nothing sends until you say so.`,
+      status: ["Waiting for your approval"]
+    },
     soon: {
-      meta: `Playbook \xB7 sends ${r2.when}`,
+      meta: `${kind} \xB7 sends ${r2.when}`,
       sentence: `${people}. Stop it if you'd rather not.`,
       status: ["Scheduled", `sends ${r2.when}`]
     },
@@ -25795,7 +25833,9 @@ var AWAY_NOUN = {
   // A search that stopped to ask: it waits a day for the answer, then stops and keeps what it found.
   leads_question: ["search is waiting for your answer", "searches are waiting for your answer"],
   // Searches finish in runs (a morning's round of eight), and eight "is done" rows buried the bell's first screen.
-  leads_ready: ["search finished", "searches finished"]
+  leads_ready: ["search finished", "searches finished"],
+  // A reach-out that wrote to several businesses hears back from several (Reach out Part 5).
+  reach_out_replied: ["reply to a reach-out", "replies to a reach-out"]
 };
 var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
@@ -25929,6 +25969,61 @@ function todaySteps(rows, nowMs, tz, max = TODAY_STEPS_MAX) {
     more: due.more ? { words: due.more, to: "clients/seg:steps_due" } : null
   };
 }
+
+// src/today/notification-kinds.ts
+var NOTIFICATION_KIND_GROUPS = [
+  {
+    title: "Customers",
+    rows: [
+      {
+        title: "A customer needs a person",
+        what: "It stopped on a thread and someone is waiting. The alert carries their message."
+      },
+      { title: "Still waiting", what: "A handoff has gone unanswered for a while." },
+      { title: "After every phone call", what: "Who called, how long, how it went." },
+      { title: "A reply failed to send", what: "It wrote an answer and the channel refused it." }
+    ]
+  },
+  {
+    // Reach out, Part 5 (N2): what a reach-out tells its owner, each the moment it happens.
+    title: "Reach-outs",
+    rows: [
+      {
+        title: "They wrote back",
+        what: "A business answered a reach-out: what the reply was read as, what was done, and the receptionist's draft when it wrote one."
+      },
+      {
+        title: "A reach-out waits for you",
+        what: "A run is planned and waits for your yes before anything sends."
+      },
+      {
+        title: "A reach-out holds an email for you",
+        what: "The check held an email of a run it could not pass, and it waits for your call."
+      },
+      {
+        title: "A sending domain is held, and when it sends again",
+        what: "A domain stopped sending (bounces, a complaint, its records), which stops its runs; and when it sends again."
+      }
+    ]
+  },
+  {
+    // A switched-off number has no workspace to address, and a stalled sweep belongs to nobody's workspace. Listing
+    // them beside "goes to each of these addresses" without saying so promised an email the owner never receives.
+    title: "To Chanlytics",
+    rows: [
+      {
+        title: "Messages arriving for a switched-off number",
+        what: "Someone is texting a channel this workspace switched off. Goes to Chanlytics, not to the addresses above: a switched-off number has no workspace to alert.",
+        platform: true
+      },
+      {
+        title: "Background checks",
+        what: "When the watchdog over unanswered threads stops, and when it recovers. Goes to Chanlytics, not to the addresses above.",
+        platform: true
+      }
+    ]
+  }
+];
 
 // src/workspace/signup.ts
 import { z as z17 } from "zod";
@@ -27763,6 +27858,7 @@ export {
   NOTE_SUGGEST_MODEL,
   NOTE_SUGGEST_SCHEMA,
   NOTE_WORDS,
+  NOTIFICATION_KIND_GROUPS,
   NO_FIELDS_COMPOSED_WORDS,
   NO_LINK_DETAILS,
   NO_NUMBER_REACH,
@@ -28103,6 +28199,7 @@ export {
   autoReplyBell,
   autoReplyCandidates,
   awayUntilOf,
+  bellActionOf,
   bellSections,
   billingAccountDto,
   billingDoorOpen,
@@ -28811,6 +28908,7 @@ export {
   replyFromLineOf,
   replyLeftAsOf,
   replyNoticeWords,
+  replyRowOf,
   replyStepWords,
   replyStripOf,
   replySystemPrompt,
@@ -29088,6 +29186,7 @@ export {
   whyNotReceive,
   windowFor,
   withFirstAlertAddress,
+  withReplies,
   withVisitsOf,
   wordCount,
   wordsIssueWords,
